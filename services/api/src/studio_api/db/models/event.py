@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import ForeignKey
+from sqlalchemy import DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -31,7 +31,15 @@ class EventModel(UUIDPKMixin, Base):
     )
     actor_type: Mapped[str]
     actor_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True))
-    client_timestamp: Mapped[datetime]
-    server_timestamp: Mapped[datetime]
+    client_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    server_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     schema_version: Mapped[int] = mapped_column(default=1)
+
+    @property
+    def event_id(self) -> uuid.UUID:
+        """`EventEnvelope.event_id` is `id` under its contract name — the fixed
+        event envelope (.claude/rules/contracts.md) names it `event_id`, the PK
+        mixin names it `id`; this alias is what `model_validate(from_attributes)`
+        reads to fill the contract field."""
+        return self.id

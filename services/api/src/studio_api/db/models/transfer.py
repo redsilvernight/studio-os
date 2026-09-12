@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import BigInteger, ForeignKey
+from sqlalchemy import BigInteger, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -36,8 +36,8 @@ class TransferModel(UUIDPKMixin, Base):
     size_bytes: Mapped[int] = mapped_column(BigInteger())
     sha256: Mapped[str | None] = mapped_column(default=None)
     status: Mapped[str] = mapped_column(default="created")
-    expires_at: Mapped[datetime | None] = mapped_column(default=None)
-    created_at: Mapped[datetime]
-    uploaded_at: Mapped[datetime | None] = mapped_column(default=None)
-    downloaded_at: Mapped[datetime | None] = mapped_column(default=None)
-    deleted_at: Mapped[datetime | None] = mapped_column(default=None)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    uploaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    downloaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)

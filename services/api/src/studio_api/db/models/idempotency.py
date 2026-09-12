@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import DateTime, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,4 +25,4 @@ class IdempotencyKeyModel(UUIDPKMixin, Base):
     request_hash: Mapped[str]
     response_status: Mapped[int]
     response_body: Mapped[dict[str, Any]] = mapped_column(JSONB)
-    created_at: Mapped[datetime]
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

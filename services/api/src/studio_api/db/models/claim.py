@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ForeignKey
+from sqlalchemy import DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -30,6 +30,6 @@ class ResourceClaimModel(UUIDPKMixin, TimestampMixin, Base):
     )
     status: Mapped[str] = mapped_column(default="active")
     ttl_seconds: Mapped[int]
-    renewed_at: Mapped[datetime | None] = mapped_column(default=None)
-    expires_at: Mapped[datetime]
-    released_at: Mapped[datetime | None] = mapped_column(default=None)
+    renewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    released_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)

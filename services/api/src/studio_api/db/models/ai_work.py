@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import DateTime, ForeignKey, String
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -26,5 +26,5 @@ class AIWorkLogModel(UUIDPKMixin, Base):
     status: Mapped[str] = mapped_column(default="started")
     changed_files: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)
     tests_run: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)
-    started_at: Mapped[datetime]
-    ended_at: Mapped[datetime | None] = mapped_column(default=None)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)

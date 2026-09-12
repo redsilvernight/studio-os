@@ -19,21 +19,27 @@ outil de surveillance de productivite, ni un partage de disque reseau, ni une IA
 unique qui controle tout. Il ne code pas de jeu : il code la plateforme qui relie les
 outils existants.
 
-**Etat actuel du depot** : depot Git initialise (`origin` configure). Premier
-scaffold du Bloc A (Cloud/Core) en place : `packages/studio-contracts/`
-(schemas Pydantic v2 des 4 contrats), `services/api/` (FastAPI + SQLAlchemy
-async + Alembic), `services/mcp/` (serveur MCP minimal, 3 tools reels),
+**Etat actuel du depot** : depot Git initialise (`origin` configure). Scaffold
+du Bloc A (Cloud/Core) en place : `packages/studio-contracts/` (schemas
+Pydantic v2 des 4 contrats), `services/api/` (FastAPI + SQLAlchemy async +
+Alembic — projects/tasks/sessions/claims/decisions/agents/ai-work/heartbeats/
+events/transfers), `services/mcp/` (serveur MCP minimal, 3 tools reels),
 `docker/` (compose Caddy/API/MCP/Postgres/MinIO), `contracts/fixtures/`
-(mocks partages) et `tests/`. Aucun daemon local, watcher, CLI, dashboard,
-Graphify/Obsidian adapter, recorder ni Producer UI (Bloc B) — pas encore
-construits. Voir `docs/DECISIONS.md` pour les choix techniques non tranches
-par la documentation et fixes pendant ce scaffold (DEC-0001 a DEC-0009).
-Le travail correspond a la fin de la Phase 0 / debut Phase 1 de la roadmap
-(contrats enrichis + squelette Bloc A demarrable ; PostgreSQL/MinIO reels non
-testes sur cette machine de dev, Docker non disponible ici). Ne pas supposer
-l'existence d'un backend deploye, d'un daemon ou d'un dashboard avant de
-l'avoir verifie dans l'arborescence — le scaffold n'a pas tourne contre une
-vraie base ni ete deploye.
+(mocks partages) et `tests/` (28 tests : contrats + `tests/api/` — auth,
+tasks, claims, events, decisions, ai-work, heartbeats, projects, contre un
+vrai Postgres). Aucun daemon local, watcher, CLI, dashboard, Graphify/Obsidian
+adapter, recorder ni Producer UI (Bloc B) — pas encore construits. Aucun
+endpoint de creation `projects`/`machines`/`users` (provisioning) — les tests
+seedent ces lignes directement en DB, pas via l'API. Voir `docs/DECISIONS.md`
+pour les choix techniques non tranches par la documentation et fixes pendant
+ce scaffold (DEC-0001 a DEC-0010). Le travail correspond a la fin de la
+Phase 0 / debut Phase 1 de la roadmap (contrats enrichis + squelette Bloc A
+demarrable). PostgreSQL reel a ete verifie sur cette machine de dev
+(migrations Alembic + `tests/api/` tournent contre un Postgres 16 local,
+Docker toujours indisponible ici) — MinIO/S3 reste non teste. Ne pas
+supposer l'existence d'un backend deploye, d'un daemon ou d'un dashboard
+avant de l'avoir verifie dans l'arborescence — le scaffold n'a pas ete
+deploye.
 
 ## Source de verite
 
