@@ -1,5 +1,5 @@
 ---
-paths: ["**/transfer*/**/*.py", "**/storage/**/*.py", "**/*transfer_client*.py", "**/*multipart*.py"]
+paths: ["**/transfer*/**/*.py", "**/storage/**/*.py", "**/*transfer*.py", "**/*multipart*.py"]
 ---
 
 # Storage & Transfers (MinIO/S3)

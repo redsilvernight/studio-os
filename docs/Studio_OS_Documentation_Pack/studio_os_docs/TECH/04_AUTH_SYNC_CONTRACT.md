@@ -7,14 +7,37 @@
 
 Une machine possede son propre credential revocable. Les agents peuvent heriter d'un contexte machine mais doivent garder leur identite logique.
 
+Mecanisme retenu (DEC-0003, `docs/DECISIONS.md`) : credential machine = token
+opaque genere serveur, seul son hash SHA-256 est stocke
+(`Machine.credential_hash`). Header `Authorization: Bearer <token>` sur
+chaque requete authentifiee machine. Revocation = `credential_revoked_at`
+non-null, effective immediatement (pas de rotation/expiration a gerer).
+
 ## Roles minimum
 admin, developer, agent, readonly.
 
 ## Synchronisation
 Chaque ecriture offline-safe transporte un UUID stable et, si approprie, une Idempotency-Key. Le serveur garantit qu'un replay identique ne cree pas un doublon.
 
+Deux mecanismes distincts selon l'endpoint (voir `TECH/05_DATA_MODEL.md`
+section Event) :
+- Endpoints de creation generiques (tasks, claims, decisions, transfers,
+  sessions, ai-work) : header `Idempotency-Key`, le serveur stocke la reponse
+  associee a (`Idempotency-Key`, endpoint) et la rejoue a l'identique.
+- `POST /events` : l'UUID stable est `event_id` lui-meme (genere client-side),
+  pas de header separe — replay du meme `event_id` renvoie l'event deja
+  stocke.
+
 ## Heartbeat
 Intervalle nominal: 30 s. Etat derive de `last_seen_at` avec seuils configurables.
+
+`POST /heartbeats` — requete `HeartbeatRequest {machine_id, agent_id?,
+client_timestamp}`, reponse `HeartbeatResponse {machine_id, status,
+last_seen_at, server_timestamp}`. `status` (`online|idle|offline`) est
+calcule a la reponse a partir de `last_seen_at` et des seuils
+`heartbeat_interval_seconds` (defaut 30s, "online" en dessous de 1.5x) /
+`heartbeat_offline_after_seconds` (defaut 90s, "idle" en dessous, "offline"
+au-dela) — jamais mis en cache tel quel cote client.
 
 ## Conflits de mise a jour
 Les objets mutables utilisent `updated_at` et idealement une version entiere. En cas de conflit, le client doit recevoir 409 avec la version serveur courante.

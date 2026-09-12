@@ -1,0 +1,22 @@
+[
+  {
+    "created_at": "2026-08-13T18:35:39.183416Z",
+    "updated_at": "2026-09-12T18:35:39.183416Z",
+    "version": 3,
+    "id": "c014c7c8-383b-47b5-b745-f2f0be87e3f5",
+    "slug": "binagames-flagship",
+    "name": "BinaGames Flagship",
+    "description": "Main studio project.",
+    "archived": false
+  },
+  {
+    "created_at": "2026-09-02T18:35:39.183416Z",
+    "updated_at": "2026-09-12T18:35:39.183416Z",
+    "version": 1,
+    "id": "08e5aad3-101c-48ff-9c97-e636fed47869",
+    "slug": "studio-os",
+    "name": "Studio OS",
+    "description": null,
+    "archived": false
+  }
+]

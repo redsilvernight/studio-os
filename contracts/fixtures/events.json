@@ -1,0 +1,33 @@
+[
+  {
+    "event_id": "5a1e1539-5ec3-4c72-bd68-6aa9191edb45",
+    "event_type": "task.started",
+    "project_id": "c014c7c8-383b-47b5-b745-f2f0be87e3f5",
+    "task_id": "0f2578db-bd86-4ca7-8c2f-7783b492cc2c",
+    "machine_id": "55f026b7-8e92-4f0b-9f42-b972c0734fa3",
+    "actor_type": "agent",
+    "actor_id": "0cb0a432-dff8-4f51-b4ba-8937aae30b63",
+    "client_timestamp": "2026-09-12T18:35:37.183416Z",
+    "server_timestamp": "2026-09-12T18:35:39.183416Z",
+    "payload": {
+      "note": "Claude Code picked up the task"
+    },
+    "schema_version": 1
+  },
+  {
+    "event_id": "3d30735b-bf78-496a-838d-9b0ff5b30ca7",
+    "event_type": "resource.conflict",
+    "project_id": "c014c7c8-383b-47b5-b745-f2f0be87e3f5",
+    "task_id": "0f2578db-bd86-4ca7-8c2f-7783b492cc2c",
+    "machine_id": "55f026b7-8e92-4f0b-9f42-b972c0734fa3",
+    "actor_type": "system",
+    "actor_id": "55f026b7-8e92-4f0b-9f42-b972c0734fa3",
+    "client_timestamp": "2026-09-12T18:35:39.183416Z",
+    "server_timestamp": "2026-09-12T18:35:39.183416Z",
+    "payload": {
+      "claim_id": "c4a8aa88-79aa-46cd-ab9b-0260f18bb54e",
+      "resource_path": "res/characters/hero.tscn"
+    },
+    "schema_version": 1
+  }
+]

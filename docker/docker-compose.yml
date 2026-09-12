@@ -1,0 +1,110 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      API_DOMAIN: ${API_DOMAIN}
+      MCP_DOMAIN: ${MCP_DOMAIN}
+      STORAGE_DOMAIN: ${STORAGE_DOMAIN}
+    depends_on:
+      - api
+      - mcp
+      - minio
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/api.Dockerfile
+    restart: unless-stopped
+    command: ["uvicorn", "studio_api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      STUDIO_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      STUDIO_S3_ENDPOINT_URL: http://minio:9000
+      STUDIO_S3_PUBLIC_ENDPOINT_URL: https://${STORAGE_DOMAIN}
+      STUDIO_S3_BUCKET: ${MINIO_BUCKET}
+      STUDIO_S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      STUDIO_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  mcp:
+    build:
+      context: ..
+      dockerfile: docker/api.Dockerfile
+    restart: unless-stopped
+    command: ["python", "-m", "studio_mcp.server"]
+    environment:
+      STUDIO_MCP_TRANSPORT: streamable-http
+      STUDIO_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      STUDIO_S3_ENDPOINT_URL: http://minio:9000
+      STUDIO_S3_PUBLIC_ENDPOINT_URL: https://${STORAGE_DOMAIN}
+      STUDIO_S3_BUCKET: ${MINIO_BUCKET}
+      STUDIO_S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      STUDIO_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    # No `ports:` published — reachable only from other containers on this
+    # compose network, never from the host/internet (.claude/rules/database.md
+    # is silent on this but TECH/01_ARCHITECTURE.md makes Postgres server-only state).
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - ./.data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data
+    # No `ports:` published for the admin console — the S3 API itself is only
+    # reachable through Caddy (storage.example.com), never a raw published
+    # port (.claude/rules/storage-transfers.md: bucket is private).
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - ./.data/minio:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} &&
+      mc mb --ignore-existing local/${MINIO_BUCKET} &&
+      mc anonymous set none local/${MINIO_BUCKET}
+      "
+
+volumes:
+  caddy_data:
+  caddy_config:

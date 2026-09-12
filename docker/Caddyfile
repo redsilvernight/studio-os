@@ -1,0 +1,15 @@
+{$API_DOMAIN} {
+	reverse_proxy api:8000
+}
+
+{$MCP_DOMAIN} {
+	reverse_proxy mcp:8100
+}
+
+# Passthrough to MinIO's S3 API only — TLS termination, no buffering/parsing
+# of file bytes. Distinct from "the API proxying files" which is forbidden
+# (.claude/rules/storage-transfers.md): this is the S3-compatible endpoint
+# itself, addressed directly by pre-signed URLs (DEC-0004, docs/DECISIONS.md).
+{$STORAGE_DOMAIN} {
+	reverse_proxy minio:9000
+}

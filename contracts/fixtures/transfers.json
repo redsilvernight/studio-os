@@ -1,0 +1,22 @@
+[
+  {
+    "id": "9669f38a-4d4d-4530-91bf-1b9972e651ee",
+    "transfer_code": "TRF-A1B2C3D4",
+    "sender_user_id": "ac69db34-776a-461b-b64f-6267b5fc47b8",
+    "recipient_user_id": "e06f07b0-1091-41fb-8669-735008d4efc7",
+    "project_id": "c014c7c8-383b-47b5-b745-f2f0be87e3f5",
+    "task_id": "0f2578db-bd86-4ca7-8c2f-7783b492cc2c",
+    "category": "build",
+    "filename": "studio-os-build-0.1.0.zip",
+    "object_key": "studio/studio-os/2026/09/fc6dd65d-69b1-410a-91ff-b5d15b61b580/studio-os-build-0.1.0.zip",
+    "content_type": "application/zip",
+    "size_bytes": 734003200,
+    "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+    "status": "ready",
+    "expires_at": "2026-10-12T18:35:39.183416Z",
+    "created_at": "2026-09-12T17:35:39.183416Z",
+    "uploaded_at": "2026-09-12T17:50:39.183416Z",
+    "downloaded_at": null,
+    "deleted_at": null
+  }
+]

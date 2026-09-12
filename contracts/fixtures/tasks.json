@@ -1,0 +1,28 @@
+[
+  {
+    "created_at": "2026-09-12T13:35:39.183416Z",
+    "updated_at": "2026-09-12T18:35:39.183416Z",
+    "version": 2,
+    "id": "0f2578db-bd86-4ca7-8c2f-7783b492cc2c",
+    "readable_id": "TASK-0042",
+    "project_id": "c014c7c8-383b-47b5-b745-f2f0be87e3f5",
+    "title": "Implement resource claim conflict detection",
+    "description": "Folder claim must conflict with descendant file claim.",
+    "status": "in_progress",
+    "claimed_by_machine_id": "55f026b7-8e92-4f0b-9f42-b972c0734fa3",
+    "claimed_by_agent_id": "0cb0a432-dff8-4f51-b4ba-8937aae30b63"
+  },
+  {
+    "created_at": "2026-09-12T18:35:39.183416Z",
+    "updated_at": "2026-09-12T18:35:39.183416Z",
+    "version": 1,
+    "id": "93683006-2a28-4435-b0e0-b56d2c2c0e38",
+    "readable_id": null,
+    "project_id": "c014c7c8-383b-47b5-b745-f2f0be87e3f5",
+    "title": "Write onboarding doc",
+    "description": null,
+    "status": "created",
+    "claimed_by_machine_id": null,
+    "claimed_by_agent_id": null
+  }
+]

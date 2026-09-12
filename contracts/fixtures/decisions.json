@@ -1,0 +1,14 @@
+[
+  {
+    "id": "6b4a276b-b3b6-4f8c-99f1-fa1478af1cda",
+    "readable_id": "DEC-0001",
+    "project_id": "c014c7c8-383b-47b5-b745-f2f0be87e3f5",
+    "task_id": "0f2578db-bd86-4ca7-8c2f-7783b492cc2c",
+    "title": "Use opaque machine tokens",
+    "body": "Machine credentials are opaque tokens, only the SHA-256 hash is stored server-side.",
+    "status": "accepted",
+    "proposed_by_type": "agent",
+    "proposed_by_id": "0cb0a432-dff8-4f51-b4ba-8937aae30b63",
+    "created_at": "2026-09-11T18:35:39.183416Z"
+  }
+]

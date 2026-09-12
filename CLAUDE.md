@@ -19,11 +19,21 @@ outil de surveillance de productivite, ni un partage de disque reseau, ni une IA
 unique qui controle tout. Il ne code pas de jeu : il code la plateforme qui relie les
 outils existants.
 
-**Etat actuel du depot** : uniquement la documentation de reference
-(`docs/Studio_OS_Documentation_Pack/`). Aucun code d'implementation, pas encore de
-depot Git initialise. Le travail en cours correspond a la Phase 0 de la roadmap
-(figer les contrats). Ne pas supposer l'existence d'un backend, d'un daemon ou d'un
-dashboard avant de l'avoir verifie dans l'arborescence.
+**Etat actuel du depot** : depot Git initialise (`origin` configure). Premier
+scaffold du Bloc A (Cloud/Core) en place : `packages/studio-contracts/`
+(schemas Pydantic v2 des 4 contrats), `services/api/` (FastAPI + SQLAlchemy
+async + Alembic), `services/mcp/` (serveur MCP minimal, 3 tools reels),
+`docker/` (compose Caddy/API/MCP/Postgres/MinIO), `contracts/fixtures/`
+(mocks partages) et `tests/`. Aucun daemon local, watcher, CLI, dashboard,
+Graphify/Obsidian adapter, recorder ni Producer UI (Bloc B) — pas encore
+construits. Voir `docs/DECISIONS.md` pour les choix techniques non tranches
+par la documentation et fixes pendant ce scaffold (DEC-0001 a DEC-0009).
+Le travail correspond a la fin de la Phase 0 / debut Phase 1 de la roadmap
+(contrats enrichis + squelette Bloc A demarrable ; PostgreSQL/MinIO reels non
+testes sur cette machine de dev, Docker non disponible ici). Ne pas supposer
+l'existence d'un backend deploye, d'un daemon ou d'un dashboard avant de
+l'avoir verifie dans l'arborescence — le scaffold n'a pas tourne contre une
+vraie base ni ete deploye.
 
 ## Source de verite
 
@@ -99,10 +109,12 @@ ont ete supprimes) :
   (checklist de validation offline/claims/transferts, alignee sur
   `TECH/10_TEST_ACCEPTANCE.md`).
 
-Ces fichiers sont prospectifs : les chemins (`**/*.py`, `**/mcp/**`, `**/daemon/**`, ...)
-anticipent une arborescence raisonnable pour un backend FastAPI + client Python,
-mais rien n'est fige avant que le code reel existe — ajuster les `paths` des rules
-des que la structure reelle du repo est scaffoldee si elle differe.
+Les chemins (`**/*.py`, `**/mcp/**`, `**/daemon/**`, ...) ont ete verifies contre
+la structure reelle scaffoldee (`services/api/`, `services/mcp/`,
+`packages/studio-contracts/`) — `.claude/rules/storage-transfers.md` a ete
+elargi (`**/*transfer*.py`) pour couvrir `services/transfers.py`/`routers/transfers.py`
+qui ne matchaient pas le pattern initial. Le Bloc B (`daemon/`, `cli/`, `watchers/`)
+n'existe pas encore : ces `paths` restent prospectifs jusqu'a son scaffold.
 
 ## Local delegation
 
@@ -112,8 +124,8 @@ contre l'injection de prompt, verification) : `~/.claude/CLAUDE.md` et le skill
 
 ## Git safety
 
-- Ce depot n'a pas encore de `.git` initialise — verifier l'etat avant de supposer un historique.
-- Ne pas reset, rebase ou force-push sans confirmation explicite une fois le depot initialise.
+- Depot Git initialise (`origin` configure) — verifier `git status`/`git log` avant de supposer l'etat plutot que de se fier a une note perimee ici.
+- Ne pas reset, rebase ou force-push sans confirmation explicite.
 - Ne pas supprimer de branche ni effectuer d'operation Git destructive sans confirmation.
 - Ne pas modifier de fichiers hors du perimetre demande.
 
@@ -126,7 +138,8 @@ Ne jamais affirmer qu'une chose a ete testee si elle ne l'a pas ete.
 
 ## Tests
 
-Pas encore de code applicatif a tester. Une fois l'implementation commencee :
+Un premier scaffold Bloc A existe (`tests/`, `pytest`) — voir l'etat du depot
+ci-dessus. Une fois l'implementation continuee :
 
 - Dispatcher `studio-tester` apres chaque feature, avant de rapporter la tache comme terminee — meme principe que l'ancien `godot-tester` global, adapte a la stack Python/FastAPI/MCP/offline de ce projet (proportionnel au risque, Tier 3 reserve aux changements touchant queue offline/claims/transferts).
 - Suivre le plan de `TECH/10_TEST_ACCEPTANCE.md` et la checklist `IMPLEMENTATION/04_INTEGRATION_CHECKLIST.md`, ou charger le skill `offline-sync-testing` pour la partie offline/claims/transferts specifiquement.
@@ -138,6 +151,25 @@ plutot que d'en recreer localement — ce depot n'a pas vocation a contenir de c
 Godot propre.
 
 ## Graphify
+
+**Sortie centralisee, obligatoire : ce depot ne doit JAMAIS contenir de dossier
+`graphify-out/`.** Tout le graphe (build initial ou `--update`) doit atterrir
+dans `E:\Graphify\Studio-OS\graphify-out\` — voir
+`~/.claude/references/graphify-centralized-output.md` pour le mecanisme exact.
+En pratique :
+- Pipeline manuelle (SKILL.md, premier build complet) : executer chaque bloc
+  bash/python avec `cwd = E:\Graphify\Studio-OS` (PAS la racine du depot), et
+  passer le vrai chemin du projet (`C:\Users\redsi\Documents\Coding\Projet\Studi'os`)
+  comme `INPUT_PATH` partout ou le step doit lire les fichiers source.
+- CLI graphify ou `graphify_incremental_update.py` : definir la variable
+  d'environnement `GRAPHIFY_OUT=E:\Graphify\Studio-OS\graphify-out` (chemin
+  absolu) avant la commande ; `--root`/le chemin du projet reste le vrai
+  chemin du depot.
+- Si un `graphify-out/` apparait quand meme a la racine du depot (skill
+  invoque sans cette precaution), c'est un bug de procedure : deplacer son
+  contenu vers `E:\Graphify\Studio-OS\graphify-out\` (en ecrasant l'ancien
+  s'il est plus a jour) puis supprimer le dossier local - ne jamais le
+  laisser trainer dans le depot.
 
 Reference du projet : `AI/02_AGENT_RULES.md` (role Brainstormer/Graphify curator) et
 `TECH/09_OBSIDIAN_GRAPHIFY.md` (GraphProvider : `refresh_graph`, `query`,

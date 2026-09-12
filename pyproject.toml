@@ -1,0 +1,40 @@
+[project]
+name = "studio-os"
+version = "0.1.0"
+description = "Studio OS workspace root (Bloc A: Cloud/Core)"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.uv.workspace]
+members = ["packages/*", "services/*"]
+
+[tool.uv.sources]
+studio-contracts = { workspace = true }
+studio-api = { workspace = true }
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's Query()/Header()/Depends() in argument defaults is the documented
+# idiom, not the mutable-default footgun B008 flags.
+extend-immutable-calls = ["fastapi.Query", "fastapi.Header", "fastapi.Depends"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "services/api/tests"]
+asyncio_mode = "auto"
+
+[dependency-groups]
+dev = [
+    "mypy>=2.3.1",
+    "ruff>=0.16.7",
+]
