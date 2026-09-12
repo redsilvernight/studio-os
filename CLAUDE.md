@@ -37,18 +37,29 @@ hors-bande avec la CLI serveur `studio-admin`
 (`services/api/src/studio_api/admin_cli.py`, `uv run studio-admin ...` depuis
 `services/api/`). Voir `docs/DECISIONS.md` pour les choix techniques non
 tranches par la documentation et fixes pendant ce scaffold (DEC-0001 a
-DEC-0013). Le travail correspond a la Phase 1 de la roadmap (Core utilisable)
+DEC-0014). Le travail correspond a la Phase 1 de la roadmap (Core utilisable)
 en cours. PostgreSQL reel a ete verifie sur cette machine de dev (PostgreSQL
 18 installe localement via `scoop`, pas de service Windows enregistre —
 demarrer avec `pg_ctl start -D <chemin scoop persist>\data` avant
 `uv run pytest` ; migrations Alembic + `tests/api/` tournent contre ce
-Postgres local, Docker toujours indisponible ici). MinIO/S3 (`StorageProvider`,
-presigning + multipart) a ete valide reellement (DEC-0013) via un MinIO
-compile localement (`go install github.com/minio/minio@latest`, Docker
-restant indisponible) — `tests/api/test_transfers_storage.py`. Ce MinIO
-local n'est pas lance en permanence : le redemarrer (identifiants par
-defaut de `Settings`, bucket `studio-transfers` a recreer via boto3
-`create_bucket`) avant de relancer ces 4 tests specifiquement.
+Postgres local). MinIO/S3 (`StorageProvider`, presigning + multipart) a ete
+valide reellement (DEC-0013) via un MinIO compile localement — 
+`tests/api/test_transfers_storage.py`. Ce MinIO local n'est pas lance en
+permanence : le redemarrer (identifiants par defaut de `Settings`, bucket
+`studio-transfers` a recreer via boto3 `create_bucket`) avant de relancer
+ces 4 tests specifiquement.
+
+Docker Desktop est desormais installe sur cette machine (DEC-0014, WSL2)
+et `docker/docker-compose.yml` a ete verifie reellement une fois (Postgres/
+MinIO/API/MCP/Caddy, deux bugs corriges — images `minio/*` introuvables sur
+Docker Hub → `quay.io/minio/*`, et `api.Dockerfile` qui n'installait pas les
+dependances du workspace uv). Il n'est PAS laisse tourner en permanence
+(`docker compose down` fait apres validation) — ne pas supposer qu'il
+tourne sans verifier (`docker compose ps` depuis `docker/`). Aucune
+migration Alembic automatique au demarrage du conteneur `api` : lancer
+manuellement `docker compose exec api sh -c "cd services/api && python -m
+alembic upgrade head"` sur une base fraiche avant tout premier
+`studio-admin bootstrap-admin`.
 Ne pas supposer l'existence d'un backend deploye, d'un daemon ou d'un
 dashboard avant de l'avoir verifie dans l'arborescence — le scaffold n'a pas
 ete deploye.

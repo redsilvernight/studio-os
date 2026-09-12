@@ -76,7 +76,7 @@ services:
       retries: 10
 
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     restart: unless-stopped
     command: server /data
     # No `ports:` published for the admin console — the S3 API itself is only
@@ -94,7 +94,7 @@ services:
       retries: 10
 
   minio-init:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:latest
     depends_on:
       minio:
         condition: service_healthy
