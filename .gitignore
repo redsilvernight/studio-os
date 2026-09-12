@@ -1,0 +1,21 @@
+# Claude Code local state (machine-specific, not shared)
+.claude/settings.local.json
+.claude/settings.local.backup.json
+.claude/scheduled_tasks.lock
+.claude/worktrees/
+
+# Graphify generated output (rebuildable, excluded from vault/git per convention)
+graphify-out/
+
+# OS/editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+
+# Future backend/client stacks (Bloc A/B, once code lands)
+__pycache__/
+*.pyc
+.venv/
+venv/
+node_modules/
+.env

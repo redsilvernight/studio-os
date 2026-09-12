@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web-export-preview",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8060", "--directory", "export_web"],
+      "port": 8060
+    }
+  ]
+}
