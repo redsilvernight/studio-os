@@ -23,23 +23,29 @@ outils existants.
 du Bloc A (Cloud/Core) en place : `packages/studio-contracts/` (schemas
 Pydantic v2 des 4 contrats), `services/api/` (FastAPI + SQLAlchemy async +
 Alembic — projects/tasks/sessions/claims/decisions/agents/ai-work/heartbeats/
-events/transfers), `services/mcp/` (serveur MCP minimal, 3 tools reels),
-`docker/` (compose Caddy/API/MCP/Postgres/MinIO), `contracts/fixtures/`
-(mocks partages) et `tests/` (28 tests : contrats + `tests/api/` — auth,
-tasks, claims, events, decisions, ai-work, heartbeats, projects, contre un
-vrai Postgres). Aucun daemon local, watcher, CLI, dashboard, Graphify/Obsidian
-adapter, recorder ni Producer UI (Bloc B) — pas encore construits. Aucun
-endpoint de creation `projects`/`machines`/`users` (provisioning) — les tests
-seedent ces lignes directement en DB, pas via l'API. Voir `docs/DECISIONS.md`
-pour les choix techniques non tranches par la documentation et fixes pendant
-ce scaffold (DEC-0001 a DEC-0010). Le travail correspond a la fin de la
-Phase 0 / debut Phase 1 de la roadmap (contrats enrichis + squelette Bloc A
-demarrable). PostgreSQL reel a ete verifie sur cette machine de dev
-(migrations Alembic + `tests/api/` tournent contre un Postgres 16 local,
-Docker toujours indisponible ici) — MinIO/S3 reste non teste. Ne pas
-supposer l'existence d'un backend deploye, d'un daemon ou d'un dashboard
-avant de l'avoir verifie dans l'arborescence — le scaffold n'a pas ete
-deploye.
+events/transfers/provisioning), `services/mcp/` (serveur MCP minimal, 3 tools
+reels), `docker/` (compose Caddy/API/MCP/Postgres/MinIO), `contracts/fixtures/`
+(mocks partages) et `tests/` (33 tests : contrats + `tests/api/` — auth,
+tasks, claims, events, decisions, ai-work, heartbeats, projects, provisioning,
+contre un vrai Postgres). Aucun daemon local, watcher, CLI, dashboard,
+Graphify/Obsidian adapter, recorder ni Producer UI (Bloc B) — pas encore
+construits. Provisioning (`projects`/`machines`/`users`) implemente
+(DEC-0011/DEC-0012) : `POST /projects` (role `admin`/`developer`),
+`POST /machines`, `POST /machines/{id}/revoke`, `POST /users` (role `admin`,
+via la dependance `require_roles`) ; le tout premier admin/machine se cree
+hors-bande avec la CLI serveur `studio-admin`
+(`services/api/src/studio_api/admin_cli.py`, `uv run studio-admin ...` depuis
+`services/api/`). Voir `docs/DECISIONS.md` pour les choix techniques non
+tranches par la documentation et fixes pendant ce scaffold (DEC-0001 a
+DEC-0012). Le travail correspond a la Phase 1 de la roadmap (Core utilisable)
+en cours. PostgreSQL reel a ete verifie sur cette machine de dev (PostgreSQL
+18 installe localement via `scoop`, pas de service Windows enregistre —
+demarrer avec `pg_ctl start -D <chemin scoop persist>\data` avant
+`uv run pytest` ; migrations Alembic + `tests/api/` tournent contre ce
+Postgres local, Docker toujours indisponible ici) — MinIO/S3 reste non teste.
+Ne pas supposer l'existence d'un backend deploye, d'un daemon ou d'un
+dashboard avant de l'avoir verifie dans l'arborescence — le scaffold n'a pas
+ete deploye.
 
 ## Source de verite
 

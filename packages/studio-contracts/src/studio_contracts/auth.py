@@ -50,6 +50,27 @@ class Agent(VersionedModel):
     agent_kind: str
 
 
+class UserCreate(ContractModel):
+    """Admin-only, non-replayable (DEC-0011/DEC-0012) — no `Idempotency-Key`
+    support, unlike task/claim/decision/transfer/project creation."""
+
+    display_name: str
+    email: str
+    role: Role = Role.DEVELOPER
+
+
+class MachineCreate(ContractModel):
+    owner_user_id: UUID
+    display_name: str
+
+
+class MachineCreated(Machine):
+    """Returned once, at creation time: the opaque credential in clear text.
+    Never retrievable again afterwards — only its hash is stored (DEC-0003)."""
+
+    credential: str
+
+
 class HeartbeatRequest(ContractModel):
     machine_id: UUID
     agent_id: UUID | None = None

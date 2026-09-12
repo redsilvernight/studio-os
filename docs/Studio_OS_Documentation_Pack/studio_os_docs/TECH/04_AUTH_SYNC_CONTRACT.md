@@ -16,6 +16,23 @@ non-null, effective immediatement (pas de rotation/expiration a gerer).
 ## Roles minimum
 admin, developer, agent, readonly.
 
+## Provisioning (DEC-0011, DEC-0012)
+Pas de mecanisme d'auth HTTP utilisateur distinct en v1 : l'identite
+utilisateur d'une requete est derivee de `Machine.owner_user_id` (le
+proprietaire de la machine authentifiee), jamais un second header ou une
+session. Les endpoints `POST /projects`, `POST /machines`,
+`POST /machines/{id}/revoke` et `POST /users` verifient le role de ce
+proprietaire ; cette verification n'est pas retroactivement appliquee aux
+endpoints d'ecriture existants (changement de contrat separe si necessaire).
+
+Le tout premier `User` (admin) et le tout premier `Machine` n'ont par
+definition aucun token pour s'authentifier : ils sont crees hors-bande par la
+CLI serveur `studio-admin`, executee sur le VPS (racine de confiance = acces
+SSH, deja utilise pour les autres secrets du stack). Aucun endpoint public de
+bootstrap, aucun secret d'environnement dedie. Une fois la premiere machine
+enrolee, tout le reste (nouveau developpeur, nouveau poste) passe par l'API
+normale via `POST /users` / `POST /machines`.
+
 ## Synchronisation
 Chaque ecriture offline-safe transporte un UUID stable et, si approprie, une Idempotency-Key. Le serveur garantit qu'un replay identique ne cree pas un doublon.
 

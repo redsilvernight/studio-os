@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from studio_contracts.common import VersionedModel
+from studio_contracts.common import IdempotentCreate, VersionedModel
 
 
 class Project(VersionedModel):
@@ -11,3 +11,9 @@ class Project(VersionedModel):
     name: str
     description: str | None = None
     archived: bool = False
+
+
+class ProjectCreate(IdempotentCreate):
+    slug: str
+    name: str
+    description: str | None = None

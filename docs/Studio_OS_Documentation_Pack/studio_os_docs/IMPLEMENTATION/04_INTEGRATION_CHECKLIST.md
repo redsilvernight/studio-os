@@ -3,7 +3,7 @@
 ## Avant le travail parallele
 - [ ] API contract versionne.
 - [ ] Event schemas versionnes.
-- [ ] Auth/machine pairing defini.
+- [x] Auth/machine pairing defini (DEC-0011/DEC-0012 : bootstrap CLI `studio-admin` + `POST /machines`/`POST /users`).
 - [ ] Mock fixtures partagees.
 - [ ] Types Transfer et multipart definis.
 

@@ -10,10 +10,12 @@ from studio_api.routers import (
     events,
     health,
     heartbeats,
+    machines,
     projects,
     sessions,
     tasks,
     transfers,
+    users,
 )
 
 
@@ -31,6 +33,8 @@ def create_app() -> FastAPI:
     app.include_router(heartbeats.router)
     app.include_router(events.router)
     app.include_router(transfers.router)
+    app.include_router(machines.router)
+    app.include_router(users.router)
 
     return app
 
