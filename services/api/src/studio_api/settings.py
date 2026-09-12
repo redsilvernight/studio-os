@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="STUDIO_", env_file=".env")
+    model_config = SettingsConfigDict(env_prefix="STUDIO_", env_file=".env", extra="ignore")
 
     database_url: str = "postgresql+asyncpg://studio:studio@localhost:5432/studio"
 
