@@ -37,12 +37,18 @@ hors-bande avec la CLI serveur `studio-admin`
 (`services/api/src/studio_api/admin_cli.py`, `uv run studio-admin ...` depuis
 `services/api/`). Voir `docs/DECISIONS.md` pour les choix techniques non
 tranches par la documentation et fixes pendant ce scaffold (DEC-0001 a
-DEC-0012). Le travail correspond a la Phase 1 de la roadmap (Core utilisable)
+DEC-0013). Le travail correspond a la Phase 1 de la roadmap (Core utilisable)
 en cours. PostgreSQL reel a ete verifie sur cette machine de dev (PostgreSQL
 18 installe localement via `scoop`, pas de service Windows enregistre —
 demarrer avec `pg_ctl start -D <chemin scoop persist>\data` avant
 `uv run pytest` ; migrations Alembic + `tests/api/` tournent contre ce
-Postgres local, Docker toujours indisponible ici) — MinIO/S3 reste non teste.
+Postgres local, Docker toujours indisponible ici). MinIO/S3 (`StorageProvider`,
+presigning + multipart) a ete valide reellement (DEC-0013) via un MinIO
+compile localement (`go install github.com/minio/minio@latest`, Docker
+restant indisponible) — `tests/api/test_transfers_storage.py`. Ce MinIO
+local n'est pas lance en permanence : le redemarrer (identifiants par
+defaut de `Settings`, bucket `studio-transfers` a recreer via boto3
+`create_bucket`) avant de relancer ces 4 tests specifiquement.
 Ne pas supposer l'existence d'un backend deploye, d'un daemon ou d'un
 dashboard avant de l'avoir verifie dans l'arborescence — le scaffold n'a pas
 ete deploye.
