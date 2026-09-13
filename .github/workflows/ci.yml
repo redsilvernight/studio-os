@@ -56,18 +56,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-      # bitnami/minio (not quay.io/minio/minio like docker/docker-compose.yml)
-      # because a GitHub Actions service container has no way to pass the
-      # `server /data` argument the official image needs to start — bitnami's
-      # image bakes that into its own default command. Same open-source MinIO
-      # server either way; this is a CI-only substitution, not a prod change.
-      minio:
-        image: bitnami/minio:latest
-        env:
-          MINIO_ROOT_USER: studio
-          MINIO_ROOT_PASSWORD: studio-dev-secret
-        ports:
-          - 9000:9000
     env:
       # Real Postgres per .claude/rules/database.md — SQLite never stands in
       # for the shared source of state, even in CI.
@@ -86,6 +74,15 @@ jobs:
         run: uv run alembic upgrade head
         env:
           STUDIO_DATABASE_URL: postgresql+asyncpg://studio:studio@localhost:5432/studio_os_test
+      - name: Start MinIO
+        # A `services:` entry can't be given the `server /data` argument the
+        # official image needs to start (GitHub Actions has no way to pass a
+        # command to a service container) — run it as a plain background
+        # container instead, same image as docker/docker-compose.yml (DEC-0014).
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=studio -e MINIO_ROOT_PASSWORD=studio-dev-secret \
+            quay.io/minio/minio:latest server /data
       - name: Wait for MinIO and create the test bucket
         run: |
           for i in $(seq 1 30); do
