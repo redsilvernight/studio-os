@@ -184,9 +184,7 @@ async def live_project_and_token(
         async with session_factory() as session:
             await session.execute(delete(EventModel).where(EventModel.project_id == project_id))
             await session.execute(delete(ProjectModel).where(ProjectModel.id == project_id))
-            await session.execute(
-                delete(MachineModel).where(MachineModel.id == machine_model.id)
-            )
+            await session.execute(delete(MachineModel).where(MachineModel.id == machine_model.id))
             await session.execute(delete(UserModel).where(UserModel.id == user_id))
             await session.commit()
 
@@ -327,8 +325,6 @@ async def test_stream_does_not_republish_an_idempotent_replay(
     assert seq_b > seq_a
 
 
-async def test_stream_requires_authentication(
-    client: AsyncClient, project: ProjectModel
-) -> None:
+async def test_stream_requires_authentication(client: AsyncClient, project: ProjectModel) -> None:
     response = await client.get("/api/v1/events/stream", params={"project": str(project.id)})
     assert response.status_code == 401
