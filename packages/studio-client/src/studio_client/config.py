@@ -48,6 +48,10 @@ class ClientConfig(BaseSettings):
     backoff_initial: float = 0.5
     backoff_max: float = 20.0
     verify_tls: bool = True
+    heartbeat_interval_seconds: float = 30.0
+    # Spreads concurrent machines' heartbeats instead of a synchronized
+    # thundering herd hitting the server every interval at once.
+    heartbeat_jitter_ratio: float = 0.1
 
     @field_validator("api_base_url")
     @classmethod

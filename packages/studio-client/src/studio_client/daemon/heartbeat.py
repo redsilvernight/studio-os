@@ -1,0 +1,131 @@
+from __future__ import annotations
+
+import argparse
+import asyncio
+import logging
+import random
+import signal
+from collections.abc import Awaitable, Callable, Sequence
+from uuid import UUID
+
+from studio_client.api_client import StudioApiClient
+from studio_client.config import ClientConfig
+from studio_client.errors import StudioApiError
+
+logger = logging.getLogger(__name__)
+
+SleepFn = Callable[[float], Awaitable[None]]
+
+
+class HeartbeatDaemon:
+    """Long-running loop maintaining this machine's online state (sous-etape
+    6.2, docs/ROADMAP_STEP6_BREAKDOWN.md): sends a heartbeat via
+    `StudioApiClient.send_heartbeat` at a jittered interval. `request_stop()`
+    only gates the wait between iterations — a heartbeat already in flight
+    always completes before `run()` returns."""
+
+    def __init__(
+        self,
+        client: StudioApiClient,
+        config: ClientConfig,
+        *,
+        agent_id: UUID | None = None,
+        interval_seconds: float | None = None,
+        jitter_ratio: float | None = None,
+        sleep: SleepFn | None = None,
+        random_fn: Callable[[], float] | None = None,
+    ) -> None:
+        if config.machine_id is None:
+            raise ValueError("ClientConfig.machine_id must be set to run the heartbeat daemon")
+        resolved_interval = (
+            config.heartbeat_interval_seconds if interval_seconds is None else interval_seconds
+        )
+        resolved_jitter = config.heartbeat_jitter_ratio if jitter_ratio is None else jitter_ratio
+        if resolved_interval <= 0:
+            raise ValueError("interval_seconds must be positive")
+        if not 0 <= resolved_jitter < 1:
+            raise ValueError("jitter_ratio must be in [0, 1)")
+
+        self._client = client
+        self._machine_id = config.machine_id
+        self._agent_id = agent_id
+        self._interval_seconds = resolved_interval
+        self._jitter_ratio = resolved_jitter
+        self._sleep = sleep or asyncio.sleep
+        self._random = random_fn or random.random
+        self._stop_event = asyncio.Event()
+
+    @property
+    def stopped(self) -> bool:
+        return self._stop_event.is_set()
+
+    def request_stop(self) -> None:
+        self._stop_event.set()
+
+    def _next_delay(self) -> float:
+        span = self._interval_seconds * self._jitter_ratio
+        return self._interval_seconds + (self._random() * 2 - 1) * span
+
+    async def run(self) -> None:
+        while not self._stop_event.is_set():
+            try:
+                await self._client.send_heartbeat(self._machine_id, self._agent_id)
+            except StudioApiError:
+                logger.warning("heartbeat failed", exc_info=True)
+            if self._stop_event.is_set():
+                break
+            await self._wait(self._next_delay())
+
+    async def _wait(self, delay: float) -> None:
+        """Waits up to `delay`, but returns as soon as `request_stop()` is
+        called instead of sleeping out the full (possibly ~minutes-long)
+        interval — a plain `await self._sleep(delay)` would leave shutdown
+        latency bounded only by the jittered interval, not by the signal."""
+        stop_wait = asyncio.ensure_future(self._stop_event.wait())
+        sleep_wait = asyncio.ensure_future(self._sleep(delay))
+        try:
+            await asyncio.wait({stop_wait, sleep_wait}, return_when=asyncio.FIRST_COMPLETED)
+        finally:
+            for task in (stop_wait, sleep_wait):
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(stop_wait, sleep_wait, return_exceptions=True)
+
+
+def install_signal_handlers(stop: Callable[[], None]) -> list[signal.Signals]:
+    """Registers `stop` on SIGINT/SIGTERM where the interpreter exposes them.
+    SIGTERM delivery is unreliable on Windows, but registering the handler is
+    harmless there — returns only the signals actually installed."""
+    installed: list[signal.Signals] = []
+    for name in ("SIGINT", "SIGTERM"):
+        sig = getattr(signal, name, None)
+        if sig is None:
+            continue
+        try:
+            signal.signal(sig, lambda *_: stop())
+        except (ValueError, OSError):
+            continue
+        installed.append(sig)
+    return installed
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(
+        prog="studio-client-daemon",
+        description="Run the Studio OS heartbeat daemon until interrupted.",
+    )
+    parser.add_argument("--agent-id", type=UUID, default=None)
+    args = parser.parse_args(argv)
+    config = ClientConfig()  # type: ignore[call-arg]  # fields resolved from STUDIO_CLIENT_* env/TOML
+
+    async def _run() -> None:
+        async with StudioApiClient(config) as client:
+            daemon = HeartbeatDaemon(client, config, agent_id=args.agent_id)
+            install_signal_handlers(daemon.request_stop)
+            await daemon.run()
+
+    asyncio.run(_run())
+
+
+if __name__ == "__main__":
+    main()

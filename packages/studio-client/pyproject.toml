@@ -12,6 +12,7 @@ dependencies = [
 
 [project.scripts]
 studio-client = "studio_client.cli:main"
+studio-client-daemon = "studio_client.daemon.heartbeat:main"
 
 [build-system]
 requires = ["hatchling"]

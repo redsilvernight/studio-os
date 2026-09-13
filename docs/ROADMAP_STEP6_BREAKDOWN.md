@@ -77,7 +77,21 @@ dependance de test uniquement, jamais une dependance du paquet.
   paquet.
 - Le token n'apparait dans aucun log ni message d'exception.
 
-## Sous-etape 6.2 — Daemon local et heartbeat
+## Sous-etape 6.2 — Daemon local et heartbeat — CLOS
+
+Etudie sans `studio-architect` (perimetre isole, aucune frontiere de
+contrat/Bloc A-Bloc B nouvelle — reutilise `StudioApiClient.send_heartbeat`
+existant) : `docs/DECISIONS.md` DEC-0028. `HeartbeatDaemon`
+(`packages/studio-client/src/studio_client/daemon/heartbeat.py`), sleep et
+jitter injectables, arret propre entre iterations (jamais d'annulation d'un
+heartbeat en vol), signaux `SIGINT`/`SIGTERM` via `signal.signal` (pas
+`loop.add_signal_handler`, incompatible avec l'event loop Windows par
+defaut). 6 tests (`tests/client/test_daemon.py`), suite `tests/client/`
+48/48 verte, `ruff`/`mypy` strict verts — validation independante
+`studio-tester` a trouve un arret non reactif pendant l'attente
+inter-heartbeat (latence bornee par l'intervalle plutot que par le signal),
+corrige dans la meme session (`asyncio.wait` en parallele sur le sleep et
+l'evenement d'arret, voir DEC-0028).
 
 ### Probleme
 
