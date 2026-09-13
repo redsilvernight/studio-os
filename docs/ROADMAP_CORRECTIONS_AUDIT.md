@@ -114,7 +114,14 @@ aussi provoquer une réutilisation.
 - Une restauration PostgreSQL et objet est démontrée.
 - Les transferts expirés suivent une politique testée et traçable.
 
-## Étape 5 — Étendre le serveur MCP vers le contrat cible (P2)
+## Étape 5 — Étendre le serveur MCP vers le contrat cible (P2) — CLOS
+
+Auth par requête (DEC-0023, pas de token process-wide — le service `mcp` est
+multi-client en prod) et 25 des 29 outils cibles implémentés (les 4
+mémoire/Graphify/Context Package restent différés, écart documenté dans
+`TECH/07_MCP_CONTRACT.md`) : `docs/DECISIONS.md` DEC-0023. 49 tests réels
+(Postgres 16 conteneurisé, succès + erreur par outil) + 55 tests existants,
+104/104 verts ; `ruff`/`mypy` strict verts.
 
 ### Problème
 

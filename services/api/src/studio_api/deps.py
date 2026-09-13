@@ -16,6 +16,21 @@ from studio_api.security import hash_token
 DbSession = Annotated[AsyncSession, Depends(get_session)]
 
 
+async def resolve_machine(session: AsyncSession, token: str) -> MachineModel | None:
+    """Opaque bearer token -> `MachineModel`, verified by hash, independently
+    revocable (DEC-0003). Shared by the HTTP auth dependency below and by
+    `studio_mcp.auth` (DEC-0005: MCP calls services directly, but still needs
+    this same lookup to identify its caller)."""
+    token_hash = hash_token(token)
+    result = await session.execute(
+        select(MachineModel).where(
+            MachineModel.credential_hash == token_hash,
+            MachineModel.credential_revoked_at.is_(None),
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_current_machine(
     session: DbSession,
     authorization: Annotated[str | None, Header()] = None,
@@ -25,14 +40,7 @@ async def get_current_machine(
     if authorization is None or not authorization.startswith("Bearer "):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "missing bearer token")
     token = authorization.removeprefix("Bearer ")
-    token_hash = hash_token(token)
-    result = await session.execute(
-        select(MachineModel).where(
-            MachineModel.credential_hash == token_hash,
-            MachineModel.credential_revoked_at.is_(None),
-        )
-    )
-    machine = result.scalar_one_or_none()
+    machine = await resolve_machine(session, token)
     if machine is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid or revoked machine token")
     return machine

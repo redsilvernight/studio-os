@@ -57,6 +57,26 @@ section Event) :
   pas de header separe — replay du meme `event_id` renvoie l'event deja
   stocke.
 
+## Auth MCP (DEC-0023, additif — roadmap etape 5)
+
+`services/mcp` (DEC-0005 : appelle `studio_api.services.*` directement, pas
+de HTTP interne) authentifie chaque appel d'outil individuellement, jamais
+un token process-wide : le service `mcp` est un seul conteneur multi-client
+en prod (transport `streamable-http` derriere Caddy, `docker/Caddyfile`,
+sans auth au niveau du reverse-proxy).
+
+Resolution du token, par ordre de priorite :
+1. Transport HTTP : `Authorization: Bearer <token>` sur la requete MCP
+   courante (memes header/hash/revocation que ci-dessus).
+2. Transport stdio (poste local, pas de requete HTTP) : variable
+   d'environnement `STUDIO_MCP_MACHINE_TOKEN`, verifiee par le meme lookup —
+   jamais fait confiance sans verification.
+
+Un outil ecrivain derive `machine_id` de cette identite plutot que d'un
+parametre fourni par l'appelant. `studio_add_decision` derive de meme le
+proposant de `machine.owner_user_id`. Detail d'implementation :
+`services/mcp/src/studio_mcp/auth.py`.
+
 ## Heartbeat
 Intervalle nominal: 30 s. Etat derive de `last_seen_at` avec seuils configurables.
 
