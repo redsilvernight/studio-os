@@ -162,13 +162,31 @@ doivent tolerer l'offline et rejouer les ecritures de facon idempotente".
 - Un redemarrage du daemon ne perd aucune mutation en attente.
 - Une mutation dupliquee (meme cle) n'est jamais enqueuee deux fois.
 
-## Sous-etape 6.4 — Reconnexion et replay ordonne
+## Sous-etape 6.4 — Reconnexion et replay ordonne — CLOS
 
-Prealable a trancher avant cette sous-etape (DEC-0024, ecart residuel de
-DEC-0023) : `studio_emit_event` (outil MCP) genere `event_id` lui-meme au
-lieu d'accepter celui du client — a corriger si le daemon doit un jour
-emettre via MCP plutot que HTTP direct ; sinon documenter explicitement
-pourquoi ce chemin reste hors perimetre du replay HTTP.
+Prealable de la roadmap (DEC-0024, ecart residuel de DEC-0023,
+`studio_emit_event` generant lui-meme `event_id`) deja tranche par
+DEC-0027 avant ce lot — aucun travail supplementaire necessaire ici.
+
+Etudie sans `studio-architect` (meme principe que 6.2/6.3) :
+`docs/DECISIONS.md` DEC-0030. `OutboxReplayer`
+(`packages/studio-client/src/studio_client/outbox/replay.py`) fusionne
+`pending_events`/`pending_mutations` par `created_at` croissant et rejoue
+dans cet ordre ; arret de toute la passe sur la premiere erreur retryable
+(preserve l'ordre sans grouper par session/tache), dead-letter +
+continuation sur erreur non retryable. `pending_markers` explicitement
+hors perimetre (aucun endpoint serveur ne consomme encore un marker).
+Detection de reconnexion : un heartbeat reussi declenche `replay_ready()`
+(`HeartbeatDaemon`, `replayer` optionnel, aucun changement pour un
+appelant existant) — pas d'etat "hors-ligne" separe. 8 tests nouveaux
+(`tests/client/test_replay.py` + 2 dans `test_daemon.py`), suite
+`tests/client/` 67/67 verte, suite complete du depot 184/184 verte,
+`ruff`/`mypy` strict (commande CI reelle) verts — validation independante
+`studio-tester` : aucun bug bloquant, deux limites non bloquantes
+signalees (exception non-`StudioApiError` sur une ligne malformee non
+interceptee ; ordre garanti par passe mais pas entre deux passes si le
+backoff depasse l'intervalle heartbeat), consignees dans DEC-0030 sans
+correction hors perimetre.
 
 ### Travail attendu
 

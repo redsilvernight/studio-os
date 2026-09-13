@@ -11,6 +11,8 @@ from uuid import UUID
 from studio_client.api_client import StudioApiClient
 from studio_client.config import ClientConfig
 from studio_client.errors import StudioApiError
+from studio_client.outbox import OutboxReplayer, OutboxStore, connect, default_outbox_path
+from studio_client.retry import RetryPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +24,13 @@ class HeartbeatDaemon:
     6.2, docs/ROADMAP_STEP6_BREAKDOWN.md): sends a heartbeat via
     `StudioApiClient.send_heartbeat` at a jittered interval. `request_stop()`
     only gates the wait between iterations — a heartbeat already in flight
-    always completes before `run()` returns."""
+    always completes before `run()` returns.
+
+    A successful heartbeat is this daemon's reconnection signal (sous-etape
+    6.4): it is direct proof the server is reachable right now, so an
+    optional `replayer` is drained immediately afterwards rather than the
+    daemon tracking a separate "was offline" state that would only
+    duplicate what the outbox's own per-row backoff already paces."""
 
     def __init__(
         self,
@@ -34,6 +42,7 @@ class HeartbeatDaemon:
         jitter_ratio: float | None = None,
         sleep: SleepFn | None = None,
         random_fn: Callable[[], float] | None = None,
+        replayer: OutboxReplayer | None = None,
     ) -> None:
         if config.machine_id is None:
             raise ValueError("ClientConfig.machine_id must be set to run the heartbeat daemon")
@@ -53,6 +62,7 @@ class HeartbeatDaemon:
         self._jitter_ratio = resolved_jitter
         self._sleep = sleep or asyncio.sleep
         self._random = random_fn or random.random
+        self._replayer = replayer
         self._stop_event = asyncio.Event()
 
     @property
@@ -72,9 +82,19 @@ class HeartbeatDaemon:
                 await self._client.send_heartbeat(self._machine_id, self._agent_id)
             except StudioApiError:
                 logger.warning("heartbeat failed", exc_info=True)
+            else:
+                await self._replay_outbox()
             if self._stop_event.is_set():
                 break
             await self._wait(self._next_delay())
+
+    async def _replay_outbox(self) -> None:
+        if self._replayer is None:
+            return
+        try:
+            await self._replayer.replay_ready()
+        except StudioApiError:
+            logger.warning("outbox replay failed", exc_info=True)
 
     async def _wait(self, delay: float) -> None:
         """Waits up to `delay`, but returns as soon as `request_stop()` is
@@ -120,7 +140,12 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     async def _run() -> None:
         async with StudioApiClient(config) as client:
-            daemon = HeartbeatDaemon(client, config, agent_id=args.agent_id)
+            store = OutboxStore(connect(default_outbox_path()))
+            retry_policy = RetryPolicy(
+                config.max_attempts, config.backoff_initial, config.backoff_max
+            )
+            replayer = OutboxReplayer(store, client, retry_policy)
+            daemon = HeartbeatDaemon(client, config, agent_id=args.agent_id, replayer=replayer)
             install_signal_handlers(daemon.request_stop)
             await daemon.run()
 

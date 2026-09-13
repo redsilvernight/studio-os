@@ -156,3 +156,18 @@ class StudioApiClient:
             idempotent=True,
         )
         return Task.model_validate(response.json())
+
+    async def send_mutation(
+        self, method: str, path: str, payload: dict[str, Any], *, idempotency_key: str
+    ) -> httpx.Response:
+        """Replays a generically-recorded outbox `pending_mutations` row
+        (sous-etape 6.4, docs/ROADMAP_STEP6_BREAKDOWN.md) — same idempotent
+        contract as `create_task`, but for a call whose method/path/payload
+        only the outbox row itself knows."""
+        return await self._request(
+            method,
+            path,
+            json=payload,
+            extra_headers={"Idempotency-Key": idempotency_key},
+            idempotent=True,
+        )

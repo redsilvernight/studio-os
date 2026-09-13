@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -9,7 +11,10 @@ import pytest
 from studio_client.api_client import StudioApiClient
 from studio_client.config import ClientConfig
 from studio_client.daemon import HeartbeatDaemon
+from studio_client.outbox import OutboxReplayer, OutboxStore, OutboxTable, connect, transaction
+from studio_client.retry import RetryPolicy
 from studio_client.tokens import MemoryTokenStore
+from studio_contracts.events import EventCreate, EventType
 
 MACHINE_ID = uuid4()
 
@@ -125,6 +130,76 @@ async def test_stop_during_wait_returns_promptly() -> None:
         elapsed = asyncio.get_event_loop().time() - start
 
     assert elapsed < 1.0
+
+
+def _pending_event(store: OutboxStore) -> EventCreate:
+    event = EventCreate(
+        event_id=uuid4(),
+        event_type=EventType.TASK_CREATED,
+        project_id=uuid4(),
+        actor_type="agent",
+        actor_id=uuid4(),
+        client_timestamp=datetime.now(UTC),
+        payload={"title": "test"},
+    )
+    with transaction(store.connection):
+        store.enqueue_event(event)
+    return event
+
+
+async def test_daemon_replays_outbox_after_successful_heartbeat(tmp_path: Path) -> None:
+    store = OutboxStore(connect(tmp_path / "outbox.sqlite3"))
+    event = _pending_event(store)
+    events_calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/v1/events":
+            events_calls["n"] += 1
+            body = {**event.model_dump(mode="json"), "server_timestamp": "2026-09-13T00:00:00Z"}
+            return httpx.Response(200, json=body)
+        return _heartbeat_response(request)
+
+    async with _client(handler) as client:
+        replayer = OutboxReplayer(store, client, RetryPolicy(max_attempts=1))
+        daemon = HeartbeatDaemon(
+            client, _config(), interval_seconds=100.0, jitter_ratio=0.0, replayer=replayer
+        )
+
+        async def _stop_after_first_wait(_delay: float) -> None:
+            daemon.request_stop()
+
+        daemon._sleep = _stop_after_first_wait  # type: ignore[attr-defined]
+        await asyncio.wait_for(daemon.run(), timeout=1.0)
+
+    assert events_calls["n"] == 1
+    assert store.list_pending(OutboxTable.EVENTS, ready_only=False) == []
+
+
+async def test_daemon_does_not_replay_after_failed_heartbeat(tmp_path: Path) -> None:
+    store = OutboxStore(connect(tmp_path / "outbox.sqlite3"))
+    _pending_event(store)
+    events_calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/v1/events":
+            events_calls["n"] += 1
+            return httpx.Response(200, json={"ok": True})
+        return httpx.Response(500, json={"detail": {"error_code": "server_error"}})
+
+    async with _client(handler) as client:
+        replayer = OutboxReplayer(store, client, RetryPolicy(max_attempts=1))
+        daemon = HeartbeatDaemon(
+            client, _config(), interval_seconds=100.0, jitter_ratio=0.0, replayer=replayer
+        )
+
+        async def _stop_after_first_wait(_delay: float) -> None:
+            daemon.request_stop()
+
+        daemon._sleep = _stop_after_first_wait  # type: ignore[attr-defined]
+        await asyncio.wait_for(daemon.run(), timeout=1.0)
+
+    assert events_calls["n"] == 0
+    assert len(store.list_pending(OutboxTable.EVENTS, ready_only=False)) == 1
 
 
 async def test_in_flight_heartbeat_completes_before_stop() -> None:
