@@ -8,6 +8,7 @@ Create Date: 2026-09-12
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Any
 
 import sqlalchemy as sa
 from alembic import op
@@ -19,11 +20,11 @@ branch_labels: Sequence[str] | None = None
 depends_on: Sequence[str] | None = None
 
 
-def _uuid_pk() -> sa.Column:
+def _uuid_pk() -> sa.Column[Any]:
     return sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True)
 
 
-def _timestamp_columns() -> list[sa.Column]:
+def _timestamp_columns() -> list[sa.Column[Any]]:
     return [
         sa.Column(
             "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False

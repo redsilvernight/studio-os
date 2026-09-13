@@ -105,7 +105,7 @@ async def complete_upload(
     if parts:
         if not upload_id:
             raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail={"error_code": "missing_upload_id"},
             )
         storage.complete_multipart_upload(transfer.object_key, upload_id=upload_id, parts=parts)
@@ -113,7 +113,7 @@ async def complete_upload(
     actual_size = head.get("ContentLength")
     if actual_size is not None and actual_size != size_bytes:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={"error_code": "size_mismatch", "expected": size_bytes, "actual": actual_size},
         )
     transfer.size_bytes = size_bytes

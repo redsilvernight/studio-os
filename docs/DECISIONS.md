@@ -386,3 +386,58 @@ aucun client Bloc B reel n'existe encore pour l'exposer) — un jeton de
 fencing ou un renouvellement de bail explicite serait une refonte hors
 perimetre de cette etape ; a traiter si un scenario reel de creation lente
 (>30s) apparait.
+
+## DEC-0016 — `DEC-XXXX` : sequence Postgres au lieu de `COUNT(*) + 1`
+
+`_next_readable_id` lisait `COUNT(*)` sur `decisions` puis calculait
+`count + 1` : deux creations concurrentes pouvaient lire le meme compte
+avant que l'une ou l'autre n'ait commit, et obtenir le meme `readable_id`
+(etape 2 de `docs/ROADMAP_CORRECTIONS_AUDIT.md`). Remplace par une sequence
+Postgres dediee (`decisions_readable_id_seq`) : `nextval()` est atomique au
+niveau du moteur, independant des transactions applicatives, et ne reutilise
+jamais une valeur deja distribuee — y compris apres suppression d'une
+decision, puisqu'une sequence n'est jamais decrementee. Le format public
+`DEC-XXXX` est preserve (`f"DEC-{next_value:04d}"`).
+
+Consequence acceptee : un `nextval()` suivi d'un rollback (ex. `create()`
+echoue plus loin) laisse un trou dans la numerotation plutot que de reutiliser
+la valeur — comportement standard d'une sequence (identique a une colonne
+`SERIAL`), non couvert par une garantie de contiguite dans
+`TECH/05_DATA_MODEL.md`. Aucun changement de contrat observable au sens de
+`contract-change` : le format et l'unicite du `readable_id` sont preserves,
+seule l'implementation de l'allocation change.
+
+Migration Alembic `0003` : `CREATE SEQUENCE decisions_readable_id_seq`,
+initialisee via `setval` au maximum des `readable_id` existants + 1 (0 + 1 si
+la table est vide) pour ne pas entrer en collision avec des lignes deja
+creees par l'ancien mecanisme. `downgrade()` supprime la sequence
+(reversible ; aucune donnee des lignes `decisions` n'est touchee).
+
+Regression couverte par `tests/api/test_decisions_concurrency.py`, sur le
+meme modele que `test_idempotency_concurrency.py` (connexions Postgres
+reellement separees, pool pre-chauffe) : dix creations de decision
+concurrentes recoivent dix `readable_id` distincts.
+
+## DEC-0017 — Etape 3 (dette qualite P2/P3) fermee
+
+Les trois items de `docs/ROADMAP_CORRECTIONS_AUDIT.md` etape 3 : deux erreurs
+mypy `[type-arg]` sur `sa.Column` non parametre dans
+`services/api/alembic/versions/0001_initial.py` (`_uuid_pk`,
+`_timestamp_columns`), corrigees en `sa.Column[Any]` — comportement Alembic
+identique, seule l'annotation change. `status.HTTP_422_UNPROCESSABLE_ENTITY`
+(deprecie par Starlette 1.6, `StarletteDeprecationWarning`) remplace par
+`status.HTTP_422_UNPROCESSABLE_CONTENT` dans
+`services/api/src/studio_api/services/transfers.py` (deux occurrences) —
+meme code de statut HTTP numerique (422), aucun changement de contrat.
+`pytest`/`ruff check`/`mypy` etaient deja dans `.github/workflows/ci.yml`
+(jobs separes `lint`/`typecheck`/`test`) depuis le scaffold initial ; rien a
+ajouter.
+
+Verifie reellement, pas suppose : `uv run mypy packages/studio-contracts/src
+services/api/src services/mcp/src` (memes chemins que le job CI
+`typecheck`) → `Success: no issues found in 67 source files`. Un MinIO local
+temporaire a ete demarre (meme image et sequence que le job CI, arrete et
+supprime apres coup) pour rejouer `tests/api/test_transfers_storage.py`
+contre le vrai code 422 renomme, plutot que de supposer la reussite depuis le
+code seul. Suite complete : `uv run pytest -q` → 42 passed (Postgres reel +
+MinIO reel).
