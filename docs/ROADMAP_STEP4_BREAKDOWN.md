@@ -57,7 +57,12 @@ aucune implémentation.
 - Une reconnexion après coupure ne recrée ni ne perd d'événement.
 - `contract-guardian` validé si le contrat Event a changé.
 
-## Sous-étape 4.2 — Quotas, limites de taille et vue de consommation (transferts)
+## Sous-étape 4.2 — Quotas, limites de taille et vue de consommation (transferts) — CLOS
+
+Quota par projet (DEC-0019), sans fenêtre temporelle : `docs/DECISIONS.md`
+DEC-0019. `contract-guardian` (additif) et `studio-tester` (quota dépassé,
+limite de taille, consultation de consommation vérifiés en réel contre
+Postgres) à valider avant clôture définitive.
 
 ### Problème
 `routers/transfers.py` gère la création de transferts mais aucune limite de

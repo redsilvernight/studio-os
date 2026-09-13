@@ -68,9 +68,22 @@ public de bootstrap, pas de secret d'environnement dedie.
 - GET /events/stream (Server-Sent Events, DEC-0018)
 
 ### Transfers
-- POST /transfers
+- POST /transfers — quotas verifies avant creation (DEC-0019) : taille max
+  par transfert depassee -> `413 {"error_code": "transfer_too_large"}` ;
+  quota cumule du projet (ou du bucket non-scope si `project_id` absent)
+  depasse -> `507 {"error_code": "quota_exceeded"}`. Verifie avant toute
+  ecriture DB et tout presigning MinIO.
 - GET /transfers
 - GET /transfers/{id}
+- GET /transfers/consumption?project_id={id} — vue de consommation
+  (DEC-0019) : `project_id` optionnel (bucket non-scope si absent),
+  reponse `TransferConsumption` (`consumed_bytes`, `quota_bytes`,
+  `remaining_bytes`), calculee en direct sur `transfers.size_bytes`. Un
+  client Bloc B doit traiter `transfer_too_large`/`quota_exceeded` comme des
+  erreurs actionnables (afficher `remaining_bytes`, pas un echec generique) ;
+  appeler cet endpoint avant un gros upload pour eviter un aller-retour
+  rejete est recommande mais jamais garanti (fenetre de concurrence entre la
+  lecture et le `POST /transfers` reel).
 - POST /transfers/{id}/upload/initiate
 - POST /transfers/{id}/upload/complete
 - POST /transfers/{id}/download-url

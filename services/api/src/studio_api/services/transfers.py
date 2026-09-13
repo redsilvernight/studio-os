@@ -5,7 +5,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.transfers import TransferCategory, TransferCreate, UploadInitiateResponse
 
@@ -26,9 +26,63 @@ def _generate_transfer_code() -> str:
     return f"TRF-{secrets.token_hex(4).upper()}"
 
 
+async def compute_consumption(session: AsyncSession, project_id: uuid.UUID | None) -> int:
+    """Sum of size_bytes for every non-deleted transfer in the quota bucket -
+    project-scoped, or the shared unscoped bucket when project_id is None."""
+    stmt = select(func.coalesce(func.sum(TransferModel.size_bytes), 0)).where(
+        TransferModel.status != "deleted"
+    )
+    stmt = stmt.where(TransferModel.project_id == project_id)
+    result = await session.execute(stmt)
+    return int(result.scalar_one())
+
+
+async def _lock_quota_bucket(session: AsyncSession, project_id: uuid.UUID | None) -> None:
+    """Postgres advisory lock scoped to the current transaction: held until
+    this session's commit/rollback, so a concurrent request for the same
+    bucket blocks here instead of both readers seeing the same stale
+    consumption and both passing the check (same race class as DEC-0015)."""
+    bucket_key = str(project_id) if project_id else "unscoped-transfer-quota"
+    await session.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key))"), {"key": bucket_key})
+
+
+async def _enforce_transfer_limits(
+    session: AsyncSession, settings: Settings, project_id: uuid.UUID | None, size_bytes: int
+) -> None:
+    if size_bytes > settings.transfer_max_size_bytes:
+        raise HTTPException(
+            status.HTTP_413_CONTENT_TOO_LARGE,
+            detail={
+                "error_code": "transfer_too_large",
+                "size_bytes": size_bytes,
+                "max_size_bytes": settings.transfer_max_size_bytes,
+            },
+        )
+    await _lock_quota_bucket(session, project_id)
+    consumed = await compute_consumption(session, project_id)
+    if consumed + size_bytes > settings.transfer_project_quota_bytes:
+        raise HTTPException(
+            status.HTTP_507_INSUFFICIENT_STORAGE,
+            detail={
+                "error_code": "quota_exceeded",
+                "project_id": str(project_id) if project_id else None,
+                "consumed_bytes": consumed,
+                "requested_bytes": size_bytes,
+                "quota_bytes": settings.transfer_project_quota_bytes,
+            },
+        )
+
+
 async def create_transfer(
-    session: AsyncSession, transfer_in: TransferCreate, sender_user_id: uuid.UUID, project_slug: str
+    session: AsyncSession,
+    settings: Settings,
+    transfer_in: TransferCreate,
+    sender_user_id: uuid.UUID,
+    project_slug: str,
 ) -> TransferModel:
+    await _enforce_transfer_limits(
+        session, settings, transfer_in.project_id, transfer_in.size_bytes
+    )
     transfer_id = uuid.uuid4()
     now = datetime.now(UTC)
     retention_days = _RETENTION_DAYS.get(transfer_in.category)

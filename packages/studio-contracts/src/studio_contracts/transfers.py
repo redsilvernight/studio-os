@@ -89,3 +89,10 @@ class DownloadUrlResponse(ContractModel):
     transfer_id: UUID
     download_url: str
     expires_at: datetime
+
+
+class TransferConsumption(ContractModel):
+    project_id: UUID | None = None
+    consumed_bytes: int
+    quota_bytes: int
+    remaining_bytes: int

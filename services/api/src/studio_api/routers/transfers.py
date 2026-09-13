@@ -6,6 +6,7 @@ from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 from studio_contracts.transfers import (
     DownloadUrlResponse,
     Transfer,
+    TransferConsumption,
     TransferCreate,
     UploadCompleteRequest,
     UploadInitiateResponse,
@@ -47,7 +48,7 @@ async def create_transfer(
             project_slug = project.slug
 
         transfer = await transfers_service.create_transfer(
-            session, transfer_in, machine.owner_user_id, project_slug
+            session, get_settings(), transfer_in, machine.owner_user_id, project_slug
         )
         return Transfer.model_validate(transfer)
 
@@ -59,6 +60,21 @@ async def create_transfer(
         Transfer,
         _create,
         status.HTTP_201_CREATED,
+    )
+
+
+@router.get("/consumption", response_model=TransferConsumption)
+async def get_consumption(
+    session: DbSession, machine: CurrentMachine, project_id: UUID | None = Query(default=None)
+) -> TransferConsumption:
+    settings = get_settings()
+    consumed = await transfers_service.compute_consumption(session, project_id)
+    quota = settings.transfer_project_quota_bytes
+    return TransferConsumption(
+        project_id=project_id,
+        consumed_bytes=consumed,
+        quota_bytes=quota,
+        remaining_bytes=max(quota - consumed, 0),
     )
 
 
