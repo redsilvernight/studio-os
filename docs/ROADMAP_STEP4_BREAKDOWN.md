@@ -83,7 +83,22 @@ taille ni quota par projet/machine, ni vue de consommation.
   pas un échec silencieux côté stockage.
 - La consommation reportée correspond aux transferts réels en base.
 
-## Sous-étape 4.3 — Worker d'expiration/nettoyage des transferts
+## Sous-étape 4.3 — Worker d'expiration/nettoyage des transferts — CLOS
+
+Job CLI explicite (`studio-admin transfers expire`), suppression directe
+(DB + MinIO) sans palier `expired` intermediaire : `docs/DECISIONS.md`
+DEC-0020. Tests réels (Postgres 16 + MinIO conteneurs locaux, mêmes images
+que la CI) : transfert expiré supprimé, transfert non expiré jamais touché,
+ré-exécution idempotente — `tests/api/test_transfers_expiration.py`, 55
+tests passent au total, ruff et mypy verts. `studio-tester` a validé
+indépendamment en réel (relecture complète, ré-exécution de la suite et du
+CLI directement contre Postgres/MinIO conteneurisés, dont un
+avertissement méthodologique sur un `postgres.exe` natif qui peut voler le
+port 5432 en local sans erreur — sans impact sur le résultat une fois
+rejoué sur des ports isolés) ; pas de changement de contrat donc pas de
+`contract-guardian` requis. Point non bloquant relevé par `studio-tester` :
+documenter en ops (pas en code) un verrou anti-chevauchement (`flock`) sur
+le cron VPS si le job venait à durer plus que l'intervalle de planification.
 
 ### Problème
 Aucune politique de rétention n'est appliquée aux transferts expirés

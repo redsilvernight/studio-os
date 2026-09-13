@@ -205,3 +205,23 @@ async def delete_transfer(
     transfer.status = "deleted"
     transfer.deleted_at = datetime.now(UTC)
     await session.commit()
+
+
+async def expire_transfers(session: AsyncSession, storage: StorageProvider) -> list[TransferModel]:
+    """Retention worker (roadmap etape 4.3, DEC-0020): deletes every transfer
+    whose `expires_at` has passed and that isn't already deleted, both the
+    MinIO object and the DB row. Committing one transfer at a time keeps a
+    failure on one object from losing progress already made on the others,
+    and re-running this against the same expired set is a no-op since the
+    `status != "deleted"` filter excludes rows a previous run already
+    cleared."""
+    stmt = select(TransferModel).where(
+        TransferModel.expires_at.is_not(None),
+        TransferModel.expires_at <= datetime.now(UTC),
+        TransferModel.status != "deleted",
+    )
+    result = await session.execute(stmt)
+    expired = list(result.scalars().all())
+    for transfer in expired:
+        await delete_transfer(session, storage, transfer)
+    return expired

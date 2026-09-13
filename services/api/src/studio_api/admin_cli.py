@@ -15,6 +15,9 @@ from fastapi import HTTPException
 from studio_api.db.session import get_session_factory
 from studio_api.services import projects as projects_service
 from studio_api.services import provisioning as provisioning_service
+from studio_api.services import transfers as transfers_service
+from studio_api.settings import get_settings
+from studio_api.storage.provider import StorageProvider
 
 
 async def _bootstrap_admin(display_name: str, email: str) -> None:
@@ -50,6 +53,18 @@ async def _create_project(slug: str, name: str, description: str | None) -> None
         print(f"project created: {project.id} ({project.slug})")
 
 
+async def _expire_transfers() -> None:
+    """Retention worker (roadmap etape 4.3, DEC-0020) — run on a schedule
+    (e.g. VPS cron) rather than as an in-process scheduler dependency."""
+    settings = get_settings()
+    storage = StorageProvider(settings)
+    async with get_session_factory()() as session:
+        expired = await transfers_service.expire_transfers(session, storage)
+        for transfer in expired:
+            print(f"transfer expired and deleted: {transfer.id} ({transfer.transfer_code})")
+        print(f"{len(expired)} transfer(s) deleted")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="studio-admin")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -73,6 +88,10 @@ def main() -> None:
     project_create.add_argument("--name", required=True)
     project_create.add_argument("--description", default=None)
 
+    transfer_parser = sub.add_parser("transfers", help="Manage transfers")
+    transfer_sub = transfer_parser.add_subparsers(dest="transfer_command", required=True)
+    transfer_sub.add_parser("expire", help="Delete expired transfers (DB + MinIO)")
+
     args = parser.parse_args()
 
     try:
@@ -84,6 +103,8 @@ def main() -> None:
             asyncio.run(_revoke_machine(args.machine_id))
         elif args.command == "project" and args.project_command == "create":
             asyncio.run(_create_project(args.slug, args.name, args.description))
+        elif args.command == "transfers" and args.transfer_command == "expire":
+            asyncio.run(_expire_transfers())
     except HTTPException as exc:
         print(f"error: {exc.detail}", file=sys.stderr)
         raise SystemExit(1) from exc
