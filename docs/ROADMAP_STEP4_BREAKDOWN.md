@@ -123,7 +123,17 @@ selon une règle documentée, actuellement absente).
 - Un transfert non expiré n'est jamais supprimé, y compris après plusieurs
   exécutions du worker.
 
-## Sous-étape 4.4 — Sauvegardes Postgres/MinIO et test de restauration
+## Sous-étape 4.4 — Sauvegardes Postgres/MinIO et test de restauration — CLOS
+
+Scripts `docker/backup.sh` (pg_dump custom format + `mc mirror`, rétention
+configurable) et `docker/restore.sh` (pg_restore + `mc mirror` inverse),
+déclenchement cron VPS documenté, pas de scheduler in-process — même
+principe que DEC-0020. Décision et preuve de restauration réelle (base et
+bucket isolés, marqueurs insérés puis retrouvés intacts après
+sauvegarde/restauration, nettoyage vérifié) : `docs/DECISIONS.md` DEC-0021.
+Écart connu reporté vers la sous-étape 4.5 : le disaster recovery sur un
+poste réellement vierge (pas seulement une base/bucket isolés par nom)
+reste à démontrer.
 
 ### Problème
 Aucune procédure de sauvegarde/restauration documentée ou automatisée
