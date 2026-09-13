@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import uuid
 
 import httpx
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
+from studio_api.db.models.transfer import TransferModel
+
+
+def _md5_b64(payload: bytes) -> str:
+    return base64.b64encode(hashlib.md5(payload).digest()).decode()
 
 
 async def _create_transfer(
@@ -32,10 +39,13 @@ async def test_small_file_uploads_and_downloads_through_real_minio(
     and download."""
     payload = b"studio-os integration payload" * 1000
     sha256 = hashlib.sha256(payload).hexdigest()
+    content_md5 = _md5_b64(payload)
     transfer_id = await _create_transfer(client, auth_headers, len(payload))
 
     initiate = await client.post(
-        f"/api/v1/transfers/{transfer_id}/upload/initiate", headers=auth_headers
+        f"/api/v1/transfers/{transfer_id}/upload/initiate",
+        headers=auth_headers,
+        json={"content_md5": content_md5},
     )
     assert initiate.status_code == 200
     body = initiate.json()
@@ -46,7 +56,7 @@ async def test_small_file_uploads_and_downloads_through_real_minio(
         put_response = await raw.put(
             body["upload_url"],
             content=payload,
-            headers={"Content-Type": "application/octet-stream"},
+            headers={"Content-Type": "application/octet-stream", "Content-MD5": content_md5},
         )
     assert put_response.status_code == 200
 
@@ -74,16 +84,21 @@ async def test_upload_complete_rejects_size_mismatch(
     client: AsyncClient, auth_headers: dict[str, str]
 ) -> None:
     payload = b"short payload"
+    content_md5 = _md5_b64(payload)
     transfer_id = await _create_transfer(client, auth_headers, len(payload))
 
     initiate = await client.post(
-        f"/api/v1/transfers/{transfer_id}/upload/initiate", headers=auth_headers
+        f"/api/v1/transfers/{transfer_id}/upload/initiate",
+        headers=auth_headers,
+        json={"content_md5": content_md5},
     )
     upload_url = initiate.json()["upload_url"]
 
     async with httpx.AsyncClient() as raw:
         put_response = await raw.put(
-            upload_url, content=payload, headers={"Content-Type": "application/octet-stream"}
+            upload_url,
+            content=payload,
+            headers={"Content-Type": "application/octet-stream", "Content-MD5": content_md5},
         )
     assert put_response.status_code == 200
 
@@ -96,20 +111,120 @@ async def test_upload_complete_rejects_size_mismatch(
     assert complete.json()["detail"]["error_code"] == "size_mismatch"
 
 
+async def test_upload_initiate_rejects_missing_content_md5(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    """Golden-rule corollary (DEC-0014): the single-PUT path can only be
+    verified server-side if the client commits to a Content-MD5 up front."""
+    transfer_id = await _create_transfer(client, auth_headers, size_bytes=13)
+
+    initiate = await client.post(
+        f"/api/v1/transfers/{transfer_id}/upload/initiate", headers=auth_headers
+    )
+    assert initiate.status_code == 422
+    assert initiate.json()["detail"]["error_code"] == "missing_content_md5"
+
+
+async def test_upload_rejected_by_minio_on_content_md5_mismatch(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    """DEC-0014: presigning the PUT with Content-MD5 makes MinIO itself refuse
+    a byte mismatch at upload time (`BadDigest`) — no bytes ever reach the API
+    process, and the transfer can never be silently marked `ready` off
+    corrupted/tampered bytes. This was flagged as untestable before DEC-0014
+    since nothing validated `sha256` at all."""
+    payload = b"the real bytes actually being uploaded"
+    declared_md5 = _md5_b64(b"different bytes than what gets uploaded")
+    transfer_id = await _create_transfer(client, auth_headers, len(payload))
+
+    initiate = await client.post(
+        f"/api/v1/transfers/{transfer_id}/upload/initiate",
+        headers=auth_headers,
+        json={"content_md5": declared_md5},
+    )
+    assert initiate.status_code == 200
+    upload_url = initiate.json()["upload_url"]
+
+    async with httpx.AsyncClient() as raw:
+        put_response = await raw.put(
+            upload_url,
+            content=payload,
+            headers={"Content-Type": "application/octet-stream", "Content-MD5": declared_md5},
+        )
+    assert put_response.status_code == 400
+    assert "BadDigest" in put_response.text
+
+    # Nothing was ever stored, so completion (if attempted anyway) can't find
+    # a matching object to mark ready.
+    complete = await client.post(
+        f"/api/v1/transfers/{transfer_id}/upload/complete",
+        headers=auth_headers,
+        json={"size_bytes": len(payload), "sha256": hashlib.sha256(payload).hexdigest()},
+    )
+    assert complete.status_code == 422
+    assert complete.json()["detail"]["error_code"] == "object_not_found"
+
+
+async def test_upload_complete_rejects_content_md5_mismatch_defense_in_depth(
+    client: AsyncClient, auth_headers: dict[str, str], db_session: AsyncSession
+) -> None:
+    """Even if the stored `content_md5` metadata and the real object ever
+    disagree (e.g. a bug, or a future storage backend that enforces
+    Content-MD5 less strictly than this MinIO build), `complete_upload`'s own
+    re-check (services/transfers.py) must still refuse to mark `ready`."""
+    payload = b"legitimately uploaded bytes"
+    content_md5 = _md5_b64(payload)
+    transfer_id = await _create_transfer(client, auth_headers, len(payload))
+
+    initiate = await client.post(
+        f"/api/v1/transfers/{transfer_id}/upload/initiate",
+        headers=auth_headers,
+        json={"content_md5": content_md5},
+    )
+    upload_url = initiate.json()["upload_url"]
+    async with httpx.AsyncClient() as raw:
+        put_response = await raw.put(
+            upload_url,
+            content=payload,
+            headers={"Content-Type": "application/octet-stream", "Content-MD5": content_md5},
+        )
+    assert put_response.status_code == 200
+
+    # Simulate the metadata and storage channels disagreeing about what was
+    # actually uploaded.
+    transfer = await db_session.get(TransferModel, uuid.UUID(transfer_id))
+    assert transfer is not None
+    transfer.content_md5 = _md5_b64(b"not what was actually uploaded")
+    await db_session.commit()
+
+    complete = await client.post(
+        f"/api/v1/transfers/{transfer_id}/upload/complete",
+        headers=auth_headers,
+        json={"size_bytes": len(payload), "sha256": hashlib.sha256(payload).hexdigest()},
+    )
+    assert complete.status_code == 422
+    assert complete.json()["detail"]["error_code"] == "content_md5_mismatch"
+
+
 async def test_delete_transfer_removes_object_from_minio(
     client: AsyncClient, auth_headers: dict[str, str]
 ) -> None:
     payload = b"delete-me"
     sha256 = hashlib.sha256(payload).hexdigest()
+    content_md5 = _md5_b64(payload)
     transfer_id = await _create_transfer(client, auth_headers, len(payload))
 
     initiate = await client.post(
-        f"/api/v1/transfers/{transfer_id}/upload/initiate", headers=auth_headers
+        f"/api/v1/transfers/{transfer_id}/upload/initiate",
+        headers=auth_headers,
+        json={"content_md5": content_md5},
     )
     upload_url = initiate.json()["upload_url"]
     async with httpx.AsyncClient() as raw:
         put_response = await raw.put(
-            upload_url, content=payload, headers={"Content-Type": "application/octet-stream"}
+            upload_url,
+            content=payload,
+            headers={"Content-Type": "application/octet-stream", "Content-MD5": content_md5},
         )
     assert put_response.status_code == 200
     complete = await client.post(

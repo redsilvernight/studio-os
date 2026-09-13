@@ -44,6 +44,7 @@ class Transfer(ContractModel):
     content_type: str
     size_bytes: int
     sha256: str | None = None
+    content_md5: str | None = None
     status: TransferStatus = TransferStatus.CREATED
     expires_at: datetime | None = None
     created_at: datetime
@@ -62,6 +63,17 @@ class TransferCreate(IdempotentCreate):
     size_bytes: int
 
 
+class UploadInitiateRequest(ContractModel):
+    """`content_md5` (RFC 1864, base64-encoded MD5 of the whole file) is
+    required for the single-PUT path: the server presigns the PUT with it, so
+    MinIO/S3 itself rejects any byte mismatch at upload time with `BadDigest`
+    (DEC-0014) — no bytes ever flow through the API process. Not used for the
+    multipart path (see DEC-0014 for why a whole-object checksum can't be
+    enforced the same way there)."""
+
+    content_md5: str | None = None
+
+
 class UploadInitiateResponse(ContractModel):
     """Small file: a single pre-signed PUT. Large file: multipart parts, each
     with its own pre-signed URL — see TECH/06_STORAGE_TRANSFER_SPEC.md."""
@@ -77,7 +89,12 @@ class UploadInitiateResponse(ContractModel):
 class UploadCompleteRequest(ContractModel):
     """Multipart parts/upload_id are tracked client-side per
     .claude/rules/storage-transfers.md and handed back here — the server never
-    persists multipart-in-progress state."""
+    persists multipart-in-progress state.
+
+    `sha256` is recorded as reported by the client. For the single-PUT path it
+    is corroborated by the server-verified `content_md5` (DEC-0014); for
+    multipart it remains an unverified client claim — MinIO/S3 offer no native
+    whole-object checksum over presigned URLs (DEC-0014)."""
 
     size_bytes: int
     sha256: str

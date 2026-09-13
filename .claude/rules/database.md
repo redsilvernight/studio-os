@@ -13,7 +13,7 @@ never treat it as a source of shared truth.
 - Internal IDs are UUIDs. Human-readable IDs (Task, Decision, Transfer) may exist alongside the UUID, never instead of it.
 - Mutable objects carry `updated_at` and an integer `version` for optimistic concurrency. A stale write must produce a 409 with the current server version — never a silent overwrite.
 - `ResourceClaim` always has a TTL; an expired claim is not active. It is a soft lock: it warns, it never blocks a Git operation or a file write. A folder claim conflicts with a descendant file claim.
-- `Transfer` carries at minimum: `id`, `transfer_code`, `sender_user_id`, `recipient_user_id`, `project_id`, `task_id`, `category`, `filename`, `object_key`, `content_type`, `size_bytes`, `sha256`, `status`, `expires_at`, `created_at`, `uploaded_at`, `downloaded_at`, `deleted_at`.
+- `Transfer` carries at minimum: `id`, `transfer_code`, `sender_user_id`, `recipient_user_id`, `project_id`, `task_id`, `category`, `filename`, `object_key`, `content_type`, `size_bytes`, `sha256`, `content_md5`, `status`, `expires_at`, `created_at`, `uploaded_at`, `downloaded_at`, `deleted_at`. `content_md5` (DEC-0014) is the only server-verified integrity field (single-PUT path); `sha256` is client-reported and unverified.
 
 ## Migrations
 

@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from typing import cast
 
 import boto3  # type: ignore[import-untyped]
+from botocore.config import Config  # type: ignore[import-untyped]
 
 from studio_api.settings import Settings
 
@@ -27,12 +28,19 @@ class StorageProvider:
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
+        # Force SigV4: boto3 falls back to legacy SigV2 for a non-AWS endpoint
+        # unless told otherwise, and SigV2 rejects any header (e.g.
+        # Content-MD5) that wasn't part of its signed set — breaking the
+        # native checksum enforcement DEC-0014 relies on. Real AWS S3 has
+        # dropped SigV2 entirely, so this also fixes portability off MinIO.
+        signing_config = Config(signature_version="s3v4")
         self._signing_client = boto3.client(
             "s3",
             endpoint_url=settings.s3_public_endpoint_url,
             aws_access_key_id=settings.s3_access_key,
             aws_secret_access_key=settings.s3_secret_key,
             region_name=settings.s3_region,
+            config=signing_config,
         )
         self._admin_client = boto3.client(
             "s3",
@@ -40,18 +48,24 @@ class StorageProvider:
             aws_access_key_id=settings.s3_access_key,
             aws_secret_access_key=settings.s3_secret_key,
             region_name=settings.s3_region,
+            config=signing_config,
         )
 
-    def presign_put(self, object_key: str, content_type: str) -> str:
+    def presign_put(
+        self, object_key: str, content_type: str, content_md5: str | None = None
+    ) -> str:
+        params: dict[str, object] = {
+            "Bucket": self._settings.s3_bucket,
+            "Key": object_key,
+            "ContentType": content_type,
+        }
+        if content_md5 is not None:
+            params["ContentMD5"] = content_md5
         return cast(
             str,
             self._signing_client.generate_presigned_url(
                 "put_object",
-                Params={
-                    "Bucket": self._settings.s3_bucket,
-                    "Key": object_key,
-                    "ContentType": content_type,
-                },
+                Params=params,
                 ExpiresIn=self._settings.presigned_url_ttl_seconds,
             ),
         )

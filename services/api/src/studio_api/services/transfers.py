@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
 
+from botocore.exceptions import ClientError  # type: ignore[import-untyped]
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -71,11 +74,22 @@ async def list_transfers(
     return list(result.scalars().all())
 
 
-def initiate_upload(
-    storage: StorageProvider, settings: Settings, transfer: TransferModel
+async def initiate_upload(
+    session: AsyncSession,
+    storage: StorageProvider,
+    settings: Settings,
+    transfer: TransferModel,
+    content_md5: str | None,
 ) -> UploadInitiateResponse:
     if transfer.size_bytes <= MULTIPART_THRESHOLD_BYTES:
-        url = storage.presign_put(transfer.object_key, transfer.content_type)
+        if not content_md5:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"error_code": "missing_content_md5"},
+            )
+        url = storage.presign_put(transfer.object_key, transfer.content_type, content_md5)
+        transfer.content_md5 = content_md5
+        await session.commit()
         return UploadInitiateResponse(transfer_id=transfer.id, multipart=False, upload_url=url)
 
     upload_id = storage.create_multipart_upload(transfer.object_key, transfer.content_type)
@@ -109,13 +123,35 @@ async def complete_upload(
                 detail={"error_code": "missing_upload_id"},
             )
         storage.complete_multipart_upload(transfer.object_key, upload_id=upload_id, parts=parts)
-    head = storage.head_object(transfer.object_key)
+    try:
+        head = storage.head_object(transfer.object_key)
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") == "404":
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"error_code": "object_not_found"},
+            ) from exc
+        raise
     actual_size = head.get("ContentLength")
     if actual_size is not None and actual_size != size_bytes:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail={"error_code": "size_mismatch", "expected": size_bytes, "actual": actual_size},
         )
+    if not parts and transfer.content_md5:
+        # Single-PUT path: MinIO/S3 already refused any byte mismatch against
+        # the presigned Content-MD5 (DEC-0014). This re-check is defense in
+        # depth against a storage backend that enforces it less strictly.
+        actual_etag = str(head.get("ETag", "")).strip('"')
+        try:
+            expected_hex = base64.b64decode(transfer.content_md5).hex()
+        except binascii.Error:
+            expected_hex = ""
+        if expected_hex != actual_etag:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"error_code": "content_md5_mismatch"},
+            )
     transfer.size_bytes = size_bytes
     transfer.sha256 = sha256
     transfer.status = "ready"

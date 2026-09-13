@@ -236,3 +236,80 @@ compilation source valide le comportement S3-compatible générique, pas la
 configuration/l'image de prod elle-meme (TLS, politiques de bucket Caddy,
 etc.), qui restera a verifier quand Docker sera disponible sur une machine
 de dev ou en CI.
+
+## DEC-0014 — Verification reelle de l'integrite d'upload via Content-MD5 natif S3 (pas le SHA256 declaratif)
+
+`complete_upload` (`services/api/src/studio_api/services/transfers.py`)
+ecrivait le `sha256` fourni par le client dans `Transfer.sha256` sans jamais
+le verifier contre l'objet reel — seul `size_bytes` etait verifie via
+`head_object`. Contradiction directe avec `.claude/rules/storage-transfers.md`
+("Validate size and sha256 on completion").
+
+**Piste testee et rejetee** : presigner le PUT avec `ChecksumAlgorithm=SHA256`
+(checksums additionnels S3, `x-amz-checksum-sha256` cote client,
+`ChecksumMode=ENABLED` sur `head_object`). Verifie empiriquement contre un
+vrai MinIO local (meme binaire que DEC-0013, `go install
+github.com/minio/minio@latest`) : MinIO refuse la requete des que l'entete de
+checksum est presente sans faire partie des `SignedHeaders` SigV4
+(`AccessDenied: There were headers present in the request which were not
+signed`). AWS S3 traite ce cas comme une exception (l'entete est declaree via
+le parametre de requete `x-amz-sdk-checksum-algorithm`, sa valeur n'a pas
+besoin d'etre connue au moment de la signature) ; ce MinIO ne reproduit pas
+cette exception. Non teste contre l'image Docker officielle de MinIO
+(indisponible sur cette machine, cf. DEC-0013) — a revalider si elle diverge
+un jour du binaire compile source.
+
+**Retenu** : mecanisme standard S3 `Content-MD5` (RFC 1864, present depuis
+S3 v1, oppose a l'extension "checksums additionnels" plus recente). Verifie
+empiriquement sur le meme MinIO : presigner le PUT avec `ContentMD5=<b64>`
+place `content-md5` dans les `SignedHeaders` — l'entete devient obligatoire
+(PUT sans l'entete -> `AccessDenied`) et son contenu est verifie par MinIO
+lui-meme contre les octets reellement recus (`BadDigest` en cas de
+mismatch, y compris si l'entete envoye correspond a ce qui a ete signe mais
+pas aux octets reels du corps de la requete) — aucun octet ne transite par
+FastAPI. Pour un objet single-part, `head_object(...).ETag` est le md5 hex
+de l'objet, ce qui permet une re-verification serveur en defense en
+profondeur a la completion (`complete_upload`), independante de la stricte
+application du Content-MD5 par le backend de stockage.
+
+Changements :
+- `packages/studio-contracts` : nouveau champ `Transfer.content_md5`,
+  nouveau modele `UploadInitiateRequest.content_md5` (requis pour le chemin
+  single-PUT, absent/ignore pour le multipart).
+- `TransferModel.content_md5` (colonne nullable) — migration additive
+  `0002_transfer_content_md5.py` (`downgrade()` retire la colonne). Tentative
+  initiale rejetee lors de la review `contract-guardian` : amender
+  `0001_initial.py` in situ plutot qu'une migration separee, sous
+  l'hypothese que "ce scaffold n'a jamais ete deploye". Faux en pratique —
+  Alembic suit les revisions appliquees par id (`alembic_version`), pas par
+  contenu, et la base Postgres locale de dev de cette meme machine (utilisee
+  pour `tests/api/` depuis DEC-0011/0012/0013, cf. CLAUDE.md racine) avait
+  deja `0001` stampee sans `content_md5` — verifie empiriquement
+  (`SELECT * FROM alembic_version` -> `0001`, colonne absente). Un
+  `alembic upgrade head` sur cette base n'aurait rien fait silencieusement,
+  laissant `TransferModel.content_md5` planter en `UndefinedColumn` a la
+  premiere execution reelle plutot qu'a la migration. Corrige avec une vraie
+  migration `0002` ; rejouee avec succes sur la base de dev existante
+  (upgrade non destructif, `ALTER TABLE ADD COLUMN` nullable) et sur
+  `studio_os_test` (downgrade base + upgrade head).
+- `StorageProvider` : les deux clients boto3 forcent desormais
+  `Config(signature_version="s3v4")`. Necessaire au mecanisme (SigV2, choisi
+  par defaut par boto3 pour un endpoint non-AWS, rejette toute entete non
+  signee comme `Content-MD5`) et corrige au passage un bug latent de
+  portabilite : AWS S3 a retire le support de SigV2 en 2020, le code
+  precedent n'aurait jamais fonctionne contre du vrai S3 AWS.
+- `initiate_upload` devient async et prend `session`/`content_md5` : rejette
+  `422 missing_content_md5` si absent sur le chemin single-PUT, presigne
+  avec `ContentMD5` et persiste la valeur sur le `Transfer`.
+- `complete_upload` : re-verifie `content_md5` contre `head_object().ETag`
+  sur le chemin single-PUT uniquement (`422 content_md5_mismatch` sinon).
+  Chemin multipart inchange sur ce point : `sha256` y reste une valeur
+  declarative non verifiee.
+
+**Limite assumee (documentee plutot que masquee)** : le multipart ne
+beneficie d'aucune verification native de hash d'objet complet — MinIO/S3
+n'exposent pas de checksum d'objet entier via URL pre-signee compatible avec
+un simple client HTTP sans identifiants AWS. L'integrite par-part reste
+neanmoins reellement appliquee de facon transitive : `CompleteMultipartUpload`
+echoue si les ETags fournis par le client ne correspondent pas a ce que
+MinIO a reellement stocke pour chaque part.

@@ -8,11 +8,15 @@ Studio API gere autorisation et metadonnees. MinIO/S3 stocke les octets. Le clie
 
 ## Upload petit fichier
 1. POST /transfers.
-2. API cree Transfer.
-3. API fournit URL pre-signee PUT.
-4. Client upload.
-5. Client appelle complete avec taille/hash.
-6. Serveur verifie l'objet et passe `ready`.
+2. Client calcule le MD5 (base64, RFC 1864) du fichier.
+3. POST /transfers/{id}/upload/initiate avec `content_md5` : l'API presigne
+   le PUT avec ce Content-MD5 (DEC-0014) et le persiste sur le Transfer.
+4. Client upload en envoyant l'entete `Content-MD5` — MinIO/S3 rejette le PUT
+   (`BadDigest`) si les octets ne correspondent pas, sans jamais faire
+   transiter les octets par l'API.
+5. Client appelle complete avec taille/`sha256` (declaratif, non verifie).
+6. Serveur verifie taille + re-verifie `content_md5` via `head_object`
+   (defense en profondeur) puis passe `ready`.
 
 ## Multipart gros fichier
 1. Initiate multipart.
@@ -20,7 +24,8 @@ Studio API gere autorisation et metadonnees. MinIO/S3 stocke les octets. Le clie
 3. Chaque part est envoyee directement au storage.
 4. Les ETag/parts sont persistes localement.
 5. Reprise apres coupure sans recommencer les parts terminees.
-6. Complete multipart puis validation taille/hash.
+6. Complete multipart puis validation taille (le `sha256` declare reste non
+   verifie cote serveur pour ce chemin — voir DEC-0014).
 
 ## Download
 URL GET pre-signee courte. Support HTTP Range pour reprise.

@@ -70,7 +70,7 @@ public de bootstrap, pas de secret d'environnement dedie.
 - POST /transfers
 - GET /transfers
 - GET /transfers/{id}
-- POST /transfers/{id}/upload/initiate
+- POST /transfers/{id}/upload/initiate — body `UploadInitiateRequest` (`content_md5` requis pour le chemin single-PUT, DEC-0014) ; voir `TECH/06_STORAGE_TRANSFER_SPEC.md`.
 - POST /transfers/{id}/upload/complete
 - POST /transfers/{id}/download-url
 - DELETE /transfers/{id}

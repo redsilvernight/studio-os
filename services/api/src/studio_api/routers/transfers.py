@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Header, HTTPException, Query, Request, status
+from fastapi import APIRouter, Body, Header, HTTPException, Query, Request, status
 from studio_contracts.transfers import (
     DownloadUrlResponse,
     Transfer,
     TransferCreate,
     UploadCompleteRequest,
+    UploadInitiateRequest,
     UploadInitiateResponse,
 )
 
@@ -70,12 +71,18 @@ async def get_transfer(transfer_id: UUID, session: DbSession, machine: CurrentMa
 
 @router.post("/{transfer_id}/upload/initiate", response_model=UploadInitiateResponse)
 async def initiate_upload(
-    transfer_id: UUID, session: DbSession, machine: CurrentMachine
+    transfer_id: UUID,
+    session: DbSession,
+    machine: CurrentMachine,
+    body: UploadInitiateRequest | None = Body(default=None),
 ) -> UploadInitiateResponse:
     transfer = await transfers_service.get_transfer(session, transfer_id)
     settings = get_settings()
     storage = StorageProvider(settings)
-    return transfers_service.initiate_upload(storage, settings, transfer)
+    content_md5 = body.content_md5 if body else None
+    return await transfers_service.initiate_upload(
+        session, storage, settings, transfer, content_md5
+    )
 
 
 @router.post("/{transfer_id}/upload/complete", response_model=Transfer)
