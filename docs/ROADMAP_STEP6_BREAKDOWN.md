@@ -114,7 +114,24 @@ sortie.
 - Le daemon envoie un heartbeat a intervalle regulier sans effort manuel.
 - Un arret (SIGINT/SIGTERM) ne laisse pas de requete en vol non geree.
 
-## Sous-etape 6.3 — Outbox SQLite persistante avec idempotence et backoff borne
+## Sous-etape 6.3 — Outbox SQLite persistante avec idempotence et backoff borne — CLOS
+
+Etudie sans `studio-architect` (perimetre isole, stockage local pur, meme
+principe que 6.2) : `docs/DECISIONS.md` DEC-0029. `studio_client/outbox/`
+(`OutboxStore`, `connect()`, `transaction()`) : schema `pending_events`/
+`pending_mutations`/`pending_markers`/`sync_state`/`dead_letter`, `PRIMARY
+KEY` sur la cle d'idempotence de chaque table replayable, `enqueue_*` sans
+commit propre (frontiere transactionnelle laissee a l'appelant via
+`transaction()`, pour partager une transaction avec l'ecriture locale
+qu'un enqueue represente), backoff borne par `RetryPolicy.delay_for` sans
+jamais abandonner sur le seul compteur de tentatives (seul
+`move_to_dead_letter` sort une ligne de la queue). 11 tests
+(`tests/client/test_outbox.py`), suite `tests/client/` 59/59 verte, suite
+complete du depot 176/176 verte, `ruff`/`mypy` strict verts — validation
+independante `studio-tester` : aucun bug bloquant, une limite non
+bloquante signalee (lecture-puis-ecriture non atomique dans
+`mark_failed`/`move_to_dead_letter`, sans consequence en usage
+mono-processus actuel, a garder en tete pour la logique de replay de 6.4).
 
 Reference obligatoire : `.claude/rules/offline-sync.md` (paths
 `**/outbox/**/*.py` — se charge automatiquement).
