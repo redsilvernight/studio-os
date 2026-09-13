@@ -50,6 +50,7 @@ async def _warm_pool(session_factory: async_sessionmaker[AsyncSession], count: i
     sequence before the others even connect — masking the race instead of
     exercising it. Pre-warming lets all `count` requests start from an
     already-connected pool and genuinely overlap at the database."""
+
     async def _touch() -> None:
         async with session_factory() as session:
             await session.execute(text("select 1"))
