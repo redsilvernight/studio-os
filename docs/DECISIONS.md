@@ -1237,3 +1237,302 @@ MinIO conteneurises isoles (memes images que la CI) apres l'ensemble des
 corrections de cette decision : **146/146 verts** (144 avant + les 2
 nouveaux tests `remaining_bytes`), aucune regression. `ruff check .`,
 `ruff format --check .` et `mypy` (invocation multi-racine CI) re-verts.
+
+## DEC-0025 — Integrite reelle d'upload via Content-MD5 natif S3 (correction d'un defaut confirme, pas le SHA256 declaratif)
+
+### Probleme
+
+`complete_upload` (`services/api/src/studio_api/services/transfers.py`) sur
+master ne verifiait que `ContentLength` via `head_object` et ecrivait le
+`sha256` fourni par le client sans jamais le comparer a l'objet reel dans
+MinIO — contradiction directe avec `.claude/rules/storage-transfers.md`
+("Validate size and sha256 on completion"). Consigne dans le vault AI-Memory
+(`projects/studio-os/bugs/bug-20260913-complete-upload-sha256-not-verified.md`)
+comme resolu par `dc4ed2f`, un commit qui n'est **pas** ancetre de master : il
+existe uniquement sur `origin/claude/eloquent-cori-3509bf`, sans PR, et son
+`DEC-0014`/migration `0002` entrent en conflit avec l'historique reel de
+master (DEC-0014 y est deja pris — Docker Desktop installe — et head Alembic
+est `0004`). Ce DEC porte proprement le design technique de `dc4ed2f` sur
+l'etat courant de master, verifie par lecture directe du code actuel plutot
+que par confiance sur parole envers le vault.
+
+### Decision
+
+Meme mecanisme que `dc4ed2f` (verifie empiriquement contre un vrai MinIO,
+cf. l'historique de conception conserve dans ce commit de reference) :
+Content-MD5 (RFC 1864), pas les checksums additionnels S3 (`x-amz-checksum-*`,
+rejetes par ce MinIO — en-tete non signee SigV4). `StorageProvider` force
+desormais `Config(signature_version="s3v4")` sur ses deux clients boto3 (SigV2,
+choisi par defaut par boto3 pour un endpoint non-AWS, rejette toute en-tete
+non signee comme `Content-MD5`, et n'est de toute facon plus accepte par AWS
+S3 reel depuis 2020).
+
+- Nouveau champ `Transfer.content_md5` (contrat + modele ORM, nullable).
+- Migration Alembic **`0005`** (jamais `0002`, deja pris par la reservation
+  d'idempotence — DEC-0015) : `services/api/alembic/versions/0005_transfer_content_md5.py`,
+  `down_revision="0004"` (tete Alembic reelle de master).
+- `POST /transfers/{id}/upload/initiate` : nouveau body optionnel
+  `UploadInitiateRequest.content_md5`. Chemin single-PUT (taille <= seuil
+  multipart) : absent -> `422 missing_content_md5` ; sinon presigne le PUT
+  avec ce Content-MD5, persiste `transfer.content_md5`. Nouveau garde-fou
+  absent de `dc4ed2f` : rejoue sur un transfert deja `status="ready"` ->
+  `409 transfer_already_ready` (sinon un second appel `initiate` remplacerait
+  silencieusement `content_md5` sans que l'objet ne soit re-uploade).
+- `complete_upload` : `head_object` peut lever un `ClientError` 404 (objet
+  jamais uploade) -> `422 object_not_found` (non gere auparavant, aurait
+  fait planter la requete avec une trace brute). Chemin single-PUT :
+  re-verification `head_object().ETag` (nettoye des guillemets) contre
+  `base64.b64decode(content_md5).hex()` -> `422 content_md5_mismatch` sinon,
+  en defense en profondeur independante de l'application stricte du
+  Content-MD5 par le backend de stockage.
+- **Correction supplementaire, hors perimetre de `dc4ed2f`** (defaut trouve
+  par `studio-architect` en revue de ce portage, adjacent au meme code) :
+  `complete_upload` comparait `head.ContentLength` a `body.size_bytes` (la
+  valeur declaree a la *completion*), jamais a `transfer.size_bytes` (la
+  valeur sur laquelle `_enforce_transfer_limits`/le quota DEC-0019 avaient
+  statue a la creation). Un client pouvait donc creer un transfert avec
+  `size_bytes=1` (quota trivialement respecte), uploader plusieurs Go, puis
+  completer avec `size_bytes=<taille reelle>` : le controle de coherence
+  post-hoc passait (`head.ContentLength == body.size_bytes`) et
+  `transfer.size_bytes` etait silencieusement ecrase par la valeur reelle,
+  contournant le quota accorde a la creation. Corrige : la taille declaree a
+  la completion doit desormais correspondre a `transfer.size_bytes` (rejet
+  immediat `422 size_mismatch` sinon, avant tout appel reseau storage), et la
+  taille reelle de l'objet est egalement verifiee contre cette meme valeur de
+  reference — jamais contre la valeur de completion. `transfer.size_bytes`
+  n'est plus reecrit a la completion (il l'est deja correctement depuis la
+  creation).
+- Multipart : aucune verification serveur de hash d'objet complet — limite
+  assumee et documentee (`TECH/06_STORAGE_TRANSFER_SPEC.md`), MinIO/S3
+  n'exposent pas ce mecanisme via URL pre-signee a un client sans
+  identifiants AWS ; l'integrite par-part reste appliquee de facon
+  transitive par la verification d'ETag native de `CompleteMultipartUpload`.
+- `services/mcp/src/studio_mcp/tools/transfers.py::studio_create_transfer_metadata` :
+  gagne le meme parametre optionnel `content_md5`, propage a
+  `transfers_service.initiate_upload` — chemin oublie par le portage initial
+  (trouve par `studio-architect` en revue), corrige avant tout merge : sans
+  cela, tout upload petit fichier initie via MCP aurait echoue
+  `missing_content_md5` des ce changement.
+- `sha256` reste une valeur purement declarative dans tous les cas
+  (corroboree indirectement par `content_md5` sur le chemin single-PUT,
+  jamais verifiee sur le chemin multipart) — jamais presentee comme verifiee
+  ailleurs que documente ici.
+
+### Consequences
+
+- `TECH/02_API_CONTRACT.md`, `TECH/05_DATA_MODEL.md`,
+  `TECH/06_STORAGE_TRANSFER_SPEC.md` mis a jour dans le meme changement.
+- **Ecart de processus explicitement ratifie ici, pas seulement implique**
+  (releve par `contract-guardian` en revue independante) : le `422
+  missing_content_md5` sur `upload/initiate` (single-PUT) et le `409
+  transfer_already_ready` sur un ré-`initiate` d'un transfert deja `ready`
+  sont chacun un changement de required-ness/comportement pour un appelant
+  existant au sens strict de `.claude/rules/contracts.md` ("changing
+  required-ness ... requires ... an explicit contract version bump"), pas un
+  ajout purement additif. Aucun bump de version d'API n'est introduit ici.
+  Justification de l'exemption, actee par cette decision : `packages/studio-client`
+  (le seul consommateur Bloc B existant a ce jour) n'implemente encore aucune
+  methode de transfert/upload (verifie par lecture directe de
+  `packages/studio-client/src/studio_client/api_client.py` — absence totale
+  de `create_transfer`/`initiate_upload`/`complete_upload`) ; aucun appelant
+  reel ne peut donc etre casse par ce durcissement aujourd'hui. Ce n'est pas
+  une exemption permanente : le premier code Bloc B qui implementera l'upload
+  (sous-etape 6.7, `TransferClient`) devra traiter `content_md5` comme
+  requis des sa conception, pas comme une surprise a corriger apres coup —
+  a rappeler explicitement dans le prompt/la revue de la sous-etape 6.7.
+  Si un consommateur HTTP tiers venait a exister avant cette sous-etape, un
+  vrai bump de version API (pas seulement un DEC) serait alors necessaire.
+- `contracts/fixtures/transfers.json` mis a jour (`content_md5: null`).
+- Vault AI-Memory reconcilie dans la meme session (pas seulement annonce
+  ici) : le bug
+  `bugs/bug-20260913-complete-upload-sha256-not-verified.md` etait marque
+  `resolved` par erreur (il referencait `dc4ed2f`, jamais ancetre de
+  `master`) — corrige pour documenter cette erreur puis re-verifie
+  `resolved` une fois ce DEC-0025 reellement present sur `master` et
+  valide (`uv run pytest -q` vert, voir Preuves). Nouvelle note
+  `projects/studio-os/decisions/dec-20260913-content-md5-upload-integrity-master`
+  (DEC-0025) creee ; l'ancienne note `dec-20260913-content-md5-upload-integrity`
+  (le DEC-0014 de la branche non mergee) marquee `superseded_by` avec un
+  avertissement explicite en tete pour ne plus etre confondue avec le vrai
+  DEC-0014 de `master` (Docker Desktop, sans rapport).
+
+### Preuves
+
+Verifie reellement le 2026-09-13 contre Postgres 16 local
+(`studio_os_test`, migration `0005` appliquee — colonne deja presente par un
+essai anterieur sur cette base, verifiee identique au DDL de la migration
+puis `alembic stamp 0005`, reversibilite confirmee par un aller-retour reel
+`alembic downgrade 0004` + `alembic upgrade 0005`) et un MinIO reel compile
+source (memes conditions que DEC-0013, port 9000, identifiants
+`studio`/`studio-dev-secret`, bucket `studio-transfers` cree via boto3) :
+`uv run pytest -q` -> **159 passed** (aucun skip), incluant
+`tests/api/test_transfers_storage.py` (upload/download reel, rejet MinIO
+natif `BadDigest`, `object_not_found`, `content_md5_mismatch` en defense en
+profondeur, `size_mismatch` sur le contournement de quota ferme, garde
+`transfer_already_ready`, multipart inchange) et
+`tests/mcp/test_transfers.py` (chemin MCP `content_md5`). `uv run ruff
+check .` -> all checks passed. `uv run ruff format --check .` -> 193 files
+already formatted. `uv run mypy packages/studio-contracts/src
+packages/studio-client/src services/api/src services/mcp/src` -> Success, no
+issues found in 85 source files.
+
+## DEC-0026 — Appels boto3 async via `asyncio.to_thread`, factory `StorageProvider` mise en cache
+
+### Probleme
+
+`StorageProvider` (`services/api/src/studio_api/storage/provider.py`)
+appelait directement des methodes boto3 synchrones
+(`create_multipart_upload`, `complete_multipart_upload`, `head_object`,
+`delete_object`) depuis des routes/services FastAPI `async def`
+(`routers/transfers.py`, `services/transfers.py`, outils MCP transferts) —
+violation directe de `.claude/rules/python-conventions.md` ("never block the
+event loop with a synchronous call inside async code"). Chaque appel bloquait
+la boucle evenementielle pour la duree de la requete HTTP reelle vers
+MinIO/S3.
+
+### Decision
+
+- Les quatre methodes ci-dessus deviennent `async def`, deleguant l'appel
+  boto3 bloquant a `asyncio.to_thread(...)` — pas de nouvelle dependance
+  (`aioboto3` ecarte : gain nul vu le volume d'appels de ce service, cout de
+  dependance et de surface de test superieur au probleme reel). Les clients
+  boto3 bas niveau sont thread-safe pour des appels de methode individuels,
+  donc partager une instance entre threads du pool est sur.
+- `presign_put`/`presign_get`/`presign_upload_part` restent synchrones :
+  signature locale pure (calcul HMAC), aucune I/O reseau.
+- Defaut adjacent trouve en revue (`studio-architect`) : `StorageProvider(settings)`
+  etait instancie a neuf dans chaque handler (`routers/transfers.py`,
+  `tools/transfers.py`, `admin_cli.py`) — or `boto3.client()` est lui-meme
+  bloquant et non trivial (chargement des modeles de service botocore depuis
+  le disque), donc envelopper `head_object` dans un thread tout en
+  reconstruisant un client synchrone juste au-dessus a chaque requete aurait
+  laisse la correction a moitie vide. Corrige par une factory mise en cache
+  `storage.provider.get_storage()` (`@lru_cache`, meme pattern que le cache
+  de moteur module-level de `studio_api/db/session.py`) — tous les sites
+  d'appel (`routers/transfers.py`, `tools/transfers.py`, `admin_cli.py`,
+  `tests/api/test_transfers_expiration.py`) migres de
+  `StorageProvider(get_settings())` vers `get_storage()`.
+- `presign_upload_part` reste appele en boucle synchrone pour generer les
+  URLs multipart (jusqu'a ~80 pour un fichier de plusieurs Go) — signature
+  locale, pas d'I/O reseau ; a revisiter seulement si un profil reel montre
+  un cout notable (non constate ici, hors perimetre de cette correction).
+
+### Consequences
+
+Aucun changement de contrat (comportement HTTP/MCP observable identique,
+seule l'implementation devient non-bloquante). `.claude/rules/storage-transfers.md`
+mis a jour pour documenter l'obligation async et la factory mise en cache.
+
+### Preuves
+
+Meme execution que DEC-0025 (memes 159 tests, meme session) : `tests/api/
+test_transfers_storage.py` et `tests/api/test_transfers_expiration.py`
+exercent les quatre methodes rendues async
+(`create_multipart_upload`/`complete_multipart_upload`/`head_object`/
+`delete_object`) contre un vrai MinIO, tous verts. `get_storage()` verifie
+par lecture directe des 6 sites d'appel migres (`routers/transfers.py` x4,
+`tools/transfers.py` x2, `admin_cli.py`, `tests/api/test_transfers_expiration.py`
+x3) — plus aucune construction `StorageProvider(settings)` residuelle dans
+le depot (`rg "StorageProvider\("` ne retourne plus que la definition de
+classe et l'usage interne de `get_storage()`). `mypy`/`ruff` verts (voir
+preuves DEC-0025, memes commandes/session).
+
+## DEC-0027 — Idempotence MCP : `event_id` accepte du client, `idempotency_key` pour un sous-ensemble d'outils ecrivains
+
+### Probleme
+
+`TECH/07_MCP_CONTRACT.md` documentait deux ecarts (DEC-0023) : les outils MCP
+ecrivains appellent `services/*.py` directement (DEC-0005), contournant
+`run_idempotent` (vit dans la couche routeur HTTP, depend d'un objet
+`Request` FastAPI) ; et `studio_emit_event` generait lui-meme `event_id =
+uuid4()` au lieu d'accepter celui fourni par l'appelant, alors que
+`events_service.create_event` est deja get-or-create par PK des qu'un
+`event_id` stable lui est fourni. DEC-0024 avait deja tranche que la file
+offline du Bloc B ne rejoue jamais via MCP (uniquement HTTP) — l'ecart
+d'idempotence MCP n'est donc pas une question de garantie offline-sync, mais
+un risque plus etroit : un agent interactif qui retente lui-meme un appel
+d'outil ecrivain (timeout, erreur de transport MCP) peut dupliquer une
+ressource.
+
+### Decision
+
+Etudie par `studio-architect` avant implementation.
+
+1. **`studio_emit_event`** (`services/mcp/src/studio_mcp/tools/events.py`)
+   gagne un parametre optionnel `event_id: str | None = None` ; fourni, il
+   est parse en UUID et propage a `EventCreate` tel quel ; omis, un `uuid4()`
+   est genere comme avant (retrocompatible, appel one-shot). Aucun changement
+   service necessaire : `events_service.create_event` garantissait deja le
+   replay sans doublon.
+2. **Coeur d'idempotence reutilisable, sans duplication de logique
+   (`.claude/rules/mcp-tools.md`, `.claude/rules/python-conventions.md`)** :
+   `services/api/src/studio_api/services/idempotency.py::run_idempotent`
+   (utilise par les 7 routeurs HTTP creation) est refactore en un wrapper fin
+   au-dessus d'un nouveau coeur `run_idempotent_dict` — memes primitives
+   `_reserve`/`_reclaim_if_abandoned`/`_resolve_existing`/`_complete`/`_release`,
+   mais independant d'un objet `Request` FastAPI et d'un `response_model`
+   Pydantic particulier (opere sur des `dict[str, Any]`, deja le format
+   renvoye par les outils MCP `_compact_*`). Comportement HTTP inchange
+   (memes tests existants, verifies verts apres refactor).
+3. **`idempotency_key` optionnel sur un sous-ensemble d'outils ecrivains** :
+   `studio_create_task`, `studio_add_decision`, `studio_claim_resource`,
+   `studio_start_session` — choisis parce qu'un retry direct y creerait
+   reellement une seconde ressource metier. Chaque outil calcule son
+   `request_hash` via `idempotency_service.hash_request(json.dumps(args,
+   sort_keys=True).encode())` sur ses arguments significatifs (hors
+   `ctx`/`idempotency_key` eux-memes) et appelle `run_idempotent_dict` avec
+   un `endpoint` prefixe `"MCP <nom_outil>"`.
+4. **Espace de cles distinct, obligatoire** : la contrainte unique reste
+   `(idempotency_key, endpoint)` — reutiliser l'espace `"METHOD /path"` des
+   routeurs HTTP pour un outil MCP collisionnerait sur une valeur de cle
+   partagee ET produirait un `request_hash` systematiquement different
+   (corps HTTP brut vs JSON canonicalise des arguments), donc un
+   `409 idempotency_key_payload_mismatch` fantome plutot qu'un replay.
+   Consequence assumee et documentee (`TECH/07_MCP_CONTRACT.md`) : la meme
+   operation logique rejouee cote HTTP puis cote MCP avec la meme valeur de
+   cle cree bien deux ressources distinctes — coherent avec DEC-0024, les
+   deux chemins ne sont jamais censes interoperer.
+5. **Outils exemptes, avec justification explicite** (documente dans
+   `TECH/07_MCP_CONTRACT.md`, pas seulement ici) : `studio_claim_task` (deja
+   protege par `already_claimed`), `studio_release_task`/
+   `studio_release_resource`/`studio_end_session` (liberation deja
+   naturellement idempotente, no-op ou `not_found`, jamais une duplication),
+   `studio_update_task` (concurrence optimiste `expected_version`, deja
+   protegee), `studio_log_ai_work` (semantique create-ou-update ambigue pour
+   une seule cle — hors perimetre, a trancher separement si un besoin reel
+   apparait).
+6. **Correction de robustesse decouverte en revue (`studio-architect`)** :
+   `_release` (idempotency.py) commencait par un `SELECT` alors que la
+   session peut arriver avec sa transaction deja avortee (`create()` a leve
+   une `IntegrityError` — cas frequent cote MCP, `run_tool` a un handler
+   dedie pour ce cas) — le `SELECT` levait alors `PendingRollbackError`,
+   masquant l'erreur d'origine et laissant la reservation `pending` bloquee
+   jusqu'a `_PENDING_RECLAIM_SECONDS` (30s). Corrige par un
+   `await session.rollback()` en tete de `_release` (la reservation elle-meme
+   avait deja ete commitee independamment dans `_reserve`, rien de legitime
+   n'est perdu) — corrige au passage, latemment, le meme risque cote HTTP.
+
+### Consequences
+
+Additif au contrat MCP (parametres optionnels, aucun outil existant ne
+change de comportement s'il omet `idempotency_key`/`event_id`).
+`TECH/07_MCP_CONTRACT.md` mis a jour pour documenter precisement quels
+outils supportent `idempotency_key`, lesquels en sont exemptes et pourquoi,
+et rappeler que cette protection couvre le retry interactif direct, jamais
+la garantie offline-sync (qui reste entierement portee par HTTP, DEC-0024).
+
+### Preuves
+
+Meme execution que DEC-0025/0026 (159/159 verts, meme session, 2026-09-13) :
+`tests/mcp/test_events.py` (`event_id` fourni par l'appelant, replay sans
+doublon), `tests/mcp/test_tasks.py`/`test_decisions.py`/`test_claims.py`
+(replay sans doublon ET sans second `resource.conflict`)/`test_sessions.py`
+(replay `idempotency_key`, une seule ressource creee dans chaque cas), plus
+`test_create_task_idempotency_key_payload_mismatch_is_rejected` (meme cle,
+arguments differents -> `idempotency_key_payload_mismatch`). La suite HTTP
+existante (`tests/api/test_idempotency_concurrency.py` et les 7 routeurs
+creation tasks/claims/decisions/transfers/sessions/ai-work/projects) reste
+100% verte apres le refactor de `run_idempotent` en wrapper de
+`run_idempotent_dict` — comportement HTTP inchange confirme par les memes
+tests, pas seulement par lecture du diff. `mypy`/`ruff` verts (voir preuves
+DEC-0025, memes commandes/session).

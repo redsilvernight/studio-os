@@ -16,8 +16,7 @@ from studio_api.db.session import get_session_factory
 from studio_api.services import projects as projects_service
 from studio_api.services import provisioning as provisioning_service
 from studio_api.services import transfers as transfers_service
-from studio_api.settings import get_settings
-from studio_api.storage.provider import StorageProvider
+from studio_api.storage.provider import get_storage
 
 
 async def _bootstrap_admin(display_name: str, email: str) -> None:
@@ -56,8 +55,7 @@ async def _create_project(slug: str, name: str, description: str | None) -> None
 async def _expire_transfers() -> None:
     """Retention worker (roadmap etape 4.3, DEC-0020) — run on a schedule
     (e.g. VPS cron) rather than as an in-process scheduler dependency."""
-    settings = get_settings()
-    storage = StorageProvider(settings)
+    storage = get_storage()
     async with get_session_factory()() as session:
         expired = await transfers_service.expire_transfers(session, storage)
         for transfer in expired:

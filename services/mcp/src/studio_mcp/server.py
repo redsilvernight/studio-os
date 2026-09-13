@@ -69,7 +69,9 @@ def create_server() -> MCPServer:
         studio_create_task,
         name="studio_create_task",
         description=(
-            "Create a task on a project (project_id UUID string, title, optional description)."
+            "Create a task on a project (project_id UUID string, title, optional description). "
+            "Pass idempotency_key when retrying a call that may have already succeeded — "
+            "replaying the same key+arguments returns the original task instead of a duplicate."
         ),
     )
     server.add_tool(
@@ -105,7 +107,10 @@ def create_server() -> MCPServer:
         description=(
             "Soft-lock a resource path (file/folder) for the caller's machine. Never "
             "blocks a Git operation or file write — a conflicting active claim is "
-            "surfaced via a resource.conflict event, not a rejection."
+            "surfaced via a resource.conflict event, not a rejection. Pass "
+            "idempotency_key when retrying a call that may have already succeeded — "
+            "replaying the same key+arguments returns the original claim instead of a "
+            "duplicate and never re-emits the conflict event."
         ),
     )
     server.add_tool(
@@ -123,7 +128,10 @@ def create_server() -> MCPServer:
         name="studio_add_decision",
         description=(
             "Record a Decision (DEC-XXXX) with a title and body. The proposer "
-            "identity is derived from the caller's authenticated machine."
+            "identity is derived from the caller's authenticated machine. Pass "
+            "idempotency_key when retrying a call that may have already succeeded — "
+            "replaying the same key+arguments returns the original Decision instead "
+            "of allocating a second DEC-XXXX id."
         ),
     )
     server.add_tool(
@@ -151,7 +159,12 @@ def create_server() -> MCPServer:
     server.add_tool(
         studio_start_session,
         name="studio_start_session",
-        description="Start a work session on a task for the caller's machine.",
+        description=(
+            "Start a work session on a task for the caller's machine. Pass "
+            "idempotency_key when retrying a call that may have already succeeded — "
+            "replaying the same key+arguments returns the original session instead "
+            "of starting a duplicate."
+        ),
     )
     server.add_tool(
         studio_end_session,
@@ -180,7 +193,9 @@ def create_server() -> MCPServer:
         description=(
             "Emit a Studio OS event (task/session/claim/decision/ai_work/... lifecycle) "
             "so other agents and the dashboard see it. event_type must match "
-            "TECH/03_EVENT_CONTRACT.md (e.g. 'task.started')."
+            "TECH/03_EVENT_CONTRACT.md (e.g. 'task.started'). Pass a stable event_id "
+            "(UUID string) when this call might be retried — replaying the same "
+            "event_id returns the original stored event instead of a duplicate."
         ),
     )
     server.add_tool(
@@ -189,7 +204,9 @@ def create_server() -> MCPServer:
         description=(
             "Create a Studio Transfer record and return metadata plus a pre-signed "
             "upload URL — never the file bytes. The client uploads directly to "
-            "MinIO/S3 with the returned URL."
+            "MinIO/S3 with the returned URL. content_md5 (base64 RFC 1864) is "
+            "required for a small file (single-PUT path) or the call fails with "
+            "missing_content_md5."
         ),
     )
     server.add_tool(

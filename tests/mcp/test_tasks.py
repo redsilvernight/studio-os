@@ -85,3 +85,34 @@ async def test_update_task_applies_new_title(auth_ctx: FakeContext, project: Pro
         created["id"], expected_version=created["version"], ctx=auth_ctx, title="New title"
     )
     assert result["title"] == "New title"
+
+
+async def test_create_task_idempotency_key_replay_returns_same_task(
+    auth_ctx: FakeContext, project: ProjectModel
+) -> None:
+    """DEC-0027: an MCP writer's idempotency_key must behave like the HTTP
+    Idempotency-Key header — a replay with the same arguments returns the
+    original task, never a second one."""
+    first = await studio_create_task(
+        str(project.id), "Retried call", auth_ctx, idempotency_key="mcp-task-key-1"
+    )
+    second = await studio_create_task(
+        str(project.id), "Retried call", auth_ctx, idempotency_key="mcp-task-key-1"
+    )
+    assert second["id"] == first["id"]
+
+    listing = await studio_get_active_tasks(str(project.id), auth_ctx)
+    matches = [t for t in listing["tasks"] if t["title"] == "Retried call"]
+    assert len(matches) == 1
+
+
+async def test_create_task_idempotency_key_payload_mismatch_is_rejected(
+    auth_ctx: FakeContext, project: ProjectModel
+) -> None:
+    await studio_create_task(
+        str(project.id), "Original title", auth_ctx, idempotency_key="mcp-task-key-2"
+    )
+    result = await studio_create_task(
+        str(project.id), "Different title", auth_ctx, idempotency_key="mcp-task-key-2"
+    )
+    assert result["error_code"] == "idempotency_key_payload_mismatch"

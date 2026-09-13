@@ -1,11 +1,11 @@
 # Checklist d'integration A/B
 
 ## Avant le travail parallele
-- [ ] API contract versionne.
-- [ ] Event schemas versionnes.
+- [x] API contract versionne (`TECH/02_API_CONTRACT.md`, "API Contract v1" — endpoints, enveloppe d'erreur et `Idempotency-Key` documentes).
+- [x] Event schemas versionnes (`TECH/03_EVENT_CONTRACT.md` + `packages/studio_contracts/events.py::EventEnvelope.schema_version`).
 - [x] Auth/machine pairing defini (DEC-0011/DEC-0012 : bootstrap CLI `studio-admin` + `POST /machines`/`POST /users`).
-- [ ] Mock fixtures partagees.
-- [ ] Types Transfer et multipart definis.
+- [x] Mock fixtures partagees (`contracts/fixtures/*.json`, 7 entites, validees contre les contrats reels par `tests/contracts/test_fixtures.py` — 2 tests verts au 2026-09-13).
+- [x] Types Transfer et multipart definis (`packages/studio_contracts/transfers.py` : `Transfer`, `UploadInitiateRequest`/`Response`, `UploadCompleteRequest` avec `upload_id`/`parts` multipart — DEC-0025).
 
 ## Integration quotidienne
 - [ ] Aucun changement incompatible non annonce.

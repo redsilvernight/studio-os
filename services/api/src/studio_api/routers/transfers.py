@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Header, HTTPException, Query, Request, status
+from fastapi import APIRouter, Body, Header, HTTPException, Query, Request, status
 from studio_contracts.transfers import (
     DownloadUrlResponse,
     Transfer,
     TransferConsumption,
     TransferCreate,
     UploadCompleteRequest,
+    UploadInitiateRequest,
     UploadInitiateResponse,
 )
 
@@ -17,7 +18,7 @@ from studio_api.services import idempotency as idempotency_service
 from studio_api.services import projects as projects_service
 from studio_api.services import transfers as transfers_service
 from studio_api.settings import get_settings
-from studio_api.storage.provider import StorageProvider
+from studio_api.storage.provider import get_storage
 
 router = APIRouter(prefix="/api/v1/transfers", tags=["transfers"])
 
@@ -86,12 +87,18 @@ async def get_transfer(transfer_id: UUID, session: DbSession, machine: CurrentMa
 
 @router.post("/{transfer_id}/upload/initiate", response_model=UploadInitiateResponse)
 async def initiate_upload(
-    transfer_id: UUID, session: DbSession, machine: CurrentMachine
+    transfer_id: UUID,
+    session: DbSession,
+    machine: CurrentMachine,
+    body: UploadInitiateRequest | None = Body(default=None),
 ) -> UploadInitiateResponse:
     transfer = await transfers_service.get_transfer(session, transfer_id)
     settings = get_settings()
-    storage = StorageProvider(settings)
-    return transfers_service.initiate_upload(storage, settings, transfer)
+    storage = get_storage()
+    content_md5 = body.content_md5 if body else None
+    return await transfers_service.initiate_upload(
+        session, storage, settings, transfer, content_md5
+    )
 
 
 @router.post("/{transfer_id}/upload/complete", response_model=Transfer)
@@ -99,8 +106,7 @@ async def complete_upload(
     transfer_id: UUID, body: UploadCompleteRequest, session: DbSession, machine: CurrentMachine
 ) -> Transfer:
     transfer = await transfers_service.get_transfer(session, transfer_id)
-    settings = get_settings()
-    storage = StorageProvider(settings)
+    storage = get_storage()
     transfer = await transfers_service.complete_upload(
         session, storage, transfer, body.size_bytes, body.sha256, body.upload_id, body.parts
     )
@@ -113,7 +119,7 @@ async def get_download_url(
 ) -> DownloadUrlResponse:
     transfer = await transfers_service.get_transfer(session, transfer_id)
     settings = get_settings()
-    storage = StorageProvider(settings)
+    storage = get_storage()
     url, expires_at = transfers_service.get_download_url(storage, settings, transfer)
     return DownloadUrlResponse(transfer_id=transfer.id, download_url=url, expires_at=expires_at)
 
@@ -121,6 +127,5 @@ async def get_download_url(
 @router.delete("/{transfer_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_transfer(transfer_id: UUID, session: DbSession, machine: CurrentMachine) -> None:
     transfer = await transfers_service.get_transfer(session, transfer_id)
-    settings = get_settings()
-    storage = StorageProvider(settings)
+    storage = get_storage()
     await transfers_service.delete_transfer(session, storage, transfer)

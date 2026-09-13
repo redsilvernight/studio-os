@@ -59,3 +59,35 @@ async def test_release_resource_marks_released(
 async def test_release_resource_rejects_unknown_claim(auth_ctx: FakeContext) -> None:
     result = await studio_release_resource("00000000-0000-0000-0000-000000000000", auth_ctx)
     assert result["error_code"] == "error"
+
+
+async def test_claim_resource_idempotency_key_replay_creates_no_duplicate(
+    auth_ctx: FakeContext, project: ProjectModel
+) -> None:
+    """DEC-0027: a replayed studio_claim_resource call must not create a
+    second claim, and must not re-emit resource.conflict on the replay."""
+    first = await studio_claim_resource(
+        str(project.id),
+        "scenes/retry.tscn",
+        "file",
+        600,
+        auth_ctx,
+        idempotency_key="mcp-claim-key-1",
+    )
+    second = await studio_claim_resource(
+        str(project.id),
+        "scenes/retry.tscn",
+        "file",
+        600,
+        auth_ctx,
+        idempotency_key="mcp-claim-key-1",
+    )
+    assert second["id"] == first["id"]
+
+    listing = await studio_get_resource_claims(str(project.id), auth_ctx)
+    matches = [c for c in listing["claims"] if c["resource_path"] == "scenes/retry.tscn"]
+    assert len(matches) == 1
+
+    changes = await studio_get_recent_changes(auth_ctx, project_id=str(project.id))
+    conflicts = [e for e in changes["events"] if e["event_type"] == "resource.conflict"]
+    assert conflicts == []

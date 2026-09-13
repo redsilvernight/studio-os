@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 from uuid import UUID
 
@@ -7,6 +8,7 @@ from mcp.server.mcpserver import Context
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.task import TaskModel
+from studio_api.services import idempotency as idempotency_service
 from studio_api.services import projects as projects_service
 from studio_api.services import tasks as tasks_service
 from studio_contracts.tasks import TaskCreate, TaskStatus, TaskUpdate
@@ -59,18 +61,39 @@ async def studio_get_active_tasks(project_id: str, ctx: Context) -> dict[str, An
 
 
 async def studio_create_task(
-    project_id: str, title: str, ctx: Context, description: str | None = None
+    project_id: str,
+    title: str,
+    ctx: Context,
+    description: str | None = None,
+    idempotency_key: str | None = None,
 ) -> dict[str, Any]:
-    """Create a task on a project. `project_id` is a UUID string."""
+    """Create a task on a project. `project_id` is a UUID string. Pass a
+    caller-generated `idempotency_key` when this call might be retried
+    (network timeout, transport error) — replaying the same key with the
+    same arguments returns the original task instead of creating a second
+    one; the same key with different arguments fails with
+    `idempotency_key_payload_mismatch` (DEC-0027)."""
 
     async def _handler(session: AsyncSession, _machine: MachineModel) -> dict[str, Any]:
         parsed = parse_uuid(project_id, "project_id")
         if isinstance(parsed, dict):
             return parsed
-        task = await tasks_service.create_task(
-            session, TaskCreate(project_id=parsed, title=title, description=description)
+
+        async def _create() -> dict[str, Any]:
+            task = await tasks_service.create_task(
+                session, TaskCreate(project_id=parsed, title=title, description=description)
+            )
+            return _compact_task(task)
+
+        request_hash = idempotency_service.hash_request(
+            json.dumps(
+                {"project_id": project_id, "title": title, "description": description},
+                sort_keys=True,
+            ).encode()
         )
-        return _compact_task(task)
+        return await idempotency_service.run_idempotent_dict(
+            session, idempotency_key, "MCP studio_create_task", request_hash, _create
+        )
 
     return await run_tool(ctx, _handler)
 

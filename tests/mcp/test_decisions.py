@@ -29,3 +29,26 @@ async def test_get_decisions_lists_added_decision(
     )
     result = await studio_get_decisions(auth_ctx, project_id=str(project.id))
     assert any(d["id"] == created["id"] for d in result["decisions"])
+
+
+async def test_add_decision_idempotency_key_replay_allocates_no_second_id(
+    auth_ctx: FakeContext, project: ProjectModel
+) -> None:
+    """DEC-0027: a replayed studio_add_decision call must not burn a second
+    DEC-XXXX readable_id."""
+    first = await studio_add_decision(
+        "Retried decision",
+        "Same body both times.",
+        auth_ctx,
+        project_id=str(project.id),
+        idempotency_key="mcp-decision-key-1",
+    )
+    second = await studio_add_decision(
+        "Retried decision",
+        "Same body both times.",
+        auth_ctx,
+        project_id=str(project.id),
+        idempotency_key="mcp-decision-key-1",
+    )
+    assert second["id"] == first["id"]
+    assert second["readable_id"] == first["readable_id"]

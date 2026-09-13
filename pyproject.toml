@@ -23,7 +23,7 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.ruff.lint.flake8-bugbear]
 # FastAPI's Query()/Header()/Depends() in argument defaults is the documented
 # idiom, not the mutable-default footgun B008 flags.
-extend-immutable-calls = ["fastapi.Query", "fastapi.Header", "fastapi.Depends"]
+extend-immutable-calls = ["fastapi.Query", "fastapi.Header", "fastapi.Depends", "fastapi.Body"]
 
 [tool.mypy]
 python_version = "3.12"

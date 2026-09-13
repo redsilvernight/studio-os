@@ -146,7 +146,15 @@ async def _complete(
 async def _release(session: AsyncSession, idempotency_key: str, endpoint: str) -> None:
     """A failed business creation must not leave the key blocked (roadmap
     'Securiser l'idempotence sous concurrence', critere d'acceptation) —
-    drop the reservation so an identical retry can win it and proceed."""
+    drop the reservation so an identical retry can win it and proceed.
+
+    `create()` can fail with the session's transaction already aborted (e.g.
+    an `IntegrityError` from a bad FK) — a plain `SELECT` in that state raises
+    `PendingRollbackError`, masking the original error and leaving the
+    reservation `pending` for `_PENDING_RECLAIM_SECONDS`. Roll back first;
+    the reservation itself was committed independently in `_reserve`, so
+    nothing legitimate is lost."""
+    await session.rollback()
     row = await _get_row(session, idempotency_key, endpoint)
     if row is not None and row.status == IdempotencyStatus.PENDING:
         await session.delete(row)
@@ -160,6 +168,52 @@ def _reject_payload_mismatch() -> None:
     )
 
 
+async def run_idempotent_dict(
+    session: AsyncSession,
+    idempotency_key: str | None,
+    endpoint: str,
+    request_hash: str,
+    create: Callable[[], Awaitable[dict[str, Any]]],
+    response_status: int = 200,
+) -> dict[str, Any]:
+    """Core reservation/replay logic, independent of FastAPI's `Request` and
+    of any particular Pydantic response model — the piece `run_idempotent`
+    (HTTP) and MCP tools (`studio_mcp.tools.*`, DEC-0027) both build on, so
+    the atomic-reservation guarantee is never duplicated between the two
+    call paths (.claude/rules/mcp-tools.md, .claude/rules/python-conventions.md).
+
+    `endpoint` occupies the same `(idempotency_key, endpoint)` unique
+    constraint as HTTP routes — callers MUST use a namespace distinct from
+    the `"METHOD /path"` strings used by HTTP routers (e.g. `"MCP
+    studio_create_task"`, never `"POST /tasks"`) or an unrelated collision on
+    `idempotency_key` between an HTTP client and an MCP client would either
+    corrupt the unique constraint's semantics or spuriously fail on
+    `request_hash` mismatch, since the two callers hash their payload
+    differently. This is intentional and documented (DEC-0027, DEC-0024): the
+    Bloc B offline outbox replays exclusively via HTTP and never touches MCP
+    write tools, so the two spaces are never meant to interoperate."""
+    if idempotency_key is None:
+        return await create()
+
+    won = await _reserve(session, idempotency_key, endpoint, request_hash)
+    if not won:
+        won = await _reclaim_if_abandoned(session, idempotency_key, endpoint, request_hash)
+    if not won:
+        row = await _resolve_existing(session, idempotency_key, endpoint)
+        if row.request_hash != request_hash:
+            _reject_payload_mismatch()
+        return cast(dict[str, Any], row.response_body)
+
+    try:
+        result = await create()
+    except Exception:
+        await _release(session, idempotency_key, endpoint)
+        raise
+
+    await _complete(session, idempotency_key, endpoint, response_status, result)
+    return result
+
+
 async def run_idempotent[ModelT](
     session: AsyncSession,
     request: Request,
@@ -171,7 +225,11 @@ async def run_idempotent[ModelT](
 ) -> ModelT:
     """Shared replay logic for a POST that supports the `Idempotency-Key`
     header (.claude/rules/contracts.md) — used by tasks/claims/decisions/
-    transfers/sessions/ai-work/projects creation routes.
+    transfers/sessions/ai-work/projects creation routes. Thin wrapper over
+    `run_idempotent_dict`: hashes the raw HTTP request body and (de)serializes
+    the Pydantic `response_model` around the dict-based core, so the HTTP
+    behavior is unchanged (DEC-0015) while the reservation/replay primitives
+    stay in one place (DEC-0027).
 
     (idempotency_key, endpoint) is reserved in the database *before* the
     business creation runs, so at most one caller ever runs `create()` for a
@@ -187,21 +245,11 @@ async def run_idempotent[ModelT](
 
     request_hash = hash_request(await request.body())
 
-    won = await _reserve(session, idempotency_key, endpoint, request_hash)
-    if not won:
-        won = await _reclaim_if_abandoned(session, idempotency_key, endpoint, request_hash)
-    if not won:
-        row = await _resolve_existing(session, idempotency_key, endpoint)
-        if row.request_hash != request_hash:
-            _reject_payload_mismatch()
-        return cast(ModelT, response_model.model_validate(row.response_body))  # type: ignore[attr-defined]
-
-    try:
+    async def _create_dict() -> dict[str, Any]:
         result = await create()
-    except Exception:
-        await _release(session, idempotency_key, endpoint)
-        raise
+        return cast(dict[str, Any], result.model_dump(mode="json"))  # type: ignore[attr-defined]
 
-    dumped = result.model_dump(mode="json")  # type: ignore[attr-defined]
-    await _complete(session, idempotency_key, endpoint, status_code, dumped)
-    return result
+    dumped = await run_idempotent_dict(
+        session, idempotency_key, endpoint, request_hash, _create_dict, status_code
+    )
+    return cast(ModelT, response_model.model_validate(dumped))  # type: ignore[attr-defined]

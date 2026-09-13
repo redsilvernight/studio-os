@@ -38,3 +38,17 @@ async def test_get_sessions_filters_by_task(auth_ctx: FakeContext, project: Proj
     started = await studio_start_session(task["id"], auth_ctx)
     result = await studio_get_sessions(auth_ctx, task_id=task["id"])
     assert any(s["id"] == started["id"] for s in result["sessions"])
+
+
+async def test_start_session_idempotency_key_replay_starts_no_second_session(
+    auth_ctx: FakeContext, project: ProjectModel
+) -> None:
+    """DEC-0027: a replayed studio_start_session call must not start a second
+    work session for the same retried request."""
+    task = await studio_create_task(str(project.id), "Idempotent session task", auth_ctx)
+    first = await studio_start_session(task["id"], auth_ctx, idempotency_key="mcp-session-key-1")
+    second = await studio_start_session(task["id"], auth_ctx, idempotency_key="mcp-session-key-1")
+    assert second["id"] == first["id"]
+
+    result = await studio_get_sessions(auth_ctx, task_id=task["id"])
+    assert len(result["sessions"]) == 1

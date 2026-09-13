@@ -87,8 +87,30 @@ public de bootstrap, pas de secret d'environnement dedie.
   appeler cet endpoint avant un gros upload pour eviter un aller-retour
   rejete est recommande mais jamais garanti (fenetre de concurrence entre la
   lecture et le `POST /transfers` reel).
-- POST /transfers/{id}/upload/initiate
-- POST /transfers/{id}/upload/complete
+- POST /transfers/{id}/upload/initiate — body optionnel `UploadInitiateRequest`
+  (`content_md5`, base64 RFC 1864). Requis pour le chemin single-PUT (taille
+  <= seuil multipart), sinon `422 {"detail": {"error_code":
+  "missing_content_md5"}}` (DEC-0025) ; ignore pour le chemin multipart.
+  Rejoue sur un transfert deja `ready` -> `409 {"detail": {"error_code":
+  "transfer_already_ready"}}` (l'objet/`content_md5` d'un upload complete ne
+  sont jamais remplacables par un second appel initiate). Voir
+  `TECH/06_STORAGE_TRANSFER_SPEC.md`.
+  **Note de compatibilite (DEC-0025)** : ces deux reponses (`422`/`409`) sont
+  un durcissement de comportement pour cet endpoint (required-ness/etat),
+  pas un ajout purement additif — sans bump de version d'API distinct,
+  exempte ici uniquement parce qu'aucun consommateur Bloc B n'implemente
+  encore l'upload (`packages/studio-client` n'a pas de methode transfert a
+  ce jour). A traiter comme requis des la conception, pas comme un
+  changement de contrat en cours de route, pour la sous-etape 6.7
+  (`TransferClient`).
+- POST /transfers/{id}/upload/complete — `size_bytes` doit correspondre a la
+  valeur declaree a la creation (`Transfer.size_bytes`, verifiee contre le
+  quota DEC-0019), pas seulement a l'objet reel dans le stockage ; toute
+  divergence (corps de completion, objet reel absent, ou taille reelle) est
+  `422 {"detail": {"error_code": "size_mismatch"|"object_not_found", ...}}`
+  (DEC-0025). Chemin single-PUT : re-verification `content_md5` en defense en
+  profondeur -> `422 {"detail": {"error_code": "content_md5_mismatch"}}` si
+  l'objet reel ne correspond pas a ce qui a ete presigne.
 - POST /transfers/{id}/download-url
 - DELETE /transfers/{id}
 

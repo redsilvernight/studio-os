@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
 
+from botocore.exceptions import ClientError  # type: ignore[import-untyped]
 from fastapi import HTTPException, status
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -125,14 +128,30 @@ async def list_transfers(
     return list(result.scalars().all())
 
 
-def initiate_upload(
-    storage: StorageProvider, settings: Settings, transfer: TransferModel
+async def initiate_upload(
+    session: AsyncSession,
+    storage: StorageProvider,
+    settings: Settings,
+    transfer: TransferModel,
+    content_md5: str | None,
 ) -> UploadInitiateResponse:
+    if transfer.status == "ready":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={"error_code": "transfer_already_ready"},
+        )
     if transfer.size_bytes <= MULTIPART_THRESHOLD_BYTES:
-        url = storage.presign_put(transfer.object_key, transfer.content_type)
+        if not content_md5:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={"error_code": "missing_content_md5"},
+            )
+        url = storage.presign_put(transfer.object_key, transfer.content_type, content_md5)
+        transfer.content_md5 = content_md5
+        await session.commit()
         return UploadInitiateResponse(transfer_id=transfer.id, multipart=False, upload_url=url)
 
-    upload_id = storage.create_multipart_upload(transfer.object_key, transfer.content_type)
+    upload_id = await storage.create_multipart_upload(transfer.object_key, transfer.content_type)
     part_count = (transfer.size_bytes + PART_SIZE_BYTES - 1) // PART_SIZE_BYTES
     part_urls = {
         n: storage.presign_upload_part(transfer.object_key, upload_id, n)
@@ -156,21 +175,64 @@ async def complete_upload(
     upload_id: str | None,
     parts: dict[int, str] | None,
 ) -> TransferModel:
+    """`transfer.size_bytes` (set at creation and checked against the quota,
+    DEC-0019) is the source of truth for the expected size — not the
+    completion request's `size_bytes` — otherwise a client could declare a
+    small size at creation to pass the quota check, then complete with a
+    larger real size and silently exceed the quota it was granted (DEC-0025).
+    A client-declared `size_bytes` that disagrees with the reservation is
+    therefore rejected the same way a storage-side mismatch is."""
+    if size_bytes != transfer.size_bytes:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "error_code": "size_mismatch",
+                "expected": transfer.size_bytes,
+                "actual": size_bytes,
+            },
+        )
     if parts:
         if not upload_id:
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail={"error_code": "missing_upload_id"},
             )
-        storage.complete_multipart_upload(transfer.object_key, upload_id=upload_id, parts=parts)
-    head = storage.head_object(transfer.object_key)
+        await storage.complete_multipart_upload(
+            transfer.object_key, upload_id=upload_id, parts=parts
+        )
+    try:
+        head = await storage.head_object(transfer.object_key)
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") == "404":
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={"error_code": "object_not_found"},
+            ) from exc
+        raise
     actual_size = head.get("ContentLength")
-    if actual_size is not None and actual_size != size_bytes:
+    if actual_size is not None and actual_size != transfer.size_bytes:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={"error_code": "size_mismatch", "expected": size_bytes, "actual": actual_size},
+            detail={
+                "error_code": "size_mismatch",
+                "expected": transfer.size_bytes,
+                "actual": actual_size,
+            },
         )
-    transfer.size_bytes = size_bytes
+    if not parts and transfer.content_md5:
+        # Single-PUT path: MinIO/S3 already refused any byte mismatch against
+        # the presigned Content-MD5 (DEC-0025). This re-check is defense in
+        # depth against a storage backend that enforces it less strictly.
+        actual_etag = str(head.get("ETag", "")).strip('"')
+        try:
+            expected_hex = base64.b64decode(transfer.content_md5).hex()
+        except binascii.Error:
+            expected_hex = ""
+        if expected_hex != actual_etag:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={"error_code": "content_md5_mismatch"},
+            )
     transfer.sha256 = sha256
     transfer.status = "ready"
     transfer.uploaded_at = datetime.now(UTC)
@@ -201,7 +263,7 @@ async def delete_transfer(
     """Never delete a non-expired transfer without an explicit policy behind it
     (AI/01_AI_OPERATING_REFERENCE.md) — this path is for an explicit user/API
     delete request, not automatic cleanup."""
-    storage.delete_object(transfer.object_key)
+    await storage.delete_object(transfer.object_key)
     transfer.status = "deleted"
     transfer.deleted_at = datetime.now(UTC)
     await session.commit()

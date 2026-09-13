@@ -9,7 +9,7 @@ from studio_api.db.models.transfer import TransferModel
 from studio_api.services import projects as projects_service
 from studio_api.services import transfers as transfers_service
 from studio_api.settings import get_settings
-from studio_api.storage.provider import StorageProvider
+from studio_api.storage.provider import get_storage
 from studio_contracts.transfers import TransferCategory, TransferCreate
 
 from studio_mcp.errors import run_tool
@@ -69,10 +69,15 @@ async def studio_create_transfer_metadata(
     ctx: Context,
     project_id: str | None = None,
     task_id: str | None = None,
+    content_md5: str | None = None,
 ) -> dict[str, Any]:
     """Create a transfer record and return metadata plus a pre-signed upload
     URL — never the file bytes themselves. The client uploads directly to
-    MinIO/S3 with the returned URL (.claude/rules/storage-transfers.md)."""
+    MinIO/S3 with the returned URL (.claude/rules/storage-transfers.md).
+    `content_md5` (base64 RFC 1864 MD5 of the whole file) is required for a
+    small file (single-PUT path, DEC-0025) — the call fails with
+    `missing_content_md5` otherwise. Not needed for a large file, which
+    returns multipart part URLs instead."""
 
     async def _handler(session: AsyncSession, machine: MachineModel) -> dict[str, Any]:
         try:
@@ -115,8 +120,10 @@ async def studio_create_transfer_metadata(
             machine.owner_user_id,
             project_slug,
         )
-        storage = StorageProvider(settings)
-        upload = transfers_service.initiate_upload(storage, settings, transfer)
+        storage = get_storage()
+        upload = await transfers_service.initiate_upload(
+            session, storage, settings, transfer, content_md5
+        )
         return {**_compact_transfer(transfer), "upload": upload.model_dump(mode="json")}
 
     return await run_tool(ctx, _handler)
@@ -132,7 +139,7 @@ async def studio_request_transfer_download(transfer_id: str, ctx: Context) -> di
             return parsed
         transfer = await transfers_service.get_transfer(session, parsed)
         settings = get_settings()
-        storage = StorageProvider(settings)
+        storage = get_storage()
         url, expires_at = transfers_service.get_download_url(storage, settings, transfer)
         return {
             "transfer_id": str(transfer.id),

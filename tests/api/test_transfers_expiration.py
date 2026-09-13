@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -9,8 +10,11 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.transfer import TransferModel
 from studio_api.services import transfers as transfers_service
-from studio_api.settings import get_settings
-from studio_api.storage.provider import StorageProvider
+from studio_api.storage.provider import get_storage
+
+
+def _md5_b64(payload: bytes) -> str:
+    return base64.b64encode(hashlib.md5(payload).digest()).decode()
 
 
 async def _upload_transfer(
@@ -29,13 +33,18 @@ async def _upload_transfer(
     assert create.status_code == 201
     transfer_id = str(create.json()["id"])
 
+    content_md5 = _md5_b64(payload)
     initiate = await client.post(
-        f"/api/v1/transfers/{transfer_id}/upload/initiate", headers=auth_headers
+        f"/api/v1/transfers/{transfer_id}/upload/initiate",
+        headers=auth_headers,
+        json={"content_md5": content_md5},
     )
     upload_url = initiate.json()["upload_url"]
     async with httpx.AsyncClient() as raw:
         put_response = await raw.put(
-            upload_url, content=payload, headers={"Content-Type": "application/octet-stream"}
+            upload_url,
+            content=payload,
+            headers={"Content-Type": "application/octet-stream", "Content-MD5": content_md5},
         )
     assert put_response.status_code == 200
 
@@ -57,7 +66,7 @@ async def test_worker_deletes_expired_transfer_from_db_and_minio(
     transfer.expires_at = datetime.now(UTC) - timedelta(seconds=1)
     await db_session.commit()
 
-    storage = StorageProvider(get_settings())
+    storage = get_storage()
     expired = await transfers_service.expire_transfers(db_session, storage)
 
     assert [t.id for t in expired] == [transfer.id]
@@ -86,7 +95,7 @@ async def test_worker_never_touches_a_non_expired_transfer(
     )
     await db_session.commit()
 
-    storage = StorageProvider(get_settings())
+    storage = get_storage()
     expired = await transfers_service.expire_transfers(db_session, storage)
 
     assert expired == []
@@ -107,7 +116,7 @@ async def test_worker_rerun_is_idempotent(
     transfer.expires_at = datetime.now(UTC) - timedelta(seconds=1)
     await db_session.commit()
 
-    storage = StorageProvider(get_settings())
+    storage = get_storage()
     first_run = await transfers_service.expire_transfers(db_session, storage)
     assert len(first_run) == 1
 

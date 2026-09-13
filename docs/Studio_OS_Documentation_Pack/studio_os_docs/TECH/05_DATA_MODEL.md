@@ -85,7 +85,14 @@ d'idempotence pour `POST /events` (DEC-0006) — distinct du header
 `Idempotency-Key` utilise par les autres endpoints de creation.
 
 ## Transfer
-Champs minimum: id, transfer_code, sender_user_id, recipient_user_id, project_id, task_id, category, filename, object_key, content_type, size_bytes, sha256, status, expires_at, created_at, uploaded_at, downloaded_at, deleted_at.
+Champs minimum: id, transfer_code, sender_user_id, recipient_user_id, project_id, task_id, category, filename, object_key, content_type, size_bytes, sha256, content_md5, status, expires_at, created_at, uploaded_at, downloaded_at, deleted_at.
+
+`content_md5` (DEC-0025, base64 RFC 1864) : md5 presigne dans le PUT du
+chemin petit fichier — seul champ reellement verifie serveur (MinIO/S3
+rejette le PUT en cas de mismatch via `BadDigest`, `head_object` re-verifie
+a la completion en defense en profondeur). `sha256` reste une valeur
+declarative du client, non verifiee (en particulier pour le multipart, ou
+MinIO/S3 n'offre pas de checksum d'objet complet via URL pre-signee).
 
 `category` (DEC-0007) : enum ferme `temporary|build|asset|raw_recording`,
 retention respective 7j / 30j / manuel-long / local-uniquement
