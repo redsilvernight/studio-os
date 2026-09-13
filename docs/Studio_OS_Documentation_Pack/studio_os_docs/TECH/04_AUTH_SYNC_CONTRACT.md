@@ -39,8 +39,20 @@ Chaque ecriture offline-safe transporte un UUID stable et, si approprie, une Ide
 Deux mecanismes distincts selon l'endpoint (voir `TECH/05_DATA_MODEL.md`
 section Event) :
 - Endpoints de creation generiques (tasks, claims, decisions, transfers,
-  sessions, ai-work) : header `Idempotency-Key`, le serveur stocke la reponse
-  associee a (`Idempotency-Key`, endpoint) et la rejoue a l'identique.
+  sessions, ai-work, projects) : header `Idempotency-Key`, le serveur reserve
+  atomiquement la paire (`Idempotency-Key`, endpoint) avant de creer la
+  ressource metier (une seule ressource metier est creee pour cette paire, y
+  compris sous requetes concurrentes reelles, tant que la creation reste sous
+  le seuil de reclamation d'une reservation abandonnee — limite connue,
+  DEC-0015) puis stocke la reponse associee et la rejoue a l'identique sur
+  replay (DEC-0015). Rejouer la meme cle avec un corps de requete different
+  est une erreur client explicite (`409 idempotency_key_payload_mismatch`),
+  jamais un rejeu silencieux de la premiere reponse — un client qui retente
+  apres une reconnexion doit donc renvoyer exactement le meme corps pour la
+  meme `Idempotency-Key`, pas une version reconstruite a partir d'un etat
+  local modifie entretemps. Si le proprietaire d'une reservation crashe avant
+  de la completer, elle est automatiquement reclamee par un retry apres un
+  delai borne plutot que de bloquer la cle indefiniment (DEC-0015).
 - `POST /events` : l'UUID stable est `event_id` lui-meme (genere client-side),
   pas de header separe — replay du meme `event_id` renvoie l'event deja
   stocke.
