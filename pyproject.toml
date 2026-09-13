@@ -11,6 +11,7 @@ members = ["packages/*", "services/*"]
 [tool.uv.sources]
 studio-contracts = { workspace = true }
 studio-api = { workspace = true }
+studio-client = { workspace = true }
 
 [tool.ruff]
 line-length = 100

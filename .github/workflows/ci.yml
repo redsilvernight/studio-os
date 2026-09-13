@@ -38,7 +38,7 @@ jobs:
       - name: Sync workspace
         run: uv sync --all-packages
       - name: mypy
-        run: uv run mypy packages/studio-contracts/src services/api/src services/mcp/src
+        run: uv run mypy packages/studio-contracts/src packages/studio-client/src services/api/src services/mcp/src
 
   test:
     runs-on: ubuntu-latest

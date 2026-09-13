@@ -11,6 +11,7 @@ Base: `/api/v1`
 - Dates ISO 8601 UTC.
 - Ecriture mutable sur un objet existant (`PATCH`) : header `If-Match-Version` avec la `version` lue par le client ; 409 + version serveur courante en cas de conflit (`TECH/04_AUTH_SYNC_CONTRACT.md`).
 - Authentification : header `Authorization: Bearer <machine-token>` sur tout endpoint sous `/api/v1` (sauf `/healthz`) — voir `TECH/04_AUTH_SYNC_CONTRACT.md`.
+- Enveloppe reelle d'une erreur machine-readable (`error_code` present dans ce document, ex. `413`/`507`/`409 idempotency_key_payload_mismatch`) : `{"detail": {"error_code": "...", ...}}` — FastAPI enveloppe systematiquement `HTTPException.detail`, jamais `{"error_code": "..."}` a plat. Une erreur sans `error_code` (401/403/404 génériques) renvoie `{"detail": "<message>"}`, une simple chaine. `studio_contracts.common.ErrorResponse`/`VersionConflictError` ne sont utilises par aucun code serveur actuel — clarification documentaire (DEC-0024), pas un changement de comportement.
 
 ## Endpoints principaux
 ### Projects
@@ -69,10 +70,12 @@ public de bootstrap, pas de secret d'environnement dedie.
 
 ### Transfers
 - POST /transfers — quotas verifies avant creation (DEC-0019) : taille max
-  par transfert depassee -> `413 {"error_code": "transfer_too_large"}` ;
-  quota cumule du projet (ou du bucket non-scope si `project_id` absent)
-  depasse -> `507 {"error_code": "quota_exceeded"}`. Verifie avant toute
-  ecriture DB et tout presigning MinIO.
+  par transfert depassee -> `413 {"detail": {"error_code": "transfer_too_large",
+  "size_bytes", "max_size_bytes"}}` ; quota cumule du projet (ou du bucket
+  non-scope si `project_id` absent) depasse -> `507 {"detail": {"error_code":
+  "quota_exceeded", "project_id", "consumed_bytes", "requested_bytes",
+  "quota_bytes"}}` (voir l'enveloppe reelle documentee plus haut). Verifie
+  avant toute ecriture DB et tout presigning MinIO.
 - GET /transfers
 - GET /transfers/{id}
 - GET /transfers/consumption?project_id={id} — vue de consommation

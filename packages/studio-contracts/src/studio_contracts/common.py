@@ -30,6 +30,11 @@ class Page[T](ContractModel):
     total: int | None = None
 
 
+# TODO(DEC-0024): unused by any server code today — FastAPI's actual error
+# shape is {"detail": {"error_code": ..., ...}} (HTTPException.detail), not
+# this flat model. Either wire it as the real response (FastAPI `responses=`
+# / a shared exception handler) or remove it — don't let it keep looking
+# like the live contract to a future reader.
 class ErrorResponse(ContractModel):
     error_code: str
     message: str

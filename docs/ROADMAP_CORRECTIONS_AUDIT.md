@@ -147,6 +147,11 @@ MCP cible en liste vingt-neuf.
 
 ## Étape 6 — Construire le socle du Bloc B (P1 produit)
 
+Volumineuse et hétérogène comme l'étape 4 en son temps : découpée en
+sous-étapes indépendantes dans `docs/ROADMAP_STEP6_BREAKDOWN.md` (à cocher
+au fil des clôtures, ce fichier n'entre pas dans le détail sous-étape par
+sous-étape).
+
 ### Ordre recommandé
 
 1. `StudioApiClient`, configuration et stockage sécurisé du token machine.
