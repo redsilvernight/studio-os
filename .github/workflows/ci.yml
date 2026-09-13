@@ -94,7 +94,7 @@ jobs:
             curl -sf http://localhost:9000/minio/health/live > /dev/null && break
             sleep 1
           done
-          docker run --rm --network host quay.io/minio/mc:latest sh -c "
+          docker run --rm --network host --entrypoint sh quay.io/minio/mc:latest -c "
             mc alias set ci http://localhost:9000 studio studio-dev-secret &&
             mc mb --ignore-existing ci/studio-transfers
           "
