@@ -106,12 +106,15 @@ Le graphe de ce dépôt est obligatoirement centralisé dans
 `E:\Graphify\Studio-OS\graphify-out\`. Aucun `graphify-out/` ne doit rester à la
 racine du dépôt.
 
-- Définir `GRAPHIFY_OUT=E:\Graphify\Studio-OS\graphify-out` pour la CLI ou les
-  scripts incrémentaux.
+- Toute commande Graphify pour ce dépôt doit passer par
+  `pwsh -NoProfile -File scripts/graphify-studio.ps1 <commande>`. Ne jamais
+  appeler directement `graphify` ou `graphify.exe` : le lanceur définit
+  `GRAPHIFY_OUT=E:\Graphify\Studio-OS\graphify-out` avant le chargement du
+  programme et échoue si un `graphify-out/` local existe ou apparaît.
 - Garder comme racine source réelle
   `C:\Users\redsi\Documents\Coding\Projet\Studi'os`.
-- Pour un build manuel, travailler depuis `E:\Graphify\Studio-OS` et passer la
-  racine source comme `INPUT_PATH`.
+- Pour un build manuel, passer la racine source réelle comme argument au lanceur
+  projet ; ne pas changer la destination avec `--out` ou `--output`.
 - Suivre `.claude/skills/graphify/SKILL.md` ; ne jamais envoyer une question brute
   à `graphify query`, `path` ou `explain` sans expansion contrôlée du vocabulaire.
 - Si un graphe local apparaît par erreur, transférer le résultat à l'emplacement
