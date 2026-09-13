@@ -4,9 +4,10 @@ from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from studio_contracts.events import EventCreate
+from studio_contracts.events import EventCreate, EventEnvelope
 
 from studio_api.db.models.event import EventModel
+from studio_api.services import event_stream
 
 
 async def create_event(session: AsyncSession, event_in: EventCreate) -> EventModel:
@@ -32,7 +33,36 @@ async def create_event(session: AsyncSession, event_in: EventCreate) -> EventMod
     session.add(event)
     await session.commit()
     await session.refresh(event)
+
+    event_stream.publish(
+        event_stream.StreamEvent(
+            seq=event.seq,
+            project_id=event.project_id,
+            envelope=EventEnvelope.model_validate(event),
+        )
+    )
     return event
+
+
+async def list_events_after(
+    session: AsyncSession,
+    project_id: str,
+    after_seq: int | None,
+    limit: int = 500,
+) -> list[EventModel]:
+    """Realtime catch-up (DEC-0018): `seq` is a strictly monotonic identity
+    column, unlike `server_timestamp` which can collide under concurrent
+    writes — safe to use as a no-loss/no-duplicate resume cursor."""
+    stmt = (
+        select(EventModel)
+        .where(EventModel.project_id == project_id)
+        .order_by(EventModel.seq.asc())
+        .limit(limit)
+    )
+    if after_seq is not None:
+        stmt = stmt.where(EventModel.seq > after_seq)
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
 
 
 async def list_events(

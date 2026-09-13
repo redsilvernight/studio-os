@@ -65,6 +65,7 @@ public de bootstrap, pas de secret d'environnement dedie.
 ### Events
 - POST /events
 - GET /events
+- GET /events/stream (Server-Sent Events, DEC-0018)
 
 ### Transfers
 - POST /transfers
@@ -76,4 +77,16 @@ public de bootstrap, pas de secret d'environnement dedie.
 - DELETE /transfers/{id}
 
 ## Realtime
-`/api/v1/stream` fournit les changements autorises pour l'utilisateur connecte.
+`GET /api/v1/events/stream?project={id}` (Server-Sent Events, DEC-0018) pousse
+les events du projet demande a mesure qu'ils sont crees. Meme authentification
+que le reste de l'API (`Authorization: Bearer <machine-token>`) ; `project`
+est obligatoire (pas de flux global tous projets).
+
+Reprise apres coupure sans perte ni doublon : chaque event porte un champ SSE
+`id:` egal a son `seq` (entier strictement croissant, distinct du
+`server_timestamp` de `TECH/03_EVENT_CONTRACT.md`). A la reconnexion, le
+curseur est resolu dans l'ordre `Last-Event-ID` (envoye automatiquement par
+un client SSE standard) puis le query param `since_seq` (reprise explicite
+pour un client non-navigateur) ; sans aucun des deux, seuls les events crees
+a partir de la connexion sont livres — `GET /events?since=` reste le canal
+de rattrapage explicite pour l'historique.
