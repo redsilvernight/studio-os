@@ -84,14 +84,19 @@ jobs:
             -e MINIO_ROOT_USER=studio -e MINIO_ROOT_PASSWORD=studio-dev-secret \
             quay.io/minio/minio:latest server /data
       - name: Wait for MinIO and create the test bucket
+        # dl.min.io's direct mc binary download now returns an HTML "Gone"
+        # page instead of the binary (same MinIO distribution tightening as
+        # DEC-0013/DEC-0014) — use the quay.io/minio/mc image instead, the
+        # same one docker/docker-compose.yml's minio-init service already
+        # relies on.
         run: |
           for i in $(seq 1 30); do
             curl -sf http://localhost:9000/minio/health/live > /dev/null && break
             sleep 1
           done
-          curl -sSL https://dl.min.io/client/mc/release/linux-amd64/mc -o /usr/local/bin/mc
-          chmod +x /usr/local/bin/mc
-          mc alias set ci http://localhost:9000 studio studio-dev-secret
-          mc mb --ignore-existing ci/studio-transfers
+          docker run --rm --network host quay.io/minio/mc:latest sh -c "
+            mc alias set ci http://localhost:9000 studio studio-dev-secret &&
+            mc mb --ignore-existing ci/studio-transfers
+          "
       - name: pytest
         run: uv run pytest -q
