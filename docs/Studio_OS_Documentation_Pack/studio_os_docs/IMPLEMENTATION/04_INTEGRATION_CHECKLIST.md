@@ -22,7 +22,7 @@
 - [ ] Qwen read-only memory verifie.
 - [ ] Upload multipart > 5 Go teste.
 - [ ] Reprise upload/download testee.
-- [ ] Expiration Transfer testee.
-- [ ] Backup PostgreSQL restore teste.
+- [x] Expiration Transfer testee (DEC-0020 : conteneurs reels + idempotence ; reconfirmee sur base vierge par DEC-0022).
+- [x] Backup PostgreSQL restore teste (DEC-0021 : restauration isolee par nom ; DEC-0022 : cycle complet sur Postgres/MinIO reellement vierges, `alembic_version` et comptages verifies).
 - [ ] TLS et rotation/revocation token verifies.
 - [ ] Dashboard, MCP et CLI coherents.

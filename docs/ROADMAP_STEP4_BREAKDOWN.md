@@ -153,7 +153,16 @@ docker-compose, pas de backup).
 - Une restauration Postgres + MinIO démontrée sur un environnement de test,
   preuve consignée dans `docs/DECISIONS.md` ou équivalent.
 
-## Sous-étape 4.5 — Validation Docker Compose sur base vierge
+## Sous-étape 4.5 — Validation Docker Compose sur base vierge — CLOS
+
+Séquence complète rejouée en réel (teardown total, `docker compose up
+--build`, migration Alembic manuelle, bootstrap admin/machine, appel
+authentifié à travers Caddy) puis chaîne fonctionnelle 4.1-4.4 exercée avec
+des données réelles (realtime SSE live, transferts + quota, worker
+d'expiration idempotent) et cycle backup/restore rejoué sur un
+Postgres/MinIO de nouveau strictement vierge (pas seulement isolé par nom) —
+ferme l'écart résiduel de DEC-0021 : `docs/DECISIONS.md` DEC-0022. Étape 4
+entièrement close (4.1 à 4.5).
 
 ### Problème
 La dernière validation réelle du compose (DEC-0014) ne couvrait pas
