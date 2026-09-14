@@ -13,6 +13,14 @@ from studio_contracts.project_state import ProjectState
 from studio_contracts.projects import Project
 from studio_contracts.sessions import WorkSession, WorkSessionCreate
 from studio_contracts.tasks import Task, TaskCreate, TaskUpdate
+from studio_contracts.transfers import (
+    DownloadUrlResponse,
+    Transfer,
+    TransferConsumption,
+    TransferCreate,
+    UploadCompleteRequest,
+    UploadInitiateResponse,
+)
 
 from studio_client.config import ClientConfig
 from studio_client.errors import StudioApiError, TransportError, error_from_response
@@ -24,9 +32,9 @@ class StudioApiClient:
     """Bloc B's only sanctioned way to talk to the API (DEC-0024): carries
     the machine Bearer token, propagates a caller-supplied `Idempotency-Key`
     or `event_id` (never generates one itself), retries only what is safe
-    to retry, and never proxies file bytes — transfers go straight to
-    MinIO/S3 via presigned URLs (out of scope for this client, see
-    `docs/ROADMAP_STEP6_BREAKDOWN.md` sous-etape 6.7)."""
+    to retry, and never proxies file bytes itself — for transfers it only
+    hands out metadata and presigned URLs; `TransferClient` (sous-etape 6.7,
+    `docs/ROADMAP_STEP6_BREAKDOWN.md`) talks to MinIO/S3 directly with them."""
 
     def __init__(
         self,
@@ -243,6 +251,82 @@ class StudioApiClient:
         """`DELETE /claims/{id}` returns 204 with no body — never retried
         automatically, same rationale as `update_task`/`claim_task`."""
         await self._request("DELETE", f"/api/v1/claims/{claim_id}")
+
+    async def create_transfer(
+        self, transfer_in: TransferCreate, *, idempotency_key: str
+    ) -> Transfer:
+        response = await self._request(
+            "POST",
+            "/api/v1/transfers",
+            json=transfer_in.model_dump(mode="json"),
+            extra_headers={"Idempotency-Key": idempotency_key},
+            idempotent=True,
+        )
+        return Transfer.model_validate(response.json())
+
+    async def list_transfers(self, *, project_id: UUID | None = None) -> list[Transfer]:
+        params: dict[str, Any] = {}
+        if project_id is not None:
+            params["project_id"] = str(project_id)
+        response = await self._request("GET", "/api/v1/transfers", params=params)
+        return [Transfer.model_validate(item) for item in response.json()]
+
+    async def get_transfer(self, transfer_id: UUID) -> Transfer:
+        response = await self._request("GET", f"/api/v1/transfers/{transfer_id}")
+        return Transfer.model_validate(response.json())
+
+    async def get_transfer_consumption(
+        self, *, project_id: UUID | None = None
+    ) -> TransferConsumption:
+        params: dict[str, Any] = {}
+        if project_id is not None:
+            params["project_id"] = str(project_id)
+        response = await self._request("GET", "/api/v1/transfers/consumption", params=params)
+        return TransferConsumption.model_validate(response.json())
+
+    async def initiate_upload(
+        self, transfer_id: UUID, *, content_md5: str | None = None
+    ) -> UploadInitiateResponse:
+        """Safe to call more than once for the same transfer (re-presigns
+        rather than duplicating anything server-side, `transfers.py`
+        `initiate_upload`) — marked idempotent so a transient failure can be
+        retried. A repeat call still creates a brand-new multipart
+        `upload_id` when the transfer is large; `TransferClient` only calls
+        this once per upload and resumes against cached part URLs instead
+        (sous-etape 6.7)."""
+        response = await self._request(
+            "POST",
+            f"/api/v1/transfers/{transfer_id}/upload/initiate",
+            json={"content_md5": content_md5},
+            idempotent=True,
+        )
+        return UploadInitiateResponse.model_validate(response.json())
+
+    async def complete_upload(
+        self,
+        transfer_id: UUID,
+        *,
+        size_bytes: int,
+        sha256: str,
+        upload_id: str | None = None,
+        parts: dict[int, str] | None = None,
+    ) -> Transfer:
+        payload = UploadCompleteRequest(
+            size_bytes=size_bytes, sha256=sha256, upload_id=upload_id, parts=parts
+        )
+        response = await self._request(
+            "POST",
+            f"/api/v1/transfers/{transfer_id}/upload/complete",
+            json=payload.model_dump(mode="json"),
+        )
+        return Transfer.model_validate(response.json())
+
+    async def get_download_url(self, transfer_id: UUID) -> DownloadUrlResponse:
+        response = await self._request("POST", f"/api/v1/transfers/{transfer_id}/download-url")
+        return DownloadUrlResponse.model_validate(response.json())
+
+    async def delete_transfer(self, transfer_id: UUID) -> None:
+        await self._request("DELETE", f"/api/v1/transfers/{transfer_id}")
 
     async def send_mutation(
         self, method: str, path: str, payload: dict[str, Any], *, idempotency_key: str

@@ -36,3 +36,23 @@ class PendingRow:
     last_error: str | None
     payload: dict[str, object]
     extra: dict[str, object]
+
+
+@dataclass(frozen=True)
+class MultipartUploadState:
+    """Local progress of one in-flight multipart upload (sous-etape 6.7,
+    `.claude/rules/offline-sync.md` `multipart_uploads` table). Persists the
+    presigned per-part URLs handed out by the single `upload/initiate` call
+    that started this upload — the server creates a brand-new `upload_id`
+    on every call (`services/api/src/studio_api/services/transfers.py`), so
+    resuming after a restart replays against these cached URLs rather than
+    re-initiating, and only fails if they have since expired (10-30 min,
+    `.claude/rules/storage-transfers.md`)."""
+
+    transfer_id: str
+    upload_id: str
+    file_path: str
+    part_size_bytes: int
+    part_urls: dict[int, str]
+    completed_parts: dict[int, str]
+    created_at: datetime

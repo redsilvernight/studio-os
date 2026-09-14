@@ -11,7 +11,12 @@ from uuid import UUID
 from studio_contracts.events import EventCreate
 
 from studio_client.config import default_config_path
-from studio_client.outbox.models import PRIMARY_KEY_COLUMN, OutboxTable, PendingRow
+from studio_client.outbox.models import (
+    PRIMARY_KEY_COLUMN,
+    MultipartUploadState,
+    OutboxTable,
+    PendingRow,
+)
 from studio_client.retry import RetryPolicy
 
 _SCHEMA = """
@@ -66,6 +71,16 @@ CREATE TABLE IF NOT EXISTS dead_letter (
     payload_json TEXT NOT NULL,
     error TEXT NOT NULL,
     failed_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS multipart_uploads (
+    transfer_id TEXT PRIMARY KEY,
+    upload_id TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    part_size_bytes INTEGER NOT NULL,
+    part_urls_json TEXT NOT NULL,
+    completed_parts_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
 );
 """
 
@@ -245,6 +260,64 @@ class OutboxStore:
             "updated_at = excluded.updated_at",
             (key, json.dumps(value), _utcnow_iso()),
         )
+
+    def save_multipart_upload(
+        self,
+        transfer_id: str,
+        upload_id: str,
+        file_path: str,
+        part_size_bytes: int,
+        part_urls: dict[int, str],
+    ) -> None:
+        """Records the presigned part URLs from a fresh `upload/initiate`
+        call. `INSERT OR REPLACE` deliberately: calling this again for a
+        `transfer_id` that already has state (a caller re-initiating rather
+        than resuming) restarts progress from zero rather than mixing part
+        URLs from two different `upload_id`s."""
+        self._conn.execute(
+            "INSERT OR REPLACE INTO multipart_uploads "
+            "(transfer_id, upload_id, file_path, part_size_bytes, part_urls_json, "
+            "completed_parts_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                transfer_id,
+                upload_id,
+                file_path,
+                part_size_bytes,
+                json.dumps(part_urls),
+                json.dumps({}),
+                _utcnow_iso(),
+            ),
+        )
+
+    def get_multipart_upload(self, transfer_id: str) -> MultipartUploadState | None:
+        row = self._conn.execute(
+            "SELECT * FROM multipart_uploads WHERE transfer_id = ?", (transfer_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        return MultipartUploadState(
+            transfer_id=row["transfer_id"],
+            upload_id=row["upload_id"],
+            file_path=row["file_path"],
+            part_size_bytes=row["part_size_bytes"],
+            part_urls={int(k): v for k, v in json.loads(row["part_urls_json"]).items()},
+            completed_parts={int(k): v for k, v in json.loads(row["completed_parts_json"]).items()},
+            created_at=datetime.fromisoformat(row["created_at"]),
+        )
+
+    def record_completed_part(self, transfer_id: str, part_number: int, etag: str) -> None:
+        state = self.get_multipart_upload(transfer_id)
+        if state is None:
+            return
+        completed = dict(state.completed_parts)
+        completed[part_number] = etag
+        self._conn.execute(
+            "UPDATE multipart_uploads SET completed_parts_json = ? WHERE transfer_id = ?",
+            (json.dumps(completed), transfer_id),
+        )
+
+    def delete_multipart_upload(self, transfer_id: str) -> None:
+        self._conn.execute("DELETE FROM multipart_uploads WHERE transfer_id = ?", (transfer_id,))
 
     def _to_pending_row(self, table: OutboxTable, row: sqlite3.Row) -> PendingRow:
         pk = PRIMARY_KEY_COLUMN[table]

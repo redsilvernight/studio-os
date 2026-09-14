@@ -8,6 +8,7 @@ from studio_client.errors import (
     QuotaError,
     ServerError,
     StudioApiError,
+    TransferError,
     TransportError,
 )
 from studio_client.tokens import (
@@ -17,6 +18,7 @@ from studio_client.tokens import (
     MissingMachineToken,
     TokenStore,
 )
+from studio_client.transfers import TransferClient
 
 __all__ = [
     "StudioApiClient",
@@ -28,10 +30,12 @@ __all__ = [
     "ConflictError",
     "QuotaError",
     "ServerError",
+    "TransferError",
     "TransportError",
     "TokenStore",
     "EnvTokenStore",
     "KeyringTokenStore",
     "MemoryTokenStore",
     "MissingMachineToken",
+    "TransferClient",
 ]

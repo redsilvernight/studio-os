@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-32 decision(s). Detail complet dans chaque ADR lie.
+33 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -54,3 +54,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0030 | Sous-etape 6.4 (replay ordonne) : fusion chronologique events+mutations, arret sur transitoire, markers hors perimetre | active | [decisions/DEC-0030-sous-etape-6-4-replay-ordonne-fusion-chronologique-events.md](decisions/DEC-0030-sous-etape-6-4-replay-ordonne-fusion-chronologique-events.md) |
 | DEC-0031 | Sous-etape 6.5 (CLI minimale) : sous-commandes argparse au-dessus de `StudioApiClient`, cle d'idempotence generee par la CLI | active | [decisions/DEC-0031-sous-etape-6-5-cli-minimale-sous-commandes-argparse-au.md](decisions/DEC-0031-sous-etape-6-5-cli-minimale-sous-commandes-argparse-au.md) |
 | DEC-0032 | Sous-etape 6.6 (watchers Git/Godot) : poll local sans nouvelle dependance, PR hors perimetre | active | [decisions/DEC-0032-sous-etape-6-6-watchers-git-godot-poll-local-sans-nouvelle.md](decisions/DEC-0032-sous-etape-6-6-watchers-git-godot-poll-local-sans-nouvelle.md) |
+| DEC-0033 | Sous-etape 6.7 (TransferClient) : multipart local avec URLs mises en cache, reprise download par taille de fichier, etape 6 entierement close | active | [decisions/DEC-0033-sous-etape-6-7-transferclient-multipart-local-reprise.md](decisions/DEC-0033-sous-etape-6-7-transferclient-multipart-local-reprise.md) |

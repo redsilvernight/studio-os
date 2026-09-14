@@ -77,6 +77,13 @@ class TransportError(StudioApiError):
         super().__init__(status_code=0, error_code=None, message=message)
 
 
+class TransferError(Exception):
+    """Raised by `TransferClient` for a failure talking directly to
+    MinIO/S3 via a presigned URL (never the Studio API, so never a
+    `StudioApiError`) — a rejected PUT/GET (expired URL, checksum
+    mismatch) or a broken transfer stream."""
+
+
 _STATUS_TO_ERROR: dict[int, type[StudioApiError]] = {
     401: AuthenticationError,
     403: ForbiddenError,

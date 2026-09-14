@@ -272,9 +272,30 @@ test d'origine, corrige) consignees et corrigees dans DEC-0032.
 - Le watcher n'empeche jamais une operation Git meme en presence d'un
   claim actif.
 
-## Sous-etape 6.7 — TransferClient, multipart local et reprise upload/download
+## Sous-etape 6.7 — TransferClient, multipart local et reprise upload/download — CLOS
 
-Reference obligatoire : `.claude/rules/storage-transfers.md`.
+Reference obligatoire : `.claude/rules/storage-transfers.md`. Etudie sans
+`studio-architect` (meme principe que 6.2-6.6) : `docs/DECISIONS.md`
+DEC-0033. `StudioApiClient` etendu (`create_transfer`, `initiate_upload`,
+`complete_upload`, `get_download_url`, etc.), `TransferClient` (nouveau,
+`transfers.py`) : upload petit fichier avec calcul `content_md5` seulement
+sur `422 missing_content_md5` (jamais de duplication cote client du seuil
+serveur `MULTIPART_THRESHOLD_BYTES`), upload multipart avec URLs par-part
+mises en cache localement (table SQLite `multipart_uploads`) et ETags
+persistes au fil de l'eau pour une reprise sans re-upload, download avec
+reprise `Range` fondee sur la taille reelle du fichier local. 9 tests
+mockes (`tests/client/test_transfers.py`), suite complete du depot **99
+passed** (mocke) puis **286/287 passed** (Postgres 16 + MinIO reels) —
+validation independante `studio-tester` (deux passes, conteneurs Docker
+locaux temporaires) : scenario reel de reprise multipart a 50%
+d'interruption reussi (220 Mo, aucune re-upload des parts deja acceptees) ;
+un bug reel trouve (coupure de transport reelle non interceptee, fuite
+d'`ExceptionGroup` au lieu de `TransferError`) corrige et reverifie contre
+MinIO reel. Limites assumees documentees dans DEC-0033 (pas de
+rafraichissement des URLs par-part expirees en cours de reprise, pas
+d'`AbortMultipartUpload` serveur pour un upload abandonne, detection
+"download complet" par taille seule). **Etape 6 (6.1 a 6.7) entierement
+close.**
 
 ### Travail attendu
 
