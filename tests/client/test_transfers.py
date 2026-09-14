@@ -356,6 +356,81 @@ async def test_download_already_complete_is_a_noop(tmp_path: Path) -> None:
     assert dest.read_bytes() == b"hello"
 
 
+async def test_upload_single_file_expired_url_raises_transfer_error(tmp_path: Path) -> None:
+    """TECH/10_TEST_ACCEPTANCE.md scenario 'URL signee expiree': storage
+    rejecting a presigned PUT with 403 (what a real expired SigV4 URL gets
+    from MinIO, confirmed against real infra in
+    `tests/api/test_transfers_expired_url.py`) must surface as `TransferError`,
+    not an unhandled `httpx.HTTPStatusError` or a silent `ready` transfer."""
+    file_path = tmp_path / "small.bin"
+    file_path.write_bytes(b"x" * 25)
+    transfer = _transfer(size_bytes=25)
+
+    def api_handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/upload/initiate"):
+            body = json.loads(request.content) if request.content else None
+            if not body or not body.get("content_md5"):
+                return httpx.Response(422, json={"detail": {"error_code": "missing_content_md5"}})
+            return httpx.Response(
+                200,
+                json={
+                    "transfer_id": str(transfer.id),
+                    "multipart": False,
+                    "upload_url": "http://storage.test/put",
+                },
+            )
+        raise AssertionError(f"unexpected call: {request.url}")
+
+    def storage_handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, text="<Error><Code>AccessDenied</Code></Error>")
+
+    async with _api_client(api_handler) as api:
+        store = _store(tmp_path)
+        client = TransferClient(
+            api,
+            store,
+            http_client=httpx.AsyncClient(transport=httpx.MockTransport(storage_handler)),
+        )
+        try:
+            with pytest.raises(TransferError, match="403"):
+                await client.upload(transfer, file_path)
+        finally:
+            await client.aclose()
+
+
+async def test_download_expired_url_raises_transfer_error(tmp_path: Path) -> None:
+    transfer = _transfer(size_bytes=5)
+    dest = tmp_path / "out.bin"
+
+    def api_handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "transfer_id": str(transfer.id),
+                "download_url": "http://storage.test/get",
+                "expires_at": datetime.now(UTC).isoformat(),
+            },
+        )
+
+    def storage_handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, text="<Error><Code>AccessDenied</Code></Error>")
+
+    async with _api_client(api_handler) as api:
+        store = _store(tmp_path)
+        client = TransferClient(
+            api,
+            store,
+            http_client=httpx.AsyncClient(transport=httpx.MockTransport(storage_handler)),
+        )
+        try:
+            with pytest.raises(TransferError, match="403"):
+                await client.download(transfer, dest)
+        finally:
+            await client.aclose()
+
+    assert not dest.exists() or dest.stat().st_size == 0
+
+
 async def test_download_size_mismatch_raises_transfer_error(tmp_path: Path) -> None:
     transfer = _transfer(size_bytes=10)
     dest = tmp_path / "out.bin"

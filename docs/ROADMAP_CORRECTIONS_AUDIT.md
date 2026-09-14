@@ -209,12 +209,16 @@ Statut : **étape entièrement close** — sous-étapes 6.1 à 6.7 closes
 
 - fichier multipart de 1 Go ;
 - interruption à 50 %, redémarrage client et reprise ;
-- URL signée expirée ;
+- ~~URL signée expirée~~ — fermé (DEC-0034) : `tests/api/test_transfers_expired_url.py`
+  (rejet réel MinIO, 403) + `tests/client/test_transfers.py` (`TransferClient`
+  lève `TransferError`) ;
 - mauvais hash ;
 - quota dépassé ;
 - expiration et suppression ;
 - téléchargement avec HTTP Range ;
-- concurrence réelle de claims ;
+- ~~concurrence réelle de claims~~ — fermé (DEC-0034) :
+  `tests/api/test_claims_concurrency.py` (10 créations réellement
+  concurrentes, invariant "jamais bloqué" vérifié contre Postgres réel) ;
 - deux machines simulées sur des réseaux distincts ;
 - replay offline complet avec tasks, events et AIWorkLog.
 
