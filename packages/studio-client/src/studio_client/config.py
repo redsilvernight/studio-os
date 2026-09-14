@@ -52,6 +52,14 @@ class ClientConfig(BaseSettings):
     # Spreads concurrent machines' heartbeats instead of a synchronized
     # thundering herd hitting the server every interval at once.
     heartbeat_jitter_ratio: float = 0.1
+    # A watcher is disabled unless both its own field and *_project_id are
+    # set — most daemon runs have no repo/Godot to watch.
+    git_watch_repo_path: Path | None = None
+    git_watch_project_id: UUID | None = None
+    git_watch_interval_seconds: float = 30.0
+    godot_watch_process_pattern: str | None = None
+    godot_watch_project_id: UUID | None = None
+    godot_watch_interval_seconds: float = 10.0
 
     @field_validator("api_base_url")
     @classmethod

@@ -238,7 +238,22 @@ automatise n'exerçait le binaire `studio-client` lui-meme, seulement
 - Un utilisateur peut lister/creer/claim/release une tache et demarrer/
   terminer une session sans appel HTTP manuel.
 
-## Sous-etape 6.6 — Watchers Git et Godot
+## Sous-etape 6.6 — Watchers Git et Godot — CLOS
+
+Etudie sans `studio-architect` (meme principe que 6.2-6.5) :
+`docs/DECISIONS.md` DEC-0032. `PollingWatcher` (base commune, meme
+boucle poll/stop que `HeartbeatDaemon`), `GitWatcher` (poll `git
+rev-parse` en sous-processus, `git.commit`/`git.branch.changed`),
+`GodotWatcher` (poll `tasklist`/`ps -A` en sous-processus, pas de
+nouvelle dependance type `psutil`, `godot.started`/`godot.stopped`).
+`git.pr.opened`/`git.pr.merged` non emis, faute de client GitHub dans
+le Bloc B (ecart documente, pas silencieux). 11 tests
+(`tests/client/test_watchers.py`), suite complete du depot **216
+passed** (Postgres 16 + MinIO reels), `ruff`/`mypy` strict verts —
+validation independante `studio-tester` : aucun bug bloquant, deux
+limites non bloquantes (chiffre de test annonce faux, corrige ; ordre
+branche-puis-commit implemente correctement mais non prouve par le
+test d'origine, corrige) consignees et corrigees dans DEC-0032.
 
 ### Travail attendu
 

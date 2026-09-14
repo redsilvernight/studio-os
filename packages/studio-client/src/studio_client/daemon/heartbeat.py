@@ -13,6 +13,7 @@ from studio_client.config import ClientConfig
 from studio_client.errors import StudioApiError
 from studio_client.outbox import OutboxReplayer, OutboxStore, connect, default_outbox_path
 from studio_client.retry import RetryPolicy
+from studio_client.watchers import GitWatcher, GodotWatcher, PollingWatcher
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +130,35 @@ def install_signal_handlers(stop: Callable[[], None]) -> list[signal.Signals]:
     return installed
 
 
+def build_watchers(config: ClientConfig, store: OutboxStore) -> list[PollingWatcher]:
+    """A watcher only starts when both its repo/pattern and its
+    `*_project_id` are configured — either alone leaves it disabled."""
+    if config.machine_id is None:
+        return []
+    watchers: list[PollingWatcher] = []
+    if config.git_watch_repo_path is not None and config.git_watch_project_id is not None:
+        watchers.append(
+            GitWatcher(
+                repo_path=config.git_watch_repo_path,
+                project_id=config.git_watch_project_id,
+                machine_id=config.machine_id,
+                outbox=store,
+                interval_seconds=config.git_watch_interval_seconds,
+            )
+        )
+    if config.godot_watch_process_pattern is not None and config.godot_watch_project_id is not None:
+        watchers.append(
+            GodotWatcher(
+                project_id=config.godot_watch_project_id,
+                machine_id=config.machine_id,
+                outbox=store,
+                process_pattern=config.godot_watch_process_pattern,
+                interval_seconds=config.godot_watch_interval_seconds,
+            )
+        )
+    return watchers
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="studio-client-daemon",
@@ -146,8 +176,15 @@ def main(argv: Sequence[str] | None = None) -> None:
             )
             replayer = OutboxReplayer(store, client, retry_policy)
             daemon = HeartbeatDaemon(client, config, agent_id=args.agent_id, replayer=replayer)
-            install_signal_handlers(daemon.request_stop)
-            await daemon.run()
+            watchers = build_watchers(config, store)
+
+            def _stop_all() -> None:
+                daemon.request_stop()
+                for watcher in watchers:
+                    watcher.request_stop()
+
+            install_signal_handlers(_stop_all)
+            await asyncio.gather(daemon.run(), *(watcher.run() for watcher in watchers))
 
     asyncio.run(_run())
 

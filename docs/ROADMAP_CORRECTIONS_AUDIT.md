@@ -184,9 +184,9 @@ sous-étapes indépendantes dans `docs/ROADMAP_STEP6_BREAKDOWN.md` (à cocher
 au fil des clôtures, ce fichier n'entre pas dans le détail sous-étape par
 sous-étape).
 
-Statut : sous-étapes 6.1 à 6.5 closes (DEC-0024, DEC-0028, DEC-0029,
-DEC-0030, DEC-0031). 6.6 (watchers Git/Godot) et 6.7 (`TransferClient`)
-restent ouvertes — l'étape entière n'est pas close.
+Statut : sous-étapes 6.1 à 6.6 closes (DEC-0024, DEC-0028, DEC-0029,
+DEC-0030, DEC-0031, DEC-0032). 6.7 (`TransferClient`) reste ouverte —
+l'étape entière n'est pas close.
 
 ### Ordre recommandé
 
