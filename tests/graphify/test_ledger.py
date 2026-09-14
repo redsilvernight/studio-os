@@ -1,23 +1,41 @@
-"""Tests for the Graphify cost ledger (Phase 3): reading old cost.json
-files, recording new per-attempt entries without fabricating measurements,
-and the file/backend/period/ratio/top-cost reports."""
+"""Tests for the Graphify cost ledger: reading old cost.json files,
+recording new per-attempt entries without fabricating measurements, and the
+file/backend/period/ratio/top-cost reports.
+
+The ledger engine (`graphify_ledger.py`) is canonically global -- shipped
+once next to `~/.claude/scripts/graphify_incremental_update.py` -- so it is
+loaded here by path rather than as a `scripts.*` package import."""
 
 from __future__ import annotations
 
+import importlib.util
 import json
+import sys
 from pathlib import Path
 
-from scripts.graphify_ledger import (
-    Attempt,
-    ast_semantic_ratio,
-    build_attempt,
-    cost_by_backend,
-    cost_by_file,
-    cost_by_period,
-    load_ledger,
-    record_attempts,
-    top_cost_files,
-)
+import pytest
+
+GLOBAL_ENGINE = Path.home() / ".claude" / "scripts" / "graphify_ledger.py"
+if not GLOBAL_ENGINE.exists():
+    pytest.skip(
+        f"global ledger engine not present on this machine: {GLOBAL_ENGINE}",
+        allow_module_level=True,
+    )
+
+_spec = importlib.util.spec_from_file_location("graphify_ledger", GLOBAL_ENGINE)
+_ledger_engine = importlib.util.module_from_spec(_spec)
+sys.modules[_spec.name] = _ledger_engine
+assert _spec.loader is not None
+_spec.loader.exec_module(_ledger_engine)
+Attempt = _ledger_engine.Attempt
+ast_semantic_ratio = _ledger_engine.ast_semantic_ratio
+build_attempt = _ledger_engine.build_attempt
+cost_by_backend = _ledger_engine.cost_by_backend
+cost_by_file = _ledger_engine.cost_by_file
+cost_by_period = _ledger_engine.cost_by_period
+load_ledger = _ledger_engine.load_ledger
+record_attempts = _ledger_engine.record_attempts
+top_cost_files = _ledger_engine.top_cost_files
 
 
 def test_reads_pre_phase3_cost_json_without_error(tmp_path: Path) -> None:

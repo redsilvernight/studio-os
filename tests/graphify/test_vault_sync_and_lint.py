@@ -176,7 +176,9 @@ def test_sync_merges_graphify_entities_additively(tmp_path: Path) -> None:
 def test_sync_creates_a_note_when_none_exists_yet(tmp_path: Path) -> None:
     root = tmp_path / "project"
     vault_dir = tmp_path / "vault"
-    _write_adr(root / "docs" / "decisions", "DEC-0001", "Titre", "Corps de la decision.", status="active")
+    _write_adr(
+        root / "docs" / "decisions", "DEC-0001", "Titre", "Corps de la decision.", status="active"
+    )
 
     plan = plan_sync(root, vault_dir)
     action = plan.actions[0]

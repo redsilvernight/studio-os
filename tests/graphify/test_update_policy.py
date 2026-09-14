@@ -1,20 +1,46 @@
 """Tests for the deterministic Graphify update policy engine.
 
-Covers the acceptance scenarios from the Studio OS Graphify overhaul mandate
-(Phase 2): AST always wins for native code, the generated index is never
-sent to Gemini, skill copies are never extracted, milestone-only documents
-require --milestone, and nothing in this list can be bypassed by naming the
-file explicitly via --files (apply_policy in graphify_incremental_update.py
-runs unconditionally over whatever file list it is given).
+The engine (`graphify_update_policy.py`) is canonically global -- shipped
+once next to `~/.claude/scripts/graphify_incremental_update.py`, not
+duplicated per project -- so it is loaded here by path rather than as a
+`scripts.*` package import. This project (Studio OS) only carries its own
+`.graphify-update.toml`; the engine that reads it lives outside the repo.
+
+Covers the general acceptance scenarios: AST always wins for native code,
+an explicitly excluded generated index is never sent to Gemini, skill
+copies are never extracted, milestone-only documents require --milestone,
+and nothing in this list can be bypassed by naming the file explicitly via
+--files (apply_policy in graphify_incremental_update.py runs
+unconditionally over whatever file list it is given).
 """
 
 from __future__ import annotations
 
+import importlib.util
+import sys
 from pathlib import Path
 
-from scripts.graphify_update_policy import classify, load_policy, parse_policy
+import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+GLOBAL_ENGINE = Path.home() / ".claude" / "scripts" / "graphify_update_policy.py"
+
+if not GLOBAL_ENGINE.exists():
+    pytest.skip(
+        f"global policy engine not present on this machine: {GLOBAL_ENGINE}",
+        allow_module_level=True,
+    )
+
+_spec = importlib.util.spec_from_file_location("graphify_update_policy", GLOBAL_ENGINE)
+_policy_engine = importlib.util.module_from_spec(_spec)
+sys.modules[_spec.name] = _policy_engine
+assert _spec.loader is not None
+_spec.loader.exec_module(_policy_engine)
+classify, load_policy, parse_policy = (
+    _policy_engine.classify,
+    _policy_engine.load_policy,
+    _policy_engine.parse_policy,
+)
 
 SAMPLE_TOML = """
 [semantic.allowed]

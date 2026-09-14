@@ -1,42 +1,8 @@
 ---
 id: DEC-0014
 title: Docker Desktop installe ; deux bugs reels corriges dans `docker/`
-status: active
-date: '2026-09-13'
-superseded_by: projects/studio-os/decisions/dec-20260913-content-md5-upload-integrity-master
 source: docs/DECISIONS.md
 sync_hash: sha256:8f8552026c7ae52b32878435dc9e069a3d853def5145b657b8718a94fe994113
-graphify_entities:
-- kind: class
-  node_id: services_api_src_studio_api_storage_provider_storageprovider
-  path: services/api/src/studio_api/storage/provider.py
-  project: studio-os
-  relation: concerns
-  symbol: StorageProvider
-- kind: function
-  node_id: services_api_src_studio_api_services_transfers_complete_upload
-  path: services/api/src/studio_api/services/transfers.py
-  project: studio-os
-  relation: fixes
-  symbol: complete_upload
-- kind: file
-  node_id: services_api_alembic_versions_0002_transfer_content_md5
-  path: services/api/alembic/versions/0002_transfer_content_md5.py
-  project: studio-os
-  relation: concerns
-  symbol: 0002_transfer_content_md5.py
-- kind: class
-  node_id: packages_studio_contracts_src_studio_contracts_transfers_transfer
-  path: packages/studio-contracts/src/studio_contracts/transfers.py
-  project: studio-os
-  relation: concerns
-  symbol: Transfer
-- kind: class
-  node_id: services_api_src_studio_api_db_models_transfer_transfermodel
-  path: services/api/src/studio_api/db/models/transfer.py
-  project: studio-os
-  relation: concerns
-  symbol: TransferModel
 ---
 
 # DEC-0014 — Docker Desktop installe ; deux bugs reels corriges dans `docker/`

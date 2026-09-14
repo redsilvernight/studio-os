@@ -29,6 +29,7 @@ import json
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from .adr_common import index_vault_notes_by_dec_id, load_vault_note, parse_adr_markdown
 
@@ -63,7 +64,7 @@ class LintReport:
         return (self.entities_resolved / self.entities_total) if self.entities_total else None
 
 
-def _load_adrs(decisions_dir: Path) -> dict[str, dict]:
+def _load_adrs(decisions_dir: Path) -> dict[str, dict[str, Any]]:
     adrs = {}
     for path in sorted(decisions_dir.glob("DEC-*.md")):
         fields, _body = parse_adr_markdown(path.read_text(encoding="utf-8"))

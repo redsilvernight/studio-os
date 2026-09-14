@@ -72,7 +72,7 @@ class SyncAction:
     dec_id: str
     kind: str  # "create" | "update" | "unchanged" | "no_vault_match"
     vault_path: Path | None
-    new_frontmatter: dict | None = None
+    new_frontmatter: dict[str, Any] | None = None
     new_body: str | None = None
     conflicts: list[Conflict] = field(default_factory=list)
 
@@ -86,13 +86,13 @@ class SyncPlan:
         return [c for a in self.actions for c in a.conflicts]
 
 
-def _merge_entities(vault_entities: list, adr_entities: list) -> tuple[list, bool]:
+def _merge_entities(vault_entities: list[Any], adr_entities: list[Any]) -> tuple[list[Any], bool]:
     """Additive union keyed by node_id (falling back to (path, symbol) for
     unresolved entries with node_id=None). Returns (merged, changed)."""
     vault_entities = list(vault_entities or [])
     adr_entities = list(adr_entities or [])
 
-    def key(e: dict) -> tuple:
+    def key(e: dict[str, Any]) -> tuple[Any, Any, Any]:
         return (e.get("node_id"), e.get("path"), e.get("symbol"))
 
     existing_keys = {key(e) for e in vault_entities}
@@ -111,7 +111,9 @@ def _new_note_path(vault_dir: Path, dec_id: str, title: str) -> Path:
     return vault_dir / f"dec-{today}-{slugify(title)}.md"
 
 
-def plan_create(dec_id: str, adr_fields: dict, adr_path: Path, vault_dir: Path) -> SyncAction:
+def plan_create(
+    dec_id: str, adr_fields: dict[str, Any], adr_path: Path, vault_dir: Path
+) -> SyncAction:
     """No vault note aliases this ADR yet -- build one from scratch. Only
     fields the ADR (or the sync operation itself) actually knows are
     written: no fabricated Contexte/Consequences/Preuves sections, no
@@ -123,7 +125,7 @@ def plan_create(dec_id: str, adr_fields: dict, adr_path: Path, vault_dir: Path) 
     adr_relpath = f"{DECISIONS_DIR_RELPATH}/{adr_path.name}"
     slug = slugify(title)
 
-    fm: dict = {
+    fm: dict[str, Any] = {
         "aliases": [dec_id],
         "dedupe_key": f"decision:studio-os:{slug}",
         "project": "studio-os",
@@ -144,7 +146,8 @@ def plan_create(dec_id: str, adr_fields: dict, adr_path: Path, vault_dir: Path) 
 
     sync_hash = content_hash(f"{title}\n{adr_path.read_text(encoding='utf-8')}")
     fm["adr_sync"] = {
-        "path": adr_relpath, "sync_hash": sync_hash,
+        "path": adr_relpath,
+        "sync_hash": sync_hash,
         "synced_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
 
@@ -157,12 +160,21 @@ def plan_create(dec_id: str, adr_fields: dict, adr_path: Path, vault_dir: Path) 
         f"humaine effectuee sur cette note -- Contexte/Consequences a completer.\n"
     )
     return SyncAction(
-        dec_id=dec_id, kind="create", vault_path=_new_note_path(vault_dir, dec_id, title),
-        new_frontmatter=fm, new_body=note_body,
+        dec_id=dec_id,
+        kind="create",
+        vault_path=_new_note_path(vault_dir, dec_id, title),
+        new_frontmatter=fm,
+        new_body=note_body,
     )
 
 
-def plan_one(dec_id: str, adr_fields: dict, adr_path: Path, vault_note, vault_dir: Path) -> SyncAction:
+def plan_one(
+    dec_id: str,
+    adr_fields: dict[str, Any],
+    adr_path: Path,
+    vault_note: VaultNote | None,
+    vault_dir: Path,
+) -> SyncAction:
     sync_hash = content_hash(
         f"{adr_fields.get('title', '')}\n{adr_path.read_text(encoding='utf-8')}"
     )

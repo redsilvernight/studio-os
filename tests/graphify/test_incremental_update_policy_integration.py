@@ -3,15 +3,23 @@ project policy wiring.
 
 This is the *global* script (`~/.claude/scripts/graphify_incremental_update.py`,
 shared across every Graphify-enabled project on this machine), loaded here by
-path so these tests exercise the real file the Studio OS mandate asked to be
-modified. Only `load_project_policy` and `apply_policy` are exercised: they
-are defined at module scope and never import the `graphify` package, unlike
-`main()`, so this does not require the graphify-enabled interpreter.
+path so these tests exercise the real file. Only `load_project_policy` and
+`apply_policy` are exercised: they are defined at module scope and never
+import the `graphify` package, unlike `main()`, so this does not require the
+graphify-enabled interpreter.
+
+The policy/ledger engines (`graphify_update_policy.py`, `graphify_ledger.py`)
+are canonically global too, shipped next to this same script -- a project
+adopts them just by writing its own `.graphify-update.toml`, no Python files
+required. `load_project_policy`/`load_project_ledger` prefer a project-local
+`scripts/graphify_update_policy.py` (or `graphify_ledger.py`) override when
+one exists, and fall back to the global copy otherwise.
 
 Covers: a project with no `.graphify-update.toml` keeps the pre-policy
 behaviour (everything allowed -- backward compatibility for every other
-project sharing this script), and a `--files`-supplied list cannot bypass an
-active policy's exclusions.
+project sharing this script), a `--files`-supplied list cannot bypass an
+active policy's exclusions, and both engines resolve via the global fallback
+with zero project-local setup.
 """
 
 from __future__ import annotations
@@ -24,9 +32,8 @@ from pathlib import Path
 import pytest
 
 GLOBAL_SCRIPT = Path.home() / ".claude" / "scripts" / "graphify_incremental_update.py"
-PROJECT_SCRIPTS = Path(__file__).resolve().parent.parent.parent / "scripts"
-POLICY_ENGINE_SOURCE = PROJECT_SCRIPTS / "graphify_update_policy.py"
-LEDGER_SOURCE = PROJECT_SCRIPTS / "graphify_ledger.py"
+POLICY_ENGINE_SOURCE = Path.home() / ".claude" / "scripts" / "graphify_update_policy.py"
+LEDGER_SOURCE = Path.home() / ".claude" / "scripts" / "graphify_ledger.py"
 
 
 @pytest.fixture(scope="module")
@@ -46,8 +53,11 @@ def incremental_update_module():
 def test_project_without_policy_file_is_fully_legacy(
     incremental_update_module, tmp_path: Path
 ) -> None:
+    # The engine itself resolves via the global fallback (no project-local
+    # copy needed), but with no .graphify-update.toml anywhere, the policy
+    # is None -- so behaviour for this project stays exactly legacy.
     policy_module, policy = incremental_update_module.load_project_policy(tmp_path)
-    assert policy_module is None
+    assert policy_module is not None
     assert policy is None
 
     files = ["README.md", "docs/random.md", "src/main.py"]
@@ -58,7 +68,7 @@ def test_project_without_policy_file_is_fully_legacy(
     assert skipped == []
 
 
-def test_project_with_policy_engine_but_no_toml_is_legacy(
+def test_project_with_policy_engine_override_but_no_toml_is_legacy(
     incremental_update_module, tmp_path: Path
 ) -> None:
     (tmp_path / "scripts").mkdir()
@@ -103,8 +113,23 @@ patterns = ["docs/DECISIONS.md"]
     assert skipped_files == {"docs/DECISIONS.md", "docs/unlisted.md"}
 
 
-def test_project_without_ledger_module_gets_none(incremental_update_module, tmp_path: Path) -> None:
-    assert incremental_update_module.load_project_ledger(tmp_path) is None
+def test_project_without_local_ledger_falls_back_to_global(
+    incremental_update_module, tmp_path: Path
+) -> None:
+    ledger_module = incremental_update_module.load_project_ledger(tmp_path)
+    assert ledger_module is not None
+    assert Path(ledger_module.__file__) == LEDGER_SOURCE
+
+
+def test_project_local_ledger_override_takes_precedence(
+    incremental_update_module, tmp_path: Path
+) -> None:
+    (tmp_path / "scripts").mkdir()
+    shutil.copy(LEDGER_SOURCE, tmp_path / "scripts" / "graphify_ledger.py")
+
+    ledger_module = incremental_update_module.load_project_ledger(tmp_path)
+    assert ledger_module is not None
+    assert Path(ledger_module.__file__) == tmp_path / "scripts" / "graphify_ledger.py"
 
 
 def test_project_with_ledger_module_can_record_an_attempt(
@@ -152,6 +177,37 @@ def test_extract_chunk_reports_which_backend_succeeded(
     assert err is None
     assert backend_used == "qwen"
     assert data == {"nodes": [], "edges": [], "hyperedges": []}
+
+
+def test_gemini_zero_yield_is_never_recorded_as_a_measured_success(
+    incremental_update_module, tmp_path: Path
+) -> None:
+    """Regression test for a real incident: a Gemini 429 rate-limit was
+    swallowed by extract_corpus_parallel (it still returned a normal-shaped
+    dict with input_tokens=0), and the ledger attempt was built with
+    outcome="success" / tokens_status="measured" -- indistinguishable from a
+    genuinely free, successful call. build_attempt must instead mark a
+    zero-node/edge/hyperedge semantic result as an error with unmeasured
+    tokens."""
+    (tmp_path / "scripts").mkdir()
+    shutil.copy(LEDGER_SOURCE, tmp_path / "scripts" / "graphify_ledger.py")
+    ledger_module = incremental_update_module.load_project_ledger(tmp_path)
+
+    sem = {"nodes": [], "edges": [], "hyperedges": [], "input_tokens": 0, "output_tokens": 0}
+    sem_yielded_nothing = not (sem.get("nodes") or sem.get("edges") or sem.get("hyperedges"))
+    attempt = ledger_module.build_attempt(
+        project="demo",
+        files=["a.md"],
+        root=tmp_path,
+        backend="gemini",
+        processing_type="semantic",
+        outcome="error" if sem_yielded_nothing else "success",
+        input_tokens=None if sem_yielded_nothing else sem.get("input_tokens"),
+        output_tokens=None if sem_yielded_nothing else sem.get("output_tokens"),
+    )
+    assert attempt.outcome == "error"
+    assert attempt.tokens_status == "unmeasured"
+    assert attempt.input_tokens is None
 
 
 def test_extract_chunk_reports_no_backend_on_total_failure(

@@ -119,6 +119,13 @@ racine du dépôt.
   à `graphify query`, `path` ou `explain` sans expansion contrôlée du vocabulaire.
 - Si un graphe local apparaît par erreur, transférer le résultat à l'emplacement
   central puis retirer uniquement ce dossier local après vérification des chemins.
+- Pour une question sur le code, préférer `path`/`explain`/`query` (vocabulaire
+  expansé, jamais la question brute) à un `grep` large — sous-graphe ciblé,
+  généralement bien plus petit que `GRAPH_REPORT.md` ou une recherche texte.
+  Si `graphify-out/wiki/index.md` existe, l'utiliser pour la navigation large
+  plutôt que de parcourir les sources brutes ; ne lire `GRAPH_REPORT.md` que
+  pour une revue d'architecture large ou si `query`/`path`/`explain` ne
+  suffisent pas. Toujours via le lanceur, jamais `graphify` en direct.
 
 Graphify est local et ne doit pas être copié sur le VPS. Les interfaces cibles
 (`refresh_graph`, `query`, `relevant_files`, `dependencies`, `related_symbols`)

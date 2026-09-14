@@ -19,6 +19,7 @@ graphify_entities:
   project: studio-os
   relation: concerns
   symbol: provisioning
+  unresolved: true
 ---
 
 # DEC-0011 — Provisioning initial hors-bande via CLI serveur `studio-admin`
