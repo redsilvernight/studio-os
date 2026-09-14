@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "graphify hook-check"
+            "command": "pwsh -NoProfile -File scripts/graphify-studio.ps1 hook-check"
           }
         ]
       }

@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "C:/Users/redsi/.local/bin/graphify.EXE hook-guard search"
+            "command": "pwsh -NoProfile -File scripts/graphify-studio.ps1 hook-guard search"
           }
         ]
       },
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "C:/Users/redsi/.local/bin/graphify.EXE hook-guard read"
+            "command": "pwsh -NoProfile -File scripts/graphify-studio.ps1 hook-guard read"
           }
         ]
       }
