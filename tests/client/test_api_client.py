@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json as json_module
 from typing import Any
 from uuid import uuid4
 
@@ -16,7 +17,9 @@ from studio_client.errors import (
     ServerError,
 )
 from studio_client.tokens import MemoryTokenStore, MissingMachineToken
-from studio_contracts.tasks import TaskCreate
+from studio_contracts.claims import ResourceClaimCreate, ResourceType
+from studio_contracts.sessions import WorkSessionCreate
+from studio_contracts.tasks import TaskCreate, TaskStatus, TaskUpdate
 
 
 def _config(**overrides: Any) -> ClientConfig:
@@ -305,3 +308,179 @@ async def test_token_never_appears_in_exception_message() -> None:
 
     assert "super-secret-token" not in str(excinfo.value)
     assert "super-secret-token" not in repr(excinfo.value)
+
+
+async def test_list_tasks_sends_project_id_as_query_param() -> None:
+    seen: dict[str, str] = {}
+    project_id = uuid4()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["project_id"] = request.url.params.get("project_id", "")
+        return httpx.Response(200, json=[])
+
+    async with StudioApiClient(
+        _config(), _token_store(), transport=httpx.MockTransport(handler)
+    ) as client:
+        result = await client.list_tasks(project_id=project_id)
+
+    assert result == []
+    assert seen["project_id"] == str(project_id)
+
+
+async def test_update_task_sends_if_match_version_and_only_set_fields() -> None:
+    seen: dict[str, Any] = {}
+    task_id = uuid4()
+    project_id = uuid4()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["if_match_version"] = request.headers.get("if-match-version", "")
+        seen["body"] = json_module.loads(request.content)
+        return httpx.Response(
+            200,
+            json={
+                "id": str(task_id),
+                "readable_id": None,
+                "project_id": str(project_id),
+                "title": "new title",
+                "description": None,
+                "status": "created",
+                "claimed_by_machine_id": None,
+                "claimed_by_agent_id": None,
+                "version": 2,
+                "created_at": "2026-09-13T00:00:00Z",
+                "updated_at": "2026-09-13T00:00:00Z",
+            },
+        )
+
+    async with StudioApiClient(
+        _config(), _token_store(), transport=httpx.MockTransport(handler)
+    ) as client:
+        task = await client.update_task(
+            task_id, TaskUpdate(title="new title"), if_match_version=1
+        )
+
+    assert seen["if_match_version"] == "1"
+    assert seen["body"] == {"title": "new title"}
+    assert task.title == "new title"
+
+
+async def test_claim_task_and_release_task_hit_expected_paths() -> None:
+    seen: list[str] = []
+    task_id = uuid4()
+    project_id = uuid4()
+
+    def _task_body(status: str) -> dict[str, Any]:
+        return {
+            "id": str(task_id),
+            "readable_id": None,
+            "project_id": str(project_id),
+            "title": "t",
+            "description": None,
+            "status": status,
+            "claimed_by_machine_id": None,
+            "claimed_by_agent_id": None,
+            "version": 1,
+            "created_at": "2026-09-13T00:00:00Z",
+            "updated_at": "2026-09-13T00:00:00Z",
+        }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.url.path)
+        status = "in_progress" if request.url.path.endswith("/claim") else "created"
+        return httpx.Response(200, json=_task_body(status))
+
+    async with StudioApiClient(
+        _config(), _token_store(), transport=httpx.MockTransport(handler)
+    ) as client:
+        claimed = await client.claim_task(task_id)
+        released = await client.release_task(task_id)
+
+    assert seen == [f"/api/v1/tasks/{task_id}/claim", f"/api/v1/tasks/{task_id}/release"]
+    assert claimed.status == TaskStatus.IN_PROGRESS
+    assert released.status == TaskStatus.CREATED
+
+
+async def test_start_session_propagates_idempotency_key() -> None:
+    seen: dict[str, str] = {}
+    session_id = uuid4()
+    task_id = uuid4()
+    machine_id = uuid4()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["idempotency_key"] = request.headers.get("idempotency-key", "")
+        return httpx.Response(
+            201,
+            json={
+                "id": str(session_id),
+                "task_id": str(task_id),
+                "machine_id": str(machine_id),
+                "agent_id": None,
+                "started_at": "2026-09-13T00:00:00Z",
+                "ended_at": None,
+            },
+        )
+
+    async with StudioApiClient(
+        _config(), _token_store(), transport=httpx.MockTransport(handler)
+    ) as client:
+        session = await client.start_session(
+            WorkSessionCreate(task_id=task_id, machine_id=machine_id), idempotency_key="key-abc"
+        )
+
+    assert seen["idempotency_key"] == "key-abc"
+    assert session.id == session_id
+
+
+async def test_create_claim_propagates_idempotency_key() -> None:
+    seen: dict[str, str] = {}
+    claim_id = uuid4()
+    project_id = uuid4()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["idempotency_key"] = request.headers.get("idempotency-key", "")
+        return httpx.Response(
+            201,
+            json={
+                "id": str(claim_id),
+                "project_id": str(project_id),
+                "task_id": None,
+                "resource_path": "scenes/main.tscn",
+                "resource_type": "file",
+                "claimed_by_machine_id": str(uuid4()),
+                "claimed_by_agent_id": None,
+                "status": "active",
+                "ttl_seconds": 300,
+                "created_at": "2026-09-13T00:00:00Z",
+                "renewed_at": None,
+                "expires_at": "2026-09-13T00:05:00Z",
+                "released_at": None,
+            },
+        )
+
+    async with StudioApiClient(
+        _config(), _token_store(), transport=httpx.MockTransport(handler)
+    ) as client:
+        claim = await client.create_claim(
+            ResourceClaimCreate(
+                project_id=project_id,
+                resource_path="scenes/main.tscn",
+                resource_type=ResourceType.FILE,
+                ttl_seconds=300,
+            ),
+            idempotency_key="key-claim",
+        )
+
+    assert seen["idempotency_key"] == "key-claim"
+    assert claim.id == claim_id
+
+
+async def test_release_claim_handles_204_no_content() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(204)
+
+    async with StudioApiClient(
+        _config(), _token_store(), transport=httpx.MockTransport(handler)
+    ) as client:
+        result = await client.release_claim(uuid4())
+
+    assert result is None

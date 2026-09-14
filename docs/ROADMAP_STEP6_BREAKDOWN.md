@@ -204,7 +204,25 @@ correction hors perimetre.
 - Une coupure reseau suivie d'une reconnexion ne cree aucun doublon.
 - L'ordre des operations dependantes est preserve apres replay.
 
-## Sous-etape 6.5 — CLI minimale (projets, taches, sessions, claims)
+## Sous-etape 6.5 — CLI minimale (projets, taches, sessions, claims) — CLOS
+
+Etudie sans `studio-architect` (meme principe que 6.2-6.4) :
+`docs/DECISIONS.md` DEC-0031. `api_client.py` etendu (`list_tasks`,
+`get_task`, `update_task`, `claim_task`, `release_task`, `list_sessions`,
+`start_session`, `end_session`, `list_claims`, `create_claim`,
+`renew_claim`, `release_claim` — miroir du style existant, `Idempotency-
+Key` seulement sur les trois creations). `cli.py` reecrit :
+sous-commandes `studio-client {projects,tasks,sessions,claims} <verbe>`
+(argparse stdlib), flag `--json` par sous-commande, cle d'idempotence
+generee par la CLI (jamais par le client). 9 tests nouveaux (6 mock +
+3 contre l'app reelle), suite `tests/client/` et suite complete du
+depot **193 passed** (Postgres 16 + MinIO reels), `ruff`/`mypy` strict
+(commande CI reelle) verts — validation independante `studio-tester` :
+aucun bug bloquant. Point d'entree installe verifie manuellement contre
+un serveur reel (projects/tasks/sessions/claims, plus un cas d'erreur
+404), gap explicitement signale par `studio-tester` (aucun test
+automatise n'exerçait le binaire `studio-client` lui-meme, seulement
+`StudioApiClient`).
 
 ### Travail attendu
 

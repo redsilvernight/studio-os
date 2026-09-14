@@ -7,10 +7,12 @@ from uuid import UUID
 
 import httpx
 from studio_contracts.auth import HeartbeatRequest, HeartbeatResponse
+from studio_contracts.claims import ResourceClaim, ResourceClaimCreate
 from studio_contracts.events import EventCreate, EventEnvelope
 from studio_contracts.project_state import ProjectState
 from studio_contracts.projects import Project
-from studio_contracts.tasks import Task, TaskCreate
+from studio_contracts.sessions import WorkSession, WorkSessionCreate
+from studio_contracts.tasks import Task, TaskCreate, TaskUpdate
 
 from studio_client.config import ClientConfig
 from studio_client.errors import StudioApiError, TransportError, error_from_response
@@ -156,6 +158,91 @@ class StudioApiClient:
             idempotent=True,
         )
         return Task.model_validate(response.json())
+
+    async def list_tasks(
+        self, *, project_id: UUID | None = None, limit: int = 100, offset: int = 0
+    ) -> list[Task]:
+        params: dict[str, Any] = {"limit": limit, "offset": offset}
+        if project_id is not None:
+            params["project_id"] = str(project_id)
+        response = await self._request("GET", "/api/v1/tasks", params=params)
+        return [Task.model_validate(item) for item in response.json()]
+
+    async def get_task(self, task_id: UUID) -> Task:
+        response = await self._request("GET", f"/api/v1/tasks/{task_id}")
+        return Task.model_validate(response.json())
+
+    async def update_task(
+        self, task_id: UUID, task_in: TaskUpdate, *, if_match_version: int
+    ) -> Task:
+        """No `Idempotency-Key` support server-side (`TECH/02_API_CONTRACT.md`
+        lists only creation endpoints) — never retried automatically."""
+        response = await self._request(
+            "PATCH",
+            f"/api/v1/tasks/{task_id}",
+            json=task_in.model_dump(mode="json", exclude_unset=True),
+            extra_headers={"If-Match-Version": str(if_match_version)},
+        )
+        return Task.model_validate(response.json())
+
+    async def claim_task(self, task_id: UUID) -> Task:
+        response = await self._request("POST", f"/api/v1/tasks/{task_id}/claim")
+        return Task.model_validate(response.json())
+
+    async def release_task(self, task_id: UUID) -> Task:
+        response = await self._request("POST", f"/api/v1/tasks/{task_id}/release")
+        return Task.model_validate(response.json())
+
+    async def list_sessions(self, *, task_id: UUID | None = None) -> list[WorkSession]:
+        params: dict[str, Any] = {}
+        if task_id is not None:
+            params["task_id"] = str(task_id)
+        response = await self._request("GET", "/api/v1/sessions", params=params)
+        return [WorkSession.model_validate(item) for item in response.json()]
+
+    async def start_session(
+        self, session_in: WorkSessionCreate, *, idempotency_key: str
+    ) -> WorkSession:
+        response = await self._request(
+            "POST",
+            "/api/v1/sessions",
+            json=session_in.model_dump(mode="json"),
+            extra_headers={"Idempotency-Key": idempotency_key},
+            idempotent=True,
+        )
+        return WorkSession.model_validate(response.json())
+
+    async def end_session(self, session_id: UUID) -> WorkSession:
+        response = await self._request("PATCH", f"/api/v1/sessions/{session_id}/end")
+        return WorkSession.model_validate(response.json())
+
+    async def list_claims(self, *, project_id: UUID | None = None) -> list[ResourceClaim]:
+        params: dict[str, Any] = {}
+        if project_id is not None:
+            params["project_id"] = str(project_id)
+        response = await self._request("GET", "/api/v1/claims", params=params)
+        return [ResourceClaim.model_validate(item) for item in response.json()]
+
+    async def create_claim(
+        self, claim_in: ResourceClaimCreate, *, idempotency_key: str
+    ) -> ResourceClaim:
+        response = await self._request(
+            "POST",
+            "/api/v1/claims",
+            json=claim_in.model_dump(mode="json"),
+            extra_headers={"Idempotency-Key": idempotency_key},
+            idempotent=True,
+        )
+        return ResourceClaim.model_validate(response.json())
+
+    async def renew_claim(self, claim_id: UUID) -> ResourceClaim:
+        response = await self._request("POST", f"/api/v1/claims/{claim_id}/renew")
+        return ResourceClaim.model_validate(response.json())
+
+    async def release_claim(self, claim_id: UUID) -> None:
+        """`DELETE /claims/{id}` returns 204 with no body — never retried
+        automatically, same rationale as `update_task`/`claim_task`."""
+        await self._request("DELETE", f"/api/v1/claims/{claim_id}")
 
     async def send_mutation(
         self, method: str, path: str, payload: dict[str, Any], *, idempotency_key: str
