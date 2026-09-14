@@ -1,0 +1,330 @@
+"""Real entry point (`studio_client.cli.main`): argparse parsing, subcommand
+dispatch, JSON/human output formatting, and CLI-boundary error handling
+(invalid UUID, missing configuration). `test_api_client.py` and
+`test_api_client_against_app.py` exercise `StudioApiClient` directly — this
+file is the gap ROADMAP_STEP6_BREAKDOWN.md sous-etape 6.5 flagged as
+uncovered: nothing exercised `cli.main` itself, only the client it builds on.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import os
+import socket
+import threading
+import time
+import uuid
+from collections.abc import Iterator
+from typing import Any
+
+import httpx
+import pytest
+import uvicorn
+from sqlalchemy import delete
+from studio_api.db import session as db_api_session
+from studio_api.db.models.machine import MachineModel
+from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.task import TaskModel
+from studio_api.db.models.user import UserModel
+from studio_api.main import app as studio_api_app
+from studio_api.services import projects as projects_service
+from studio_api.services import provisioning as provisioning_service
+from studio_client import api_client as api_client_module
+from studio_client import cli
+from studio_client.config import ClientConfig
+from studio_client.tokens import TokenStore
+
+# The live-server fixture below needs the app's real (non-overridden)
+# `get_session` to point at the test database, same as
+# `tests/api/test_events.py`'s `live_client` fixture — set at import time,
+# before `get_session_factory()`'s module-level engine cache can be
+# populated by anything else.
+os.environ["STUDIO_DATABASE_URL"] = os.environ.get(
+    "STUDIO_TEST_DATABASE_URL", "postgresql+asyncpg://studio:studio@localhost:5432/studio_os_test"
+)
+
+
+def _force_transport(
+    monkeypatch: pytest.MonkeyPatch, forced_transport: httpx.AsyncBaseTransport
+) -> None:
+    """`cli._with_client` always builds `StudioApiClient(config,
+    KeyringTokenStore())` with no transport — patch `__init__` so it uses
+    a test transport instead of opening a real socket, the same technique
+    `conftest.py`'s `app_transport` fixture exists to support."""
+    original_init = api_client_module.StudioApiClient.__init__
+
+    def patched_init(
+        self: api_client_module.StudioApiClient,
+        config: ClientConfig,
+        token_store: TokenStore | None = None,
+        *,
+        transport: httpx.AsyncBaseTransport | None = None,
+    ) -> None:
+        original_init(self, config, token_store, transport=forced_transport)
+
+    monkeypatch.setattr(api_client_module.StudioApiClient, "__init__", patched_init)
+
+
+@pytest.fixture(autouse=True)
+def _cli_config_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("STUDIO_CLIENT_API_BASE_URL", "http://test")
+    monkeypatch.setenv("STUDIO_CLIENT_MACHINE_TOKEN", "test-token")
+
+
+def _project_body(project_id: uuid.UUID) -> dict[str, Any]:
+    return {
+        "id": str(project_id),
+        "slug": "demo",
+        "name": "Demo",
+        "description": None,
+        "archived": False,
+        "version": 1,
+        "created_at": "2026-09-13T00:00:00Z",
+        "updated_at": "2026-09-13T00:00:00Z",
+    }
+
+
+def test_projects_list_json_output(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project_id = uuid.uuid4()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/projects"
+        return httpx.Response(200, json=[_project_body(project_id)])
+
+    _force_transport(monkeypatch, httpx.MockTransport(handler))
+
+    cli.main(["projects", "list", "--json"])
+
+    out = json.loads(capsys.readouterr().out)
+    assert out == [_project_body(project_id)]
+
+
+def test_projects_list_human_output(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project_id = uuid.uuid4()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=[_project_body(project_id)])
+
+    _force_transport(monkeypatch, httpx.MockTransport(handler))
+
+    cli.main(["projects", "list"])
+
+    out = capsys.readouterr().out
+    assert str(project_id) in out
+    assert "{" not in out
+
+
+def test_projects_list_empty_human_output(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=[])
+
+    _force_transport(monkeypatch, httpx.MockTransport(handler))
+
+    cli.main(["projects", "list"])
+
+    assert capsys.readouterr().out.strip() == "(none)"
+
+
+def test_tasks_create_generates_idempotency_key_and_prints_task(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project_id = uuid.uuid4()
+    task_id = uuid.uuid4()
+    seen: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["idempotency_key"] = request.headers.get("idempotency-key")
+        return httpx.Response(
+            201,
+            json={
+                "id": str(task_id),
+                "readable_id": None,
+                "project_id": str(project_id),
+                "title": "Ship it",
+                "description": None,
+                "status": "created",
+                "claimed_by_machine_id": None,
+                "claimed_by_agent_id": None,
+                "version": 1,
+                "created_at": "2026-09-13T00:00:00Z",
+                "updated_at": "2026-09-13T00:00:00Z",
+            },
+        )
+
+    _force_transport(monkeypatch, httpx.MockTransport(handler))
+
+    cli.main(["tasks", "create", "--project-id", str(project_id), "--title", "Ship it", "--json"])
+
+    out = json.loads(capsys.readouterr().out)
+    assert out["id"] == str(task_id)
+    assert out["title"] == "Ship it"
+    uuid.UUID(seen["idempotency_key"])  # generated by the CLI, not by StudioApiClient
+
+
+def test_claims_release_json_output_does_not_call_str_on_json_flag(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    claim_id = uuid.uuid4()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(204)
+
+    _force_transport(monkeypatch, httpx.MockTransport(handler))
+
+    cli.main(["claims", "release", str(claim_id), "--json"])
+
+    out = json.loads(capsys.readouterr().out)
+    assert out == {"released": str(claim_id)}
+
+
+@pytest.mark.parametrize(
+    ("argv", "expected_field"),
+    [
+        (["tasks", "show", "not-a-uuid"], "task_id"),
+        (["tasks", "create", "--project-id", "not-a-uuid", "--title", "x"], "project_id"),
+        (["claims", "renew", "not-a-uuid"], "claim_id"),
+    ],
+)
+def test_invalid_uuid_exits_with_short_stderr_message_no_traceback(
+    capsys: pytest.CaptureFixture[str], argv: list[str], expected_field: str
+) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(argv)
+
+    assert excinfo.value.code == 1
+    err = capsys.readouterr().err
+    assert f"invalid {expected_field}" in err
+    assert "Traceback" not in err
+
+
+def test_missing_config_exits_with_short_stderr_message_no_traceback(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.delenv("STUDIO_CLIENT_API_BASE_URL", raising=False)
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(["projects", "list"])
+
+    assert excinfo.value.code == 1
+    err = capsys.readouterr().err
+    assert "api_base_url" in err
+    assert "Traceback" not in err
+
+
+def test_bad_subcommand_exits_nonzero_via_argparse(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(["not-a-command"])
+
+    assert excinfo.value.code != 0
+
+
+def _free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
+async def _create_committed_project_and_token() -> tuple[uuid.UUID, uuid.UUID, uuid.UUID, str]:
+    await db_api_session.reset_engine()
+    session_factory = db_api_session.get_session_factory()
+    async with session_factory() as session:
+        user = await provisioning_service.create_user(
+            session, "CLI Test User", f"{uuid.uuid4()}@example.test", "developer"
+        )
+        machine_model, token = await provisioning_service.create_machine(
+            session, user.id, "cli-test-machine"
+        )
+        project = await projects_service.create_project(
+            session, f"proj-{uuid.uuid4().hex[:8]}", "CLI Test Project", None
+        )
+    await db_api_session.reset_engine()
+    return user.id, project.id, machine_model.id, token
+
+
+async def _delete_committed_rows(
+    user_id: uuid.UUID, project_id: uuid.UUID, machine_id: uuid.UUID
+) -> None:
+    await db_api_session.reset_engine()
+    session_factory = db_api_session.get_session_factory()
+    async with session_factory() as session:
+        await session.execute(delete(TaskModel).where(TaskModel.project_id == project_id))
+        await session.execute(delete(ProjectModel).where(ProjectModel.id == project_id))
+        await session.execute(delete(MachineModel).where(MachineModel.id == machine_id))
+        await session.execute(delete(UserModel).where(UserModel.id == user_id))
+        await session.commit()
+    await db_api_session.reset_engine()
+
+
+@pytest.fixture
+def live_server_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
+    """A real uvicorn server on a background OS thread, talking to the real
+    (committed, non-savepoint) test database, with `STUDIO_CLIENT_*` env
+    pointing `cli.main` at it. Needed because `cli.main` opens a brand new
+    event loop via `asyncio.run` on every invocation (that's how the real
+    binary behaves) — a savepoint-bound `AsyncSession` shared with
+    pytest-asyncio's own loop (as `app_transport` in `conftest.py` provides)
+    cannot cross that loop boundary, but a real socket connection to a
+    server running on its own thread/loop can, the same reasoning as
+    `tests/api/test_events.py`'s `live_client` fixture."""
+    user_id, project_id, machine_id, token = asyncio.run(_create_committed_project_and_token())
+
+    port = _free_port()
+    config = uvicorn.Config(studio_api_app, host="127.0.0.1", port=port, log_level="warning")
+    server = uvicorn.Server(config)
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    try:
+        deadline = time.monotonic() + 5
+        while not server.started and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert server.started, "live test server failed to start"
+
+        monkeypatch.setenv("STUDIO_CLIENT_API_BASE_URL", f"http://127.0.0.1:{port}")
+        monkeypatch.setenv("STUDIO_CLIENT_MACHINE_TOKEN", token)
+        yield str(project_id)
+    finally:
+        server.should_exit = True
+        thread.join(timeout=5)
+        asyncio.run(_delete_committed_rows(user_id, project_id, machine_id))
+
+
+def test_task_create_and_show_round_trip_against_real_app(
+    capsys: pytest.CaptureFixture[str], live_server_env: str
+) -> None:
+    """The representative real-app path DEC-0031 covered manually
+    (`studio-client tasks create` / `tasks show`) — now automated against
+    a real running server and a real Postgres database, through the actual
+    `studio-client` entry point rather than `StudioApiClient` directly."""
+    project_id = live_server_env
+
+    cli.main(["tasks", "create", "--project-id", project_id, "--title", "Ship it", "--json"])
+    created = json.loads(capsys.readouterr().out)
+    assert created["title"] == "Ship it"
+    assert created["project_id"] == project_id
+
+    cli.main(["tasks", "show", created["id"], "--json"])
+    shown = json.loads(capsys.readouterr().out)
+
+    assert shown["id"] == created["id"]
+    assert shown["status"] == "created"
+
+
+def test_tasks_show_not_found_against_real_app_exits_with_short_message(
+    capsys: pytest.CaptureFixture[str], live_server_env: str
+) -> None:
+    del live_server_env  # only needed to stand up the server + auth
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(["tasks", "show", str(uuid.uuid4()), "--json"])
+
+    assert excinfo.value.code == 1
+    err = capsys.readouterr().err
+    assert "404" in err
+    assert "Traceback" not in err

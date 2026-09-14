@@ -355,9 +355,7 @@ async def test_update_task_sends_if_match_version_and_only_set_fields() -> None:
     async with StudioApiClient(
         _config(), _token_store(), transport=httpx.MockTransport(handler)
     ) as client:
-        task = await client.update_task(
-            task_id, TaskUpdate(title="new title"), if_match_version=1
-        )
+        task = await client.update_task(task_id, TaskUpdate(title="new title"), if_match_version=1)
 
     assert seen["if_match_version"] == "1"
     assert seen["body"] == {"title": "new title"}

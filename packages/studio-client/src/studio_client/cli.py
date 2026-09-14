@@ -10,13 +10,13 @@ from collections.abc import Awaitable, Callable, Sequence
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from studio_contracts.claims import ResourceClaimCreate, ResourceType
 from studio_contracts.sessions import WorkSessionCreate
 from studio_contracts.tasks import TaskCreate, TaskStatus, TaskUpdate
 
 from studio_client.api_client import StudioApiClient
-from studio_client.config import ClientConfig
+from studio_client.config import ClientConfig, default_config_path
 from studio_client.errors import StudioApiError
 from studio_client.tokens import KeyringTokenStore, MissingMachineToken, origin_of
 
@@ -29,6 +29,27 @@ def _add_json_flag(parser: argparse.ArgumentParser) -> None:
 
 def _idempotency_key() -> str:
     return str(uuid.uuid4())
+
+
+def _parse_uuid(value: str, *, field: str) -> UUID:
+    try:
+        return UUID(value)
+    except ValueError:
+        print(f"error: invalid {field}: {value!r} is not a UUID", file=sys.stderr)
+        raise SystemExit(1) from None
+
+
+def _load_config() -> ClientConfig:
+    try:
+        return ClientConfig()  # type: ignore[call-arg]  # fields resolved from STUDIO_CLIENT_* env/TOML
+    except ValidationError as exc:
+        missing = ", ".join(str(error["loc"][0]) for error in exc.errors() if error["loc"])
+        print(
+            f"error: missing configuration ({missing or exc.errors()[0]['msg']}): "
+            f"set STUDIO_CLIENT_* environment variables or {default_config_path()}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1) from None
 
 
 def _print_model(model: BaseModel, *, as_json: bool) -> None:
@@ -101,7 +122,7 @@ def _projects_list(args: argparse.Namespace, config: ClientConfig) -> None:
 
 
 def _tasks_list(args: argparse.Namespace, config: ClientConfig) -> None:
-    project_id = UUID(args.project_id) if args.project_id else None
+    project_id = _parse_uuid(args.project_id, field="project_id") if args.project_id else None
     tasks = _run(
         config,
         lambda client: client.list_tasks(
@@ -112,20 +133,21 @@ def _tasks_list(args: argparse.Namespace, config: ClientConfig) -> None:
 
 
 def _tasks_show(args: argparse.Namespace, config: ClientConfig) -> None:
-    task = _run(config, lambda client: client.get_task(UUID(args.task_id)))
+    task_id = _parse_uuid(args.task_id, field="task_id")
+    task = _run(config, lambda client: client.get_task(task_id))
     _print_model(task, as_json=args.json)
 
 
 def _tasks_create(args: argparse.Namespace, config: ClientConfig) -> None:
-    task_in = TaskCreate(
-        project_id=UUID(args.project_id), title=args.title, description=args.description
-    )
+    project_id = _parse_uuid(args.project_id, field="project_id")
+    task_in = TaskCreate(project_id=project_id, title=args.title, description=args.description)
     key = _idempotency_key()
     task = _run(config, lambda client: client.create_task(task_in, idempotency_key=key))
     _print_model(task, as_json=args.json)
 
 
 def _tasks_update(args: argparse.Namespace, config: ClientConfig) -> None:
+    task_id = _parse_uuid(args.task_id, field="task_id")
     fields: dict[str, Any] = {}
     if args.title is not None:
         fields["title"] = args.title
@@ -137,24 +159,26 @@ def _tasks_update(args: argparse.Namespace, config: ClientConfig) -> None:
     task = _run(
         config,
         lambda client: client.update_task(
-            UUID(args.task_id), task_update, if_match_version=args.if_match_version
+            task_id, task_update, if_match_version=args.if_match_version
         ),
     )
     _print_model(task, as_json=args.json)
 
 
 def _tasks_claim(args: argparse.Namespace, config: ClientConfig) -> None:
-    task = _run(config, lambda client: client.claim_task(UUID(args.task_id)))
+    task_id = _parse_uuid(args.task_id, field="task_id")
+    task = _run(config, lambda client: client.claim_task(task_id))
     _print_model(task, as_json=args.json)
 
 
 def _tasks_release(args: argparse.Namespace, config: ClientConfig) -> None:
-    task = _run(config, lambda client: client.release_task(UUID(args.task_id)))
+    task_id = _parse_uuid(args.task_id, field="task_id")
+    task = _run(config, lambda client: client.release_task(task_id))
     _print_model(task, as_json=args.json)
 
 
 def _sessions_list(args: argparse.Namespace, config: ClientConfig) -> None:
-    task_id = UUID(args.task_id) if args.task_id else None
+    task_id = _parse_uuid(args.task_id, field="task_id") if args.task_id else None
     sessions = _run(config, lambda client: client.list_sessions(task_id=task_id))
     _print_models(sessions, as_json=args.json)
 
@@ -167,30 +191,32 @@ def _sessions_start(args: argparse.Namespace, config: ClientConfig) -> None:
             file=sys.stderr,
         )
         raise SystemExit(1)
-    agent_id = UUID(args.agent_id) if args.agent_id else None
-    session_in = WorkSessionCreate(
-        task_id=UUID(args.task_id), machine_id=config.machine_id, agent_id=agent_id
-    )
+    task_id = _parse_uuid(args.task_id, field="task_id")
+    agent_id = _parse_uuid(args.agent_id, field="agent_id") if args.agent_id else None
+    session_in = WorkSessionCreate(task_id=task_id, machine_id=config.machine_id, agent_id=agent_id)
     key = _idempotency_key()
     session = _run(config, lambda client: client.start_session(session_in, idempotency_key=key))
     _print_model(session, as_json=args.json)
 
 
 def _sessions_end(args: argparse.Namespace, config: ClientConfig) -> None:
-    session = _run(config, lambda client: client.end_session(UUID(args.session_id)))
+    session_id = _parse_uuid(args.session_id, field="session_id")
+    session = _run(config, lambda client: client.end_session(session_id))
     _print_model(session, as_json=args.json)
 
 
 def _claims_list(args: argparse.Namespace, config: ClientConfig) -> None:
-    project_id = UUID(args.project_id) if args.project_id else None
+    project_id = _parse_uuid(args.project_id, field="project_id") if args.project_id else None
     claims = _run(config, lambda client: client.list_claims(project_id=project_id))
     _print_models(claims, as_json=args.json)
 
 
 def _claims_create(args: argparse.Namespace, config: ClientConfig) -> None:
+    project_id = _parse_uuid(args.project_id, field="project_id")
+    task_id = _parse_uuid(args.task_id, field="task_id") if args.task_id else None
     claim_in = ResourceClaimCreate(
-        project_id=UUID(args.project_id),
-        task_id=UUID(args.task_id) if args.task_id else None,
+        project_id=project_id,
+        task_id=task_id,
         resource_path=args.resource_path,
         resource_type=ResourceType(args.resource_type),
         ttl_seconds=args.ttl_seconds,
@@ -201,12 +227,14 @@ def _claims_create(args: argparse.Namespace, config: ClientConfig) -> None:
 
 
 def _claims_renew(args: argparse.Namespace, config: ClientConfig) -> None:
-    claim = _run(config, lambda client: client.renew_claim(UUID(args.claim_id)))
+    claim_id = _parse_uuid(args.claim_id, field="claim_id")
+    claim = _run(config, lambda client: client.renew_claim(claim_id))
     _print_model(claim, as_json=args.json)
 
 
 def _claims_release(args: argparse.Namespace, config: ClientConfig) -> None:
-    _run(config, lambda client: client.release_claim(UUID(args.claim_id)))
+    claim_id = _parse_uuid(args.claim_id, field="claim_id")
+    _run(config, lambda client: client.release_claim(claim_id))
     if args.json:
         print(json.dumps({"released": args.claim_id}))
     else:
@@ -324,7 +352,7 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     parser = _build_parser()
     args = parser.parse_args(argv)
-    config = ClientConfig()  # type: ignore[call-arg]  # fields resolved from STUDIO_CLIENT_* env/TOML
+    config = _load_config()
     args.func(args, config)
 
 

@@ -18,7 +18,15 @@ la remplacer.
 - Dispatcher `studio-tester` après chaque feature ou correction terminée.
 - Mettre à jour Graphify au point de complétion de chaque étape.
 
-## Étape 1 — Sécuriser l'idempotence sous concurrence (P1)
+## Étape 1 — Sécuriser l'idempotence sous concurrence (P1) — CLOS
+
+Réservation Postgres atomique (`INSERT ... ON CONFLICT DO NOTHING` avant la
+création métier) + `_reclaim_if_abandoned` pour une réservation `pending`
+abandonnée + `request_hash` désormais vérifié (409
+`idempotency_key_payload_mismatch` sur un replay à payload différent) :
+`docs/DECISIONS.md` DEC-0015. Régression couverte par
+`tests/api/test_idempotency_concurrency.py` (dix requêtes concurrentes
+réelles, une seule `Task` créée).
 
 ### Problème
 
@@ -55,7 +63,13 @@ processus de changement de contrat.
 - Les tests existants restent verts.
 - Ruff et mypy passent sur les fichiers de production modifiés.
 
-## Étape 2 — Rendre les identifiants DEC-XXXX concurrents (P1)
+## Étape 2 — Rendre les identifiants DEC-XXXX concurrents (P1) — CLOS
+
+Remplacement de `COUNT(*) + 1` par une séquence Postgres dédiée
+(`decisions_readable_id_seq`, `nextval()` atomique) : `docs/DECISIONS.md`
+DEC-0016. Migration Alembic `0003` réversible. Régression couverte par
+`tests/api/test_decisions_concurrency.py` (dix créations concurrentes, dix
+`readable_id` distincts).
 
 ### Problème
 
@@ -77,7 +91,16 @@ aussi provoquer une réutilisation.
 - Les identifiants ne sont jamais réutilisés après suppression.
 - La migration monte et redescend proprement sur une base de test.
 
-## Étape 3 — Fermer la dette immédiate de qualité (P2/P3)
+## Étape 3 — Fermer la dette immédiate de qualité (P2/P3) — CLOS
+
+Deux erreurs mypy `[type-arg]` sur `sa.Column` non paramétré (migration
+`0001_initial.py`) corrigées en `sa.Column[Any]` ;
+`HTTP_422_UNPROCESSABLE_ENTITY` remplacé par
+`HTTP_422_UNPROCESSABLE_CONTENT` (`services/transfers.py`) ; `pytest`/`ruff
+check`/`mypy` déjà présents en CI (`.github/workflows/ci.yml`), rien à
+ajouter : `docs/DECISIONS.md` DEC-0017. Vérifié : `mypy` sur les 4 racines CI
+→ `Success: no issues found` ; suite complète → 42 passed (Postgres + MinIO
+réels).
 
 ### Travail attendu
 
@@ -93,7 +116,16 @@ aussi provoquer une réutilisation.
 - `pytest`, Ruff et mypy terminent sans erreur ni avertissement connu lié à ces
   éléments.
 
-## Étape 4 — Terminer le périmètre Cloud/Core du Bloc A (P1/P2)
+## Étape 4 — Terminer le périmètre Cloud/Core du Bloc A (P1/P2) — CLOS
+
+Cinq sous-étapes closes : realtime SSE + curseur `seq` (DEC-0018, 4.1),
+quotas/taille max/vue de consommation des transferts (DEC-0019, 4.2), worker
+d'expiration `studio-admin transfers expire` (DEC-0020, 4.3), sauvegarde/
+restauration Postgres+MinIO par scripts shell (DEC-0021, 4.4), validation
+Docker Compose sur base strictement vierge — bootstrap, migrations,
+realtime, quotas, expiration, backup/restore rejoués en conditions réelles
+(DEC-0022, 4.5). Voir `docs/ROADMAP_STEP4_BREAKDOWN.md` pour le détail par
+sous-étape.
 
 ### Travail attendu
 
@@ -151,6 +183,10 @@ Volumineuse et hétérogène comme l'étape 4 en son temps : découpée en
 sous-étapes indépendantes dans `docs/ROADMAP_STEP6_BREAKDOWN.md` (à cocher
 au fil des clôtures, ce fichier n'entre pas dans le détail sous-étape par
 sous-étape).
+
+Statut : sous-étapes 6.1 à 6.5 closes (DEC-0024, DEC-0028, DEC-0029,
+DEC-0030, DEC-0031). 6.6 (watchers Git/Godot) et 6.7 (`TransferClient`)
+restent ouvertes — l'étape entière n'est pas close.
 
 ### Ordre recommandé
 
