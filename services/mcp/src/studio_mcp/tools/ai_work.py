@@ -5,8 +5,8 @@ from typing import Any
 from mcp.server.mcpserver import Context
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.ai_work import AIWorkLogModel
-from studio_api.db.models.machine import MachineModel
 from studio_api.services import ai_work as ai_work_service
+from studio_api.services.authz import Principal
 from studio_contracts.ai_work import AIWorkLogCreate, AIWorkLogUpdate, AIWorkStatus
 
 from studio_mcp.errors import run_tool
@@ -34,7 +34,7 @@ async def studio_get_ai_work(
     """List AI Work Ledger entries, optionally filtered by project_id/task_id
     (UUID strings)."""
 
-    async def _handler(session: AsyncSession, _machine: MachineModel) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, _principal: Principal) -> dict[str, Any]:
         parsed_project_id = None
         if project_id is not None:
             parsed = parse_uuid(project_id, "project_id")
@@ -71,7 +71,7 @@ async def studio_log_ai_work(
     `completed`/`failed` with changed_files/tests_run) — one tool for the
     whole lifecycle, per TECH/07_MCP_CONTRACT.md."""
 
-    async def _handler(session: AsyncSession, machine: MachineModel) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed_agent_id = parse_uuid(agent_id, "agent_id")
         if isinstance(parsed_agent_id, dict):
             return parsed_agent_id
@@ -89,6 +89,7 @@ async def studio_log_ai_work(
                 return {"error_code": "not_found", "message": f"ai_work {ai_work_id} not found"}
             work = await ai_work_service.update_ai_work(
                 session,
+                principal,
                 existing,
                 AIWorkLogUpdate(
                     summary=summary,
@@ -110,11 +111,12 @@ async def studio_log_ai_work(
             parsed_task_id = parsed
         work = await ai_work_service.create_ai_work(
             session,
+            principal,
             AIWorkLogCreate(
                 task_id=parsed_task_id,
                 project_id=parsed_project_id,
                 agent_id=parsed_agent_id,
-                machine_id=machine.id,
+                machine_id=principal.machine.id,
                 summary=summary,
             ),
         )

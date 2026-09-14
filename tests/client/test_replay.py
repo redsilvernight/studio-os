@@ -82,6 +82,32 @@ async def test_replays_event_then_mutation_in_creation_order(tmp_path: Path) -> 
     assert store.list_pending(OutboxTable.MUTATIONS, ready_only=False) == []
 
 
+async def test_system_actor_watcher_event_replays_like_any_other_event(tmp_path: Path) -> None:
+    """git/godot watchers (DEC-0032) enqueue `actor_type="system",
+    actor_id=machine_id` events — same public `POST /events` replay path as
+    every other event, and the server now validates that shape (DEC-0035:
+    `actor_type=system` is only accepted with `actor_id == machine.id`)."""
+    store = _store(tmp_path / "outbox.sqlite3")
+    event = _event(actor_type="system", actor_id=MACHINE_ID, machine_id=MACHINE_ID)
+    with transaction(store.connection):
+        store.enqueue_event(event)
+
+    received: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        received.update(json.loads(request.content))
+        return httpx.Response(200, json={**received, "server_timestamp": "2026-09-13T00:00:00Z"})
+
+    async with _client(handler) as client:
+        replayer = OutboxReplayer(store, client, RetryPolicy(max_attempts=1))
+        outcome = await replayer.replay_ready()
+
+    assert outcome.succeeded == 1
+    assert received["actor_type"] == "system"
+    assert received["actor_id"] == str(MACHINE_ID)
+    assert received["machine_id"] == str(MACHINE_ID)
+
+
 async def test_event_replay_reconstructs_original_payload(tmp_path: Path) -> None:
     store = _store(tmp_path / "outbox.sqlite3")
     event = _event(payload={"title": "reconstruct-me"})
@@ -129,6 +155,38 @@ async def test_non_retryable_error_dead_letters_and_pass_continues(tmp_path: Pat
     dead = store.connection.execute("SELECT * FROM dead_letter").fetchall()
     assert len(dead) == 1
     assert dead[0]["source_table"] == OutboxTable.EVENTS.value
+
+
+async def test_readonly_forbidden_error_dead_letters_with_actionable_message(
+    tmp_path: Path,
+) -> None:
+    """DEC-0036 risk: a 403 from the authorization gate (e.g. a queued event
+    replayed under a `readonly`-role token) is never retryable
+    (`ForbiddenError`, `.claude/rules python-conventions.md`-style whitelist
+    in `retry.is_retryable`) — it must dead-letter immediately rather than
+    burn the backoff budget, and the recorded error must carry the server's
+    machine-readable reason, not a bare status code."""
+    store = _store(tmp_path / "outbox.sqlite3")
+    event = _event()
+    with transaction(store.connection):
+        store.enqueue_event(event)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            403,
+            json={"detail": {"error_code": "forbidden", "resource": "event", "action": "write"}},
+        )
+
+    async with _client(handler) as client:
+        replayer = OutboxReplayer(store, client, RetryPolicy(max_attempts=1))
+        outcome = await replayer.replay_ready()
+
+    assert outcome.dead_lettered == 1
+    assert outcome.stopped_on_transient_error is False
+    assert store.list_pending(OutboxTable.EVENTS, ready_only=False) == []
+    dead = store.connection.execute("SELECT * FROM dead_letter").fetchall()
+    assert len(dead) == 1
+    assert "forbidden" in dead[0]["error"]
 
 
 async def test_transient_error_stops_pass_and_preserves_order(tmp_path: Path) -> None:
@@ -190,3 +248,81 @@ async def test_replay_ready_with_empty_outbox_is_a_noop(tmp_path: Path) -> None:
         outcome = await replayer.replay_ready()
 
     assert outcome == outcome.__class__()
+
+
+async def test_mark_succeeded_is_durable_after_crash(tmp_path: Path) -> None:
+    """A row cleared by `replay_ready` must actually be committed, not just
+    visible to the connection that cleared it — otherwise a crash right
+    after replay resends an operation the server already accepted."""
+    db_path = tmp_path / "outbox.sqlite3"
+    store = _store(db_path)
+    event = _event()
+    with transaction(store.connection):
+        store.enqueue_event(event)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={**event.model_dump(mode="json"), "server_timestamp": "2026-09-13T00:00:00Z"},
+        )
+
+    async with _client(handler) as client:
+        replayer = OutboxReplayer(store, client, RetryPolicy(max_attempts=1))
+        outcome = await replayer.replay_ready()
+    assert outcome.succeeded == 1
+    store.connection.close()
+
+    second_connection_store = OutboxStore(connect(db_path))
+    assert second_connection_store.list_pending(OutboxTable.EVENTS, ready_only=False) == []
+
+
+async def test_mark_failed_backoff_is_durable_after_crash(tmp_path: Path) -> None:
+    """The `attempt_count`/`next_attempt_at`/`last_error` written after a
+    transient failure must survive a crash — otherwise a restart forgets the
+    backoff and hammers the server immediately."""
+    db_path = tmp_path / "outbox.sqlite3"
+    store = _store(db_path)
+    event = _event()
+    with transaction(store.connection):
+        store.enqueue_event(event)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500, json={"detail": {"error_code": "server_error"}})
+
+    async with _client(handler) as client:
+        replayer = OutboxReplayer(store, client, RetryPolicy(max_attempts=1))
+        outcome = await replayer.replay_ready()
+    assert outcome.stopped_on_transient_error is True
+    store.connection.close()
+
+    second_connection_store = OutboxStore(connect(db_path))
+    rows = second_connection_store.list_pending(OutboxTable.EVENTS, ready_only=False)
+    assert len(rows) == 1
+    assert rows[0].attempt_count == 1
+    assert rows[0].last_error is not None
+
+
+async def test_dead_letter_move_is_durable_after_crash(tmp_path: Path) -> None:
+    """A definitive failure must be durably removed from pending and
+    durably recorded in `dead_letter` in the same commit — a crash between
+    the two would either resurrect a dead row or lose the record of it."""
+    db_path = tmp_path / "outbox.sqlite3"
+    store = _store(db_path)
+    event = _event()
+    with transaction(store.connection):
+        store.enqueue_event(event)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, json={"detail": {"error_code": "not_found"}})
+
+    async with _client(handler) as client:
+        replayer = OutboxReplayer(store, client, RetryPolicy(max_attempts=1))
+        outcome = await replayer.replay_ready()
+    assert outcome.dead_lettered == 1
+    store.connection.close()
+
+    second_connection_store = OutboxStore(connect(db_path))
+    assert second_connection_store.list_pending(OutboxTable.EVENTS, ready_only=False) == []
+    dead = second_connection_store.connection.execute("SELECT * FROM dead_letter").fetchall()
+    assert len(dead) == 1
+    assert dead[0]["source_table"] == OutboxTable.EVENTS.value

@@ -6,9 +6,9 @@ from typing import Any
 from mcp.server.mcpserver import Context
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.decision import DecisionModel
-from studio_api.db.models.machine import MachineModel
 from studio_api.services import decisions as decisions_service
 from studio_api.services import idempotency as idempotency_service
+from studio_api.services.authz import Principal, ensure_can_write
 from studio_contracts.decisions import DecisionCreate
 
 from studio_mcp.errors import run_tool
@@ -31,7 +31,7 @@ def _compact_decision(decision: DecisionModel) -> dict[str, Any]:
 async def studio_get_decisions(ctx: Context, project_id: str | None = None) -> dict[str, Any]:
     """List decisions, optionally filtered by project_id (UUID string)."""
 
-    async def _handler(session: AsyncSession, _machine: MachineModel) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, _principal: Principal) -> dict[str, Any]:
         parsed_project_id = None
         if project_id is not None:
             parsed = parse_uuid(project_id, "project_id")
@@ -60,7 +60,7 @@ async def studio_add_decision(
     key with different arguments fails with
     `idempotency_key_payload_mismatch` (DEC-0027)."""
 
-    async def _handler(session: AsyncSession, machine: MachineModel) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed_project_id = None
         if project_id is not None:
             parsed = parse_uuid(project_id, "project_id")
@@ -73,17 +73,21 @@ async def studio_add_decision(
             if isinstance(parsed, dict):
                 return parsed
             parsed_task_id = parsed
+        # Ahead of `run_idempotent_dict`'s replay short-circuit — see
+        # `routers/tasks.py::create_task` for why (DEC-0036).
+        ensure_can_write(principal, "decision")
 
         async def _create() -> dict[str, Any]:
             decision = await decisions_service.create_decision(
                 session,
+                principal,
                 DecisionCreate(
                     project_id=parsed_project_id,
                     task_id=parsed_task_id,
                     title=title,
                     body=body,
                     proposed_by_type="agent",
-                    proposed_by_id=machine.owner_user_id,
+                    proposed_by_id=principal.user.id,
                 ),
             )
             return _compact_decision(decision)

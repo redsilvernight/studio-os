@@ -40,6 +40,26 @@ async def test_authenticate_rejects_unknown_token(db_session: AsyncSession) -> N
         await authenticate(ctx, db_session)
 
 
+async def test_authenticate_rejects_http_without_header_even_with_stdio_env_set(
+    db_session: AsyncSession, machine: tuple[MachineModel, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, token = machine
+    monkeypatch.setenv("STUDIO_MCP_MACHINE_TOKEN", token)
+    ctx = FakeContext(headers={})
+    with pytest.raises(McpAuthError):
+        await authenticate(ctx, db_session)
+
+
+async def test_authenticate_rejects_http_invalid_bearer_even_with_stdio_env_set(
+    db_session: AsyncSession, machine: tuple[MachineModel, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, token = machine
+    monkeypatch.setenv("STUDIO_MCP_MACHINE_TOKEN", token)
+    ctx = FakeContext(headers={"authorization": "Bearer not-a-real-token"})
+    with pytest.raises(McpAuthError):
+        await authenticate(ctx, db_session)
+
+
 async def test_authenticate_rejects_revoked_machine(
     db_session: AsyncSession, machine: tuple[MachineModel, str]
 ) -> None:

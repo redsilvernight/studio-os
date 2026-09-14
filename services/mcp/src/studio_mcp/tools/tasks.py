@@ -6,11 +6,11 @@ from uuid import UUID
 
 from mcp.server.mcpserver import Context
 from sqlalchemy.ext.asyncio import AsyncSession
-from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.task import TaskModel
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import projects as projects_service
 from studio_api.services import tasks as tasks_service
+from studio_api.services.authz import Principal, ensure_can_write
 from studio_contracts.tasks import TaskCreate, TaskStatus, TaskUpdate
 
 from studio_mcp.errors import run_tool
@@ -35,7 +35,7 @@ def _compact_task(task: TaskModel) -> dict[str, Any]:
 async def studio_get_task(task_id: str, ctx: Context) -> dict[str, Any]:
     """Get one task by id (UUID string)."""
 
-    async def _handler(session: AsyncSession, _machine: MachineModel) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, _principal: Principal) -> dict[str, Any]:
         parsed = parse_uuid(task_id, "task_id")
         if isinstance(parsed, dict):
             return parsed
@@ -50,7 +50,7 @@ async def studio_get_task(task_id: str, ctx: Context) -> dict[str, Any]:
 async def studio_get_active_tasks(project_id: str, ctx: Context) -> dict[str, Any]:
     """List active (created/in_progress/blocked) tasks for a project_id (UUID string)."""
 
-    async def _handler(session: AsyncSession, _machine: MachineModel) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, _principal: Principal) -> dict[str, Any]:
         parsed = parse_uuid(project_id, "project_id")
         if isinstance(parsed, dict):
             return parsed
@@ -74,14 +74,19 @@ async def studio_create_task(
     one; the same key with different arguments fails with
     `idempotency_key_payload_mismatch` (DEC-0027)."""
 
-    async def _handler(session: AsyncSession, _machine: MachineModel) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed = parse_uuid(project_id, "project_id")
         if isinstance(parsed, dict):
             return parsed
+        # Ahead of `run_idempotent_dict`'s replay short-circuit — see
+        # `routers/tasks.py::create_task` for why (DEC-0036).
+        ensure_can_write(principal, "task")
 
         async def _create() -> dict[str, Any]:
             task = await tasks_service.create_task(
-                session, TaskCreate(project_id=parsed, title=title, description=description)
+                session,
+                principal,
+                TaskCreate(project_id=parsed, title=title, description=description),
             )
             return _compact_task(task)
 
@@ -110,7 +115,7 @@ async def studio_update_task(
     the task's current `version` (optimistic concurrency) — a mismatch returns
     `version_conflict` with the real server version, never a silent overwrite."""
 
-    async def _handler(session: AsyncSession, _machine: MachineModel) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed = parse_uuid(task_id, "task_id")
         if isinstance(parsed, dict):
             return parsed
@@ -122,7 +127,7 @@ async def studio_update_task(
         except ValueError:
             return {"error_code": "invalid_argument", "message": f"unknown status: {status!r}"}
         task_in = TaskUpdate(title=title, description=description, status=parsed_status)
-        task = await tasks_service.update_task(session, task, task_in, expected_version)
+        task = await tasks_service.update_task(session, principal, task, task_in, expected_version)
         return _compact_task(task)
 
     return await run_tool(ctx, _handler)
@@ -134,7 +139,7 @@ async def studio_claim_task(
     """Claim a task for the caller's machine (soft lock, sets status to
     in_progress). Fails with `already_claimed` if another machine holds it."""
 
-    async def _handler(session: AsyncSession, machine: MachineModel) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed = parse_uuid(task_id, "task_id")
         if isinstance(parsed, dict):
             return parsed
@@ -147,7 +152,9 @@ async def studio_claim_task(
         task = await tasks_service.get_task(session, parsed)
         if task is None:
             return {"error_code": "not_found", "message": f"task {task_id} not found"}
-        task = await tasks_service.claim_task(session, task, machine.id, parsed_agent_id)
+        task = await tasks_service.claim_task(
+            session, principal, task, principal.machine.id, parsed_agent_id
+        )
         return _compact_task(task)
 
     return await run_tool(ctx, _handler)
@@ -156,14 +163,14 @@ async def studio_claim_task(
 async def studio_release_task(task_id: str, ctx: Context) -> dict[str, Any]:
     """Release a task's claim (clears claimed_by_machine_id/agent_id)."""
 
-    async def _handler(session: AsyncSession, _machine: MachineModel) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed = parse_uuid(task_id, "task_id")
         if isinstance(parsed, dict):
             return parsed
         task = await tasks_service.get_task(session, parsed)
         if task is None:
             return {"error_code": "not_found", "message": f"task {task_id} not found"}
-        task = await tasks_service.release_task(session, task)
+        task = await tasks_service.release_task(session, principal, task)
         return _compact_task(task)
 
     return await run_tool(ctx, _handler)

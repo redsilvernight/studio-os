@@ -7,10 +7,11 @@ from fastapi import APIRouter, Header, Query, Request, status
 from studio_contracts.claims import ResourceClaim, ResourceClaimCreate
 from studio_contracts.events import EventCreate, EventType
 
-from studio_api.deps import CurrentMachine, DbSession
+from studio_api.deps import CurrentMachine, CurrentPrincipal, DbSession
 from studio_api.services import claims as claims_service
 from studio_api.services import events as events_service
 from studio_api.services import idempotency as idempotency_service
+from studio_api.services.authz import ensure_can_write
 
 router = APIRouter(prefix="/api/v1/claims", tags=["claims"])
 
@@ -28,11 +29,17 @@ async def create_claim(
     claim_in: ResourceClaimCreate,
     request: Request,
     session: DbSession,
-    machine: CurrentMachine,
+    principal: CurrentPrincipal,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> ResourceClaim:
+    """Runs unconditionally, ahead of `run_idempotent`'s replay
+    short-circuit — see `routers/tasks.py::create_task` for why (DEC-0036)."""
+    ensure_can_write(principal, "claim")
+
     async def _create() -> ResourceClaim:
-        claim = await claims_service.create_claim(session, claim_in, machine.id, agent_id=None)
+        claim = await claims_service.create_claim(
+            session, principal, claim_in, principal.machine.id, agent_id=None
+        )
         if await claims_service.has_conflict(session, claim):
             await events_service.create_event(
                 session,
@@ -41,9 +48,9 @@ async def create_claim(
                     event_type=EventType.RESOURCE_CONFLICT,
                     project_id=claim.project_id,
                     task_id=claim.task_id,
-                    machine_id=machine.id,
+                    machine_id=principal.machine.id,
                     actor_type="system",
-                    actor_id=machine.id,
+                    actor_id=principal.machine.id,
                     client_timestamp=datetime.now(UTC),
                     payload={"claim_id": str(claim.id), "resource_path": claim.resource_path},
                 ),
@@ -62,13 +69,15 @@ async def create_claim(
 
 
 @router.post("/{claim_id}/renew", response_model=ResourceClaim)
-async def renew_claim(claim_id: UUID, session: DbSession, machine: CurrentMachine) -> ResourceClaim:
+async def renew_claim(
+    claim_id: UUID, session: DbSession, principal: CurrentPrincipal
+) -> ResourceClaim:
     claim = await claims_service.get_claim(session, claim_id)
-    claim = await claims_service.renew_claim(session, claim)
+    claim = await claims_service.renew_claim(session, principal, claim)
     return ResourceClaim.model_validate(claim)
 
 
 @router.delete("/{claim_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def release_claim(claim_id: UUID, session: DbSession, machine: CurrentMachine) -> None:
+async def release_claim(claim_id: UUID, session: DbSession, principal: CurrentPrincipal) -> None:
     claim = await claims_service.get_claim(session, claim_id)
-    await claims_service.release_claim(session, claim)
+    await claims_service.release_claim(session, principal, claim)

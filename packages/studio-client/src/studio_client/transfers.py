@@ -49,6 +49,8 @@ class TransferClient:
         http_client: httpx.AsyncClient | None = None,
         part_concurrency: int = 4,
     ) -> None:
+        if part_concurrency < 1:
+            raise ValueError(f"part_concurrency must be >= 1, got {part_concurrency}")
         self._api = api
         self._store = store
         self._http = http_client or httpx.AsyncClient()
@@ -191,10 +193,19 @@ class TransferClient:
     async def download(self, transfer: Transfer, dest_path: Path) -> None:
         """Resumes from `dest_path`'s existing size via HTTP Range — the
         source of resumable state is the partial file itself, not a
-        separate local record. A no-op if `dest_path` already holds the
-        full `transfer.size_bytes`."""
+        separate local record. A no-op (beyond a `sha256` check) if
+        `dest_path` already holds exactly `transfer.size_bytes`; a local
+        file *larger* than expected is not a valid resume point and is
+        rejected rather than silently accepted as complete."""
         existing_bytes = dest_path.stat().st_size if dest_path.exists() else 0
-        if existing_bytes >= transfer.size_bytes:
+        if existing_bytes > transfer.size_bytes:
+            raise TransferError(
+                f"local file for transfer {transfer.id} is {existing_bytes} bytes, "
+                f"larger than the expected {transfer.size_bytes} bytes — not a valid "
+                "resume point"
+            )
+        if existing_bytes == transfer.size_bytes:
+            self._verify_sha256(transfer, dest_path)
             return
 
         download = await self._api.get_download_url(transfer.id)
@@ -222,4 +233,21 @@ class TransferClient:
             raise TransferError(
                 f"downloaded {final_size} bytes for transfer {transfer.id}, "
                 f"expected {transfer.size_bytes}"
+            )
+        self._verify_sha256(transfer, dest_path)
+
+    def _verify_sha256(self, transfer: Transfer, dest_path: Path) -> None:
+        """`transfer.sha256` is the sender's own declared hash, never
+        server-verified (`.claude/rules/storage-transfers.md`) — this only
+        catches a local file whose *content* silently diverged from what the
+        sender meant to send, on top of the size check already done by the
+        caller. A missing `sha256` (multipart uploads don't get one, DEC-0025)
+        skips this check entirely rather than failing closed."""
+        if transfer.sha256 is None:
+            return
+        actual = _sha256_hex(dest_path)
+        if actual != transfer.sha256:
+            raise TransferError(
+                f"downloaded file for transfer {transfer.id} has sha256 {actual}, "
+                f"expected {transfer.sha256} (sender-declared, not server-verified)"
             )

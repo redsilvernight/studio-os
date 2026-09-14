@@ -11,6 +11,7 @@ Base: `/api/v1`
 - Dates ISO 8601 UTC.
 - Ecriture mutable sur un objet existant (`PATCH`) : header `If-Match-Version` avec la `version` lue par le client ; 409 + version serveur courante en cas de conflit (`TECH/04_AUTH_SYNC_CONTRACT.md`).
 - Authentification : header `Authorization: Bearer <machine-token>` sur tout endpoint sous `/api/v1` (sauf `/healthz`) — voir `TECH/04_AUTH_SYNC_CONTRACT.md`.
+- Autorisation (DEC-0036, durcissement documente sur des endpoints existants — meme categorie que DEC-0025) : au-dela de l'authentification, certains endpoints peuvent desormais repondre `403 {"detail": {"error_code": "forbidden", "resource": ..., "action": ...}}` a une machine authentifiee mais insuffisamment autorisee (role `readonly`, machine non proprietaire d'une ressource deja possedee, ou — cas particulier des Transfers, seule categorie ou une lecture peut aussi etre concernee — appelant hors sender/recipient/diffusion/admin) — voir `TECH/04_AUTH_SYNC_CONTRACT.md` section Autorisation pour la matrice complete. Concerne, en ecriture : `POST /tasks`, `PATCH /tasks/{id}`, `POST /tasks/{id}/claim`, `POST /tasks/{id}/release`, `POST /claims`, `POST /claims/{id}/renew`, `DELETE /claims/{id}`, `POST /sessions`, `PATCH /sessions/{id}/end`, `POST /ai-work`, `PATCH /ai-work/{id}`, `POST /decisions`, `POST /events`, `POST /transfers`, `POST /transfers/{id}/upload/initiate`, `POST /transfers/{id}/upload/complete`, `DELETE /transfers/{id}` ; en lecture (Transfers uniquement, regle de visibilite) : `GET /transfers/{id}`, `POST /transfers/{id}/download-url`. Un client existant qui n'utilisait jusque-la que des roles/machines proprietaires n'observe aucun changement de comportement.
 - Enveloppe reelle d'une erreur machine-readable (`error_code` present dans ce document, ex. `413`/`507`/`409 idempotency_key_payload_mismatch`) : `{"detail": {"error_code": "...", ...}}` — FastAPI enveloppe systematiquement `HTTPException.detail`, jamais `{"error_code": "..."}` a plat. Une erreur sans `error_code` (401/403/404 génériques) renvoie `{"detail": "<message>"}`, une simple chaine. `studio_contracts.common.ErrorResponse`/`VersionConflictError` ne sont utilises par aucun code serveur actuel — clarification documentaire (DEC-0024), pas un changement de comportement.
 
 ## Endpoints principaux
@@ -76,8 +77,12 @@ public de bootstrap, pas de secret d'environnement dedie.
   "quota_exceeded", "project_id", "consumed_bytes", "requested_bytes",
   "quota_bytes"}}` (voir l'enveloppe reelle documentee plus haut). Verifie
   avant toute ecriture DB et tout presigning MinIO.
-- GET /transfers
-- GET /transfers/{id}
+- GET /transfers — filtre silencieusement sur la visibilite de l'appelant
+  (DEC-0036 : sender, recipient, diffusion `recipient_user_id=None`, ou
+  admin) plutot que de lister tous les transferts existants ; voir
+  `TECH/04_AUTH_SYNC_CONTRACT.md` section Autorisation.
+- GET /transfers/{id} — `403 forbidden` (pas `404`) si l'appelant n'a aucun
+  des 4 acces ci-dessus sur ce transfert precis.
 - GET /transfers/consumption?project_id={id} — vue de consommation
   (DEC-0019) : `project_id` optionnel (bucket non-scope si absent),
   reponse `TransferConsumption` (`consumed_bytes`, `quota_bytes`,
@@ -111,7 +116,9 @@ public de bootstrap, pas de secret d'environnement dedie.
   (DEC-0025). Chemin single-PUT : re-verification `content_md5` en defense en
   profondeur -> `422 {"detail": {"error_code": "content_md5_mismatch"}}` si
   l'objet reel ne correspond pas a ce qui a ete presigne.
-- POST /transfers/{id}/download-url
+- POST /transfers/{id}/download-url — `403 forbidden` (DEC-0036) si
+  l'appelant n'a aucun des 4 acces de la regle Transfer sur ce transfert
+  precis (voir `TECH/04_AUTH_SYNC_CONTRACT.md` section Autorisation).
 - DELETE /transfers/{id}
 
 ## Realtime

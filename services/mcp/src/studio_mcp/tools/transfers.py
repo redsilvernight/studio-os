@@ -4,10 +4,10 @@ from typing import Any
 
 from mcp.server.mcpserver import Context
 from sqlalchemy.ext.asyncio import AsyncSession
-from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.transfer import TransferModel
 from studio_api.services import projects as projects_service
 from studio_api.services import transfers as transfers_service
+from studio_api.services.authz import Principal
 from studio_api.settings import get_settings
 from studio_api.storage.provider import get_storage
 from studio_contracts.transfers import TransferCategory, TransferCreate
@@ -35,14 +35,16 @@ def _compact_transfer(transfer: TransferModel) -> dict[str, Any]:
 async def studio_get_transfers(ctx: Context, project_id: str | None = None) -> dict[str, Any]:
     """List transfers (metadata only), optionally filtered by project_id (UUID string)."""
 
-    async def _handler(session: AsyncSession, _machine: MachineModel) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed_project_id = None
         if project_id is not None:
             parsed = parse_uuid(project_id, "project_id")
             if isinstance(parsed, dict):
                 return parsed
             parsed_project_id = parsed
-        transfers = await transfers_service.list_transfers(session, project_id=parsed_project_id)
+        transfers = await transfers_service.list_transfers(
+            session, principal, project_id=parsed_project_id
+        )
         return {"transfers": [_compact_transfer(t) for t in transfers]}
 
     return await run_tool(ctx, _handler)
@@ -51,11 +53,11 @@ async def studio_get_transfers(ctx: Context, project_id: str | None = None) -> d
 async def studio_get_transfer(transfer_id: str, ctx: Context) -> dict[str, Any]:
     """Get one transfer's metadata by id (UUID string)."""
 
-    async def _handler(session: AsyncSession, _machine: MachineModel) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed = parse_uuid(transfer_id, "transfer_id")
         if isinstance(parsed, dict):
             return parsed
-        transfer = await transfers_service.get_transfer(session, parsed)
+        transfer = await transfers_service.get_transfer(session, principal, parsed)
         return _compact_transfer(transfer)
 
     return await run_tool(ctx, _handler)
@@ -79,7 +81,7 @@ async def studio_create_transfer_metadata(
     `missing_content_md5` otherwise. Not needed for a large file, which
     returns multipart part URLs instead."""
 
-    async def _handler(session: AsyncSession, machine: MachineModel) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         try:
             parsed_category = TransferCategory(category)
         except ValueError:
@@ -108,6 +110,7 @@ async def studio_create_transfer_metadata(
         settings = get_settings()
         transfer = await transfers_service.create_transfer(
             session,
+            principal,
             settings,
             TransferCreate(
                 project_id=parsed_project_id,
@@ -117,12 +120,11 @@ async def studio_create_transfer_metadata(
                 content_type=content_type,
                 size_bytes=size_bytes,
             ),
-            machine.owner_user_id,
             project_slug,
         )
         storage = get_storage()
         upload = await transfers_service.initiate_upload(
-            session, storage, settings, transfer, content_md5
+            session, principal, storage, settings, transfer, content_md5
         )
         return {**_compact_transfer(transfer), "upload": upload.model_dump(mode="json")}
 
@@ -133,11 +135,11 @@ async def studio_request_transfer_download(transfer_id: str, ctx: Context) -> di
     """Get a short-lived pre-signed download URL for a transfer — never the
     file bytes through this tool."""
 
-    async def _handler(session: AsyncSession, _machine: MachineModel) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed = parse_uuid(transfer_id, "transfer_id")
         if isinstance(parsed, dict):
             return parsed
-        transfer = await transfers_service.get_transfer(session, parsed)
+        transfer = await transfers_service.get_transfer(session, principal, parsed)
         settings = get_settings()
         storage = get_storage()
         url, expires_at = transfers_service.get_download_url(storage, settings, transfer)

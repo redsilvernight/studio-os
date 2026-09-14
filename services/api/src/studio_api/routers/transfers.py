@@ -13,10 +13,11 @@ from studio_contracts.transfers import (
     UploadInitiateResponse,
 )
 
-from studio_api.deps import CurrentMachine, DbSession
+from studio_api.deps import CurrentMachine, CurrentPrincipal, DbSession
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import projects as projects_service
 from studio_api.services import transfers as transfers_service
+from studio_api.services.authz import ensure_can_write
 from studio_api.settings import get_settings
 from studio_api.storage.provider import get_storage
 
@@ -25,9 +26,9 @@ router = APIRouter(prefix="/api/v1/transfers", tags=["transfers"])
 
 @router.get("", response_model=list[Transfer])
 async def list_transfers(
-    session: DbSession, machine: CurrentMachine, project_id: UUID | None = Query(default=None)
+    session: DbSession, principal: CurrentPrincipal, project_id: UUID | None = Query(default=None)
 ) -> list[Transfer]:
-    transfers = await transfers_service.list_transfers(session, project_id=project_id)
+    transfers = await transfers_service.list_transfers(session, principal, project_id=project_id)
     return [Transfer.model_validate(t) for t in transfers]
 
 
@@ -36,9 +37,13 @@ async def create_transfer(
     transfer_in: TransferCreate,
     request: Request,
     session: DbSession,
-    machine: CurrentMachine,
+    principal: CurrentPrincipal,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> Transfer:
+    """Runs unconditionally, ahead of `run_idempotent`'s replay
+    short-circuit — see `routers/tasks.py::create_task` for why (DEC-0036)."""
+    ensure_can_write(principal, "transfer")
+
     async def _create() -> Transfer:
         if transfer_in.project_id is None:
             project_slug = "unscoped"
@@ -49,7 +54,7 @@ async def create_transfer(
             project_slug = project.slug
 
         transfer = await transfers_service.create_transfer(
-            session, get_settings(), transfer_in, machine.owner_user_id, project_slug
+            session, principal, get_settings(), transfer_in, project_slug
         )
         return Transfer.model_validate(transfer)
 
@@ -80,8 +85,10 @@ async def get_consumption(
 
 
 @router.get("/{transfer_id}", response_model=Transfer)
-async def get_transfer(transfer_id: UUID, session: DbSession, machine: CurrentMachine) -> Transfer:
-    transfer = await transfers_service.get_transfer(session, transfer_id)
+async def get_transfer(
+    transfer_id: UUID, session: DbSession, principal: CurrentPrincipal
+) -> Transfer:
+    transfer = await transfers_service.get_transfer(session, principal, transfer_id)
     return Transfer.model_validate(transfer)
 
 
@@ -89,35 +96,42 @@ async def get_transfer(transfer_id: UUID, session: DbSession, machine: CurrentMa
 async def initiate_upload(
     transfer_id: UUID,
     session: DbSession,
-    machine: CurrentMachine,
+    principal: CurrentPrincipal,
     body: UploadInitiateRequest | None = Body(default=None),
 ) -> UploadInitiateResponse:
-    transfer = await transfers_service.get_transfer(session, transfer_id)
+    transfer = await transfers_service.get_transfer(session, principal, transfer_id)
     settings = get_settings()
     storage = get_storage()
     content_md5 = body.content_md5 if body else None
     return await transfers_service.initiate_upload(
-        session, storage, settings, transfer, content_md5
+        session, principal, storage, settings, transfer, content_md5
     )
 
 
 @router.post("/{transfer_id}/upload/complete", response_model=Transfer)
 async def complete_upload(
-    transfer_id: UUID, body: UploadCompleteRequest, session: DbSession, machine: CurrentMachine
+    transfer_id: UUID, body: UploadCompleteRequest, session: DbSession, principal: CurrentPrincipal
 ) -> Transfer:
-    transfer = await transfers_service.get_transfer(session, transfer_id)
+    transfer = await transfers_service.get_transfer(session, principal, transfer_id)
     storage = get_storage()
     transfer = await transfers_service.complete_upload(
-        session, storage, transfer, body.size_bytes, body.sha256, body.upload_id, body.parts
+        session,
+        principal,
+        storage,
+        transfer,
+        body.size_bytes,
+        body.sha256,
+        body.upload_id,
+        body.parts,
     )
     return Transfer.model_validate(transfer)
 
 
 @router.post("/{transfer_id}/download-url", response_model=DownloadUrlResponse)
 async def get_download_url(
-    transfer_id: UUID, session: DbSession, machine: CurrentMachine
+    transfer_id: UUID, session: DbSession, principal: CurrentPrincipal
 ) -> DownloadUrlResponse:
-    transfer = await transfers_service.get_transfer(session, transfer_id)
+    transfer = await transfers_service.get_transfer(session, principal, transfer_id)
     settings = get_settings()
     storage = get_storage()
     url, expires_at = transfers_service.get_download_url(storage, settings, transfer)
@@ -125,7 +139,9 @@ async def get_download_url(
 
 
 @router.delete("/{transfer_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_transfer(transfer_id: UUID, session: DbSession, machine: CurrentMachine) -> None:
-    transfer = await transfers_service.get_transfer(session, transfer_id)
+async def delete_transfer(
+    transfer_id: UUID, session: DbSession, principal: CurrentPrincipal
+) -> None:
+    transfer = await transfers_service.get_transfer(session, principal, transfer_id)
     storage = get_storage()
-    await transfers_service.delete_transfer(session, storage, transfer)
+    await transfers_service.delete_transfer(session, principal, storage, transfer)

@@ -94,6 +94,51 @@ async def auth_headers(machine: tuple[MachineModel, str]) -> dict[str, str]:
 
 
 @pytest_asyncio.fixture
+async def readonly_machine(db_session: AsyncSession) -> tuple[MachineModel, str]:
+    user = await provisioning_service.create_user(
+        db_session, "Readonly User", f"{uuid.uuid4()}@example.test", "readonly"
+    )
+    return await provisioning_service.create_machine(db_session, user.id, "readonly-machine")
+
+
+@pytest_asyncio.fixture
+async def readonly_auth_headers(readonly_machine: tuple[MachineModel, str]) -> dict[str, str]:
+    _, token = readonly_machine
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest_asyncio.fixture
+async def agent_machine(db_session: AsyncSession) -> tuple[MachineModel, str]:
+    user = await provisioning_service.create_user(
+        db_session, "Agent User", f"{uuid.uuid4()}@example.test", "agent"
+    )
+    return await provisioning_service.create_machine(db_session, user.id, "agent-machine")
+
+
+@pytest_asyncio.fixture
+async def agent_auth_headers(agent_machine: tuple[MachineModel, str]) -> dict[str, str]:
+    _, token = agent_machine
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest_asyncio.fixture
+async def other_machine(db_session: AsyncSession) -> tuple[MachineModel, str]:
+    """A second developer-owned machine, distinct user — for ownership/access
+    matrix tests (two users x two machines, per the audit's lot-3 acceptance
+    criteria)."""
+    user = await provisioning_service.create_user(
+        db_session, "Other User", f"{uuid.uuid4()}@example.test", "developer"
+    )
+    return await provisioning_service.create_machine(db_session, user.id, "other-machine")
+
+
+@pytest_asyncio.fixture
+async def other_auth_headers(other_machine: tuple[MachineModel, str]) -> dict[str, str]:
+    _, token = other_machine
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest_asyncio.fixture
 async def project(db_session: AsyncSession) -> ProjectModel:
     return await projects_service.create_project(
         db_session, f"proj-{uuid.uuid4().hex[:8]}", "Test Project", None

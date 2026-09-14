@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 import pytest
@@ -168,6 +170,48 @@ def test_mark_succeeded_deletes_row(tmp_path: Path) -> None:
         store.mark_succeeded(OutboxTable.EVENTS, str(event.event_id))
 
     assert store.list_pending(OutboxTable.EVENTS, ready_only=False) == []
+
+
+class _FlakyConnection:
+    """Proxies a real sqlite3 connection, raising on the first statement
+    whose SQL starts with `fail_prefix` — used to simulate a crash between
+    two statements of an otherwise-atomic transaction."""
+
+    def __init__(self, real: sqlite3.Connection, fail_prefix: str) -> None:
+        self._real = real
+        self._fail_prefix = fail_prefix
+
+    def execute(self, sql: str, *args: Any, **kwargs: Any) -> Any:
+        if sql.strip().startswith(self._fail_prefix):
+            raise sqlite3.OperationalError("simulated crash mid-transition")
+        return self._real.execute(sql, *args, **kwargs)
+
+    def commit(self) -> None:
+        self._real.commit()
+
+    def rollback(self) -> None:
+        self._real.rollback()
+
+
+def test_move_to_dead_letter_injected_failure_leaves_no_half_transition(tmp_path: Path) -> None:
+    """`move_to_dead_letter` writes `dead_letter` then deletes the pending
+    row; a crash between the two must not resurrect the row nor leave a
+    dead-letter record with the pending row still queued."""
+    real_conn = connect(tmp_path / "outbox.sqlite3")
+    event = _event()
+    with transaction(real_conn):
+        OutboxStore(real_conn).enqueue_event(event)
+
+    flaky = _FlakyConnection(real_conn, "DELETE FROM pending_events")
+    flaky_store = OutboxStore(flaky)  # type: ignore[arg-type]
+
+    with pytest.raises(sqlite3.OperationalError):
+        with transaction(flaky_store.connection):  # type: ignore[arg-type]
+            flaky_store.move_to_dead_letter(OutboxTable.EVENTS, str(event.event_id), "boom")
+
+    verify_store = OutboxStore(real_conn)
+    assert len(verify_store.list_pending(OutboxTable.EVENTS, ready_only=False)) == 1
+    assert real_conn.execute("SELECT * FROM dead_letter").fetchall() == []
 
 
 def test_sync_state_roundtrip_and_overwrite(tmp_path: Path) -> None:

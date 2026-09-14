@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.auth import HeartbeatRequest, MachineStatus
 
@@ -12,6 +13,14 @@ from studio_api.settings import Settings
 async def record_heartbeat(
     session: AsyncSession, machine: MachineModel, req: HeartbeatRequest, settings: Settings
 ) -> tuple[MachineModel, datetime]:
+    if req.machine_id != machine.id:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={
+                "error_code": "machine_id_mismatch",
+                "message": "machine_id does not match the authenticated machine",
+            },
+        )
     now = datetime.now(UTC)
     machine.last_seen_at = now
     await session.commit()

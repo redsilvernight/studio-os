@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -55,6 +56,13 @@ def _api_client(handler: Any) -> StudioApiClient:
 
 def _store(tmp_path: Path) -> OutboxStore:
     return OutboxStore(connect(tmp_path / "outbox.sqlite3"))
+
+
+def test_transfer_client_rejects_non_positive_part_concurrency(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    api = StudioApiClient(_config(), _token_store())
+    with pytest.raises(ValueError, match="part_concurrency"):
+        TransferClient(api, store, part_concurrency=0)
 
 
 async def test_upload_small_file_retries_initiate_with_md5(tmp_path: Path) -> None:
@@ -457,6 +465,156 @@ async def test_download_size_mismatch_raises_transfer_error(tmp_path: Path) -> N
         )
         try:
             with pytest.raises(TransferError, match="expected 10"):
+                await client.download(transfer, dest)
+        finally:
+            await client.aclose()
+
+
+async def test_download_oversized_local_file_raises_transfer_error(tmp_path: Path) -> None:
+    transfer = _transfer(size_bytes=5)
+    dest = tmp_path / "out.bin"
+    dest.write_bytes(b"way too much data")
+
+    def api_handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("no API call expected: oversized local file is rejected up front")
+
+    async with _api_client(api_handler) as api:
+        store = _store(tmp_path)
+        client = TransferClient(api, store, http_client=httpx.AsyncClient())
+        try:
+            with pytest.raises(TransferError, match="larger than"):
+                await client.download(transfer, dest)
+        finally:
+            await client.aclose()
+
+
+async def test_download_already_complete_wrong_content_raises_transfer_error(
+    tmp_path: Path,
+) -> None:
+    """Same size as declared, but a different sha256 — DEC-0033's known gap:
+    a same-size/different-content local file must not be accepted as done."""
+    content = b"hello"
+    wrong_content = b"olleh"
+    assert len(content) == len(wrong_content)
+    transfer = _transfer(size_bytes=len(content), sha256=hashlib.sha256(content).hexdigest())
+    dest = tmp_path / "out.bin"
+    dest.write_bytes(wrong_content)
+
+    def api_handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("no API call expected when the file is already the right size")
+
+    async with _api_client(api_handler) as api:
+        store = _store(tmp_path)
+        client = TransferClient(api, store, http_client=httpx.AsyncClient())
+        try:
+            with pytest.raises(TransferError, match="sha256"):
+                await client.download(transfer, dest)
+        finally:
+            await client.aclose()
+
+
+async def test_download_already_complete_with_matching_sha256_is_a_noop(tmp_path: Path) -> None:
+    content = b"hello"
+    transfer = _transfer(size_bytes=len(content), sha256=hashlib.sha256(content).hexdigest())
+    dest = tmp_path / "out.bin"
+    dest.write_bytes(content)
+
+    def api_handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("no API call expected when the file is already complete")
+
+    async with _api_client(api_handler) as api:
+        store = _store(tmp_path)
+        client = TransferClient(api, store, http_client=httpx.AsyncClient())
+        try:
+            await client.download(transfer, dest)
+        finally:
+            await client.aclose()
+
+    assert dest.read_bytes() == content
+
+
+async def test_download_already_complete_without_sha256_skips_verification(
+    tmp_path: Path,
+) -> None:
+    """No `sha256` on the transfer (e.g. a multipart upload, DEC-0025) — the
+    no-op path must not fail closed just because there's nothing to check."""
+    transfer = _transfer(size_bytes=5, sha256=None)
+    dest = tmp_path / "out.bin"
+    dest.write_bytes(b"hello")
+
+    def api_handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("no API call expected when the file is already complete")
+
+    async with _api_client(api_handler) as api:
+        store = _store(tmp_path)
+        client = TransferClient(api, store, http_client=httpx.AsyncClient())
+        try:
+            await client.download(transfer, dest)
+        finally:
+            await client.aclose()
+
+    assert dest.read_bytes() == b"hello"
+
+
+async def test_download_fresh_verifies_sha256_after_success(tmp_path: Path) -> None:
+    content = b"hello"
+    transfer = _transfer(size_bytes=len(content), sha256=hashlib.sha256(content).hexdigest())
+    dest = tmp_path / "out.bin"
+
+    def api_handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "transfer_id": str(transfer.id),
+                "download_url": "http://storage.test/get",
+                "expires_at": datetime.now(UTC).isoformat(),
+            },
+        )
+
+    def storage_handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=content)
+
+    async with _api_client(api_handler) as api:
+        store = _store(tmp_path)
+        client = TransferClient(
+            api,
+            store,
+            http_client=httpx.AsyncClient(transport=httpx.MockTransport(storage_handler)),
+        )
+        try:
+            await client.download(transfer, dest)
+        finally:
+            await client.aclose()
+
+    assert dest.read_bytes() == content
+
+
+async def test_download_fresh_sha256_mismatch_raises_transfer_error(tmp_path: Path) -> None:
+    transfer = _transfer(size_bytes=5, sha256=hashlib.sha256(b"hello").hexdigest())
+    dest = tmp_path / "out.bin"
+
+    def api_handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "transfer_id": str(transfer.id),
+                "download_url": "http://storage.test/get",
+                "expires_at": datetime.now(UTC).isoformat(),
+            },
+        )
+
+    def storage_handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b"wrong")
+
+    async with _api_client(api_handler) as api:
+        store = _store(tmp_path)
+        client = TransferClient(
+            api,
+            store,
+            http_client=httpx.AsyncClient(transport=httpx.MockTransport(storage_handler)),
+        )
+        try:
+            with pytest.raises(TransferError, match="sha256"):
                 await client.download(transfer, dest)
         finally:
             await client.aclose()

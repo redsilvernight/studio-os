@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-34 decision(s). Detail complet dans chaque ADR lie.
+36 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -56,3 +56,5 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0032 | Sous-etape 6.6 (watchers Git/Godot) : poll local sans nouvelle dependance, PR hors perimetre | active | [decisions/DEC-0032-sous-etape-6-6-watchers-git-godot-poll-local-sans-nouvelle.md](decisions/DEC-0032-sous-etape-6-6-watchers-git-godot-poll-local-sans-nouvelle.md) |
 | DEC-0033 | Sous-etape 6.7 (TransferClient) : multipart local avec URLs mises en cache, reprise download par taille de fichier, etape 6 entierement close | active | [decisions/DEC-0033-sous-etape-6-7-transferclient-multipart-local-reprise.md](decisions/DEC-0033-sous-etape-6-7-transferclient-multipart-local-reprise.md) |
 | DEC-0034 | Etape 7 (tests d'acceptance) : concurrence reelle de claims + URL signee expiree | active | [decisions/DEC-0034-etape-7-tests-acceptance-claims-concurrentes-url-expiree.md](decisions/DEC-0034-etape-7-tests-acceptance-claims-concurrentes-url-expiree.md) |
+| DEC-0035 | Identite des events (HTTP/MCP) liee a la machine authentifiee | active | [decisions/DEC-0035-identite-des-events-liee-a-la-machine-authentifiee.md](decisions/DEC-0035-identite-des-events-liee-a-la-machine-authentifiee.md) |
+| DEC-0036 | Autorisation transverse minimale : role et propriete par ressource, sans nouvelle table | active | [decisions/DEC-0036-autorisation-transverse-minimale-role-et-propriete-par.md](decisions/DEC-0036-autorisation-transverse-minimale-role-et-propriete-par.md) |

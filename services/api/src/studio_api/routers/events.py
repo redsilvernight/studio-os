@@ -8,7 +8,7 @@ from fastapi import APIRouter, Header, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from studio_contracts.events import EventCreate, EventEnvelope
 
-from studio_api.deps import CurrentMachine, DbSession
+from studio_api.deps import CurrentMachine, CurrentPrincipal, DbSession
 from studio_api.services import event_stream
 from studio_api.services import events as events_service
 
@@ -33,8 +33,9 @@ def _format_sse(event: event_stream.StreamEvent) -> bytes:
 
 @router.post("", response_model=EventEnvelope)
 async def post_event(
-    event_in: EventCreate, machine: CurrentMachine, session: DbSession
+    event_in: EventCreate, principal: CurrentPrincipal, session: DbSession
 ) -> EventEnvelope:
+    event_in = await events_service.resolve_event_identity(session, principal, event_in)
     event = await events_service.create_event(session, event_in)
     return EventEnvelope.model_validate(event)
 

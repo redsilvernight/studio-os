@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.tasks import TaskCreate, TaskUpdate
 
 from studio_api.db.models.task import TaskModel
+from studio_api.services.authz import Principal, ensure_can_write, ensure_machine_owned
 
 
 async def list_tasks(
@@ -24,7 +25,10 @@ async def get_task(session: AsyncSession, task_id: uuid.UUID) -> TaskModel | Non
     return await session.get(TaskModel, task_id)
 
 
-async def create_task(session: AsyncSession, task_in: TaskCreate) -> TaskModel:
+async def create_task(
+    session: AsyncSession, principal: Principal, task_in: TaskCreate
+) -> TaskModel:
+    ensure_can_write(principal, "task")
     task = TaskModel(
         project_id=task_in.project_id, title=task_in.title, description=task_in.description
     )
@@ -35,8 +39,13 @@ async def create_task(session: AsyncSession, task_in: TaskCreate) -> TaskModel:
 
 
 async def update_task(
-    session: AsyncSession, task: TaskModel, task_in: TaskUpdate, expected_version: int
+    session: AsyncSession,
+    principal: Principal,
+    task: TaskModel,
+    task_in: TaskUpdate,
+    expected_version: int,
 ) -> TaskModel:
+    ensure_can_write(principal, "task")
     if task.version != expected_version:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
@@ -55,8 +64,13 @@ async def update_task(
 
 
 async def claim_task(
-    session: AsyncSession, task: TaskModel, machine_id: uuid.UUID, agent_id: uuid.UUID | None
+    session: AsyncSession,
+    principal: Principal,
+    task: TaskModel,
+    machine_id: uuid.UUID,
+    agent_id: uuid.UUID | None,
 ) -> TaskModel:
+    ensure_can_write(principal, "task")
     if task.claimed_by_machine_id is not None and task.claimed_by_machine_id != machine_id:
         raise HTTPException(status.HTTP_409_CONFLICT, detail={"error_code": "already_claimed"})
     task.claimed_by_machine_id = machine_id
@@ -68,7 +82,8 @@ async def claim_task(
     return task
 
 
-async def release_task(session: AsyncSession, task: TaskModel) -> TaskModel:
+async def release_task(session: AsyncSession, principal: Principal, task: TaskModel) -> TaskModel:
+    ensure_machine_owned(principal, task.claimed_by_machine_id, "task", "release")
     task.claimed_by_machine_id = None
     task.claimed_by_agent_id = None
     task.version += 1

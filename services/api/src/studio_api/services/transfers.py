@@ -13,6 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.transfers import TransferCategory, TransferCreate, UploadInitiateResponse
 
 from studio_api.db.models.transfer import TransferModel
+from studio_api.services.authz import Principal, ensure_can_write, ensure_transfer_access
+from studio_api.services.authz import transfer_visibility_clause as _visibility_clause
 from studio_api.settings import Settings
 from studio_api.storage.provider import StorageProvider, safe_object_key
 
@@ -78,11 +80,12 @@ async def _enforce_transfer_limits(
 
 async def create_transfer(
     session: AsyncSession,
+    principal: Principal,
     settings: Settings,
     transfer_in: TransferCreate,
-    sender_user_id: uuid.UUID,
     project_slug: str,
 ) -> TransferModel:
+    ensure_can_write(principal, "transfer")
     await _enforce_transfer_limits(
         session, settings, transfer_in.project_id, transfer_in.size_bytes
     )
@@ -92,7 +95,7 @@ async def create_transfer(
     transfer = TransferModel(
         id=transfer_id,
         transfer_code=_generate_transfer_code(),
-        sender_user_id=sender_user_id,
+        sender_user_id=principal.user.id,
         recipient_user_id=transfer_in.recipient_user_id,
         project_id=transfer_in.project_id,
         task_id=transfer_in.task_id,
@@ -111,30 +114,38 @@ async def create_transfer(
     return transfer
 
 
-async def get_transfer(session: AsyncSession, transfer_id: uuid.UUID) -> TransferModel:
+async def get_transfer(
+    session: AsyncSession, principal: Principal, transfer_id: uuid.UUID
+) -> TransferModel:
     transfer = await session.get(TransferModel, transfer_id)
     if transfer is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "transfer not found")
+    ensure_transfer_access(principal, transfer, "read")
     return transfer
 
 
 async def list_transfers(
-    session: AsyncSession, project_id: uuid.UUID | None = None
+    session: AsyncSession, principal: Principal, project_id: uuid.UUID | None = None
 ) -> list[TransferModel]:
     stmt = select(TransferModel)
     if project_id is not None:
         stmt = stmt.where(TransferModel.project_id == project_id)
+    visibility = _visibility_clause(principal)
+    if visibility is not None:
+        stmt = stmt.where(visibility)
     result = await session.execute(stmt)
     return list(result.scalars().all())
 
 
 async def initiate_upload(
     session: AsyncSession,
+    principal: Principal,
     storage: StorageProvider,
     settings: Settings,
     transfer: TransferModel,
     content_md5: str | None,
 ) -> UploadInitiateResponse:
+    ensure_transfer_access(principal, transfer, "write")
     if transfer.status == "ready":
         raise HTTPException(
             status.HTTP_409_CONFLICT,
@@ -168,6 +179,7 @@ async def initiate_upload(
 
 async def complete_upload(
     session: AsyncSession,
+    principal: Principal,
     storage: StorageProvider,
     transfer: TransferModel,
     size_bytes: int,
@@ -182,6 +194,7 @@ async def complete_upload(
     larger real size and silently exceed the quota it was granted (DEC-0025).
     A client-declared `size_bytes` that disagrees with the reservation is
     therefore rejected the same way a storage-side mismatch is."""
+    ensure_transfer_access(principal, transfer, "write")
     if size_bytes != transfer.size_bytes:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -257,16 +270,25 @@ async def mark_downloaded(session: AsyncSession, transfer: TransferModel) -> Tra
     return transfer
 
 
-async def delete_transfer(
+async def _do_delete(
     session: AsyncSession, storage: StorageProvider, transfer: TransferModel
 ) -> None:
-    """Never delete a non-expired transfer without an explicit policy behind it
-    (AI/01_AI_OPERATING_REFERENCE.md) — this path is for an explicit user/API
-    delete request, not automatic cleanup."""
     await storage.delete_object(transfer.object_key)
     transfer.status = "deleted"
     transfer.deleted_at = datetime.now(UTC)
     await session.commit()
+
+
+async def delete_transfer(
+    session: AsyncSession, principal: Principal, storage: StorageProvider, transfer: TransferModel
+) -> None:
+    """Never delete a non-expired transfer without an explicit policy behind it
+    (AI/01_AI_OPERATING_REFERENCE.md) — this path is for an explicit user/API
+    delete request, not automatic cleanup (see `expire_transfers`, which is
+    server-internal and bypasses this check the same way `create_event`
+    bypasses `resolve_event_identity` for its own internal callers)."""
+    ensure_transfer_access(principal, transfer, "write")
+    await _do_delete(session, storage, transfer)
 
 
 async def expire_transfers(session: AsyncSession, storage: StorageProvider) -> list[TransferModel]:
@@ -276,7 +298,9 @@ async def expire_transfers(session: AsyncSession, storage: StorageProvider) -> l
     failure on one object from losing progress already made on the others,
     and re-running this against the same expired set is a no-op since the
     `status != "deleted"` filter excludes rows a previous run already
-    cleared."""
+    cleared. Server-internal (not triggered by a caller), so it deletes
+    directly rather than going through `delete_transfer`'s sender/admin
+    ownership check."""
     stmt = select(TransferModel).where(
         TransferModel.expires_at.is_not(None),
         TransferModel.expires_at <= datetime.now(UTC),
@@ -285,5 +309,5 @@ async def expire_transfers(session: AsyncSession, storage: StorageProvider) -> l
     result = await session.execute(stmt)
     expired = list(result.scalars().all())
     for transfer in expired:
-        await delete_transfer(session, storage, transfer)
+        await _do_delete(session, storage, transfer)
     return expired

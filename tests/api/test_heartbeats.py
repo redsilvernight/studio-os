@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime, timedelta
 
 from httpx import AsyncClient
@@ -24,6 +25,21 @@ async def test_heartbeat_reports_online(
     body = response.json()
     assert body["status"] == "online"
     assert body["machine_id"] == str(machine_model.id)
+
+
+async def test_heartbeat_rejects_body_machine_id_different_from_authenticated_machine(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    response = await client.post(
+        "/api/v1/heartbeats",
+        headers=auth_headers,
+        json={
+            "machine_id": str(uuid.uuid4()),
+            "client_timestamp": datetime.now(UTC).isoformat(),
+        },
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"]["error_code"] == "machine_id_mismatch"
 
 
 def test_derive_status_thresholds() -> None:

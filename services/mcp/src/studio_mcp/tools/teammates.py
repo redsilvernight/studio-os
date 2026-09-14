@@ -8,6 +8,7 @@ from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.user import UserModel
 from studio_api.services import heartbeats as heartbeats_service
 from studio_api.services import projects as projects_service
+from studio_api.services.authz import Principal
 from studio_api.settings import get_settings
 
 from studio_mcp.errors import run_tool
@@ -20,7 +21,7 @@ async def studio_get_teammate_activity(project_id: str, ctx: Context) -> dict[st
     themselves), each with a heartbeat-derived status
     (TECH/04_AUTH_SYNC_CONTRACT.md)."""
 
-    async def _handler(session: AsyncSession, _machine: MachineModel) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, _principal: Principal) -> dict[str, Any]:
         parsed = parse_uuid(project_id, "project_id")
         if isinstance(parsed, dict):
             return parsed

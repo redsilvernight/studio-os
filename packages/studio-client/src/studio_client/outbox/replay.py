@@ -10,7 +10,7 @@ from studio_contracts.events import EventCreate, EventType
 from studio_client.api_client import StudioApiClient
 from studio_client.errors import StudioApiError
 from studio_client.outbox.models import OutboxTable, PendingRow
-from studio_client.outbox.store import OutboxStore
+from studio_client.outbox.store import OutboxStore, transaction
 from studio_client.retry import RetryPolicy, is_retryable
 
 logger = logging.getLogger(__name__)
@@ -61,15 +61,18 @@ class OutboxReplayer:
                 await self._send(table, row)
             except StudioApiError as error:
                 if is_retryable(error):
-                    self._store.mark_failed(table, row.id, str(error), self._retry_policy)
+                    with transaction(self._store.connection):
+                        self._store.mark_failed(table, row.id, str(error), self._retry_policy)
                     outcome.stopped_on_transient_error = True
                     logger.warning("outbox replay paused on transient error", exc_info=True)
                     break
-                self._store.move_to_dead_letter(table, row.id, str(error))
+                with transaction(self._store.connection):
+                    self._store.move_to_dead_letter(table, row.id, str(error))
                 outcome.dead_lettered += 1
                 logger.warning("outbox row dead-lettered", exc_info=True)
             else:
-                self._store.mark_succeeded(table, row.id)
+                with transaction(self._store.connection):
+                    self._store.mark_succeeded(table, row.id)
                 outcome.succeeded += 1
         return outcome
 

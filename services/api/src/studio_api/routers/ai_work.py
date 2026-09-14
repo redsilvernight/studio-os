@@ -6,9 +6,10 @@ from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 from studio_contracts.ai_work import AIWorkLog, AIWorkLogCreate, AIWorkLogUpdate
 
 from studio_api.db.models.ai_work import AIWorkLogModel
-from studio_api.deps import CurrentMachine, DbSession
+from studio_api.deps import CurrentMachine, CurrentPrincipal, DbSession
 from studio_api.services import ai_work as ai_work_service
 from studio_api.services import idempotency as idempotency_service
+from studio_api.services.authz import ensure_can_write
 
 router = APIRouter(prefix="/api/v1/ai-work", tags=["ai-work"])
 
@@ -29,11 +30,17 @@ async def create_ai_work(
     work_in: AIWorkLogCreate,
     request: Request,
     session: DbSession,
-    machine: CurrentMachine,
+    principal: CurrentPrincipal,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> AIWorkLog:
+    """Runs unconditionally, ahead of `run_idempotent`'s replay
+    short-circuit — see `routers/tasks.py::create_task` for why (DEC-0036)."""
+    ensure_can_write(principal, "ai_work")
+
     async def _create() -> AIWorkLog:
-        return AIWorkLog.model_validate(await ai_work_service.create_ai_work(session, work_in))
+        return AIWorkLog.model_validate(
+            await ai_work_service.create_ai_work(session, principal, work_in)
+        )
 
     return await idempotency_service.run_idempotent(
         session,
@@ -48,10 +55,10 @@ async def create_ai_work(
 
 @router.patch("/{work_id}", response_model=AIWorkLog)
 async def update_ai_work(
-    work_id: UUID, work_in: AIWorkLogUpdate, session: DbSession, machine: CurrentMachine
+    work_id: UUID, work_in: AIWorkLogUpdate, session: DbSession, principal: CurrentPrincipal
 ) -> AIWorkLog:
     work = await session.get(AIWorkLogModel, work_id)
     if work is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "ai_work entry not found")
-    work = await ai_work_service.update_ai_work(session, work, work_in)
+    work = await ai_work_service.update_ai_work(session, principal, work, work_in)
     return AIWorkLog.model_validate(work)

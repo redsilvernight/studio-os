@@ -22,15 +22,16 @@ class McpAuthError(Exception):
 
 def _extract_token(ctx: Context) -> str | None:
     """HTTP transport (multi-client, deployed behind Caddy): read the caller's
-    own `Authorization: Bearer` header, same as the API. stdio transport
-    (single local process, no HTTP request to carry a header) falls back to
-    `STUDIO_MCP_MACHINE_TOKEN` — never assume this fallback is safe under a
-    shared multi-client transport."""
+    own `Authorization: Bearer` header, same as the API — a missing or
+    malformed header is rejected outright, never falling back to the process
+    env var. stdio transport (single local process, no HTTP request at all,
+    so `ctx.headers is None`) falls back to `STUDIO_MCP_MACHINE_TOKEN`."""
     headers = ctx.headers
     if headers is not None:
         auth_header = headers.get("authorization") or headers.get("Authorization")
         if auth_header and auth_header.startswith("Bearer "):
             return auth_header.removeprefix("Bearer ")
+        return None
     return os.environ.get("STUDIO_MCP_MACHINE_TOKEN")
 
 

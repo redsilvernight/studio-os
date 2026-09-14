@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.decisions import DecisionCreate
 
 from studio_api.db.models.decision import DecisionModel
+from studio_api.services.authz import Principal, ensure_can_write
 
 
 async def _next_readable_id(session: AsyncSession) -> str:
@@ -25,7 +26,10 @@ async def list_decisions(
     return list(result.scalars().all())
 
 
-async def create_decision(session: AsyncSession, decision_in: DecisionCreate) -> DecisionModel:
+async def create_decision(
+    session: AsyncSession, principal: Principal, decision_in: DecisionCreate
+) -> DecisionModel:
+    ensure_can_write(principal, "decision")
     decision = DecisionModel(
         readable_id=await _next_readable_id(session),
         project_id=decision_in.project_id,

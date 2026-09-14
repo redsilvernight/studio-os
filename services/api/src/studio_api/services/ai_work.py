@@ -6,8 +6,11 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.ai_work import AIWorkLogCreate, AIWorkLogUpdate, AIWorkStatus
+from studio_contracts.auth import Role
 
+from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.ai_work import AIWorkLogModel
+from studio_api.services.authz import Principal, ensure_can_write, forbidden
 
 
 async def list_ai_work(
@@ -22,7 +25,10 @@ async def list_ai_work(
     return list(result.scalars().all())
 
 
-async def create_ai_work(session: AsyncSession, work_in: AIWorkLogCreate) -> AIWorkLogModel:
+async def create_ai_work(
+    session: AsyncSession, principal: Principal, work_in: AIWorkLogCreate
+) -> AIWorkLogModel:
+    ensure_can_write(principal, "ai_work")
     work = AIWorkLogModel(
         task_id=work_in.task_id,
         project_id=work_in.project_id,
@@ -37,9 +43,30 @@ async def create_ai_work(session: AsyncSession, work_in: AIWorkLogCreate) -> AIW
     return work
 
 
+async def _ensure_ai_work_owned(
+    session: AsyncSession, principal: Principal, work: AIWorkLogModel
+) -> None:
+    """Ownership for a PATCH: `AIWorkLogModel.machine_id` is nullable (an
+    entry logged by a coordinator not tied to a specific machine), so the
+    non-null `agent_id` (per the audit's "agent_id sur AIWorkLog") is the
+    fallback — the same actor-ownership shape `events.resolve_event_identity`
+    already uses for `actor_type=agent`."""
+    ensure_can_write(principal, "ai_work")
+    if principal.role == Role.ADMIN:
+        return
+    if work.machine_id is not None:
+        if work.machine_id != principal.machine.id:
+            raise forbidden("ai_work", "update")
+        return
+    agent = await session.get(AgentModel, work.agent_id)
+    if agent is None or agent.machine_id != principal.machine.id:
+        raise forbidden("ai_work", "update")
+
+
 async def update_ai_work(
-    session: AsyncSession, work: AIWorkLogModel, work_in: AIWorkLogUpdate
+    session: AsyncSession, principal: Principal, work: AIWorkLogModel, work_in: AIWorkLogUpdate
 ) -> AIWorkLogModel:
+    await _ensure_ai_work_owned(session, principal, work)
     if work_in.summary is not None:
         work.summary = work_in.summary
     if work_in.status is not None:

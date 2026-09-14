@@ -12,7 +12,9 @@ import pytest_asyncio
 import uvicorn
 from httpx import AsyncClient
 from sqlalchemy import delete
+from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db import session as db_session
+from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.event import EventModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
@@ -34,11 +36,14 @@ os.environ["STUDIO_DATABASE_URL"] = os.environ.get(
 def _event_payload(
     project_id: uuid.UUID, actor_id: uuid.UUID, event_id: uuid.UUID
 ) -> dict[str, object]:
+    """`actor_id` must be the authenticated machine's owner user id — since
+    DEC-0035, `POST /events` rejects any other `actor_type=user` actor_id
+    (and `actor_type=system` outright, reserved for server-internal events)."""
     return {
         "event_id": str(event_id),
         "event_type": "task.created",
         "project_id": str(project_id),
-        "actor_type": "system",
+        "actor_type": "user",
         "actor_id": str(actor_id),
         "client_timestamp": datetime.now(UTC).isoformat(),
         "payload": {"title": "Some task"},
@@ -53,7 +58,7 @@ async def test_event_replay_by_event_id_returns_original_row(
 ) -> None:
     machine_model, _ = machine
     event_id = uuid.uuid4()
-    payload = _event_payload(project.id, machine_model.id, event_id)
+    payload = _event_payload(project.id, machine_model.owner_user_id, event_id)
 
     first = await client.post("/api/v1/events", headers=auth_headers, json=payload)
     assert first.status_code == 200
@@ -76,6 +81,152 @@ async def test_event_replay_by_event_id_returns_original_row(
     assert len(matching) == 1
 
 
+async def test_post_event_rejects_machine_id_of_another_machine(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    project: ProjectModel,
+    machine: tuple[MachineModel, str],
+    db_session: AsyncSession,
+) -> None:
+    machine_model, _ = machine
+    other_user = await provisioning_service.create_user(
+        db_session, "Other User", f"{uuid.uuid4()}@example.test", "developer"
+    )
+    other_machine, _ = await provisioning_service.create_machine(
+        db_session, other_user.id, "other-machine"
+    )
+    event_id = uuid.uuid4()
+    payload = _event_payload(project.id, machine_model.owner_user_id, event_id)
+    payload["machine_id"] = str(other_machine.id)
+
+    response = await client.post("/api/v1/events", headers=auth_headers, json=payload)
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["error_code"] == "machine_id_mismatch"
+    stored = await db_session.get(EventModel, event_id)
+    assert stored is None
+
+
+async def test_post_event_rejects_actor_id_of_another_user(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    project: ProjectModel,
+    db_session: AsyncSession,
+) -> None:
+    other_user = await provisioning_service.create_user(
+        db_session, "Other User", f"{uuid.uuid4()}@example.test", "developer"
+    )
+    event_id = uuid.uuid4()
+    payload = _event_payload(project.id, other_user.id, event_id)
+
+    response = await client.post("/api/v1/events", headers=auth_headers, json=payload)
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["error_code"] == "actor_id_mismatch"
+    stored = await db_session.get(EventModel, event_id)
+    assert stored is None
+
+
+async def test_post_event_rejects_agent_not_attached_to_authenticated_machine(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    project: ProjectModel,
+    db_session: AsyncSession,
+) -> None:
+    other_user = await provisioning_service.create_user(
+        db_session, "Other User", f"{uuid.uuid4()}@example.test", "developer"
+    )
+    other_machine, _ = await provisioning_service.create_machine(
+        db_session, other_user.id, "other-machine"
+    )
+    foreign_agent = AgentModel(
+        machine_id=other_machine.id, display_name="other-agent", agent_kind="claude_code"
+    )
+    db_session.add(foreign_agent)
+    await db_session.flush()
+    await db_session.refresh(foreign_agent)
+
+    event_id = uuid.uuid4()
+    payload = _event_payload(project.id, foreign_agent.id, event_id)
+    payload["actor_type"] = "agent"
+
+    response = await client.post("/api/v1/events", headers=auth_headers, json=payload)
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["error_code"] == "actor_not_owned"
+
+
+async def test_post_event_rejects_system_actor_id_other_than_own_machine(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    project: ProjectModel,
+    machine: tuple[MachineModel, str],
+) -> None:
+    machine_model, _ = machine
+    event_id = uuid.uuid4()
+    payload = _event_payload(project.id, machine_model.owner_user_id, event_id)
+    payload["actor_type"] = "system"
+
+    response = await client.post("/api/v1/events", headers=auth_headers, json=payload)
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["error_code"] == "actor_not_owned"
+
+
+async def test_post_event_accepts_system_actor_self_attributed_to_own_machine(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    project: ProjectModel,
+    machine: tuple[MachineModel, str],
+) -> None:
+    """git/godot watchers (DEC-0032) replay `actor_type=system,
+    actor_id=machine_id` through this same public path — must keep working."""
+    machine_model, _ = machine
+    event_id = uuid.uuid4()
+    payload = _event_payload(project.id, machine_model.id, event_id)
+    payload["actor_type"] = "system"
+
+    response = await client.post("/api/v1/events", headers=auth_headers, json=payload)
+
+    assert response.status_code == 200
+    assert response.json()["actor_type"] == "system"
+
+
+async def test_post_event_replay_with_contradictory_identity_does_not_alter_original(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    project: ProjectModel,
+    machine: tuple[MachineModel, str],
+    db_session: AsyncSession,
+) -> None:
+    machine_model, _ = machine
+    event_id = uuid.uuid4()
+    original = _event_payload(project.id, machine_model.owner_user_id, event_id)
+    first = await client.post("/api/v1/events", headers=auth_headers, json=original)
+    assert first.status_code == 200
+
+    other_user = await provisioning_service.create_user(
+        db_session, "Other User", f"{uuid.uuid4()}@example.test", "developer"
+    )
+    other_machine, other_token = await provisioning_service.create_machine(
+        db_session, other_user.id, "other-machine"
+    )
+    replay = _event_payload(project.id, other_user.id, event_id)
+    replay["payload"] = {"title": "hijacked"}
+
+    response = await client.post(
+        "/api/v1/events",
+        headers={"Authorization": f"Bearer {other_token}"},
+        json=replay,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["payload"] == {"title": "Some task"}
+    stored = await db_session.get(EventModel, event_id)
+    assert stored is not None
+    assert stored.machine_id == machine_model.id
+
+
 async def test_get_events_filters_by_project(
     client: AsyncClient,
     auth_headers: dict[str, str],
@@ -86,7 +237,7 @@ async def test_get_events_filters_by_project(
     await client.post(
         "/api/v1/events",
         headers=auth_headers,
-        json=_event_payload(project.id, machine_model.id, uuid.uuid4()),
+        json=_event_payload(project.id, machine_model.owner_user_id, uuid.uuid4()),
     )
 
     other_project_events = await client.get(
@@ -202,7 +353,7 @@ async def test_stream_delivers_new_event_to_two_concurrent_clients(
         await live_client.post(
             "/api/v1/events",
             headers=headers,
-            json=_event_payload(project.id, machine_model.id, event_id),
+            json=_event_payload(project.id, machine_model.owner_user_id, event_id),
         )
 
     async with (
@@ -244,7 +395,7 @@ async def test_stream_resume_after_reconnect_has_no_duplicate_or_loss(
         await live_client.post(
             "/api/v1/events",
             headers=headers,
-            json=_event_payload(project.id, machine_model.id, event_id),
+            json=_event_payload(project.id, machine_model.owner_user_id, event_id),
         )
 
     async with live_client.stream(
@@ -287,7 +438,7 @@ async def test_stream_does_not_republish_an_idempotent_replay(
     headers = {"Authorization": f"Bearer {token}"}
     event_a_id = uuid.uuid4()
     event_b_id = uuid.uuid4()
-    payload_a = _event_payload(project.id, machine_model.id, event_a_id)
+    payload_a = _event_payload(project.id, machine_model.owner_user_id, event_a_id)
 
     async with live_client.stream(
         "GET",
@@ -315,7 +466,7 @@ async def test_stream_does_not_republish_an_idempotent_replay(
             live_client.post(
                 "/api/v1/events",
                 headers=headers,
-                json=_event_payload(project.id, machine_model.id, event_b_id),
+                json=_event_payload(project.id, machine_model.owner_user_id, event_b_id),
             )
         )
         seq_b, body_b = await asyncio.wait_for(_read_one_sse_event(lines), 5)

@@ -7,8 +7,8 @@ from uuid import uuid4
 from mcp.server.mcpserver import Context
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.event import EventModel
-from studio_api.db.models.machine import MachineModel
 from studio_api.services import events as events_service
+from studio_api.services.authz import Principal
 from studio_contracts.events import EventCreate, EventType
 
 from studio_mcp.errors import run_tool
@@ -48,7 +48,7 @@ async def studio_emit_event(
     (DEC-0006, DEC-0027). Omit it for a one-shot interactive call; one is
     then generated for you."""
 
-    async def _handler(session: AsyncSession, machine: MachineModel) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         try:
             event_enum = EventType(event_type)
         except ValueError:
@@ -88,7 +88,7 @@ async def studio_emit_event(
                 event_type=event_enum,
                 project_id=parsed_project_id,
                 task_id=parsed_task_id,
-                machine_id=parsed_machine_id if parsed_machine_id else machine.id,
+                machine_id=parsed_machine_id,
                 actor_type=actor_type,  # type: ignore[arg-type]
                 actor_id=parsed_actor_id,
                 client_timestamp=datetime.now(UTC),
@@ -97,6 +97,7 @@ async def studio_emit_event(
         except ValueError as exc:
             return {"error_code": "invalid_argument", "message": str(exc)}
 
+        event_in = await events_service.resolve_event_identity(session, principal, event_in)
         event = await events_service.create_event(session, event_in)
         return _compact_event(event)
 
@@ -113,7 +114,7 @@ async def studio_get_recent_changes(
     """List recent events, optionally filtered by project_id/task_id (UUID
     strings) and `since` (ISO-8601 timestamp)."""
 
-    async def _handler(session: AsyncSession, _machine: MachineModel) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, _principal: Principal) -> dict[str, Any]:
         parsed_project_id = None
         if project_id is not None:
             parsed = parse_uuid(project_id, "project_id")

@@ -7,12 +7,12 @@ from fastapi import HTTPException
 from mcp.server.mcpserver import Context
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from studio_api.db.models.machine import MachineModel
 from studio_api.db.session import get_session_factory
+from studio_api.services.authz import Principal, load_principal
 
 from studio_mcp.auth import McpAuthError, authenticate
 
-ToolHandler = Callable[[AsyncSession, MachineModel], Awaitable[dict[str, Any]]]
+ToolHandler = Callable[[AsyncSession, Principal], Awaitable[dict[str, Any]]]
 
 
 def _http_exception_to_dict(exc: HTTPException) -> dict[str, Any]:
@@ -32,7 +32,8 @@ async def run_tool(ctx: Context, handler: ToolHandler) -> dict[str, Any]:
     async with session_factory() as session:
         try:
             machine = await authenticate(ctx, session)
-            return await handler(session, machine)
+            principal = await load_principal(session, machine)
+            return await handler(session, principal)
         except McpAuthError as exc:
             return exc.to_dict()
         except HTTPException as exc:

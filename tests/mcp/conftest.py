@@ -91,6 +91,34 @@ async def auth_ctx(machine: tuple[MachineModel, str]) -> FakeContext:
 
 
 @pytest_asyncio.fixture
+async def readonly_machine(db_session: AsyncSession) -> tuple[MachineModel, str]:
+    user = await provisioning_service.create_user(
+        db_session, "Readonly User", f"{uuid.uuid4()}@example.test", "readonly"
+    )
+    return await provisioning_service.create_machine(db_session, user.id, "readonly-machine")
+
+
+@pytest_asyncio.fixture
+async def readonly_auth_ctx(readonly_machine: tuple[MachineModel, str]) -> FakeContext:
+    _, token = readonly_machine
+    return FakeContext(headers={"authorization": f"Bearer {token}"})
+
+
+@pytest_asyncio.fixture
+async def other_machine(db_session: AsyncSession) -> tuple[MachineModel, str]:
+    user = await provisioning_service.create_user(
+        db_session, "Other User", f"{uuid.uuid4()}@example.test", "developer"
+    )
+    return await provisioning_service.create_machine(db_session, user.id, "other-machine")
+
+
+@pytest_asyncio.fixture
+async def other_auth_ctx(other_machine: tuple[MachineModel, str]) -> FakeContext:
+    _, token = other_machine
+    return FakeContext(headers={"authorization": f"Bearer {token}"})
+
+
+@pytest_asyncio.fixture
 async def project(db_session: AsyncSession) -> ProjectModel:
     return await projects_service.create_project(
         db_session, f"proj-{uuid.uuid4().hex[:8]}", "Test Project", None

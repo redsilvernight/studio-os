@@ -12,6 +12,7 @@ from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.user import UserModel
 from studio_api.db.session import get_session
 from studio_api.security import hash_token
+from studio_api.services.authz import Principal, load_principal
 
 DbSession = Annotated[AsyncSession, Depends(get_session)]
 
@@ -47,6 +48,16 @@ async def get_current_machine(
 
 
 CurrentMachine = Annotated[MachineModel, Depends(get_current_machine)]
+
+
+async def get_current_principal(machine: CurrentMachine, session: DbSession) -> Principal:
+    """Transverse role + resource ownership both start here (TECH/04
+    Autorisation, DEC-0036) — the owner of the authenticated machine, loaded
+    once per request."""
+    return await load_principal(session, machine)
+
+
+CurrentPrincipal = Annotated[Principal, Depends(get_current_principal)]
 
 
 def require_roles(*roles: Role) -> Callable[..., Awaitable[UserModel]]:
