@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-45 decision(s). Detail complet dans chaque ADR lie.
+46 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -67,3 +67,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0043 | Model-Agnostic Agent Identity : separation auth_role / harness / provider / model, agent_profile optionnel | active | [decisions/DEC-0043-identite-agent-independante-du-modele.md](decisions/DEC-0043-identite-agent-independante-du-modele.md) |
 | DEC-0044 | Specialized Agent Profiles : studio-architect, studio-tester, contract-guardian, sync-debugger comme agent_profiles harness-agnostic | superseded | [decisions/DEC-0044-profils-agents-specialises.md](decisions/DEC-0044-profils-agents-specialises.md) |
 | DEC-0045 | CC-1 : enregistrement public dAgent (POST /agents) comme identite de provenance, sans autorite | active | [decisions/DEC-0045-enregistrement-public-agent-cc-1.md](decisions/DEC-0045-enregistrement-public-agent-cc-1.md) |
+| DEC-0046 | HTTP canonical complet, MCP subset additif : surface parity non requise, enforcement parity requise | active | [decisions/DEC-0046-http-canonique-mcp-subset.md](decisions/DEC-0046-http-canonique-mcp-subset.md) |

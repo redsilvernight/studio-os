@@ -64,6 +64,8 @@ sont illustratifs et non normatifs.
 
 - MUST : la liste des outils MCP (`TECH/07`, 29 outils nommes
   `studio_*`) et les contrats `TECH/02-09` sont l'inventaire de reference.
+  HTTP est l'interface canonique complete, MCP un subset additif : la
+  parite de surface n'est pas requise, voir DEC-0046.
 - SHOULD : le client HTTP derive les routes du schema OpenAPI ; le client
   MCP utilise `tools/list` du protocole MCP.
 - Etat actuel : PARTIAL. Inventaire documente, mais 4 outils
@@ -202,7 +204,8 @@ sont illustratifs et non normatifs.
 - MUST : toute capacite non disponible est detectee par reponse
   machine-readable, jamais par connaissance prealable du serveur :
   route inconnue = `404` FastAPI standard ; outil MCP inconnu = erreur
-  protocole MCP ; refus metier = `error_code` documente (§14).
+  protocole MCP (signifie « non expose via ce transport », pas « capacite
+  inexistante » — DEC-0046) ; refus metier = `error_code` documente (§14).
 - SHOULD : tenter puis degrader (ex. memoire absente ⇒ fonctionner sans ;
   SSE indisponible ⇒ polling `GET /events?since=`).
 - Etat actuel : PARTIAL. Le mecanisme par-reponse existe, mais il n'y a
