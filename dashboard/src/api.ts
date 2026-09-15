@@ -15,17 +15,21 @@ export interface ApiErrorDetails {
   status: number;
   errorCode: string | null;
   message: string;
+  /** Present on 409 version_conflict: the live server version to re-read. */
+  serverVersion: number | null;
 }
 
 export class ApiError extends Error {
   readonly status: number;
   readonly errorCode: string | null;
+  readonly serverVersion: number | null;
 
   constructor(details: ApiErrorDetails) {
     super(details.message);
     this.name = "ApiError";
     this.status = details.status;
     this.errorCode = details.errorCode;
+    this.serverVersion = details.serverVersion;
   }
 
   get isAuth(): boolean {
@@ -44,24 +48,29 @@ const bearer: Middleware = {
 };
 
 export function parseErrorBody(status: number, body: unknown): ApiErrorDetails {
+  const fallback: ApiErrorDetails = { status, errorCode: null, message: `HTTP ${status}`, serverVersion: null };
   if (typeof body === "string") {
-    return { status, errorCode: null, message: body === "" ? `HTTP ${status}` : body };
+    return { ...fallback, message: body === "" ? `HTTP ${status}` : body };
   }
   if (body !== null && typeof body === "object" && "detail" in body) {
     const detail = (body as { detail: unknown }).detail;
     if (typeof detail === "string") {
-      return { status, errorCode: null, message: detail === "" ? `HTTP ${status}` : detail };
+      return { ...fallback, message: detail === "" ? `HTTP ${status}` : detail };
     }
     if (detail !== null && typeof detail === "object" && "error_code" in detail) {
-      const code = (detail as { error_code: unknown }).error_code;
+      const record = detail as { error_code?: unknown; server_version?: unknown };
+      const code = typeof record.error_code === "string" ? record.error_code : null;
+      const serverVersion =
+        typeof record.server_version === "number" ? record.server_version : null;
       return {
         status,
-        errorCode: typeof code === "string" ? code : null,
-        message: typeof code === "string" ? `${code} (HTTP ${status})` : `HTTP ${status}`,
+        errorCode: code,
+        serverVersion,
+        message: code !== null ? `${code} (HTTP ${status})` : `HTTP ${status}`,
       };
     }
   }
-  return { status, errorCode: null, message: `HTTP ${status}` };
+  return fallback;
 }
 
 export type StudioClient = ReturnType<typeof createClient<paths>>;
@@ -80,6 +89,7 @@ export function apiBaseUrl(): string {
 
 export function requireToken(): string {
   const token = getToken();
-  if (token === null) throw new ApiError({ status: 401, errorCode: null, message: "missing machine token" });
+  if (token === null)
+    throw new ApiError({ status: 401, errorCode: null, message: "missing machine token", serverVersion: null });
   return token;
 }

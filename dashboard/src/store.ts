@@ -1,12 +1,19 @@
-/** Minimal observable state (DASH-0). Only cross-section UI state lives here. */
+/** Minimal observable UI state (vanilla). Server data is never cached here
+ *  beyond selection/pagination — views refetch explicitly after mutations. */
 type Listener = () => void;
 
 const listeners = new Set<Listener>();
 
+function notify(): void {
+  for (const listener of listeners) listener();
+}
+
 export const uiState: {
   selectedProjectId: string | null;
+  selectedTaskId: string | null;
 } = {
   selectedProjectId: null,
+  selectedTaskId: null,
 };
 
 export function subscribe(listener: Listener): () => void {
@@ -19,6 +26,14 @@ export function subscribe(listener: Listener): () => void {
 export function selectProject(projectId: string | null): void {
   if (uiState.selectedProjectId !== projectId) {
     uiState.selectedProjectId = projectId;
-    for (const listener of listeners) listener();
+    uiState.selectedTaskId = null;
+    notify();
+  }
+}
+
+export function selectTask(taskId: string | null): void {
+  if (uiState.selectedTaskId !== taskId) {
+    uiState.selectedTaskId = taskId;
+    notify();
   }
 }

@@ -31,9 +31,17 @@ describe("parseErrorBody", () => {
 
 describe("ApiError", () => {
   it("flags 401/403 as auth errors", () => {
-    expect(new ApiError({ status: 401, errorCode: null, message: "x" }).isAuth).toBe(true);
-    expect(new ApiError({ status: 403, errorCode: "forbidden", message: "x" }).isAuth).toBe(true);
-    expect(new ApiError({ status: 404, errorCode: null, message: "x" }).isAuth).toBe(false);
+    const base = { errorCode: null as string | null, message: "x", serverVersion: null };
+    expect(new ApiError({ status: 401, ...base }).isAuth).toBe(true);
+    expect(new ApiError({ status: 403, errorCode: "forbidden", message: "x", serverVersion: null }).isAuth).toBe(true);
+    expect(new ApiError({ status: 404, ...base }).isAuth).toBe(false);
+  });
+
+  it("carries server_version from version_conflict bodies", () => {
+    const parsed = parseErrorBody(409, { detail: { error_code: "version_conflict", server_version: 7 } });
+    const error = new ApiError(parsed);
+    expect(error.errorCode).toBe("version_conflict");
+    expect(error.serverVersion).toBe(7);
   });
 });
 

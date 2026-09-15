@@ -1,29 +1,45 @@
 /**
- * Application shell (DASH-0).
+ * Application shell (DASH-0/2).
  *
- * Navigation: Dashboard (live in DASH-1) + future sections shown DISABLED —
- * no fake content. No Machines entry (no canonical HTTP read exists).
- * Token bar: manual Bearer entry, memory-only, one-click clear.
+ * Routes: #/ (Dashboard overview), #/projects, #/projects/<id>[/tasks|/claims],
+ * #/tasks, #/tasks/<id>. Activity/Agents/Worklogs/Decisions/Transfers stay
+ * DISABLED (no fake content, no Machines entry). Token bar: manual Bearer,
+ * memory-only, one-click clear.
  */
 import { apiBaseUrl, createApiClient } from "./api";
 import { resolveApiUrl } from "./config";
 import { clearToken, hasToken, setToken } from "./auth";
-import { subscribe } from "./store";
+import { subscribe, uiState } from "./store";
 import { renderOverview } from "./views/overview";
+import { renderProjects } from "./views/projects";
+import { renderProjectDetail } from "./views/projectDetail";
+import { renderTaskDetail } from "./views/taskDetail";
+import { renderTasksInto } from "./views/tasks";
+import { parseRoute, type Route } from "./router";
 import { esc } from "./ui";
 import "./styles.css";
 
-const FUTURE_SECTIONS = ["Projects", "Tasks", "Activity", "Agents", "Worklogs", "Decisions", "Transfers"] as const;
+const DISABLED_SECTIONS = ["Activity", "Agents", "Worklogs", "Decisions", "Transfers"] as const;
 
-function shellHtml(apiUrl: string): string {
-  const shownUrl = apiUrl === "" ? "same-origin" : apiUrl;
-  const future = FUTURE_SECTIONS.map(
-    (name) => `<span class="nav-item disabled" title="Planned after DASH-1">${esc(name)}<span class="badge">DASH-2+</span></span>`,
+function navHtml(route: Route): string {
+  const item = (href: string, label: string, active: boolean): string =>
+    `<a class="nav-item${active ? " active" : ""}" href="${href}">${esc(label)}</a>`;
+  const disabled = DISABLED_SECTIONS.map(
+    (name) => `<span class="nav-item disabled" title="Planned after DASH-2">${esc(name)}<span class="badge">later</span></span>`,
   ).join("");
+  return `<nav class="nav">${item("#/", "Dashboard", route.name === "dashboard")}${item(
+    "#/projects",
+    "Projects",
+    route.name === "projects" || route.name === "project",
+  )}${item("#/tasks", "Tasks", route.name === "tasks" || route.name === "task")}${disabled}</nav>`;
+}
+
+function shellHtml(apiUrl: string, route: Route): string {
+  const shownUrl = apiUrl === "" ? "same-origin" : apiUrl;
   return `
   <header class="topbar">
     <div class="brand">Studi'OS <span class="v0">dashboard v0</span></div>
-    <nav class="nav"><span class="nav-item active">Dashboard</span>${future}</nav>
+    ${navHtml(route)}
     <div class="api-url" title="API base URL (VITE_STUDIO_API_URL, empty = same-origin)">${esc(shownUrl)}</div>
   </header>
   <div class="tokenbar">
@@ -47,16 +63,47 @@ function refreshTokenState(): void {
 
 async function render(): Promise<void> {
   const view = document.getElementById("view");
+  const topbar = document.querySelector(".topbar");
   if (view === null) return;
+  const route = parseRoute(location.hash);
+  if (topbar !== null) topbar.outerHTML = `<header class="topbar"><div class="brand">Studi'OS <span class="v0">dashboard v0</span></div>${navHtml(route)}<div class="api-url">${esc(apiUrlShown())}</div></header>`;
   const baseUrl = resolveApiUrl(apiBaseUrl());
   const client = createApiClient(baseUrl);
-  await renderOverview(view, { client, baseUrl, authed: hasToken() });
+  const authed = hasToken();
+  switch (route.name) {
+    case "projects":
+      await renderProjects(view, { client, authed });
+      break;
+    case "project":
+      await renderProjectDetail(view, { client, authed }, route.id, route.tab);
+      break;
+    case "tasks":
+      await renderTasksInto(view, {
+        client,
+        authed,
+        projectId: uiState.selectedProjectId ?? undefined,
+        scopeLabel: uiState.selectedProjectId ? "selected project (change in Overview/Projects)" : "all projects",
+      });
+      break;
+    case "task":
+      await renderTaskDetail(view, { client, authed }, route.id);
+      break;
+    case "dashboard":
+    default:
+      await renderOverview(view, { client, baseUrl, authed });
+      break;
+  }
+}
+
+function apiUrlShown(): string {
+  const baseUrl = resolveApiUrl(apiBaseUrl());
+  return baseUrl === "" ? "same-origin" : baseUrl;
 }
 
 export function boot(): void {
   const app = document.getElementById("app");
   if (app === null) throw new Error("#app missing");
-  app.innerHTML = shellHtml(resolveApiUrl(apiBaseUrl()));
+  app.innerHTML = shellHtml(resolveApiUrl(apiBaseUrl()), parseRoute(location.hash));
 
   const input = document.getElementById("token-input") as HTMLInputElement;
   document.getElementById("token-set")?.addEventListener("click", () => {

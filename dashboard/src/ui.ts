@@ -1,5 +1,7 @@
 /** Tiny HTML helpers — no framework, escaped by default. */
 
+import { ApiError } from "./api";
+
 export function esc(value: unknown): string {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -36,4 +38,18 @@ export function statusBlock(status: SectionStatus, message = ""): string {
 
 export function section(title: string, meta: string, body: string): string {
   return `<section class="panel"><header><h2>${esc(title)}</h2><span class="meta">${meta}</span></header><div class="body">${body}</div></section>`;
+}
+
+/** Human-readable mutation error. Never invents a status change. */
+export function describeError(error: unknown): string {
+  if (error instanceof ApiError) {
+    const parts = [`HTTP ${error.status}`];
+    if (error.errorCode !== null) parts.push(error.errorCode);
+    parts.push(error.message);
+    if (error.errorCode === "version_conflict" && error.serverVersion !== null) {
+      parts.push(`server is at version ${error.serverVersion} — re-read, then re-apply`);
+    }
+    return parts.join(" · ");
+  }
+  return error instanceof Error ? error.message : String(error);
 }

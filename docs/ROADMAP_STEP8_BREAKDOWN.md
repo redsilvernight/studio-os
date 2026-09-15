@@ -391,7 +391,7 @@ IA, PR prête, tâche bloquée, décision/mémoire à approuver, nouveau transfe
 en Phase 4-6, pas encore code » : la spécifier ou décider qu'elle reste une
 dérivation client est la question n° 4 ci-dessous. Dépend de 8.1 et 8.4.
 
-## Sous-étape 8.6 — Dashboard minimal — À FAIRE
+## Sous-étape 8.6 — Dashboard minimal — EN COURS (DASH-0/1/2 faits, DASH-3/4/5 restants)
 
 Interface de lecture cohérente avec API, MCP et CLI. Placée en dernier : elle
 consomme 8.1, 8.4 et 8.5, et porte la question d'authentification n° 3.
@@ -401,6 +401,12 @@ oriente fortement vers un dashboard servi localement par le daemon, réutilisant
 le token machine déjà stocké, plutôt qu'un service web hébergé sur le VPS.
 « Minimal » doit rester minimal : lecture et navigation, pas un second client
 d'écriture qui dupliquerait la validation de la CLI et du MCP.
+
+État réel (voir `dashboard/README.md`) : DASH-0 (socle) et DASH-1 (overview
+lecture seule) livrés ; DASH-2 (pilotage Projects/Tasks/Claims, optimistic
+concurrency, task claim/release, resource claims soft-lock) livré. Restent
+DASH-3 (timeline/realtime SSE branché sur les vues), DASH-4 et DASH-5, non
+commencés.
 
 ### Critères d'acceptation (étape 8 globale)
 
