@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -15,10 +16,12 @@ from sqlalchemy.ext.asyncio import (
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.transfer import TransferModel
 from studio_api.db.session import get_session
 from studio_api.main import app
 from studio_api.services import projects as projects_service
 from studio_api.services import provisioning as provisioning_service
+from studio_api.storage.provider import get_storage
 
 TEST_DATABASE_URL = os.environ.get(
     "STUDIO_TEST_DATABASE_URL",
@@ -53,6 +56,22 @@ async def db_session(engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
         async with session_factory() as session:
             yield session
         await connection.rollback()
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _cleanup_transfer_storage(db_session: AsyncSession) -> AsyncIterator[None]:
+    """The savepoint rollback on `db_session` erases every `TransferModel`
+    row a test created, but never touches the real MinIO objects/multipart
+    uploads those transfers point at (.claude/rules/storage-transfers.md) -
+    without this, the shared test bucket accumulates orphans across runs."""
+    yield
+    storage = get_storage()
+    object_keys = (await db_session.execute(select(TransferModel.object_key))).scalars().all()
+    for object_key in object_keys:
+        for upload in await storage.list_multipart_uploads(prefix=object_key):
+            if upload["key"] == object_key:
+                await storage.abort_multipart_upload(object_key, str(upload["upload_id"]))
+        await storage.delete_object(object_key)
 
 
 @pytest_asyncio.fixture

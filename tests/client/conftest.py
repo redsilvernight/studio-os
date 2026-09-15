@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -16,10 +17,12 @@ from sqlalchemy.ext.asyncio import (
 )
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.transfer import TransferModel
 from studio_api.db.session import get_session
 from studio_api.main import app
 from studio_api.services import projects as projects_service
 from studio_api.services import provisioning as provisioning_service
+from studio_api.storage.provider import get_storage
 from studio_client.config import ClientConfig
 from studio_client.tokens import MemoryTokenStore
 
@@ -58,6 +61,21 @@ async def db_session(engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
         async with session_factory() as session:
             yield session
         await connection.rollback()
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _cleanup_transfer_storage(db_session: AsyncSession) -> AsyncIterator[None]:
+    """Same rationale as `tests/api/conftest.py`: the savepoint rollback on
+    `db_session` never touches the real MinIO objects/multipart uploads a
+    test's transfers point at (.claude/rules/storage-transfers.md)."""
+    yield
+    storage = get_storage()
+    object_keys = (await db_session.execute(select(TransferModel.object_key))).scalars().all()
+    for object_key in object_keys:
+        for upload in await storage.list_multipart_uploads(prefix=object_key):
+            if upload["key"] == object_key:
+                await storage.abort_multipart_upload(object_key, str(upload["upload_id"]))
+        await storage.delete_object(object_key)
 
 
 @pytest_asyncio.fixture
