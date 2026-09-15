@@ -38,6 +38,8 @@ class EventType(StrEnum):
     AI_WORK_COMPLETED = "ai_work.completed"
     AI_WORK_FAILED = "ai_work.failed"
     AI_WORK_REVIEW_REQUESTED = "ai_work.review_requested"
+    AI_WORK_APPROVED = "ai_work.approved"
+    AI_WORK_CHANGES_REQUESTED = "ai_work.changes_requested"
 
     GIT_COMMIT = "git.commit"
     GIT_BRANCH_CHANGED = "git.branch.changed"

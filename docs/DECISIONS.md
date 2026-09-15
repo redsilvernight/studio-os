@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-40 decision(s). Detail complet dans chaque ADR lie.
+41 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -62,3 +62,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0038 | Etape 7 (roadmap) : scenario "fichier multipart de 1 Go reel" ferme, test streame sans mock | active | [decisions/DEC-0038-etape-7-scenario-multipart-1-go-reel-ferme.md](decisions/DEC-0038-etape-7-scenario-multipart-1-go-reel-ferme.md) |
 | DEC-0039 | Etape 7 (roadmap) : scenario "replay offline complet" ferme, outbox generique sans ajout client | active | [decisions/DEC-0039-etape-7-scenario-replay-offline-complet-ferme.md](decisions/DEC-0039-etape-7-scenario-replay-offline-complet-ferme.md) |
 | DEC-0040 | Etape 7 (roadmap) fermee : scenario "deux machines simulees sur reseaux distincts" ferme | active | [decisions/DEC-0040-etape-7-scenario-deux-machines-ferme-etape-close.md](decisions/DEC-0040-etape-7-scenario-deux-machines-ferme-etape-close.md) |
+| DEC-0041 | Etape 8 (roadmap), sous-etape 8.1 : tracabilite AIWorkLog -> Event, revue admin-only | active | [decisions/DEC-0041-etape-8-sous-etape-8-1-tracabilite-ai-work-event-et.md](decisions/DEC-0041-etape-8-sous-etape-8-1-tracabilite-ai-work-event-et.md) |

@@ -52,3 +52,185 @@ async def test_update_unknown_ai_work_returns_404(
         f"/api/v1/ai-work/{uuid.uuid4()}", headers=auth_headers, json={"status": "failed"}
     )
     assert response.status_code == 404
+
+
+async def test_create_ai_work_emits_started_event(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    project: ProjectModel,
+    agent: AgentModel,
+) -> None:
+    created = await client.post(
+        "/api/v1/ai-work",
+        headers=auth_headers,
+        json={
+            "project_id": str(project.id),
+            "agent_id": str(agent.id),
+            "summary": "Emit started event",
+        },
+    )
+    assert created.status_code == 201
+    work_id = created.json()["id"]
+
+    events = await client.get(
+        "/api/v1/events", headers=auth_headers, params={"project": str(project.id)}
+    )
+    started = [e for e in events.json() if e["event_type"] == "ai_work.started"]
+    assert len(started) == 1
+    assert started[0]["payload"]["ai_work_id"] == work_id
+    assert started[0]["actor_type"] == "agent"
+    assert started[0]["actor_id"] == str(agent.id)
+
+
+async def test_idempotent_replay_of_create_ai_work_does_not_duplicate_event(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    project: ProjectModel,
+    agent: AgentModel,
+) -> None:
+    body = {
+        "project_id": str(project.id),
+        "agent_id": str(agent.id),
+        "summary": "Replay me",
+    }
+    headers = {**auth_headers, "Idempotency-Key": "ai-work-replay-1"}
+    first = await client.post("/api/v1/ai-work", headers=headers, json=body)
+    second = await client.post("/api/v1/ai-work", headers=headers, json=body)
+    assert first.status_code == 201
+    assert second.status_code == 201
+    assert first.json()["id"] == second.json()["id"]
+
+    events = await client.get(
+        "/api/v1/events", headers=auth_headers, params={"project": str(project.id)}
+    )
+    started = [e for e in events.json() if e["event_type"] == "ai_work.started"]
+    assert len(started) == 1
+
+
+async def test_update_ai_work_completed_emits_event_once(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    project: ProjectModel,
+    agent: AgentModel,
+) -> None:
+    created = await client.post(
+        "/api/v1/ai-work",
+        headers=auth_headers,
+        json={
+            "project_id": str(project.id),
+            "agent_id": str(agent.id),
+            "summary": "Complete me",
+        },
+    )
+    work_id = created.json()["id"]
+
+    first_patch = await client.patch(
+        f"/api/v1/ai-work/{work_id}", headers=auth_headers, json={"status": "completed"}
+    )
+    assert first_patch.status_code == 200
+
+    second_patch = await client.patch(
+        f"/api/v1/ai-work/{work_id}", headers=auth_headers, json={"status": "completed"}
+    )
+    assert second_patch.status_code == 200
+
+    summary_only_patch = await client.patch(
+        f"/api/v1/ai-work/{work_id}",
+        headers=auth_headers,
+        json={"summary": "Complete me (edited)"},
+    )
+    assert summary_only_patch.status_code == 200
+
+    events = await client.get(
+        "/api/v1/events", headers=auth_headers, params={"project": str(project.id)}
+    )
+    completed = [e for e in events.json() if e["event_type"] == "ai_work.completed"]
+    assert len(completed) == 1
+
+
+async def test_review_resolution_requires_admin_and_review_requested_status(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    admin_auth_headers: dict[str, str],
+    project: ProjectModel,
+    agent: AgentModel,
+) -> None:
+    created = await client.post(
+        "/api/v1/ai-work",
+        headers=auth_headers,
+        json={
+            "project_id": str(project.id),
+            "agent_id": str(agent.id),
+            "summary": "Needs review",
+        },
+    )
+    work_id = created.json()["id"]
+
+    premature = await client.patch(
+        f"/api/v1/ai-work/{work_id}", headers=admin_auth_headers, json={"status": "approved"}
+    )
+    assert premature.status_code == 409
+    assert premature.json()["detail"]["error_code"] == "invalid_status_transition"
+
+    review = await client.patch(
+        f"/api/v1/ai-work/{work_id}", headers=auth_headers, json={"status": "review_requested"}
+    )
+    assert review.status_code == 200
+
+    self_approve = await client.patch(
+        f"/api/v1/ai-work/{work_id}", headers=auth_headers, json={"status": "approved"}
+    )
+    assert self_approve.status_code == 403
+    assert self_approve.json()["detail"]["error_code"] == "forbidden"
+
+    approved = await client.patch(
+        f"/api/v1/ai-work/{work_id}", headers=admin_auth_headers, json={"status": "approved"}
+    )
+    assert approved.status_code == 200
+    assert approved.json()["status"] == "approved"
+
+    events = await client.get(
+        "/api/v1/events", headers=auth_headers, params={"project": str(project.id)}
+    )
+    approved_events = [e for e in events.json() if e["event_type"] == "ai_work.approved"]
+    assert len(approved_events) == 1
+    assert approved_events[0]["actor_type"] == "user"
+
+
+async def test_changes_requested_resolution_symmetric_to_approved(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    admin_auth_headers: dict[str, str],
+    project: ProjectModel,
+    agent: AgentModel,
+) -> None:
+    created = await client.post(
+        "/api/v1/ai-work",
+        headers=auth_headers,
+        json={
+            "project_id": str(project.id),
+            "agent_id": str(agent.id),
+            "summary": "Needs changes",
+        },
+    )
+    work_id = created.json()["id"]
+
+    review = await client.patch(
+        f"/api/v1/ai-work/{work_id}", headers=auth_headers, json={"status": "review_requested"}
+    )
+    assert review.status_code == 200
+
+    changes_requested = await client.patch(
+        f"/api/v1/ai-work/{work_id}",
+        headers=admin_auth_headers,
+        json={"status": "changes_requested"},
+    )
+    assert changes_requested.status_code == 200
+    assert changes_requested.json()["status"] == "changes_requested"
+
+    events = await client.get(
+        "/api/v1/events", headers=auth_headers, params={"project": str(project.id)}
+    )
+    changes_events = [e for e in events.json() if e["event_type"] == "ai_work.changes_requested"]
+    assert len(changes_events) == 1
+    assert changes_events[0]["actor_type"] == "user"

@@ -8,12 +8,17 @@ from studio_contracts.common import ContractModel, IdempotentCreate
 
 
 class AIWorkStatus(StrEnum):
-    """Mirrors ai_work.* event types in TECH/03_EVENT_CONTRACT.md."""
+    """Mirrors ai_work.* event types in TECH/03_EVENT_CONTRACT.md. `approved`
+    and `changes_requested` (DEC-0041) are the only valid exits from
+    `review_requested`, and only an `admin` may set them (never the owning
+    agent/machine — see `services/ai_work.py::_ensure_can_resolve_review`)."""
 
     STARTED = "started"
     COMPLETED = "completed"
     FAILED = "failed"
     REVIEW_REQUESTED = "review_requested"
+    APPROVED = "approved"
+    CHANGES_REQUESTED = "changes_requested"
 
 
 class AIWorkLog(ContractModel):

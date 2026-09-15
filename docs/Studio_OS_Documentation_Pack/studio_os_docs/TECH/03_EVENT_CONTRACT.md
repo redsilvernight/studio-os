@@ -30,7 +30,7 @@ decision.proposed, decision.created
 
 agent.started, agent.stopped
 
-ai_work.started, ai_work.completed, ai_work.failed, ai_work.review_requested
+ai_work.started, ai_work.completed, ai_work.failed, ai_work.review_requested, ai_work.approved, ai_work.changes_requested
 
 git.commit, git.branch.changed, git.pr.opened, git.pr.merged
 

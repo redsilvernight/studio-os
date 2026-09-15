@@ -72,9 +72,13 @@ Append-only.
 ## AIWorkLog
 `id`, `task_id` (FK Task, nullable), `project_id` (FK Project), `agent_id`
 (FK Agent), `machine_id` (FK Machine, nullable), `summary`, `status`
-(`started|completed|failed|review_requested`, miroir des event types
-`ai_work.*`), `changed_files` (liste de strings), `tests_run` (liste de
-strings), `started_at`, `ended_at` (nullable). Append-only.
+(`started|completed|failed|review_requested|approved|changes_requested`,
+miroir des event types `ai_work.*`), `changed_files` (liste de strings),
+`tests_run` (liste de strings), `started_at`, `ended_at` (nullable).
+Append-only. `approved`/`changes_requested` (DEC-0041) sont les seules
+sorties valides de `review_requested`, et exigent le role `admin` — jamais
+la machine/l'agent proprietaire du travail, qui ne peut pas resoudre sa
+propre revue (voir `services/ai_work.py::_ensure_can_resolve_review`).
 
 ## Event
 Voir `TECH/03_EVENT_CONTRACT.md` — l'enveloppe y est deja completement figée

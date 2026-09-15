@@ -275,6 +275,12 @@ celle-ci.
 
 ## Étape 8 — Connaissance IA et expérience de collaboration (P2 produit)
 
+Découpée en sous-étapes indépendantes dans `docs/ROADMAP_STEP8_BREAKDOWN.md`
+(même principe que `docs/ROADMAP_STEP4_BREAKDOWN.md` et
+`docs/ROADMAP_STEP6_BREAKDOWN.md`), avec l'état réel du dépôt vérifié avant
+découpage et les questions de conception non tranchées par les documents
+existants listées explicitement.
+
 ### Travail attendu
 
 1. Review Queue et interface AI Work Ledger.

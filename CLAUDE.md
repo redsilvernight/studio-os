@@ -68,7 +68,10 @@ Après la modification :
 2. faire intervenir `studio-tester` après chaque feature ;
 3. faire intervenir `contract-guardian` pour tout changement de contrat ;
 4. consigner fichiers, tests, résultats et limites sans inventer de validation ;
-5. appeler `brainstormer` (Graphify + AI-Memory, avec les chemins exacts modifiés) au point de complétion de la tâche — pas de mise à jour manuelle du graphe ou de la mémoire.
+5. mettre Graphify à jour directement, une seule fois, avec les chemins exacts
+   modifiés ; appeler ensuite `brainstormer` uniquement si le lot contient une
+   connaissance durable candidate ou change l'état de reprise, avec faits et
+   preuves regroupés dans un seul mandat. Brainstormer ne met jamais Graphify à jour.
 
 Pour une architecture Cloud/Core ↔ client local non triviale, utiliser
 `studio-architect`. Pour une cause racine offline, idempotence, claims ou

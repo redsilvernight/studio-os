@@ -134,6 +134,12 @@ Ownership (au-dela du role transverse — la machine proprietaire, ou un
 ressource pas encore possedee (`claimed_by_machine_id` nul) reste ouverte a
 tout ecrivain passe le role transverse.
 
+Exception a l'ownership ci-dessus (DEC-0041) : sur `PATCH /ai-work/{id}`, un
+`status` cible `approved`/`changes_requested` exige `admin` strictement —
+jamais la machine/l'agent proprietaire, qui ne peut pas resoudre sa propre
+revue — et seulement depuis `review_requested` (sinon `409
+invalid_status_transition`).
+
 Regle Transfer (le defaut concretement exploitable identifie par l'audit) —
 `sender_user_id` / `recipient_user_id` (`None` = diffusion, ex. build/asset
 projet) :
