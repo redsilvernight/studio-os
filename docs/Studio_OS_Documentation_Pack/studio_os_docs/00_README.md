@@ -3,7 +3,7 @@
 Version de reference pour la construction de Studio OS.
 
 ## Objectif
-Studio OS est la couche de coordination commune d'un studio de jeu video de deux developpeurs travaillant a distance. Il relie humains, Claude Code, Qwen local, agents specialises, Git/GitHub, Godot, Graphify, Obsidian, enregistrements de sessions, builds, marketing et transferts de fichiers.
+Studio OS est la couche de coordination commune d'un studio de jeu video de deux developpeurs travaillant a distance. Il relie humains, agents IA (quel que soit leur harness, provider ou modele), Git/GitHub, Godot, graphe de connaissance, notes, enregistrements de sessions, builds, marketing et transferts de fichiers.
 
 ## Architecture generale
 - Deux postes autonomes, chacun sur son propre reseau.
@@ -41,12 +41,19 @@ Studio OS est la couche de coordination commune d'un studio de jeu video de deux
 - IMPLEMENTATION/03_BLOCK_B_PROMPT.md
 - IMPLEMENTATION/04_INTEGRATION_CHECKLIST.md
 
+### Pour un consommateur externe (developpeur tiers)
+1. INTEGRATION/00_EXTERNAL_CONSUMER_GUIDE.md — parcours complet, de zero au
+   premier transfert, sans connaissance interne du studio.
+2. TECH/02_API_CONTRACT.md
+3. TECH/04_AUTH_SYNC_CONTRACT.md
+4. TECH/07_MCP_CONTRACT.md
+
 ## Principes non negociables
 - Le serveur central est la source d'etat partagee, pas une machine de developpeur.
 - Pas de dependance LAN, SMB ou IP directe entre les domiciles.
 - Les gros fichiers transitent par un stockage objet S3/MinIO, pas par FastAPI.
 - Les Resource Claims sont des soft locks, jamais des verrous bloquants.
-- Qwen est lecture seule sur la memoire partagee par defaut.
+- La memoire partagee est en lecture seule par defaut pour les agents.
 - Toute action IA significative doit etre tracable.
 - Les contrats API, evenements, auth et sync sont versionnes.
 - Les clients doivent tolerer une coupure Internet temporaire.

@@ -9,7 +9,7 @@ source: docs/DECISIONS.md
 sync_hash: sha256:5795399b2921f1f49c7b2c62285b8560bfcca34d616468593d7c83d1fe9a5aeb
 graphify_entities:
 - kind: class
-  node_id: HeartbeatDaemon
+  node_id: packages_studio_client_src_studio_client_daemon_heartbeat_heartbeatdaemon
   path: packages/studio-client/src/studio_client/daemon/heartbeat.py
   project: studio-os
   relation: implements

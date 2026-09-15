@@ -419,7 +419,10 @@ def test_local_server_imports_without_server_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The local path must not need Postgres, tokens or the VPS: fresh
-    interpreter, scrubbed env, `studio_api` must never be imported."""
+    interpreter, scrubbed env; neither the server stack (`studio_api`,
+    `sqlalchemy`, `fastapi`) nor the credential/network client machinery
+    (`studio_client.api_client`, `studio_client.tokens`,
+    `studio_client.transfers`, `keyring`) may be imported."""
     for var in (
         "DATABASE_URL",
         "STUDIO_DATABASE_URL",
@@ -429,12 +432,14 @@ def test_local_server_imports_without_server_state(
         monkeypatch.delenv(var, raising=False)
     script = (
         "import sys;"
-        "from pathlib import Path;"
         "from studio_mcp.local_server import create_local_server;"
         "from studio_mcp.local_tools import make_memory_search;"
         "s = create_local_server();"
-        "bad = [m for m in sys.modules if m == 'studio_api' "
-        "or m.startswith(('studio_api.', 'sqlalchemy', 'fastapi'))];"
+        "forbidden = ('studio_api', 'sqlalchemy', 'fastapi', 'keyring',"
+        " 'studio_client.api_client', 'studio_client.tokens',"
+        " 'studio_client.transfers');"
+        "bad = [m for m in sys.modules if any("
+        "m == p or m.startswith(p + '.') for p in forbidden)];"
         "assert not bad, bad;"
         "print('local-ok')"
     )

@@ -7,8 +7,17 @@ Statut : les entites Phase 1 ci-dessous (User, Machine, Agent, Project, Task,
 WorkSession, ResourceClaim, Decision, AIWorkLog, Event, Transfer) ont un
 schema de champs figé, implemente dans `packages/studio-contracts` (Pydantic,
 source d'enforcement) et `services/api/.../db/models` (SQLAlchemy). Le reste
-(MachineProjectConfig, Notification, Build, Recording, RecordingMarker,
-MarketingCandidate) reste a specifier en Phase 4-6, pas encore code.
+(MachineProjectConfig, Build, Recording, RecordingMarker, MarketingCandidate)
+reste a specifier en Phase 4-6, pas encore code.
+
+`Notification` (sortie de ce groupe par DEC-0051, sous-etape 8.5) :
+**delibrement non persistee**, pas seulement "pas encore codee" — dérivée de
+`GET /review-queue` (8.4, DEC-0049 : ce qui a besoin d'une action humaine
+maintenant) et `GET /timeline` (8.5 : historique groupe par jour). Une
+entite persistee avec etat lu/non-lu par utilisateur et dedup
+multi-machines reste differee, pas abandonnee, jusqu'a l'existence d'une
+vraie identite/session utilisateur (`TECH/04_AUTH_SYNC_CONTRACT.md` n'a
+aujourd'hui qu'une authentification machine — voir aussi DEC-0050).
 
 Toute addition de champ sur les entites deja figées est additive par defaut
 (nouveau champ optionnel) ; retirer/renommer un champ ou changer sa
@@ -43,7 +52,11 @@ n'est PAS stocke : derive de `last_seen_at` a la lecture
 ## Agent
 `id`, `machine_id` (FK Machine, nullable — un agent garde son identite
 logique meme sans machine active), `display_name`, `agent_kind` (str libre,
-ex: "claude-code", "qwen-local"), + champs communs mutables.
+ex: "build-bot", "local-assistant"), `agent_profile`, `harness`, `provider`,
+`model` (str libres, nullables), + champs communs mutables. `agent_profile`,
+`harness`, `provider` et `model` sont des metadonnees d'observabilite
+additives (DEC-0043 amendee, UC-5) : chaines ouvertes jamais whitelistees,
+jamais lues par l'autorisation.
 
 ## Project
 `id`, `slug` (unique), `name`, `description` (nullable), `archived` (bool,
@@ -74,7 +87,11 @@ Append-only.
 (FK Agent), `machine_id` (FK Machine, nullable), `summary`, `status`
 (`started|completed|failed|review_requested|approved|changes_requested`,
 miroir des event types `ai_work.*`), `changed_files` (liste de strings),
-`tests_run` (liste de strings), `started_at`, `ended_at` (nullable).
+`tests_run` (liste de strings), `started_at`, `ended_at` (nullable),
+`agent_profile`, `harness`, `provider`, `model` (str libres, nullables).
+Ces quatre derniers sont des metadonnees d'observabilite additives (UC-5,
+DEC-0043 amendee) : instantane du runtime qui a produit le travail, chaines
+ouvertes jamais whitelistees, jamais lues par l'autorisation (`authz.py`).
 Append-only. `approved`/`changes_requested` (DEC-0041) sont les seules
 sorties valides de `review_requested`, et exigent le role `admin` — jamais
 la machine/l'agent proprietaire du travail, qui ne peut pas resoudre sa

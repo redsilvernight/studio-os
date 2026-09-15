@@ -13,10 +13,10 @@ Il relie Git/GitHub, Godot, agents IA, Graphify, Obsidian, sessions, builds,
 enregistrements et transferts. Ce n'est ni un IDE, ni un moteur de jeu, ni un
 remplacement de Git, ni un partage de disque, ni un outil de surveillance.
 
-Ne jamais déduire l'état courant depuis ce fichier. Le vérifier avec `git status`,
-l'arborescence, les tests et, lorsqu'il existe, l'état Studio OS. Le Bloc A
-Cloud/Core est amorcé ; ne pas supposer que le Bloc B, un backend déployé, un
-daemon ou un dashboard existent sans preuve dans le dépôt.
+Ne jamais déduire l'état courant depuis ce fichier, y compris l'avancement des
+Blocs A/B ou d'un composant donné (backend déployé, daemon, dashboard). Le
+vérifier avec `git status`, l'arborescence, les tests et, lorsqu'il existe,
+l'état Studio OS.
 
 ## Sources de vérité
 
@@ -57,10 +57,13 @@ normative, sans la remplacer.
 
 Avant une modification substantielle :
 
-1. vérifier Git et l'état réel du projet ;
-2. consulter la tâche, les décisions et les claims/conflits disponibles ;
-3. cibler les fichiers avec `rg` ou Graphify avant un balayage large ;
-4. annoncer brièvement le périmètre et l'approche.
+1. lire `projects/studio-os/CURRENT.md` puis `SUMMARY.md` du vault AI-Memory
+   (MCP `obsidian-memory`) ; pour une question de relations, `graphify query`
+   via `pwsh -NoProfile -File scripts/graphify-studio.ps1`, vocabulaire expansé ;
+2. vérifier Git et l'état réel du projet ;
+3. consulter la tâche, les décisions et les claims/conflits disponibles ;
+4. cibler les fichiers avec `rg` ou Graphify avant un balayage large ;
+5. annoncer brièvement le périmètre et l'approche.
 
 Après la modification :
 

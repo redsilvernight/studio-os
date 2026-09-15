@@ -22,6 +22,11 @@ class AIWorkStatus(StrEnum):
 
 
 class AIWorkLog(ContractModel):
+    """A work entry. `agent_profile`, `harness`, `provider` and `model` are
+    optional additive observability metadata — open strings snapshotting the
+    runtime that produced the work, never whitelisted, never an
+    authorization or capability input."""
+
     id: UUID
     task_id: UUID | None = None
     project_id: UUID
@@ -33,6 +38,10 @@ class AIWorkLog(ContractModel):
     tests_run: list[str] = []
     started_at: datetime
     ended_at: datetime | None = None
+    agent_profile: str | None = None
+    harness: str | None = None
+    provider: str | None = None
+    model: str | None = None
 
 
 class AIWorkLogCreate(IdempotentCreate):
@@ -41,6 +50,10 @@ class AIWorkLogCreate(IdempotentCreate):
     agent_id: UUID
     machine_id: UUID | None = None
     summary: str
+    agent_profile: str | None = None
+    harness: str | None = None
+    provider: str | None = None
+    model: str | None = None
 
 
 class AIWorkLogUpdate(ContractModel):

@@ -323,7 +323,7 @@ export interface paths {
         put?: never;
         /**
          * Register Agent
-         * @description Register an agent identity for the caller's own authenticated machine. `machine_id` is always derived from the credential — never send it. `display_name` is required, `agent_kind` is free-form metadata. Registration confers no permission and is required for nothing except attributing AI work logs; authentication and authorization work without it. Accepts `Idempotency-Key` for safe retries.
+         * @description Register an agent identity for the caller's own authenticated machine. `machine_id` is always derived from the credential — never send it. `display_name` is required; `agent_kind`, `agent_profile`, `harness`, `provider` and `model` are optional free-form metadata (open strings, default null, every value accepted). Registration confers no permission and is required for nothing except attributing AI work logs; authentication and authorization work without it. Accepts `Idempotency-Key` for safe retries.
          */
         post: operations["register_agent_api_v1_agents_post"];
         delete?: never;
@@ -347,7 +347,7 @@ export interface paths {
         put?: never;
         /**
          * Create Ai Work
-         * @description Log a unit of AI work. Requires a writer role. `agent_id` must reference an agent attached to the caller's own authenticated machine (register one with `POST /agents` first) — a foreign or unknown agent fails with `409 actor_not_owned`, never a silent cross-machine attribution. Accepts `Idempotency-Key` for safe retries.
+         * @description Log a unit of AI work. Requires a writer role. `agent_id` must reference an agent attached to the caller's own authenticated machine (register one with `POST /agents` first) — a foreign or unknown agent fails with `409 actor_not_owned`, never a silent cross-machine attribution. `agent_profile`, `harness`, `provider` and `model` are optional open-string observability metadata: any value is accepted, none is required, none affects authorization. Accepts `Idempotency-Key` for safe retries.
          */
         post: operations["create_ai_work_api_v1_ai_work_post"];
         delete?: never;
@@ -374,6 +374,46 @@ export interface paths {
          * @description Update your own work entry (status, changed files, tests run). Only the owning machine's entries may be updated. Resolving a review (`approved` or changes requested) additionally requires a privileged role and the `review_requested` state — anything else fails with `409 invalid_status_transition`.
          */
         patch: operations["update_ai_work_api_v1_ai_work__work_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/review-queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Review Queue
+         * @description Aggregated view of everything waiting on a human decision: AI work in `review_requested` (resolve via `PATCH /ai-work/{id}`), decisions still `proposed` (informational — no transition endpoint exists for decisions), and recent `resource.conflict` events within `conflict_window_hours` (best-effort and time-windowed: no persisted conflict state exists, an old unaddressed conflict silently ages out of the window). Also serves as the notifications surface — there is no separate notifications endpoint. Any authenticated machine may read.
+         */
+        get: operations["get_review_queue_api_v1_review_queue_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/timeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Timeline
+         * @description Day-grouped project activity (newest day first), unfiltered — the full history, not an actionable signal (see GET /review-queue for that). Inherits GET /events's 'not claimed exhaustive' honesty: several event types have no server-side emission yet. Any authenticated machine may read.
+         */
+        get: operations["get_timeline_api_v1_timeline_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/heartbeats": {
@@ -652,7 +692,13 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** AIWorkLog */
+        /**
+         * AIWorkLog
+         * @description A work entry. `agent_profile`, `harness`, `provider` and `model` are
+         *     optional additive observability metadata — open strings snapshotting the
+         *     runtime that produced the work, never whitelisted, never an
+         *     authorization or capability input.
+         */
         AIWorkLog: {
             /**
              * Id
@@ -694,6 +740,14 @@ export interface components {
             started_at: string;
             /** Ended At */
             ended_at?: string | null;
+            /** Agent Profile */
+            agent_profile?: string | null;
+            /** Harness */
+            harness?: string | null;
+            /** Provider */
+            provider?: string | null;
+            /** Model */
+            model?: string | null;
         };
         /** AIWorkLogCreate */
         AIWorkLogCreate: {
@@ -713,6 +767,14 @@ export interface components {
             machine_id?: string | null;
             /** Summary */
             summary: string;
+            /** Agent Profile */
+            agent_profile?: string | null;
+            /** Harness */
+            harness?: string | null;
+            /** Provider */
+            provider?: string | null;
+            /** Model */
+            model?: string | null;
         };
         /** AIWorkLogUpdate */
         AIWorkLogUpdate: {
@@ -737,7 +799,10 @@ export interface components {
          * Agent
          * @description Provenance identity attached to one machine: who did the work, for
          *     audit and attribution. Never an authorization input — permissions come
-         *     from the machine owner's role alone.
+         *     from the machine owner's role alone. `agent_profile`, `harness`,
+         *     `provider` and `model` are optional additive observability metadata:
+         *     open strings, never whitelisted, never a capability or compatibility
+         *     condition, never read to make a decision.
          */
         Agent: {
             /**
@@ -763,6 +828,14 @@ export interface components {
             display_name: string;
             /** Agent Kind */
             agent_kind: string;
+            /** Agent Profile */
+            agent_profile?: string | null;
+            /** Harness */
+            harness?: string | null;
+            /** Provider */
+            provider?: string | null;
+            /** Model */
+            model?: string | null;
         };
         /**
          * AgentCreate
@@ -770,7 +843,10 @@ export interface components {
          *     derived from the authenticated machine, never client-supplied.
          *     `display_name` and `agent_kind` are free-form metadata — never
          *     authorization inputs, never the canonical identity (the
-         *     server-generated `Agent.id` is).
+         *     server-generated `Agent.id` is). `agent_profile`, `harness`, `provider`
+         *     and `model` are optional open-string observability metadata: any value
+         *     is accepted, unknown values are never rejected, and none of them is ever
+         *     required.
          */
         AgentCreate: {
             /** Display Name */
@@ -780,6 +856,14 @@ export interface components {
              * @default
              */
             agent_kind: string;
+            /** Agent Profile */
+            agent_profile?: string | null;
+            /** Harness */
+            harness?: string | null;
+            /** Provider */
+            provider?: string | null;
+            /** Model */
+            model?: string | null;
         };
         /**
          * ClaimStatus
@@ -1228,6 +1312,113 @@ export interface components {
          */
         ResourceType: "file" | "folder";
         /**
+         * ReviewQueue
+         * @description Items sorted by `requested_at` descending (newest first).
+         */
+        ReviewQueue: {
+            /** Items */
+            items: (components["schemas"]["ReviewQueueAIWorkItem"] | components["schemas"]["ReviewQueueDecisionItem"] | components["schemas"]["ReviewQueueConflictItem"])[];
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+        };
+        /** ReviewQueueAIWorkItem */
+        ReviewQueueAIWorkItem: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "ai_work_review";
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Task Id */
+            task_id?: string | null;
+            /** Title */
+            title: string;
+            /**
+             * Agent Id
+             * Format: uuid
+             */
+            agent_id: string;
+            /**
+             * Requested At
+             * Format: date-time
+             */
+            requested_at: string;
+        };
+        /**
+         * ReviewQueueConflictItem
+         * @description `id` is the `resource.conflict` event's `event_id` — not a persisted
+         *     conflict row (none exists): a best-effort, time-windowed
+         *     signal, not a resolvable state.
+         */
+        ReviewQueueConflictItem: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "resource_conflict";
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Task Id */
+            task_id?: string | null;
+            /** Title */
+            title: string;
+            /** Resource Path */
+            resource_path: string;
+            /**
+             * Requested At
+             * Format: date-time
+             */
+            requested_at: string;
+        };
+        /** ReviewQueueDecisionItem */
+        ReviewQueueDecisionItem: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "decision_proposal";
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Project Id */
+            project_id?: string | null;
+            /** Task Id */
+            task_id?: string | null;
+            /** Readable Id */
+            readable_id: string;
+            /** Title */
+            title: string;
+            /** Proposed By Type */
+            proposed_by_type: string;
+            /**
+             * Requested At
+             * Format: date-time
+             */
+            requested_at: string;
+        };
+        /**
          * Role
          * @description Account roles, weakest to strongest: `readonly` (reads plus heartbeat
          *     only, no business writes); `agent` (writes, but never project, machine
@@ -1301,6 +1492,32 @@ export interface components {
             /** Description */
             description?: string | null;
             status?: components["schemas"]["TaskStatus"] | null;
+        };
+        /**
+         * Timeline
+         * @description Day-grouped project activity (newest day first, events ascending
+         *     within a day) — unfiltered, unlike the Review Queue: this is
+         *     history, not an actionable signal. Inherits `GET /events`'s "not claimed
+         *     exhaustive" honesty since it reads the same underlying data.
+         */
+        Timeline: {
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Days */
+            days: components["schemas"]["TimelineDay"][];
+        };
+        /** TimelineDay */
+        TimelineDay: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Events */
+            events: components["schemas"]["EventEnvelope"][];
         };
         /**
          * Transfer
@@ -3285,6 +3502,99 @@ export interface operations {
                      *       "detail": {
                      *         "error_code": "invalid_status_transition"
                      *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_review_queue_api_v1_review_queue_get: {
+        parameters: {
+            query?: {
+                project_id?: string | null;
+                conflict_window_hours?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewQueue"];
+                };
+            };
+            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_timeline_api_v1_timeline_get: {
+        parameters: {
+            query: {
+                project_id: string;
+                since?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Timeline"];
+                };
+            };
+            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
                      *     }
                      */
                     "application/json": unknown;

@@ -18,6 +18,18 @@ valide -> `500` par violation FK). Cette decision tranche CC-1 en appliquant
 le principe 1 du contrat : l'enregistrement est public, model-agnostic, non
 whiteliste, et strictement sans autorite.
 
+## Amendement — UC-5 (2026-09-15)
+
+DEC-0053 operationalise les champs structures de DEC-0043 amendee et amende
+explicitement le point 1 ci-dessous : `Agent`/`AgentCreate` portent desormais
+`agent_profile`, `harness`, `provider`, `model`, chaines ouvertes optionnelles.
+L'affirmation « Aucun champ harness/provider/model/profil » du point 1 et la
+consequence « Aucune migration DB (table `agents` inchangee) » sont donc
+remplacees : la table `agents` gagne quatre colonnes nullables (migration
+reversible `0006_agent_runtime_metadata`). Le principe de DEC-0045 reste
+inchange — enregistrement public, sans autorite, `agent_kind` conserve ; aucun
+de ces champs n'entre dans une decision d'autorisation ou de capacite.
+
 ### Decision
 
 1. Nouvel endpoint additif `POST /api/v1/agents` (contrat

@@ -91,6 +91,10 @@ async def create_ai_work(
         machine_id=work_in.machine_id,
         summary=work_in.summary,
         started_at=datetime.now(UTC),
+        agent_profile=work_in.agent_profile,
+        harness=work_in.harness,
+        provider=work_in.provider,
+        model=work_in.model,
     )
     session.add(work)
     await session.commit()

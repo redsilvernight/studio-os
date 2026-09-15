@@ -68,12 +68,12 @@ sont illustratifs et non normatifs.
   parite de surface n'est pas requise, voir DEC-0046.
 - SHOULD : le client HTTP derive les routes du schema OpenAPI ; le client
   MCP utilise `tools/list` du protocole MCP.
-- Etat actuel : PARTIAL. Inventaire documente ; 3 outils
-  memoire/graphe locaux specifies (UC-3/DEC-0047, `TECH/07` —
-  `studio_memory_search`, `studio_memory_read`, `studio_graph_query`,
-  exposition via MCP local par poste, en cours d'implementation) et
-  `studio_generate_context_package` DEFERRED avec condition explicite
-  (DEC-0047, roadmap 8.3b). Cible UC-3. Voir §11 pour la detection d'absence.
+- Etat actuel : PASS pour le socle HTTP/MCP ; 3 outils memoire/graphe locaux
+  implementes (UC-3 CLOS/DEC-0047, `TECH/07` — `studio_memory_search`,
+  `studio_memory_read`, `studio_graph_query`, exposition via MCP local par
+  poste, stdio, read-only) et `studio_generate_context_package` DEFERRED avec
+  condition explicite (DEC-0047, roadmap 8.3b). Voir §11 pour la detection
+  d'absence.
 
 ## 3. Authentification
 
@@ -194,7 +194,7 @@ sont illustratifs et non normatifs.
   (`refresh_graph|query|relevant_files|dependencies|related_symbols`).
 - MAY : utiliser la memoire/knowledge. MUST : fonctionner sans — le
   produit n'en fait jamais un prerequis (principe 1, regle transversale).
-- Etat actuel : SPECIFIED (implementation en cours, UC-3/DEC-0047).
+- Etat actuel : IMPLEMENTE en local (UC-3 CLOS/DEC-0047).
   Capacite MAY : lorsqu'elle est configuree localement, elle est
   decouvrable via le MCP local du poste (`tools/list` du processus
   local) ; son absence reste un chemin nominal — le MCP local n'est
@@ -292,9 +292,11 @@ Developpeurs n'ayant jamais entendu parler de Claude Code, Qwen, Codex,
 OpenCode ni des conventions internes. Seules la documentation et les
 interfaces publiques sont disponibles.
 
-1. Decouvrir Studi'OS : PARTIAL — `GET /healthz` + OpenAPI existent en
-   code (`routers/health.py`, `main.py`) mais aucune page d'accueil
-   externe unique ; `00_README.md` suppose le contexte Claude. (UC-6)
+1. Decouvrir Studi'OS : PASS — `GET /healthz` + OpenAPI existent en code
+   (`routers/health.py`, `main.py`) et une page d'accueil externe unique a ete
+   ajoutee (`INTEGRATION/00_EXTERNAL_CONSUMER_GUIDE.md`, UC-6 CLOS/DEC-0054) ;
+   les parcours rediges pour un outillage particulier ont ete genericises
+   (UC-4 CLOS/DEC-0052).
 2. Comprendre ses capacites : PARTIAL — `TECH/02-09` + liste MCP
    exhaustives, mais 4 outils memoire/graphe manquants et pas d'index
    externe unique. (UC-3)
@@ -314,21 +316,23 @@ interfaces publiques sont disponibles.
    Python `packages/studio-client`). (`TECH/08/04`)
 8. Transferer un fichier : PASS — cycle complet `TECH/06` + quotas
    actionnables, zero octet via API/MCP. (`TECH/02/06`, DEC-0025/0037)
-9. Interroger la memoire/knowledge si disponible : SPECIFIED
-   (contrats UC-3/DEC-0047, implementation locale en cours) —
-   `TECH/09` + `TECH/07` (3 outils MCP locaux) + adaptateurs locaux
-   read-only ; fonctionnement sans memoire toujours nominal.
-   (UC-3)
+9. Interroger la memoire/knowledge si disponible : PASS en local
+   (UC-3 CLOS/DEC-0047) — `TECH/09` + `TECH/07` (3 outils MCP locaux) +
+   adaptateurs locaux read-only ; fonctionnement sans memoire toujours
+   nominal.
 
 ## Contract-changes futures identifiees (non implementees)
 
 - CC-1 : IMPLEMENTE (DEC-0045, UC-1) — `POST /agents` strictement
   additif ; le chemin sans agent reste premier-classe pour tout le reste.
-- CC-2 (UC-2/UC-3) : decouverte version/capacites — standards d'abord
-  (OpenAPI + `tools/list` designes officiellement), manifeste minimal
+- CC-2 : RESOLU (UC-2/UC-3, DEC-0046) — decouverte par standards d'abord
+  (OpenAPI + `tools/list` designes officiellement) ; manifeste minimal
   seulement si lacune reelle ; jamais de registre de produits.
 - CC-3 : RESOLU (DEC-0048) — pas de version par payload MCP ; evolution
   par discovery + schemas + additive/breaking (`TECH/07` §Evolution).
 - CC-4 (optionnelle) : generaliser `error_code` a toutes les erreurs.
-- Deja planifiee : implementation serveur des 4 outils memoire/graphe
-  (UC-3, suite DEC-0042).
+- UC-5 (DEC-0053) : champs optionnels `agent_profile`/`harness`/`provider`/
+  `model` sur `Agent`/`AIWorkLog` — additif, observabilite uniquement,
+  jamais lus par l'autorisation.
+- Memoire/graphe local : 3 outils MCP read-only implementes (UC-3 CLOS,
+  DEC-0047) ; `studio_generate_context_package` DEFERRED (8.3b, DEC-0047).

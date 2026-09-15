@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from studio_contracts.events import EventCreate, EventEnvelope
+from studio_contracts.events import EventCreate, EventEnvelope, EventType
 
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.event import EventModel
@@ -146,6 +146,7 @@ async def list_events(
     task_id: str | None = None,
     since: datetime | None = None,
     limit: int = 100,
+    event_type: EventType | None = None,
 ) -> list[EventModel]:
     stmt = select(EventModel).order_by(EventModel.server_timestamp.desc()).limit(limit)
     if project_id is not None:
@@ -154,5 +155,7 @@ async def list_events(
         stmt = stmt.where(EventModel.task_id == task_id)
     if since is not None:
         stmt = stmt.where(EventModel.server_timestamp >= since)
+    if event_type is not None:
+        stmt = stmt.where(EventModel.event_type == event_type.value)
     result = await session.execute(stmt)
     return list(result.scalars().all())

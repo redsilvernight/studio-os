@@ -12,8 +12,10 @@ from studio_api.routers import (
     heartbeats,
     machines,
     projects,
+    review_queue,
     sessions,
     tasks,
+    timeline,
     transfers,
     users,
 )
@@ -55,6 +57,16 @@ OPENAPI_TAG_DESCRIPTIONS: dict[str, str] = {
         "AI work ledger. Entries reference an agent attached to the "
         "caller's own machine; foreign or unknown agents are rejected. "
         "Review transitions to approved/rejected require a privileged role."
+    ),
+    "review-queue": (
+        "Aggregated view of AI work reviews, proposed decisions, and recent "
+        "resource conflicts awaiting a human decision. Read-only; also "
+        "serves as the notifications surface."
+    ),
+    "timeline": (
+        "Day-grouped project activity derived from the event stream. "
+        "Read-only, unfiltered history — see review-queue for what needs "
+        "action."
     ),
     "heartbeats": (
         "Machine presence. Any authenticated machine — including read-only "
@@ -99,6 +111,8 @@ def create_app() -> FastAPI:
     app.include_router(decisions.router)
     app.include_router(agents.router)
     app.include_router(ai_work.router)
+    app.include_router(review_queue.router)
+    app.include_router(timeline.router)
     app.include_router(heartbeats.router)
     app.include_router(events.router)
     app.include_router(transfers.router)

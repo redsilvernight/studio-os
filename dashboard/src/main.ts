@@ -8,7 +8,7 @@
  */
 import { apiBaseUrl, createApiClient } from "./api";
 import { resolveApiUrl } from "./config";
-import { clearToken, hasToken, setToken } from "./auth";
+import { clearToken, getToken, hasToken, setToken } from "./auth";
 import { subscribe, uiState } from "./store";
 import { renderOverview } from "./views/overview";
 import { renderProjects } from "./views/projects";
@@ -17,7 +17,11 @@ import { renderTaskDetail } from "./views/taskDetail";
 import { renderTasksInto } from "./views/tasks";
 import { parseRoute, type Route } from "./router";
 import { esc } from "./ui";
+import { startRealtimeConnection, type RealtimeConnection } from "./realtime";
+import type { components } from "./openapi-schema";
 import "./styles.css";
+
+type EventEnvelope = components["schemas"]["EventEnvelope"];
 
 const DISABLED_SECTIONS = ["Activity", "Agents", "Worklogs", "Decisions", "Transfers"] as const;
 
@@ -51,6 +55,7 @@ function shellHtml(apiUrl: string, route: Route): string {
     <span id="token-state" class="meta"></span>
     <span class="meta warn" title="The token stays in page memory. It is never stored, never logged, never rendered back. Clearing drops it from this session.">memory-only · never stored</span>
   </div>
+  <div id="conflict-banner" class="conflict-banner" hidden></div>
   <main id="view"></main>`;
 }
 
@@ -100,6 +105,53 @@ function apiUrlShown(): string {
   return baseUrl === "" ? "same-origin" : baseUrl;
 }
 
+let conflictBannerTimer: ReturnType<typeof setTimeout> | null = null;
+
+function showConflictBanner(event: EventEnvelope): void {
+  const banner = document.getElementById("conflict-banner");
+  if (banner === null) return;
+  const resourcePath = typeof event.payload?.["resource_path"] === "string" ? event.payload["resource_path"] : "unknown resource";
+  banner.textContent = `Resource conflict: ${resourcePath}`;
+  banner.hidden = false;
+  if (conflictBannerTimer !== null) clearTimeout(conflictBannerTimer);
+  conflictBannerTimer = setTimeout(() => {
+    banner.hidden = true;
+    conflictBannerTimer = null;
+  }, 8000);
+}
+
+let realtimeConnection: RealtimeConnection | null = null;
+let realtimeKey: string | null = null;
+
+/** One live connection per tab, opened/closed as the selected project or
+ * token changes — never per-view (the backend has exactly one stream per
+ * project, `project` required, DEC-0018). Every live message triggers the
+ * same `render()` a manual navigation would (debounced in realtime.ts). */
+function syncRealtimeConnection(): void {
+  const token = getToken();
+  const projectId = uiState.selectedProjectId;
+  const key = token !== null && projectId !== null ? `${projectId}::${token}` : null;
+  if (key === realtimeKey) return;
+  realtimeConnection?.close();
+  realtimeConnection = null;
+  realtimeKey = key;
+  if (token === null || projectId === null) return;
+  const baseUrl = resolveApiUrl(apiBaseUrl());
+  realtimeConnection = startRealtimeConnection(
+    baseUrl,
+    token,
+    projectId,
+    {
+      onRefetch: () => {
+        void render();
+      },
+      onConflict: (event) => {
+        showConflictBanner(event);
+      },
+    },
+  );
+}
+
 export function boot(): void {
   const app = document.getElementById("app");
   if (app === null) throw new Error("#app missing");
@@ -110,6 +162,7 @@ export function boot(): void {
     setToken(input.value);
     input.value = "";
     refreshTokenState();
+    syncRealtimeConnection();
     void render();
   });
   input.addEventListener("keydown", (event) => {
@@ -117,16 +170,19 @@ export function boot(): void {
       setToken(input.value);
       input.value = "";
       refreshTokenState();
+      syncRealtimeConnection();
       void render();
     }
   });
   document.getElementById("token-clear")?.addEventListener("click", () => {
     clearToken();
     refreshTokenState();
+    syncRealtimeConnection();
     void render();
   });
   refreshTokenState();
   subscribe(() => {
+    syncRealtimeConnection();
     void render();
   });
   window.addEventListener("hashchange", () => {

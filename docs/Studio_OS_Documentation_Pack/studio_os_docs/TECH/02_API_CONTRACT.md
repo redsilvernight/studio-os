@@ -60,7 +60,10 @@ public de bootstrap, pas de secret d'environnement dedie.
 - POST /agents (CC-1, additif) — enregistrement public d'une identite
   Agent de provenance operationnelle pour la machine authentifiee.
   Body `AgentCreate` : `display_name` requis, `agent_kind` optionnel
-  (chaine libre, defaut `""`). `machine_id` toujours derive de la machine
+  (chaine libre, defaut `""`), plus `agent_profile`, `harness`, `provider`,
+  `model` optionnels (UC-5, additif : chaines ouvertes d'observabilite,
+  defaut `null`, aucune valeur rejetee, jamais lues par l'autorisation).
+  `machine_id` toujours derive de la machine
   authentifiee (regle DEC-0035), jamais fourni par le client (champ
   supplementaire -> `422`). Reponse `201` = `Agent` (`id` genere serveur,
   seule identite canonique). `Idempotency-Key` supporte (meme cle + meme
@@ -69,7 +72,10 @@ public de bootstrap, pas de secret d'environnement dedie.
   avant le court-circuit d'idempotence (DEC-0036) — `readonly` -> `403
   forbidden`, sans RBAC specifique aux Agents. Ne confere aucun droit
   supplementaire : `auth_role` + ownership restent la seule autorite.
-- POST /ai-work
+- POST /ai-work — `AIWorkLogCreate` accepte, en plus de `summary`, les
+  champs optionnels `agent_profile`, `harness`, `provider`, `model` (UC-5,
+  additif, memes regles que sur `Agent` : chaines ouvertes d'observabilite,
+  defaut `null`, jamais des entrees d'autorisation).
 - PATCH /ai-work/{id}
 - GET /ai-work
 
@@ -80,6 +86,34 @@ authentifiee, sinon `409 {"detail": {"error_code": "actor_not_owned"}}`
 paritaire HTTP/MCP). Avant : ligne inexistante -> `500` (violation FK),
 ligne d'une autre machine -> `201` silencieux. Les appelants existants
 n'utilisant que leurs propres agents n'observent aucun changement.
+
+### Review Queue (sous-etape 8.4, additif, DEC-0049)
+- GET /review-queue — vue agregee, lecture seule, de tout ce qui attend une
+  action humaine : `AIWorkLog` en `review_requested` (resoudre via
+  `PATCH /ai-work/{id}`), `Decision` en `proposed` (informatif — aucun
+  endpoint de transition n'existe pour les decisions), et evenements
+  `resource.conflict` recents (best-effort, borne dans le temps : aucun
+  etat de conflit persiste n'existe). Query params : `project_id` (UUID,
+  optionnel), `conflict_window_hours` (defaut 24, max 168). Reponse
+  `ReviewQueue{items: [...], generated_at}`, chaque item discrimine par
+  `kind` (`ai_work_review`/`decision_proposal`/`resource_conflict`), triee
+  par `requested_at` decroissant. Sert aussi de surface "notifications"
+  (DEC-0051, sous-etape 8.5) — il n'existe pas d'endpoint notifications
+  separe. Toute machine authentifiee peut lire.
+
+### Timeline (sous-etape 8.5, additif, DEC-0051)
+- GET /timeline — activite d'un projet groupee par jour calendaire UTC
+  (jour le plus recent d'abord, evenements croissants dans le jour),
+  **non filtree** : c'est l'historique, pas un signal actionnable (voir
+  `GET /review-queue` pour ça — les "notifications" au sens de
+  `HUMAN/02_FONCTIONNALITES_FINALES.md` sont `GET /review-queue`, il
+  n'existe pas d'endpoint notifications separe). Query params : `project_id`
+  (UUID, requis), `since` (ISO-8601, optionnel), `limit` (defaut 200, max
+  500). Reponse `Timeline{project_id, days: [{date, events: [EventEnvelope]}]}`.
+  Herite directement l'honnetete "not claimed exhaustive" de `GET /events`
+  (meme requete sous-jacente) : plusieurs types d'evenements n'ont aucune
+  emission serveur a ce jour (question ouverte n°9,
+  `docs/ROADMAP_STEP8_BREAKDOWN.md`). Toute machine authentifiee peut lire.
 
 ### Heartbeats
 - POST /heartbeats

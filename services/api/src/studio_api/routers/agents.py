@@ -37,11 +37,13 @@ async def list_agents(session: DbSession, machine: CurrentMachine) -> list[Agent
     description=(
         "Register an agent identity for the caller's own authenticated "
         "machine. `machine_id` is always derived from the credential — "
-        "never send it. `display_name` is required, `agent_kind` is "
-        "free-form metadata. Registration confers no permission and is "
-        "required for nothing except attributing AI work logs; "
-        "authentication and authorization work without it. Accepts "
-        "`Idempotency-Key` for safe retries."
+        "never send it. `display_name` is required; `agent_kind`, "
+        "`agent_profile`, `harness`, `provider` and `model` are optional "
+        "free-form metadata (open strings, default null, every value "
+        "accepted). Registration confers no permission and is required for "
+        "nothing except attributing AI work logs; authentication and "
+        "authorization work without it. Accepts `Idempotency-Key` for safe "
+        "retries."
     ),
     responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_409_IDEMPOTENCY},
 )

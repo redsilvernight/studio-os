@@ -6,13 +6,16 @@ from typing import Any, cast
 from uuid import UUID
 
 import httpx
+from studio_contracts.ai_work import AIWorkLog
 from studio_contracts.auth import HeartbeatRequest, HeartbeatResponse
 from studio_contracts.claims import ResourceClaim, ResourceClaimCreate
 from studio_contracts.events import EventCreate, EventEnvelope
 from studio_contracts.project_state import ProjectState
 from studio_contracts.projects import Project
+from studio_contracts.review_queue import ReviewQueue
 from studio_contracts.sessions import WorkSession, WorkSessionCreate
 from studio_contracts.tasks import Task, TaskCreate, TaskUpdate
+from studio_contracts.timeline import Timeline
 from studio_contracts.transfers import (
     DownloadUrlResponse,
     Transfer,
@@ -253,6 +256,43 @@ class StudioApiClient:
         """`DELETE /claims/{id}` returns 204 with no body — never retried
         automatically, same rationale as `update_task`/`claim_task`."""
         await self._request("DELETE", f"/api/v1/claims/{claim_id}")
+
+    async def list_ai_work(
+        self, *, project_id: UUID | None = None, task_id: UUID | None = None
+    ) -> list[AIWorkLog]:
+        params: dict[str, Any] = {}
+        if project_id is not None:
+            params["project_id"] = str(project_id)
+        if task_id is not None:
+            params["task_id"] = str(task_id)
+        response = await self._request("GET", "/api/v1/ai-work", params=params)
+        return [AIWorkLog.model_validate(item) for item in response.json()]
+
+    async def get_review_queue(
+        self, *, project_id: UUID | None = None, conflict_window_hours: int | None = None
+    ) -> ReviewQueue:
+        params: dict[str, Any] = {}
+        if project_id is not None:
+            params["project_id"] = str(project_id)
+        if conflict_window_hours is not None:
+            params["conflict_window_hours"] = conflict_window_hours
+        response = await self._request("GET", "/api/v1/review-queue", params=params)
+        return ReviewQueue.model_validate(response.json())
+
+    async def get_timeline(
+        self,
+        project_id: UUID,
+        *,
+        since: datetime | None = None,
+        limit: int | None = None,
+    ) -> Timeline:
+        params: dict[str, Any] = {"project_id": str(project_id)}
+        if since is not None:
+            params["since"] = since.isoformat()
+        if limit is not None:
+            params["limit"] = limit
+        response = await self._request("GET", "/api/v1/timeline", params=params)
+        return Timeline.model_validate(response.json())
 
     async def create_transfer(
         self, transfer_in: TransferCreate, *, idempotency_key: str

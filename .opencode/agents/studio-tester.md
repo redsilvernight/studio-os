@@ -1,7 +1,7 @@
 ---
 description: Validate a completed Studio OS change proportionally to risk — contract compliance, backend/client tests, offline-queue and resumable-transfer behavior. Use after implementing a feature, before reporting the task as done.
 mode: subagent
-model: opencode-go/kimi-k2.7-code
+model: opencode-go/deepseek-v4.1-flash
 permission:
   edit: deny
 ---

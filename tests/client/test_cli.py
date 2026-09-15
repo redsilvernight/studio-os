@@ -184,12 +184,194 @@ def test_claims_release_json_output_does_not_call_str_on_json_flag(
     assert out == {"released": str(claim_id)}
 
 
+def _ai_work_body(work_id: uuid.UUID, project_id: uuid.UUID, agent_id: uuid.UUID) -> dict[str, Any]:
+    return {
+        "id": str(work_id),
+        "task_id": None,
+        "project_id": str(project_id),
+        "agent_id": str(agent_id),
+        "machine_id": None,
+        "summary": "Investigate claim TTL bug",
+        "status": "review_requested",
+        "changed_files": [],
+        "tests_run": [],
+        "started_at": "2026-09-13T00:00:00Z",
+        "ended_at": None,
+        "agent_profile": None,
+        "harness": None,
+        "provider": None,
+        "model": None,
+    }
+
+
+def test_ai_work_list_json_output(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project_id, work_id, agent_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/ai-work"
+        return httpx.Response(200, json=[_ai_work_body(work_id, project_id, agent_id)])
+
+    _force_transport(monkeypatch, httpx.MockTransport(handler))
+
+    cli.main(["ai-work", "list", "--project-id", str(project_id), "--json"])
+
+    out = json.loads(capsys.readouterr().out)
+    assert out == [_ai_work_body(work_id, project_id, agent_id)]
+
+
+def test_ai_work_show_finds_matching_entry(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project_id, work_id, other_id, agent_id = (
+        uuid.uuid4(),
+        uuid.uuid4(),
+        uuid.uuid4(),
+        uuid.uuid4(),
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=[
+                _ai_work_body(other_id, project_id, agent_id),
+                _ai_work_body(work_id, project_id, agent_id),
+            ],
+        )
+
+    _force_transport(monkeypatch, httpx.MockTransport(handler))
+
+    cli.main(["ai-work", "show", str(work_id), "--json"])
+
+    out = json.loads(capsys.readouterr().out)
+    assert out["id"] == str(work_id)
+
+
+def test_ai_work_show_not_found_exits_with_short_message(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=[])
+
+    _force_transport(monkeypatch, httpx.MockTransport(handler))
+
+    missing_id = uuid.uuid4()
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(["ai-work", "show", str(missing_id), "--json"])
+
+    assert excinfo.value.code == 1
+    err = capsys.readouterr().err
+    assert str(missing_id) in err
+    assert "not found" in err
+
+
+def _review_queue_body(
+    work_id: uuid.UUID, project_id: uuid.UUID, agent_id: uuid.UUID
+) -> dict[str, Any]:
+    return {
+        "items": [
+            {
+                "kind": "ai_work_review",
+                "id": str(work_id),
+                "project_id": str(project_id),
+                "task_id": None,
+                "title": "Needs review",
+                "agent_id": str(agent_id),
+                "requested_at": "2026-09-13T00:00:00Z",
+            }
+        ],
+        "generated_at": "2026-09-13T00:05:00Z",
+    }
+
+
+def test_review_queue_list_json_output(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project_id, work_id, agent_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/review-queue"
+        return httpx.Response(200, json=_review_queue_body(work_id, project_id, agent_id))
+
+    _force_transport(monkeypatch, httpx.MockTransport(handler))
+
+    cli.main(["review-queue", "list", "--project-id", str(project_id), "--json"])
+
+    out = json.loads(capsys.readouterr().out)
+    assert out == _review_queue_body(work_id, project_id, agent_id)["items"]
+
+
+def test_notifications_list_is_a_true_alias_of_review_queue_list(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """DEC-0051: notifications = review-queue, not a second implementation —
+    same client call, byte-identical output shape."""
+    project_id, work_id, agent_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/review-queue"
+        return httpx.Response(200, json=_review_queue_body(work_id, project_id, agent_id))
+
+    _force_transport(monkeypatch, httpx.MockTransport(handler))
+    cli.main(["review-queue", "list", "--project-id", str(project_id), "--json"])
+    review_queue_out = capsys.readouterr().out
+
+    _force_transport(monkeypatch, httpx.MockTransport(handler))
+    cli.main(["notifications", "list", "--project-id", str(project_id), "--json"])
+    notifications_out = capsys.readouterr().out
+
+    assert notifications_out == review_queue_out
+
+
+def test_timeline_list_json_output(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project_id = uuid.uuid4()
+    body = {
+        "project_id": str(project_id),
+        "days": [
+            {
+                "date": "2026-09-13",
+                "events": [
+                    {
+                        "event_id": str(uuid.uuid4()),
+                        "event_type": "task.created",
+                        "project_id": str(project_id),
+                        "task_id": None,
+                        "machine_id": None,
+                        "actor_type": "system",
+                        "actor_id": str(uuid.uuid4()),
+                        "client_timestamp": "2026-09-13T00:00:00Z",
+                        "server_timestamp": "2026-09-13T00:00:00Z",
+                        "payload": {},
+                        "schema_version": 1,
+                    }
+                ],
+            }
+        ],
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/timeline"
+        return httpx.Response(200, json=body)
+
+    _force_transport(monkeypatch, httpx.MockTransport(handler))
+
+    cli.main(["timeline", "list", "--project-id", str(project_id), "--json"])
+
+    out = json.loads(capsys.readouterr().out)
+    assert out == body
+
+
 @pytest.mark.parametrize(
     ("argv", "expected_field"),
     [
         (["tasks", "show", "not-a-uuid"], "task_id"),
         (["tasks", "create", "--project-id", "not-a-uuid", "--title", "x"], "project_id"),
         (["claims", "renew", "not-a-uuid"], "claim_id"),
+        (["ai-work", "show", "not-a-uuid"], "ai_work_id"),
+        (["timeline", "list", "--project-id", "not-a-uuid"], "project_id"),
     ],
 )
 def test_invalid_uuid_exits_with_short_stderr_message_no_traceback(

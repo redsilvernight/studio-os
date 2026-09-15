@@ -9,13 +9,13 @@ source: docs/DECISIONS.md
 sync_hash: sha256:0e5e963376e7b6507217af387e962139128e856b1062d686c02c07bf9761e932
 graphify_entities:
 - kind: class
-  node_id: OutboxReplayer
+  node_id: packages_studio_client_src_studio_client_outbox_replay_outboxreplayer
   path: packages/studio-client/src/studio_client/outbox/replay.py
   project: studio-os
   relation: implements
   symbol: OutboxReplayer
 - kind: class
-  node_id: ReplayOutcome
+  node_id: packages_studio_client_src_studio_client_outbox_replay_replayoutcome
   path: packages/studio-client/src/studio_client/outbox/replay.py
   project: studio-os
   relation: implements

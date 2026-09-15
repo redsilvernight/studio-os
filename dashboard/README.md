@@ -84,7 +84,7 @@ multi-user exposure. No human login/JWT/OAuth exists (out of V0 scope).
 - SSE foundation (`src/sse.ts`): fetch+ReadableStream (native
   EventSource cannot send `Authorization`), `id:/data:` parser,
   in-memory `lastSeq`, `Last-Event-ID`/`since_seq` resume helpers.
-  Live loop, backoff, watchdog, refetch dispatch = DASH-3.
+  Live loop, backoff, watchdog, refetch dispatch = DASH-3 (below).
 
 ## Implemented (DASH-1, read-only)
 
@@ -97,7 +97,7 @@ Overview page, existing endpoints only:
 | Active tasks | `GET /api/v1/tasks?limit&offset`, columns TODO/IN PROGRESS/BLOCKED/DONE (blocked never merged) |
 | Recent activity | `GET /api/v1/events?limit&since` (24h; **not claimed exhaustive** — most types need manual emission) |
 | Agents | `GET /api/v1/agents`; presence is **Derived** from recent events, never canonical |
-| Reviews | `GET /api/v1/ai-work`, client filter `review_requested`, read-only |
+| Reviews ("Needs attention") | `GET /api/v1/review-queue` (DASH-3+: server-aggregated AI work review + proposed decisions + recent conflicts), read-only |
 | Transfers | `GET /api/v1/transfers`, first 10, read-only |
 
 ## Implemented (DASH-2)
@@ -154,10 +154,29 @@ dashboard itself, the view does an explicit REST refetch; changes made
 by other actors are not pushed to an open tab until DASH-3 wires SSE
 into the mutated views.
 
+## Implemented (DASH-3, realtime)
+
+One live connection per tab (`src/realtime.ts` + `src/sse.ts`), owned by
+the app shell (`src/main.ts`), opened/closed as the selected project or
+token changes — never per-view, since the backend has exactly one stream
+per project (`project` required, DEC-0018).
+
+| Feature | Detail |
+|---|---|
+| Reconnect | `openLiveProjectStream` (`src/sse.ts`) wraps the DASH-0 one-shot `connectEventStream` in a persistent loop, resuming with `Last-Event-ID` = last seen `seq`. |
+| Backoff | Exponential (1s base, ×2, capped 30s, ±20% jitter), resets to the base delay after a clean close/message, grows on repeated errors. |
+| Watchdog | Defense-in-depth only (default 75s silence): `stream_events` never emits a periodic keep-alive, so a quiet project is indistinguishable from a stalled connection by silence alone — a short timeout would cause reconnect churn on legitimately idle projects. `onError`/`onClose` cover the common failure modes; the watchdog only guards a connection some proxy/NAT silently dropped. |
+| Refetch dispatch | `src/realtime.ts` JSON-parses each live message into an `EventEnvelope` (malformed frames are dropped, never thrown) and, debounced ~300ms, calls the **same** `render()` a manual navigation would — SSE is never a second source of truth (`store.ts`). |
+| Reviews → Review Queue | Overview's "Needs attention" panel now calls `GET /api/v1/review-queue` (DASH-4/8.4) instead of client-filtering `GET /ai-work`, rendering all three kinds (`ai_work_review`/`decision_proposal`/`resource_conflict`) with a kind badge. |
+| Conflict banner | A live `resource.conflict` event shows a transient banner (resource path, from the event's own payload — no extra REST call) in the app shell, per the promise made in DASH-2. |
+| Live traffic caveat | Views wired to `task.*` (Kanban) will see near-zero live traffic until server-side `task.*` emission exists (question ouverte n°9, `ROADMAP_STEP8_BREAKDOWN.md`) — the wiring is correct and future-proof, just currently quiet. `resource.conflict` is the only claims-related event actually emitted today. |
+
+No new backend/contract changes — DASH-3 is pure client-side plumbing over
+the events stream that already existed (DASH-0) and the review-queue/timeline
+endpoints added by 8.4/8.5.
+
 ## Deliberately absent (later phases)
 
 Machines screen, canonical presence, human login, CORS, multipart
 upload UI, review workflow (approve/reject), decision/transfer
-creation, project/task creation, drag-and-drop, live timeline,
-notifications, realtime refetch from other actors' changes —
-DASH-3 → DASH-5.
+creation, project/task creation, drag-and-drop — DASH-4 → DASH-5.

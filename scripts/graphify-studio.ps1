@@ -8,7 +8,7 @@ $ErrorActionPreference = 'Stop'
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $localOutput = Join-Path $projectRoot 'graphify-out'
-$centralOutput = 'E:\Graphify\Studio-OS\graphify-out'
+$centralOutput = 'E:\Super IA\Graphify\Studio-OS\graphify-out'
 $bundledExecutable = Join-Path $env:APPDATA 'uv\tools\graphifyy\Scripts\graphify.exe'
 
 if (Test-Path -LiteralPath $localOutput) {

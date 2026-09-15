@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-48 decision(s). Detail complet dans chaque ADR lie.
+55 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -70,3 +70,10 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0046 | HTTP canonical complet, MCP subset additif : surface parity non requise, enforcement parity requise | active | [decisions/DEC-0046-http-canonique-mcp-subset.md](decisions/DEC-0046-http-canonique-mcp-subset.md) |
 | DEC-0047 | UC-3 : Memory/Knowledge local-only, exposition read-only via MCP local (stdio), 3 outils | active | [decisions/DEC-0047-uc-3-memoire-locale-mcp-local-read-only.md](decisions/DEC-0047-uc-3-memoire-locale-mcp-local-read-only.md) |
 | DEC-0048 | CC-3 : evolution des contrats MCP par discovery + schemas, sans version par payload | active | [decisions/DEC-0048-evolution-contrats-mcp-sans-version-payload.md](decisions/DEC-0048-evolution-contrats-mcp-sans-version-payload.md) |
+| DEC-0049 | Sous-etape 8.4 (roadmap) : Review Queue agregee, aucune nouvelle table, revue limitee au travail IA | active | [decisions/DEC-0049-review-queue-agregation-sans-nouvelle-table.md](decisions/DEC-0049-review-queue-agregation-sans-nouvelle-table.md) |
+| DEC-0050 | Question ouverte n°3 (etape 8) : auth dashboard V0 ratifiee, token machine reutilise, aucune nouvelle mecanique | active | [decisions/DEC-0050-auth-dashboard-ratification-token-machine-v0.md](decisions/DEC-0050-auth-dashboard-ratification-token-machine-v0.md) |
+| DEC-0051 | Question ouverte n°4 (etape 8) : notifications derivees de la Review Queue, timeline sur les events, aucune entite Notification persistee | active | [decisions/DEC-0051-notifications-derivees-review-queue-timeline.md](decisions/DEC-0051-notifications-derivees-review-queue-timeline.md) |
+| DEC-0052 | UC-4 : documentation model-agnostic du consommateur (roles fonctionnels, zero couplage modele) | active | [decisions/DEC-0052-uc-4-documentation-model-agnostic.md](decisions/DEC-0052-uc-4-documentation-model-agnostic.md) |
+| DEC-0053 | UC-5 : metadonnees runtime additives agent_profile/harness/provider/model sur Agent et AIWorkLog | active | [decisions/DEC-0053-uc-5-metadonnees-runtime-additives-agent-aiworklog.md](decisions/DEC-0053-uc-5-metadonnees-runtime-additives-agent-aiworklog.md) |
+| DEC-0054 | UC-6 : guide dintegration dun consommateur externe, sans connaissance interne | active | [decisions/DEC-0054-uc-6-guide-integration-consommateur-externe.md](decisions/DEC-0054-uc-6-guide-integration-consommateur-externe.md) |
+| DEC-0055 | UC-7 : tests de conformance dun client inconnu (unknown-harness/provider/model, sans profil) | active | [decisions/DEC-0055-uc-7-tests-conformance-client-inconnu.md](decisions/DEC-0055-uc-7-tests-conformance-client-inconnu.md) |

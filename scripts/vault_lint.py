@@ -160,6 +160,17 @@ def run_lint(
                 )
         entities = (fm.get("graphify") or {}).get("entities") or []
         for e in entities:
+            if not isinstance(e, dict):
+                report.issues.append(
+                    LintIssue(
+                        "malformed_entity",
+                        "error",
+                        fm.get("aliases", [None])[0] if fm.get("aliases") else None,
+                        f"{note.path.name}: graphify.entities contains {e!r} "
+                        f"({type(e).__name__}), expected an object with node_id/symbol/path",
+                    )
+                )
+                continue
             node_id = e.get("node_id")
             if node_id is None:
                 if not e.get("unresolved"):

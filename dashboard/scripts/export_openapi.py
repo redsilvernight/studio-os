@@ -4,6 +4,7 @@ Usage (from dashboard/):  npm run openapi:export
 Requires the backend venv (../.venv) — falls back to the checked-in
 openapi.json snapshot when the backend is not importable.
 """
+
 from __future__ import annotations
 
 import json

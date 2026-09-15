@@ -7,18 +7,18 @@
 4. Le heartbeat publie l'activite.
 5. Le systeme peut proposer les fichiers a claim via Graphify.
 6. L'enregistrement de session peut demarrer automatiquement.
-7. Claude charge le contexte via MCP.
+7. L'agent charge le contexte via MCP.
 
-## Deleguer a Qwen
-1. Claude ou le Producer identifie une sous-tache mecanique.
-2. Une sous-tache est creee et attribuee a Qwen.
-3. Qwen lit le contexte autorise.
+## Deleguer a un agent d'execution
+1. L'orchestrateur (humain ou agent) identifie une sous-tache mecanique.
+2. Une sous-tache est creee et attribuee a un agent d'execution.
+3. L'agent lit le contexte autorise.
 4. Il travaille localement et journalise ses actions.
 5. Le resultat passe en `needs_review`.
-6. Un humain ou Claude valide avant fusion.
+6. Un humain ou l'orchestrateur valide avant fusion.
 
 ## Prendre une decision d'architecture
-1. Un humain/Claude cree une proposition.
+1. Un humain ou un agent cree une proposition.
 2. La proposition indique contexte, choix, raisons et consequences.
 3. Apres validation, Studio OS genere DEC-XXXX.
 4. La decision devient recherchable par les futurs agents.
