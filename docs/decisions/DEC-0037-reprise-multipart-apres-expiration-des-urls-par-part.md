@@ -54,10 +54,20 @@ Cote client (`TransferClient`) : refresh **proactif** avant de reprendre un
 upload existant si `part_urls_expires_at` est depasse (ou absent — etat
 sauvegarde par un client pre-DEC-0037, traite comme "expiration inconnue,
 rafraichir par defaut") ; refresh **reactif** borne a une seule tentative
-si une part recoit malgre tout un 403 pendant l'upload. Dans les deux cas,
+si une part echoue malgre tout pendant l'upload — que l'echec soit un `403`
+propre ou une erreur de transport (`httpx.TransportError`, ex. connexion
+reinitialisee) : la CI GitHub Actions a reproduit en conditions reelles un
+backend S3-compatible qui reinitialise la connexion plutot que de renvoyer
+un `403` propre sur un PUT volumineux avec signature expiree (observe
+uniquement en CI, pas en local) — le premier design ne traitait que le cas
+`403`, corrige pour couvrir les deux avant le merge. Dans les deux cas,
 `uploaded_parts` (la reponse de `ListParts`) est adopte dans l'etat local —
 une part dont le PUT a reussi mais dont l'ecriture SQLite locale a ete
-perdue (crash entre les deux) n'est jamais reenvoyee.
+perdue (crash entre les deux) n'est jamais reenvoyee. Une seconde tentative
+qui echoue encore (403 ou transport) propage `TransferError` sans nouveau
+refresh — la borne "un refresh, une reprise" reste stricte, verifiee par
+`test_upload_multipart_network_failure_raises_transfer_error` (echec
+persistant, pas seulement transitoire).
 
 Nettoyage des orphelins : un upload multipart jamais complete resterait
 sinon facture indefiniment dans le bucket puisque le serveur ne suit son

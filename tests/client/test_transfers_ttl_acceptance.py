@@ -99,13 +99,22 @@ async def test_multipart_upload_resumes_after_real_ttl_expiration_and_client_res
 
     # Confirm storage itself (not app logic) actually refuses the stale URL
     # for the part that was never sent, exactly the failure a real
-    # long-interrupted upload would hit.
+    # long-interrupted upload would hit. Some S3-compatible backends return
+    # a clean 4xx; others reset the connection outright for a large body
+    # against an expired signature (observed in CI, not just locally) — both
+    # are a genuine rejection, and `TransferClient` itself (exercised below)
+    # already treats a transport-level failure on a first attempt the same
+    # as a 403 (DEC-0037).
     stale_url_for_part_2 = initiate.part_urls[2]
     async with httpx.AsyncClient(timeout=60.0) as raw:
-        rejected = await raw.put(stale_url_for_part_2, content=part2)
-    assert rejected.status_code >= 400, (
-        f"expected the real TTL to have expired, got {rejected.status_code}"
-    )
+        try:
+            rejected = await raw.put(stale_url_for_part_2, content=part2)
+        except httpx.TransportError:
+            pass
+        else:
+            assert rejected.status_code >= 400, (
+                f"expected the real TTL to have expired, got {rejected.status_code}"
+            )
 
     # "Process 2": brand-new StudioApiClient, OutboxStore and TransferClient
     # instances against the *same* SQLite file — a real restart, not the

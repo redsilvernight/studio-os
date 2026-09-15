@@ -236,12 +236,17 @@ async def test_upload_multipart_resumes_after_interrupted_part(tmp_path: Path) -
 
 
 async def test_upload_multipart_network_failure_raises_transfer_error(tmp_path: Path) -> None:
-    """A real connection failure (not an HTTP error response) must still
-    surface as `TransferError`, not a raw `httpx.TransportError`/
-    `ExceptionGroup` leaking out of the internal `TaskGroup`."""
+    """A real, *persistent* connection failure (not an HTTP error response)
+    must still surface as `TransferError`, not a raw `httpx.TransportError`/
+    `ExceptionGroup` leaking out of the internal `TaskGroup` — even though
+    DEC-0037 now treats a transport-level failure on the first attempt the
+    same as a 403 (one refresh, one retry): the retry hits the same broken
+    connection and the error still propagates, it isn't swallowed or
+    retried a second time."""
     file_path = tmp_path / "big.bin"
     file_path.write_bytes(b"A" * 10 + b"B" * 10 + b"C" * 5)
     transfer = _transfer(size_bytes=25)
+    refresh_calls: list[dict[str, Any]] = []
 
     def api_handler(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("/upload/initiate"):
@@ -258,6 +263,20 @@ async def test_upload_multipart_network_failure_raises_transfer_error(tmp_path: 
                     },
                     "part_size_bytes": 10,
                     "part_urls_expires_at": _future_expiry(),
+                },
+            )
+        if request.url.path.endswith("/upload/refresh-parts"):
+            body = json.loads(request.content)
+            refresh_calls.append(body)
+            return httpx.Response(
+                200,
+                json={
+                    "transfer_id": str(transfer.id),
+                    "upload_id": "upload-1",
+                    "part_size_bytes": 10,
+                    "part_urls": {n: f"http://storage.test/part{n}" for n in body["part_numbers"]},
+                    "uploaded_parts": {},
+                    "expires_at": _future_expiry(),
                 },
             )
         raise AssertionError(f"unexpected call: {request.url}")
@@ -281,6 +300,7 @@ async def test_upload_multipart_network_failure_raises_transfer_error(tmp_path: 
         finally:
             await client.aclose()
 
+    assert refresh_calls == [{"upload_id": "upload-1", "part_size_bytes": 10, "part_numbers": [3]}]
     state = store.get_multipart_upload(str(transfer.id))
     assert state is not None
     assert set(state.completed_parts) == {1, 2}

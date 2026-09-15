@@ -209,14 +209,27 @@ class TransferClient:
             with file_path.open("rb") as handle:
                 handle.seek(offset)
                 chunk = handle.read(part_size)
-            response = await _put_part(part_number, state.part_urls[part_number], chunk)
-            if response.status_code == 403:
-                # One refresh, one retry — a stale/expired URL, not a
-                # permanent failure (DEC-0037). Check `completed_parts`
-                # first: a part storage's ListParts already has (another
-                # writer, or an earlier crashed attempt whose local record
-                # was lost) is adopted as-is — its now-stale cached URL in
-                # `part_urls` is never reused, refreshed or not.
+            response: httpx.Response | None = None
+            needs_refresh = False
+            try:
+                response = await _put_part(part_number, state.part_urls[part_number], chunk)
+                needs_refresh = response.status_code == 403
+            except TransferError:
+                # A transport-level failure on this first attempt is treated
+                # the same as an expired-URL 403 (DEC-0037): some
+                # S3-compatible backends reset the connection on an expired
+                # presigned PUT instead of returning a clean response,
+                # especially for a large body — the same one-refresh-
+                # one-retry bound applies either way, a genuinely broken
+                # connection just fails again on the retry below and
+                # propagates as usual.
+                needs_refresh = True
+            if needs_refresh:
+                # Check `completed_parts` first: a part storage's ListParts
+                # already has (another writer, or an earlier crashed attempt
+                # whose local record was lost) is adopted as-is — its now-
+                # stale cached URL in `part_urls` is never reused, refreshed
+                # or not.
                 refreshed = await self._refresh_missing_parts(transfer, [part_number])
                 if part_number in refreshed.completed_parts:
                     return
@@ -227,6 +240,7 @@ class TransferClient:
                         "a refresh produced neither a new URL nor a confirmed upload"
                     )
                 response = await _put_part(part_number, refreshed_url, chunk)
+            assert response is not None
             if response.status_code >= 400:
                 raise TransferError(
                     f"upload of part {part_number} failed for transfer "
