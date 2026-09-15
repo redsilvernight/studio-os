@@ -377,31 +377,41 @@ Agent simule : `harness = unknown-harness`, `provider = unknown-provider`,
 - D — historique a conserver : mentions Claude/Qwen dans DEC-0042 et
   breakdowns (contexte d'epoque, pas des regles).
 
-### Sous-phases futures, dans l'ordre
+### Sous-phases (UC-1 → UC-7) — CLOSES (2026-09-15)
 
 - UC-1 Interface consommateur universelle : figer qu'un client sans
-  `agent_profile` obtient l'interface complete de son `auth_role`
-  (deja vrai en code ; test de conformance `unknown-harness` en UC-7).
+  `agent_profile` obtient l'interface complete de son `auth_role` (deja vrai
+  en code ; `POST /agents` CC-1 en DEC-0045 ; test de conformance
+  `unknown-harness` en UC-7). CLOS.
 - UC-2 Independance de l'authentification : verifier que le provisioning et
   le renouvellement restent sans savoir harness/modele. Rien a changer sauf
-  preuve contraire.
+  preuve contraire (DEC-0046, UC-2B decouverte standard OpenAPI +
+  `tools/list`). CLOS.
 - UC-3 Decouverte des capacites : exposer les 3 outils MCP locaux
   memoire/graphe read-only (DEC-0047, suite de DEC-0042 ; 8.3a),
-  `studio_generate_context_package` DEFERRED avec condition (8.3b).
+  `studio_generate_context_package` DEFERRED avec condition (8.3b). CLOS
+  (commit `acdcd36`).
 - UC-4 Documentation model-agnostic : `Claude`/`Qwen` utilises comme roles →
   termes fonctionnels generiques ; references historiques legitimes
-  conservees (categorie D).
+  conservees (categorie D). CLOS (DEC-0049).
 - UC-5 Metadonnees runtime : ajout additif `harness`/`provider`/`model`
   (chaines ouvertes, observabilite uniquement) et `agent_profile` optionnel
   sur `Agent`/`AIWorkLog` via `contract-change`, coexistence avec
-  `agent_kind`. Ces champs ne doivent jamais entrer dans `authz.py`.
+  `agent_kind`. Ces champs ne doivent jamais entrer dans `authz.py`. CLOS
+  (DEC-0050).
 - UC-6 Guide d'integration externe : ecrire le parcours d'un developpeur
   tiers de zero (provisioning → premier event → premier transfert) sans
-  connaissance interne Claude/Qwen/Codex ; valider qu'il suffit.
+  connaissance interne Claude/Qwen/Codex ; valider qu'il suffit. CLOS
+  (DEC-0051, `INTEGRATION/00_EXTERNAL_CONSUMER_GUIDE.md`).
 - UC-7 Tests de conformance : client fictif
   (`unknown-harness`/`unknown-provider`/`unknown-model`, sans profil)
   exercant taches, events, worklogs, sync et transferts ; echec si le coeur
-  exige un savoir prealable.
+  exige un savoir prealable. CLOS (DEC-0052).
+
+Etat de l'audit apres close : les deux PARTIAL lies a UC-3 (decouverte
+memoire/graphe, memoire/knowledge) sont resolus ; les PARTIAL
+« installation/configuration » et « sync offline » sont couverts par
+UC-6/UC-7 (guide + tests de conformance).
 
 ### Critères d'acceptation
 

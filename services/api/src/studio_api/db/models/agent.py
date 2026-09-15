@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -17,3 +17,7 @@ class AgentModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
     )
     display_name: Mapped[str]
     agent_kind: Mapped[str]
+    agent_profile: Mapped[str | None] = mapped_column(String(), default=None)
+    harness: Mapped[str | None] = mapped_column(String(), default=None)
+    provider: Mapped[str | None] = mapped_column(String(), default=None)
+    model: Mapped[str | None] = mapped_column(String(), default=None)

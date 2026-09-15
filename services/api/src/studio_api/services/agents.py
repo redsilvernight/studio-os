@@ -20,6 +20,10 @@ async def create_agent(
         machine_id=principal.machine.id,
         display_name=agent_in.display_name,
         agent_kind=agent_in.agent_kind,
+        agent_profile=agent_in.agent_profile,
+        harness=agent_in.harness,
+        provider=agent_in.provider,
+        model=agent_in.model,
     )
     session.add(agent)
     await session.commit()

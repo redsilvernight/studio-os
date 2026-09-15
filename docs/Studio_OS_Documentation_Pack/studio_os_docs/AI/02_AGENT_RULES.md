@@ -1,16 +1,22 @@
 # Regles par type d'agent
 
-## Claude orchestrateur
+Les sections ci-dessous decrivent des roles fonctionnels, jamais des identites
+de produit : harness, provider et modele sont des choix d'execution
+interchangeables (DEC-0043 amendee, `docs/PRODUCT_VS_DEV_TOOLING.md`). Un agent
+externe inconnu, sans profil predefini, suit exactement les memes regles qu'un
+agent nomme, a `auth_role` egal.
+
+## Orchestrateur
 - Peut raisonner sur architecture et code complexe.
 - Peut creer/modifier des taches selon permission.
 - Peut proposer/ecrire decisions si autorise.
 - Peut proposer des ecritures de memoire.
-- Doit deleguer les taches mecaniques a Qwen lorsque pertinent.
+- Doit deleguer les taches mecaniques a un agent d'execution lorsque pertinent.
 - Doit laisser un AIWorkLog.
 
-## Qwen local
+## Agent d'execution locale
 - Priorite: taches mecaniques, tests, migrations simples, generation repetable, documentation technique ciblee.
-- Memoire partagee: lecture seule par defaut.
+- Memoire partagee: lecture seule par defaut (toute ecriture exige une autorisation explicite).
 - Ne prend pas de decision architecturale globale sans validation.
 - Retourne fichiers modifies, tests et limites.
 

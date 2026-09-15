@@ -15,10 +15,10 @@
 - Suggestions d'action sans blocage de Git.
 
 ## IA et orchestration
-- MCP central pour Claude Code.
+- MCP central pour tout client compatible MCP.
 - Studio Producer qui analyse priorites, blocages et parallelisation.
 - Decomposition d'une grosse tache en sous-taches avec dependances.
-- Recommandation d'executant: humain, Claude ou Qwen.
+- Recommandation d'executant: humain ou agent IA.
 - AI Work Ledger pour tracer requete, resultat, fichiers, tests et review.
 - Review Queue commune pour code IA, PR, decisions, memoire, builds et conflits.
 
@@ -26,7 +26,7 @@
 - Memoire privee locale, memoire projet partagee, memoire studio partagee.
 - Recherche dans Obsidian depuis les agents autorises.
 - Propositions de memoire avec approbation humaine.
-- Qwen en lecture seule sur la memoire partagee par defaut.
+- Memoire partagee en lecture seule par defaut pour les agents ; ecriture sur autorisation.
 - Decision Log avec identifiants DEC-XXXX.
 
 ## Graphify et contexte

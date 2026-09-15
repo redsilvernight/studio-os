@@ -43,7 +43,11 @@ n'est PAS stocke : derive de `last_seen_at` a la lecture
 ## Agent
 `id`, `machine_id` (FK Machine, nullable — un agent garde son identite
 logique meme sans machine active), `display_name`, `agent_kind` (str libre,
-ex: "claude-code", "qwen-local"), + champs communs mutables.
+ex: "build-bot", "local-assistant"), `agent_profile`, `harness`, `provider`,
+`model` (str libres, nullables), + champs communs mutables. `agent_profile`,
+`harness`, `provider` et `model` sont des metadonnees d'observabilite
+additives (DEC-0043 amendee, UC-5) : chaines ouvertes jamais whitelistees,
+jamais lues par l'autorisation.
 
 ## Project
 `id`, `slug` (unique), `name`, `description` (nullable), `archived` (bool,
@@ -74,7 +78,11 @@ Append-only.
 (FK Agent), `machine_id` (FK Machine, nullable), `summary`, `status`
 (`started|completed|failed|review_requested|approved|changes_requested`,
 miroir des event types `ai_work.*`), `changed_files` (liste de strings),
-`tests_run` (liste de strings), `started_at`, `ended_at` (nullable).
+`tests_run` (liste de strings), `started_at`, `ended_at` (nullable),
+`agent_profile`, `harness`, `provider`, `model` (str libres, nullables).
+Ces quatre derniers sont des metadonnees d'observabilite additives (UC-5,
+DEC-0043 amendee) : instantane du runtime qui a produit le travail, chaines
+ouvertes jamais whitelistees, jamais lues par l'autorisation (`authz.py`).
 Append-only. `approved`/`changes_requested` (DEC-0041) sont les seules
 sorties valides de `review_requested`, et exigent le role `admin` — jamais
 la machine/l'agent proprietaire du travail, qui ne peut pas resoudre sa

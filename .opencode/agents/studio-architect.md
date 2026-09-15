@@ -1,7 +1,7 @@
 ---
 description: Analyze Studio OS architecture before a non-trivial change — ownership of state, contract boundaries (API/Event/Auth-Sync/Data Model), and the split between Bloc A (Cloud/Core: FastAPI, Postgres, MCP, MinIO) and Bloc B (Local Client: daemon, CLI, dashboard, watchers, offline queue). Use before major refactors, new endpoints/events/MCP tools, or any feature that crosses the server/client boundary.
 mode: subagent
-model: opencode-go/kimi-k3
+model: opencode-go/deepseek-v4.1-flash
 permission:
   edit: deny
   bash:

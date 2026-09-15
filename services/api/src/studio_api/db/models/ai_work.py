@@ -28,3 +28,7 @@ class AIWorkLogModel(UUIDPKMixin, Base):
     tests_run: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    agent_profile: Mapped[str | None] = mapped_column(String(), default=None)
+    harness: Mapped[str | None] = mapped_column(String(), default=None)
+    provider: Mapped[str | None] = mapped_column(String(), default=None)
+    model: Mapped[str | None] = mapped_column(String(), default=None)

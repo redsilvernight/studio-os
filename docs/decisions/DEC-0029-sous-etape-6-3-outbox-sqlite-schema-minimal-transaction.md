@@ -9,19 +9,19 @@ source: docs/DECISIONS.md
 sync_hash: sha256:6819c990e33eb7d64304344b439f8755d807bd7c579a8ca59f0622962f61815e
 graphify_entities:
 - kind: class
-  node_id: OutboxStore
+  node_id: packages_studio_client_src_studio_client_outbox_store_outboxstore
   path: packages/studio-client/src/studio_client/outbox/store.py
   project: studio-os
   relation: implements
   symbol: OutboxStore
 - kind: class
-  node_id: PendingRow
+  node_id: packages_studio_client_src_studio_client_outbox_models_pendingrow
   path: packages/studio-client/src/studio_client/outbox/models.py
   project: studio-os
   relation: implements
   symbol: PendingRow
 - kind: class
-  node_id: OutboxTable
+  node_id: packages_studio_client_src_studio_client_outbox_models_outboxtable
   path: packages/studio-client/src/studio_client/outbox/models.py
   project: studio-os
   relation: implements

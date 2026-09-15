@@ -52,8 +52,10 @@ async def list_ai_work(
         "reference an agent attached to the caller's own authenticated "
         "machine (register one with `POST /agents` first) — a foreign or "
         "unknown agent fails with `409 actor_not_owned`, never a silent "
-        "cross-machine attribution. Accepts `Idempotency-Key` for safe "
-        "retries."
+        "cross-machine attribution. `agent_profile`, `harness`, `provider` "
+        "and `model` are optional open-string observability metadata: any "
+        "value is accepted, none is required, none affects authorization. "
+        "Accepts `Idempotency-Key` for safe retries."
     ),
     responses={
         **RESP_401_UNAUTHORIZED,

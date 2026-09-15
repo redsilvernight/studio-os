@@ -19,7 +19,7 @@
 - [ ] Deconnexion/reconnexion testee.
 - [ ] Claim conflict test reel.
 - [ ] Context Package test avec Graphify + Obsidian.
-- [ ] Qwen read-only memory verifie.
+- [ ] Memory partagee read-only par defaut verifiee.
 - [ ] Upload multipart > 5 Go teste.
 - [x] Reprise upload/download testee (`tests/client/test_transfers.py` : reprise multipart apres interruption reseau, DEC-0033 ; `tests/client/test_transfers_ttl_acceptance.py` : reprise apres expiration *reelle* du TTL des URLs par-part + redemarrage client sur meme SQLite, DEC-0037 ; `tests/client/test_transfers.py::test_download_resumes_with_range_header` : reprise download HTTP Range).
 - [x] Expiration Transfer testee (DEC-0020 : conteneurs reels + idempotence ; reconfirmee sur base vierge par DEC-0022).

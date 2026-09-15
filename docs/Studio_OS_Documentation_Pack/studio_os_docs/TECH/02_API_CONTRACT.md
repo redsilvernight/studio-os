@@ -60,7 +60,10 @@ public de bootstrap, pas de secret d'environnement dedie.
 - POST /agents (CC-1, additif) — enregistrement public d'une identite
   Agent de provenance operationnelle pour la machine authentifiee.
   Body `AgentCreate` : `display_name` requis, `agent_kind` optionnel
-  (chaine libre, defaut `""`). `machine_id` toujours derive de la machine
+  (chaine libre, defaut `""`), plus `agent_profile`, `harness`, `provider`,
+  `model` optionnels (UC-5, additif : chaines ouvertes d'observabilite,
+  defaut `null`, aucune valeur rejetee, jamais lues par l'autorisation).
+  `machine_id` toujours derive de la machine
   authentifiee (regle DEC-0035), jamais fourni par le client (champ
   supplementaire -> `422`). Reponse `201` = `Agent` (`id` genere serveur,
   seule identite canonique). `Idempotency-Key` supporte (meme cle + meme
@@ -69,7 +72,10 @@ public de bootstrap, pas de secret d'environnement dedie.
   avant le court-circuit d'idempotence (DEC-0036) — `readonly` -> `403
   forbidden`, sans RBAC specifique aux Agents. Ne confere aucun droit
   supplementaire : `auth_role` + ownership restent la seule autorite.
-- POST /ai-work
+- POST /ai-work — `AIWorkLogCreate` accepte, en plus de `summary`, les
+  champs optionnels `agent_profile`, `harness`, `provider`, `model` (UC-5,
+  additif, memes regles que sur `Agent` : chaines ouvertes d'observabilite,
+  defaut `null`, jamais des entrees d'autorisation).
 - PATCH /ai-work/{id}
 - GET /ai-work
 

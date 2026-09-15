@@ -340,14 +340,15 @@ nulle part. Par ailleurs le graphe Graphify n'est **pas** dans le dépôt
 
 ---
 
-## Sous-etape 8.3a — 3 outils MCP locaux Memory/Knowledge read-only (UC-3) — A FAIRE
+## Sous-etape 8.3a — 3 outils MCP locaux Memory/Knowledge read-only (UC-3) — CLOS
 
 Contrats formalises en DEC-0047 + `TECH/07`/`TECH/09` : `studio_memory_search`,
 `studio_memory_read`, `studio_graph_query` (mode unique), exposition via MCP
 local par poste (stdio, sans DB, enregistrement conditionnel a la
-configuration). Reste : entrypoint local + handlers minces + tests
-`tests/mcp/test_local_knowledge.py`. Read-only strict, aucune ecriture,
-aucun Context Package. Depend de 8.2 (fourni : providers, DEC-0042).
+configuration). Livre : entrypoint local `local_server.py`, handlers minces
+`local_tools.py`, tests `tests/mcp/test_local_knowledge.py` (commit `acdcd36`).
+Read-only strict, aucune ecriture, aucun Context Package. Dependait de 8.2
+(fourni : providers, DEC-0042).
 
 ## Sous-etape 8.3b — Context Package (`studio_generate_context_package`) — DEFERRED
 

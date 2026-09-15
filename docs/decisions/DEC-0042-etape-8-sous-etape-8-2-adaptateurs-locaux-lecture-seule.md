@@ -15,6 +15,15 @@ poste, aucun contrat versionne touche (ni API, ni Event, ni Auth/Sync, ni Data
 Model, ni MCP) — pas de `contract-guardian` requis. `studio-architect` non
 requis (aucune frontiere Bloc A/Bloc B).
 
+## Amendement — UC-4 (2026-09-15)
+
+L'invariant « lecture seule sur la memoire partagee par defaut » est
+reexprime sans nom de modele, conformement a DEC-0043 amendee : le
+comportement est inchange (aucune ecriture dans `studio_client.knowledge`),
+mais il vaut pour tout agent non privilegie quel que soit son harness,
+provider, modele ou profil. Les mentions historiques conservees dans le corps
+de cette decision sont un contexte d'epoque (categorie D), pas une regle.
+
 ### Probleme
 
 `TECH/09` declare deux interfaces — `MemoryProvider` et `GraphProvider` — dont

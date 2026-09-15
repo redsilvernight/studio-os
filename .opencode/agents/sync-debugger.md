@@ -1,7 +1,7 @@
 ---
 description: Investigate offline-queue, idempotency, resource-claim, and resumable-transfer bugs in Studio OS — SQLite outbox replay, duplicate events, stuck/expired claims, failed multipart resume. Use when the root cause of a sync/offline/transfer bug is unclear.
 mode: subagent
-model: opencode-go/kimi-k2.7-code
+model: opencode-go/deepseek-v4.1-flash
 permission:
   edit: deny
   bash:

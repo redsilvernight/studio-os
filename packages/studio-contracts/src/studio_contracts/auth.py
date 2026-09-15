@@ -49,12 +49,19 @@ class Machine(VersionedModel):
 class Agent(VersionedModel):
     """Provenance identity attached to one machine: who did the work, for
     audit and attribution. Never an authorization input — permissions come
-    from the machine owner's role alone."""
+    from the machine owner's role alone. `agent_profile`, `harness`,
+    `provider` and `model` are optional additive observability metadata:
+    open strings, never whitelisted, never a capability or compatibility
+    condition, never read to make a decision."""
 
     id: UUID
     machine_id: UUID | None = None
     display_name: str
     agent_kind: str
+    agent_profile: str | None = None
+    harness: str | None = None
+    provider: str | None = None
+    model: str | None = None
 
 
 class AgentCreate(IdempotentCreate):
@@ -62,10 +69,17 @@ class AgentCreate(IdempotentCreate):
     derived from the authenticated machine, never client-supplied.
     `display_name` and `agent_kind` are free-form metadata — never
     authorization inputs, never the canonical identity (the
-    server-generated `Agent.id` is)."""
+    server-generated `Agent.id` is). `agent_profile`, `harness`, `provider`
+    and `model` are optional open-string observability metadata: any value
+    is accepted, unknown values are never rejected, and none of them is ever
+    required."""
 
     display_name: str
     agent_kind: str = ""
+    agent_profile: str | None = None
+    harness: str | None = None
+    provider: str | None = None
+    model: str | None = None
 
 
 class UserCreate(ContractModel):

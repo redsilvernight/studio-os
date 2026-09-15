@@ -2,6 +2,14 @@
 
 Date : 2026-09-14
 
+> **Archivé le 2026-09-15 — tous les défauts ci-dessous sont corrigés dans le
+> code actuel** (vérifié par lecture directe : `services/mcp/src/studio_mcp/auth.py`,
+> `packages/studio-client/src/studio_client/outbox/replay.py`,
+> `services/api/src/studio_api/services/events.py`, `ensure_can_write`/
+> `require_roles` sur les routers, `packages/studio-client/src/studio_client/transfers.py`).
+> Conservé pour l'historique ; ne pas relancer ce travail. Pour l'état courant,
+> se référer à `docs/DECISIONS.md` et `docs/ROADMAP_CORRECTIONS_AUDIT.md`.
+
 ## Mandat
 
 Corriger les défauts ci-dessous dans l'ordre indiqué, en partant de l'état réel

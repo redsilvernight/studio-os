@@ -11,7 +11,9 @@ CLI minimale) — voir `docs/ROADMAP_STEP6_BREAKDOWN.md`. Watchers Git/Godot
 
 ## Architecture
 
-Studio OS est une couche de coordination qui relie les outils existants (humains, Claude Code, Qwen local, agents spécialisés, Git/GitHub, Godot, Graphify, Obsidian, enregistrements de sessions, builds, marketing et transferts de fichiers) autour d'un VPS central. L'architecture est décrite dans [docs/Studio_OS_Documentation_Pack/studio_os_docs/TECH/01_ARCHITECTURE.md](docs/Studio_OS_Documentation_Pack/studio_os_docs/TECH/01_ARCHITECTURE.md).
+Studio OS est une couche de coordination qui relie les outils existants (humains, agents IA — quel que soit leur harness, provider ou modèle —, Git/GitHub, Godot, graphe de connaissance, notes, enregistrements de sessions, builds, marketing et transferts de fichiers) autour d'un VPS central. L'architecture est décrite dans [docs/Studio_OS_Documentation_Pack/studio_os_docs/TECH/01_ARCHITECTURE.md](docs/Studio_OS_Documentation_Pack/studio_os_docs/TECH/01_ARCHITECTURE.md).
+
+Un développeur tiers peut intégrer Studio OS en suivant le [guide d'intégration externe](docs/Studio_OS_Documentation_Pack/studio_os_docs/INTEGRATION/00_EXTERNAL_CONSUMER_GUIDE.md).
 
 ## Structure du dépôt
 

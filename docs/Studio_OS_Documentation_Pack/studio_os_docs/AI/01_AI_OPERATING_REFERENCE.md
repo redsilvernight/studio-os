@@ -9,7 +9,7 @@ Studio OS est la source d'etat partagee entre deux humains et leurs agents. Une 
 3. Respecter les decisions DEC-XXXX deja validees.
 4. Utiliser Graphify pour cibler les fichiers avant un balayage massif du repo.
 5. Utiliser la memoire partagee en lecture; n'ecrire que si le role l'autorise.
-6. Les sous-agents Qwen ne doivent pas ecrire directement dans la memoire partagee par defaut.
+6. La memoire partagee est en lecture seule par defaut : un agent n'y ecrit que si son role l'autorise explicitement.
 7. Tout travail IA substantiel doit produire un AIWorkLog.
 8. Ne jamais inventer l'etat d'un autre developpeur; interroger Studio OS.
 9. Ne jamais supposer un LAN commun ou un acces direct a l'autre machine.

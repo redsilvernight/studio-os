@@ -57,10 +57,13 @@ normative, sans la remplacer.
 
 Avant une modification substantielle :
 
-1. vérifier Git et l'état réel du projet ;
-2. consulter la tâche, les décisions et les claims/conflits disponibles ;
-3. cibler les fichiers avec `rg` ou Graphify avant un balayage large ;
-4. annoncer brièvement le périmètre et l'approche.
+1. lire `projects/studio-os/CURRENT.md` puis `SUMMARY.md` du vault AI-Memory
+   (MCP `obsidian-memory`) ; pour une question de relations, `graphify query`
+   via `pwsh -NoProfile -File scripts/graphify-studio.ps1`, vocabulaire expansé ;
+2. vérifier Git et l'état réel du projet ;
+3. consulter la tâche, les décisions et les claims/conflits disponibles ;
+4. cibler les fichiers avec `rg` ou Graphify avant un balayage large ;
+5. annoncer brièvement le périmètre et l'approche.
 
 Après la modification :
 
@@ -68,8 +71,10 @@ Après la modification :
 2. faire intervenir `studio-tester` après chaque feature ;
 3. faire intervenir `contract-guardian` pour tout changement de contrat ;
 4. consigner fichiers, tests, résultats et limites sans inventer de validation ;
-5. appeler `brainstormer` au point de complétion avec les chemins exacts modifiés
-   afin de mettre à jour Graphify et de ne conserver que la mémoire durable utile.
+5. mettre Graphify à jour directement, une seule fois, avec les chemins exacts
+   modifiés ; appeler ensuite `brainstormer` uniquement si le lot contient une
+   connaissance durable candidate ou change l'état de reprise, avec faits et
+   preuves regroupés dans un seul mandat. Brainstormer ne met jamais Graphify à jour.
 
 Pour une architecture Cloud/Core ↔ client local non triviale, utiliser
 `studio-architect`. Pour une cause racine offline, idempotence, claims ou

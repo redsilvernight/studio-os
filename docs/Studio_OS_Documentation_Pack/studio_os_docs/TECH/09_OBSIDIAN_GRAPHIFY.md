@@ -18,8 +18,9 @@ Vocabulaire public : Memory. Le backend (dossier de notes Markdown,
 dit « vault ») est optionnel et interchangeable ; aucune dependance a
 Obsidian n'est requise ni supposee.
 
-### Qwen
-Lecture seule sur project/studio par defaut.
+### Agents
+Lecture seule sur project/studio par defaut, quel que soit le harness, le
+provider, le modele ou le profil de l'agent (DEC-0043 amendee).
 
 ## Graphify
 Graphify est local et n'a pas besoin d'etre copie sur le VPS.

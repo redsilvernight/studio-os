@@ -1,7 +1,7 @@
 ---
 description: Review a change to Studio OS's versioned contracts (API, Event, Auth/Sync, Data Model) — or code implementing them — for versioning safety before it is merged. Use whenever a change touches TECH/02_API_CONTRACT.md through TECH/05_DATA_MODEL.md, request/response schemas, event envelopes, or DB models tied to those contracts.
 mode: subagent
-model: opencode-go/kimi-k2.7-code
+model: opencode-go/deepseek-v4.1-flash
 permission:
   edit: ask
   bash:

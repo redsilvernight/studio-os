@@ -219,7 +219,11 @@ async def test_unknown_consumer_registers_agent_then_logs_work(
     agent = registered.json()
     assert agent["machine_id"] == str(machine_model.id)
     assert agent["display_name"] == "unknown-harness worker"
-    assert FORBIDDEN_METADATA_KEYS.isdisjoint(agent)
+    # UC-5 turns these into optional additive metadata: a consumer that
+    # sends none gets them null, and the server neither requires nor
+    # invents any value.
+    for key in FORBIDDEN_METADATA_KEYS:
+        assert agent.get(key) is None, f"unexpected {key}: {agent.get(key)!r}"
 
     spoofed_machine = await client.post(
         "/api/v1/agents",
