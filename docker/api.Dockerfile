@@ -7,6 +7,9 @@ WORKDIR /app
 COPY pyproject.toml uv.lock* ./
 COPY packages ./packages
 COPY services ./services
+# Alembic expects alembic.ini and the migrations folder in the working directory.
+COPY services/api/alembic.ini ./alembic.ini
+COPY services/api/alembic ./alembic
 
 RUN uv sync --frozen --no-dev --all-packages
 

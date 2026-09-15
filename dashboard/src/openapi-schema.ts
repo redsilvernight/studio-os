@@ -13,11 +13,31 @@ export interface paths {
         };
         /**
          * Healthz
-         * @description Liveness probe. Needs no credential and carries no security requirement — the only unauthenticated operation. Answers `{"status": "ok"}` when the service is up; use it before authenticating anything else.
+         * @description Liveness probe. Needs no credential and carries no security requirement — one of the unauthenticated operations, alongside `GET /metrics` and the human dashboard login `POST /auth/token`. Answers `{"status": "ok"}` when the service is up; use it before authenticating anything else.
          */
         get: operations["healthz_healthz_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Login
+         * @description Exchange human credentials for a short-lived dashboard JWT.
+         */
+        post: operations["login_api_v1_auth_token_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1519,6 +1539,29 @@ export interface components {
             /** Events */
             events: components["schemas"]["EventEnvelope"][];
         };
+        /** TokenRequest */
+        TokenRequest: {
+            /**
+             * Email
+             * @example admin@example.com
+             */
+            email: string;
+            /**
+             * Password
+             * @example super-secret
+             */
+            password: string;
+        };
+        /** TokenResponse */
+        TokenResponse: {
+            /** Access Token */
+            access_token: string;
+            /**
+             * Token Type
+             * @default bearer
+             */
+            token_type: string;
+        };
         /**
          * Transfer
          * @description Complete transfer record. Every field is part of the stable shape —
@@ -1859,6 +1902,46 @@ export interface operations {
             };
         };
     };
+    login_api_v1_auth_token_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenResponse"];
+                };
+            };
+            /** @description Invalid email or password. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_projects_api_v1_projects_get: {
         parameters: {
             query?: never;
@@ -1877,7 +1960,7 @@ export interface operations {
                     "application/json": components["schemas"]["Project"][];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -1918,7 +2001,7 @@ export interface operations {
                     "application/json": components["schemas"]["Project"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -1997,7 +2080,7 @@ export interface operations {
                     "application/json": components["schemas"]["Project"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2056,7 +2139,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProjectState"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2117,7 +2200,7 @@ export interface operations {
                     "application/json": components["schemas"]["Task"][];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2167,7 +2250,7 @@ export interface operations {
                     "application/json": components["schemas"]["Task"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2246,7 +2329,7 @@ export interface operations {
                     "application/json": components["schemas"]["Task"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2312,7 +2395,7 @@ export interface operations {
                     "application/json": components["schemas"]["Task"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2406,7 +2489,7 @@ export interface operations {
                     "application/json": components["schemas"]["Task"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2499,7 +2582,7 @@ export interface operations {
                     "application/json": components["schemas"]["Task"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2576,7 +2659,7 @@ export interface operations {
                     "application/json": components["schemas"]["WorkSession"][];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2626,7 +2709,7 @@ export interface operations {
                     "application/json": components["schemas"]["WorkSession"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2705,7 +2788,7 @@ export interface operations {
                     "application/json": components["schemas"]["WorkSession"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2782,7 +2865,7 @@ export interface operations {
                     "application/json": components["schemas"]["ResourceClaim"][];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2832,7 +2915,7 @@ export interface operations {
                     "application/json": components["schemas"]["ResourceClaim"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2911,7 +2994,7 @@ export interface operations {
                     "application/json": components["schemas"]["ResourceClaim"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2986,7 +3069,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -3063,7 +3146,7 @@ export interface operations {
                     "application/json": components["schemas"]["Decision"][];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -3113,7 +3196,7 @@ export interface operations {
                     "application/json": components["schemas"]["Decision"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -3190,7 +3273,7 @@ export interface operations {
                     "application/json": components["schemas"]["Agent"][];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -3231,7 +3314,7 @@ export interface operations {
                     "application/json": components["schemas"]["Agent"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -3311,7 +3394,7 @@ export interface operations {
                     "application/json": components["schemas"]["AIWorkLog"][];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -3361,7 +3444,7 @@ export interface operations {
                     "application/json": components["schemas"]["AIWorkLog"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -3445,7 +3528,7 @@ export interface operations {
                     "application/json": components["schemas"]["AIWorkLog"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -3539,7 +3622,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewQueue"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -3586,7 +3669,7 @@ export interface operations {
                     "application/json": components["schemas"]["Timeline"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -3633,7 +3716,7 @@ export interface operations {
                     "application/json": components["schemas"]["HeartbeatResponse"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -3698,7 +3781,7 @@ export interface operations {
                     "application/json": components["schemas"]["EventEnvelope"][];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -3745,7 +3828,7 @@ export interface operations {
                     "application/json": components["schemas"]["EventEnvelope"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -3836,7 +3919,7 @@ export interface operations {
                     "text/event-stream": string;
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -3881,7 +3964,7 @@ export interface operations {
                     "application/json": components["schemas"]["Transfer"][];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -3931,7 +4014,7 @@ export interface operations {
                     "application/json": components["schemas"]["Transfer"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -4048,7 +4131,7 @@ export interface operations {
                     "application/json": components["schemas"]["TransferConsumption"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -4093,7 +4176,7 @@ export interface operations {
                     "application/json": components["schemas"]["Transfer"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -4168,7 +4251,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -4249,7 +4332,7 @@ export interface operations {
                     "application/json": components["schemas"]["UploadInitiateResponse"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -4353,7 +4436,7 @@ export interface operations {
                     "application/json": components["schemas"]["UploadPartsRefreshResponse"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -4457,7 +4540,7 @@ export interface operations {
                     "application/json": components["schemas"]["Transfer"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -4541,7 +4624,7 @@ export interface operations {
                     "application/json": components["schemas"]["DownloadUrlResponse"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -4620,7 +4703,7 @@ export interface operations {
                     "application/json": components["schemas"]["MachineCreated"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -4683,7 +4766,7 @@ export interface operations {
                     "application/json": components["schemas"]["Machine"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -4762,7 +4845,7 @@ export interface operations {
                     "application/json": components["schemas"]["User"];
                 };
             };
-            /** @description Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling. */
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
             401: {
                 headers: {
                     [name: string]: unknown;

@@ -17,9 +17,10 @@
 import type { StudioClient } from "../api";
 import { ApiError, parseErrorBody } from "../api";
 import { joinUrl } from "../config";
+import { resolveReview, type ReviewResolution } from "../reviewApi";
 import { uiState, selectProject } from "../store";
 import { TASK_COLUMNS, statusColumn } from "../taskStatus";
-import { esc, fmtTime, idCell, section, shortId, statusBlock } from "../ui";
+import { describeError, esc, fmtTime, idCell, section, shortId, statusBlock } from "../ui";
 import type { components } from "../openapi-schema";
 
 type Project = components["schemas"]["Project"];
@@ -134,10 +135,11 @@ export async function renderOverview(root: HTMLElement, ctx: OverviewContext): P
   sections.push(tasksHtml(tasks));
   sections.push(activityHtml(events));
   sections.push(agentsHtml(agents, events));
-  sections.push(reviewsHtml(reviewQueue));
+  sections.push(reviewsHtml(reviewQueue, ctx.authed));
   sections.push(transfersHtml(transfers));
   root.innerHTML = sections.join("");
   bindProjectSelect(root);
+  bindReviewActions(root, ctx);
 }
 
 type Settled<T> = { ok: true; value: T } | { ok: false; error: unknown };
@@ -281,22 +283,54 @@ function agentsHtml(settledAgents: Settled<Agent[]>, settledEvents: Settled<Even
   );
 }
 
-function reviewsHtml(settled: Settled<ReviewQueue>): string {
+export function reviewActionsHtml(item: ReviewQueueItem, authed: boolean): string {
+  if (item.kind !== "ai_work_review") return `<span class="meta">—</span>`;
+  return `<button type="button" data-review-approve="${esc(item.id)}" ${authed ? "" : "disabled"}>Approve</button>` +
+    `<button type="button" data-review-changes="${esc(item.id)}" ${authed ? "" : "disabled"}>Request changes</button>`;
+}
+
+function reviewsHtml(settled: Settled<ReviewQueue>, authed: boolean): string {
   if (!settled.ok) return section("Needs attention", "GET /review-queue", statusBlock("error", errMessage(settled.error)));
   const items = settled.value.items;
   if (items.length === 0)
-    return section("Needs attention", "GET /review-queue · read-only", statusBlock("empty", "Nothing awaiting a human decision."));
+    return section("Needs attention", "GET /review-queue", statusBlock("empty", "Nothing awaiting a human decision."));
   const rows = items
     .map((item) => {
       const title = item.title.length > 80 ? `${item.title.slice(0, 80)}…` : item.title;
-      return `<tr><td><span class="tag">${esc(REVIEW_KIND_LABEL[item.kind])}</span></td><td>${esc(title)}</td><td>${esc(reviewQueueItemDetail(item))}</td><td>${idCell(item.task_id)}</td><td>${fmtTime(item.requested_at)}</td></tr>`;
+      return `<tr><td><span class="tag">${esc(REVIEW_KIND_LABEL[item.kind])}</span></td><td>${esc(title)}</td><td>${esc(reviewQueueItemDetail(item))}</td><td>${idCell(item.task_id)}</td><td>${fmtTime(item.requested_at)}</td><td class="actions">${reviewActionsHtml(item, authed)}</td></tr>`;
     })
     .join("");
   return section(
     "Needs attention",
-    "GET /review-queue · AI work review + proposed decisions + recent conflicts · read-only (approve/reject = DASH-4)",
-    `<table><thead><tr><th>Kind</th><th>Summary</th><th>Detail</th><th>Task</th><th>Requested</th></tr></thead><tbody>${rows}</tbody></table>`,
+    "GET /review-queue · AI work review (resolve via PATCH /ai-work/{id}, admin) + proposed decisions (informational) + recent conflicts",
+    `<table><thead><tr><th>Kind</th><th>Summary</th><th>Detail</th><th>Task</th><th>Requested</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table><div data-review-msg class="meta"></div>`,
   );
+}
+
+function bindReviewActions(root: HTMLElement, ctx: OverviewContext): void {
+  const buttons = root.querySelectorAll<HTMLButtonElement>("[data-review-approve], [data-review-changes]");
+  buttons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const id = button.dataset["reviewApprove"] ?? button.dataset["reviewChanges"] ?? "";
+      const resolution: ReviewResolution = button.dataset["reviewApprove"] !== undefined ? "approved" : "changes_requested";
+      buttons.forEach((other) => {
+        other.disabled = true;
+      });
+      resolveReview(ctx.client, id, resolution)
+        .then(() => void renderOverview(root, ctx))
+        .catch((error: unknown) => {
+          setReviewMsg(root, describeError(error));
+          buttons.forEach((other) => {
+            other.disabled = false;
+          });
+        });
+    });
+  });
+}
+
+function setReviewMsg(root: HTMLElement, text: string): void {
+  const node = root.querySelector("[data-review-msg]");
+  if (node !== null) node.textContent = text;
 }
 
 function transfersHtml(settled: Settled<Transfer[]>): string {

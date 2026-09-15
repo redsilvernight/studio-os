@@ -2,7 +2,7 @@
  "openapi": "3.1.0",
  "info": {
   "title": "Studio OS API",
-  "description": "Shared coordination API for Studio OS projects: tasks, resource claims, work sessions, decisions, AI work logs, events, and file transfer metadata. Every operation under `/api/v1` requires machine authentication (`Authorization: Bearer <machine-token>`, provisioned out of band) except `GET /healthz`. File bytes never flow through this API \u2014 transfers exchange metadata and short-lived signed URLs only, uploads and downloads go directly to object storage. Replayable creations accept `Idempotency-Key`; concurrent updates use `If-Match-Version`; permission refusals answer `403 forbidden` and are final.",
+  "description": "Shared coordination API for Studio OS projects: tasks, resource claims, work sessions, decisions, AI work logs, events, and file transfer metadata. Every operation under `/api/v1` requires machine authentication (`Authorization: Bearer <machine-token>`, provisioned out of band) except `GET /healthz`, `GET /metrics` and the human dashboard login `POST /auth/token`. File bytes never flow through this API \u2014 transfers exchange metadata and short-lived signed URLs only, uploads and downloads go directly to object storage. Replayable creations accept `Idempotency-Key`; concurrent updates use `If-Match-Version`; permission refusals answer `403 forbidden` and are final.",
   "version": "1"
  },
  "paths": {
@@ -12,7 +12,7 @@
      "health"
     ],
     "summary": "Healthz",
-    "description": "Liveness probe. Needs no credential and carries no security requirement \u2014 the only unauthenticated operation. Answers `{\"status\": \"ok\"}` when the service is up; use it before authenticating anything else.",
+    "description": "Liveness probe. Needs no credential and carries no security requirement \u2014 one of the unauthenticated operations, alongside `GET /metrics` and the human dashboard login `POST /auth/token`. Answers `{\"status\": \"ok\"}` when the service is up; use it before authenticating anything else.",
     "operationId": "healthz_healthz_get",
     "responses": {
      "200": {
@@ -28,6 +28,51 @@
         },
         "example": {
          "status": "ok"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/auth/token": {
+   "post": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Login",
+    "description": "Exchange human credentials for a short-lived dashboard JWT.",
+    "operationId": "login_api_v1_auth_token_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/TokenRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TokenResponse"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Invalid email or password."
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
         }
        }
       }
@@ -64,7 +109,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -129,7 +174,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -214,7 +259,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -283,7 +328,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -384,7 +429,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -459,7 +504,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -544,7 +589,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -632,7 +677,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -728,7 +773,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -823,7 +868,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -917,7 +962,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -992,7 +1037,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -1077,7 +1122,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -1171,7 +1216,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -1246,7 +1291,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -1331,7 +1376,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -1407,7 +1452,7 @@
       "description": "Successful Response"
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -1501,7 +1546,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -1576,7 +1621,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -1653,7 +1698,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -1718,7 +1763,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -1831,7 +1876,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -1906,7 +1951,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -2002,7 +2047,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -2115,7 +2160,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -2202,7 +2247,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -2254,7 +2299,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -2329,7 +2374,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -2469,7 +2514,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -2570,7 +2615,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -2640,7 +2685,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -2715,7 +2760,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -2837,7 +2882,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -2896,7 +2941,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -2970,7 +3015,7 @@
       "description": "Successful Response"
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -3070,7 +3115,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -3177,7 +3222,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -3284,7 +3329,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -3369,7 +3414,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -3445,7 +3490,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -3523,7 +3568,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -3599,7 +3644,7 @@
       }
      },
      "401": {
-      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
       "content": {
        "application/json": {
         "example": {
@@ -5470,6 +5515,48 @@
     ],
     "title": "TimelineDay"
    },
+   "TokenRequest": {
+    "properties": {
+     "email": {
+      "type": "string",
+      "title": "Email",
+      "examples": [
+       "admin@example.com"
+      ]
+     },
+     "password": {
+      "type": "string",
+      "title": "Password",
+      "examples": [
+       "super-secret"
+      ]
+     }
+    },
+    "type": "object",
+    "required": [
+     "email",
+     "password"
+    ],
+    "title": "TokenRequest"
+   },
+   "TokenResponse": {
+    "properties": {
+     "access_token": {
+      "type": "string",
+      "title": "Access Token"
+     },
+     "token_type": {
+      "type": "string",
+      "title": "Token Type",
+      "default": "bearer"
+     }
+    },
+    "type": "object",
+    "required": [
+     "access_token"
+    ],
+    "title": "TokenResponse"
+   },
    "Transfer": {
     "properties": {
      "id": {
@@ -6197,7 +6284,7 @@
   "securitySchemes": {
    "MachineBearer": {
     "type": "http",
-    "description": "Machine credential provisioned out of band. Send it as `Authorization: Bearer <machine-token>` on every request under `/api/v1`. The token is opaque: a missing, invalid or revoked credential returns 401. The only unauthenticated operation is `GET /healthz`.",
+    "description": "Machine credential provisioned out of band. Send it as `Authorization: Bearer <machine-token>` on every request under `/api/v1`. The token is opaque: a missing, invalid or revoked credential returns 401. Unauthenticated operations are `GET /healthz`, `GET /metrics` and the human dashboard login `POST /auth/token`.",
     "scheme": "bearer"
    }
   }
@@ -6205,7 +6292,7 @@
  "tags": [
   {
    "name": "health",
-   "description": "Unauthenticated liveness probe. The only operation that needs no credential."
+   "description": "Liveness, metrics and dashboard login probes (unauthenticated)."
   },
   {
    "name": "projects",

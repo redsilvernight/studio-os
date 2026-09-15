@@ -15,6 +15,10 @@ import { renderProjects } from "./views/projects";
 import { renderProjectDetail } from "./views/projectDetail";
 import { renderTaskDetail } from "./views/taskDetail";
 import { renderTasksInto } from "./views/tasks";
+import { renderMachines } from "./views/machines";
+import { renderDecisions } from "./views/decisions";
+import { renderTransfers } from "./views/transfers";
+import { loginOverlayHtml, renderLogin } from "./login";
 import { parseRoute, type Route } from "./router";
 import { esc } from "./ui";
 import { startRealtimeConnection, type RealtimeConnection } from "./realtime";
@@ -23,19 +27,27 @@ import "./styles.css";
 
 type EventEnvelope = components["schemas"]["EventEnvelope"];
 
-const DISABLED_SECTIONS = ["Activity", "Agents", "Worklogs", "Decisions", "Transfers"] as const;
+const DISABLED_SECTIONS = ["Activity", "Worklogs"] as const;
 
 function navHtml(route: Route): string {
   const item = (href: string, label: string, active: boolean): string =>
     `<a class="nav-item${active ? " active" : ""}" href="${href}">${esc(label)}</a>`;
   const disabled = DISABLED_SECTIONS.map(
-    (name) => `<span class="nav-item disabled" title="Planned after DASH-2">${esc(name)}<span class="badge">later</span></span>`,
+    (name) => `<span class="nav-item disabled" title="Planned later">${esc(name)}<span class="badge">later</span></span>`,
   ).join("");
   return `<nav class="nav">${item("#/", "Dashboard", route.name === "dashboard")}${item(
     "#/projects",
     "Projects",
     route.name === "projects" || route.name === "project",
-  )}${item("#/tasks", "Tasks", route.name === "tasks" || route.name === "task")}${disabled}</nav>`;
+  )}${item("#/tasks", "Tasks", route.name === "tasks" || route.name === "task")}${item(
+    "#/machines",
+    "Machines",
+    route.name === "machines",
+  )}${item("#/decisions", "Decisions", route.name === "decisions")}${item(
+    "#/transfers",
+    "Transfers",
+    route.name === "transfers",
+  )}${disabled}</nav>`;
 }
 
 function shellHtml(apiUrl: string, route: Route): string {
@@ -92,6 +104,15 @@ async function render(): Promise<void> {
       break;
     case "task":
       await renderTaskDetail(view, { client, authed }, route.id);
+      break;
+    case "machines":
+      await renderMachines(view, { client, baseUrl, authed });
+      break;
+    case "decisions":
+      await renderDecisions(view, { client, authed });
+      break;
+    case "transfers":
+      await renderTransfers(view, { client, authed });
       break;
     case "dashboard":
     default:
@@ -152,7 +173,7 @@ function syncRealtimeConnection(): void {
   );
 }
 
-export function boot(): void {
+function mountShell(): void {
   const app = document.getElementById("app");
   if (app === null) throw new Error("#app missing");
   app.innerHTML = shellHtml(resolveApiUrl(apiBaseUrl()), parseRoute(location.hash));
@@ -189,6 +210,23 @@ export function boot(): void {
     void render();
   });
   void render();
+}
+
+function mountLogin(): void {
+  const app = document.getElementById("app");
+  if (app === null) throw new Error("#app missing");
+  app.innerHTML = loginOverlayHtml();
+  renderLogin(app, () => {
+    mountShell();
+  });
+}
+
+export function boot(): void {
+  if (hasToken()) {
+    mountShell();
+  } else {
+    mountLogin();
+  }
 }
 
 boot();

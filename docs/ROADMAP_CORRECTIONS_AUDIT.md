@@ -281,6 +281,23 @@ Découpée en sous-étapes indépendantes dans `docs/ROADMAP_STEP8_BREAKDOWN.md`
 découpage et les questions de conception non tranchées par les documents
 existants listées explicitement.
 
+### État des sous-étapes (2026-09-15)
+
+Détail et preuves : `docs/ROADMAP_STEP8_BREAKDOWN.md` et
+`IMPLEMENTATION/04_INTEGRATION_CHECKLIST.md`.
+
+- 8.1/8.2/8.3a closes (DEC-0041, DEC-0042, DEC-0047).
+- 8.3b Context Package **détranchée** de l'état DEFERRED par DEC-0057
+  (`active`) : frontière d'exécution (composition locale Bloc B), format de
+  manifeste (`schema_version: 1`, éphémère) et confidentialité tranchés ;
+  `TECH/07_MCP_CONTRACT.md` et `TECH/09_OBSIDIAN_GRAPHIFY.md` mis à jour. La
+  composition `studio context generate` n'est pas encore implémentée.
+- 8.4/8.5 implémentées, vérification Postgres réelle restante (DEC-0049,
+  DEC-0051).
+- 8.6 dashboard livré DASH-0 → DASH-5 (`dashboard/README.md`,
+  `cd dashboard && npm test` 95 passed le 2026-09-15), dont DASH-4 (écran
+  Machines) et DASH-5 (dashboard d'écriture).
+
 ### Travail attendu
 
 1. Review Queue et interface AI Work Ledger.
@@ -296,6 +313,20 @@ existants listées explicitement.
 - Les actions IA substantielles restent traçables par AIWorkLog/Event.
 
 ## Étape 9 — Producer, media et hardening final (P3)
+
+### État (2026-09-15)
+
+- 9.1 Studio Producer, intégration GitHub/build et workers : **en conception**
+  (DEC-0059, statut `proposed`). L'ADR fixe la frontière Bloc A/Bloc B, le
+  webhook signé, les entités `Build`/`GitHubIntegration`/`ProducerJob` et le
+  worker `builds reconcile` ; amendements de contrat et implémentation non
+  encore livrés.
+- 9.2 RecordingProvider, markers et MarketingCandidate : **implémenté** côté
+  Bloc B (DEC-0058 ; `packages/studio-client/src/studio_client/recording/`,
+  CLI `studio mark`, 27 tests `tests/client/test_recording_{provider,cli}.py`).
+  Aucun endpoint/table/`EventType` nouveau.
+- 9.3/9.4/9.5 : middleware/observabilité, tests de charge légers et procédures
+  d'exploitation déjà tracés dans `IMPLEMENTATION/04_INTEGRATION_CHECKLIST.md`.
 
 ### Travail attendu
 
@@ -388,9 +419,10 @@ Agent simule : `harness = unknown-harness`, `provider = unknown-provider`,
   preuve contraire (DEC-0046, UC-2B decouverte standard OpenAPI +
   `tools/list`). CLOS.
 - UC-3 Decouverte des capacites : exposer les 3 outils MCP locaux
-  memoire/graphe read-only (DEC-0047, suite de DEC-0042 ; 8.3a),
-  `studio_generate_context_package` DEFERRED avec condition (8.3b). CLOS
-  (commit `acdcd36`).
+  memoire/graphe read-only (DEC-0047, suite de DEC-0042 ; 8.3a). CLOS
+  (commit `acdcd36`). `studio_generate_context_package`, DEFERRED avec
+  condition en 8.3b, est détranché par DEC-0057 (capacité Bloc B, non encore
+  implémentée).
 - UC-4 Documentation model-agnostic : `Claude`/`Qwen` utilises comme roles →
   termes fonctionnels generiques ; references historiques legitimes
   conservees (categorie D). CLOS (DEC-0052).

@@ -23,8 +23,9 @@ machine_bearer_scheme = HTTPBearer(
         "Machine credential provisioned out of band. Send it as "
         "`Authorization: Bearer <machine-token>` on every request under "
         "`/api/v1`. The token is opaque: a missing, invalid or revoked "
-        "credential returns 401. The only unauthenticated operation is "
-        "`GET /healthz`."
+        "credential returns 401. Unauthenticated operations are "
+        "`GET /healthz`, `GET /metrics` and the human dashboard login "
+        "`POST /auth/token`."
     ),
 )
 
@@ -73,8 +74,10 @@ def merge_conflict(*variants: ErrorResponses) -> ErrorResponses:
 
 RESP_401_UNAUTHORIZED: ErrorResponses = {
     401: _json_response(
-        "Missing, invalid or revoked machine credential. Send "
-        "`Authorization: Bearer <machine-token>`; provision the token out "
+        "Missing, invalid or revoked credential. Send "
+        "`Authorization: Bearer <machine-token>` for a machine, or "
+        "`Authorization: Bearer <jwt>` obtained from `POST /auth/token` "
+        "for a human dashboard user; provision the machine token out "
         "of band before calling.",
         {"detail": "missing bearer token"},
     )

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agentsSeenInEvents, groupTasksByColumn, reviewQueueItemDetail, sinceIso24h } from "./overview";
+import { agentsSeenInEvents, groupTasksByColumn, reviewActionsHtml, reviewQueueItemDetail, sinceIso24h } from "./overview";
 
 const task = (status: string, id = "t") => ({ id, status }) as never;
 
@@ -17,6 +17,22 @@ describe("reviewQueueItemDetail", () => {
   it("shows the resource_path for a resource_conflict item", () => {
     const item = { kind: "resource_conflict", resource_path: "scenes/level_01.tscn" } as never;
     expect(reviewQueueItemDetail(item)).toBe("scenes/level_01.tscn");
+  });
+});
+
+describe("reviewActionsHtml", () => {
+  const item = { kind: "ai_work_review", id: "11111111-2222-4333-8444-555555555555" } as never;
+
+  it("offers approve / request changes for an ai_work_review item", () => {
+    const html = reviewActionsHtml(item, true);
+    expect(html).toContain("data-review-approve");
+    expect(html).toContain("data-review-changes");
+    expect(html).not.toContain("disabled");
+  });
+
+  it("disables the actions without a token and offers none for other kinds", () => {
+    expect(reviewActionsHtml(item, false)).toContain("disabled");
+    expect(reviewActionsHtml({ kind: "decision_proposal" } as never, true)).not.toContain("data-review");
   });
 });
 

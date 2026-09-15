@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-55 decision(s). Detail complet dans chaque ADR lie.
+59 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -71,9 +71,13 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0047 | UC-3 : Memory/Knowledge local-only, exposition read-only via MCP local (stdio), 3 outils | active | [decisions/DEC-0047-uc-3-memoire-locale-mcp-local-read-only.md](decisions/DEC-0047-uc-3-memoire-locale-mcp-local-read-only.md) |
 | DEC-0048 | CC-3 : evolution des contrats MCP par discovery + schemas, sans version par payload | active | [decisions/DEC-0048-evolution-contrats-mcp-sans-version-payload.md](decisions/DEC-0048-evolution-contrats-mcp-sans-version-payload.md) |
 | DEC-0049 | Sous-etape 8.4 (roadmap) : Review Queue agregee, aucune nouvelle table, revue limitee au travail IA | active | [decisions/DEC-0049-review-queue-agregation-sans-nouvelle-table.md](decisions/DEC-0049-review-queue-agregation-sans-nouvelle-table.md) |
-| DEC-0050 | Question ouverte n°3 (etape 8) : auth dashboard V0 ratifiee, token machine reutilise, aucune nouvelle mecanique | active | [decisions/DEC-0050-auth-dashboard-ratification-token-machine-v0.md](decisions/DEC-0050-auth-dashboard-ratification-token-machine-v0.md) |
+| DEC-0050 | Question ouverte n°3 (etape 8) : auth dashboard V0 ratifiee, token machine reutilise, aucune nouvelle mecanique | superseded | [decisions/DEC-0050-auth-dashboard-ratification-token-machine-v0.md](decisions/DEC-0050-auth-dashboard-ratification-token-machine-v0.md) |
 | DEC-0051 | Question ouverte n°4 (etape 8) : notifications derivees de la Review Queue, timeline sur les events, aucune entite Notification persistee | active | [decisions/DEC-0051-notifications-derivees-review-queue-timeline.md](decisions/DEC-0051-notifications-derivees-review-queue-timeline.md) |
 | DEC-0052 | UC-4 : documentation model-agnostic du consommateur (roles fonctionnels, zero couplage modele) | active | [decisions/DEC-0052-uc-4-documentation-model-agnostic.md](decisions/DEC-0052-uc-4-documentation-model-agnostic.md) |
 | DEC-0053 | UC-5 : metadonnees runtime additives agent_profile/harness/provider/model sur Agent et AIWorkLog | active | [decisions/DEC-0053-uc-5-metadonnees-runtime-additives-agent-aiworklog.md](decisions/DEC-0053-uc-5-metadonnees-runtime-additives-agent-aiworklog.md) |
 | DEC-0054 | UC-6 : guide dintegration dun consommateur externe, sans connaissance interne | active | [decisions/DEC-0054-uc-6-guide-integration-consommateur-externe.md](decisions/DEC-0054-uc-6-guide-integration-consommateur-externe.md) |
 | DEC-0055 | UC-7 : tests de conformance dun client inconnu (unknown-harness/provider/model, sans profil) | active | [decisions/DEC-0055-uc-7-tests-conformance-client-inconnu.md](decisions/DEC-0055-uc-7-tests-conformance-client-inconnu.md) |
+| DEC-0056 | Dashboard human authentication with JWT (DASH-4) | active | [decisions/DEC-0056-dashboard-jwt-auth.md](decisions/DEC-0056-dashboard-jwt-auth.md) |
+| DEC-0057 | Etape 8 (roadmap), sous-etape 8.3b : Context Package compose localement par le Bloc B, part partagee lue par HTTP canonique, manifeste versionne ephemere | active | [decisions/DEC-0057-context-package-execution-boundary.md](decisions/DEC-0057-context-package-execution-boundary.md) |
+| DEC-0058 | Etape 9.2 (Bloc B) : RecordingProvider, markers video et MarketingCandidate locaux | active | [decisions/DEC-0058-recording-provider-markers-marketing.md](decisions/DEC-0058-recording-provider-markers-marketing.md) |
+| DEC-0059 | Etape 9.1 : Studio Producer, integration GitHub/build, workers | proposed | [decisions/DEC-0059-studio-producer-github-build-workers.md](decisions/DEC-0059-studio-producer-github-build-workers.md) |

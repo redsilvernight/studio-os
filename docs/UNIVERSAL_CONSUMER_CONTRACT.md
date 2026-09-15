@@ -78,8 +78,9 @@ sont illustratifs et non normatifs.
 ## 3. Authentification
 
 - MUST : header `Authorization: Bearer <machine-token>` sur chaque requete
-  `/api/v1` (sauf `/healthz`) et sur chaque appel MCP (transport HTTP), ou
-  `STUDIO_MCP_MACHINE_TOKEN` en stdio local (`TECH/04`, DEC-0003/0023 ;
+  `/api/v1` (sauf `/healthz`, `/metrics` et le login humain `POST /auth/token`)
+  et sur chaque appel MCP (transport HTTP), ou `STUDIO_MCP_MACHINE_TOKEN` en
+  stdio local (`TECH/04`, DEC-0003/0023/0056 ;
   `services/mcp/src/studio_mcp/auth.py`). Token opaque, hash SHA-256
   serveur, revocation immediate (`credential_revoked_at`).
 - MUST : aucun savoir harness/modele des deux cotes ; le provisioning

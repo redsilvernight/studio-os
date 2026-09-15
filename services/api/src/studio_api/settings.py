@@ -25,6 +25,20 @@ class Settings(BaseSettings):
     heartbeat_interval_seconds: int = 30
     heartbeat_offline_after_seconds: int = 90
 
+    # CORS / middleware
+    cors_origins: str = ""
+    request_id_header: str = "x-request-id"
+    rate_limit_requests_per_minute: int = 120
+    rate_limit_burst: int = 20
+
+    # Logging
+    log_format: str = "text"  # "text" or "json"
+    log_level: str = "INFO"
+
+    # Human dashboard JWT (DASH-4)
+    jwt_secret: str = "change-me-in-production"
+    jwt_access_token_expire_minutes: int = 480
+
 
 def get_settings() -> Settings:
     return Settings()

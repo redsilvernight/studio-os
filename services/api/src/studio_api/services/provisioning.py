@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
+import bcrypt
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -64,4 +65,53 @@ async def revoke_machine(session: AsyncSession, machine: MachineModel) -> Machin
         machine.version += 1
         await session.commit()
         await session.refresh(machine)
+    return machine
+
+
+def _hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def _verify_password(password: str, password_hash: str) -> bool:
+    return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
+
+
+async def set_user_password(session: AsyncSession, email: str, password: str) -> UserModel:
+    user = await get_user_by_email(session, email)
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "user not found")
+    user.password_hash = _hash_password(password)
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+async def verify_user_password(
+    session: AsyncSession, email: str, password: str
+) -> UserModel | None:
+    user = await get_user_by_email(session, email)
+    if user is None or user.password_hash is None:
+        return None
+    if not _verify_password(password, user.password_hash):
+        return None
+    return user
+
+
+async def get_or_create_dashboard_machine(session: AsyncSession, user: UserModel) -> MachineModel:
+    """Return a dedicated dashboard machine for the user, creating it if needed.
+
+    The dashboard authenticates humans via JWT; the API still reasons in terms
+    of machines, so a stable machine row acts as the dashboard's identity.
+    """
+    result = await session.execute(
+        select(MachineModel).where(
+            MachineModel.owner_user_id == user.id,
+            MachineModel.display_name == "dashboard",
+            MachineModel.credential_revoked_at.is_(None),
+        )
+    )
+    machine = result.scalar_one_or_none()
+    if machine is not None:
+        return machine
+    machine, _token = await create_machine(session, user.id, "dashboard")
     return machine

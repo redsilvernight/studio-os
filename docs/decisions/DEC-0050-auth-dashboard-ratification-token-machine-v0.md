@@ -1,13 +1,20 @@
 ---
 id: DEC-0050
 title: 'Question ouverte n°3 (etape 8) : auth dashboard V0 ratifiee, token machine reutilise, aucune nouvelle mecanique'
-status: active
+status: superseded
 date: '2026-09-15'
-superseded_by: null
+superseded_by: DEC-0056
 source: docs/DECISIONS.md
 ---
 
 # DEC-0050 — Question ouverte n°3 (etape 8) : auth dashboard V0 ratifiee, token machine reutilise, aucune nouvelle mecanique
+
+> **Supersede par DEC-0056.** L'authentification humaine dashboard avec JWT
+> (`POST /auth/token`, machine dashboard dediee, `User.password_hash`) et le
+> deploiement du dashboard via `docker/dashboard.Dockerfile` remplacent la
+> ratification V0 "token machine colle manuellement, dashboard servi
+> localement". Les points de contexte historiques ci-dessous sont conserves
+> pour la tracabilite.
 
 Question ouverte n°3 de `docs/ROADMAP_STEP8_BREAKDOWN.md`, etudiee avant
 implementation de la sous-etape 8.5 et de DASH-3 (meme convention que

@@ -25,4 +25,18 @@ export function statusColumn(status: string): TaskColumn | "UNKNOWN" {
   }
 }
 
+/** Inverse of `statusColumn`, for a column drop target → canonical status. */
+export function columnToStatus(column: TaskColumn): TaskStatus {
+  switch (column) {
+    case "TODO":
+      return "created";
+    case "IN PROGRESS":
+      return "in_progress";
+    case "BLOCKED":
+      return "blocked";
+    case "DONE":
+      return "completed";
+  }
+}
+
 export const TASK_COLUMNS: TaskColumn[] = ["TODO", "IN PROGRESS", "BLOCKED", "DONE"];

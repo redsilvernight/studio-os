@@ -19,4 +19,11 @@ describe("parseRoute", () => {
     expect(parseRoute("#/tasks")).toEqual({ name: "tasks" });
     expect(parseRoute("#/tasks/t-1")).toEqual({ name: "task", id: "t-1" });
   });
+
+  it("parses the DASH-4/DASH-5 screens", () => {
+    expect(parseRoute("#/machines")).toEqual({ name: "machines" });
+    expect(parseRoute("#/decisions")).toEqual({ name: "decisions" });
+    expect(parseRoute("#/transfers")).toEqual({ name: "transfers" });
+    expect(parseRoute("#/machines/extra")).toEqual({ name: "dashboard" });
+  });
 });

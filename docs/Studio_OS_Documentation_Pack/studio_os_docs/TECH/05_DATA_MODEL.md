@@ -39,7 +39,10 @@ modifies apres creation, seulement des transitions de statut explicites).
 
 ## User
 `id`, `display_name`, `email` (unique), `role` (`admin|developer|agent|readonly`,
-`TECH/04_AUTH_SYNC_CONTRACT.md`), + champs communs mutables.
+`TECH/04_AUTH_SYNC_CONTRACT.md`), `password_hash` (nullable, bcrypt, DASH-4
+DEC-0056), + champs communs mutables. Le mot de passe est optionnel : les
+utilisateurs crees sans mot de passe ne peuvent pas utiliser le login humain
+jusqu'a ce qu'un administrateur execute `studio-admin set-password`.
 
 ## Machine
 `id`, `owner_user_id` (FK User), `display_name`, `credential_hash` (token

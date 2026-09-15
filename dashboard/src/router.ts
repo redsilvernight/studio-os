@@ -6,7 +6,10 @@ export type Route =
   | { name: "projects" }
   | { name: "project"; id: string; tab: ProjectTab }
   | { name: "tasks" }
-  | { name: "task"; id: string };
+  | { name: "task"; id: string }
+  | { name: "machines" }
+  | { name: "decisions" }
+  | { name: "transfers" };
 
 export function parseRoute(hash: string): Route {
   const parts = hash.replace(/^#\/?/, "").split("/").filter((p) => p !== "");
@@ -18,5 +21,8 @@ export function parseRoute(hash: string): Route {
   }
   if (parts[0] === "tasks" && parts.length === 1) return { name: "tasks" };
   if (parts[0] === "tasks" && parts[1] !== undefined) return { name: "task", id: parts[1] };
+  if (parts[0] === "machines" && parts.length === 1) return { name: "machines" };
+  if (parts[0] === "decisions" && parts.length === 1) return { name: "decisions" };
+  if (parts[0] === "transfers" && parts.length === 1) return { name: "transfers" };
   return { name: "dashboard" };
 }
