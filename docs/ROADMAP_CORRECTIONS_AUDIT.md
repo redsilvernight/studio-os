@@ -247,7 +247,11 @@ Statut : **étape entièrement close** — sous-étapes 6.1 à 6.7 closes
   `tests/api/test_claims_concurrency.py` (10 créations réellement
   concurrentes, invariant "jamais bloqué" vérifié contre Postgres réel) ;
 - deux machines simulées sur des réseaux distincts — encore ouvert ;
-- replay offline complet avec tasks, events et AIWorkLog — encore ouvert.
+- ~~replay offline complet avec tasks, events et AIWorkLog~~ — fermé
+  (DEC-0039) : `tests/client/test_offline_replay_acceptance.py` (Postgres
+  réel, hors-ligne simulé par un vrai `httpx.ConnectError`, 3 tasks + 2
+  events + 1 AIWorkLog mis en queue via `OutboxStore`, redémarrage client
+  simulé, replay réel, puis rejeu intégral vérifiant l'absence de doublon).
 
 ### Critères d'acceptation
 

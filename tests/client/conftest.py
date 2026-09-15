@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.transfer import TransferModel
@@ -107,6 +108,18 @@ async def project(db_session: AsyncSession) -> ProjectModel:
     return await projects_service.create_project(
         db_session, f"proj-{uuid.uuid4().hex[:8]}", "Test Project", None
     )
+
+
+@pytest_asyncio.fixture
+async def agent(db_session: AsyncSession, machine: tuple[MachineModel, str]) -> AgentModel:
+    machine_model, _ = machine
+    agent_model = AgentModel(
+        machine_id=machine_model.id, display_name="claude-code", agent_kind="claude_code"
+    )
+    db_session.add(agent_model)
+    await db_session.flush()
+    await db_session.refresh(agent_model)
+    return agent_model
 
 
 @pytest.fixture
