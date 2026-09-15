@@ -328,36 +328,85 @@ existants listées explicitement.
   multipart ou tests déjà implémentés.
 - Toute case cochée possède une preuve reproductible.
 
-## Étape 11 — Agents indépendants du modèle/harness (model-agnostic)
+## Étape 11 — Consommateur universel (model-agnostic, rectifie Phase 1)
 
-Verrouillage architectural : DEC-0043 (identité `auth_role` / `agent_profile`
-/ `harness` / `provider` / `model`, invariants normatifs, statut de
-`agent_kind`) et DEC-0044 (les quatre `agent_profiles` spécialisés, principe
-canonique → adaptateur → profil d'exécution, trois notions de capability).
-`auth_role` reste la seule autorité serveur ; aucun RBAC parallèle.
+Rectification Phase 1 : DEC-0043 amendee (separation `auth_role` /
+`harness` / `provider` / `model`, `agent_profile` = metadonnee optionnelle,
+jamais whitelist), DEC-0044 supersedee par DEC-0043 (les quatre agents
+specialises sont de l'outillage de developpement, voir
+`docs/PRODUCT_VS_DEV_TOOLING.md`). `auth_role` reste la seule autorite
+serveur ; aucun RBAC parallele. Les anciennes sous-phases MA-2 → MA-8,
+centrees sur la canonisation des quatre agents de developpement, sont
+abandonnees et remplacees par les sous-phases UC ci-dessous (prefixe UC pour
+eviter toute collision avec les Étapes 1-10 et avec les MA abandonnees).
 
-Sous-phases futures, dans l'ordre (préfixe MA pour éviter toute collision
-avec les Étapes 1-10) :
+### Audit du consommateur universel (2026-09-15)
 
-- MA-2 Canonical Agent Definitions : créer `.agents/definitions/`
-  (studio-architect, studio-tester, contract-guardian, sync-debugger) par
-  extraction à comportement constant des TOML, sans réécriture fonctionnelle.
-- MA-3 Codex Adapter : `.codex/agents/*.toml` dérivés de la source canonique,
-  mécanisme anti-drift sur le modèle de `adr_index --check`.
-- MA-4 Documentation Model-Agnostic : `Claude`/`Qwen` utilisés comme rôles →
-  `orchestrator`/`local_worker`, références historiques légitimes conservées.
-- MA-5 Structured Runtime Identity : ajout additif `agent_profile`/`harness`/
-  `provider`/`model` sur `Agent`/`AIWorkLog` via `contract-change`,
-  coexistence avec `agent_kind`.
-- MA-6 OpenCode Adapter : `.opencode/agents/` validé contre la version
-  réellement utilisée, compatibilité jamais supposée.
-- MA-7 Cross-Harness Equivalence : même `agent_profile` + profils d'exécution
-  différents = même sémantique métier Studi'OS.
-- MA-8 Universal Bootstrap : annonce explicite `agent_profile`/`harness`/
-  `provider`/`model` par chaque runtime, checklist inchangée.
+Agent simule : `harness = unknown-harness`, `provider = unknown-provider`,
+`model = unknown-model`, sans `agent_profile`. Methode : lecture du coeur
+(`services/`, `packages/`) + contrats `TECH/02-09`.
+
+| Parcours | Inconnu OK ? | Verdict | Raison exacte / gap |
+|---|---|---|---|
+| Installation/configuration | partiel | PARTIAL | Client de reference Python/httpx generique ; mais prompts Bloc B et bootstrap rediges pour Claude, pas de guide d'integration externe → UC-6 |
+| Identite/authentification | oui | PASS | Bearer machine provisionne hors-bande (`studio-admin`), aucun savoir harness/modele requis (DEC-0003/0011, `TECH/04`) |
+| Decouverte des capacites | partiel | PARTIAL | Liste d'outils MCP + contrats TECH ; mais 4 outils memoire/graphe declares non implementes serveur (DEC-0042), pas d'index externe unique → UC-3 |
+| API/MCP sous autorisation | oui | PASS | `auth_role` + ownership uniquement ; `agent_kind` chaine libre jamais lue par `authz.py` ; zero branche `if model/provider/harness` dans `services/` et `packages/` |
+| Taches | oui | PASS | Endpoints generiques, `Idempotency-Key` standard |
+| Events | oui | PASS | Enveloppe fixe, identite liee a la machine authentifiee (DEC-0035) |
+| Worklogs | oui | PASS | Acteur generique user/agent, revue admin-only sur `auth_role` (DEC-0041) |
+| Sync offline | protocole oui | PARTIAL | Replay idempotent cote serveur ; reimplementation client requise, reference Python uniquement (`TECH/08`) → UC-6 |
+| Transferts | oui | PASS | URLs pre-signees directes vers MinIO/S3, jamais via FastAPI (DEC-0025) |
+| Memoire/knowledge | partiel | PARTIAL | Contrat MCP declare (`TECH/07/09`) mais 4 outils manquants serveur ; adaptateurs locaux read-only existent (DEC-0042) → UC-3 |
+| Sans modification du coeur | oui | PASS | Aucun couplage produit trouve dans le code (voir classification ci-dessous) |
+
+### Classification des occurrences (2026-09-15)
+
+- A — integration specifique legitime : pins `model` dans
+  `.codex/agents/*.toml` (profil d'execution de l'outillage de dev, hors
+  produit) ; mentions Claude/Qwen historiques figees (tracabilite).
+- B — metadonnee/observabilite : `agent_kind` (chaine libre, jamais lue par
+  l'autorisation) ; valeurs de fixtures `agent_kind="claude_code"` dans les
+  tests (donnees, pas logique).
+- C — couplage produit corrige par cette rectification : DEC-0044 (supersedee) ;
+  valeurs `agent_profile` whitelistees en DEC-0043 v1 (amendee) ; roadmap
+  MA-2 → MA-8 (remplace ci-dessous).
+- C — couplage documentaire restant a corriger : `AI/02_AGENT_RULES.md`
+  ("Claude orchestrateur" / "Qwen local" comme roles), `HUMAN/*` et bootstrap
+  rediges pour Claude/Qwen → UC-4.
+- D — historique a conserver : mentions Claude/Qwen dans DEC-0042 et
+  breakdowns (contexte d'epoque, pas des regles).
+
+### Sous-phases futures, dans l'ordre
+
+- UC-1 Interface consommateur universelle : figer qu'un client sans
+  `agent_profile` obtient l'interface complete de son `auth_role`
+  (deja vrai en code ; test de conformance `unknown-harness` en UC-7).
+- UC-2 Independance de l'authentification : verifier que le provisioning et
+  le renouvellement restent sans savoir harness/modele. Rien a changer sauf
+  preuve contraire.
+- UC-3 Decouverte des capacites : implementer les 4 outils MCP
+  memoire/graphe manquants (suite de DEC-0042) ; fournir un index
+  d'integration externe unique (contrats + OpenAPI + liste d'outils).
+- UC-4 Documentation model-agnostic : `Claude`/`Qwen` utilises comme roles →
+  termes fonctionnels generiques ; references historiques legitimes
+  conservees (categorie D).
+- UC-5 Metadonnees runtime : ajout additif `harness`/`provider`/`model`
+  (chaines ouvertes, observabilite uniquement) et `agent_profile` optionnel
+  sur `Agent`/`AIWorkLog` via `contract-change`, coexistence avec
+  `agent_kind`. Ces champs ne doivent jamais entrer dans `authz.py`.
+- UC-6 Guide d'integration externe : ecrire le parcours d'un developpeur
+  tiers de zero (provisioning → premier event → premier transfert) sans
+  connaissance interne Claude/Qwen/Codex ; valider qu'il suffit.
+- UC-7 Tests de conformance : client fictif
+  (`unknown-harness`/`unknown-provider`/`unknown-model`, sans profil)
+  exercant taches, events, worklogs, sync et transferts ; echec si le coeur
+  exige un savoir prealable.
 
 ### Critères d'acceptation
 
-- Changer de harness/provider/model ne modifie ni responsabilités métier, ni
-  interdictions, ni autorisation serveur d'un profil.
-- Aucun identifiant de modèle ne sert d'entrée à une décision d'autorisation.
+- A previously unknown AI agent/harness/provider/model can integrate with
+  Studi'OS without modification of the Studi'OS core.
+- Aucun identifiant de modele, provider, harness ou profil ne sert d'entree
+  a une decision d'autorisation ou de capacite serveur.
+- Le parcours UC-6 est executable par un tiers sans aide interne.

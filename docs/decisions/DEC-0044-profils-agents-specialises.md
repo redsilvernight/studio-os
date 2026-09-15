@@ -1,13 +1,29 @@
 ---
 id: DEC-0044
 title: 'Specialized Agent Profiles : studio-architect, studio-tester, contract-guardian, sync-debugger comme agent_profiles harness-agnostic'
-status: active
+status: superseded
 date: '2026-09-15'
-superseded_by: null
+superseded_by: DEC-0043
 source: docs/DECISIONS.md
 ---
 
-# DEC-0044 — Specialized Agent Profiles
+# DEC-0044 — Specialized Agent Profiles (SUPERSEDEE par DEC-0043)
+
+> **Rectification Phase 1 (2026-09-15).** Cette decision est supersedee par
+> l'amendement de DEC-0043. Hypothese corrigee : `studio-architect`,
+> `studio-tester`, `contract-guardian` et `sync-debugger` sont des **outils
+> internes de developpement du repository** (voir
+> `docs/PRODUCT_VS_DEV_TOOLING.md`), pas des `agent_profiles` du runtime
+> produit. Les eriger en profils produit institutionnalisait a tort le
+> tooling de developpement dans l'architecture publique, et laissait entendre
+> qu'un `agent_profile` predefini est requis pour consommer Studi'OS — ce qui
+> est faux (un consommateur externe sans profil obtient l'interface complete
+> que son `auth_role` autorise). Le corps historique est conserve ci-dessous
+> sans modification, a titre de trace.
+
+---
+
+# DEC-0044 — Specialized Agent Profiles (corps historique, fige)
 
 Compagne de DEC-0043 (qui fige `auth_role / agent_profile / harness /
 provider / model`). L'audit Phase 0B a etabli que les quatre agents
@@ -23,38 +39,38 @@ migration, sans migrer quoi que ce soit dans cette phase.
    `sync-debugger` sont des **agent_profiles Studi'OS** (au sens de
    DEC-0043), pas des agents Codex, Claude ou OpenCode. Leur comportement
    metier est preserve a l'identique :
-   - `studio-architect` : analyse d'architecture, read-only, sorties
-     Systems/Contracts/Dependencies/Risks/Recommendation/Files, Graphify
-     `path/explain` aux frontieres Bloc A/B ;
-   - `contract-guardian` : revue de conformite des contrats, report-only,
-     verdict Additive/Breaking/Needs a Decision/Compliant, regles
-     Idempotency-Key et enveloppe Event ;
-   - `studio-tester` : validation proportionnee Tier 1-3, seul profil a
-     execution (pytest/ruff/mypy, chemins offline/transfert reels en Tier 3),
-     interdiction de fixer ou d'inventer un test ;
-   - `sync-debugger` : diagnostic de cause racine sync/offline/claims/
-     transfert, read-only, separation explicite etat client (SQLite) vs
-     serveur (Postgres).
-   La strategie de contexte commune (plus petit paquet autonome, diff cible,
-   sorties concises, "Not tested" explicite) fait partie de ces invariants.
+    - `studio-architect` : analyse d'architecture, read-only, sorties
+      Systems/Contracts/Dependencies/Risks/Recommendation/Files, Graphify
+      `path/explain` aux frontieres Bloc A/B ;
+    - `contract-guardian` : revue de conformite des contrats, report-only,
+      verdict Additive/Breaking/Needs a Decision/Compliant, regles
+      Idempotency-Key et enveloppe Event ;
+    - `studio-tester` : validation proportionnee Tier 1-3, seul profil a
+      execution (pytest/ruff/mypy, chemins offline/transfert reels en Tier 3),
+      interdiction de fixer ou d'inventer un test ;
+    - `sync-debugger` : diagnostic de cause racine sync/offline/claims/
+      transfert, read-only, separation explicite etat client (SQLite) vs
+      serveur (Postgres).
+    La strategie de contexte commune (plus petit paquet autonome, diff cible,
+    sorties concises, "Not tested" explicite) fait partie de ces invariants.
 2. Principe adopte — source canonique puis adaptateurs :
-   ```
-   Canonical Agent Definition (.agents/definitions/, futur)
-           │
-           ▼
-     Harness Adapter (adapters/codex|opencode|claude/, conceptuels)
-           │
-           ▼
-     Execution Profile (harness, provider, model, parametres)
-           │
-           ▼
-     Provider / Model
-   ```
-   Les fichiers `.codex/agents/*.toml` restent temporairement les
-   implementations existantes et ne sont pas modifies dans cette phase. Les
-   definitions `.agents/definitions/*` seront creees en Phase 2 (sous-phase
-   MA-2) par extraction a comportement constant, sans reecriture
-   fonctionnelle.
+    ```
+    Canonical Agent Definition (.agents/definitions/, futur)
+            │
+            ▼
+      Harness Adapter (adapters/codex|opencode|claude/, conceptuels)
+            │
+            ▼
+      Execution Profile (harness, provider, model, parametres)
+            │
+            ▼
+      Provider / Model
+    ```
+    Les fichiers `.codex/agents/*.toml` restent temporairement les
+    implementations existantes et ne sont pas modifies dans cette phase. Les
+    definitions `.agents/definitions/*` seront creees en Phase 2 (sous-phase
+    MA-2) par extraction a comportement constant, sans reecriture
+    fonctionnelle.
 3. Contenu normatif de la future definition canonique (invariants metier
    portables uniquement) : mission, responsabilites, interdictions,
    strategie de contexte, criteres de validation, outputs attendus, regles
@@ -71,14 +87,14 @@ migration, sans migrer quoi que ce soit dans cette phase.
    reclassees profil d'execution : configuration legitime a externaliser,
    pas definition metier.
 5. Trois notions de capability, sans RBAC parallele :
-   - **Agent tool requirements** (conceptuels, ex. `repository.read`,
-     `repository.search`, `tests.run`) : besoins du profil, traduits par
-     chaque adaptateur en permissions harness. Ni permissions serveur, ni
-     enforcement ;
-   - **Server permissions** : `auth_role` + ownership via `authz.py`
-     (DEC-0036), seul enforcement. Rien d'autre ;
-   - **Harness capabilities** (ex. read, grep, bash, edit, delegation de
-     tache) : ce que l'environnement permet techniquement.
+    - **Agent tool requirements** (conceptuels, ex. `repository.read`,
+      `repository.search`, `tests.run`) : besoins du profil, traduits par
+      chaque adaptateur en permissions harness. Ni permissions serveur, ni
+      enforcement ;
+    - **Server permissions** : `auth_role` + ownership via `authz.py`
+      (DEC-0036), seul enforcement. Rien d'autre ;
+    - **Harness capabilities** (ex. read, grep, bash, edit, delegation de
+      tache) : ce que l'environnement permet techniquement.
 6. Rappel normatif (DEC-0043, s'applique a chaque profil) : changer le
    harness, le provider ou le modele d'un profil NE DOIT PAS changer ses
    responsabilites metier, ses interdictions, ni sa semantique
