@@ -6,6 +6,12 @@ Trois niveaux: private, project, studio. Private n'est jamais synchronise automa
 ### MemoryProvider
 search, read, propose, write_if_authorized, append_task_log, create_decision_note.
 
+Implémentation Bloc B (roadmap 8.2, DEC-0042) :
+`packages/studio-client/src/studio_client/knowledge/` — `search`/`read`
+seuls sont effectifs (`VaultMemoryProvider`), les écritures sont déclarées
+mais refusées (`write_unsupported`, boucle d'approbation serveur en 8.4/8.5),
+portée fermée par défaut via `ClientConfig` (`STUDIO_CLIENT_KNOWLEDGE_*`).
+
 ### Qwen
 Lecture seule sur project/studio par defaut.
 
@@ -14,6 +20,12 @@ Graphify est local et n'a pas besoin d'etre copie sur le VPS.
 
 ### GraphProvider
 refresh_graph, query, relevant_files, dependencies, related_symbols.
+
+Implémentation Bloc B (roadmap 8.2, DEC-0042) : `GraphifyGraphProvider` lit
+directement `graph.json`/`manifest.json` du `graphify-out` centralisé —
+`query`, `relevant_files`, `dependencies`, `related_symbols` effectifs avec
+signalement de fraîcheur (`stale`), `refresh_graph` explicitement non
+supporté (reconstruction pilotée par la conversation principale).
 
 ## Context Package
 Le serveur compose contexte partage; le client complete avec Git, Graphify, fichiers et memoire locale. Manifest versionne et trace les sources.

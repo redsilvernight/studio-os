@@ -220,7 +220,23 @@ Deux étages, cohérents avec l'existant :
 
 ---
 
-## Sous-étape 8.2 — Adaptateurs locaux Obsidian et Graphify, en lecture seule — À FAIRE
+## Sous-étape 8.2 — Adaptateurs locaux Obsidian et Graphify, en lecture seule — CLOS
+
+Implémenté en `packages/studio-client/src/studio_client/knowledge/`
+(`scope.py`, `memory.py`, `graph.py`, `errors.py`) : `VaultMemoryProvider`
+(`search`/`read` bornés, écritures déclarées mais refusées
+`write_unsupported`) et `GraphifyGraphProvider` (lecture directe de
+`graph.json`/`manifest.json`, `refresh_graph` refusé `refresh_unsupported`,
+fraîcheur par couverture manifest + `changed_since_indexed` si
+`knowledge_source_root` renseignée). Portée fermée par défaut
+(`knowledge_scope_allow=()`), chemins configurables via `ClientConfig`
+(préfixe `STUDIO_CLIENT_`), mapping `private|project|studio` ↔ arborescence
+réelle acté : `docs/decisions/DEC-0042-*.md`. Régression couverte par 37
+nouveaux tests `tests/client/test_knowledge_*.py` (vaults/graphes
+synthétiques `tmp_path` uniquement) ; suite complète 411 passed, 2 skipped
+(symlinks Windows) ; `ruff`/`ruff format --check` verts (279 fichiers) ;
+`mypy --strict` vert (102 fichiers). Aucun contrat touché (`TECH/02/03/04/05/07`
+inchangés), Bloc B uniquement, aucun octet réseau.
 
 Bloc B uniquement, aucun octet ne quitte le poste. `studio-architect` non requis
 (aucune frontière Bloc A/Bloc B, aucun contrat versionné touché) ; en revanche,

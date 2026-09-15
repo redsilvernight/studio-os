@@ -1533,6 +1533,7 @@ dependencies = [
     { name = "httpx" },
     { name = "keyring" },
     { name = "pydantic-settings" },
+    { name = "pyyaml" },
     { name = "studio-contracts" },
 ]
 
@@ -1541,6 +1542,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27" },
     { name = "keyring", specifier = ">=25.0" },
     { name = "pydantic-settings", specifier = ">=2.4" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "studio-contracts", editable = "packages/studio-contracts" },
 ]
 

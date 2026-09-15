@@ -11,6 +11,13 @@ from studio_client.errors import (
     TransferError,
     TransportError,
 )
+from studio_client.knowledge import (
+    GraphifyGraphProvider,
+    GraphProvider,
+    KnowledgeError,
+    ScopePolicy,
+    VaultMemoryProvider,
+)
 from studio_client.tokens import (
     EnvTokenStore,
     KeyringTokenStore,
@@ -38,4 +45,9 @@ __all__ = [
     "MemoryTokenStore",
     "MissingMachineToken",
     "TransferClient",
+    "KnowledgeError",
+    "ScopePolicy",
+    "VaultMemoryProvider",
+    "GraphProvider",
+    "GraphifyGraphProvider",
 ]

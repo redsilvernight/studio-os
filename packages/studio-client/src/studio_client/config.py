@@ -60,6 +60,15 @@ class ClientConfig(BaseSettings):
     godot_watch_process_pattern: str | None = None
     godot_watch_project_id: UUID | None = None
     godot_watch_interval_seconds: float = 10.0
+    # Local knowledge adapters (DEC-0042, roadmap step 8.2). The vault path
+    # is a machine-local setting — never a product constant — and the scope
+    # defaults to deny-all: nothing is exposable until the operator lists
+    # vault-relative prefixes (e.g. '["projects/my-slug/", "conventions/"]',
+    # JSON in env/TOML for the tuple field).
+    knowledge_vault_path: Path | None = None
+    knowledge_graph_dir: Path | None = None
+    knowledge_source_root: Path | None = None
+    knowledge_scope_allow: tuple[str, ...] = ()
 
     @field_validator("api_base_url")
     @classmethod
