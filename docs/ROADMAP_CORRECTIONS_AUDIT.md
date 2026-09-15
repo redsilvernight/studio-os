@@ -327,3 +327,37 @@ existants listées explicitement.
 - La documentation ne présente plus comme absents les contrats, fixtures,
   multipart ou tests déjà implémentés.
 - Toute case cochée possède une preuve reproductible.
+
+## Étape 11 — Agents indépendants du modèle/harness (model-agnostic)
+
+Verrouillage architectural : DEC-0043 (identité `auth_role` / `agent_profile`
+/ `harness` / `provider` / `model`, invariants normatifs, statut de
+`agent_kind`) et DEC-0044 (les quatre `agent_profiles` spécialisés, principe
+canonique → adaptateur → profil d'exécution, trois notions de capability).
+`auth_role` reste la seule autorité serveur ; aucun RBAC parallèle.
+
+Sous-phases futures, dans l'ordre (préfixe MA pour éviter toute collision
+avec les Étapes 1-10) :
+
+- MA-2 Canonical Agent Definitions : créer `.agents/definitions/`
+  (studio-architect, studio-tester, contract-guardian, sync-debugger) par
+  extraction à comportement constant des TOML, sans réécriture fonctionnelle.
+- MA-3 Codex Adapter : `.codex/agents/*.toml` dérivés de la source canonique,
+  mécanisme anti-drift sur le modèle de `adr_index --check`.
+- MA-4 Documentation Model-Agnostic : `Claude`/`Qwen` utilisés comme rôles →
+  `orchestrator`/`local_worker`, références historiques légitimes conservées.
+- MA-5 Structured Runtime Identity : ajout additif `agent_profile`/`harness`/
+  `provider`/`model` sur `Agent`/`AIWorkLog` via `contract-change`,
+  coexistence avec `agent_kind`.
+- MA-6 OpenCode Adapter : `.opencode/agents/` validé contre la version
+  réellement utilisée, compatibilité jamais supposée.
+- MA-7 Cross-Harness Equivalence : même `agent_profile` + profils d'exécution
+  différents = même sémantique métier Studi'OS.
+- MA-8 Universal Bootstrap : annonce explicite `agent_profile`/`harness`/
+  `provider`/`model` par chaque runtime, checklist inchangée.
+
+### Critères d'acceptation
+
+- Changer de harness/provider/model ne modifie ni responsabilités métier, ni
+  interdictions, ni autorisation serveur d'un profil.
+- Aucun identifiant de modèle ne sert d'entrée à une décision d'autorisation.
