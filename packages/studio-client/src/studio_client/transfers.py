@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import hashlib
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import httpx
@@ -12,6 +13,8 @@ from studio_client.api_client import StudioApiClient
 from studio_client.errors import StudioApiError, TransferError
 from studio_client.outbox.models import MultipartUploadState
 from studio_client.outbox.store import OutboxStore, transaction
+
+_EXPIRY_SAFETY_MARGIN = timedelta(seconds=60)
 
 _READ_CHUNK_BYTES = 1024 * 1024
 
@@ -105,10 +108,65 @@ class TransferClient:
                 str(file_path),
                 response.part_size_bytes,
                 response.part_urls,
+                response.part_urls_expires_at,
             )
         state = self._store.get_multipart_upload(str(transfer.id))
         assert state is not None
         return await self._upload_multipart(transfer, file_path, state)
+
+    async def _refresh_missing_parts(
+        self, transfer: Transfer, part_numbers: list[int]
+    ) -> MultipartUploadState:
+        """Re-presigns `part_numbers` against storage's own record of what it
+        has actually accepted (DEC-0037), merges the result into local
+        state, and returns the refreshed state. `unknown_upload_id` means
+        storage has abandoned this upload (TTL past the server's retention,
+        `studio-admin transfers abort-stale-multipart`) — nothing to resume,
+        so local state is purged and the caller must restart via `upload()`."""
+        state = self._store.get_multipart_upload(str(transfer.id))
+        assert state is not None
+        try:
+            refreshed = await self._api.refresh_upload_parts(
+                transfer.id,
+                upload_id=state.upload_id,
+                part_size_bytes=state.part_size_bytes,
+                part_numbers=part_numbers,
+            )
+        except StudioApiError as exc:
+            if exc.error_code == "unknown_upload_id":
+                with transaction(self._store.connection):
+                    self._store.delete_multipart_upload(str(transfer.id))
+                raise TransferError(
+                    f"multipart upload {state.upload_id} for transfer {transfer.id} is no "
+                    "longer known to storage — call upload() again to restart it"
+                ) from exc
+            raise
+        with transaction(self._store.connection):
+            self._store.update_part_urls(
+                str(transfer.id),
+                refreshed.part_urls,
+                refreshed.expires_at,
+                refreshed.uploaded_parts,
+            )
+        new_state = self._store.get_multipart_upload(str(transfer.id))
+        assert new_state is not None
+        return new_state
+
+    async def _ensure_fresh_part_urls(
+        self, transfer: Transfer, state: MultipartUploadState
+    ) -> MultipartUploadState:
+        """Proactive refresh before starting/resuming an upload (DEC-0037).
+        A missing `part_urls_expires_at` (state saved by an older client
+        version, or a response that never carried one) is treated as
+        "assume expired" — the safe default, since a stale cached URL fails
+        closed as a 403 anyway, just later and after wasted round-trips."""
+        pending = [n for n in state.part_urls if n not in state.completed_parts]
+        if not pending:
+            return state
+        expires_at = state.part_urls_expires_at
+        if expires_at is not None and datetime.now(UTC) < expires_at - _EXPIRY_SAFETY_MARGIN:
+            return state
+        return await self._refresh_missing_parts(transfer, pending)
 
     async def _upload_single(
         self, transfer: Transfer, file_path: Path, upload_url: str, content_md5: str
@@ -134,20 +192,41 @@ class TransferClient:
     async def _upload_multipart(
         self, transfer: Transfer, file_path: Path, state: MultipartUploadState
     ) -> Transfer:
+        state = await self._ensure_fresh_part_urls(transfer, state)
         part_size = state.part_size_bytes
         pending = [n for n in state.part_urls if n not in state.completed_parts]
+
+        async def _put_part(part_number: int, url: str, chunk: bytes) -> httpx.Response:
+            try:
+                return await self._http.put(url, content=chunk)
+            except httpx.TransportError as exc:
+                raise TransferError(
+                    f"upload of part {part_number} failed for transfer {transfer.id}: {exc}"
+                ) from exc
 
         async def _upload_part(part_number: int) -> None:
             offset = (part_number - 1) * part_size
             with file_path.open("rb") as handle:
                 handle.seek(offset)
                 chunk = handle.read(part_size)
-            try:
-                response = await self._http.put(state.part_urls[part_number], content=chunk)
-            except httpx.TransportError as exc:
-                raise TransferError(
-                    f"upload of part {part_number} failed for transfer {transfer.id}: {exc}"
-                ) from exc
+            response = await _put_part(part_number, state.part_urls[part_number], chunk)
+            if response.status_code == 403:
+                # One refresh, one retry — a stale/expired URL, not a
+                # permanent failure (DEC-0037). Check `completed_parts`
+                # first: a part storage's ListParts already has (another
+                # writer, or an earlier crashed attempt whose local record
+                # was lost) is adopted as-is — its now-stale cached URL in
+                # `part_urls` is never reused, refreshed or not.
+                refreshed = await self._refresh_missing_parts(transfer, [part_number])
+                if part_number in refreshed.completed_parts:
+                    return
+                refreshed_url = refreshed.part_urls.get(part_number)
+                if refreshed_url is None:
+                    raise TransferError(
+                        f"storage refused part {part_number} for transfer {transfer.id} and "
+                        "a refresh produced neither a new URL nor a confirmed upload"
+                    )
+                response = await _put_part(part_number, refreshed_url, chunk)
             if response.status_code >= 400:
                 raise TransferError(
                     f"upload of part {part_number} failed for transfer "

@@ -25,7 +25,8 @@ Studio API gere autorisation et metadonnees. MinIO/S3 stocke les octets. Le clie
    profondeur, `422 content_md5_mismatch` sinon) puis passe `ready`.
 
 ## Multipart gros fichier
-1. Initiate multipart.
+1. Initiate multipart. La reponse porte `part_urls_expires_at` (DEC-0037,
+   additif) — le client peut se refraichir avant meme un premier 403.
 2. Client decoupe en chunks (recommande 64-128 MiB).
 3. Chaque part est envoyee directement au storage.
 4. Les ETag/parts sont persistes localement.
@@ -35,6 +36,32 @@ Studio API gere autorisation et metadonnees. MinIO/S3 stocke les octets. Le clie
    pour ce chemin (DEC-0025) ; l'integrite par-part reste appliquee de facon
    transitive par la verification d'ETag S3 native de
    `CompleteMultipartUpload`.
+
+### Reprise apres expiration des URLs par-part (DEC-0037)
+
+Un upload interrompu plus longtemps que la duree de vie des URLs presignees
+(10-30 min) ne peut pas reprendre avec les URLs mises en cache — le serveur
+ne persiste jamais l'`upload_id` en cours (aucune nouvelle table), donc
+`POST /transfers/{id}/upload/refresh-parts` interroge `ListParts` sur le
+storage lui-meme (verite authoritative) pour re-presigner uniquement les
+parts encore manquantes et renvoie aussi les parts deja durablement acceptees
+(`uploaded_parts`) — un client doit les adopter au lieu de les reenvoyer,
+meme si son propre etat local les ignorait (ecriture SQLite perdue apres un
+crash entre le PUT et l'enregistrement local). `upload_id` invalide/inconnu
+de storage -> `409 unknown_upload_id` : le client purge son etat local et
+relance `upload/initiate` (reupload complet, jamais un echec definitif).
+
+Un upload multipart jamais complete et jamais repris reste sinon
+indefiniment facturable dans le bucket — un worker de nettoyage
+(`studio-admin transfers abort-stale-multipart --older-than-days N`, N=7 par
+defaut, `STUDIO_MULTIPART_ABANDON_AFTER_DAYS`) abandonne (`AbortMultipartUpload`)
+tout upload en cours plus vieux que ce delai, cote storage uniquement (age
+`Initiated` de storage — seul signal disponible puisque le serveur ne
+persiste pas cet etat). Un abandon n'est jamais une perte de donnees pour le
+client : sa prochaine tentative recoit `409 unknown_upload_id` et repart d'un
+`upload/initiate` frais. La suppression/expiration d'un transfert
+(`DELETE`, worker d'expiration DEC-0020) abandonne aussi tout multipart
+encore en cours sur son `object_key` avant de supprimer l'objet.
 
 ## Integrite (DEC-0025)
 Seul `content_md5` (chemin single-PUT) est reellement verifie serveur : MinIO/

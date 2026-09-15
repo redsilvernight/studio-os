@@ -16,6 +16,7 @@ from studio_api.db.session import get_session_factory
 from studio_api.services import projects as projects_service
 from studio_api.services import provisioning as provisioning_service
 from studio_api.services import transfers as transfers_service
+from studio_api.settings import get_settings
 from studio_api.storage.provider import get_storage
 
 
@@ -63,6 +64,21 @@ async def _expire_transfers() -> None:
         print(f"{len(expired)} transfer(s) deleted")
 
 
+async def _abort_stale_multipart_uploads(older_than_days: int, dry_run: bool) -> None:
+    """Orphan-cleanup worker (DEC-0037, roadmap etape 7 P2) — run on a
+    schedule, same model as `_expire_transfers`. Abandoning an in-progress
+    multipart upload nobody resumed in `older_than_days` is never a data
+    loss for the client (see `transfers_service.abort_stale_multipart_uploads`)."""
+    storage = get_storage()
+    stale = await transfers_service.abort_stale_multipart_uploads(
+        storage, older_than_days, dry_run=dry_run
+    )
+    verb = "would abort" if dry_run else "aborted"
+    for upload in stale:
+        print(f"{verb} multipart upload: {upload['key']} ({upload['upload_id']})")
+    print(f"{len(stale)} multipart upload(s) {'would be aborted' if dry_run else 'aborted'}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="studio-admin")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -89,6 +105,13 @@ def main() -> None:
     transfer_parser = sub.add_parser("transfers", help="Manage transfers")
     transfer_sub = transfer_parser.add_subparsers(dest="transfer_command", required=True)
     transfer_sub.add_parser("expire", help="Delete expired transfers (DB + MinIO)")
+    abort_stale = transfer_sub.add_parser(
+        "abort-stale-multipart", help="Abort orphaned in-progress multipart uploads"
+    )
+    abort_stale.add_argument(
+        "--older-than-days", type=int, default=get_settings().multipart_abandon_after_days
+    )
+    abort_stale.add_argument("--dry-run", action="store_true")
 
     args = parser.parse_args()
 
@@ -103,6 +126,8 @@ def main() -> None:
             asyncio.run(_create_project(args.slug, args.name, args.description))
         elif args.command == "transfers" and args.transfer_command == "expire":
             asyncio.run(_expire_transfers())
+        elif args.command == "transfers" and args.transfer_command == "abort-stale-multipart":
+            asyncio.run(_abort_stale_multipart_uploads(args.older_than_days, args.dry_run))
     except HTTPException as exc:
         print(f"error: {exc.detail}", file=sys.stderr)
         raise SystemExit(1) from exc

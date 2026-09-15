@@ -76,7 +76,10 @@ class UploadInitiateRequest(ContractModel):
 
 class UploadInitiateResponse(ContractModel):
     """Small file: a single pre-signed PUT. Large file: multipart parts, each
-    with its own pre-signed URL — see TECH/06_STORAGE_TRANSFER_SPEC.md."""
+    with its own pre-signed URL — see TECH/06_STORAGE_TRANSFER_SPEC.md.
+    `part_urls_expires_at` (multipart only, additive) lets the client refresh
+    proactively before the URLs actually expire rather than only reacting to
+    a 403 from storage."""
 
     transfer_id: UUID
     multipart: bool
@@ -84,6 +87,36 @@ class UploadInitiateResponse(ContractModel):
     upload_id: str | None = None
     part_urls: dict[int, str] | None = None
     part_size_bytes: int | None = None
+    part_urls_expires_at: datetime | None = None
+
+
+class UploadPartsRefreshRequest(ContractModel):
+    """Re-presign the still-missing parts of an in-progress multipart upload
+    whose cached URLs have expired (DEC-0037) — never re-presigns a part
+    storage already accepted. `part_size_bytes`, if given, must match the
+    value from the original `initiate` response (`409 part_size_mismatch`
+    otherwise, guarding against a stale client resuming under a changed
+    server constant). `part_numbers`, if omitted, means "every part not yet
+    confirmed by storage"."""
+
+    upload_id: str
+    part_size_bytes: int | None = None
+    part_numbers: list[int] | None = None
+
+
+class UploadPartsRefreshResponse(ContractModel):
+    """`uploaded_parts` is storage's own record (`ListParts`), the
+    authoritative source of which parts are actually durable — the client
+    must adopt it (a part PUT that succeeded but whose local SQLite write was
+    lost is recovered here, not re-uploaded). `part_urls` carries only the
+    parts still missing, never a part already in `uploaded_parts`."""
+
+    transfer_id: UUID
+    upload_id: str
+    part_size_bytes: int
+    part_urls: dict[int, str]
+    uploaded_parts: dict[int, str]
+    expires_at: datetime
 
 
 class UploadCompleteRequest(ContractModel):

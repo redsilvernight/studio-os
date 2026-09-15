@@ -95,6 +95,18 @@ def default_outbox_path() -> Path:
     return default_config_path().with_name("outbox.sqlite3")
 
 
+def _migrate(conn: sqlite3.Connection) -> None:
+    """`CREATE TABLE IF NOT EXISTS` in `_SCHEMA` never touches a table that
+    already exists from an older version of this client (DEC-0037) — a
+    column added since then needs an explicit, idempotent `ALTER TABLE`
+    here, checked against the real schema rather than a version counter, so
+    reopening an old `outbox.sqlite3` (the exact scenario a resumed
+    multipart upload depends on) picks it up transparently."""
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(multipart_uploads)")}
+    if "part_urls_expires_at" not in columns:
+        conn.execute("ALTER TABLE multipart_uploads ADD COLUMN part_urls_expires_at TEXT")
+
+
 def connect(path: Path) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(path))
@@ -102,6 +114,7 @@ def connect(path: Path) -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     conn.executescript(_SCHEMA)
+    _migrate(conn)
     conn.commit()
     return conn
 
@@ -268,16 +281,21 @@ class OutboxStore:
         file_path: str,
         part_size_bytes: int,
         part_urls: dict[int, str],
+        part_urls_expires_at: datetime | None = None,
     ) -> None:
         """Records the presigned part URLs from a fresh `upload/initiate`
         call. `INSERT OR REPLACE` deliberately: calling this again for a
         `transfer_id` that already has state (a caller re-initiating rather
         than resuming) restarts progress from zero rather than mixing part
-        URLs from two different `upload_id`s."""
+        URLs from two different `upload_id`s. `part_urls_expires_at` absent
+        (older server or a value never provided) means "unknown expiry" —
+        `TransferClient` treats that as "refresh before every resume"
+        (DEC-0037), the safe default."""
         self._conn.execute(
             "INSERT OR REPLACE INTO multipart_uploads "
             "(transfer_id, upload_id, file_path, part_size_bytes, part_urls_json, "
-            "completed_parts_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "completed_parts_json, created_at, part_urls_expires_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 transfer_id,
                 upload_id,
@@ -286,6 +304,37 @@ class OutboxStore:
                 json.dumps(part_urls),
                 json.dumps({}),
                 _utcnow_iso(),
+                part_urls_expires_at.isoformat() if part_urls_expires_at else None,
+            ),
+        )
+
+    def update_part_urls(
+        self,
+        transfer_id: str,
+        part_urls: dict[int, str],
+        part_urls_expires_at: datetime,
+        uploaded_parts: dict[int, str],
+    ) -> None:
+        """Merges a `refresh-parts` response into existing state (DEC-0037):
+        `part_urls` for the still-missing parts are added (never removing an
+        already-cached URL for a part refresh didn't ask about), and
+        `uploaded_parts` — storage's own authoritative record — is merged
+        into `completed_parts` so a part whose PUT succeeded but whose local
+        write was lost (crash between the PUT and `record_completed_part`)
+        is adopted rather than re-uploaded."""
+        state = self.get_multipart_upload(transfer_id)
+        if state is None:
+            return
+        merged_urls = {**state.part_urls, **part_urls}
+        merged_completed = {**state.completed_parts, **uploaded_parts}
+        self._conn.execute(
+            "UPDATE multipart_uploads SET part_urls_json = ?, completed_parts_json = ?, "
+            "part_urls_expires_at = ? WHERE transfer_id = ?",
+            (
+                json.dumps(merged_urls),
+                json.dumps(merged_completed),
+                part_urls_expires_at.isoformat(),
+                transfer_id,
             ),
         )
 
@@ -295,6 +344,7 @@ class OutboxStore:
         ).fetchone()
         if row is None:
             return None
+        expires_at = row["part_urls_expires_at"]
         return MultipartUploadState(
             transfer_id=row["transfer_id"],
             upload_id=row["upload_id"],
@@ -303,6 +353,7 @@ class OutboxStore:
             part_urls={int(k): v for k, v in json.loads(row["part_urls_json"]).items()},
             completed_parts={int(k): v for k, v in json.loads(row["completed_parts_json"]).items()},
             created_at=datetime.fromisoformat(row["created_at"]),
+            part_urls_expires_at=datetime.fromisoformat(expires_at) if expires_at else None,
         )
 
     def record_completed_part(self, transfer_id: str, part_number: int, etag: str) -> None:

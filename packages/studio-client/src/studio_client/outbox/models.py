@@ -56,3 +56,4 @@ class MultipartUploadState:
     part_urls: dict[int, str]
     completed_parts: dict[int, str]
     created_at: datetime
+    part_urls_expires_at: datetime | None = None

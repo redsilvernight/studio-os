@@ -141,7 +141,7 @@ projet) :
 | Action | sender | recipient | diffusion (`recipient=None`) | admin |
 |---|---|---|---|---|
 | lecture (liste/metadonnees/download-url) | oui | oui | oui | oui |
-| ecriture (upload/initiate, upload/complete, delete) | oui | non | non | oui |
+| ecriture (upload/initiate, upload/refresh-parts, upload/complete, delete) | oui | non | non | oui |
 
 `GET /transfers` filtre silencieusement sur ces 4 conditions
 (`transfer_visibility_clause`) au lieu de 403 — une liste ne revele jamais

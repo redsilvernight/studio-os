@@ -207,20 +207,41 @@ Statut : **étape entièrement close** — sous-étapes 6.1 à 6.7 closes
 
 ### Scénarios manquants prioritaires
 
-- fichier multipart de 1 Go ;
-- interruption à 50 %, redémarrage client et reprise ;
+- fichier multipart de 1 Go réel — encore ouvert ;
+- ~~interruption à 50 %, redémarrage client et reprise~~ — fermé (DEC-0033 :
+  `tests/client/test_transfers.py::test_upload_multipart_resumes_after_interrupted_part`,
+  interruption réseau + reprise sans réémission des parts terminées ;
+  DEC-0037 : `tests/client/test_transfers_ttl_acceptance.py`, interruption
+  après une part réelle, dépassement *réel* du TTL des URLs présignées,
+  redémarrage client simulé — nouvelles instances
+  `StudioApiClient`/`OutboxStore`/`TransferClient` sur le même fichier
+  SQLite —, reprise avec vérification octet à octet) ;
+- ~~reprise longue après expiration des URLs~~ — fermé (DEC-0037) :
+  endpoint additif `POST /transfers/{id}/upload/refresh-parts`, voir
+  `tests/api/test_transfers_multipart_refresh.py` (10 tests MinIO/Postgres
+  réels) ;
 - ~~URL signée expirée~~ — fermé (DEC-0034) : `tests/api/test_transfers_expired_url.py`
   (rejet réel MinIO, 403) + `tests/client/test_transfers.py` (`TransferClient`
   lève `TransferError`) ;
-- mauvais hash ;
-- quota dépassé ;
-- expiration et suppression ;
-- téléchargement avec HTTP Range ;
+- ~~mauvais hash (Content-MD5)~~ — fermé (DEC-0025, preuve réelle
+  préexistante) : `tests/api/test_transfers_storage.py`
+  (`test_upload_rejected_by_minio_on_content_md5_mismatch`,
+  `test_upload_complete_rejects_content_md5_mismatch_defense_in_depth`) ;
+- ~~quota dépassé (et concurrence du quota)~~ — fermé (DEC-0019, preuve
+  réelle préexistante) : `tests/api/test_transfers_quota.py`
+  (`test_create_transfer_rejects_when_project_quota_exceeded`,
+  `test_concurrent_creates_never_exceed_project_quota`) ;
+- ~~expiration et suppression~~ — fermé (DEC-0020, preuve réelle
+  préexistante) : `tests/api/test_transfers_expiration.py`
+  (`test_worker_deletes_expired_transfer_from_db_and_minio`,
+  `test_worker_rerun_is_idempotent`) ;
+- ~~téléchargement avec HTTP Range~~ — fermé (DEC-0033, preuve réelle
+  préexistante) : `tests/client/test_transfers.py::test_download_resumes_with_range_header` ;
 - ~~concurrence réelle de claims~~ — fermé (DEC-0034) :
   `tests/api/test_claims_concurrency.py` (10 créations réellement
   concurrentes, invariant "jamais bloqué" vérifié contre Postgres réel) ;
-- deux machines simulées sur des réseaux distincts ;
-- replay offline complet avec tasks, events et AIWorkLog.
+- deux machines simulées sur des réseaux distincts — encore ouvert ;
+- replay offline complet avec tasks, events et AIWorkLog — encore ouvert.
 
 ### Critères d'acceptation
 

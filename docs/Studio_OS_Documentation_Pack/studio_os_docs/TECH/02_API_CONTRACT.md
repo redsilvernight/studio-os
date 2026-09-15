@@ -11,7 +11,7 @@ Base: `/api/v1`
 - Dates ISO 8601 UTC.
 - Ecriture mutable sur un objet existant (`PATCH`) : header `If-Match-Version` avec la `version` lue par le client ; 409 + version serveur courante en cas de conflit (`TECH/04_AUTH_SYNC_CONTRACT.md`).
 - Authentification : header `Authorization: Bearer <machine-token>` sur tout endpoint sous `/api/v1` (sauf `/healthz`) — voir `TECH/04_AUTH_SYNC_CONTRACT.md`.
-- Autorisation (DEC-0036, durcissement documente sur des endpoints existants — meme categorie que DEC-0025) : au-dela de l'authentification, certains endpoints peuvent desormais repondre `403 {"detail": {"error_code": "forbidden", "resource": ..., "action": ...}}` a une machine authentifiee mais insuffisamment autorisee (role `readonly`, machine non proprietaire d'une ressource deja possedee, ou — cas particulier des Transfers, seule categorie ou une lecture peut aussi etre concernee — appelant hors sender/recipient/diffusion/admin) — voir `TECH/04_AUTH_SYNC_CONTRACT.md` section Autorisation pour la matrice complete. Concerne, en ecriture : `POST /tasks`, `PATCH /tasks/{id}`, `POST /tasks/{id}/claim`, `POST /tasks/{id}/release`, `POST /claims`, `POST /claims/{id}/renew`, `DELETE /claims/{id}`, `POST /sessions`, `PATCH /sessions/{id}/end`, `POST /ai-work`, `PATCH /ai-work/{id}`, `POST /decisions`, `POST /events`, `POST /transfers`, `POST /transfers/{id}/upload/initiate`, `POST /transfers/{id}/upload/complete`, `DELETE /transfers/{id}` ; en lecture (Transfers uniquement, regle de visibilite) : `GET /transfers/{id}`, `POST /transfers/{id}/download-url`. Un client existant qui n'utilisait jusque-la que des roles/machines proprietaires n'observe aucun changement de comportement.
+- Autorisation (DEC-0036, durcissement documente sur des endpoints existants — meme categorie que DEC-0025) : au-dela de l'authentification, certains endpoints peuvent desormais repondre `403 {"detail": {"error_code": "forbidden", "resource": ..., "action": ...}}` a une machine authentifiee mais insuffisamment autorisee (role `readonly`, machine non proprietaire d'une ressource deja possedee, ou — cas particulier des Transfers, seule categorie ou une lecture peut aussi etre concernee — appelant hors sender/recipient/diffusion/admin) — voir `TECH/04_AUTH_SYNC_CONTRACT.md` section Autorisation pour la matrice complete. Concerne, en ecriture : `POST /tasks`, `PATCH /tasks/{id}`, `POST /tasks/{id}/claim`, `POST /tasks/{id}/release`, `POST /claims`, `POST /claims/{id}/renew`, `DELETE /claims/{id}`, `POST /sessions`, `PATCH /sessions/{id}/end`, `POST /ai-work`, `PATCH /ai-work/{id}`, `POST /decisions`, `POST /events`, `POST /transfers`, `POST /transfers/{id}/upload/initiate`, `POST /transfers/{id}/upload/refresh-parts` (DEC-0037), `POST /transfers/{id}/upload/complete`, `DELETE /transfers/{id}` ; en lecture (Transfers uniquement, regle de visibilite) : `GET /transfers/{id}`, `POST /transfers/{id}/download-url`. Un client existant qui n'utilisait jusque-la que des roles/machines proprietaires n'observe aucun changement de comportement.
 - Enveloppe reelle d'une erreur machine-readable (`error_code` present dans ce document, ex. `413`/`507`/`409 idempotency_key_payload_mismatch`) : `{"detail": {"error_code": "...", ...}}` — FastAPI enveloppe systematiquement `HTTPException.detail`, jamais `{"error_code": "..."}` a plat. Une erreur sans `error_code` (401/403/404 génériques) renvoie `{"detail": "<message>"}`, une simple chaine. `studio_contracts.common.ErrorResponse`/`VersionConflictError` ne sont utilises par aucun code serveur actuel — clarification documentaire (DEC-0024), pas un changement de comportement.
 
 ## Endpoints principaux
@@ -108,6 +108,21 @@ public de bootstrap, pas de secret d'environnement dedie.
   ce jour). A traiter comme requis des la conception, pas comme un
   changement de contrat en cours de route, pour la sous-etape 6.7
   (`TransferClient`).
+- POST /transfers/{id}/upload/refresh-parts — additif (DEC-0037, roadmap etape
+  7 P2). Body `UploadPartsRefreshRequest` (`upload_id` requis,
+  `part_size_bytes`/`part_numbers` optionnels). Re-presigne uniquement les
+  parts multipart encore manquantes selon `ListParts` (verite serveur — cette
+  API ne persiste jamais l'etat multipart en cours). Autorisation identique a
+  `upload/initiate`/`upload/complete` (sender/admin, `TECH/04_AUTH_SYNC_
+  CONTRACT.md`). `409 {"detail": {"error_code": "unknown_upload_id"}}` si
+  `upload_id` inconnu ou n'appartient pas a l'`object_key` du transfert
+  (client : purger l'etat local, relancer `upload/initiate`) ; `409
+  {"error_code": "part_size_mismatch"}` si `part_size_bytes` differe de la
+  constante serveur ; `409 {"error_code": "transfer_already_ready"}` ; `422
+  {"error_code": "invalid_part_number"}` hors bornes. Reponse
+  `UploadPartsRefreshResponse` : `part_urls` (parts manquantes seulement),
+  `uploaded_parts` (record `ListParts`, a adopter localement), `expires_at`.
+  Voir `TECH/06_STORAGE_TRANSFER_SPEC.md`.
 - POST /transfers/{id}/upload/complete — `size_bytes` doit correspondre a la
   valeur declaree a la creation (`Transfer.size_bytes`, verifiee contre le
   quota DEC-0019), pas seulement a l'objet reel dans le stockage ; toute

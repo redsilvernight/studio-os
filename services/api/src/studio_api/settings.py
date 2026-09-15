@@ -20,6 +20,7 @@ class Settings(BaseSettings):
 
     transfer_max_size_bytes: int = 20 * 1024**3
     transfer_project_quota_bytes: int = 100 * 1024**3
+    multipart_abandon_after_days: int = 7
 
     heartbeat_interval_seconds: int = 30
     heartbeat_offline_after_seconds: int = 90

@@ -20,6 +20,8 @@ from studio_contracts.transfers import (
     TransferCreate,
     UploadCompleteRequest,
     UploadInitiateResponse,
+    UploadPartsRefreshRequest,
+    UploadPartsRefreshResponse,
 )
 
 from studio_client.config import ClientConfig
@@ -301,6 +303,27 @@ class StudioApiClient:
             idempotent=True,
         )
         return UploadInitiateResponse.model_validate(response.json())
+
+    async def refresh_upload_parts(
+        self,
+        transfer_id: UUID,
+        *,
+        upload_id: str,
+        part_size_bytes: int | None = None,
+        part_numbers: list[int] | None = None,
+    ) -> UploadPartsRefreshResponse:
+        """Re-presigns the still-missing parts of `upload_id` (DEC-0037) —
+        pure presign, safe to retry, marked idempotent."""
+        payload = UploadPartsRefreshRequest(
+            upload_id=upload_id, part_size_bytes=part_size_bytes, part_numbers=part_numbers
+        )
+        response = await self._request(
+            "POST",
+            f"/api/v1/transfers/{transfer_id}/upload/refresh-parts",
+            json=payload.model_dump(mode="json"),
+            idempotent=True,
+        )
+        return UploadPartsRefreshResponse.model_validate(response.json())
 
     async def complete_upload(
         self,

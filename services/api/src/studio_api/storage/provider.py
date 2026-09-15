@@ -113,6 +113,71 @@ class StorageProvider:
             ),
         )
 
+    async def list_parts(self, object_key: str, upload_id: str) -> dict[int, str]:
+        """Storage's own authoritative record of which parts of an
+        in-progress multipart upload it has actually durably accepted —
+        `NoSuchUpload` (raised by boto3 as a `ClientError`) means `upload_id`
+        is unknown or doesn't belong to `object_key`, which the caller uses
+        to reject a refresh request against a stale/foreign `upload_id`.
+        Paginated (S3 returns at most 1000 parts per call)."""
+        parts: dict[int, str] = {}
+        part_number_marker: str | None = None
+        while True:
+            kwargs: dict[str, object] = {
+                "Bucket": self._settings.s3_bucket,
+                "Key": object_key,
+                "UploadId": upload_id,
+            }
+            if part_number_marker is not None:
+                kwargs["PartNumberMarker"] = part_number_marker
+            response = await asyncio.to_thread(self._admin_client.list_parts, **kwargs)
+            for part in response.get("Parts", []):
+                parts[int(part["PartNumber"])] = str(part["ETag"]).strip('"')
+            if not response.get("IsTruncated"):
+                break
+            part_number_marker = str(response["NextPartNumberMarker"])
+        return parts
+
+    async def abort_multipart_upload(self, object_key: str, upload_id: str) -> None:
+        await asyncio.to_thread(
+            self._admin_client.abort_multipart_upload,
+            Bucket=self._settings.s3_bucket,
+            Key=object_key,
+            UploadId=upload_id,
+        )
+
+    async def list_multipart_uploads(self, *, prefix: str | None = None) -> list[dict[str, object]]:
+        """Every in-progress multipart upload in the bucket (optionally under
+        `prefix`), each `{"key": ..., "upload_id": ..., "initiated": ...}` —
+        used by the orphan-cleanup worker, never by a per-transfer request
+        (which instead calls `list_parts`/`abort_multipart_upload` against a
+        known `object_key`/`upload_id`). Paginated."""
+        uploads: list[dict[str, object]] = []
+        key_marker: str | None = None
+        upload_id_marker: str | None = None
+        while True:
+            kwargs: dict[str, object] = {"Bucket": self._settings.s3_bucket}
+            if prefix is not None:
+                kwargs["Prefix"] = prefix
+            if key_marker is not None:
+                kwargs["KeyMarker"] = key_marker
+            if upload_id_marker is not None:
+                kwargs["UploadIdMarker"] = upload_id_marker
+            response = await asyncio.to_thread(self._admin_client.list_multipart_uploads, **kwargs)
+            for upload in response.get("Uploads", []):
+                uploads.append(
+                    {
+                        "key": str(upload["Key"]),
+                        "upload_id": str(upload["UploadId"]),
+                        "initiated": upload["Initiated"],
+                    }
+                )
+            if not response.get("IsTruncated"):
+                break
+            key_marker = str(response.get("NextKeyMarker", ""))
+            upload_id_marker = str(response.get("NextUploadIdMarker", ""))
+        return uploads
+
     async def complete_multipart_upload(
         self, object_key: str, upload_id: str, parts: dict[int, str]
     ) -> None:

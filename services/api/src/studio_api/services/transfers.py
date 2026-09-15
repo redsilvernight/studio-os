@@ -5,12 +5,18 @@ import binascii
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import cast
 
 from botocore.exceptions import ClientError  # type: ignore[import-untyped]
 from fastapi import HTTPException, status
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from studio_contracts.transfers import TransferCategory, TransferCreate, UploadInitiateResponse
+from studio_contracts.transfers import (
+    TransferCategory,
+    TransferCreate,
+    UploadInitiateResponse,
+    UploadPartsRefreshResponse,
+)
 
 from studio_api.db.models.transfer import TransferModel
 from studio_api.services.authz import Principal, ensure_can_write, ensure_transfer_access
@@ -174,6 +180,72 @@ async def initiate_upload(
         upload_id=upload_id,
         part_urls=part_urls,
         part_size_bytes=PART_SIZE_BYTES,
+        part_urls_expires_at=datetime.now(UTC)
+        + timedelta(seconds=settings.presigned_url_ttl_seconds),
+    )
+
+
+async def refresh_upload_parts(
+    session: AsyncSession,
+    principal: Principal,
+    storage: StorageProvider,
+    settings: Settings,
+    transfer: TransferModel,
+    upload_id: str,
+    part_size_bytes: int | None,
+    part_numbers: list[int] | None,
+) -> UploadPartsRefreshResponse:
+    """Re-presigns only the parts of `upload_id` that storage has not yet
+    durably accepted (DEC-0037) — lets a multipart upload resume after its
+    original per-part URLs expired, without ever re-uploading a part already
+    confirmed by `ListParts` (the authoritative source, not a server-side
+    table: this server deliberately never persists in-progress multipart
+    state, TECH/06_STORAGE_TRANSFER_SPEC.md)."""
+    ensure_transfer_access(principal, transfer, "write")
+    if transfer.status == "ready":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={"error_code": "transfer_already_ready"},
+        )
+    if part_size_bytes is not None and part_size_bytes != PART_SIZE_BYTES:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={
+                "error_code": "part_size_mismatch",
+                "expected": PART_SIZE_BYTES,
+                "actual": part_size_bytes,
+            },
+        )
+    try:
+        uploaded_parts = await storage.list_parts(transfer.object_key, upload_id)
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") == "NoSuchUpload":
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail={"error_code": "unknown_upload_id"},
+            ) from exc
+        raise
+    part_count = (transfer.size_bytes + PART_SIZE_BYTES - 1) // PART_SIZE_BYTES
+    requested = part_numbers if part_numbers is not None else list(range(1, part_count + 1))
+    for number in requested:
+        if number < 1 or number > part_count:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={
+                    "error_code": "invalid_part_number",
+                    "part_number": number,
+                    "part_count": part_count,
+                },
+            )
+    missing = [n for n in requested if n not in uploaded_parts]
+    part_urls = {n: storage.presign_upload_part(transfer.object_key, upload_id, n) for n in missing}
+    return UploadPartsRefreshResponse(
+        transfer_id=transfer.id,
+        upload_id=upload_id,
+        part_size_bytes=PART_SIZE_BYTES,
+        part_urls=part_urls,
+        uploaded_parts=uploaded_parts,
+        expires_at=datetime.now(UTC) + timedelta(seconds=settings.presigned_url_ttl_seconds),
     )
 
 
@@ -270,9 +342,20 @@ async def mark_downloaded(session: AsyncSession, transfer: TransferModel) -> Tra
     return transfer
 
 
+async def _abort_dangling_multipart_uploads(storage: StorageProvider, object_key: str) -> None:
+    """A multipart upload never completed for this transfer would otherwise
+    leave its parts billed forever in the bucket after the Transfer row
+    itself is gone (DEC-0037) — deleting/expiring a transfer is exactly the
+    moment we know for certain no one will ever complete it."""
+    for upload in await storage.list_multipart_uploads(prefix=object_key):
+        if upload["key"] == object_key:
+            await storage.abort_multipart_upload(object_key, str(upload["upload_id"]))
+
+
 async def _do_delete(
     session: AsyncSession, storage: StorageProvider, transfer: TransferModel
 ) -> None:
+    await _abort_dangling_multipart_uploads(storage, transfer.object_key)
     await storage.delete_object(transfer.object_key)
     transfer.status = "deleted"
     transfer.deleted_at = datetime.now(UTC)
@@ -289,6 +372,30 @@ async def delete_transfer(
     bypasses `resolve_event_identity` for its own internal callers)."""
     ensure_transfer_access(principal, transfer, "write")
     await _do_delete(session, storage, transfer)
+
+
+async def abort_stale_multipart_uploads(
+    storage: StorageProvider, older_than_days: int, *, dry_run: bool = False
+) -> list[dict[str, object]]:
+    """Orphan-cleanup worker (DEC-0037): a multipart upload nobody ever came
+    back to complete or resume otherwise keeps its parts in the bucket
+    forever — this server never persists in-progress multipart state
+    server-side, so age (`Initiated`, storage's own record) is the only
+    signal available to distinguish "orphaned" from "a client legitimately
+    still offline". Abandoning one is never a data loss: the client's next
+    attempt gets `409 unknown_upload_id` from `refresh_upload_parts` and
+    falls back to a fresh `initiate_upload` (full re-upload, not a hard
+    failure)."""
+    cutoff = datetime.now(UTC) - timedelta(days=older_than_days)
+    stale = [
+        upload
+        for upload in await storage.list_multipart_uploads()
+        if cast(datetime, upload["initiated"]) < cutoff
+    ]
+    if not dry_run:
+        for upload in stale:
+            await storage.abort_multipart_upload(str(upload["key"]), str(upload["upload_id"]))
+    return stale
 
 
 async def expire_transfers(session: AsyncSession, storage: StorageProvider) -> list[TransferModel]:

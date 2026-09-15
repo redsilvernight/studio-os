@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -56,6 +56,16 @@ def _api_client(handler: Any) -> StudioApiClient:
 
 def _store(tmp_path: Path) -> OutboxStore:
     return OutboxStore(connect(tmp_path / "outbox.sqlite3"))
+
+
+def _future_expiry() -> str:
+    """A real server's `initiate` always sets `part_urls_expires_at`
+    (DEC-0037) — mocks simulating an unremarkable initiate response use this
+    so `_ensure_fresh_part_urls`'s "unknown expiry -> assume expired"
+    fallback doesn't fire and add an unexpected refresh-parts call; tests
+    exercising that fallback set the field to a past timestamp (or omit it)
+    deliberately."""
+    return (datetime.now(UTC) + timedelta(minutes=10)).isoformat()
 
 
 def test_transfer_client_rejects_non_positive_part_concurrency(tmp_path: Path) -> None:
@@ -177,6 +187,7 @@ async def test_upload_multipart_resumes_after_interrupted_part(tmp_path: Path) -
                         3: "http://storage.test/part3",
                     },
                     "part_size_bytes": 10,
+                    "part_urls_expires_at": _future_expiry(),
                 },
             )
         if request.url.path.endswith("/upload/complete"):
@@ -246,6 +257,7 @@ async def test_upload_multipart_network_failure_raises_transfer_error(tmp_path: 
                         3: "http://storage.test/part3",
                     },
                     "part_size_bytes": 10,
+                    "part_urls_expires_at": _future_expiry(),
                 },
             )
         raise AssertionError(f"unexpected call: {request.url}")
@@ -272,6 +284,242 @@ async def test_upload_multipart_network_failure_raises_transfer_error(tmp_path: 
     state = store.get_multipart_upload(str(transfer.id))
     assert state is not None
     assert set(state.completed_parts) == {1, 2}
+
+
+async def test_upload_multipart_resume_proactively_refreshes_expired_urls(
+    tmp_path: Path,
+) -> None:
+    """DEC-0037: resuming against locally-cached part URLs whose TTL has
+    already passed (the whole point of a resume long after an interruption)
+    must refresh before attempting any PUT, not fail closed against storage
+    with a doomed request."""
+    file_path = tmp_path / "big.bin"
+    file_path.write_bytes(b"A" * 10 + b"B" * 10)
+    transfer = _transfer(size_bytes=20)
+    refresh_calls: list[dict[str, Any]] = []
+
+    store = _store(tmp_path)
+    store.save_multipart_upload(
+        str(transfer.id),
+        "upload-1",
+        str(file_path),
+        10,
+        {1: "http://storage.test/part1-stale", 2: "http://storage.test/part2-stale"},
+        datetime.now(UTC) - timedelta(minutes=5),
+    )
+
+    def api_handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/upload/refresh-parts"):
+            body = json.loads(request.content)
+            refresh_calls.append(body)
+            return httpx.Response(
+                200,
+                json={
+                    "transfer_id": str(transfer.id),
+                    "upload_id": "upload-1",
+                    "part_size_bytes": 10,
+                    "part_urls": {
+                        n: f"http://storage.test/part{n}-fresh" for n in body["part_numbers"]
+                    },
+                    "uploaded_parts": {},
+                    "expires_at": _future_expiry(),
+                },
+            )
+        if request.url.path.endswith("/upload/complete"):
+            data = transfer.model_dump(mode="json")
+            data["status"] = "ready"
+            return httpx.Response(200, json=data)
+        raise AssertionError(f"unexpected call: {request.url}")
+
+    def storage_handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("-stale"):
+            raise AssertionError(f"must not PUT a known-stale URL: {request.url}")
+        part = request.url.path.removeprefix("/part").removesuffix("-fresh")
+        return httpx.Response(200, headers={"ETag": f'"etag-{part}"'})
+
+    async with _api_client(api_handler) as api:
+        client = TransferClient(
+            api,
+            store,
+            http_client=httpx.AsyncClient(transport=httpx.MockTransport(storage_handler)),
+            part_concurrency=1,
+        )
+        try:
+            result = await client.upload(transfer, file_path)
+        finally:
+            await client.aclose()
+
+    assert result.status == TransferStatus.READY
+    assert len(refresh_calls) == 1
+    assert set(refresh_calls[0]["part_numbers"]) == {1, 2}
+    assert store.get_multipart_upload(str(transfer.id)) is None
+
+
+async def test_upload_multipart_reactive_refresh_retries_403_part(tmp_path: Path) -> None:
+    """DEC-0037: even with a locally-fresh expiry (clock drift, or a TTL
+    shorter than assumed), a 403 from storage on the actual PUT must trigger
+    exactly one refresh-and-retry rather than failing the whole upload."""
+    file_path = tmp_path / "big.bin"
+    file_path.write_bytes(b"A" * 10)
+    transfer = _transfer(size_bytes=10)
+    refresh_calls: list[dict[str, Any]] = []
+    put_attempts: dict[str, int] = {"stale": 0, "fresh": 0}
+
+    def api_handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/upload/initiate"):
+            return httpx.Response(
+                200,
+                json={
+                    "transfer_id": str(transfer.id),
+                    "multipart": True,
+                    "upload_id": "upload-1",
+                    "part_urls": {1: "http://storage.test/part1-stale"},
+                    "part_size_bytes": 10,
+                    "part_urls_expires_at": _future_expiry(),
+                },
+            )
+        if request.url.path.endswith("/upload/refresh-parts"):
+            body = json.loads(request.content)
+            refresh_calls.append(body)
+            return httpx.Response(
+                200,
+                json={
+                    "transfer_id": str(transfer.id),
+                    "upload_id": "upload-1",
+                    "part_size_bytes": 10,
+                    "part_urls": {1: "http://storage.test/part1-fresh"},
+                    "uploaded_parts": {},
+                    "expires_at": _future_expiry(),
+                },
+            )
+        if request.url.path.endswith("/upload/complete"):
+            data = transfer.model_dump(mode="json")
+            data["status"] = "ready"
+            return httpx.Response(200, json=data)
+        raise AssertionError(f"unexpected call: {request.url}")
+
+    def storage_handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("-stale"):
+            put_attempts["stale"] += 1
+            return httpx.Response(403, text="expired presigned URL")
+        put_attempts["fresh"] += 1
+        return httpx.Response(200, headers={"ETag": '"etag-1"'})
+
+    async with _api_client(api_handler) as api:
+        store = _store(tmp_path)
+        client = TransferClient(
+            api,
+            store,
+            http_client=httpx.AsyncClient(transport=httpx.MockTransport(storage_handler)),
+            part_concurrency=1,
+        )
+        try:
+            result = await client.upload(transfer, file_path)
+        finally:
+            await client.aclose()
+
+    assert result.status == TransferStatus.READY
+    assert put_attempts == {"stale": 1, "fresh": 1}
+    assert refresh_calls == [{"upload_id": "upload-1", "part_size_bytes": 10, "part_numbers": [1]}]
+
+
+async def test_upload_multipart_refresh_adopts_server_confirmed_part(tmp_path: Path) -> None:
+    """DEC-0037: a part that storage's own `ListParts` already has (the
+    local write of `record_completed_part` was lost, e.g. a crash right
+    after a successful PUT) must be adopted from the refresh response, never
+    re-uploaded."""
+    file_path = tmp_path / "big.bin"
+    file_path.write_bytes(b"A" * 10)
+    transfer = _transfer(size_bytes=10)
+    put_attempts = {"n": 0}
+
+    def api_handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/upload/initiate"):
+            return httpx.Response(
+                200,
+                json={
+                    "transfer_id": str(transfer.id),
+                    "multipart": True,
+                    "upload_id": "upload-1",
+                    "part_urls": {1: "http://storage.test/part1-stale"},
+                    "part_size_bytes": 10,
+                    "part_urls_expires_at": _future_expiry(),
+                },
+            )
+        if request.url.path.endswith("/upload/refresh-parts"):
+            return httpx.Response(
+                200,
+                json={
+                    "transfer_id": str(transfer.id),
+                    "upload_id": "upload-1",
+                    "part_size_bytes": 10,
+                    "part_urls": {},
+                    "uploaded_parts": {1: "etag-already-there"},
+                    "expires_at": _future_expiry(),
+                },
+            )
+        if request.url.path.endswith("/upload/complete"):
+            body = json.loads(request.content)
+            assert body["parts"] == {"1": "etag-already-there"}
+            data = transfer.model_dump(mode="json")
+            data["status"] = "ready"
+            return httpx.Response(200, json=data)
+        raise AssertionError(f"unexpected call: {request.url}")
+
+    def storage_handler(request: httpx.Request) -> httpx.Response:
+        put_attempts["n"] += 1
+        return httpx.Response(403, text="expired presigned URL")
+
+    async with _api_client(api_handler) as api:
+        store = _store(tmp_path)
+        client = TransferClient(
+            api,
+            store,
+            http_client=httpx.AsyncClient(transport=httpx.MockTransport(storage_handler)),
+        )
+        try:
+            result = await client.upload(transfer, file_path)
+        finally:
+            await client.aclose()
+
+    assert result.status == TransferStatus.READY
+    assert put_attempts["n"] == 1  # the one rejected attempt, never a retry for this part
+
+
+async def test_upload_multipart_unknown_upload_id_purges_local_state(tmp_path: Path) -> None:
+    """DEC-0037: `409 unknown_upload_id` means storage has abandoned this
+    upload (past `studio-admin transfers abort-stale-multipart`'s
+    retention) — never a data loss, but local state must be purged so the
+    next `upload()` call starts a genuinely fresh `initiate` instead of
+    looping on a dead `upload_id`."""
+    file_path = tmp_path / "big.bin"
+    file_path.write_bytes(b"A" * 10)
+    transfer = _transfer(size_bytes=10)
+
+    store = _store(tmp_path)
+    store.save_multipart_upload(
+        str(transfer.id),
+        "upload-dead",
+        str(file_path),
+        10,
+        {1: "http://storage.test/part1-stale"},
+        datetime.now(UTC) - timedelta(minutes=5),
+    )
+
+    def api_handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/upload/refresh-parts"):
+            return httpx.Response(409, json={"detail": {"error_code": "unknown_upload_id"}})
+        raise AssertionError(f"unexpected call: {request.url}")
+
+    async with _api_client(api_handler) as api:
+        client = TransferClient(api, store, http_client=httpx.AsyncClient())
+        try:
+            with pytest.raises(TransferError, match="no longer known to storage"):
+                await client.upload(transfer, file_path)
+        finally:
+            await client.aclose()
+
+    assert store.get_multipart_upload(str(transfer.id)) is None
 
 
 async def test_download_full_file_no_range_header(tmp_path: Path) -> None:

@@ -11,6 +11,8 @@ from studio_contracts.transfers import (
     UploadCompleteRequest,
     UploadInitiateRequest,
     UploadInitiateResponse,
+    UploadPartsRefreshRequest,
+    UploadPartsRefreshResponse,
 )
 
 from studio_api.deps import CurrentMachine, CurrentPrincipal, DbSession
@@ -105,6 +107,28 @@ async def initiate_upload(
     content_md5 = body.content_md5 if body else None
     return await transfers_service.initiate_upload(
         session, principal, storage, settings, transfer, content_md5
+    )
+
+
+@router.post("/{transfer_id}/upload/refresh-parts", response_model=UploadPartsRefreshResponse)
+async def refresh_upload_parts(
+    transfer_id: UUID,
+    body: UploadPartsRefreshRequest,
+    session: DbSession,
+    principal: CurrentPrincipal,
+) -> UploadPartsRefreshResponse:
+    transfer = await transfers_service.get_transfer(session, principal, transfer_id)
+    settings = get_settings()
+    storage = get_storage()
+    return await transfers_service.refresh_upload_parts(
+        session,
+        principal,
+        storage,
+        settings,
+        transfer,
+        body.upload_id,
+        body.part_size_bytes,
+        body.part_numbers,
     )
 
 
