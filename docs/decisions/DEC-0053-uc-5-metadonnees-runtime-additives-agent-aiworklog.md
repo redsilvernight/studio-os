@@ -1,5 +1,5 @@
 ---
-id: DEC-0050
+id: DEC-0053
 title: 'UC-5 : metadonnees runtime additives agent_profile/harness/provider/model sur Agent et AIWorkLog'
 status: active
 date: '2026-09-15'
@@ -7,7 +7,7 @@ superseded_by: null
 source: docs/DECISIONS.md
 ---
 
-# DEC-0050 — UC-5 : metadonnees runtime additives
+# DEC-0053 — UC-5 : metadonnees runtime additives
 
 Operationalise la partie « champs structures » de DEC-0043 amendee : les
 metadonnees `agent_profile`, `harness`, `provider` et `model` deviennent des

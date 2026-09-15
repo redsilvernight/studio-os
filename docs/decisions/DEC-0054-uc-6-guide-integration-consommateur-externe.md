@@ -1,5 +1,5 @@
 ---
-id: DEC-0051
+id: DEC-0054
 title: 'UC-6 : guide dintegration dun consommateur externe, sans connaissance interne'
 status: active
 date: '2026-09-15'
@@ -7,7 +7,7 @@ superseded_by: null
 source: docs/DECISIONS.md
 ---
 
-# DEC-0051 — UC-6 : guide d'integration externe
+# DEC-0054 — UC-6 : guide d'integration externe
 
 Repond au critere d'acceptation « le parcours UC-6 est executable par un
 tiers sans aide interne » et a l'ecart releve par l'audit du 2026-09-15 :
@@ -30,7 +30,7 @@ supposaient le contexte d'un outillage interne (desormais corrige par UC-4).
    supportes n'existe.
 3. `00_README.md` route explicitement ce public (« Pour un consommateur
    externe »), et `README.md` y renvoie depuis la presentation du depot.
-4. Le guide est valide par le test de conformance UC-7 (DEC-0052) : chaque
+4. Le guide est valide par le test de conformance UC-7 (DEC-0055) : chaque
    etape decrite est executee par un client fictif sans connaissance interne.
 
 ### Consequences

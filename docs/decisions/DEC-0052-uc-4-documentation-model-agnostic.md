@@ -1,5 +1,5 @@
 ---
-id: DEC-0049
+id: DEC-0052
 title: 'UC-4 : documentation model-agnostic du consommateur (roles fonctionnels, zero couplage modele)'
 status: active
 date: '2026-09-15'
@@ -7,7 +7,7 @@ superseded_by: null
 source: docs/DECISIONS.md
 ---
 
-# DEC-0049 — UC-4 : documentation model-agnostic
+# DEC-0052 — UC-4 : documentation model-agnostic
 
 Rectifie le couplage documentaire identifie par l'audit du consommateur
 universel du 2026-09-15 (categorie C restante) : `AI/02_AGENT_RULES.md`,

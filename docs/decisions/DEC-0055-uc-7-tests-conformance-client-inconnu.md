@@ -1,5 +1,5 @@
 ---
-id: DEC-0052
+id: DEC-0055
 title: 'UC-7 : tests de conformance dun client inconnu (unknown-harness/provider/model, sans profil)'
 status: active
 date: '2026-09-15'
@@ -7,7 +7,7 @@ superseded_by: null
 source: docs/DECISIONS.md
 ---
 
-# DEC-0052 — UC-7 : tests de conformance client inconnu
+# DEC-0055 — UC-7 : tests de conformance client inconnu
 
 Verrouille par test le critere d'acceptation : « A previously unknown AI
 agent/harness/provider/model can integrate with Studi'OS without modification
@@ -50,4 +50,4 @@ Complete les tests UC-1 (`unknown consumer`, sans ligne Agent) et UC-2B
 ### Compatibilite
 
 Tests uniquement ; aucun contrat ni code de production modifie. S'appuie sur
-UC-1 (DEC-0045), UC-5 (DEC-0050) et le Universal Consumer Contract.
+UC-1 (DEC-0045), UC-5 (DEC-0053) et le Universal Consumer Contract.

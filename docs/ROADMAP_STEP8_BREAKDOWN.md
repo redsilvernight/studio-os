@@ -371,26 +371,47 @@ Invariant à tenir : aucun octet de mémoire privée ne transite sans regle
 explicite, et le paquet reste borné en taille — un Context Package n'est
 pas un dump.
 
-## Sous-étape 8.4 — Review Queue et AI Work Ledger — À FAIRE
+## Sous-étape 8.4 — Review Queue et AI Work Ledger — IMPLÉMENTÉE, verification Postgres reelle restante
 
 Vue agrégée serveur des éléments en attente d'action humaine (travail IA en
 `review_requested`, décisions `proposed`, conflits de claims), plus la
 résolution tranchée en 8.1, exposées de façon cohérente sur les trois surfaces :
-API (endpoints de liste et de transition, additifs — `TECH/02` n'a aujourd'hui
-aucune notion de review), MCP, et CLI. Côté CLI, l'existant est plus maigre
-qu'annoncé : `cli.py` n'a que `login`, `projects`, `tasks`, `sessions`,
-`claims` — ni `ai-work`, ni `decisions`, ni `events`, ni même `transfers`
-pourtant implémentés dans `transfers.py`. Dépend de 8.1.
+API (`GET /api/v1/review-queue`, additif — `TECH/02` n'avait aucune notion de
+review), MCP (`studio_get_review_queue`), et CLI (`ai-work list/show`,
+`review-queue list` — le trou CLI decrit plus bas est comble). Détail : DEC-0049.
+Dépend de 8.1 (close).
 
-## Sous-étape 8.5 — Notifications et timeline quotidienne — À FAIRE
+Écart CLI comblé par ce lot : `cli.py` n'avait que `login`, `projects`, `tasks`,
+`sessions`, `claims` — ni `ai-work`, ni `decisions`, ni `events`, ni `transfers`
+pourtant implémentés dans `transfers.py`. `ai-work`/`review-queue` ajoutés ici ;
+`decisions`/`events`/`transfers` restent un écart CLI ouvert, hors périmètre de
+ce lot.
+
+**Statut de verification** : `ruff`/`ruff format --check`/`mypy --strict` verts,
+routeur/outil MCP confirmés montés (`create_app().openapi()`,
+`create_server()`), contrat verifie en round-trip JSON manuel. Suite
+`tests/api/test_review_queue.py`/`tests/mcp/test_review_queue.py`/ajouts
+`tests/client/test_cli.py` **ecrite mais jamais executee contre un Postgres
+reel** (Docker indisponible sur la machine de developpement au moment du lot,
+DEC-0049) — a executer et confirmer avant de marquer cette sous-etape CLOS.
+
+## Sous-étape 8.5 — Notifications et timeline quotidienne — IMPLÉMENTÉE, verification Postgres reelle restante
 
 Dérivation d'une timeline par projet et par jour depuis le flux d'événements
-(déjà reprenable par curseur `seq`), et notifications restreintes aux seuls
-événements qui demandent une action (`HUMAN/02` : conflit, build cassé, review
-IA, PR prête, tâche bloquée, décision/mémoire à approuver, nouveau transfert).
-`Notification` est listée dans `TECH/05_DATA_MODEL.md` comme « reste à spécifier
-en Phase 4-6, pas encore code » : la spécifier ou décider qu'elle reste une
-dérivation client est la question n° 4 ci-dessous. Dépend de 8.1 et 8.4.
+(déjà reprenable par curseur `seq`) : `GET /api/v1/timeline`, `studio_get_timeline`,
+`timeline list` (CLI). Notifications restreintes aux seuls événements qui
+demandent une action : **pas un nouvel endpoint** — `GET /api/v1/review-queue`
+(8.4) sert directement de surface notifications (`notifications list` en CLI
+est un alias direct de `review-queue list`), decision actee et justifiee en
+DEC-0051 (question n° 4 ci-dessous, desormais tranchee : `Notification` reste
+delibrement non persistee, `TECH/05_DATA_MODEL.md` mis a jour en consequence).
+Dépend de 8.1 et 8.4 (toutes deux closes/implementees).
+
+**Statut de verification** : meme niveau que 8.4 — statique verte
+(`ruff`/`mypy --strict`, routeur/outil MCP montes, aucun nouvel `EventType`
+confirme par lecture), suite `tests/api/test_timeline.py`/
+`tests/mcp/test_timeline.py`/ajouts CLI **ecrite mais jamais executee contre
+un Postgres reel**.
 
 ## Sous-étape 8.6 — Dashboard minimal — EN COURS (DASH-0/1/2 faits, DASH-3/4/5 restants)
 

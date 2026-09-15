@@ -294,9 +294,9 @@ interfaces publiques sont disponibles.
 
 1. Decouvrir Studi'OS : PASS — `GET /healthz` + OpenAPI existent en code
    (`routers/health.py`, `main.py`) et une page d'accueil externe unique a ete
-   ajoutee (`INTEGRATION/00_EXTERNAL_CONSUMER_GUIDE.md`, UC-6 CLOS/DEC-0051) ;
+   ajoutee (`INTEGRATION/00_EXTERNAL_CONSUMER_GUIDE.md`, UC-6 CLOS/DEC-0054) ;
    les parcours rediges pour un outillage particulier ont ete genericises
-   (UC-4 CLOS/DEC-0049).
+   (UC-4 CLOS/DEC-0052).
 2. Comprendre ses capacites : PARTIAL — `TECH/02-09` + liste MCP
    exhaustives, mais 4 outils memoire/graphe manquants et pas d'index
    externe unique. (UC-3)
@@ -331,7 +331,7 @@ interfaces publiques sont disponibles.
 - CC-3 : RESOLU (DEC-0048) — pas de version par payload MCP ; evolution
   par discovery + schemas + additive/breaking (`TECH/07` §Evolution).
 - CC-4 (optionnelle) : generaliser `error_code` a toutes les erreurs.
-- UC-5 (DEC-0050) : champs optionnels `agent_profile`/`harness`/`provider`/
+- UC-5 (DEC-0053) : champs optionnels `agent_profile`/`harness`/`provider`/
   `model` sur `Agent`/`AIWorkLog` — additif, observabilite uniquement,
   jamais lus par l'autorisation.
 - Memoire/graphe local : 3 outils MCP read-only implementes (UC-3 CLOS,

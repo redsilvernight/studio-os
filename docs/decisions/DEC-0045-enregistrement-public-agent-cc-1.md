@@ -20,7 +20,7 @@ whiteliste, et strictement sans autorite.
 
 ## Amendement — UC-5 (2026-09-15)
 
-DEC-0050 operationalise les champs structures de DEC-0043 amendee et amende
+DEC-0053 operationalise les champs structures de DEC-0043 amendee et amende
 explicitement le point 1 ci-dessous : `Agent`/`AgentCreate` portent desormais
 `agent_profile`, `harness`, `provider`, `model`, chaines ouvertes optionnelles.
 L'affirmation « Aucun champ harness/provider/model/profil » du point 1 et la

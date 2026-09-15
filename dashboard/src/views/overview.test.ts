@@ -1,13 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { agentsSeenInEvents, filterReviews, groupTasksByColumn, sinceIso24h } from "./overview";
+import { agentsSeenInEvents, groupTasksByColumn, reviewQueueItemDetail, sinceIso24h } from "./overview";
 
 const task = (status: string, id = "t") => ({ id, status }) as never;
-const worklog = (status: string) => ({ status }) as never;
 
-describe("filterReviews", () => {
-  it("keeps only review_requested worklogs", () => {
-    const logs = [worklog("review_requested"), worklog("approved"), worklog("completed")];
-    expect(filterReviews(logs)).toHaveLength(1);
+describe("reviewQueueItemDetail", () => {
+  it("shows the agent for an ai_work_review item", () => {
+    const item = { kind: "ai_work_review", agent_id: "11111111-2222-4333-8444-555555555555" } as never;
+    expect(reviewQueueItemDetail(item)).toContain("agent");
+  });
+
+  it("shows the readable_id for a decision_proposal item", () => {
+    const item = { kind: "decision_proposal", readable_id: "DEC-0049" } as never;
+    expect(reviewQueueItemDetail(item)).toBe("DEC-0049");
+  });
+
+  it("shows the resource_path for a resource_conflict item", () => {
+    const item = { kind: "resource_conflict", resource_path: "scenes/level_01.tscn" } as never;
+    expect(reviewQueueItemDetail(item)).toBe("scenes/level_01.tscn");
   });
 });
 

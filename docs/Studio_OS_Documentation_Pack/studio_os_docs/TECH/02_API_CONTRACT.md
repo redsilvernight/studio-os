@@ -87,6 +87,34 @@ paritaire HTTP/MCP). Avant : ligne inexistante -> `500` (violation FK),
 ligne d'une autre machine -> `201` silencieux. Les appelants existants
 n'utilisant que leurs propres agents n'observent aucun changement.
 
+### Review Queue (sous-etape 8.4, additif, DEC-0049)
+- GET /review-queue — vue agregee, lecture seule, de tout ce qui attend une
+  action humaine : `AIWorkLog` en `review_requested` (resoudre via
+  `PATCH /ai-work/{id}`), `Decision` en `proposed` (informatif — aucun
+  endpoint de transition n'existe pour les decisions), et evenements
+  `resource.conflict` recents (best-effort, borne dans le temps : aucun
+  etat de conflit persiste n'existe). Query params : `project_id` (UUID,
+  optionnel), `conflict_window_hours` (defaut 24, max 168). Reponse
+  `ReviewQueue{items: [...], generated_at}`, chaque item discrimine par
+  `kind` (`ai_work_review`/`decision_proposal`/`resource_conflict`), triee
+  par `requested_at` decroissant. Sert aussi de surface "notifications"
+  (DEC-0051, sous-etape 8.5) — il n'existe pas d'endpoint notifications
+  separe. Toute machine authentifiee peut lire.
+
+### Timeline (sous-etape 8.5, additif, DEC-0051)
+- GET /timeline — activite d'un projet groupee par jour calendaire UTC
+  (jour le plus recent d'abord, evenements croissants dans le jour),
+  **non filtree** : c'est l'historique, pas un signal actionnable (voir
+  `GET /review-queue` pour ça — les "notifications" au sens de
+  `HUMAN/02_FONCTIONNALITES_FINALES.md` sont `GET /review-queue`, il
+  n'existe pas d'endpoint notifications separe). Query params : `project_id`
+  (UUID, requis), `since` (ISO-8601, optionnel), `limit` (defaut 200, max
+  500). Reponse `Timeline{project_id, days: [{date, events: [EventEnvelope]}]}`.
+  Herite directement l'honnetete "not claimed exhaustive" de `GET /events`
+  (meme requete sous-jacente) : plusieurs types d'evenements n'ont aucune
+  emission serveur a ce jour (question ouverte n°9,
+  `docs/ROADMAP_STEP8_BREAKDOWN.md`). Toute machine authentifiee peut lire.
+
 ### Heartbeats
 - POST /heartbeats
 

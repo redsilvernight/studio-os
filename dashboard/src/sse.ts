@@ -81,6 +81,11 @@ export interface StreamCallbacks {
   onMessage: (message: SseMessage) => void;
   onError: (error: Error) => void;
   onClose: () => void;
+  /** Fires on every raw chunk received (not just parsed messages) — the
+   * only reliable activity signal, since `stream_events` never emits a
+   * periodic keep-alive comment (routers/events.py). Used by the DASH-3
+   * watchdog; optional so DASH-0/1 callers are unaffected. */
+  onActivity?: () => void;
 }
 
 export interface StreamHandle {
@@ -162,6 +167,7 @@ export async function connectEventStream(
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
+      callbacks.onActivity?.();
       for (const message of parser.feed(decoder.decode(value, { stream: true }))) {
         callbacks.onMessage(message);
       }
@@ -179,4 +185,145 @@ export async function connectEventStream(
     callbacks.onClose();
   }
   return handle;
+}
+
+/**
+ * DASH-3: the persistent loop `connectEventStream` deliberately leaves to
+ * the caller — reconnect on close/error, exponential backoff (resets after
+ * a clean close, grows on repeated errors), and an inactivity watchdog.
+ *
+ * The watchdog is defense-in-depth only, not the primary reconnect
+ * trigger: `stream_events` (routers/events.py) never emits a periodic
+ * keep-alive, so a quiet project is indistinguishable from a stalled
+ * connection by silence alone — a short timeout would cause reconnect
+ * churn on legitimately idle projects. `onError`/`onClose` already cover
+ * the common failure modes; the watchdog only guards against a connection
+ * some proxy/NAT silently dropped without ever surfacing an error.
+ */
+export interface LiveStreamCallbacks {
+  onMessage: (message: SseMessage) => void;
+}
+
+export interface LiveStreamOptions {
+  sinceSeq?: number | null;
+  /** Default 1000ms, doubling, capped at backoffMaxMs, ±20% jitter. */
+  backoffInitialMs?: number;
+  /** Default 30000ms. */
+  backoffMaxMs?: number;
+  /** Default 75000ms — long on purpose, see class doc above. */
+  watchdogMs?: number;
+}
+
+export interface LiveStreamHandle {
+  close: () => void;
+  readonly closed: boolean;
+}
+
+export function openLiveProjectStream(
+  baseUrl: string,
+  token: string,
+  projectId: string,
+  callbacks: LiveStreamCallbacks,
+  options: LiveStreamOptions = {},
+): LiveStreamHandle {
+  const backoffInitialMs = options.backoffInitialMs ?? 1000;
+  const backoffMaxMs = options.backoffMaxMs ?? 30000;
+  const watchdogMs = options.watchdogMs ?? 75000;
+
+  let lastSeq = options.sinceSeq ?? null;
+  let stopped = false;
+  let attempt = 0;
+  let currentAbort: AbortController | null = null;
+  let watchdogTimer: ReturnType<typeof setTimeout> | null = null;
+  let backoffTimer: ReturnType<typeof setTimeout> | null = null;
+  let resolveBackoff: (() => void) | null = null;
+
+  function clearWatchdog(): void {
+    if (watchdogTimer !== null) {
+      clearTimeout(watchdogTimer);
+      watchdogTimer = null;
+    }
+  }
+
+  function armWatchdog(): void {
+    clearWatchdog();
+    watchdogTimer = setTimeout(() => {
+      currentAbort?.abort();
+    }, watchdogMs);
+  }
+
+  async function loop(): Promise<void> {
+    while (!stopped) {
+      const abort = new AbortController();
+      currentAbort = abort;
+      armWatchdog();
+      let errored = false;
+      const inner = await connectEventStream(
+        baseUrl,
+        token,
+        projectId,
+        {
+          onMessage: (message) => {
+            if (message.seq !== null) lastSeq = message.seq;
+            callbacks.onMessage(message);
+          },
+          onError: () => {
+            errored = true;
+          },
+          onClose: () => {
+            /* the loop below decides whether/when to reconnect */
+          },
+          onActivity: () => {
+            armWatchdog();
+          },
+        },
+        { sinceSeq: lastSeq, signal: abort.signal },
+      );
+      currentAbort = null;
+      clearWatchdog();
+      if (inner.lastSeq !== null) lastSeq = inner.lastSeq;
+      if (stopped) break;
+
+      attempt = errored ? attempt + 1 : 0;
+      const delay = Math.min(backoffMaxMs, backoffInitialMs * 2 ** attempt);
+      const jitter = delay * (0.8 + Math.random() * 0.4);
+      await new Promise<void>((resolve) => {
+        resolveBackoff = resolve;
+        backoffTimer = setTimeout(() => {
+          backoffTimer = null;
+          resolveBackoff = null;
+          resolve();
+        }, jitter);
+      });
+    }
+  }
+
+  void loop().catch(() => {
+    /* connectEventStream never rejects (it reports via onError) — this is
+     * only a safety net against a future change that makes it throw. */
+  });
+
+  return {
+    close() {
+      stopped = true;
+      clearWatchdog();
+      if (backoffTimer !== null) {
+        clearTimeout(backoffTimer);
+        backoffTimer = null;
+      }
+      // A close() during the backoff wait must resolve the pending promise
+      // itself (clearTimeout alone never does) — otherwise `loop()` and
+      // everything it closes over (callbacks, token, lastSeq) leaks,
+      // suspended forever awaiting a timer that will never fire.
+      if (resolveBackoff !== null) {
+        const resolve = resolveBackoff;
+        resolveBackoff = null;
+        resolve();
+      }
+      currentAbort?.abort();
+    },
+    get closed() {
+      return stopped;
+    },
+  };
 }

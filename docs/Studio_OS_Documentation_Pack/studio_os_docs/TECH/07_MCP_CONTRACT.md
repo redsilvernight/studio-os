@@ -21,6 +21,8 @@ studio_start_session
 studio_end_session
 studio_log_ai_work
 studio_get_ai_work
+studio_get_review_queue
+studio_get_timeline
 studio_memory_search
 studio_memory_read
 studio_graph_query
@@ -163,6 +165,16 @@ DEC-0027, a trancher separement si un besoin reel de replay apparait).
 consommateur purement MCP materialise son `Agent` via HTTP ; `studio_log_ai_work`
 applique la meme regle d'ownership `actor_not_owned` que le chemin HTTP,
 le service etant partage (DEC-0005/DEC-0036).
+
+## Review Queue et notifications (sous-etape 8.4/8.5, DEC-0049/DEC-0051)
+
+`studio_get_review_queue` (lecture seule) agrege le travail IA en
+`review_requested`, les decisions `proposed`, et les evenements
+`resource.conflict` recents (`conflict_window_hours`, defaut 24, best-effort
+— aucun etat de conflit persiste). Sert aussi de surface "notifications"
+(DEC-0051) : aucun outil `studio_get_notifications` distinct n'existe — un
+second outil renvoyant les memes donnees degraderait la selection d'outil
+par le modele plutot que d'apporter une information nouvelle.
 
 ## Evolution des contrats d'outils (CC-3, DEC-0048)
 
