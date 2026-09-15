@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Identity
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -35,6 +35,7 @@ class EventModel(UUIDPKMixin, Base):
     server_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     schema_version: Mapped[int] = mapped_column(default=1)
+    seq: Mapped[int] = mapped_column(BigInteger, Identity(always=True), unique=True)
 
     @property
     def event_id(self) -> uuid.UUID:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
+from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,6 +19,19 @@ async def list_projects(session: AsyncSession) -> list[ProjectModel]:
 
 async def get_project(session: AsyncSession, project_id: uuid.UUID) -> ProjectModel | None:
     return await session.get(ProjectModel, project_id)
+
+
+async def create_project(
+    session: AsyncSession, slug: str, name: str, description: str | None
+) -> ProjectModel:
+    existing = await session.execute(select(ProjectModel).where(ProjectModel.slug == slug))
+    if existing.scalar_one_or_none() is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "project slug already exists")
+    project = ProjectModel(slug=slug, name=name, description=description)
+    session.add(project)
+    await session.commit()
+    await session.refresh(project)
+    return project
 
 
 async def get_active_tasks(session: AsyncSession, project_id: uuid.UUID) -> list[TaskModel]:

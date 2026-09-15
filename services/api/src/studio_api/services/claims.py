@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.claims import ResourceClaimCreate
 
 from studio_api.db.models.claim import ResourceClaimModel
+from studio_api.services.authz import Principal, ensure_can_write, ensure_machine_owned
 
 
 async def _active_claims(session: AsyncSession, project_id: uuid.UUID) -> list[ResourceClaimModel]:
@@ -47,6 +48,7 @@ async def list_claims(
 
 async def create_claim(
     session: AsyncSession,
+    principal: Principal,
     claim_in: ResourceClaimCreate,
     machine_id: uuid.UUID,
     agent_id: uuid.UUID | None,
@@ -54,6 +56,7 @@ async def create_claim(
     """Soft lock: a conflict is surfaced (`resource.conflict` event, left to the
     router) but never blocks the write here — see AI/01_AI_OPERATING_REFERENCE.md
     interdiction on blocking locks."""
+    ensure_can_write(principal, "claim")
     now = datetime.now(UTC)
     claim = ResourceClaimModel(
         project_id=claim_in.project_id,
@@ -82,7 +85,10 @@ async def has_conflict(session: AsyncSession, claim: ResourceClaimModel) -> bool
     )
 
 
-async def renew_claim(session: AsyncSession, claim: ResourceClaimModel) -> ResourceClaimModel:
+async def renew_claim(
+    session: AsyncSession, principal: Principal, claim: ResourceClaimModel
+) -> ResourceClaimModel:
+    ensure_machine_owned(principal, claim.claimed_by_machine_id, "claim", "renew")
     now = datetime.now(UTC)
     claim.renewed_at = now
     claim.expires_at = now + timedelta(seconds=claim.ttl_seconds)
@@ -91,7 +97,10 @@ async def renew_claim(session: AsyncSession, claim: ResourceClaimModel) -> Resou
     return claim
 
 
-async def release_claim(session: AsyncSession, claim: ResourceClaimModel) -> ResourceClaimModel:
+async def release_claim(
+    session: AsyncSession, principal: Principal, claim: ResourceClaimModel
+) -> ResourceClaimModel:
+    ensure_machine_owned(principal, claim.claimed_by_machine_id, "claim", "release")
     claim.status = "released"
     claim.released_at = datetime.now(UTC)
     await session.commit()

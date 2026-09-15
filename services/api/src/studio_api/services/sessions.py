@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.sessions import WorkSessionCreate
 
 from studio_api.db.models.work_session import WorkSessionModel
+from studio_api.services.authz import Principal, ensure_can_write, ensure_machine_owned
 
 
 async def list_sessions(
@@ -21,7 +22,10 @@ async def list_sessions(
     return list(result.scalars().all())
 
 
-async def start_session(session: AsyncSession, session_in: WorkSessionCreate) -> WorkSessionModel:
+async def start_session(
+    session: AsyncSession, principal: Principal, session_in: WorkSessionCreate
+) -> WorkSessionModel:
+    ensure_can_write(principal, "session")
     work_session = WorkSessionModel(
         task_id=session_in.task_id,
         machine_id=session_in.machine_id,
@@ -34,10 +38,13 @@ async def start_session(session: AsyncSession, session_in: WorkSessionCreate) ->
     return work_session
 
 
-async def end_session(session: AsyncSession, session_id: uuid.UUID) -> WorkSessionModel:
+async def end_session(
+    session: AsyncSession, principal: Principal, session_id: uuid.UUID
+) -> WorkSessionModel:
     work_session = await session.get(WorkSessionModel, session_id)
     if work_session is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "session not found")
+    ensure_machine_owned(principal, work_session.machine_id, "session", "end")
     work_session.ended_at = datetime.now(UTC)
     await session.commit()
     await session.refresh(work_session)

@@ -5,14 +5,30 @@ from uuid import UUID
 from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 from studio_contracts.tasks import Task, TaskCreate, TaskUpdate
 
-from studio_api.deps import CurrentMachine, DbSession
+from studio_api.deps import CurrentMachine, CurrentPrincipal, DbSession
+from studio_api.openapi_meta import (
+    IDEMPOTENCY_KEY_DESCRIPTION,
+    IF_MATCH_VERSION_DESCRIPTION,
+    RESP_401_UNAUTHORIZED,
+    RESP_403_FORBIDDEN,
+    RESP_404_NOT_FOUND,
+    RESP_409_ALREADY_CLAIMED,
+    RESP_409_IDEMPOTENCY,
+    RESP_409_VERSION_CONFLICT,
+)
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import tasks as tasks_service
+from studio_api.services.authz import ensure_can_write
 
 router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
 
 
-@router.get("", response_model=list[Task])
+@router.get(
+    "",
+    response_model=list[Task],
+    description="List tasks, optionally filtered by project. Any authenticated machine may read.",
+    responses={**RESP_401_UNAUTHORIZED},
+)
 async def list_tasks(
     session: DbSession,
     machine: CurrentMachine,
@@ -26,23 +42,42 @@ async def list_tasks(
     return [Task.model_validate(t) for t in tasks]
 
 
-@router.post("", response_model=Task, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=Task,
+    status_code=status.HTTP_201_CREATED,
+    description=(
+        "Create a task. Requires a writer role. Accepts `Idempotency-Key` "
+        "for safe retries: the same key with the identical body returns "
+        "the original task instead of a duplicate."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_409_IDEMPOTENCY},
+)
 async def create_task(
     task_in: TaskCreate,
     request: Request,
     session: DbSession,
-    machine: CurrentMachine,
-    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    principal: CurrentPrincipal,
+    idempotency_key: str | None = Header(
+        default=None, alias="Idempotency-Key", description=IDEMPOTENCY_KEY_DESCRIPTION
+    ),
 ) -> Task:
+    ensure_can_write(principal, "task")
+
     async def _create() -> Task:
-        return Task.model_validate(await tasks_service.create_task(session, task_in))
+        return Task.model_validate(await tasks_service.create_task(session, principal, task_in))
 
     return await idempotency_service.run_idempotent(
         session, request, idempotency_key, "POST /tasks", Task, _create, status.HTTP_201_CREATED
     )
 
 
-@router.get("/{task_id}", response_model=Task)
+@router.get(
+    "/{task_id}",
+    response_model=Task,
+    description="Get one task by id. Any authenticated machine may read.",
+    responses={**RESP_401_UNAUTHORIZED, **RESP_404_NOT_FOUND},
+)
 async def get_task(task_id: UUID, session: DbSession, machine: CurrentMachine) -> Task:
     task = await tasks_service.get_task(session, task_id)
     if task is None:
@@ -50,34 +85,75 @@ async def get_task(task_id: UUID, session: DbSession, machine: CurrentMachine) -
     return Task.model_validate(task)
 
 
-@router.patch("/{task_id}", response_model=Task)
+@router.patch(
+    "/{task_id}",
+    response_model=Task,
+    description=(
+        "Update a task's title, description or status. Requires a writer "
+        "role and the current `If-Match-Version`; a stale version is "
+        "rejected with the live server version instead of overwriting."
+    ),
+    responses={
+        **RESP_401_UNAUTHORIZED,
+        **RESP_403_FORBIDDEN,
+        **RESP_404_NOT_FOUND,
+        **RESP_409_VERSION_CONFLICT,
+    },
+)
 async def update_task(
     task_id: UUID,
     task_in: TaskUpdate,
     session: DbSession,
-    machine: CurrentMachine,
-    if_match_version: int = Header(alias="If-Match-Version"),
+    principal: CurrentPrincipal,
+    if_match_version: int = Header(
+        alias="If-Match-Version", description=IF_MATCH_VERSION_DESCRIPTION
+    ),
 ) -> Task:
     task = await tasks_service.get_task(session, task_id)
     if task is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
-    task = await tasks_service.update_task(session, task, task_in, if_match_version)
+    task = await tasks_service.update_task(session, principal, task, task_in, if_match_version)
     return Task.model_validate(task)
 
 
-@router.post("/{task_id}/claim", response_model=Task)
-async def claim_task(task_id: UUID, session: DbSession, machine: CurrentMachine) -> Task:
+@router.post(
+    "/{task_id}/claim",
+    response_model=Task,
+    description=(
+        "Claim a task for the caller's machine (sets status to "
+        "in_progress). Requires a writer role. Fails with "
+        "`already_claimed` if another machine holds it."
+    ),
+    responses={
+        **RESP_401_UNAUTHORIZED,
+        **RESP_403_FORBIDDEN,
+        **RESP_404_NOT_FOUND,
+        **RESP_409_ALREADY_CLAIMED,
+    },
+)
+async def claim_task(task_id: UUID, session: DbSession, principal: CurrentPrincipal) -> Task:
     task = await tasks_service.get_task(session, task_id)
     if task is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
-    task = await tasks_service.claim_task(session, task, machine.id, agent_id=None)
+    task = await tasks_service.claim_task(
+        session, principal, task, principal.machine.id, agent_id=None
+    )
     return Task.model_validate(task)
 
 
-@router.post("/{task_id}/release", response_model=Task)
-async def release_task(task_id: UUID, session: DbSession, machine: CurrentMachine) -> Task:
+@router.post(
+    "/{task_id}/release",
+    response_model=Task,
+    description=(
+        "Release a task's claim. Only the machine holding the claim (or a "
+        "privileged role) may release it; anyone else receives `403 "
+        "forbidden`."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
+)
+async def release_task(task_id: UUID, session: DbSession, principal: CurrentPrincipal) -> Task:
     task = await tasks_service.get_task(session, task_id)
     if task is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
-    task = await tasks_service.release_task(session, task)
+    task = await tasks_service.release_task(session, principal, task)
     return Task.model_validate(task)

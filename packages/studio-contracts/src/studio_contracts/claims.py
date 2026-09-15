@@ -13,9 +13,9 @@ class ResourceType(StrEnum):
 
 
 class ClaimStatus(StrEnum):
-    """A claim past `expires_at` is not active regardless of stored status —
-    see .claude/rules/database.md. It is a soft lock: it warns, it never
-    blocks a Git operation or a file write."""
+    """A claim past `expires_at` is not active regardless of stored status.
+    A claim is a soft lock: it warns, it never blocks a Git operation or a
+    file write."""
 
     ACTIVE = "active"
     RELEASED = "released"

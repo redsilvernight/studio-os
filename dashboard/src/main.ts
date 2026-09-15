@@ -1,0 +1,138 @@
+/**
+ * Application shell (DASH-0/2).
+ *
+ * Routes: #/ (Dashboard overview), #/projects, #/projects/<id>[/tasks|/claims],
+ * #/tasks, #/tasks/<id>. Activity/Agents/Worklogs/Decisions/Transfers stay
+ * DISABLED (no fake content, no Machines entry). Token bar: manual Bearer,
+ * memory-only, one-click clear.
+ */
+import { apiBaseUrl, createApiClient } from "./api";
+import { resolveApiUrl } from "./config";
+import { clearToken, hasToken, setToken } from "./auth";
+import { subscribe, uiState } from "./store";
+import { renderOverview } from "./views/overview";
+import { renderProjects } from "./views/projects";
+import { renderProjectDetail } from "./views/projectDetail";
+import { renderTaskDetail } from "./views/taskDetail";
+import { renderTasksInto } from "./views/tasks";
+import { parseRoute, type Route } from "./router";
+import { esc } from "./ui";
+import "./styles.css";
+
+const DISABLED_SECTIONS = ["Activity", "Agents", "Worklogs", "Decisions", "Transfers"] as const;
+
+function navHtml(route: Route): string {
+  const item = (href: string, label: string, active: boolean): string =>
+    `<a class="nav-item${active ? " active" : ""}" href="${href}">${esc(label)}</a>`;
+  const disabled = DISABLED_SECTIONS.map(
+    (name) => `<span class="nav-item disabled" title="Planned after DASH-2">${esc(name)}<span class="badge">later</span></span>`,
+  ).join("");
+  return `<nav class="nav">${item("#/", "Dashboard", route.name === "dashboard")}${item(
+    "#/projects",
+    "Projects",
+    route.name === "projects" || route.name === "project",
+  )}${item("#/tasks", "Tasks", route.name === "tasks" || route.name === "task")}${disabled}</nav>`;
+}
+
+function shellHtml(apiUrl: string, route: Route): string {
+  const shownUrl = apiUrl === "" ? "same-origin" : apiUrl;
+  return `
+  <header class="topbar">
+    <div class="brand">Studi'OS <span class="v0">dashboard v0</span></div>
+    ${navHtml(route)}
+    <div class="api-url" title="API base URL (VITE_STUDIO_API_URL, empty = same-origin)">${esc(shownUrl)}</div>
+  </header>
+  <div class="tokenbar">
+    <label>Machine token
+      <input id="token-input" type="password" autocomplete="off" spellcheck="false" placeholder="Bearer token (memory only)" />
+    </label>
+    <button id="token-set" type="button">Set</button>
+    <button id="token-clear" type="button">Clear</button>
+    <span id="token-state" class="meta"></span>
+    <span class="meta warn" title="The token stays in page memory. It is never stored, never logged, never rendered back. Clearing drops it from this session.">memory-only · never stored</span>
+  </div>
+  <main id="view"></main>`;
+}
+
+function refreshTokenState(): void {
+  const state = document.getElementById("token-state");
+  const input = document.getElementById("token-input") as HTMLInputElement | null;
+  if (state !== null) state.textContent = hasToken() ? "token set (hidden)" : "no token";
+  if (input !== null && hasToken()) input.value = "";
+}
+
+async function render(): Promise<void> {
+  const view = document.getElementById("view");
+  const topbar = document.querySelector(".topbar");
+  if (view === null) return;
+  const route = parseRoute(location.hash);
+  if (topbar !== null) topbar.outerHTML = `<header class="topbar"><div class="brand">Studi'OS <span class="v0">dashboard v0</span></div>${navHtml(route)}<div class="api-url">${esc(apiUrlShown())}</div></header>`;
+  const baseUrl = resolveApiUrl(apiBaseUrl());
+  const client = createApiClient(baseUrl);
+  const authed = hasToken();
+  switch (route.name) {
+    case "projects":
+      await renderProjects(view, { client, authed });
+      break;
+    case "project":
+      await renderProjectDetail(view, { client, authed }, route.id, route.tab);
+      break;
+    case "tasks":
+      await renderTasksInto(view, {
+        client,
+        authed,
+        projectId: uiState.selectedProjectId ?? undefined,
+        scopeLabel: uiState.selectedProjectId ? "selected project (change in Overview/Projects)" : "all projects",
+      });
+      break;
+    case "task":
+      await renderTaskDetail(view, { client, authed }, route.id);
+      break;
+    case "dashboard":
+    default:
+      await renderOverview(view, { client, baseUrl, authed });
+      break;
+  }
+}
+
+function apiUrlShown(): string {
+  const baseUrl = resolveApiUrl(apiBaseUrl());
+  return baseUrl === "" ? "same-origin" : baseUrl;
+}
+
+export function boot(): void {
+  const app = document.getElementById("app");
+  if (app === null) throw new Error("#app missing");
+  app.innerHTML = shellHtml(resolveApiUrl(apiBaseUrl()), parseRoute(location.hash));
+
+  const input = document.getElementById("token-input") as HTMLInputElement;
+  document.getElementById("token-set")?.addEventListener("click", () => {
+    setToken(input.value);
+    input.value = "";
+    refreshTokenState();
+    void render();
+  });
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      setToken(input.value);
+      input.value = "";
+      refreshTokenState();
+      void render();
+    }
+  });
+  document.getElementById("token-clear")?.addEventListener("click", () => {
+    clearToken();
+    refreshTokenState();
+    void render();
+  });
+  refreshTokenState();
+  subscribe(() => {
+    void render();
+  });
+  window.addEventListener("hashchange", () => {
+    void render();
+  });
+  void render();
+}
+
+boot();

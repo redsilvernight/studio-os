@@ -35,6 +35,9 @@ class TransferModel(UUIDPKMixin, Base):
     # BIGINT: a large build/recording transfer can exceed 32-bit INTEGER range.
     size_bytes: Mapped[int] = mapped_column(BigInteger())
     sha256: Mapped[str | None] = mapped_column(default=None)
+    # Base64 MD5 (RFC 1864) presigned into the PUT (single-PUT path only) so
+    # MinIO/S3 rejects a byte mismatch at upload time — see DEC-0025.
+    content_md5: Mapped[str | None] = mapped_column(default=None)
     status: Mapped[str] = mapped_column(default="created")
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

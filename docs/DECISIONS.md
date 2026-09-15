@@ -1,3 +1,12 @@
+# Decisions log (index genere)
+
+Ce fichier est genere par `uv run python -m scripts.adr_index` depuis les
+ADR unitaires de `docs/decisions/`. Ne pas l'editer a la main -- une
+modification directe sera ecrasee au prochain regenerat. Pour ajouter une
+decision, creer un nouveau fichier `docs/decisions/DEC-XXXX-slug.md` (voir
+un ADR existant comme modele), puis relancer la commande ci-dessus.
+
+
 # Decisions log (bootstrap)
 
 Avant que l'entite `Decision` / l'endpoint `POST /decisions` n'existent reellement
@@ -7,113 +16,57 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `contract-change` (etape 5). A migrer vers de vraies entites `Decision` une fois
 `POST /decisions` disponible.
 
-## DEC-0001 — Layout du depot : monorepo uv (`packages/` + `services/`)
 
-Workspace uv avec `packages/studio-contracts` (schemas Pydantic v2 purs, sans
-dependance FastAPI/SQLAlchemy) et `services/api` + `services/mcp`. Le Bloc B
-importera `studio-contracts` en local depuis le meme monorepo (pas de
-publication/vendoring externe pour l'instant). Justification : c'est la
-priorite absolue du Bloc A (`IMPLEMENTATION/02_BLOCK_A_PROMPT.md`) — des
-schemas partages que le Bloc B peut importer sans tirer SQLAlchemy.
+48 decision(s). Detail complet dans chaque ADR lie.
 
-## DEC-0002 — Gestionnaire de dependances Python : `uv`
 
-Non tranche par la documentation. `uv` retenu : workspace multi-packages,
-lockfile, rapide en build Docker.
-
-## DEC-0003 — Credential machine : token opaque, hash stocke serveur
-
-`TECH/04_AUTH_SYNC_CONTRACT.md` exige un credential par machine, revocable
-independamment, sans preciser le mecanisme. Retenu : token opaque genere
-cote serveur (`secrets.token_urlsafe`), seul son hash SHA-256 est stocke
-(`machines.credential_hash`). Revoquer = mettre `credential_revoked_at`,
-jamais de rotation de cle a gerer.
-
-## DEC-0004 — Endpoint S3 public distinct de l'endpoint interne
-
-Les URLs pre-signees doivent etre signees avec l'endpoint MinIO **joignable
-depuis les postes clients**, jamais le nom de service interne Docker
-(`minio:9000`). `Settings` expose `s3_endpoint_url` (usage interne) et
-`s3_public_endpoint_url` (utilise pour le signing). A configurer separement
-en prod (`storage.example.com`).
-
-## DEC-0005 — MCP importe la couche `services/` directement (pas de HTTP interne)
-
-`services/mcp` depend du package `studio-api` et appelle
-`studio_api.services.*` directement (meme image/monorepo), plutot que de
-faire du HTTP vers l'API en interne. Justification : `.claude/rules/mcp-tools.md`
-exige qu'un tool MCP soit une couche fine appelant la meme fonction service
-que le router HTTP, sans dupliquer la logique — importer directement est le
-moyen le plus direct de garantir ca.
-
-## DEC-0006 — `event_id` est l'idempotency key des events (pas le header)
-
-Pour `POST /events` specifiquement, l'idempotence repose sur `event_id`
-(genere client-side, stable a travers les retries de la queue offline —
-`TECH/04_AUTH_SYNC_CONTRACT.md`, `TECH/08_OFFLINE_SYNC.md`), pas sur le
-header `Idempotency-Key` generique utilise par les autres endpoints de
-creation (tasks, claims, decisions, transfers, sessions, ai-work).
-
-## DEC-0007 — `Transfer.category` : enum ferme a 4 valeurs
-
-`TECH/05_DATA_MODEL.md` nomme le champ `category` sans l'enumerer.
-`.claude/rules/storage-transfers.md` liste 4 classes de retention
-(`temporary` 7j, `build` 30j, `asset` manuel/long, `raw_recording` local
-uniquement) — retenues telles quelles comme `TransferCategory`.
-
-## DEC-0008 — `/api/v1/stream` : SSE (pas WebSocket)
-
-`TECH/01_ARCHITECTURE.md` laissait le choix ouvert (« WebSocket ou SSE »).
-Retenu : Server-Sent Events — tous les flux temps reel listes (taches,
-claims, presence, builds, AI work, notifications) sont des push
-serveur->client unidirectionnels, aucun n'a besoin d'un canal client->serveur
-bidirectionnel. SSE traverse plus simplement Caddy/proxies qu'un upgrade
-WebSocket. **Non implemente dans ce scaffold initial** (Phase 1) — seule la
-decision est figee ici pour ne pas bloquer le design cote Bloc B.
-
-## DEC-0009 — Tests : `pytest` + `pytest-asyncio` + `httpx` (ASGITransport)
-
-Non tranche par la documentation. Stack par defaut coherente avec FastAPI
-async.
-
-## DEC-0010 — Tests d'integration Bloc A : vrai PostgreSQL, jamais SQLite
-
-`.claude/rules/database.md` interdit de traiter SQLite comme source de verite
-partagee ; ca s'etend aux tests. Les modeles ORM utilisent des types
-Postgres-only (`postgresql.JSONB`, `postgresql.UUID`) qu'un moteur SQLite ne
-peut pas executer sans emulation. Retenu : `tests/api/` tourne contre un vrai
-Postgres (`STUDIO_TEST_DATABASE_URL`, defaut
-`postgresql+asyncpg://studio:studio@localhost:5432/studio_os_test`), migre au
-prealable via `alembic upgrade head`. Isolation par test : une connexion
-`engine.connect()` + `connection.begin()` par test (fixture `db_session`),
-session ORM liee avec `join_transaction_mode="create_savepoint"` — les
-`session.commit()` du code applicatif ne liberent qu'un SAVEPOINT, le
-`connection.rollback()` en fin de test annule tout. La fixture `engine` est
-**function-scoped**, pas session-scoped : asyncpg lie ses connexions a la
-boucle asyncio qui les a creees, et pytest-asyncio donne une boucle par test —
-un engine session-scoped provoque un `RuntimeError: ... attached to a
-different loop` des le deuxieme test. CI : job `test` de `.github/workflows/ci.yml`
-demarre un service `postgres:16` et applique les migrations avant `pytest`.
-
-Cette suite (25 tests, `tests/api/`) a mis en evidence deux bugs reels du
-scaffold Bloc A, invisibles sans Postgres reel (coherent avec la note du
-scaffold : "PostgreSQL reel non teste sur cette machine de dev") — corriges
-dans le meme changement :
-- Plusieurs colonnes datetime hors `TimestampMixin` (`events.client_timestamp`/
-  `server_timestamp`, `ai_work_logs.started_at`/`ended_at`,
-  `idempotency_keys.created_at`, `work_sessions.*`, `machines.last_seen_at`/
-  `credential_revoked_at`, `resource_claims.renewed_at`/`expires_at`/
-  `released_at`, `transfers.*`) declaraient `Mapped[datetime]` sans
-  `mapped_column(DateTime(timezone=True))` — la migration 0001 cree bien la
-  colonne Postgres en `TIMESTAMP WITH TIME ZONE`, mais sans cette annotation
-  cote modele, SQLAlchemy compile le bind parameter en `TIMESTAMP WITHOUT TIME
-  ZONE` et asyncpg rejette tout `datetime` aware (`datetime.now(UTC)`, utilise
-  partout cote service) avec `DataError: can't subtract offset-naive and
-  offset-aware datetimes`. Aucune migration necessaire (le schema DB etait
-  deja correct) — correction cote modele ORM uniquement.
-- `EventModel` n'exposait pas d'attribut `event_id` (seulement `id`, herite de
-  `UUIDPKMixin`) alors que le contrat `EventEnvelope` (`event_id` fixe par
-  `.claude/rules/contracts.md`) le lit via `from_attributes=True` —
-  `POST /events` et `GET /events` levaient systematiquement une
-  `pydantic.ValidationError`. Corrige par une `@property event_id -> self.id`
-  sur `EventModel`.
+| ID | Titre | Statut | ADR |
+|---|---|---|---|
+| DEC-0001 | Layout du depot : monorepo uv (`packages/` + `services/`) | active | [decisions/DEC-0001-layout-du-depot-monorepo-uv-packages-services.md](decisions/DEC-0001-layout-du-depot-monorepo-uv-packages-services.md) |
+| DEC-0002 | Gestionnaire de dependances Python : `uv` | active | [decisions/DEC-0002-gestionnaire-de-dependances-python-uv.md](decisions/DEC-0002-gestionnaire-de-dependances-python-uv.md) |
+| DEC-0003 | Credential machine : token opaque, hash stocke serveur | active | [decisions/DEC-0003-credential-machine-token-opaque-hash-stocke-serveur.md](decisions/DEC-0003-credential-machine-token-opaque-hash-stocke-serveur.md) |
+| DEC-0004 | Endpoint S3 public distinct de l'endpoint interne | active | [decisions/DEC-0004-endpoint-s3-public-distinct-de-l-endpoint-interne.md](decisions/DEC-0004-endpoint-s3-public-distinct-de-l-endpoint-interne.md) |
+| DEC-0005 | MCP importe la couche `services/` directement (pas de HTTP interne) | active | [decisions/DEC-0005-mcp-importe-la-couche-services-directement-pas-de-http.md](decisions/DEC-0005-mcp-importe-la-couche-services-directement-pas-de-http.md) |
+| DEC-0006 | `event_id` est l'idempotency key des events (pas le header) | active | [decisions/DEC-0006-event-id-est-l-idempotency-key-des-events-pas-le-header.md](decisions/DEC-0006-event-id-est-l-idempotency-key-des-events-pas-le-header.md) |
+| DEC-0007 | `Transfer.category` : enum ferme a 4 valeurs | active | [decisions/DEC-0007-transfer-category-enum-ferme-a-4-valeurs.md](decisions/DEC-0007-transfer-category-enum-ferme-a-4-valeurs.md) |
+| DEC-0008 | `/api/v1/stream` : SSE (pas WebSocket) | active | [decisions/DEC-0008-api-v1-stream-sse-pas-websocket.md](decisions/DEC-0008-api-v1-stream-sse-pas-websocket.md) |
+| DEC-0009 | Tests : `pytest` + `pytest-asyncio` + `httpx` (ASGITransport) | active | [decisions/DEC-0009-tests-pytest-pytest-asyncio-httpx-asgitransport.md](decisions/DEC-0009-tests-pytest-pytest-asyncio-httpx-asgitransport.md) |
+| DEC-0010 | Tests d'integration Bloc A : vrai PostgreSQL, jamais SQLite | active | [decisions/DEC-0010-tests-d-integration-bloc-a-vrai-postgresql-jamais-sqlite.md](decisions/DEC-0010-tests-d-integration-bloc-a-vrai-postgresql-jamais-sqlite.md) |
+| DEC-0011 | Provisioning initial hors-bande via CLI serveur `studio-admin` | active | [decisions/DEC-0011-provisioning-initial-hors-bande-via-cli-serveur-studio-admin.md](decisions/DEC-0011-provisioning-initial-hors-bande-via-cli-serveur-studio-admin.md) |
+| DEC-0012 | Identite utilisateur derivee de `Machine.owner_user_id` | active | [decisions/DEC-0012-identite-utilisateur-derivee-de-machine-owner-user-id.md](decisions/DEC-0012-identite-utilisateur-derivee-de-machine-owner-user-id.md) |
+| DEC-0013 | Validation locale de `StorageProvider`/MinIO sans Docker | active | [decisions/DEC-0013-validation-locale-de-storageprovider-minio-sans-docker.md](decisions/DEC-0013-validation-locale-de-storageprovider-minio-sans-docker.md) |
+| DEC-0014 | Docker Desktop installe ; deux bugs reels corriges dans `docker/` | ? | [decisions/DEC-0014-docker-desktop-installe-deux-bugs-reels-corriges-dans-docker.md](decisions/DEC-0014-docker-desktop-installe-deux-bugs-reels-corriges-dans-docker.md) |
+| DEC-0015 | Idempotence : reservation atomique + `request_hash` verifie | ? | [decisions/DEC-0015-idempotence-reservation-atomique-request-hash-verifie.md](decisions/DEC-0015-idempotence-reservation-atomique-request-hash-verifie.md) |
+| DEC-0016 | `DEC-XXXX` : sequence Postgres au lieu de `COUNT(*) + 1` | active | [decisions/DEC-0016-dec-xxxx-sequence-postgres-au-lieu-de-count-1.md](decisions/DEC-0016-dec-xxxx-sequence-postgres-au-lieu-de-count-1.md) |
+| DEC-0017 | Etape 3 (dette qualite P2/P3) fermee | active | [decisions/DEC-0017-etape-3-dette-qualite-p2-p3-fermee.md](decisions/DEC-0017-etape-3-dette-qualite-p2-p3-fermee.md) |
+| DEC-0018 | Realtime (roadmap etape 4.1) : SSE + curseur `seq`, pas de WebSocket | active | [decisions/DEC-0018-realtime-roadmap-etape-4-1-sse-curseur-seq-pas-de-websocket.md](decisions/DEC-0018-realtime-roadmap-etape-4-1-sse-curseur-seq-pas-de-websocket.md) |
+| DEC-0019 | Quotas transferts (roadmap etape 4.2) : quota par projet, sans fenetre temporelle | active | [decisions/DEC-0019-quotas-transferts-roadmap-etape-4-2-quota-par-projet-sans.md](decisions/DEC-0019-quotas-transferts-roadmap-etape-4-2-quota-par-projet-sans.md) |
+| DEC-0020 | Worker d'expiration des transferts (roadmap etape 4.3) : job CLI explicite, suppression directe | active | [decisions/DEC-0020-worker-d-expiration-des-transferts-roadmap-etape-4-3-job.md](decisions/DEC-0020-worker-d-expiration-des-transferts-roadmap-etape-4-3-job.md) |
+| DEC-0021 | Sauvegarde Postgres/MinIO et restauration (roadmap etape 4.4) : scripts shell + pg_dump/pg_restore + mc mirror | active | [decisions/DEC-0021-sauvegarde-postgres-minio-et-restauration-roadmap-etape-4-4.md](decisions/DEC-0021-sauvegarde-postgres-minio-et-restauration-roadmap-etape-4-4.md) |
+| DEC-0022 | Etape 4.5 (validation docker-compose sur base vierge) fermee : chaine complete demontree | active | [decisions/DEC-0022-etape-4-5-validation-docker-compose-sur-base-vierge-fermee.md](decisions/DEC-0022-etape-4-5-validation-docker-compose-sur-base-vierge-fermee.md) |
+| DEC-0023 | Etape 5 (roadmap) : auth MCP par requete + extension a 25 outils reels | active | [decisions/DEC-0023-etape-5-roadmap-auth-mcp-par-requete-extension-a-25-outils.md](decisions/DEC-0023-etape-5-roadmap-auth-mcp-par-requete-extension-a-25-outils.md) |
+| DEC-0024 | Etape 6.1 (roadmap) : socle du Bloc B, `StudioApiClient` | active | [decisions/DEC-0024-etape-6-1-roadmap-socle-du-bloc-b-studioapiclient.md](decisions/DEC-0024-etape-6-1-roadmap-socle-du-bloc-b-studioapiclient.md) |
+| DEC-0025 | Integrite reelle d'upload via Content-MD5 natif S3 (correction d'un defaut confirme, pas le SHA256 declaratif) | active | [decisions/DEC-0025-integrite-reelle-d-upload-via-content-md5-natif-s3.md](decisions/DEC-0025-integrite-reelle-d-upload-via-content-md5-natif-s3.md) |
+| DEC-0026 | Appels boto3 async via `asyncio.to_thread`, factory `StorageProvider` mise en cache | active | [decisions/DEC-0026-appels-boto3-async-via-asyncio-to-thread-factory.md](decisions/DEC-0026-appels-boto3-async-via-asyncio-to-thread-factory.md) |
+| DEC-0027 | Idempotence MCP : `event_id` accepte du client, `idempotency_key` pour un sous-ensemble d'outils ecrivains | active | [decisions/DEC-0027-idempotence-mcp-event-id-accepte-du-client-idempotency-key.md](decisions/DEC-0027-idempotence-mcp-event-id-accepte-du-client-idempotency-key.md) |
+| DEC-0028 | Sous-etape 6.2 (daemon local, heartbeat) : boucle en process, sleep injectable, signaux best-effort | active | [decisions/DEC-0028-sous-etape-6-2-daemon-local-heartbeat-boucle-en-process.md](decisions/DEC-0028-sous-etape-6-2-daemon-local-heartbeat-boucle-en-process.md) |
+| DEC-0029 | Sous-etape 6.3 (outbox SQLite) : schema minimal, transaction laissee a l'appelant, backoff sans abandon | active | [decisions/DEC-0029-sous-etape-6-3-outbox-sqlite-schema-minimal-transaction.md](decisions/DEC-0029-sous-etape-6-3-outbox-sqlite-schema-minimal-transaction.md) |
+| DEC-0030 | Sous-etape 6.4 (replay ordonne) : fusion chronologique events+mutations, arret sur transitoire, markers hors perimetre | active | [decisions/DEC-0030-sous-etape-6-4-replay-ordonne-fusion-chronologique-events.md](decisions/DEC-0030-sous-etape-6-4-replay-ordonne-fusion-chronologique-events.md) |
+| DEC-0031 | Sous-etape 6.5 (CLI minimale) : sous-commandes argparse au-dessus de `StudioApiClient`, cle d'idempotence generee par la CLI | active | [decisions/DEC-0031-sous-etape-6-5-cli-minimale-sous-commandes-argparse-au.md](decisions/DEC-0031-sous-etape-6-5-cli-minimale-sous-commandes-argparse-au.md) |
+| DEC-0032 | Sous-etape 6.6 (watchers Git/Godot) : poll local sans nouvelle dependance, PR hors perimetre | active | [decisions/DEC-0032-sous-etape-6-6-watchers-git-godot-poll-local-sans-nouvelle.md](decisions/DEC-0032-sous-etape-6-6-watchers-git-godot-poll-local-sans-nouvelle.md) |
+| DEC-0033 | Sous-etape 6.7 (TransferClient) : multipart local avec URLs mises en cache, reprise download par taille de fichier, etape 6 entierement close | active | [decisions/DEC-0033-sous-etape-6-7-transferclient-multipart-local-reprise.md](decisions/DEC-0033-sous-etape-6-7-transferclient-multipart-local-reprise.md) |
+| DEC-0034 | Etape 7 (tests d'acceptance) : concurrence reelle de claims + URL signee expiree | active | [decisions/DEC-0034-etape-7-tests-acceptance-claims-concurrentes-url-expiree.md](decisions/DEC-0034-etape-7-tests-acceptance-claims-concurrentes-url-expiree.md) |
+| DEC-0035 | Identite des events (HTTP/MCP) liee a la machine authentifiee | active | [decisions/DEC-0035-identite-des-events-liee-a-la-machine-authentifiee.md](decisions/DEC-0035-identite-des-events-liee-a-la-machine-authentifiee.md) |
+| DEC-0036 | Autorisation transverse minimale : role et propriete par ressource, sans nouvelle table | active | [decisions/DEC-0036-autorisation-transverse-minimale-role-et-propriete-par.md](decisions/DEC-0036-autorisation-transverse-minimale-role-et-propriete-par.md) |
+| DEC-0037 | Reprise multipart apres expiration des URLs par-part : endpoint additif refresh-parts, ListParts comme verite serveur, nettoyage des uploads orphelins | active | [decisions/DEC-0037-reprise-multipart-apres-expiration-des-urls-par-part.md](decisions/DEC-0037-reprise-multipart-apres-expiration-des-urls-par-part.md) |
+| DEC-0038 | Etape 7 (roadmap) : scenario "fichier multipart de 1 Go reel" ferme, test streame sans mock | active | [decisions/DEC-0038-etape-7-scenario-multipart-1-go-reel-ferme.md](decisions/DEC-0038-etape-7-scenario-multipart-1-go-reel-ferme.md) |
+| DEC-0039 | Etape 7 (roadmap) : scenario "replay offline complet" ferme, outbox generique sans ajout client | active | [decisions/DEC-0039-etape-7-scenario-replay-offline-complet-ferme.md](decisions/DEC-0039-etape-7-scenario-replay-offline-complet-ferme.md) |
+| DEC-0040 | Etape 7 (roadmap) fermee : scenario "deux machines simulees sur reseaux distincts" ferme | active | [decisions/DEC-0040-etape-7-scenario-deux-machines-ferme-etape-close.md](decisions/DEC-0040-etape-7-scenario-deux-machines-ferme-etape-close.md) |
+| DEC-0041 | Etape 8 (roadmap), sous-etape 8.1 : tracabilite AIWorkLog -> Event, revue admin-only | active | [decisions/DEC-0041-etape-8-sous-etape-8-1-tracabilite-ai-work-event-et.md](decisions/DEC-0041-etape-8-sous-etape-8-1-tracabilite-ai-work-event-et.md) |
+| DEC-0042 | Etape 8 (roadmap), sous-etape 8.2 : adaptateurs locaux Obsidian/Graphify en lecture seule, portee fermee par defaut | active | [decisions/DEC-0042-etape-8-sous-etape-8-2-adaptateurs-locaux-lecture-seule.md](decisions/DEC-0042-etape-8-sous-etape-8-2-adaptateurs-locaux-lecture-seule.md) |
+| DEC-0043 | Model-Agnostic Agent Identity : separation auth_role / harness / provider / model, agent_profile optionnel | active | [decisions/DEC-0043-identite-agent-independante-du-modele.md](decisions/DEC-0043-identite-agent-independante-du-modele.md) |
+| DEC-0044 | Specialized Agent Profiles : studio-architect, studio-tester, contract-guardian, sync-debugger comme agent_profiles harness-agnostic | superseded | [decisions/DEC-0044-profils-agents-specialises.md](decisions/DEC-0044-profils-agents-specialises.md) |
+| DEC-0045 | CC-1 : enregistrement public dAgent (POST /agents) comme identite de provenance, sans autorite | active | [decisions/DEC-0045-enregistrement-public-agent-cc-1.md](decisions/DEC-0045-enregistrement-public-agent-cc-1.md) |
+| DEC-0046 | HTTP canonical complet, MCP subset additif : surface parity non requise, enforcement parity requise | active | [decisions/DEC-0046-http-canonique-mcp-subset.md](decisions/DEC-0046-http-canonique-mcp-subset.md) |
+| DEC-0047 | UC-3 : Memory/Knowledge local-only, exposition read-only via MCP local (stdio), 3 outils | active | [decisions/DEC-0047-uc-3-memoire-locale-mcp-local-read-only.md](decisions/DEC-0047-uc-3-memoire-locale-mcp-local-read-only.md) |
+| DEC-0048 | CC-3 : evolution des contrats MCP par discovery + schemas, sans version par payload | active | [decisions/DEC-0048-evolution-contrats-mcp-sans-version-payload.md](decisions/DEC-0048-evolution-contrats-mcp-sans-version-payload.md) |

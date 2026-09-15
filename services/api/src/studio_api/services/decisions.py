@@ -2,18 +2,18 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.decisions import DecisionCreate
 
 from studio_api.db.models.decision import DecisionModel
+from studio_api.services.authz import Principal, ensure_can_write
 
 
-# TODO: race under concurrent creation (count-based), replace with a DB sequence.
 async def _next_readable_id(session: AsyncSession) -> str:
-    result = await session.execute(select(func.count()).select_from(DecisionModel))
-    count = result.scalar_one()
-    return f"DEC-{count + 1:04d}"
+    result = await session.execute(text("SELECT nextval('decisions_readable_id_seq')"))
+    next_value = result.scalar_one()
+    return f"DEC-{next_value:04d}"
 
 
 async def list_decisions(
@@ -26,7 +26,10 @@ async def list_decisions(
     return list(result.scalars().all())
 
 
-async def create_decision(session: AsyncSession, decision_in: DecisionCreate) -> DecisionModel:
+async def create_decision(
+    session: AsyncSession, principal: Principal, decision_in: DecisionCreate
+) -> DecisionModel:
+    ensure_can_write(principal, "decision")
     decision = DecisionModel(
         readable_id=await _next_readable_id(session),
         project_id=decision_in.project_id,

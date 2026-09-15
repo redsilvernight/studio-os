@@ -1,0 +1,55 @@
+# Politique de mise a jour Graphify pour ce projet (Studio OS).
+#
+# Lue par le script global partage
+# `~/.claude/scripts/graphify_incremental_update.py` (voir
+# `scripts/graphify_update_policy.py` pour le moteur de classification, et
+# `docs/Studio_OS_Documentation_Pack/studio_os_docs/TECH/09_OBSIDIAN_GRAPHIFY.md`
+# pour la doctrine complete). Absence de ce fichier => comportement legacy
+# (tout document est semantique-eligible) pour ne pas casser les autres
+# projets qui partagent le meme script.
+#
+# Le code natif (extensions Python/TS/etc. reconnues par Graphify) passe
+# toujours par l'extracteur AST deterministe (0 token), sauf motif explicite
+# dans [ast].exclude ci-dessous. Les documents (Markdown, etc.) sont
+# semantique-eligibles UNIQUEMENT s'ils correspondent a un motif de
+# [semantic.allowed] (immediat) ou [semantic.milestone_only] (uniquement avec
+# --milestone). Tout le reste est ignore par defaut (deny-by-default).
+
+[semantic.allowed]
+patterns = [
+  "docs/Studio_OS_Documentation_Pack/studio_os_docs/TECH/**",
+  "docs/Studio_OS_Documentation_Pack/studio_os_docs/AI/**",
+  "docs/Studio_OS_Documentation_Pack/studio_os_docs/IMPLEMENTATION/**",
+  "docs/decisions/**",
+  "CLAUDE.md",
+  "AGENTS.md",
+]
+
+[semantic.milestone_only]
+patterns = [
+  "docs/Studio_OS_Documentation_Pack/studio_os_docs/HUMAN/**",
+  "README.md",
+]
+
+[exclude.generated]
+patterns = [
+  "docs/DECISIONS.md",
+]
+
+[exclude.skill_copies]
+patterns = [
+  ".claude/skills/graphify/**",
+  ".agents/skills/graphify/**",
+]
+
+[exclude.transient]
+patterns = [
+  "docs/ROADMAP_CORRECTIONS_AUDIT.md",
+  "docs/ROADMAP_STEP*_BREAKDOWN.md",
+  "**/CURRENT.md",
+  "**/SUMMARY.md",
+  "**/*_REPORT.md",
+]
+
+[ast]
+exclude = []

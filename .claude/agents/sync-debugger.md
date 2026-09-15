@@ -22,8 +22,9 @@ Your job is to identify the root cause of a sync, offline-queue, claim, or trans
 5. For transfer bugs: trace multipart state — `upload_id`, `object_key`, completed parts and their ETags — and confirm resumption only re-sends parts that were not already acknowledged. Confirm large payloads never round-tripped through FastAPI instead of going straight to MinIO/S3.
 6. For conflict bugs: check `updated_at`/version handling and whether a stale write should have produced a 409 with the current server version instead of silently overwriting.
 7. Find the earliest point where client-local state and server-authoritative state diverged — do not stop at the last visible symptom.
-8. Form a root-cause hypothesis backed by the traced evidence.
-9. Propose the smallest coherent fix.
+8. When the execution path crosses the client/server boundary (outbox replay reaching an API handler, an MCP tool call, a realtime event fan-out), use `graphify path` between the two ends to get the actual call graph instead of reconstructing it from grep alone. First verify that the involved files are reflected in `E:\Graphify\Studio-OS\graphify-out\manifest.json`; if they are not, update the graph first. Do not infer freshness from file mtimes alone.
+9. Form a root-cause hypothesis backed by the traced evidence.
+10. Propose the smallest coherent fix.
 
 ## Important
 

@@ -32,7 +32,7 @@ Any command launching a console-subsystem executable (`python`, `pip`, `alembic`
 
 ## Process
 
-1. **Contract check** — if the diff touches `TECH/02-05_*.md`, a Pydantic schema, or an event envelope, verify it against the additive-vs-breaking rule (see the `contracts` rule and `contract-guardian` agent) before anything else.
+1. **Contract check** — if the diff touches `TECH/02_API_CONTRACT.md` through `TECH/05_DATA_MODEL.md`, a Pydantic schema, or an event envelope, verify it against the additive-vs-breaking rule (see the `contracts` rule and `contract-guardian` agent) before anything else.
 2. **Static checks** — imports resolve, type hints check out (`mypy` if configured), `ruff` clean on changed files.
 3. **Automated tests** — locate and run the narrowest test target for the changed module; report pass/fail with failing test names, not raw output.
 4. **Offline/transfer behavior (Tier 3 only)** — for daemon/queue/claim/transfer changes, verify idempotent replay and resumability concretely, not just by inspection.

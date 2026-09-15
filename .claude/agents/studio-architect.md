@@ -16,7 +16,7 @@ Your job is to understand the existing architecture and the relevant contracts b
 3. Locate entry points for the relevant systems (API routers, MCP tools, daemon watchers, CLI commands).
 4. Identify dependencies and who owns the relevant state (server is the source of shared state; the client owns local context — never the other way around).
 5. Identify how the two sides communicate for this feature: REST endpoint, `/api/v1/stream` realtime channel, MCP tool, or direct-to-MinIO transfer.
-6. Use Graphify when cross-file relationship information is useful, once there is code to graph.
+6. Use Graphify when cross-file relationship information is useful, once there is code to graph. Before trusting it, verify that the files touched by the task are reflected in `E:\Graphify\Studio-OS\graphify-out\manifest.json`; if they are not, update the graph first. Do not infer freshness from file mtimes alone. For any change crossing the Bloc A/Bloc B boundary or touching a contract file, run `graphify path`/`graphify explain` between the two sides to confirm actual dependencies instead of assuming them from file layout.
 7. Identify possible duplicate execution paths (e.g. a mutation reachable both via API and via MCP tool without shared validation).
 8. Identify architectural risks: offline/idempotency implications, claim/lock semantics, large-file handling that would proxy bytes through FastAPI instead of MinIO.
 9. Recommend the smallest coherent implementation approach consistent with `IMPLEMENTATION/01_ROADMAP.md`'s current phase.

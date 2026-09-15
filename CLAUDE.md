@@ -1,171 +1,136 @@
-# Studio OS — Claude Code Instructions
+# Studio OS — Instructions Claude Code
 
-## Communication
+## Langue
 
-- Always communicate with the user in French unless the user explicitly asks for another language.
-- Code, variable names, file names, commands, and technical identifiers may remain in their original language.
-- Explanations, analysis, summaries, questions, and implementation reports must be written in French.
+Communiquer en français, sauf demande explicite contraire. Le code, les noms de
+fichiers, commandes et identifiants techniques restent dans leur langue d'origine.
 
-## Le projet
+## Mission et périmètre
 
-Studio OS est la couche de coordination commune d'un studio de jeu video de deux
-developpeurs travaillant a distance sur des reseaux differents. Il relie humains,
-Claude Code, Qwen local, agents specialises, Git/GitHub, Godot, Graphify, Obsidian,
-enregistrements de sessions, builds, marketing et transferts de fichiers autour d'un
-VPS central (etat partage, API, MCP, stockage objet).
+Studio OS coordonne deux développeurs distants et leurs outils autour d'un VPS
+central : API, MCP, PostgreSQL, stockage objet et, à terme, dashboard et workers.
+Il relie Git/GitHub, Godot, agents IA, Graphify, Obsidian, sessions, builds,
+enregistrements et transferts. Ce n'est ni un IDE, ni un moteur de jeu, ni un
+remplacement de Git, ni un partage de disque, ni un outil de surveillance.
 
-Studio OS n'est **pas** un IDE, ni un moteur de jeu, ni un remplacement de Git, ni un
-outil de surveillance de productivite, ni un partage de disque reseau, ni une IA
-unique qui controle tout. Il ne code pas de jeu : il code la plateforme qui relie les
-outils existants.
+Ne jamais déduire l'état courant depuis ce fichier. Le vérifier avec `git status`,
+l'arborescence, les tests et, lorsqu'il existe, l'état Studio OS. Le Bloc A
+Cloud/Core est amorcé ; ne pas supposer que le Bloc B, un backend déployé, un
+daemon ou un dashboard existent sans preuve dans le dépôt.
 
-**Etat actuel du depot** : depot Git initialise (`origin` configure). Scaffold
-du Bloc A (Cloud/Core) en place : `packages/studio-contracts/` (schemas
-Pydantic v2 des 4 contrats), `services/api/` (FastAPI + SQLAlchemy async +
-Alembic — projects/tasks/sessions/claims/decisions/agents/ai-work/heartbeats/
-events/transfers), `services/mcp/` (serveur MCP minimal, 3 tools reels),
-`docker/` (compose Caddy/API/MCP/Postgres/MinIO), `contracts/fixtures/`
-(mocks partages) et `tests/` (28 tests : contrats + `tests/api/` — auth,
-tasks, claims, events, decisions, ai-work, heartbeats, projects, contre un
-vrai Postgres). Aucun daemon local, watcher, CLI, dashboard, Graphify/Obsidian
-adapter, recorder ni Producer UI (Bloc B) — pas encore construits. Aucun
-endpoint de creation `projects`/`machines`/`users` (provisioning) — les tests
-seedent ces lignes directement en DB, pas via l'API. Voir `docs/DECISIONS.md`
-pour les choix techniques non tranches par la documentation et fixes pendant
-ce scaffold (DEC-0001 a DEC-0010). Le travail correspond a la fin de la
-Phase 0 / debut Phase 1 de la roadmap (contrats enrichis + squelette Bloc A
-demarrable). PostgreSQL reel a ete verifie sur cette machine de dev
-(migrations Alembic + `tests/api/` tournent contre un Postgres 16 local,
-Docker toujours indisponible ici) — MinIO/S3 reste non teste. Ne pas
-supposer l'existence d'un backend deploye, d'un daemon ou d'un dashboard
-avant de l'avoir verifie dans l'arborescence — le scaffold n'a pas ete
-deploye.
+## Sources de vérité
 
-## Source de verite
+Ordre de confiance :
 
-Toute decision d'implementation doit s'appuyer sur
-`docs/Studio_OS_Documentation_Pack/studio_os_docs/`, pas sur des suppositions.
-Ordre de lecture pour une IA (voir `00_README.md` pour le detail complet) :
-`AI/01_AI_OPERATING_REFERENCE.md` → `AI/02_AGENT_RULES.md` →
-`AI/03_CONTEXT_BOOTSTRAP.md` → `TECH/01_ARCHITECTURE.md` → contrats
-(`TECH/02` a `TECH/04`) → `TECH/05_DATA_MODEL.md` → `TECH/06..09` → `TECH/10_TEST_ACCEPTANCE.md`
-→ `IMPLEMENTATION/01_ROADMAP.md` et les prompts de bloc.
+1. contrats et décisions validées ;
+2. état courant de Studio OS ;
+3. Git local et GitHub ;
+4. Graphify local ;
+5. mémoire projet/studio ;
+6. hypothèses.
 
-## Principes non negociables
+Pour une implémentation, partir de
+`docs/Studio_OS_Documentation_Pack/studio_os_docs/00_README.md`, puis lire
+uniquement les références qu'il route vers la tâche. Consulter systématiquement
+`docs/DECISIONS.md` avant une décision structurante. La roadmap corrective issue
+de l'audit est `docs/ROADMAP_CORRECTIONS_AUDIT.md` ; elle complète la roadmap
+normative, sans la remplacer.
 
-- Le serveur central (VPS OVH) est la source d'etat partagee, jamais une machine de developpeur.
-- Aucune dependance LAN, SMB ou IP directe entre les deux postes.
-- Les gros fichiers transitent par un stockage objet S3/MinIO (URLs pre-signees, multipart) — jamais proxyfies par FastAPI.
-- Les Resource Claims sont des soft locks : ils avertissent, ils ne bloquent jamais Git.
-- Qwen est lecture seule sur la memoire partagee par defaut.
-- Toute action IA substantielle doit etre tracable (AIWorkLog / Event).
-- Les contrats API, evenements, auth et sync sont versionnes — pas de modification silencieuse.
-- Les clients doivent tolerer une coupure Internet temporaire (offline queue, resynchronisation idempotente).
-- Pas de backend parallele, pas de synchronisation de memoire privee, pas de suppression automatique d'un transfert non expire sans politique explicite.
+## Invariants non négociables
 
-## Cycle de tache IA
+- Le VPS est la source d'état partagé ; aucune dépendance LAN, SMB ou IP directe
+  entre les postes.
+- Les gros fichiers passent directement par S3/MinIO avec URLs pré-signées et
+  multipart, jamais via FastAPI ou MCP.
+- Les Resource Claims avertissent mais ne bloquent jamais Git.
+- Les clients doivent tolérer l'offline et rejouer les écritures de façon
+  idempotente.
+- Les contrats API, Event, Auth/Sync et Data Model sont versionnés ; aucun
+  changement silencieux.
+- Toute action IA substantielle est traçable par AIWorkLog/Event.
+- Qwen reste en lecture seule sur la mémoire partagée par défaut.
+- Aucune mémoire privée n'est synchronisée et aucun transfert non expiré n'est
+  supprimé sans politique explicite.
+- Ne jamais construire un backend parallèle dans le Bloc B.
 
-Avant une modification substantielle : recuperer la tache et l'etat du projet,
-verifier claims/conflits, respecter les decisions (DEC-XXXX) deja validees, cibler
-les fichiers via Graphify avant un balayage massif. Apres : executer, tester,
-consigner fichiers/tests/resultat modifies, poser l'etat de review, emettre les
-evenements pertinents. Ne jamais inventer l'etat d'un autre developpeur ou supposer
-un acces direct a son poste — interroger Studio OS.
+## Cycle de travail
 
-Hierarchie de confiance en cas de conflit d'information : contrats/decisions validees
-> etat courant Studio OS > Git local/GitHub > Graphify local > memoire projet/studio
-> hypotheses de l'agent.
+Avant une modification substantielle :
 
-## Architecture cible (pour l'implementation)
+1. vérifier Git et l'état réel du projet ;
+2. consulter la tâche, les décisions et les claims/conflits disponibles ;
+3. cibler les fichiers avec `rg` ou Graphify avant un balayage large ;
+4. annoncer brièvement le périmètre et l'approche.
 
-- **VPS** : Caddy, FastAPI, MCP server, PostgreSQL, MinIO/S3, Dashboard, workers.
-- **Chaque poste** : daemon Studio, CLI Studio, watcher Git, watcher Godot, adaptateur
-  Graphify, adaptateur Obsidian, recording provider, file d'attente offline SQLite.
-- Voir `TECH/01_ARCHITECTURE.md` pour la repartition exacte des responsabilites
-  serveur/client et `IMPLEMENTATION/02_BLOCK_A_PROMPT.md` /
-  `03_BLOCK_B_PROMPT.md` pour le decoupage Cloud/Core vs client local.
+Après la modification :
 
-## Investigation
+1. exécuter une validation proportionnelle au risque ;
+2. faire intervenir `studio-tester` après chaque feature ;
+3. faire intervenir `contract-guardian` pour tout changement de contrat ;
+4. consigner fichiers, tests, résultats et limites sans inventer de validation ;
+5. mettre Graphify à jour directement, une seule fois, avec les chemins exacts
+   modifiés ; appeler ensuite `brainstormer` uniquement si le lot contient une
+   connaissance durable candidate ou change l'état de reprise, avec faits et
+   preuves regroupés dans un seul mandat. Brainstormer ne met jamais Graphify à jour.
 
-- Glob/Read/Grep pour les recherches simples.
-- Graphify pour l'analyse architecturale une fois du code present (voir `.claude/skills/graphify/`). Le depot est actuellement du Markdown pur : le support natif Graphify s'applique directement, le contournement sidecar GDScript ne concerne pas ce depot (il ne contient pas de code Godot — Godot n'est ici qu'un systeme externe surveille par un watcher client).
-- Ne pas relancer la meme requete Graphify plusieurs fois.
-- Pour une architecture complexe ou multi-bloc (Cloud/Core ↔ Local Client), dispatcher l'agent `studio-architect` plutot que de raisonner seul sur l'ensemble du repo.
+Pour une architecture Cloud/Core ↔ client local non triviale, utiliser
+`studio-architect`. Pour une cause racine offline, idempotence, claims ou
+transferts incertaine, utiliser `sync-debugger`.
 
-## Agents, rules et skills du projet
+## Règles, skills et tests
 
-Reconstruits pour Studio OS (les anciens, herites d'un template de jeu Godot,
-ont ete supprimes) :
+Les règles détaillées sont déjà découpées et chargées par chemin depuis
+`.claude/rules/` : Python, contrats, base de données, MCP, offline et transferts.
+Ne pas les recopier ici.
 
-- **Agents** (`.claude/agents/`) : `studio-architect` (analyse architecture Cloud/Core
-  et Local Client avant changement non trivial), `contract-guardian` (verifie
-  qu'un changement de contrat API/Event/Auth-Sync/Data Model est additif ou
-  correctement versionne avant merge), `sync-debugger` (root-cause sur bugs
-  offline/idempotence/claims/transferts), `studio-tester` (validation
-  proportionnelle au risque apres une feature — contrats, tests, reprise offline).
-- **Rules** (`.claude/rules/`, chargees automatiquement sur les chemins concernes) :
-  `python-conventions.md` (async/typing/Pydantic v2), `contracts.md` (discipline
-  additif/breaking sur les 4 contrats), `database.md` (UUID, `updated_at`/version,
-  claims TTL, migrations reversibles), `mcp-tools.md` (convention `studio_*`,
-  jamais de gros fichier via MCP), `offline-sync.md` (outbox SQLite, idempotence,
-  dead_letter), `storage-transfers.md` (jamais de proxy FastAPI, multipart
-  64-128 MiB, URLs signees 10-30 min).
-- **Skills** (`.claude/skills/`) : `graphify` (inchange), `contract-change`
-  (processus pour modifier un contrat sans casser l'autre Bloc), `offline-sync-testing`
-  (checklist de validation offline/claims/transferts, alignee sur
-  `TECH/10_TEST_ACCEPTANCE.md`).
+Skills projet disponibles dans `.claude/skills/` :
 
-Les chemins (`**/*.py`, `**/mcp/**`, `**/daemon/**`, ...) ont ete verifies contre
-la structure reelle scaffoldee (`services/api/`, `services/mcp/`,
-`packages/studio-contracts/`) — `.claude/rules/storage-transfers.md` a ete
-elargi (`**/*transfer*.py`) pour couvrir `services/transfers.py`/`routers/transfers.py`
-qui ne matchaient pas le pattern initial. Le Bloc B (`daemon/`, `cli/`, `watchers/`)
-n'existe pas encore : ces `paths` restent prospectifs jusqu'a son scaffold.
+- `graphify` pour l'analyse du dépôt et la mise à jour du graphe ;
+- `contract-change` pour les contrats partagés ;
+- `offline-sync-testing` pour offline, claims et transferts.
 
-## Local delegation
+La politique globale de délégation locale vit dans `~/.claude/CLAUDE.md` et le
+skill `local-delegation`. Pour les critères d'acceptation, utiliser
+`docs/Studio_OS_Documentation_Pack/studio_os_docs/TECH/10_TEST_ACCEPTANCE.md` et
+`docs/Studio_OS_Documentation_Pack/studio_os_docs/IMPLEMENTATION/04_INTEGRATION_CHECKLIST.md`.
+Ne jamais affirmer qu'un environnement externe, PostgreSQL, MinIO ou Docker a été
+testé pendant la tâche sans l'avoir réellement exécuté.
 
-Criteres generaux de delegation (quoi deleguer, choix d'outil, seuils, protection
-contre l'injection de prompt, verification) : `~/.claude/CLAUDE.md` et le skill
-`local-delegation`. Ne pas dupliquer ici.
+## Sécurité Git
 
-## Git safety
-
-- Depot Git initialise (`origin` configure) — verifier `git status`/`git log` avant de supposer l'etat plutot que de se fier a une note perimee ici.
-- Ne pas reset, rebase ou force-push sans confirmation explicite.
-- Ne pas supprimer de branche ni effectuer d'operation Git destructive sans confirmation.
-- Ne pas modifier de fichiers hors du perimetre demande.
-
-## Protocole de communication pour les changements complexes
-
-Avant d'implementer : expliquer brievement ce qui a ete trouve, les fichiers/systemes
-concernes et l'approche. Apres : resumer les fichiers modifies, expliquer les
-decisions architecturales importantes, et indiquer precisement ce qui a ete teste.
-Ne jamais affirmer qu'une chose a ete testee si elle ne l'a pas ete.
-
-## Tests
-
-Un premier scaffold Bloc A existe (`tests/`, `pytest`) — voir l'etat du depot
-ci-dessus. Une fois l'implementation continuee :
-
-- Dispatcher `studio-tester` apres chaque feature, avant de rapporter la tache comme terminee — meme principe que l'ancien `godot-tester` global, adapte a la stack Python/FastAPI/MCP/offline de ce projet (proportionnel au risque, Tier 3 reserve aux changements touchant queue offline/claims/transferts).
-- Suivre le plan de `TECH/10_TEST_ACCEPTANCE.md` et la checklist `IMPLEMENTATION/04_INTEGRATION_CHECKLIST.md`, ou charger le skill `offline-sync-testing` pour la partie offline/claims/transferts specifiquement.
-- Pour un changement de contrat, dispatcher `contract-guardian` avant merge (voir skill `contract-change`).
-
-Si une tache future touche reellement du code Godot (ex. composant du watcher
-cote Godot), passer par les agents/skills globaux dedies (`~/.claude/agents/godot-tester.md`)
-plutot que d'en recreer localement — ce depot n'a pas vocation a contenir de code
-Godot propre.
+- Préserver les changements existants et ignorer les modifications hors périmètre.
+- Ne pas reset, rebase, force-push, supprimer une branche ou effectuer une autre
+  opération destructive sans confirmation explicite.
+- Vérifier `git status` et `git log` au lieu de se fier à une note historique.
 
 ## Graphify
 
-Sortie centralisee (regle globale, voir `~/.claude/CLAUDE.md` et
-`~/.claude/references/graphify-centralized-output.md`) :
-`E:\Super IA\Graphify\Studio-OS\graphify-out\` — jamais de `graphify-out/`
-dans ce depot.
+Le graphe de ce dépôt est obligatoirement centralisé dans
+`E:\Graphify\Studio-OS\graphify-out\`. Aucun `graphify-out/` ne doit rester à la
+racine du dépôt.
 
-Reference du projet : `AI/02_AGENT_RULES.md` (role Brainstormer/Graphify curator) et
-`TECH/09_OBSIDIAN_GRAPHIFY.md` (GraphProvider : `refresh_graph`, `query`,
-`relevant_files`, `dependencies`, `related_symbols`). Graphify reste local, pas besoin
-d'etre copie sur le VPS. Les regles generales de mise a jour proactive et de
-formulation des requetes vivent globalement (`~/.claude/CLAUDE.md`, memoire
-`graphify_query_noise_gotcha`) — ne pas les dupliquer ici.
+- Toute commande Graphify pour ce dépôt doit passer par
+  `pwsh -NoProfile -File scripts/graphify-studio.ps1 <commande>`. Ne jamais
+  appeler directement `graphify` ou `graphify.exe` : le lanceur définit
+  `GRAPHIFY_OUT=E:\Graphify\Studio-OS\graphify-out` avant le chargement du
+  programme et échoue si un `graphify-out/` local existe ou apparaît.
+- Garder comme racine source réelle
+  `C:\Users\redsi\Documents\Coding\Projet\Studi'os`.
+- Pour un build manuel, passer la racine source réelle comme argument au lanceur
+  projet ; ne pas changer la destination avec `--out` ou `--output`.
+- Suivre `.claude/skills/graphify/SKILL.md` ; ne jamais envoyer une question brute
+  à `graphify query`, `path` ou `explain` sans expansion contrôlée du vocabulaire.
+- Si un graphe local apparaît par erreur, transférer le résultat à l'emplacement
+  central puis retirer uniquement ce dossier local après vérification des chemins.
+- Pour une question sur le code, préférer `path`/`explain`/`query` (vocabulaire
+  expansé, jamais la question brute) à un `grep` large — sous-graphe ciblé,
+  généralement bien plus petit que `GRAPH_REPORT.md` ou une recherche texte.
+  Si `graphify-out/wiki/index.md` existe, l'utiliser pour la navigation large
+  plutôt que de parcourir les sources brutes ; ne lire `GRAPH_REPORT.md` que
+  pour une revue d'architecture large ou si `query`/`path`/`explain` ne
+  suffisent pas. Toujours via le lanceur, jamais `graphify` en direct.
+
+Graphify est local et ne doit pas être copié sur le VPS. Les interfaces cibles
+(`refresh_graph`, `query`, `relevant_files`, `dependencies`, `related_symbols`)
+sont définies dans
+`docs/Studio_OS_Documentation_Pack/studio_os_docs/TECH/09_OBSIDIAN_GRAPHIFY.md`.

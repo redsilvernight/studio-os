@@ -38,7 +38,7 @@ jobs:
       - name: Sync workspace
         run: uv sync --all-packages
       - name: mypy
-        run: uv run mypy packages/studio-contracts/src services/api/src services/mcp/src
+        run: uv run mypy packages/studio-contracts/src packages/studio-client/src services/api/src services/mcp/src
 
   test:
     runs-on: ubuntu-latest
@@ -74,5 +74,29 @@ jobs:
         run: uv run alembic upgrade head
         env:
           STUDIO_DATABASE_URL: postgresql+asyncpg://studio:studio@localhost:5432/studio_os_test
+      - name: Start MinIO
+        # A `services:` entry can't be given the `server /data` argument the
+        # official image needs to start (GitHub Actions has no way to pass a
+        # command to a service container) — run it as a plain background
+        # container instead, same image as docker/docker-compose.yml (DEC-0014).
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=studio -e MINIO_ROOT_PASSWORD=studio-dev-secret \
+            quay.io/minio/minio:latest server /data
+      - name: Wait for MinIO and create the test bucket
+        # dl.min.io's direct mc binary download now returns an HTML "Gone"
+        # page instead of the binary (same MinIO distribution tightening as
+        # DEC-0013/DEC-0014) — use the quay.io/minio/mc image instead, the
+        # same one docker/docker-compose.yml's minio-init service already
+        # relies on.
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:9000/minio/health/live > /dev/null && break
+            sleep 1
+          done
+          docker run --rm --network host --entrypoint sh quay.io/minio/mc:latest -c "
+            mc alias set ci http://localhost:9000 studio studio-dev-secret &&
+            mc mb --ignore-existing ci/studio-transfers
+          "
       - name: pytest
         run: uv run pytest -q

@@ -2,11 +2,87 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from studio_contracts.events import EventCreate
+from studio_contracts.events import EventCreate, EventEnvelope
 
+from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.event import EventModel
+from studio_api.services import event_stream
+from studio_api.services.authz import Principal, ensure_can_write
+
+
+async def resolve_event_identity(
+    session: AsyncSession, principal: Principal, event_in: EventCreate
+) -> EventCreate:
+    """Binds a client-submitted event to the identity of the authenticated
+    machine, per TECH/04_AUTH_SYNC_CONTRACT.md (DEC-0035) — a caller can
+    never attribute an event to a machine, user or agent it doesn't hold,
+    even by replaying an existing `event_id` (the replay itself is rejected
+    here before `create_event`'s idempotent short-circuit is ever reached,
+    so an already-stored event's recorded identity is never touched). The
+    role write-gate (DEC-0036: `readonly` never writes shared state) is
+    checked here too, ahead of that same idempotent short-circuit, so a
+    replay by an unauthorized caller can never consume/observe a third
+    party's stored response.
+
+    Only for the public creation path (`POST /events`, `studio_emit_event`).
+    Server-internal code that calls `create_event` directly (e.g. the
+    `resource.conflict` event in `routers/claims.py`) is exempt — it is
+    trusted code, not client input. `actor_type="system"` IS a legitimate
+    client submission here too (git/godot watchers, DEC-0032, replayed
+    through the outbox like any other event) — restricted to
+    `actor_id == machine.id`, the machine self-attributing its own
+    automated event.
+    """
+    ensure_can_write(principal, "event")
+    machine = principal.machine
+    if event_in.machine_id is not None and event_in.machine_id != machine.id:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={
+                "error_code": "machine_id_mismatch",
+                "message": "machine_id does not match the authenticated machine",
+            },
+        )
+
+    if event_in.actor_type == "user":
+        if event_in.actor_id != machine.owner_user_id:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail={
+                    "error_code": "actor_id_mismatch",
+                    "message": "actor_id must be the authenticated machine's owner "
+                    "for actor_type=user",
+                },
+            )
+    elif event_in.actor_type == "agent":
+        agent = await session.get(AgentModel, event_in.actor_id)
+        if agent is None or agent.machine_id != machine.id:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail={
+                    "error_code": "actor_not_owned",
+                    "message": "actor_id must be an agent attached to the authenticated machine",
+                },
+            )
+    elif event_in.actor_type == "system":
+        # A machine self-attributing an automated event to itself (git/godot
+        # watchers, DEC-0032) — the same actor_id=machine.id shape as the
+        # server-internal resource.conflict event, just arriving through the
+        # public replay path instead of a direct create_event() call.
+        if event_in.actor_id != machine.id:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail={
+                    "error_code": "actor_not_owned",
+                    "message": "actor_id must be the authenticated machine's own id "
+                    "for actor_type=system",
+                },
+            )
+
+    return event_in.model_copy(update={"machine_id": machine.id})
 
 
 async def create_event(session: AsyncSession, event_in: EventCreate) -> EventModel:
@@ -32,7 +108,36 @@ async def create_event(session: AsyncSession, event_in: EventCreate) -> EventMod
     session.add(event)
     await session.commit()
     await session.refresh(event)
+
+    event_stream.publish(
+        event_stream.StreamEvent(
+            seq=event.seq,
+            project_id=event.project_id,
+            envelope=EventEnvelope.model_validate(event),
+        )
+    )
     return event
+
+
+async def list_events_after(
+    session: AsyncSession,
+    project_id: str,
+    after_seq: int | None,
+    limit: int = 500,
+) -> list[EventModel]:
+    """Realtime catch-up (DEC-0018): `seq` is a strictly monotonic identity
+    column, unlike `server_timestamp` which can collide under concurrent
+    writes — safe to use as a no-loss/no-duplicate resume cursor."""
+    stmt = (
+        select(EventModel)
+        .where(EventModel.project_id == project_id)
+        .order_by(EventModel.seq.asc())
+        .limit(limit)
+    )
+    if after_seq is not None:
+        stmt = stmt.where(EventModel.seq > after_seq)
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
 
 
 async def list_events(

@@ -5,14 +5,29 @@ from uuid import UUID
 from fastapi import APIRouter, Header, Query, Request, status
 from studio_contracts.sessions import WorkSession, WorkSessionCreate
 
-from studio_api.deps import CurrentMachine, DbSession
+from studio_api.deps import CurrentMachine, CurrentPrincipal, DbSession
+from studio_api.openapi_meta import (
+    IDEMPOTENCY_KEY_DESCRIPTION,
+    RESP_401_UNAUTHORIZED,
+    RESP_403_FORBIDDEN,
+    RESP_404_NOT_FOUND,
+    RESP_409_IDEMPOTENCY,
+)
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import sessions as sessions_service
+from studio_api.services.authz import ensure_can_write
 
 router = APIRouter(prefix="/api/v1/sessions", tags=["sessions"])
 
 
-@router.get("", response_model=list[WorkSession])
+@router.get(
+    "",
+    response_model=list[WorkSession],
+    description=(
+        "List work sessions, optionally filtered by task. Any authenticated machine may read."
+    ),
+    responses={**RESP_401_UNAUTHORIZED},
+)
 async def list_sessions(
     session: DbSession, machine: CurrentMachine, task_id: UUID | None = Query(default=None)
 ) -> list[WorkSession]:
@@ -20,16 +35,33 @@ async def list_sessions(
     return [WorkSession.model_validate(s) for s in sessions]
 
 
-@router.post("", response_model=WorkSession, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=WorkSession,
+    status_code=status.HTTP_201_CREATED,
+    description=(
+        "Start a work session on a task for the caller's machine. "
+        "Requires a writer role. Accepts `Idempotency-Key` for safe "
+        "retries: the same key returns the original session instead of "
+        "starting a duplicate."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_409_IDEMPOTENCY},
+)
 async def start_session(
     session_in: WorkSessionCreate,
     request: Request,
     session: DbSession,
-    machine: CurrentMachine,
-    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    principal: CurrentPrincipal,
+    idempotency_key: str | None = Header(
+        default=None, alias="Idempotency-Key", description=IDEMPOTENCY_KEY_DESCRIPTION
+    ),
 ) -> WorkSession:
+    ensure_can_write(principal, "session")
+
     async def _create() -> WorkSession:
-        return WorkSession.model_validate(await sessions_service.start_session(session, session_in))
+        return WorkSession.model_validate(
+            await sessions_service.start_session(session, principal, session_in)
+        )
 
     return await idempotency_service.run_idempotent(
         session,
@@ -42,7 +74,18 @@ async def start_session(
     )
 
 
-@router.patch("/{session_id}/end", response_model=WorkSession)
-async def end_session(session_id: UUID, session: DbSession, machine: CurrentMachine) -> WorkSession:
-    work_session = await sessions_service.end_session(session, session_id)
+@router.patch(
+    "/{session_id}/end",
+    response_model=WorkSession,
+    description=(
+        "End a work session. Only the machine that started the session "
+        "(or a privileged role) may end it; ending twice is a harmless "
+        "no-op, never an error storm."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
+)
+async def end_session(
+    session_id: UUID, session: DbSession, principal: CurrentPrincipal
+) -> WorkSession:
+    work_session = await sessions_service.end_session(session, principal, session_id)
     return WorkSession.model_validate(work_session)
