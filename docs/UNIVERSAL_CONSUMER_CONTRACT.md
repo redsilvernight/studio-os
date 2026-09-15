@@ -228,11 +228,14 @@ sont illustratifs et non normatifs.
 - MUST : `schema_version` sur l'enveloppe event (`TECH/03`) ; prefixe
   `/api/v1` (`TECH/02`) ; toute evolution passe par `contract-change` +
   Decision (`DEC-XXXX`).
-- Etat actuel : PARTIAL. Regle et mecanismes PASS cote API/events ; les
-  charges MCP n'ont aucun versionnement (`TECH/07` §52-56 : tout
-  changement de forme = rupture des qu'un consommateur reel existe).
-  `contract-change future CC-3` : versionnement des payloads MCP, a
-  trancher en UC-3.
+- Etat actuel : PARTIAL. Regle et mecanismes PASS cote API/events ; cote
+  MCP, CC-3 est RESOLU (DEC-0048, `TECH/07` §Evolution) : pas de
+  `version`/`schema_version` par reponse, evolution par discovery +
+  schemas + regles additive/breaking. Un consumer MCP MUST utiliser
+  `tools/list`, respecter `inputSchema`, tolerer les extensions output
+  additives, et MUST NOT supposer qu'un numero de version existe dans
+  chaque reponse. Dette : output schemas explicites requis avant toute
+  evolution breaking sure d'un tool reellement consomme.
 
 ## 13. Garanties d'idempotence
 
@@ -324,7 +327,8 @@ interfaces publiques sont disponibles.
 - CC-2 (UC-2/UC-3) : decouverte version/capacites — standards d'abord
   (OpenAPI + `tools/list` designes officiellement), manifeste minimal
   seulement si lacune reelle ; jamais de registre de produits.
-- CC-3 (UC-3) : versionnement des payloads MCP.
+- CC-3 : RESOLU (DEC-0048) — pas de version par payload MCP ; evolution
+  par discovery + schemas + additive/breaking (`TECH/07` §Evolution).
 - CC-4 (optionnelle) : generaliser `error_code` a toutes les erreurs.
 - Deja planifiee : implementation serveur des 4 outils memoire/graphe
   (UC-3, suite DEC-0042).

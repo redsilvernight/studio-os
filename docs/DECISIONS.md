@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-47 decision(s). Detail complet dans chaque ADR lie.
+48 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -69,3 +69,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0045 | CC-1 : enregistrement public dAgent (POST /agents) comme identite de provenance, sans autorite | active | [decisions/DEC-0045-enregistrement-public-agent-cc-1.md](decisions/DEC-0045-enregistrement-public-agent-cc-1.md) |
 | DEC-0046 | HTTP canonical complet, MCP subset additif : surface parity non requise, enforcement parity requise | active | [decisions/DEC-0046-http-canonique-mcp-subset.md](decisions/DEC-0046-http-canonique-mcp-subset.md) |
 | DEC-0047 | UC-3 : Memory/Knowledge local-only, exposition read-only via MCP local (stdio), 3 outils | active | [decisions/DEC-0047-uc-3-memoire-locale-mcp-local-read-only.md](decisions/DEC-0047-uc-3-memoire-locale-mcp-local-read-only.md) |
+| DEC-0048 | CC-3 : evolution des contrats MCP par discovery + schemas, sans version par payload | active | [decisions/DEC-0048-evolution-contrats-mcp-sans-version-payload.md](decisions/DEC-0048-evolution-contrats-mcp-sans-version-payload.md) |

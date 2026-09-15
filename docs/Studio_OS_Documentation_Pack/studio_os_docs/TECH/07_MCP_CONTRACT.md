@@ -75,7 +75,9 @@ indisponible → degrade machine-readable, pas d'exception brute.
 Convention d'erreurs (taxonomie `KnowledgeError` reutilisee, aucune
 seconde taxonomie) : erreur → `{error_code, message, ...}` ; degradation
 valide → `reason` ou `stale_reason` dans une reponse metier reussie.
-Aucune primitive de versionnement introduite ici (ressort de CC-3).
+Aucune primitive de versionnement introduite ici, conformement a
+CC-3/DEC-0048 (l'absence de `version` est le choix global, pas une
+exception locale).
 
 ### studio_memory_search
 
@@ -115,10 +117,9 @@ comme frais. Fraicheur par couverture manifest d'abord (jamais les seuls
 mtime).
 
 Les charges utiles des outils n'ont aucun mecanisme de version a ce jour
-(pas d'equivalent de `schema_version` cote MCP) — tout changement de forme
-de reponse doit etre traite comme une rupture dès qu'un consommateur reel
-existe, pas seulement documente ici apres coup (releve par `contract-guardian`,
-DEC-0023).
+(pas d'equivalent de `schema_version` cote MCP) — choix fige par
+CC-3/DEC-0048, voir « Evolution des contrats d'outils » ci-dessous (releve
+d'origine par `contract-guardian`, DEC-0023).
 
 Ecart d'idempotence connu (DEC-0023), ferme pour l'essentiel par DEC-0027 :
 les outils ecrivains appellent `services/*.py` directement (DEC-0005), en
@@ -162,3 +163,37 @@ DEC-0027, a trancher separement si un besoin reel de replay apparait).
 consommateur purement MCP materialise son `Agent` via HTTP ; `studio_log_ai_work`
 applique la meme regle d'ownership `actor_not_owned` que le chemin HTTP,
 le service etant partage (DEC-0005/DEC-0036).
+
+## Evolution des contrats d'outils (CC-3, DEC-0048)
+
+Le contrat d'un outil = son nom + son `inputSchema` + son `outputSchema` +
+sa description, exposes via `tools/list` (decouverte a chaque session).
+Aucun `version` / `schema_version` n'est ajoute aux reponses MCP. La
+protocol version MCP (negociee a `initialize`) n'est pas le contrat
+Studi'OS.
+
+### Additive (autorise sans nouvelle version/surface)
+
+Nouveau tool ; input optionnel (ex. `idempotency_key`, `event_id`,
+DEC-0027) ; champ output optionnel ignorable par les anciens
+consommateurs ; nouveau `error_code` des lors que le fallback
+code-inconnu-erreur-generique est respecte.
+
+### Breaking (jamais silencieux)
+
+Suppression/renommage ; nouvel input required ; changement incompatible
+de type ; enum retreci ; suppression/renommage d'un `error_code`.
+Suit `contract-change` (Decision + doc + fixtures a jour). Sur un tool
+reellement consomme, une rupture necessite une nouvelle surface nommee
+explicitement (par exemple suffixe `_v2`) avec coexistence bornee des
+qu'une coexistence est necessaire ; aucune duree generique de
+coexistence n'est fixee d'avance.
+
+### Dette output schemas
+
+Les `outputSchema` actuels des 28 outils (auto-generes depuis
+`dict[str, Any]`, `additionalProperties: True`) ne decrivent pas
+suffisamment leurs outputs. Des output schemas explicites sont
+necessaires avant toute evolution breaking sure d'un tool reellement
+consomme. Non implementes ici (ni modeles Pydantic, ni refactor de
+handlers — CC-3 reste documentaire).
