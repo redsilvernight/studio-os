@@ -154,8 +154,9 @@ function bind(root: HTMLElement, ctx: TaskDetailContext, task: Task): void {
           // No auto-retry: re-read server truth, user re-applies consciously.
           getTask(ctx.client, task.id).then(
             (fresh) => {
-              paint(root, ctx, fresh, [], [], 0, `Conflict: task changed on the server (now v${fresh.version}). Server values loaded — review and re-apply your change.`);
-              void importSessionsWork(root, ctx, fresh.id);
+              const notice = `Conflict: task changed on the server (now v${fresh.version}). Server values loaded — review and re-apply your change.`;
+              paint(root, ctx, fresh, [], [], 0, notice);
+              void importSessionsWork(root, ctx, fresh.id, notice);
             },
             (reloadError: unknown) => setMsg(root, `Conflict (server v${error.serverVersion ?? "?"}), re-read failed: ${describeError(reloadError)}`),
           );
@@ -184,9 +185,9 @@ function bind(root: HTMLElement, ctx: TaskDetailContext, task: Task): void {
       () => {
         getTask(ctx.client, task.id).then(
           (fresh) => {
-            paint(root, ctx, fresh, [], [], 0, "");
-            setMsg(root, "Released. Status unchanged (server rule) — change it explicitly if needed.");
-            void importSessionsWork(root, ctx, fresh.id);
+            const notice = "Released. Status unchanged (server rule) — change it explicitly if needed.";
+            paint(root, ctx, fresh, [], [], 0, notice);
+            void importSessionsWork(root, ctx, fresh.id, notice);
           },
           (error: unknown) => setMsg(root, describeError(error)),
         );
@@ -199,7 +200,7 @@ function bind(root: HTMLElement, ctx: TaskDetailContext, task: Task): void {
   });
 }
 
-async function importSessionsWork(root: HTMLElement, ctx: TaskDetailContext, taskId: string): Promise<void> {
+async function importSessionsWork(root: HTMLElement, ctx: TaskDetailContext, taskId: string, notice = ""): Promise<void> {
   let fresh: Task;
   try {
     fresh = await getTask(ctx.client, taskId);
@@ -213,8 +214,8 @@ async function importSessionsWork(root: HTMLElement, ctx: TaskDetailContext, tas
       fetchJson<WorkRow[]>(ctx.client, "/api/v1/ai-work", { task_id: fresh.id }),
       fetchJson<{ id: string; task_id?: string | null }[]>(ctx.client, "/api/v1/claims", { project_id: fresh.project_id }),
     ]);
-    paint(root, ctx, fresh, sessions, worklogs, claims.filter((c) => c.task_id === fresh.id).length, "");
+    paint(root, ctx, fresh, sessions, worklogs, claims.filter((c) => c.task_id === fresh.id).length, notice);
   } catch {
-    paint(root, ctx, fresh, [], [], 0, "");
+    paint(root, ctx, fresh, [], [], 0, notice);
   }
 }
