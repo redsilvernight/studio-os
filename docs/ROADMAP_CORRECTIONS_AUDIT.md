@@ -207,7 +207,13 @@ Statut : **étape entièrement close** — sous-étapes 6.1 à 6.7 closes
 
 ### Scénarios manquants prioritaires
 
-- fichier multipart de 1 Go réel — encore ouvert ;
+- ~~fichier multipart de 1 Go réel~~ — fermé (DEC-0038) :
+  `tests/client/test_transfers_1gb_acceptance.py` (Postgres+MinIO réels, 1 GiB
+  streamé par blocs de 1 Mio jamais alloué en mémoire, interruption réelle
+  après 8/16 parts, redémarrage client simulé — nouvelles instances
+  `StudioApiClient`/`OutboxStore`/`TransferClient` sur le même fichier
+  SQLite —, reprise des 8 parts manquantes uniquement, vérification octet à
+  octet par sha256, nettoyage MinIO/local garanti en `finally`) ;
 - ~~interruption à 50 %, redémarrage client et reprise~~ — fermé (DEC-0033 :
   `tests/client/test_transfers.py::test_upload_multipart_resumes_after_interrupted_part`,
   interruption réseau + reprise sans réémission des parts terminées ;

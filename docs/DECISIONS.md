@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-37 decision(s). Detail complet dans chaque ADR lie.
+38 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -59,3 +59,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0035 | Identite des events (HTTP/MCP) liee a la machine authentifiee | active | [decisions/DEC-0035-identite-des-events-liee-a-la-machine-authentifiee.md](decisions/DEC-0035-identite-des-events-liee-a-la-machine-authentifiee.md) |
 | DEC-0036 | Autorisation transverse minimale : role et propriete par ressource, sans nouvelle table | active | [decisions/DEC-0036-autorisation-transverse-minimale-role-et-propriete-par.md](decisions/DEC-0036-autorisation-transverse-minimale-role-et-propriete-par.md) |
 | DEC-0037 | Reprise multipart apres expiration des URLs par-part : endpoint additif refresh-parts, ListParts comme verite serveur, nettoyage des uploads orphelins | active | [decisions/DEC-0037-reprise-multipart-apres-expiration-des-urls-par-part.md](decisions/DEC-0037-reprise-multipart-apres-expiration-des-urls-par-part.md) |
+| DEC-0038 | Etape 7 (roadmap) : scenario "fichier multipart de 1 Go reel" ferme, test streame sans mock | active | [decisions/DEC-0038-etape-7-scenario-multipart-1-go-reel-ferme.md](decisions/DEC-0038-etape-7-scenario-multipart-1-go-reel-ferme.md) |
