@@ -11,3 +11,4 @@ class UserModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
     display_name: Mapped[str]
     email: Mapped[str] = mapped_column(unique=True)
     role: Mapped[str]
+    password_hash: Mapped[str | None] = mapped_column(nullable=True)

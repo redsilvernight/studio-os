@@ -13,10 +13,16 @@ services:
       API_DOMAIN: ${API_DOMAIN}
       MCP_DOMAIN: ${MCP_DOMAIN}
       STORAGE_DOMAIN: ${STORAGE_DOMAIN}
+      DASHBOARD_DOMAIN: ${DASHBOARD_DOMAIN}
     depends_on:
-      - api
-      - mcp
-      - minio
+      api:
+        condition: service_healthy
+      mcp:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      dashboard:
+        condition: service_healthy
 
   api:
     build:
@@ -31,11 +37,23 @@ services:
       STUDIO_S3_BUCKET: ${MINIO_BUCKET}
       STUDIO_S3_ACCESS_KEY: ${MINIO_ROOT_USER}
       STUDIO_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      STUDIO_JWT_SECRET: ${STUDIO_JWT_SECRET}
+      STUDIO_CORS_ORIGINS: ${STUDIO_CORS_ORIGINS}
+      STUDIO_LOG_FORMAT: ${STUDIO_LOG_FORMAT}
+      STUDIO_LOG_LEVEL: ${STUDIO_LOG_LEVEL}
+      STUDIO_RATE_LIMIT_REQUESTS_PER_MINUTE: ${STUDIO_RATE_LIMIT_REQUESTS_PER_MINUTE}
+      STUDIO_RATE_LIMIT_BURST: ${STUDIO_RATE_LIMIT_BURST}
     depends_on:
       postgres:
         condition: service_healthy
       minio:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; s=socket.create_connection(('127.0.0.1',8000), timeout=5); s.close()\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   mcp:
     build:
@@ -51,11 +69,37 @@ services:
       STUDIO_S3_BUCKET: ${MINIO_BUCKET}
       STUDIO_S3_ACCESS_KEY: ${MINIO_ROOT_USER}
       STUDIO_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      STUDIO_JWT_SECRET: ${STUDIO_JWT_SECRET}
+      STUDIO_CORS_ORIGINS: ${STUDIO_CORS_ORIGINS}
+      STUDIO_LOG_FORMAT: ${STUDIO_LOG_FORMAT}
+      STUDIO_LOG_LEVEL: ${STUDIO_LOG_LEVEL}
+      STUDIO_RATE_LIMIT_REQUESTS_PER_MINUTE: ${STUDIO_RATE_LIMIT_REQUESTS_PER_MINUTE}
+      STUDIO_RATE_LIMIT_BURST: ${STUDIO_RATE_LIMIT_BURST}
     depends_on:
       postgres:
         condition: service_healthy
       minio:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; s=socket.create_connection(('127.0.0.1',8100), timeout=5); s.close()\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  dashboard:
+    build:
+      context: ..
+      dockerfile: docker/dashboard.Dockerfile
+    restart: unless-stopped
+    environment:
+      NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/ >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
 
   postgres:
     image: postgres:16-alpine

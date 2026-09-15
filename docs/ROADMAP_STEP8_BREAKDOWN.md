@@ -350,23 +350,28 @@ configuration). Livre : entrypoint local `local_server.py`, handlers minces
 Read-only strict, aucune ecriture, aucun Context Package. Dependait de 8.2
 (fourni : providers, DEC-0042).
 
-## Sous-etape 8.3b — Context Package (`studio_generate_context_package`) — DEFERRED
+## Sous-etape 8.3b — Context Package (`studio_generate_context_package`) — PLANIFIÉE (ADR tranché, DEC-0057)
 
-DEFERRED avec condition normative (DEC-0047) : reouverture uniquement par
-Decision couvrant selection des sources, confidentialite,
-manifest/provenance, schema, persistance ou caractere ephemere, frontiere
-local→partage, interaction avec CC-3. Sa propre decision, pas un reliquat
-de 8.3a.
+Détranchée de l'état DEFERRED de DEC-0047 par **DEC-0057** (`active`,
+2026-09-15) : composition locale Bloc B, part partagée lue par HTTP canonique,
+part locale via les providers 8.2, manifeste versionné éphémère
+(`schema_version: 1`), portée deny-all. `TECH/07_MCP_CONTRACT.md` et
+`TECH/09_OBSIDIAN_GRAPHIFY.md` amendés dans le même lot.
+**Implémentation restante** : `packages/studio-client/src/studio_client/context/`
+et sous-commande CLI `studio context generate` (absents du dépôt au
+2026-09-15). L'ancienne condition normative de DEC-0047 (Decision dédiée
+couvrant sélection des sources, confidentialité, manifest/provenance, schéma,
+persistance et frontière local→partage) est satisfaite par DEC-0057, pas un
+reliquat de 8.3a.
 
 Compose le contexte partagé serveur (tâche, `ProjectState`, claims, décisions,
 AIWorkLog, événements récents — tout existe déjà) et le complément local de 8.2
 (mémoire exposable, graphe, Git), derrière un manifest versionné qui trace ses
-sources. Ne livre que `studio_generate_context_package` (les 3 outils
-read-only relevent de 8.3a/UC-3, DEC-0047). Question de conception n° 1
-tranchee pour 8.3a (option a : MCP local par poste) mais restant ouverte
-pour le paquet lui-meme : un paquet combinant part serveur et complement
-local exige sa propre Decision (frontiere local→partage). Dépend de 8.1
-(la part AIWorkLog/événements du paquet) et de 8.2 (les sources locales).
+sources. Ne livre que la capacité `studio_generate_context_package` (les 3
+outils read-only relèvent de 8.3a/UC-3, DEC-0047). La question de conception
+n° 1 (frontière local→partage) est tranchée par DEC-0057 (composition locale
+Bloc B, part partagée par HTTP canonique). Dépend de 8.1 (la part
+AIWorkLog/événements du paquet) et de 8.2 (les sources locales, closes).
 Invariant à tenir : aucun octet de mémoire privée ne transite sans regle
 explicite, et le paquet reste borné en taille — un Context Package n'est
 pas un dump.
@@ -413,7 +418,7 @@ confirme par lecture), suite `tests/api/test_timeline.py`/
 `tests/mcp/test_timeline.py`/ajouts CLI **ecrite mais jamais executee contre
 un Postgres reel**.
 
-## Sous-étape 8.6 — Dashboard minimal — EN COURS (DASH-0/1/2 faits, DASH-3/4/5 restants)
+## Sous-étape 8.6 — Dashboard minimal — LIVRÉ (DASH-0 → DASH-5)
 
 Interface de lecture cohérente avec API, MCP et CLI. Placée en dernier : elle
 consomme 8.1, 8.4 et 8.5, et porte la question d'authentification n° 3.
@@ -424,11 +429,14 @@ le token machine déjà stocké, plutôt qu'un service web hébergé sur le VPS.
 « Minimal » doit rester minimal : lecture et navigation, pas un second client
 d'écriture qui dupliquerait la validation de la CLI et du MCP.
 
-État réel (voir `dashboard/README.md`) : DASH-0 (socle) et DASH-1 (overview
-lecture seule) livrés ; DASH-2 (pilotage Projects/Tasks/Claims, optimistic
-concurrency, task claim/release, resource claims soft-lock) livré. Restent
-DASH-3 (timeline/realtime SSE branché sur les vues), DASH-4 et DASH-5, non
-commencés.
+État réel (voir `dashboard/README.md`, `cd dashboard && npm test` 95 passed le
+2026-09-15) : DASH-0 (socle), DASH-1 (overview lecture seule), DASH-2 (pilotage
+Projects/Tasks/Claims, optimistic concurrency, task claim/release, resource
+claims soft-lock), DASH-3 (realtime SSE branché sur les vues), DASH-4 (écran
+Machines, présence canonique/dérivée) et DASH-5 (dashboard d'écriture :
+créations, transferts, revue AI work) livrés. Le login humain JWT (DEC-0056,
+également étiqueté « DASH-4 » dans le lot 8) est livré et coexiste avec l'écran
+Machines (note de nommage dans `dashboard/README.md`).
 
 ### Critères d'acceptation (étape 8 globale)
 
@@ -451,28 +459,30 @@ possibles, aucune actée : (a) une instance MCP locale par poste, en plus de
 celle du VPS ; (b) l'outil VPS ne renvoie que la part partagée et un manifest
 que le client complète localement ; (c) les outils `memory`/`graph` ne sont
 pas des outils MCP du tout mais des commandes CLI locales, ce qui
-contredirait `TECH/07`. **Resolution UC-3/DEC-0047 pour 8.3a : option (a)
-actee** — MCP local par poste (stdio, read-only, enregistrement
-conditionnel). La question reste ouverte pour le seul Context Package
-(8.3b), qui exige sa propre Decision.
+   contredirait `TECH/07`. **Resolution UC-3/DEC-0047 pour 8.3a : option (a)
+   actee** — MCP local par poste (stdio, read-only, enregistrement
+   conditionnel). **Resolution 8.3b/DEC-0057** : option (c), composition locale
+   Bloc B ; exposition MCP differee (variante c2), conditionnee a un besoin
+   reel.
 2. **Format et portée du manifest.** `TECH/09` exige un « manifest versionné qui
    trace les sources » sans aucun schéma : nom du champ de version, liste des
    champs, format des références de source. Est-il un modèle
    `studio-contracts` (donc un contrat versionné de plus) ou un artefact local
-   libre ? Est-il **persisté côté serveur** — c'est-à-dire trace-t-on ce qu'un
+   libre ? Est-il **persisté côté serveur** — c'est-à-dire    trace-t-on ce qu'un
    agent a chargé, ce qui serait cohérent avec la traçabilité IA mais crée une
-   entité nouvelle — ou éphémère ? Non tranché.
+   entité nouvelle — ou éphémère ? **Tranché par DEC-0057** : document
+   d'artefact `schema_version: 1`, non intégré à `studio-contracts` (aucune
+   surface réseau), éphémère côté serveur, écriture locale optionnelle `--out`.
 3. **Authentification du dashboard.** `TECH/04_AUTH_SYNC_CONTRACT.md` ne connaît
    qu'`Authorization: Bearer <token machine>` ; il n'y a ni session utilisateur,
-   ni cookie, ni CSRF, ni OAuth nulle part. Un dashboard servi depuis le VPS
-   exigerait donc une authentification utilisateur entièrement nouvelle
-   (extension majeure du contrat Auth) ; un dashboard servi localement par le
-   daemon réutilise le token machine existant et ne touche aucun contrat.
-   À noter : `HUMAN/04_DEPLOIEMENT_OVH.md` annonce un conteneur
-   `studio-dashboard` et `studio.example.com -> dashboard/API`, alors que le
-   `docker-compose.yml` et le `Caddyfile` réels n'en ont aucune trace — la
-   documentation de déploiement diverge **déjà** de l'état réel, indépendamment
-   de ce lot.
+   ni cookie, ni CSRF, ni OAuth nulle part. **Tranché par DEC-0056** :
+   authentification humaine additive par JWT court-terme
+   (`POST /auth/token`, machine dashboard dédiée, `User.password_hash`), sans
+   retirer le Bearer machine. La divergence de déploiement signalée ici est
+   résorbée : `docker/docker-compose.yml` déclare désormais le service
+   `dashboard` (`docker/dashboard.Dockerfile`) et `docker/Caddyfile` le vhost
+   `DASHBOARD_DOMAIN` (proxy same-origin de `/api`, `/openapi.json`,
+   `/healthz`).
 4. **Granularité et persistance des notifications.** `TECH/05` classe
    `Notification` en « à spécifier ». Entité serveur persistée (table + endpoints
    + état lu/non-lu par utilisateur, donc changement de Data Model et cohérence

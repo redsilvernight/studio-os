@@ -20,10 +20,18 @@ from studio_api.settings import get_settings
 from studio_api.storage.provider import get_storage
 
 
-async def _bootstrap_admin(display_name: str, email: str) -> None:
+async def _bootstrap_admin(display_name: str, email: str, password: str | None) -> None:
     async with get_session_factory()() as session:
         user = await provisioning_service.bootstrap_admin(session, display_name, email)
+        if password:
+            await provisioning_service.set_user_password(session, email, password)
         print(f"admin user created: {user.id} ({user.email})")
+
+
+async def _set_password(email: str, password: str) -> None:
+    async with get_session_factory()() as session:
+        await provisioning_service.set_user_password(session, email, password)
+        print(f"password set for {email}")
 
 
 async def _create_machine(owner_email: str, display_name: str) -> None:
@@ -86,6 +94,11 @@ def main() -> None:
     bootstrap = sub.add_parser("bootstrap-admin", help="Create the first admin user")
     bootstrap.add_argument("--display-name", required=True)
     bootstrap.add_argument("--email", required=True)
+    bootstrap.add_argument("--password", default=None, help="Initial dashboard password")
+
+    password_parser = sub.add_parser("set-password", help="Set a user's dashboard password")
+    password_parser.add_argument("--email", required=True)
+    password_parser.add_argument("--password", required=True)
 
     machine_parser = sub.add_parser("machine", help="Manage machines")
     machine_sub = machine_parser.add_subparsers(dest="machine_command", required=True)
@@ -117,7 +130,9 @@ def main() -> None:
 
     try:
         if args.command == "bootstrap-admin":
-            asyncio.run(_bootstrap_admin(args.display_name, args.email))
+            asyncio.run(_bootstrap_admin(args.display_name, args.email, args.password))
+        elif args.command == "set-password":
+            asyncio.run(_set_password(args.email, args.password))
         elif args.command == "machine" and args.machine_command == "create":
             asyncio.run(_create_machine(args.owner_email, args.display_name))
         elif args.command == "machine" and args.machine_command == "revoke":

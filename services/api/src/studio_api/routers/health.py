@@ -9,8 +9,9 @@ router = APIRouter(tags=["health"])
     "/healthz",
     description=(
         "Liveness probe. Needs no credential and carries no security "
-        "requirement — the only unauthenticated operation. Answers "
-        '`{"status": "ok"}` when the service is up; use it before '
+        "requirement — one of the unauthenticated operations, alongside "
+        "`GET /metrics` and the human dashboard login `POST /auth/token`. "
+        'Answers `{"status": "ok"}` when the service is up; use it before '
         "authenticating anything else."
     ),
     responses={

@@ -6,6 +6,25 @@
 	reverse_proxy mcp:8100
 }
 
+# Dashboard SPA served by the nginx container. API calls to /api and
+# /openapi.json are proxied to the API service so the SPA can use same-origin
+# requests (DASH-0/1).
+{$DASHBOARD_DOMAIN} {
+	route /api/* {
+		reverse_proxy api:8000
+	}
+
+	route /openapi.json {
+		reverse_proxy api:8000
+	}
+
+	route /healthz {
+		reverse_proxy api:8000
+	}
+
+	reverse_proxy dashboard:80
+}
+
 # Passthrough to MinIO's S3 API only — TLS termination, no buffering/parsing
 # of file bytes. Distinct from "the API proxying files" which is forbidden
 # (.claude/rules/storage-transfers.md): this is the S3-compatible endpoint

@@ -13,14 +13,30 @@ opaque genere serveur, seul son hash SHA-256 est stocke
 chaque requete authentifiee machine. Revocation = `credential_revoked_at`
 non-null, effective immediatement (pas de rotation/expiration a gerer).
 
+## Authentification humaine dashboard (DASH-4, DEC-0056)
+
+En plus du token machine, l'API accepte un JWT court-terme pour les utilisateurs
+humains accedant au dashboard web. Le JWT est obtenu via `POST /auth/token`
+(email + mot de passe) et porte dans son payload l'id d'une machine dashboard
+dediee a l'utilisateur. Toute la logique d'autorisation (`auth_role`, ownership,
+revocation) continue de s'executer sur cette machine : revoquer la machine
+revoque le JWT.
+
+Le mot de passe est gere hors-bande par la CLI serveur `studio-admin set-password`
+(ou `--password` lors du `bootstrap-admin` initial). Aucun endpoint public ne
+permet de changer ou reinitialiser un mot de passe.
+
+`POST /auth/token` est une exception d'authentification Bearer : il est sans
+`Authorization` (comme `/healthz` et `/metrics`). Une fois le JWT obtenu, il
+est presente comme `Authorization: Bearer <jwt>` sur les endpoints `/api/v1`.
+
 ## Roles minimum
 admin, developer, agent, readonly.
 
 ## Provisioning (DEC-0011, DEC-0012)
-Pas de mecanisme d'auth HTTP utilisateur distinct en v1 : l'identite
-utilisateur d'une requete est derivee de `Machine.owner_user_id` (le
-proprietaire de la machine authentifiee), jamais un second header ou une
-session. Les endpoints `POST /projects`, `POST /machines`,
+L'identite utilisateur d'une requete est derivee de `Machine.owner_user_id` (le
+proprietaire de la machine authentifiee), y compris pour la machine dashboard
+creee lors du login JWT (DEC-0056). Les endpoints `POST /projects`, `POST /machines`,
 `POST /machines/{id}/revoke` et `POST /users` verifient le role de ce
 proprietaire ; cette verification n'est pas retroactivement appliquee aux
 endpoints d'ecriture existants (changement de contrat separe si necessaire).

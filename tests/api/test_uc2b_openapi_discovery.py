@@ -61,7 +61,7 @@ def test_all_api_v1_operations_require_bearer_and_healthz_is_exempt() -> None:
     assert operations, "expected documented operations"
     for (method, path), operation in operations.items():
         security = operation.get("security", [])
-        if path == "/healthz":
+        if path in ("/healthz", "/api/v1/auth/token"):
             assert security in ([], None), f"{method} {path} must stay unauthenticated"
         else:
             assert path.startswith("/api/v1"), f"unexpected public path: {path}"

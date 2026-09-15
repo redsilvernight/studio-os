@@ -19,6 +19,13 @@ from studio_contracts.tasks import TaskCreate, TaskStatus, TaskUpdate
 from studio_client.api_client import StudioApiClient
 from studio_client.config import ClientConfig, default_config_path
 from studio_client.errors import StudioApiError
+from studio_client.outbox import OutboxStore, connect, default_outbox_path
+from studio_client.recording import (
+    ActiveRecordingStore,
+    OutboxRecordingStore,
+    RecordingError,
+    RecordingProvider,
+)
 from studio_client.tokens import KeyringTokenStore, MissingMachineToken, origin_of
 
 _JSON_FLAG = "--json"
@@ -275,6 +282,52 @@ def _review_queue_list(args: argparse.Namespace, config: ClientConfig) -> None:
     _print_models(queue.items, as_json=args.json)
 
 
+def _recording_store() -> ActiveRecordingStore:
+    """Local store resolving the machine's active recording. Tests override
+    this factory so no real `%APPDATA%\\StudioOS\\outbox.sqlite3` is touched."""
+    return OutboxRecordingStore(OutboxStore(connect(default_outbox_path())))
+
+
+def _mark(args: argparse.Namespace, config: ClientConfig) -> None:
+    """`studio mark "<label>"` (HUMAN/02-03): emit one
+    `recording.marker.created` event, attached to the active recording when
+    one is known and otherwise to the explicit `--project`/`--task`."""
+    if config.machine_id is None:
+        print(
+            "No machine_id configured. Set STUDIO_CLIENT_MACHINE_ID or the "
+            "config file's machine_id before creating a marker.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    machine_id = config.machine_id
+    project_id = _parse_uuid(args.project, field="project_id") if args.project else None
+    task_id = _parse_uuid(args.task, field="task_id") if args.task else None
+    session_id = _parse_uuid(args.session, field="session_id") if args.session else None
+    store = _recording_store()
+
+    def action(client: StudioApiClient) -> Any:
+        provider = RecordingProvider(
+            client, actor_id=machine_id, machine_id=machine_id, store=store
+        )
+        return provider.mark(
+            args.label,
+            project_id=project_id,
+            task_id=task_id,
+            session_id=session_id,
+            at=args.at,
+        )
+
+    try:
+        marker = _run(config, action)
+    except RecordingError as exc:
+        print(f"error: {exc.message}", file=sys.stderr)
+        raise SystemExit(1) from None
+    if args.json:
+        print(json.dumps(marker.event_payload(), indent=2))
+    else:
+        print(f"Marker {marker.marker_id} at {marker.timestamp.isoformat()}: {marker.label}")
+
+
 def _notifications_list(args: argparse.Namespace, config: ClientConfig) -> None:
     """Alias of `review-queue list` (DEC-0051): notifications ARE the review
     queue, not a second, weaker mechanism — same client call, same output
@@ -450,6 +503,22 @@ def _build_parser() -> argparse.ArgumentParser:
     timeline_list.add_argument("--limit", type=int, default=200)
     _add_json_flag(timeline_list)
     timeline_list.set_defaults(func=_timeline_list)
+
+    mark_parser = subparsers.add_parser(
+        "mark",
+        help="Mark a moment in the active recording.",
+    )
+    mark_parser.add_argument("label", help="Short human label for the moment.")
+    mark_parser.add_argument("--project", help="Project UUID (default: active recording).")
+    mark_parser.add_argument("--task", help="Task UUID to attach the marker to.")
+    mark_parser.add_argument("--session", help="Work session UUID to attach the marker to.")
+    mark_parser.add_argument(
+        "--at",
+        help="ISO-8601 timestamp, or a signed offset (+90, -45s) relative to the "
+        "recording start when a recording is active, otherwise to now.",
+    )
+    _add_json_flag(mark_parser)
+    mark_parser.set_defaults(func=_mark)
 
     return parser
 

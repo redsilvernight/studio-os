@@ -41,11 +41,28 @@ est optionnel et interchangeable ; Graphify n'est ni requis ni suppose
 au runtime (artefacts JSON lus en brut, aucun binaire appele).
 
 ## Context Package
-Le serveur compose contexte partage; le client complete avec Git, Graphify, fichiers et memoire locale. Manifest versionne et trace les sources.
 
-UC-3 (DEC-0047) : `studio_generate_context_package` = DEFERRED (roadmap
-8.3b). Aucune composition locale→partagee en UC-3 : search/read/query
-restent locaux et ne produisent aucun artefact partage.
+Composition **locale Bloc B** (DEC-0057), pas un outil du MCP VPS. Le
+client lit la part partagee via l'API HTTP canonique (DEC-0046) avec le
+token machine existant, ajoute la part locale (Git, memoire exposable,
+graphe) via les providers DEC-0042, et produit UN manifeste versionne
+tracant ses sources. Le serveur n'ecrit rien, ne recoit aucun octet local
+et n'expose aucun nouvel endpoint dans 8.3b.
+
+- `schema_version: 1` (artefact) ; champs obligatoires, liste des `kind`,
+  regles de bornage et de priorite : voir DEC-0057.
+- Le manifeste est **ephemere par defaut**, ecrit localement sur demande
+  (`--out`), jamais uploade automatiquement ; aucune table, aucun evenement.
+- Memoire : seule la portee exposee (`ScopePolicy`, deny-all par defaut)
+  est lue ; une note privee n'est jamais lue, listee ni hashee. Les
+  omissions sont tracees par comptage/raison, jamais par chemin prive.
+- Interaction avec les 3 outils UC-3 : le composer appelle les **memes
+  methodes** `MemoryProvider`/`GraphProvider` que les handlers MCP locaux ;
+  il n'appelle pas les outils MCP et ne duplique aucune logique.
+- Le MCP local stdio reste sans credential ni reseau (DEC-0047) : il
+  n'heberge pas le composer. `studio_generate_context_package` est
+  reclassé en capacite Bloc B locale (CLI `studio context generate`) ;
+  son exposition MCP est differee (DEC-0057, variante c2).
 
 ## Decisions, vault et Graphify : implementation reelle
 

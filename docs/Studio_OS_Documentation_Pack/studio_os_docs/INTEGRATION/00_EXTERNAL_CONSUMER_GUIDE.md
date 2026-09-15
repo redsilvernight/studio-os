@@ -19,12 +19,13 @@ reference sont `TECH/02` (API), `TECH/03` (events), `TECH/04` (auth/sync),
   autorisations, surface plus petite (`TECH/07`, DEC-0046). La parite de
   surface n'est pas requise entre les deux.
 - Memoire/knowledge local reste optionnel et purement local (section 8).
-- `GET /healthz` (hors `/api/v1`) est public : il sert a verifier
-  l'accessibilite sans credential.
+- `GET /healthz` et `GET /metrics` (hors `/api/v1`) sont publics : ils servent
+  a verifier l'accessibilite sans credential.
 
 ## 2. S'authentifier
 
-Chaque requete `/api/v1` (sauf `/healthz`) et chaque appel MCP HTTP porte
+Chaque requete `/api/v1` (sauf `/healthz`, `/metrics` et le login humain
+`POST /auth/token`) et chaque appel MCP HTTP porte
 `Authorization: Bearer <machine-token>`.
 
 Le token est un credential de machine opaque, genere hors bande par un humain

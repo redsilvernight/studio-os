@@ -12,9 +12,11 @@ from studio_contracts.auth import Role
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.user import UserModel
 from studio_api.db.session import get_session
+from studio_api.jwt_auth import decode_access_token
 from studio_api.openapi_meta import machine_bearer_scheme
 from studio_api.security import hash_token
 from studio_api.services.authz import Principal, load_principal
+from studio_api.settings import get_settings
 
 DbSession = Annotated[AsyncSession, Depends(get_session)]
 
@@ -38,13 +40,28 @@ async def get_current_machine(
     session: DbSession,
     bearer: Annotated[HTTPAuthorizationCredentials | None, Depends(machine_bearer_scheme)] = None,
 ) -> MachineModel:
-    """Machine auth: opaque bearer token, verified by hash, independently
-    revocable. `machine_bearer_scheme` only describes the `Authorization:
-    Bearer <machine-token>` mechanism in OpenAPI — every acceptance
-    decision below is unchanged."""
+    """Machine auth: opaque bearer token or dashboard JWT, verified by hash or
+    signature, independently revocable. A JWT is decoded to a dashboard machine
+    id; the machine row is still verified (it may have been revoked)."""
     token = bearer.credentials if bearer is not None else None
     if token is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "missing bearer token")
+
+    # Dashboard JWT: three dot-separated segments, decode to machine id.
+    if token.count(".") == 2:
+        payload = decode_access_token(token, get_settings())
+        if payload is not None:
+            machine_id = payload.get("machine_id")
+            if machine_id:
+                from uuid import UUID
+
+                try:
+                    machine = await session.get(MachineModel, UUID(machine_id))
+                except ValueError:
+                    machine = None
+                if machine is not None and machine.credential_revoked_at is None:
+                    return machine
+
     machine = await resolve_machine(session, token)
     if machine is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid or revoked machine token")

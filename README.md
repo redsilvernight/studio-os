@@ -4,10 +4,12 @@ Plateforme de coordination pour studio de jeu vidéo à distance.
 
 ## Statut du projet
 
-Bloc A (Cloud/Core) en place. Bloc B (Local Client) : sous-étapes 6.1 à 6.5
-closes (`StudioApiClient`, daemon/heartbeat, outbox SQLite, replay ordonné,
-CLI minimale) — voir `docs/ROADMAP_STEP6_BREAKDOWN.md`. Watchers Git/Godot
-(6.6), `TransferClient` (6.7), dashboard et adaptateurs restent à faire.
+Bloc A (Cloud/Core) en place. Bloc B (Local Client) : étape 6 entièrement
+close (DEC-0024 à DEC-0033) — `StudioApiClient`, daemon/heartbeat, outbox SQLite,
+replay ordonné, CLI minimale, watchers Git/Godot (6.6) et `TransferClient` (6.7).
+Étape 8 en cours : dashboard DASH-0/1/2/4 livrés (login JWT humain, CORS prod,
+Docker/Caddy), DASH-3/5 restants ; adaptateurs mémoire/Graphify locaux et outils
+MCP read-only livrés (DEC-0042/DEC-0047).
 
 ## Architecture
 
@@ -39,11 +41,15 @@ Pour démarrer l'API : se placer dans `services/api/` et exécuter `uv run studi
 
 Le provisioning est implémenté via la CLI serveur `studio-admin`.
 
-Se placer dans `services/api/` et exécuter : `uv run studio-admin ...`
+En local : se placer dans `services/api/` et exécuter `uv run studio-admin bootstrap-admin --display-name ... --email ... --password ...`.
+
+En production (Docker) : `cd docker && ./bootstrap.sh --create-machine "premier-poste"`.
 
 ## Tests
 
-Les tests couvrent les contrats API et les endpoints de l'API. Pour les lancer : `uv run pytest` depuis le répertoire racine.
+- Backend : `uv run pytest` (500 passed, 3 skipped au 2026-09-15).
+- Dashboard : `cd dashboard && npm test` (64 passed au 2026-09-15).
+- Lint/format : `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy ...`.
 
 ## Documentation
 

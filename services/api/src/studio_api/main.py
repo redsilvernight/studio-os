@@ -1,16 +1,22 @@
 from __future__ import annotations
 
+import logging
+
 from fastapi import FastAPI
 
+from studio_api.middleware import setup_middleware
+from studio_api.observability import configure_logging
 from studio_api.routers import (
     agents,
     ai_work,
+    auth,
     claims,
     decisions,
     events,
     health,
     heartbeats,
     machines,
+    metrics,
     projects,
     review_queue,
     sessions,
@@ -20,12 +26,15 @@ from studio_api.routers import (
     users,
 )
 
+logger = logging.getLogger(__name__)
+
 APP_DESCRIPTION = (
     "Shared coordination API for Studio OS projects: tasks, resource "
     "claims, work sessions, decisions, AI work logs, events, and file "
     "transfer metadata. Every operation under `/api/v1` requires machine "
     "authentication (`Authorization: Bearer <machine-token>`, provisioned "
-    "out of band) except `GET /healthz`. File bytes never flow through "
+    "out of band) except `GET /healthz`, `GET /metrics` and the human "
+    "dashboard login `POST /auth/token`. File bytes never flow through "
     "this API — transfers exchange metadata and short-lived signed URLs "
     "only, uploads and downloads go directly to object storage. Replayable "
     "creations accept `Idempotency-Key`; concurrent updates use "
@@ -34,7 +43,10 @@ APP_DESCRIPTION = (
 )
 
 OPENAPI_TAG_DESCRIPTIONS: dict[str, str] = {
-    "health": "Unauthenticated liveness probe. The only operation that needs no credential.",
+    "health": (
+        "Unauthenticated liveness and metrics probes, plus the human "
+        "dashboard login endpoint."
+    ),
     "projects": (
         "Project registry. Creating a project requires a privileged role; "
         "reading is open to any authenticated machine."
@@ -103,7 +115,20 @@ def create_app() -> FastAPI:
         ],
     )
 
+    from studio_api.settings import get_settings
+
+    settings = get_settings()
+    configure_logging(settings.log_format, settings.log_level)
+    setup_middleware(app, settings)
+
+    if settings.jwt_secret == "change-me-in-production":
+        logger.warning(
+            "STUDIO_JWT_SECRET is using the default value; set a strong secret in production"
+        )
+
     app.include_router(health.router)
+    app.include_router(metrics.router)
+    app.include_router(auth.router, prefix="/api/v1")
     app.include_router(projects.router)
     app.include_router(tasks.router)
     app.include_router(sessions.router)

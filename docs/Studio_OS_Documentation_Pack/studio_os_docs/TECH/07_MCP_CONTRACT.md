@@ -26,7 +26,6 @@ studio_get_timeline
 studio_memory_search
 studio_memory_read
 studio_graph_query
-studio_generate_context_package
 studio_emit_event
 
 ## Studio Transfer via MCP
@@ -51,15 +50,14 @@ token (pas d'attaquant reseau).
 
 ## Etat reel (roadmap etape 5, DEC-0023, UC-3/DEC-0047)
 
-25 des 29 outils ci-dessus sont implementes (`services/mcp/src/studio_mcp/`).
-Trois outils memoire/graphe locaux read-only sont specifies ci-dessous
-(UC-3, exposition via MCP local par poste, DEC-0047) et restent a
-implementer : `studio_memory_search`, `studio_memory_read`,
-`studio_graph_query`. `studio_generate_context_package` reste DEFERRED :
-reouverture uniquement par Decision couvrant au minimum la selection des
-sources, la confidentialite, le manifest/provenance, le schema, la
-persistance ou le caractere ephemere, la frontiere local→partage et
-l'interaction avec CC-3 (roadmap 8.3b).
+Le serveur VPS enregistre 27 outils (`services/mcp/src/studio_mcp/`).
+Les 3 outils locaux read-only specifies ci-dessous (UC-3, exposition via
+MCP local par poste, DEC-0047) sont en place mais conditionnels au
+fichier de configuration du poste : `studio_memory_search`,
+`studio_memory_read`, `studio_graph_query`.
+`studio_generate_context_package` n'est **pas** un outil MCP : il est
+reclassé en capacité locale du Bloc B par DEC-0057 (voir section
+« Context Package (8.3b, DEC-0057) » ci-dessous).
 
 ## Outils locaux Memory/Knowledge UC-3 (DEC-0047)
 
@@ -209,3 +207,13 @@ suffisamment leurs outputs. Des output schemas explicites sont
 necessaires avant toute evolution breaking sure d'un tool reellement
 consomme. Non implementes ici (ni modeles Pydantic, ni refactor de
 handlers — CC-3 reste documentaire).
+
+## Context Package (8.3b, DEC-0057)
+
+`studio_generate_context_package` n'est **pas** un outil MCP : c'est une
+capacite locale du Bloc B (`studio context generate`), qui combine la part
+partagee lue par HTTP canonique et la part locale lue via les providers
+DEC-0042, derriere un manifeste versionne `schema_version: 1`, borne et
+ephemere. Aucun outil MCP du VPS ne compose ni ne proxyfie le paquet ;
+aucune memoire privee ne transite. Exposition MCP differee (DEC-0057,
+variante c2), conditionnee a un besoin reel.

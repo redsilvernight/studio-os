@@ -1,0 +1,52 @@
+# Git / CI
+.git/
+.github/
+.gitignore
+
+# Local data and secrets
+docker/.env
+docker/.env.*
+**/.env
+.data/
+
+# IDE / agent configs
+.cursor/
+.codex/
+.agents/
+.claude/
+.opencode/
+.vscode/
+.idea/
+
+# Node / frontend build artifacts
+node_modules/
+dashboard/node_modules/
+dashboard/dist/
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+
+# Documentation (not needed at build time)
+docs/
+
+# Tests (not needed at build time)
+tests/
+
+# Misc
+*.md
+*.log
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
