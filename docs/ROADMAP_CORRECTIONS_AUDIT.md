@@ -203,7 +203,18 @@ Statut : **étape entièrement close** — sous-étapes 6.1 à 6.7 closes
 - Une coupure réseau suivie d'une reconnexion ne crée aucun doublon.
 - Deux clients simulés observent le même état serveur sans dépendance LAN.
 
-## Étape 7 — Compléter les tests d'acceptation stockage et offline (P2)
+## Étape 7 — Compléter les tests d'acceptation stockage et offline (P2) — CLOS
+
+Dixième et dernier scénario ("deux machines simulées sur des réseaux
+distincts") fermé sans mock applicatif : deux `MachineModel`/`StudioApiClient`/
+`OutboxStore` indépendants (aucun état local partagé), coupure réseau réelle
+côté machine B, redémarrage simulé, transfert de fichier réel A→stockage→B,
+rejeu idempotent sans doublon (claims inclus) : `docs/DECISIONS.md` DEC-0040,
+`tests/client/test_two_machines_acceptance.py`. Les 10 scénarios "Tests
+bout-en-bout"/"Tests transfert"/"Tests backend"/"Tests clients" de
+`TECH/10_TEST_ACCEPTANCE.md` sont désormais tous automatisés ; "review et
+résumé quotidien" (fin de la même ligne TECH/10) relève de l'étape 8, pas de
+celle-ci.
 
 ### Scénarios manquants prioritaires
 
@@ -246,7 +257,11 @@ Statut : **étape entièrement close** — sous-étapes 6.1 à 6.7 closes
 - ~~concurrence réelle de claims~~ — fermé (DEC-0034) :
   `tests/api/test_claims_concurrency.py` (10 créations réellement
   concurrentes, invariant "jamais bloqué" vérifié contre Postgres réel) ;
-- deux machines simulées sur des réseaux distincts — encore ouvert ;
+- ~~deux machines simulées sur des réseaux distincts~~ — fermé (DEC-0040) :
+  `tests/client/test_two_machines_acceptance.py` (deux `MachineModel`/
+  `StudioApiClient`/`OutboxStore` indépendants sans état local partagé,
+  coupure réseau réelle, redémarrage simulé, transfert de fichier réel,
+  rejeu idempotent sans doublon) ;
 - ~~replay offline complet avec tasks, events et AIWorkLog~~ — fermé
   (DEC-0039) : `tests/client/test_offline_replay_acceptance.py` (Postgres
   réel, hors-ligne simulé par un vrai `httpx.ConnectError`, 3 tasks + 2

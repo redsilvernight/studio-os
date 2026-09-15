@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-39 decision(s). Detail complet dans chaque ADR lie.
+40 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -61,3 +61,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0037 | Reprise multipart apres expiration des URLs par-part : endpoint additif refresh-parts, ListParts comme verite serveur, nettoyage des uploads orphelins | active | [decisions/DEC-0037-reprise-multipart-apres-expiration-des-urls-par-part.md](decisions/DEC-0037-reprise-multipart-apres-expiration-des-urls-par-part.md) |
 | DEC-0038 | Etape 7 (roadmap) : scenario "fichier multipart de 1 Go reel" ferme, test streame sans mock | active | [decisions/DEC-0038-etape-7-scenario-multipart-1-go-reel-ferme.md](decisions/DEC-0038-etape-7-scenario-multipart-1-go-reel-ferme.md) |
 | DEC-0039 | Etape 7 (roadmap) : scenario "replay offline complet" ferme, outbox generique sans ajout client | active | [decisions/DEC-0039-etape-7-scenario-replay-offline-complet-ferme.md](decisions/DEC-0039-etape-7-scenario-replay-offline-complet-ferme.md) |
+| DEC-0040 | Etape 7 (roadmap) fermee : scenario "deux machines simulees sur reseaux distincts" ferme | active | [decisions/DEC-0040-etape-7-scenario-deux-machines-ferme-etape-close.md](decisions/DEC-0040-etape-7-scenario-deux-machines-ferme-etape-close.md) |
