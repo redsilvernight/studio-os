@@ -3,6 +3,8 @@
 .claude/settings.local.backup.json
 .claude/scheduled_tasks.lock
 .claude/worktrees/
+*.graphify-bak
+*.backup-*
 
 # Graphify generated output (rebuildable, excluded from vault/git per convention)
 graphify-out/
