@@ -43,10 +43,7 @@ APP_DESCRIPTION = (
 )
 
 OPENAPI_TAG_DESCRIPTIONS: dict[str, str] = {
-    "health": (
-        "Unauthenticated liveness and metrics probes, plus the human "
-        "dashboard login endpoint."
-    ),
+    "health": "Liveness, metrics and dashboard login probes (unauthenticated).",
     "projects": (
         "Project registry. Creating a project requires a privileged role; "
         "reading is open to any authenticated machine."
