@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-44 decision(s). Detail complet dans chaque ADR lie.
+45 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -66,3 +66,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0042 | Etape 8 (roadmap), sous-etape 8.2 : adaptateurs locaux Obsidian/Graphify en lecture seule, portee fermee par defaut | active | [decisions/DEC-0042-etape-8-sous-etape-8-2-adaptateurs-locaux-lecture-seule.md](decisions/DEC-0042-etape-8-sous-etape-8-2-adaptateurs-locaux-lecture-seule.md) |
 | DEC-0043 | Model-Agnostic Agent Identity : separation auth_role / harness / provider / model, agent_profile optionnel | active | [decisions/DEC-0043-identite-agent-independante-du-modele.md](decisions/DEC-0043-identite-agent-independante-du-modele.md) |
 | DEC-0044 | Specialized Agent Profiles : studio-architect, studio-tester, contract-guardian, sync-debugger comme agent_profiles harness-agnostic | superseded | [decisions/DEC-0044-profils-agents-specialises.md](decisions/DEC-0044-profils-agents-specialises.md) |
+| DEC-0045 | CC-1 : enregistrement public dAgent (POST /agents) comme identite de provenance, sans autorite | active | [decisions/DEC-0045-enregistrement-public-agent-cc-1.md](decisions/DEC-0045-enregistrement-public-agent-cc-1.md) |

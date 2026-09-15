@@ -75,6 +75,15 @@ async def create_ai_work(
     session: AsyncSession, principal: Principal, work_in: AIWorkLogCreate
 ) -> AIWorkLogModel:
     ensure_can_write(principal, "ai_work")
+    agent = await session.get(AgentModel, work_in.agent_id)
+    if agent is None or agent.machine_id != principal.machine.id:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={
+                "error_code": "actor_not_owned",
+                "message": "agent_id must be an agent attached to the authenticated machine",
+            },
+        )
     work = AIWorkLogModel(
         task_id=work_in.task_id,
         project_id=work_in.project_id,

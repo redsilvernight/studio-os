@@ -6,12 +6,12 @@ Base: `/api/v1`
 - JSON UTF-8.
 - IDs internes UUID.
 - IDs lisibles possibles pour Task/Decision/Transfer.
-- `Idempotency-Key` supporte sur creations rejouables (tasks, claims, decisions, transfers, sessions, ai-work, projects) — meme cle + meme endpoint renvoie la reponse d'origine plutot que de recreer, y compris sous requetes concurrentes reelles : une seule ressource metier est creee pour une paire (cle, endpoint) donnee tant que la creation reste sous le seuil de reclamation d'une reservation abandonnee (limite connue documentee dans DEC-0015, non couverte par un jeton de fencing dans cette etape). Rejouer la meme cle avec un corps de requete different (hash du corps different) est une erreur client explicite `409 {"error_code": "idempotency_key_payload_mismatch"}`, jamais un rejeu silencieux de la premiere reponse ni une seconde ressource (DEC-0015). `POST /events` fait exception : c'est `event_id` (genere client-side) qui joue ce role, pas ce header — voir `TECH/04_AUTH_SYNC_CONTRACT.md`. `POST /machines` et `POST /users` sont volontairement exclus (actions administratives, interactives, jamais rejouees via la queue offline — DEC-0011/DEC-0012 ; un `Idempotency-Key` sur `POST /machines` persisterait le credential en clair dans la table d'idempotence).
+- `Idempotency-Key` supporte sur creations rejouables (tasks, claims, decisions, transfers, sessions, ai-work, projects, agents — CC-1/DEC-0045) — meme cle + meme endpoint renvoie la reponse d'origine plutot que de recreer, y compris sous requetes concurrentes reelles : une seule ressource metier est creee pour une paire (cle, endpoint) donnee tant que la creation reste sous le seuil de reclamation d'une reservation abandonnee (limite connue documentee dans DEC-0015, non couverte par un jeton de fencing dans cette etape). Rejouer la meme cle avec un corps de requete different (hash du corps different) est une erreur client explicite `409 {"error_code": "idempotency_key_payload_mismatch"}`, jamais un rejeu silencieux de la premiere reponse ni une seconde ressource (DEC-0015). `POST /events` fait exception : c'est `event_id` (genere client-side) qui joue ce role, pas ce header — voir `TECH/04_AUTH_SYNC_CONTRACT.md`. `POST /machines` et `POST /users` sont volontairement exclus (actions administratives, interactives, jamais rejouees via la queue offline — DEC-0011/DEC-0012 ; un `Idempotency-Key` sur `POST /machines` persisterait le credential en clair dans la table d'idempotence).
 - Pagination: `limit`, `offset` ou curseur selon endpoint.
 - Dates ISO 8601 UTC.
 - Ecriture mutable sur un objet existant (`PATCH`) : header `If-Match-Version` avec la `version` lue par le client ; 409 + version serveur courante en cas de conflit (`TECH/04_AUTH_SYNC_CONTRACT.md`).
 - Authentification : header `Authorization: Bearer <machine-token>` sur tout endpoint sous `/api/v1` (sauf `/healthz`) — voir `TECH/04_AUTH_SYNC_CONTRACT.md`.
-- Autorisation (DEC-0036, durcissement documente sur des endpoints existants — meme categorie que DEC-0025) : au-dela de l'authentification, certains endpoints peuvent desormais repondre `403 {"detail": {"error_code": "forbidden", "resource": ..., "action": ...}}` a une machine authentifiee mais insuffisamment autorisee (role `readonly`, machine non proprietaire d'une ressource deja possedee, ou — cas particulier des Transfers, seule categorie ou une lecture peut aussi etre concernee — appelant hors sender/recipient/diffusion/admin) — voir `TECH/04_AUTH_SYNC_CONTRACT.md` section Autorisation pour la matrice complete. Concerne, en ecriture : `POST /tasks`, `PATCH /tasks/{id}`, `POST /tasks/{id}/claim`, `POST /tasks/{id}/release`, `POST /claims`, `POST /claims/{id}/renew`, `DELETE /claims/{id}`, `POST /sessions`, `PATCH /sessions/{id}/end`, `POST /ai-work`, `PATCH /ai-work/{id}`, `POST /decisions`, `POST /events`, `POST /transfers`, `POST /transfers/{id}/upload/initiate`, `POST /transfers/{id}/upload/refresh-parts` (DEC-0037), `POST /transfers/{id}/upload/complete`, `DELETE /transfers/{id}` ; en lecture (Transfers uniquement, regle de visibilite) : `GET /transfers/{id}`, `POST /transfers/{id}/download-url`. Un client existant qui n'utilisait jusque-la que des roles/machines proprietaires n'observe aucun changement de comportement.
+- Autorisation (DEC-0036, durcissement documente sur des endpoints existants — meme categorie que DEC-0025) : au-dela de l'authentification, certains endpoints peuvent desormais repondre `403 {"detail": {"error_code": "forbidden", "resource": ..., "action": ...}}` a une machine authentifiee mais insuffisamment autorisee (role `readonly`, machine non proprietaire d'une ressource deja possedee, ou — cas particulier des Transfers, seule categorie ou une lecture peut aussi etre concernee — appelant hors sender/recipient/diffusion/admin) — voir `TECH/04_AUTH_SYNC_CONTRACT.md` section Autorisation pour la matrice complete. Concerne, en ecriture : `POST /tasks`, `PATCH /tasks/{id}`, `POST /tasks/{id}/claim`, `POST /tasks/{id}/release`, `POST /claims`, `POST /claims/{id}/renew`, `DELETE /claims/{id}`, `POST /sessions`, `PATCH /sessions/{id}/end`, `POST /ai-work`, `PATCH /ai-work/{id}`, `POST /decisions`, `POST /events`, `POST /agents` (CC-1/DEC-0045 : `readonly` -> `403`, sans ownership — creation sans ressource preexistante), `POST /transfers`, `POST /transfers/{id}/upload/initiate`, `POST /transfers/{id}/upload/refresh-parts` (DEC-0037), `POST /transfers/{id}/upload/complete`, `DELETE /transfers/{id}` ; en lecture (Transfers uniquement, regle de visibilite) : `GET /transfers/{id}`, `POST /transfers/{id}/download-url`. Un client existant qui n'utilisait jusque-la que des roles/machines proprietaires n'observe aucun changement de comportement.
 - Enveloppe reelle d'une erreur machine-readable (`error_code` present dans ce document, ex. `413`/`507`/`409 idempotency_key_payload_mismatch`) : `{"detail": {"error_code": "...", ...}}` — FastAPI enveloppe systematiquement `HTTPException.detail`, jamais `{"error_code": "..."}` a plat. Une erreur sans `error_code` (401/403/404 génériques) renvoie `{"detail": "<message>"}`, une simple chaine. `studio_contracts.common.ErrorResponse`/`VersionConflictError` ne sont utilises par aucun code serveur actuel — clarification documentaire (DEC-0024), pas un changement de comportement.
 
 ## Endpoints principaux
@@ -57,9 +57,29 @@ public de bootstrap, pas de secret d'environnement dedie.
 
 ### Agents and AI work
 - GET /agents
+- POST /agents (CC-1, additif) — enregistrement public d'une identite
+  Agent de provenance operationnelle pour la machine authentifiee.
+  Body `AgentCreate` : `display_name` requis, `agent_kind` optionnel
+  (chaine libre, defaut `""`). `machine_id` toujours derive de la machine
+  authentifiee (regle DEC-0035), jamais fourni par le client (champ
+  supplementaire -> `422`). Reponse `201` = `Agent` (`id` genere serveur,
+  seule identite canonique). `Idempotency-Key` supporte (meme cle + meme
+  corps = meme `Agent`, corps different = `409
+  idempotency_key_payload_mismatch`). Autorisation : `ensure_can_write`
+  avant le court-circuit d'idempotence (DEC-0036) — `readonly` -> `403
+  forbidden`, sans RBAC specifique aux Agents. Ne confere aucun droit
+  supplementaire : `auth_role` + ownership restent la seule autorite.
 - POST /ai-work
 - PATCH /ai-work/{id}
 - GET /ai-work
+
+Durcissement documente (CC-1, meme categorie que DEC-0025/DEC-0036) :
+`POST /ai-work` exige desormais un `agent_id` attaché a la machine
+authentifiee, sinon `409 {"detail": {"error_code": "actor_not_owned"}}`
+(meme regle que `actor_type=agent` de DEC-0035, appliquee au service donc
+paritaire HTTP/MCP). Avant : ligne inexistante -> `500` (violation FK),
+ligne d'une autre machine -> `201` silencieux. Les appelants existants
+n'utilisant que leurs propres agents n'observent aucun changement.
 
 ### Heartbeats
 - POST /heartbeats

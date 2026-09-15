@@ -39,7 +39,7 @@ Chaque ecriture offline-safe transporte un UUID stable et, si approprie, une Ide
 Deux mecanismes distincts selon l'endpoint (voir `TECH/05_DATA_MODEL.md`
 section Event) :
 - Endpoints de creation generiques (tasks, claims, decisions, transfers,
-  sessions, ai-work, projects) : header `Idempotency-Key`, le serveur reserve
+  sessions, ai-work, projects, agents — CC-1/DEC-0045) : header `Idempotency-Key`, le serveur reserve
   atomiquement la paire (`Idempotency-Key`, endpoint) avant de creer la
   ressource metier (une seule ressource metier est creee pour cette paire, y
   compris sous requetes concurrentes reelles, tant que la creation reste sous

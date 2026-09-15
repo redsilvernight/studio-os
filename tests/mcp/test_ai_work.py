@@ -48,7 +48,18 @@ async def test_log_ai_work_rejects_unknown_agent(
     result = await studio_log_ai_work(
         str(project.id), "Orphan work", "00000000-0000-0000-0000-000000000000", auth_ctx
     )
-    assert result["error_code"] == "invalid_reference"
+    assert result["error_code"] == "actor_not_owned"
+
+
+async def test_log_ai_work_rejects_foreign_machine_agent(
+    other_auth_ctx: FakeContext, project: ProjectModel, agent: AgentModel
+) -> None:
+    """Same DEC-0035 ownership shape as the HTTP path (CC-1): an agent_id
+    attached to another machine is unusable, via MCP too."""
+    result = await studio_log_ai_work(
+        str(project.id), "Cross-machine spoof", str(agent.id), other_auth_ctx
+    )
+    assert result["error_code"] == "actor_not_owned"
 
 
 async def test_log_ai_work_rejects_unknown_existing_id(

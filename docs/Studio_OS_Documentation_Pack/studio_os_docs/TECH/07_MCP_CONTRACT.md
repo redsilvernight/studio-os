@@ -91,3 +91,9 @@ naturellement idempotente — un second appel est un no-op ou une erreur
 optimiste via `expected_version`, deja protegee), `studio_log_ai_work`
 (semantique create-ou-update ambigue pour une seule cle — hors perimetre de
 DEC-0027, a trancher separement si un besoin reel de replay apparait).
+
+**Enregistrement d'Agent (CC-1/DEC-0045)** : HTTP-only (`POST /agents`,
+`TECH/02`) — aucun outil `studio_register_agent` n'existe a ce jour. Un
+consommateur purement MCP materialise son `Agent` via HTTP ; `studio_log_ai_work`
+applique la meme regle d'ownership `actor_not_owned` que le chemin HTTP,
+le service etant partage (DEC-0005/DEC-0036).

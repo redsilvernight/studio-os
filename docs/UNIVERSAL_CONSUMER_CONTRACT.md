@@ -140,14 +140,15 @@ sont illustratifs et non normatifs.
   (DEC-0041, `TECH/04`).
 - MUST : le chemin sans `Agent` (acteurs `user`/`system`, principe 1)
   couvre tout le contrat ; l'acteur `agent` est SHOULD (tracabilite fine),
-  jamais un prerequis.
-- Etat actuel : PASS avec reserve documentee : il n'existe aucun endpoint
-  public de creation d'`Agent` (`services/api/src/studio_api/routers/agents.py`
-  n'expose que `GET /agents` ; les tests inserent en DB directe). Un
-  consommateur sans `Agent` fonctionne pleinement via `user`/`system`.
-  `contract-change future CC-1` : endpoint public d'enregistrement d'agent
-  (additif) si le besoin `actor_type=agent` pour tiers est confirme en
-  UC-1 ; a defaut, documenter officiellement le chemin sans agent.
+  jamais un prerequis. Les worklogs (`POST /ai-work`) sont le seul cas
+  exigeant une identite persistante : tout consommateur autorise (non
+  `readonly`) MUST pouvoir la materialiser publiquement via `POST
+  /agents` (CC-1, DEC-0045 — `machine_id` derive serveur, `Idempotency-Key`
+  supporte), et `POST /ai-work` refuse un `agent_id` etranger ou inexistant
+  (`409 actor_not_owned`, regle DEC-0035).
+- Etat actuel : PASS. `POST /agents` (CC-1, DEC-0045) fournit
+  l'enregistrement public ; le durcissement `actor_not_owned` de `POST
+  /ai-work` est documente en `TECH/02` (meme categorie que DEC-0025).
 
 ## 8. Transferts de fichiers
 
@@ -294,9 +295,9 @@ interfaces publiques sont disponibles.
    conception. (UC-6 a documenter)
 4. Creer/recuperer une tache : PASS — `POST /tasks` + `Idempotency-Key`,
    `GET /tasks/{id}`, `403 forbidden` si role insuffisant. (`TECH/02/04`)
-5. Produire un worklog : PASS — `POST /ai-work` en acteur `user`/`system`
-   sans prerequis ; acteur `agent` optionnel en attente de CC-1.
-   (`TECH/02`, `routers/agents.py`, DEC-0041)
+5. Produire un worklog : PASS — `POST /agents` (derive serveur, sans
+   metadata) puis `POST /ai-work` ; revue DEC-0041 preservee ; `409
+   actor_not_owned` inter-machine. (`TECH/02`, DEC-0045)
 6. Publier/consommer des evenements : PASS — `POST /events` avec
    `event_id` client, regles DEC-0035, consommation `GET /events?since=`
    ou SSE `since_seq`. (`TECH/03/04/02`)
@@ -312,10 +313,8 @@ interfaces publiques sont disponibles.
 
 ## Contract-changes futures identifiees (non implementees)
 
-- CC-1 (UC-1) : enregistrement public d'agent strictement additif (le
-  chemin sans agent du principe 1 reste supporte et premier-classe) ;
-  a defaut de besoin confirme, documenter officiellement le chemin sans
-  agent.
+- CC-1 : IMPLEMENTE (DEC-0045, UC-1) — `POST /agents` strictement
+  additif ; le chemin sans agent reste premier-classe pour tout le reste.
 - CC-2 (UC-2/UC-3) : decouverte version/capacites — standards d'abord
   (OpenAPI + `tools/list` designes officiellement), manifeste minimal
   seulement si lacune reelle ; jamais de registre de produits.

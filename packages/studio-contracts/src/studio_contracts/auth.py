@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from studio_contracts.common import ContractModel, VersionedModel
+from studio_contracts.common import ContractModel, IdempotentCreate, VersionedModel
 
 
 class Role(StrEnum):
@@ -48,6 +48,17 @@ class Agent(VersionedModel):
     machine_id: UUID | None = None
     display_name: str
     agent_kind: str
+
+
+class AgentCreate(IdempotentCreate):
+    """Public registration of an operational provenance identity (CC-1,
+    `TECH/02_API_CONTRACT.md`): `machine_id` is always derived from the
+    authenticated machine, never client-supplied. `display_name` and
+    `agent_kind` are free-form metadata — never authorization inputs, never
+    the canonical identity (the server-generated `Agent.id` is)."""
+
+    display_name: str
+    agent_kind: str = ""
 
 
 class UserCreate(ContractModel):

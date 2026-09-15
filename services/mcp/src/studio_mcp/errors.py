@@ -39,10 +39,11 @@ async def run_tool(ctx: Context, handler: ToolHandler) -> dict[str, Any]:
         except HTTPException as exc:
             return _http_exception_to_dict(exc)
         except IntegrityError:
-            # A caller-supplied id (task_id, project_id, agent_id, ...) that
+            # A caller-supplied id (task_id, project_id, ...) that
             # doesn't exist — the FK constraint is the only thing that caught
             # it, since services/*.py trusts callers the same way the HTTP
-            # routers do. Roll back so the failed insert/update doesn't hold
+            # routers do. (agent_id no longer reaches this path: CC-1/DEC-0045
+            # validates it in-service as 409 actor_not_owned.) Roll back so the
             # the session's transaction open, then report it plainly rather
             # than crashing the tool call.
             await session.rollback()
