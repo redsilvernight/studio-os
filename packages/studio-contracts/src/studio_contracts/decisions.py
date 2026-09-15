@@ -14,8 +14,8 @@ class DecisionStatus(StrEnum):
 
 
 class Decision(ContractModel):
-    """A DEC-XXXX record referenced by AI/01_AI_OPERATING_REFERENCE.md and
-    .claude/rules/contracts.md."""
+    """A recorded project decision with a stable human-readable id
+    (`readable_id`, e.g. DEC-XXXX) alongside its internal UUID."""
 
     id: UUID
     readable_id: str

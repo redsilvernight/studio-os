@@ -6,6 +6,12 @@ from fastapi import APIRouter, Header, Query, Request, status
 from studio_contracts.decisions import Decision, DecisionCreate
 
 from studio_api.deps import CurrentMachine, CurrentPrincipal, DbSession
+from studio_api.openapi_meta import (
+    IDEMPOTENCY_KEY_DESCRIPTION,
+    RESP_401_UNAUTHORIZED,
+    RESP_403_FORBIDDEN,
+    RESP_409_IDEMPOTENCY,
+)
 from studio_api.services import decisions as decisions_service
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services.authz import ensure_can_write
@@ -13,7 +19,15 @@ from studio_api.services.authz import ensure_can_write
 router = APIRouter(prefix="/api/v1/decisions", tags=["decisions"])
 
 
-@router.get("", response_model=list[Decision])
+@router.get(
+    "",
+    response_model=list[Decision],
+    description=(
+        "List recorded decisions, optionally filtered by project. Any "
+        "authenticated machine may read."
+    ),
+    responses={**RESP_401_UNAUTHORIZED},
+)
 async def list_decisions(
     session: DbSession, machine: CurrentMachine, project_id: UUID | None = Query(default=None)
 ) -> list[Decision]:
@@ -21,16 +35,27 @@ async def list_decisions(
     return [Decision.model_validate(d) for d in decisions]
 
 
-@router.post("", response_model=Decision, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=Decision,
+    status_code=status.HTTP_201_CREATED,
+    description=(
+        "Record a project decision. Requires a writer role; the proposer "
+        "identity is derived from the caller's authenticated machine. "
+        "Accepts `Idempotency-Key` for safe retries: the same key "
+        "returns the original decision instead of allocating a second id."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_409_IDEMPOTENCY},
+)
 async def create_decision(
     decision_in: DecisionCreate,
     request: Request,
     session: DbSession,
     principal: CurrentPrincipal,
-    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    idempotency_key: str | None = Header(
+        default=None, alias="Idempotency-Key", description=IDEMPOTENCY_KEY_DESCRIPTION
+    ),
 ) -> Decision:
-    """Runs unconditionally, ahead of `run_idempotent`'s replay
-    short-circuit — see `routers/tasks.py::create_task` for why (DEC-0036)."""
     ensure_can_write(principal, "decision")
 
     async def _create() -> Decision:

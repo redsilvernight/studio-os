@@ -3,7 +3,8 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Annotated
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.auth import Role
@@ -11,6 +12,7 @@ from studio_contracts.auth import Role
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.user import UserModel
 from studio_api.db.session import get_session
+from studio_api.openapi_meta import machine_bearer_scheme
 from studio_api.security import hash_token
 from studio_api.services.authz import Principal, load_principal
 
@@ -34,13 +36,15 @@ async def resolve_machine(session: AsyncSession, token: str) -> MachineModel | N
 
 async def get_current_machine(
     session: DbSession,
-    authorization: Annotated[str | None, Header()] = None,
+    bearer: Annotated[HTTPAuthorizationCredentials | None, Depends(machine_bearer_scheme)] = None,
 ) -> MachineModel:
-    """Machine auth per TECH/04_AUTH_SYNC_CONTRACT.md: opaque bearer token,
-    verified by hash, independently revocable (DEC-0003)."""
-    if authorization is None or not authorization.startswith("Bearer "):
+    """Machine auth: opaque bearer token, verified by hash, independently
+    revocable. `machine_bearer_scheme` only describes the `Authorization:
+    Bearer <machine-token>` mechanism in OpenAPI — every acceptance
+    decision below is unchanged."""
+    token = bearer.credentials if bearer is not None else None
+    if token is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "missing bearer token")
-    token = authorization.removeprefix("Bearer ")
     machine = await resolve_machine(session, token)
     if machine is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid or revoked machine token")

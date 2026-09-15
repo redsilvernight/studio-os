@@ -4,6 +4,7 @@ import os
 from typing import Literal, get_args
 
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 
 from studio_mcp.tools.ai_work import studio_get_ai_work, studio_log_ai_work
 from studio_mcp.tools.claims import (
@@ -33,6 +34,9 @@ from studio_mcp.tools.transfers import (
 
 _Transport = Literal["stdio", "sse", "streamable-http"]
 
+_READ_ONLY = ToolAnnotations(read_only_hint=True)
+_IDEMPOTENT_WRITE = ToolAnnotations(idempotent_hint=True)
+
 
 def create_server() -> MCPServer:
     server = MCPServer(name="studio-os")
@@ -41,46 +45,56 @@ def create_server() -> MCPServer:
         studio_get_projects,
         name="studio_get_projects",
         description=(
-            "List active Studio OS projects (id, slug, name) — use to discover "
-            "which projects exist before targeting one."
+            "List active projects (id, slug, name) — read-only. Use to discover "
+            "which projects exist before targeting one. Any authenticated caller may read."
         ),
+        annotations=_READ_ONLY,
     )
     server.add_tool(
         studio_get_project_state,
         name="studio_get_project_state",
         description=(
             "Get a project's active tasks and active resource claims by project_id "
-            "(UUID string) — the bootstrap read before starting work on a project."
+            "(UUID string) — read-only. The bootstrap read before starting work on a project."
         ),
+        annotations=_READ_ONLY,
     )
     server.add_tool(
         studio_get_task,
         name="studio_get_task",
-        description="Get one task by task_id (UUID string).",
+        description=(
+            "Get one task by task_id (UUID string) — read-only. Unknown ids fail with not_found."
+        ),
+        annotations=_READ_ONLY,
     )
     server.add_tool(
         studio_get_active_tasks,
         name="studio_get_active_tasks",
         description=(
-            "List active (created/in_progress/blocked) tasks for a project_id (UUID string)."
+            "List active (created/in_progress/blocked) tasks for a project_id (UUID string) — "
+            "read-only."
         ),
+        annotations=_READ_ONLY,
     )
     server.add_tool(
         studio_create_task,
         name="studio_create_task",
         description=(
             "Create a task on a project (project_id UUID string, title, optional description). "
+            "Requires a writer role (read-only callers fail with forbidden). "
             "Pass idempotency_key when retrying a call that may have already succeeded — "
-            "replaying the same key+arguments returns the original task instead of a duplicate."
+            "replaying the same key+arguments returns the original task instead of a duplicate; "
+            "the same key with different arguments fails with idempotency_key_payload_mismatch."
         ),
     )
     server.add_tool(
         studio_update_task,
         name="studio_update_task",
         description=(
-            "Update a task's title/description/status. expected_version must match "
-            "the task's current version (optimistic concurrency) or the call fails "
-            "with version_conflict."
+            "Update a task's title/description/status. Requires a writer role. "
+            "expected_version must match the task's current version (read it first): "
+            "a stale version fails with version_conflict carrying the live server version — "
+            "re-read, merge, retry. Updates never overwrite silently."
         ),
     )
     server.add_tool(
@@ -88,27 +102,37 @@ def create_server() -> MCPServer:
         name="studio_claim_task",
         description=(
             "Claim a task for the caller's machine (soft lock, sets status to "
-            "in_progress). Fails with already_claimed if another machine holds it."
+            "in_progress). Requires a writer role. Fails with already_claimed if another "
+            "machine holds it."
         ),
     )
     server.add_tool(
         studio_release_task,
         name="studio_release_task",
-        description="Release a task's claim by task_id (UUID string).",
+        description=(
+            "Release a task's claim by task_id (UUID string). Only the holding machine (or a "
+            "privileged role) may release; anyone else fails with forbidden. Safe to repeat — "
+            "never creates anything."
+        ),
+        annotations=_IDEMPOTENT_WRITE,
     )
     server.add_tool(
         studio_get_resource_claims,
         name="studio_get_resource_claims",
-        description="List resource claims for a project_id (UUID string), any status.",
+        description=(
+            "List resource claims for a project_id (UUID string), any status — read-only."
+        ),
+        annotations=_READ_ONLY,
     )
     server.add_tool(
         studio_claim_resource,
         name="studio_claim_resource",
         description=(
-            "Soft-lock a resource path (file/folder) for the caller's machine. Never "
-            "blocks a Git operation or file write — a conflicting active claim is "
-            "surfaced via a resource.conflict event, not a rejection. Pass "
-            "idempotency_key when retrying a call that may have already succeeded — "
+            "Soft-lock a resource path (file/folder) for the caller's machine. Requires a writer "
+            "role. Claims warn, they never block: a conflicting active claim is surfaced via a "
+            "resource.conflict event, not a rejection, and no Git operation or file write is ever "
+            "refused. "
+            "Pass idempotency_key when retrying a call that may have already succeeded — "
             "replaying the same key+arguments returns the original claim instead of a "
             "duplicate and never re-emits the conflict event."
         ),
@@ -116,36 +140,48 @@ def create_server() -> MCPServer:
     server.add_tool(
         studio_release_resource,
         name="studio_release_resource",
-        description="Release a resource claim by claim_id (UUID string).",
+        description=(
+            "Release a resource claim by claim_id (UUID string). Only the holding machine (or a "
+            "privileged role) may release; anyone else fails with forbidden. Safe to repeat — "
+            "never creates anything."
+        ),
+        annotations=_IDEMPOTENT_WRITE,
     )
     server.add_tool(
         studio_get_decisions,
         name="studio_get_decisions",
-        description="List Decisions (DEC-XXXX), optionally filtered by project_id (UUID string).",
+        description=(
+            "List recorded decisions (stable human-readable ids), optionally filtered by "
+            "project_id (UUID string) — read-only."
+        ),
+        annotations=_READ_ONLY,
     )
     server.add_tool(
         studio_add_decision,
         name="studio_add_decision",
         description=(
-            "Record a Decision (DEC-XXXX) with a title and body. The proposer "
+            "Record a decision with a title and body. Requires a writer role; the proposer "
             "identity is derived from the caller's authenticated machine. Pass "
             "idempotency_key when retrying a call that may have already succeeded — "
-            "replaying the same key+arguments returns the original Decision instead "
-            "of allocating a second DEC-XXXX id."
+            "replaying the same key+arguments returns the original decision instead of a "
+            "duplicate (no second id is allocated)."
         ),
     )
     server.add_tool(
         studio_get_recent_changes,
         name="studio_get_recent_changes",
         description=(
-            "List recent Studio OS events, optionally filtered by project_id, "
-            "task_id, and since (ISO-8601 timestamp)."
+            "List recent events, optionally filtered by project_id, task_id, and since (ISO-8601 "
+            "timestamp) — read-only. This is the polling channel; for live push use the HTTP event "
+            "stream (GET /api/v1/events/stream)."
         ),
+        annotations=_READ_ONLY,
     )
     server.add_tool(
         studio_get_sessions,
         name="studio_get_sessions",
-        description="List work sessions, optionally filtered by task_id (UUID string).",
+        description="List work sessions, optionally filtered by task_id (UUID string) — read-only.",
+        annotations=_READ_ONLY,
     )
     server.add_tool(
         studio_get_teammate_activity,
@@ -153,14 +189,15 @@ def create_server() -> MCPServer:
         description=(
             "List the machines currently active on a project (via its active tasks "
             "and resource claims), each with a heartbeat-derived online/idle/offline "
-            "status."
+            "status — read-only."
         ),
+        annotations=_READ_ONLY,
     )
     server.add_tool(
         studio_start_session,
         name="studio_start_session",
         description=(
-            "Start a work session on a task for the caller's machine. Pass "
+            "Start a work session on a task for the caller's machine. Requires a writer role. Pass "
             "idempotency_key when retrying a call that may have already succeeded — "
             "replaying the same key+arguments returns the original session instead "
             "of starting a duplicate."
@@ -169,65 +206,93 @@ def create_server() -> MCPServer:
     server.add_tool(
         studio_end_session,
         name="studio_end_session",
-        description="End a work session by session_id (UUID string).",
+        description=(
+            "End a work session by session_id (UUID string). Only the machine that started it "
+            "(or a privileged role) may end it; anyone else fails with forbidden. Safe to repeat."
+        ),
+        annotations=_IDEMPOTENT_WRITE,
     )
     server.add_tool(
         studio_log_ai_work,
         name="studio_log_ai_work",
         description=(
-            "Log AI work: creates a new AI Work Ledger entry when ai_work_id is "
+            "Log AI work: creates a new work ledger entry when ai_work_id is "
             "omitted, or updates the existing entry (status/changed_files/tests_run) "
-            "when given."
+            "when given. Requires a writer role. New entries must reference an agent attached to "
+            "the caller's own machine — register one first over HTTP (POST /api/v1/agents), "
+            "since agent registration is HTTP-only; a foreign or unknown agent fails with "
+            "actor_not_owned. Updating is limited to the owning machine's entries, and resolving "
+            "a review (approved / changes requested) additionally requires a privileged role."
         ),
     )
     server.add_tool(
         studio_get_ai_work,
         name="studio_get_ai_work",
         description=(
-            "List AI Work Ledger entries, optionally filtered by project_id/task_id (UUID strings)."
+            "List AI work ledger entries, optionally filtered by project_id/task_id (UUID "
+            "strings) — read-only."
         ),
+        annotations=_READ_ONLY,
     )
     server.add_tool(
         studio_emit_event,
         name="studio_emit_event",
         description=(
-            "Emit a Studio OS event (task/session/claim/decision/ai_work/... lifecycle) "
-            "so other agents and the dashboard see it. event_type must match "
-            "TECH/03_EVENT_CONTRACT.md (e.g. 'task.started'). Pass a stable event_id "
-            "(UUID string) when this call might be retried — replaying the same "
-            "event_id returns the original stored event instead of a duplicate."
+            "Publish a project event (task/session/claim/decision/ai_work lifecycle) "
+            "so other consumers see it. Requires a writer role. event_type uses dotted names "
+            "such as task.created, task.started, task.updated or session.ended; unknown types "
+            "fail with invalid_event_type. Identity is validated against the caller's "
+            "authenticated machine: omit machine_id (derived automatically), use actor_type user "
+            "with the machine "
+            "owner's user id, agent with an agent attached to the caller's own machine, or system "
+            "with the machine's own id — anything else fails with machine_id_mismatch, "
+            "actor_id_mismatch or actor_not_owned. No agent identity is needed: user and system "
+            "actors are fully supported. Pass a stable event_id (UUID string) when this call might "
+            "be retried — replaying the same event_id returns the original stored event instead "
+            "of a duplicate."
         ),
     )
     server.add_tool(
         studio_create_transfer_metadata,
         name="studio_create_transfer_metadata",
         description=(
-            "Create a Studio Transfer record and return metadata plus a pre-signed "
-            "upload URL — never the file bytes. The client uploads directly to "
-            "MinIO/S3 with the returned URL. content_md5 (base64 RFC 1864) is "
-            "required for a small file (single-PUT path) or the call fails with "
-            "missing_content_md5."
+            "Create a transfer record and return metadata plus a pre-signed "
+            "upload URL — never the file bytes. Requires a writer role. The client uploads "
+            "directly to object storage with the returned URL. content_md5 (base64) is "
+            "required for a small file (single-upload path) or the call fails with "
+            "missing_content_md5. Oversize files fail with transfer_too_large and exhausted quotas "
+            "with quota_exceeded. The full cycle (multipart upload, resume, completion, deletion) "
+            "lives on the HTTP API (/api/v1/transfers); this tool only starts it."
         ),
     )
     server.add_tool(
         studio_get_transfers,
         name="studio_get_transfers",
         description=(
-            "List transfers (metadata only), optionally filtered by project_id (UUID string)."
+            "List transfers visible to the caller (metadata only), optionally filtered by "
+            "project_id (UUID string) — read-only. Inaccessible transfers are silently omitted."
         ),
+        annotations=_READ_ONLY,
     )
     server.add_tool(
         studio_get_transfer,
         name="studio_get_transfer",
-        description="Get one transfer's metadata by transfer_id (UUID string).",
+        description=(
+            "Get one transfer's metadata by transfer_id (UUID string) — read-only. Only the "
+            "sender, the recipient, broadcast recipients, or a privileged role may read it; "
+            "anyone else fails with forbidden."
+        ),
+        annotations=_READ_ONLY,
     )
     server.add_tool(
         studio_request_transfer_download,
         name="studio_request_transfer_download",
         description=(
             "Get a short-lived pre-signed download URL for a transfer_id (UUID "
-            "string) — never the file bytes."
+            "string) — never the file bytes. Same visibility rule as reading the transfer; "
+            "outsiders fail with forbidden. Download with HTTP Range to resume a partial fetch."
         ),
+        annotations=_READ_ONLY,
     )
     return server
 

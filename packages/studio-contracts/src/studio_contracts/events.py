@@ -9,8 +9,9 @@ from studio_contracts.common import ContractModel
 
 
 class EventType(StrEnum):
-    """Fixed set per TECH/03_EVENT_CONTRACT.md. Additive-only (new members are a
-    minor addition, never a rename/removal — see .claude/rules/contracts.md)."""
+    """Fixed dotted names (`domain.verb`: task.created, session.ended, ...).
+    Additive-only: new members may appear, existing ones are never renamed
+    or removed — readers should tolerate unknown types."""
 
     PROJECT_CREATED = "project.created"
 
@@ -76,8 +77,9 @@ ActorType = Literal["user", "agent", "system"]
 
 
 class EventEnvelope(ContractModel):
-    """Fixed envelope per TECH/03_EVENT_CONTRACT.md — only `payload` grows across
-    schema_version bumps; every other field is frozen shape."""
+    """Fixed envelope — only `payload` grows across `schema_version` bumps;
+    every other field keeps its shape. Unknown event types or extra payload
+    fields must be tolerated, never rejected."""
 
     event_id: UUID
     event_type: EventType
@@ -94,9 +96,9 @@ class EventEnvelope(ContractModel):
 
 class EventCreate(ContractModel):
     """POST /events request body. `event_id` is client-generated and stable
-    across retries (TECH/04_AUTH_SYNC_CONTRACT.md, TECH/08_OFFLINE_SYNC.md) —
-    it IS the idempotency key for events: replaying the same event_id returns
-    the original stored event rather than creating a duplicate."""
+    across retries — it IS the idempotency key for events: replaying the
+    same event_id returns the original stored event rather than creating a
+    duplicate."""
 
     event_id: UUID
     event_type: EventType

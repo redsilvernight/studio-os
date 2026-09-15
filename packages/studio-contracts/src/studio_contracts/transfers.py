@@ -8,7 +8,7 @@ from studio_contracts.common import ContractModel, IdempotentCreate
 
 
 class TransferStatus(StrEnum):
-    """Mirrors transfer.* event types in TECH/03_EVENT_CONTRACT.md."""
+    """Transfer lifecycle, from declaration (`created`) to removal (`deleted`)."""
 
     CREATED = "created"
     UPLOADING = "uploading"
@@ -19,8 +19,9 @@ class TransferStatus(StrEnum):
 
 
 class TransferCategory(StrEnum):
-    """Retention classes named in .claude/rules/storage-transfers.md: temporary
-    transfer 7d, build 30d, asset manual/long, raw recording local-only."""
+    """Retention classes: `temporary` (short-lived sharing), `build`
+    (retained longer), `asset` (manual/long retention), `raw_recording`
+    (local by default, not auto-uploaded)."""
 
     TEMPORARY = "temporary"
     BUILD = "build"
@@ -29,8 +30,8 @@ class TransferCategory(StrEnum):
 
 
 class Transfer(ContractModel):
-    """Fields per .claude/rules/database.md / TECH/05_DATA_MODEL.md — no field
-    beyond this list without a contract change."""
+    """Complete transfer record. Every field is part of the stable shape —
+    readers should ignore unknown future fields rather than reject them."""
 
     id: UUID
     transfer_code: str
@@ -64,22 +65,21 @@ class TransferCreate(IdempotentCreate):
 
 
 class UploadInitiateRequest(ContractModel):
-    """`content_md5` (RFC 1864, base64-encoded MD5 of the whole file) is
-    required for the single-PUT path: the server presigns the PUT with it, so
-    MinIO/S3 itself rejects any byte mismatch at upload time with `BadDigest`
-    (DEC-0025) — no bytes ever flow through the API process. Not used for the
-    multipart path (see DEC-0025 for why a whole-object checksum can't be
-    enforced the same way there)."""
+    """`content_md5` (base64-encoded MD5 of the whole file) is required for
+    the single-upload path: the server embeds it in the presigned URL, so
+    object storage itself rejects any byte mismatch at upload time — no
+    bytes ever flow through the API process. Not used for the multipart
+    path, where per-part integrity is enforced by storage's own part
+    matching instead."""
 
     content_md5: str | None = None
 
 
 class UploadInitiateResponse(ContractModel):
     """Small file: a single pre-signed PUT. Large file: multipart parts, each
-    with its own pre-signed URL — see TECH/06_STORAGE_TRANSFER_SPEC.md.
-    `part_urls_expires_at` (multipart only, additive) lets the client refresh
-    proactively before the URLs actually expire rather than only reacting to
-    a 403 from storage."""
+    with its own pre-signed URL. `part_urls_expires_at` (multipart only)
+    lets the client refresh proactively before the URLs actually expire
+    rather than only reacting to a 403 from storage."""
 
     transfer_id: UUID
     multipart: bool
@@ -92,9 +92,9 @@ class UploadInitiateResponse(ContractModel):
 
 class UploadPartsRefreshRequest(ContractModel):
     """Re-presign the still-missing parts of an in-progress multipart upload
-    whose cached URLs have expired (DEC-0037) — never re-presigns a part
-    storage already accepted. `part_size_bytes`, if given, must match the
-    value from the original `initiate` response (`409 part_size_mismatch`
+    whose cached URLs have expired — never re-presigns a part storage
+    already accepted. `part_size_bytes`, if given, must match the value
+    from the original `initiate` response (`409 part_size_mismatch`
     otherwise, guarding against a stale client resuming under a changed
     server constant). `part_numbers`, if omitted, means "every part not yet
     confirmed by storage"."""
@@ -120,19 +120,16 @@ class UploadPartsRefreshResponse(ContractModel):
 
 
 class UploadCompleteRequest(ContractModel):
-    """Multipart parts/upload_id are tracked client-side per
-    .claude/rules/storage-transfers.md and handed back here — the server never
-    persists multipart-in-progress state.
+    """Multipart parts/upload_id are tracked client-side and handed back
+    here — the server never persists multipart-in-progress state.
 
     `size_bytes` must match the `Transfer.size_bytes` declared at creation
-    (the value quota enforcement was computed against, DEC-0019) and the real
-    object size in storage — a client cannot inflate the stored size past
-    creation-time quota checks by declaring a small size then completing with
-    a larger one (DEC-0025). `sha256` is recorded as reported by the client:
-    for the single-PUT path it is corroborated by the server-verified
-    `content_md5` (DEC-0025); for multipart it remains an unverified client
-    claim — MinIO/S3 offer no native whole-object checksum over presigned
-    URLs (DEC-0025)."""
+    (the value quota enforcement was computed against) and the real object
+    size in storage — a client cannot inflate the stored size past
+    creation-time quota checks by declaring a small size then completing
+    with a larger one. `sha256` is recorded as reported by the client: for
+    the single-upload path it is corroborated by the server-verified
+    `content_md5`; for multipart it remains an unverified client claim."""
 
     size_bytes: int
     sha256: str

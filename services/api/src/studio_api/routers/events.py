@@ -9,6 +9,11 @@ from fastapi.responses import StreamingResponse
 from studio_contracts.events import EventCreate, EventEnvelope
 
 from studio_api.deps import CurrentMachine, CurrentPrincipal, DbSession
+from studio_api.openapi_meta import (
+    RESP_401_UNAUTHORIZED,
+    RESP_403_FORBIDDEN,
+    RESP_409_EVENT_IDENTITY,
+)
 from studio_api.services import event_stream
 from studio_api.services import events as events_service
 
@@ -31,7 +36,25 @@ def _format_sse(event: event_stream.StreamEvent) -> bytes:
     return f"id: {event.seq}\ndata: {data}\n\n".encode()
 
 
-@router.post("", response_model=EventEnvelope)
+@router.post(
+    "",
+    response_model=EventEnvelope,
+    description=(
+        "Publish an event to a project. Requires a writer role. "
+        "`event_id` is a caller-generated UUID and the replay key: "
+        "resending the same `event_id` returns the stored event, never a "
+        "duplicate (this endpoint does not use `Idempotency-Key`). "
+        "Identity is validated against the authenticated machine: omit "
+        "`machine_id` (it is derived automatically) or send the machine's "
+        "own id; `actor_type=user` requires the machine owner's user id "
+        "as `actor_id`; `actor_type=agent` requires an agent attached to "
+        "the caller's own machine (register one with `POST /agents` "
+        "first); `actor_type=system` requires the machine's own id. "
+        "Working without an agent identity is fully supported — use "
+        "`user` or `system`."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_409_EVENT_IDENTITY},
+)
 async def post_event(
     event_in: EventCreate, principal: CurrentPrincipal, session: DbSession
 ) -> EventEnvelope:
@@ -40,7 +63,18 @@ async def post_event(
     return EventEnvelope.model_validate(event)
 
 
-@router.get("", response_model=list[EventEnvelope])
+@router.get(
+    "",
+    response_model=list[EventEnvelope],
+    description=(
+        "Read recent events, optionally filtered by project, task and "
+        "`since` timestamp. Any authenticated machine may read. This is "
+        "the polling and catch-up channel: after a disconnect, poll with "
+        "`since` to retrieve missed history, then optionally resume live "
+        "delivery on `GET /events/stream`."
+    ),
+    responses={**RESP_401_UNAUTHORIZED},
+)
 async def get_events(
     session: DbSession,
     machine: CurrentMachine,
@@ -59,19 +93,61 @@ async def get_events(
     return [EventEnvelope.model_validate(e) for e in events]
 
 
-@router.get("/stream")
+@router.get(
+    "/stream",
+    description=(
+        "Live event push for one project as Server-Sent Events "
+        "(`text/event-stream`; each SSE `id:` is the event's `seq`, a "
+        "strictly increasing integer). `project` is required — there is "
+        "no global cross-project stream. Resuming after a cutover loses "
+        "nothing: pass the last seen `seq` as `since_seq`, or rely on the "
+        "standard SSE `Last-Event-ID` auto-reconnect header "
+        "(`Last-Event-ID` wins when both are present). With no cursor, "
+        "only events created from connection time are delivered — use "
+        "`GET /events?since=` first to backfill history, then open the "
+        "stream for live updates. Same authentication as the rest of the API."
+    ),
+    responses={
+        200: {
+            "description": (
+                "A `text/event-stream` response. Each frame carries one "
+                "event envelope as JSON in `data:` with its `seq` in "
+                "`id:`. The connection stays open; reconnect with the "
+                "last `seq` to resume without loss or duplicates."
+            ),
+            "content": {
+                "text/event-stream": {
+                    "schema": {"type": "string"},
+                    "example": (
+                        'id: 42\ndata: {"event_id": "...", "event_type": "task.updated", ...}\n\n'
+                    ),
+                }
+            },
+        },
+        **RESP_401_UNAUTHORIZED,
+    },
+)
 async def stream_events(
     session: DbSession,
     machine: CurrentMachine,
-    project: UUID = Query(...),
-    since_seq: int | None = Query(default=None),
-    last_event_id: str | None = Header(default=None, alias="Last-Event-ID"),
+    project: UUID = Query(
+        ..., description="Project to subscribe to (UUID). No global stream exists."
+    ),
+    since_seq: int | None = Query(
+        default=None,
+        description=(
+            "Explicit resume cursor: last `seq` already seen. Ignored when "
+            "`Last-Event-ID` is present."
+        ),
+    ),
+    last_event_id: str | None = Header(
+        default=None,
+        alias="Last-Event-ID",
+        description=(
+            "Standard SSE auto-reconnect cursor (integer `seq`). Takes precedence over `since_seq`."
+        ),
+    ),
 ) -> StreamingResponse:
-    """Realtime push (DEC-0018): Server-Sent Events, resumable via `seq`.
-    Cursor precedence: `Last-Event-ID` (standard SSE auto-reconnect) over
-    `since_seq` (explicit resume for a non-browser client); with neither,
-    only events created from this point on are delivered — `GET /events` is
-    the explicit backlog/catch-up channel."""
     parsed_last_event_id = _parse_last_event_id(last_event_id)
     cursor = parsed_last_event_id if parsed_last_event_id is not None else since_seq
 

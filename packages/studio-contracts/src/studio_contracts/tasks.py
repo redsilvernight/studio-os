@@ -7,7 +7,8 @@ from studio_contracts.common import ContractModel, IdempotentCreate, VersionedMo
 
 
 class TaskStatus(StrEnum):
-    """Mirrors the task.* event types in TECH/03_EVENT_CONTRACT.md."""
+    """Task lifecycle. Claiming a task moves it to `in_progress`; releasing
+    clears the holder without changing the status."""
 
     CREATED = "created"
     IN_PROGRESS = "in_progress"

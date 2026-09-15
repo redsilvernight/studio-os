@@ -1,0 +1,250 @@
+from __future__ import annotations
+
+from typing import Any
+
+from fastapi.security import HTTPBearer
+
+# Machine Bearer authentication, as the OpenAPI `securityScheme` every
+# protected operation references. The runtime behavior is unchanged: the
+# credential is an opaque machine token provisioned out of band, sent as
+# `Authorization: Bearer <machine-token>` on every request under `/api/v1`.
+# A missing, invalid or revoked credential returns 401. `auto_error=False`
+# keeps the 401 shapes raised by `deps.get_current_machine` as the single
+# source of truth — the scheme only describes the mechanism, it never
+# accepts or rejects a request by itself. Known immaterial nuance: an empty
+# bearer value (`Authorization: Bearer` with no token) now answers 401
+# "missing bearer token" where the hand-rolled parser answered 401
+# "invalid or revoked machine token" — same status, same documented 401
+# shape, no consumer can distinguish a usable signal either way.
+machine_bearer_scheme = HTTPBearer(
+    auto_error=False,
+    scheme_name="MachineBearer",
+    description=(
+        "Machine credential provisioned out of band. Send it as "
+        "`Authorization: Bearer <machine-token>` on every request under "
+        "`/api/v1`. The token is opaque: a missing, invalid or revoked "
+        "credential returns 401. The only unauthenticated operation is "
+        "`GET /healthz`."
+    ),
+)
+
+IDEMPOTENCY_KEY_DESCRIPTION = (
+    "Optional replay key for safe retries (timeouts, reconnects, offline "
+    "queue replay). Send a caller-generated unique value per intended "
+    "resource: replaying the same key with the identical body returns the "
+    "original response instead of creating a duplicate, even under "
+    "concurrent retries. Replaying the same key with a different body is a "
+    "client error (`409 idempotency_key_payload_mismatch`) — always resend "
+    "the exact same body when retrying. A key whose creation never "
+    "completed may briefly answer `409 idempotency_key_in_progress`; retry "
+    "identically. `POST /events` does not use this header (the "
+    "client-generated `event_id` plays that role instead), and neither do "
+    "`POST /machines` and `POST /users`."
+)
+
+IF_MATCH_VERSION_DESCRIPTION = (
+    "Optimistic concurrency guard, required. Send the `version` value last "
+    "read for the object (from any GET response). If another writer changed "
+    "the object first, the update is rejected with `409 version_conflict` "
+    "carrying the current server version — re-read, merge, and retry. "
+    "Updates never overwrite silently."
+)
+
+
+ErrorResponses = dict[int | str, Any]
+
+
+def _json_response(description: str, example: Any) -> dict[str, Any]:
+    return {
+        "description": description,
+        "content": {"application/json": {"example": example}},
+    }
+
+
+def merge_conflict(*variants: ErrorResponses) -> ErrorResponses:
+    """Combine several 409 variants into the single response object OpenAPI
+    allows per status code. Descriptions concatenate; the first variant's
+    example illustrates the shape (all share the `{"detail":
+    {"error_code", ...}}` envelope)."""
+    descriptions = [variant[409]["description"] for variant in variants]
+    example = variants[0][409]["content"]["application/json"]["example"]
+    return {409: _json_response(" ".join(descriptions), example)}
+
+
+RESP_401_UNAUTHORIZED: ErrorResponses = {
+    401: _json_response(
+        "Missing, invalid or revoked machine credential. Send "
+        "`Authorization: Bearer <machine-token>`; provision the token out "
+        "of band before calling.",
+        {"detail": "missing bearer token"},
+    )
+}
+
+RESP_403_FORBIDDEN: ErrorResponses = {
+    403: _json_response(
+        "Authenticated but not allowed. The caller's role or resource "
+        "ownership does not permit this action (`resource` names the "
+        "object kind, `action` the attempted operation). A 403 is final: "
+        "retrying the same call changes nothing, and a queued offline "
+        "operation that replays into a 403 is dead-lettered, never "
+        "retried. Reads stay fully available; only the listed write "
+        "operations can return this.",
+        {"detail": {"error_code": "forbidden", "resource": "task", "action": "write"}},
+    )
+}
+
+RESP_404_NOT_FOUND: ErrorResponses = {
+    404: _json_response(
+        "No such resource. Unknown ids return 404; access to an existing "
+        "but unauthorized transfer returns 403 instead, never 404.",
+        {"detail": "task not found"},
+    )
+}
+
+RESP_409_VERSION_CONFLICT: ErrorResponses = {
+    409: _json_response(
+        "Stale `If-Match-Version`: another writer changed the object "
+        "first. `server_version` is the current version — re-read the "
+        "object, merge, and retry with the new version.",
+        {"detail": {"error_code": "version_conflict", "server_version": 3}},
+    )
+}
+
+RESP_409_ACTOR_NOT_OWNED: ErrorResponses = {
+    409: _json_response(
+        "Provenance mismatch: the referenced agent identity is unknown or "
+        "attached to another machine. Register an agent for the caller's "
+        "own authenticated machine first (`POST /agents`), then reference "
+        "it. Never silently attributed across machines.",
+        {
+            "detail": {
+                "error_code": "actor_not_owned",
+                "message": "agent_id must be an agent attached to the authenticated machine",
+            }
+        },
+    )
+}
+
+RESP_409_MACHINE_ID_MISMATCH: ErrorResponses = {
+    409: _json_response(
+        "`machine_id` in the body must equal the authenticated machine's "
+        "own id — it is never a free field. Send the caller's own id, "
+        "never another machine's.",
+        {
+            "detail": {
+                "error_code": "machine_id_mismatch",
+                "message": "machine_id does not match the authenticated machine",
+            }
+        },
+    )
+}
+
+RESP_409_EVENT_IDENTITY: ErrorResponses = {
+    409: _json_response(
+        "Event identity rejected before anything is stored: `machine_id` "
+        "must be omitted (it is derived from the authenticated machine) "
+        "or equal to it (`machine_id_mismatch`); `actor_type=user` "
+        "requires `actor_id` equal to the machine owner's user id "
+        "(`actor_id_mismatch`); `actor_type=agent` requires an agent "
+        "attached to the caller's machine, and `actor_type=system` "
+        "requires `actor_id` equal to the machine's own id "
+        "(`actor_not_owned`). Replaying an already-stored `event_id` "
+        "with a different identity never modifies the original.",
+        {
+            "detail": {
+                "error_code": "machine_id_mismatch",
+                "message": "machine_id does not match the authenticated machine",
+            }
+        },
+    )
+}
+
+RESP_409_IDEMPOTENCY: ErrorResponses = {
+    409: _json_response(
+        "Replay key problem, no duplicate was created: either the same "
+        "`Idempotency-Key` was reused with a different body "
+        "(`idempotency_key_payload_mismatch` — resend the exact original "
+        "body) or a previous creation with this key is still completing "
+        "(`idempotency_key_in_progress` — retry identically after a "
+        "short delay).",
+        {"detail": {"error_code": "idempotency_key_payload_mismatch"}},
+    )
+}
+
+RESP_409_REVIEW_TRANSITION: ErrorResponses = {
+    409: _json_response(
+        "Invalid review transition: resolving a work entry to "
+        "`approved` (or requesting changes) requires a privileged role "
+        "and is only possible from `review_requested` — nobody approves "
+        "their own work. Move the entry to `review_requested` first, "
+        "then have a privileged reviewer resolve it.",
+        {"detail": {"error_code": "invalid_status_transition"}},
+    )
+}
+
+RESP_409_ALREADY_CLAIMED: ErrorResponses = {
+    409: _json_response(
+        "Another machine already holds this task's claim (soft lock). "
+        "Release by its owner, or pick another task — claims warn, they "
+        "never queue.",
+        {"detail": {"error_code": "already_claimed"}},
+    )
+}
+
+RESP_409_TRANSFER_STATE: ErrorResponses = {
+    409: _json_response(
+        "Upload state conflict: the transfer is already `ready` "
+        "(`transfer_already_ready`, uploads are never replaceable), the "
+        "multipart `upload_id` is unknown for this transfer "
+        "(`unknown_upload_id` — discard local upload state and start over "
+        "with `upload/initiate`), or the resumed part size differs from "
+        "the server constant (`part_size_mismatch`).",
+        {"detail": {"error_code": "transfer_already_ready"}},
+    )
+}
+
+RESP_413_TRANSFER_TOO_LARGE: ErrorResponses = {
+    413: _json_response(
+        "Transfer size exceeds the per-transfer maximum. Split the file "
+        "or use the multipart upload path; `max_size_bytes` is the limit "
+        "that applied.",
+        {
+            "detail": {
+                "error_code": "transfer_too_large",
+                "size_bytes": 1073741824,
+                "max_size_bytes": 536870912,
+            }
+        },
+    )
+}
+
+RESP_507_QUOTA_EXCEEDED: ErrorResponses = {
+    507: _json_response(
+        "Project (or unscoped) storage quota exceeded. Check "
+        "`GET /transfers/consumption` for `remaining_bytes` before a "
+        "large upload; between the check and the creation another upload "
+        "may still win the race.",
+        {
+            "detail": {
+                "error_code": "quota_exceeded",
+                "project_id": "00000000-0000-0000-0000-000000000000",
+                "consumed_bytes": 900,
+                "requested_bytes": 200,
+                "quota_bytes": 1000,
+            }
+        },
+    )
+}
+
+RESP_422_TRANSFER_INTEGRITY: ErrorResponses = {
+    422: _json_response(
+        "Upload integrity or shape rejected, nothing marked ready: small "
+        "uploads require `content_md5` at initiate "
+        "(`missing_content_md5`); the completed size must equal the size "
+        "declared at creation (`size_mismatch` / `object_not_found`); on "
+        "the single-upload path the stored bytes are re-verified against "
+        "the presigned checksum (`content_md5_mismatch`). Part numbers "
+        "outside the multipart bounds fail as `invalid_part_number`.",
+        {"detail": {"error_code": "missing_content_md5"}},
+    )
+}

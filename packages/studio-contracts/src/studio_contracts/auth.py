@@ -8,7 +8,12 @@ from studio_contracts.common import ContractModel, IdempotentCreate, VersionedMo
 
 
 class Role(StrEnum):
-    """Minimum role set per TECH/04_AUTH_SYNC_CONTRACT.md."""
+    """Account roles, weakest to strongest: `readonly` (reads plus heartbeat
+    only, no business writes); `agent` (writes, but never project, machine
+    or user provisioning); `developer` (writes, plus project creation);
+    `admin` (everything, including machine/user provisioning and work
+    review resolution). The role always belongs to the machine owner's
+    user, never to a harness, provider, model or profile."""
 
     ADMIN = "admin"
     DEVELOPER = "developer"
@@ -30,8 +35,9 @@ class User(VersionedModel):
 
 
 class Machine(VersionedModel):
-    """A machine owns its own revocable credential (DEC-0003: opaque token,
-    hashed server-side — see docs/DECISIONS.md)."""
+    """A machine owns its own revocable credential: an opaque token whose
+    hash alone is stored server-side, so a leaked database never leaks
+    access."""
 
     id: UUID
     owner_user_id: UUID
@@ -41,8 +47,9 @@ class Machine(VersionedModel):
 
 
 class Agent(VersionedModel):
-    """Keeps its own logical identity even when running under a machine's
-    context (TECH/04_AUTH_SYNC_CONTRACT.md)."""
+    """Provenance identity attached to one machine: who did the work, for
+    audit and attribution. Never an authorization input — permissions come
+    from the machine owner's role alone."""
 
     id: UUID
     machine_id: UUID | None = None
@@ -51,19 +58,20 @@ class Agent(VersionedModel):
 
 
 class AgentCreate(IdempotentCreate):
-    """Public registration of an operational provenance identity (CC-1,
-    `TECH/02_API_CONTRACT.md`): `machine_id` is always derived from the
-    authenticated machine, never client-supplied. `display_name` and
-    `agent_kind` are free-form metadata — never authorization inputs, never
-    the canonical identity (the server-generated `Agent.id` is)."""
+    """Public registration of a provenance identity: `machine_id` is always
+    derived from the authenticated machine, never client-supplied.
+    `display_name` and `agent_kind` are free-form metadata — never
+    authorization inputs, never the canonical identity (the
+    server-generated `Agent.id` is)."""
 
     display_name: str
     agent_kind: str = ""
 
 
 class UserCreate(ContractModel):
-    """Admin-only, non-replayable (DEC-0011/DEC-0012) — no `Idempotency-Key`
-    support, unlike task/claim/decision/transfer/project creation."""
+    """Admin-only, non-replayable — no `Idempotency-Key` support, unlike
+    task/claim/decision/transfer/project creation (a replayable user
+    creation would persist sensitive material)."""
 
     display_name: str
     email: str
@@ -77,7 +85,7 @@ class MachineCreate(ContractModel):
 
 class MachineCreated(Machine):
     """Returned once, at creation time: the opaque credential in clear text.
-    Never retrievable again afterwards — only its hash is stored (DEC-0003)."""
+    Never retrievable again afterwards — only its hash is stored."""
 
     credential: str
 
