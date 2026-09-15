@@ -42,12 +42,77 @@ Reponses compactes, champs utiles uniquement, filtres `project`, `task`, `since`
 Chaque outil authentifie l'appelant individuellement (voir
 `TECH/04_AUTH_SYNC_CONTRACT.md` section "Auth MCP") — jamais un secret
 process-wide ni un parametre d'outil. Detail : `docs/DECISIONS.md` DEC-0023.
+Exception : les outils locaux UC-3 (section ci-dessous, DEC-0047) tournent
+dans un processus stdio lance par le consommateur lui-meme, sans DB ni
+`Principal` serveur — la frontiere de confiance est le processus, pas un
+token (pas d'attaquant reseau).
 
-## Etat reel (roadmap etape 5, DEC-0023)
+## Etat reel (roadmap etape 5, DEC-0023, UC-3/DEC-0047)
+
 25 des 29 outils ci-dessus sont implementes (`services/mcp/src/studio_mcp/`).
-Ecart residuel documente : `studio_memory_search`, `studio_memory_read`,
-`studio_graph_query`, `studio_generate_context_package` restent differes
-jusqu'a disponibilite des adaptateurs memoire/Graphify du Bloc B.
+Trois outils memoire/graphe locaux read-only sont specifies ci-dessous
+(UC-3, exposition via MCP local par poste, DEC-0047) et restent a
+implementer : `studio_memory_search`, `studio_memory_read`,
+`studio_graph_query`. `studio_generate_context_package` reste DEFERRED :
+reouverture uniquement par Decision couvrant au minimum la selection des
+sources, la confidentialite, le manifest/provenance, le schema, la
+persistance ou le caractere ephemere, la frontiere local→partage et
+l'interaction avec CC-3 (roadmap 8.3b).
+
+## Outils locaux Memory/Knowledge UC-3 (DEC-0047)
+
+Vocabulaire public : Memory et Knowledge Graph uniquement. Obsidian et
+Graphify sont des backends/adapters optionnels, jamais des capacites et
+jamais mentionnes dans les noms ou descriptions d'outils. Ces outils
+vivent dans le MCP local du poste (stdio, sans DB, sans `Principal`
+serveur) ; le MCP du VPS ne les expose pas et ne proxyfie rien vers les
+postes. Enregistrement conditionnel au demarrage : vault configure →
+`studio_memory_search` + `studio_memory_read` ; graphe configure →
+`studio_graph_query` ; backend non configure → outils absents
+(`tools/list` du processus local = verite). Backend configure mais
+indisponible → degrade machine-readable, pas d'exception brute.
+
+Convention d'erreurs (taxonomie `KnowledgeError` reutilisee, aucune
+seconde taxonomie) : erreur → `{error_code, message, ...}` ; degradation
+valide → `reason` ou `stale_reason` dans une reponse metier reussie.
+Aucune primitive de versionnement introduite ici (ressort de CC-3).
+
+### studio_memory_search
+
+Recherche substring case-insensitive (pas de recherche semantique),
+bornee, dans la portee exposee (`ScopePolicy`, deny-all par defaut).
+Input : `query: str`, `max_results?: int = 20` (defaut du provider ;
+plafond = constante provider, jamais un dump non borne). Output :
+`{matches: [{path, title, excerpt, truncated}], reason?: string}`.
+`reason = "vault_missing"` avec `matches: []` est un degrade valide
+(conforme au provider), pas une erreur. Erreurs reelles :
+`vault_not_a_directory`. Garantie : hors-portee jamais indexe ni liste.
+
+### studio_memory_read
+
+Lecture bornee et scopee d'une note exposee. Input : `path: str`
+(relatif au vault), `max_chars?: int = 4000` (defaut du provider).
+Output : `{path, title, content, truncated}`. Erreurs existantes :
+`vault_missing`, `vault_not_a_directory`, `out_of_scope` (absolu, `../`,
+symlink fuyant, hors prefixes — refuse meme en adressage exact),
+`not_found`, `not_a_file`, `invalid_frontmatter`.
+
+### studio_graph_query
+
+Interrogation bornee du graphe local avec signal de fraicheur. UN seul
+outil, avec `mode`. Input : `text: str`, `mode?: "query" |
+"relevant_files" | "dependencies" | "related_symbols" = "query"`,
+`limit?: int = 20` (defaut du provider). Outputs par mode (formes
+generiques, pas de structures Graphify internes) :
+- `query` → `{nodes: [{id, label, source_file, source_location}], stale, stale_reason?}` (match substring sur labels, tri deterministe) ;
+- `relevant_files` → `{files: [str], stale, stale_reason?}` (fichiers sources distincts) ;
+- `dependencies` → `{files: [str], stale, stale_reason?}` (voisins a 1 saut, hors fichier demande) ;
+- `related_symbols` → `{nodes: [...], stale, stale_reason?}` (symboles du fichier, ou matchs de label + voisins a 1 saut).
+`stale` toujours present ; `stale_reason` (`graph_missing`,
+`manifest_missing`, `graph_invalid`, `not_covered`,
+`changed_since_indexed`, `source_missing`) = degrade valide, jamais servi
+comme frais. Fraicheur par couverture manifest d'abord (jamais les seuls
+mtime).
 
 Les charges utiles des outils n'ont aucun mecanisme de version a ce jour
 (pas d'equivalent de `schema_version` cote MCP) — tout changement de forme

@@ -42,9 +42,29 @@ par construction. Cette decision fige la regle pour UC-2 et la suite.
 « Non requis pour la parite de transport » ne signifie pas « non requis
 par la roadmap produit ». La necessite des 4 outils MCP memoire/graphe
 differes (`studio_memory_search`, `studio_memory_read`,
-`studio_graph_query`, `studio_generate_context_package`) reste determinee
-independamment par UC-3, TECH/09, DEC-0042 et le Universal Consumer
-Contract.
+`studio_graph_query`, `studio_generate_context_package`) a ete tranchee
+par UC-3/DEC-0047 : les 3 premiers specifies en local-only read-only
+(roadmap 8.3a), le 4eme DEFERRED avec condition (roadmap 8.3b).
+
+### Amendement UC-3/DEC-0047 : categorie local-only (additif)
+
+Les regles 1-5 ci-dessus regissent les *instance capabilities* (etat
+partage du VPS) et restent inchangees. S'y ajoute une seconde categorie :
+
+6. Les *local-only capabilities* (donnees volontairement confinees au
+   poste, ex. Memory/Knowledge UC-3 — DEC-0047) peuvent etre exposees via
+   une interface locale standard (MCP local, stdio) sans endpoint HTTP
+   VPS correspondant. L'absence d'un endpoint HTTP pour une capacite
+   explicitement local-only ne constitue pas une violation de la regle 1.
+7. Regle miroir de decouverte : de meme que l'absence d'un outil MCP ne
+   signifie pas l'indisponibilite de la capacite, l'absence d'un
+   endpoint HTTP ne signifie pas l'inexistence d'une capacite local-only.
+   Chaque interface/processus se decouvre par son propre mecanisme
+   (`tools/list` du processus local concerné).
+8. La parite d'enforcement (regle 4) est sans objet quand aucun etat
+   partage n'est touche : une capacite read-only purement locale
+   n'appelle ni authz serveur, ni ownership, ni validation metier
+   partagee.
 
 ### Follow-ups traces, non implementes
 

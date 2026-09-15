@@ -385,9 +385,9 @@ Agent simule : `harness = unknown-harness`, `provider = unknown-provider`,
 - UC-2 Independance de l'authentification : verifier que le provisioning et
   le renouvellement restent sans savoir harness/modele. Rien a changer sauf
   preuve contraire.
-- UC-3 Decouverte des capacites : implementer les 4 outils MCP
-  memoire/graphe manquants (suite de DEC-0042) ; fournir un index
-  d'integration externe unique (contrats + OpenAPI + liste d'outils).
+- UC-3 Decouverte des capacites : exposer les 3 outils MCP locaux
+  memoire/graphe read-only (DEC-0047, suite de DEC-0042 ; 8.3a),
+  `studio_generate_context_package` DEFERRED avec condition (8.3b).
 - UC-4 Documentation model-agnostic : `Claude`/`Qwen` utilises comme roles →
   termes fonctionnels generiques ; references historiques legitimes
   conservees (categorie D).

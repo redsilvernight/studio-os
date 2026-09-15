@@ -68,11 +68,12 @@ sont illustratifs et non normatifs.
   parite de surface n'est pas requise, voir DEC-0046.
 - SHOULD : le client HTTP derive les routes du schema OpenAPI ; le client
   MCP utilise `tools/list` du protocole MCP.
-- Etat actuel : PARTIAL. Inventaire documente, mais 4 outils
-  memoire/graphe declares et non implementes serveur
-  (`studio_memory_search`, `studio_memory_read`, `studio_graph_query`,
-  `studio_generate_context_package` — `TECH/07` §46-50, DEC-0042). Cible
-  UC-3. Voir §11 pour la detection d'absence.
+- Etat actuel : PARTIAL. Inventaire documente ; 3 outils
+  memoire/graphe locaux specifies (UC-3/DEC-0047, `TECH/07` —
+  `studio_memory_search`, `studio_memory_read`, `studio_graph_query`,
+  exposition via MCP local par poste, en cours d'implementation) et
+  `studio_generate_context_package` DEFERRED avec condition explicite
+  (DEC-0047, roadmap 8.3b). Cible UC-3. Voir §11 pour la detection d'absence.
 
 ## 3. Authentification
 
@@ -193,11 +194,12 @@ sont illustratifs et non normatifs.
   (`refresh_graph|query|relevant_files|dependencies|related_symbols`).
 - MAY : utiliser la memoire/knowledge. MUST : fonctionner sans — le
   produit n'en fait jamais un prerequis (principe 1, regle transversale).
-- Etat actuel : MISSING cote serveur (4 outils MCP differes, §2), PARTIAL
-  cote client (adaptateurs locaux read-only `VaultMemoryProvider` /
-  `GraphifyGraphProvider`, ecritures `write_unsupported`, DEC-0042).
-  Cible UC-3. En attendant, un consommateur MAY fonctionner sans memoire :
-  le produit n'en fait jamais un prerequis.
+- Etat actuel : SPECIFIED (implementation en cours, UC-3/DEC-0047).
+  Capacite MAY : lorsqu'elle est configuree localement, elle est
+  decouvrable via le MCP local du poste (`tools/list` du processus
+  local) ; son absence reste un chemin nominal — le MCP local n'est
+  jamais un prerequis global pour utiliser Studi'OS, et aucun contenu
+  knowledge prive ne transite vers le VPS.
 
 ## 11. Detection d'une capacite optionnelle indisponible
 
@@ -309,9 +311,10 @@ interfaces publiques sont disponibles.
    Python `packages/studio-client`). (`TECH/08/04`)
 8. Transferer un fichier : PASS — cycle complet `TECH/06` + quotas
    actionnables, zero octet via API/MCP. (`TECH/02/06`, DEC-0025/0037)
-9. Interroger la memoire/knowledge si disponible : MISSING (serveur) —
-   contrat `TECH/09` declare, outils MCP absents, adaptateurs locaux
-   read-only Python-only ; fonctionnement sans memoire toujours possible.
+9. Interroger la memoire/knowledge si disponible : SPECIFIED
+   (contrats UC-3/DEC-0047, implementation locale en cours) —
+   `TECH/09` + `TECH/07` (3 outils MCP locaux) + adaptateurs locaux
+   read-only ; fonctionnement sans memoire toujours nominal.
    (UC-3)
 
 ## Contract-changes futures identifiees (non implementees)

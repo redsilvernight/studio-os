@@ -340,21 +340,35 @@ nulle part. Par ailleurs le graphe Graphify n'est **pas** dans le dépôt
 
 ---
 
-## Sous-étape 8.3 — Context Package et les 4 outils MCP différés — À FAIRE
+## Sous-etape 8.3a — 3 outils MCP locaux Memory/Knowledge read-only (UC-3) — A FAIRE
+
+Contrats formalises en DEC-0047 + `TECH/07`/`TECH/09` : `studio_memory_search`,
+`studio_memory_read`, `studio_graph_query` (mode unique), exposition via MCP
+local par poste (stdio, sans DB, enregistrement conditionnel a la
+configuration). Reste : entrypoint local + handlers minces + tests
+`tests/mcp/test_local_knowledge.py`. Read-only strict, aucune ecriture,
+aucun Context Package. Depend de 8.2 (fourni : providers, DEC-0042).
+
+## Sous-etape 8.3b — Context Package (`studio_generate_context_package`) — DEFERRED
+
+DEFERRED avec condition normative (DEC-0047) : reouverture uniquement par
+Decision couvrant selection des sources, confidentialite,
+manifest/provenance, schema, persistance ou caractere ephemere, frontiere
+local→partage, interaction avec CC-3. Sa propre decision, pas un reliquat
+de 8.3a.
 
 Compose le contexte partagé serveur (tâche, `ProjectState`, claims, décisions,
 AIWorkLog, événements récents — tout existe déjà) et le complément local de 8.2
 (mémoire exposable, graphe, Git), derrière un manifest versionné qui trace ses
-sources. Livre `studio_memory_search`, `studio_memory_read`, `studio_graph_query`
-et `studio_generate_context_package`, fermant l'écart 25/29 de DEC-0023 et le
-premier critère d'acceptation de l'étape 8. **Bloquée par une question de
-conception non tranchée** (voir questions ouvertes n° 1) : le serveur MCP
-déployé tourne sur le VPS (`docker/docker-compose.yml`, service `mcp`) et n'a
-accès ni au vault ni au graphe local, alors que `TECH/07` liste ces outils comme
-outils MCP. Dépend de 8.1 (la part AIWorkLog/événements du paquet) et de 8.2
-(les sources locales). Invariant à tenir : aucun octet de mémoire privée ne
-transite, et le paquet reste borné en taille — un Context Package n'est pas un
-dump.
+sources. Ne livre que `studio_generate_context_package` (les 3 outils
+read-only relevent de 8.3a/UC-3, DEC-0047). Question de conception n° 1
+tranchee pour 8.3a (option a : MCP local par poste) mais restant ouverte
+pour le paquet lui-meme : un paquet combinant part serveur et complement
+local exige sa propre Decision (frontiere local→partage). Dépend de 8.1
+(la part AIWorkLog/événements du paquet) et de 8.2 (les sources locales).
+Invariant à tenir : aucun octet de mémoire privée ne transite sans regle
+explicite, et le paquet reste borné en taille — un Context Package n'est
+pas un dump.
 
 ## Sous-étape 8.4 — Review Queue et AI Work Ledger — À FAIRE
 
@@ -405,12 +419,14 @@ d'écriture qui dupliquerait la validation de la CLI et du MCP.
    serveur MCP déployé tourne sur le VPS (`docker-compose.yml`, service `mcp`,
    reverse-proxy `$MCP_DOMAIN`) où ni le vault ni le graphe n'existent, et où
    ils ne doivent jamais être copiés (`CLAUDE.md`, `TECH/09`). Trois issues
-   possibles, aucune actée : (a) une instance MCP locale par poste, en plus de
-   celle du VPS ; (b) l'outil VPS ne renvoie que la part partagée et un manifest
-   que le client complète localement ; (c) les outils `memory`/`graph` ne sont
-   pas des outils MCP du tout mais des commandes CLI locales, ce qui
-   contredirait `TECH/07`. **C'est le blocage structurel de l'étape 8** ; il doit
-   être tranché par ADR avant 8.3, et probablement avant même de finir 8.2.
+possibles, aucune actée : (a) une instance MCP locale par poste, en plus de
+celle du VPS ; (b) l'outil VPS ne renvoie que la part partagée et un manifest
+que le client complète localement ; (c) les outils `memory`/`graph` ne sont
+pas des outils MCP du tout mais des commandes CLI locales, ce qui
+contredirait `TECH/07`. **Resolution UC-3/DEC-0047 pour 8.3a : option (a)
+actee** — MCP local par poste (stdio, read-only, enregistrement
+conditionnel). La question reste ouverte pour le seul Context Package
+(8.3b), qui exige sa propre Decision.
 2. **Format et portée du manifest.** `TECH/09` exige un « manifest versionné qui
    trace les sources » sans aucun schéma : nom du champ de version, liste des
    champs, format des références de source. Est-il un modèle

@@ -12,6 +12,12 @@ seuls sont effectifs (`VaultMemoryProvider`), les écritures sont déclarées
 mais refusées (`write_unsupported`, boucle d'approbation serveur en 8.4/8.5),
 portée fermée par défaut via `ClientConfig` (`STUDIO_CLIENT_KNOWLEDGE_*`).
 
+Exposition UC-3 (DEC-0047) : `search`/`read` via MCP local par poste
+(`studio_memory_search`, `studio_memory_read`, `TECH/07`), stdio, read-only.
+Vocabulaire public : Memory. Le backend (dossier de notes Markdown,
+dit « vault ») est optionnel et interchangeable ; aucune dependance a
+Obsidian n'est requise ni supposee.
+
 ### Qwen
 Lecture seule sur project/studio par defaut.
 
@@ -27,8 +33,18 @@ directement `graph.json`/`manifest.json` du `graphify-out` centralisé —
 signalement de fraîcheur (`stale`), `refresh_graph` explicitement non
 supporté (reconstruction pilotée par la conversation principale).
 
+Exposition UC-3 (DEC-0047) : ces quatre lectures via UN outil MCP local
+(`studio_graph_query` avec `mode`, `TECH/07`), stdio, read-only, formes
+generiques. Vocabulaire public : Knowledge Graph. Le backend d'index
+est optionnel et interchangeable ; Graphify n'est ni requis ni suppose
+au runtime (artefacts JSON lus en brut, aucun binaire appele).
+
 ## Context Package
 Le serveur compose contexte partage; le client complete avec Git, Graphify, fichiers et memoire locale. Manifest versionne et trace les sources.
+
+UC-3 (DEC-0047) : `studio_generate_context_package` = DEFERRED (roadmap
+8.3b). Aucune composition locale→partagee en UC-3 : search/read/query
+restent locaux et ne produisent aucun artefact partage.
 
 ## Decisions, vault et Graphify : implementation reelle
 
