@@ -1,0 +1,5651 @@
+{
+ "openapi": "3.1.0",
+ "info": {
+  "title": "Studio OS API",
+  "description": "Shared coordination API for Studio OS projects: tasks, resource claims, work sessions, decisions, AI work logs, events, and file transfer metadata. Every operation under `/api/v1` requires machine authentication (`Authorization: Bearer <machine-token>`, provisioned out of band) except `GET /healthz`. File bytes never flow through this API \u2014 transfers exchange metadata and short-lived signed URLs only, uploads and downloads go directly to object storage. Replayable creations accept `Idempotency-Key`; concurrent updates use `If-Match-Version`; permission refusals answer `403 forbidden` and are final.",
+  "version": "1"
+ },
+ "paths": {
+  "/healthz": {
+   "get": {
+    "tags": [
+     "health"
+    ],
+    "summary": "Healthz",
+    "description": "Liveness probe. Needs no credential and carries no security requirement \u2014 the only unauthenticated operation. Answers `{\"status\": \"ok\"}` when the service is up; use it before authenticating anything else.",
+    "operationId": "healthz_healthz_get",
+    "responses": {
+     "200": {
+      "description": "The service is up.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": {
+          "type": "string"
+         },
+         "type": "object",
+         "title": "Response Healthz Healthz Get"
+        },
+        "example": {
+         "status": "ok"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/projects": {
+   "get": {
+    "tags": [
+     "projects"
+    ],
+    "summary": "List Projects",
+    "description": "List all projects. Any authenticated machine may read.",
+    "operationId": "list_projects_api_v1_projects_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/Project"
+         },
+         "title": "Response List Projects Api V1 Projects Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "projects"
+    ],
+    "summary": "Create Project",
+    "description": "Create a project. Requires a privileged role (admin or developer); other roles receive `403 forbidden`. Slugs are unique: reusing one fails with 409. Accepts `Idempotency-Key` for safe retries.",
+    "operationId": "create_project_api_v1_projects_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ProjectCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Project"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "idempotency_key_payload_mismatch"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/projects/{project_id}": {
+   "get": {
+    "tags": [
+     "projects"
+    ],
+    "summary": "Get Project",
+    "description": "Get one project by id. Any authenticated machine may read.",
+    "operationId": "get_project_api_v1_projects__project_id__get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Project Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Project"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/projects/{project_id}/state": {
+   "get": {
+    "tags": [
+     "projects"
+    ],
+    "summary": "Get Project State",
+    "description": "Bootstrap read for a project: its active tasks and active resource claims in one call. Start here before working on a project. Any authenticated machine may read.",
+    "operationId": "get_project_state_api_v1_projects__project_id__state_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Project Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProjectState"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/tasks": {
+   "get": {
+    "tags": [
+     "tasks"
+    ],
+    "summary": "List Tasks",
+    "description": "List tasks, optionally filtered by project. Any authenticated machine may read.",
+    "operationId": "list_tasks_api_v1_tasks_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Project Id"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 500,
+       "default": 100,
+       "title": "Limit"
+      }
+     },
+     {
+      "name": "offset",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "default": 0,
+       "title": "Offset"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/Task"
+         },
+         "title": "Response List Tasks Api V1 Tasks Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "tasks"
+    ],
+    "summary": "Create Task",
+    "description": "Create a task. Requires a writer role. Accepts `Idempotency-Key` for safe retries: the same key with the identical body returns the original task instead of a duplicate.",
+    "operationId": "create_task_api_v1_tasks_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/TaskCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Task"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "idempotency_key_payload_mismatch"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/tasks/{task_id}": {
+   "get": {
+    "tags": [
+     "tasks"
+    ],
+    "summary": "Get Task",
+    "description": "Get one task by id. Any authenticated machine may read.",
+    "operationId": "get_task_api_v1_tasks__task_id__get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "task_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Task Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Task"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "patch": {
+    "tags": [
+     "tasks"
+    ],
+    "summary": "Update Task",
+    "description": "Update a task's title, description or status. Requires a writer role and the current `If-Match-Version`; a stale version is rejected with the live server version instead of overwriting.",
+    "operationId": "update_task_api_v1_tasks__task_id__patch",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "task_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Task Id"
+      }
+     },
+     {
+      "name": "If-Match-Version",
+      "in": "header",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "description": "Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version \u2014 re-read, merge, and retry. Updates never overwrite silently.",
+       "title": "If-Match-Version"
+      },
+      "description": "Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version \u2014 re-read, merge, and retry. Updates never overwrite silently."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/TaskUpdate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Task"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version \u2014 re-read the object, merge, and retry with the new version.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/tasks/{task_id}/claim": {
+   "post": {
+    "tags": [
+     "tasks"
+    ],
+    "summary": "Claim Task",
+    "description": "Claim a task for the caller's machine (sets status to in_progress). Requires a writer role. Fails with `already_claimed` if another machine holds it.",
+    "operationId": "claim_task_api_v1_tasks__task_id__claim_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "task_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Task Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Task"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Another machine already holds this task's claim (soft lock). Release by its owner, or pick another task \u2014 claims warn, they never queue.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "already_claimed"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/tasks/{task_id}/release": {
+   "post": {
+    "tags": [
+     "tasks"
+    ],
+    "summary": "Release Task",
+    "description": "Release a task's claim. Only the machine holding the claim (or a privileged role) may release it; anyone else receives `403 forbidden`.",
+    "operationId": "release_task_api_v1_tasks__task_id__release_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "task_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Task Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Task"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/sessions": {
+   "get": {
+    "tags": [
+     "sessions"
+    ],
+    "summary": "List Sessions",
+    "description": "List work sessions, optionally filtered by task. Any authenticated machine may read.",
+    "operationId": "list_sessions_api_v1_sessions_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "task_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Task Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/WorkSession"
+         },
+         "title": "Response List Sessions Api V1 Sessions Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "sessions"
+    ],
+    "summary": "Start Session",
+    "description": "Start a work session on a task for the caller's machine. Requires a writer role. Accepts `Idempotency-Key` for safe retries: the same key returns the original session instead of starting a duplicate.",
+    "operationId": "start_session_api_v1_sessions_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/WorkSessionCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/WorkSession"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "idempotency_key_payload_mismatch"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/sessions/{session_id}/end": {
+   "patch": {
+    "tags": [
+     "sessions"
+    ],
+    "summary": "End Session",
+    "description": "End a work session. Only the machine that started the session (or a privileged role) may end it; ending twice is a harmless no-op, never an error storm.",
+    "operationId": "end_session_api_v1_sessions__session_id__end_patch",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "session_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Session Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/WorkSession"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/claims": {
+   "get": {
+    "tags": [
+     "claims"
+    ],
+    "summary": "List Claims",
+    "description": "List resource claims, optionally filtered by project. Any authenticated machine may read.",
+    "operationId": "list_claims_api_v1_claims_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Project Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/ResourceClaim"
+         },
+         "title": "Response List Claims Api V1 Claims Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "claims"
+    ],
+    "summary": "Create Claim",
+    "description": "Claim a resource path (file or folder) for the caller's machine. Claims are soft locks with a TTL: they warn other machines through a conflict event when paths overlap, but never block a write, a Git operation, or a transfer. Requires a writer role. Accepts `Idempotency-Key` for safe retries \u2014 replaying the same key never re-emits the conflict event.",
+    "operationId": "create_claim_api_v1_claims_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ResourceClaimCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ResourceClaim"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "idempotency_key_payload_mismatch"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/claims/{claim_id}/renew": {
+   "post": {
+    "tags": [
+     "claims"
+    ],
+    "summary": "Renew Claim",
+    "description": "Extend a claim's TTL. Only the machine holding the claim (or a privileged role) may renew it.",
+    "operationId": "renew_claim_api_v1_claims__claim_id__renew_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "claim_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Claim Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ResourceClaim"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/claims/{claim_id}": {
+   "delete": {
+    "tags": [
+     "claims"
+    ],
+    "summary": "Release Claim",
+    "description": "Release a resource claim. Only the machine holding the claim (or a privileged role) may release it. Releasing twice is harmless \u2014 never a duplicate problem.",
+    "operationId": "release_claim_api_v1_claims__claim_id__delete",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "claim_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Claim Id"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/decisions": {
+   "get": {
+    "tags": [
+     "decisions"
+    ],
+    "summary": "List Decisions",
+    "description": "List recorded decisions, optionally filtered by project. Any authenticated machine may read.",
+    "operationId": "list_decisions_api_v1_decisions_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Project Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/Decision"
+         },
+         "title": "Response List Decisions Api V1 Decisions Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "decisions"
+    ],
+    "summary": "Create Decision",
+    "description": "Record a project decision. Requires a writer role; the proposer identity is derived from the caller's authenticated machine. Accepts `Idempotency-Key` for safe retries: the same key returns the original decision instead of allocating a second id.",
+    "operationId": "create_decision_api_v1_decisions_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DecisionCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Decision"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "idempotency_key_payload_mismatch"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/agents": {
+   "get": {
+    "tags": [
+     "agents"
+    ],
+    "summary": "List Agents",
+    "description": "List agent provenance identities. Any authenticated machine may read.",
+    "operationId": "list_agents_api_v1_agents_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/Agent"
+         },
+         "title": "Response List Agents Api V1 Agents Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "agents"
+    ],
+    "summary": "Register Agent",
+    "description": "Register an agent identity for the caller's own authenticated machine. `machine_id` is always derived from the credential \u2014 never send it. `display_name` is required, `agent_kind` is free-form metadata. Registration confers no permission and is required for nothing except attributing AI work logs; authentication and authorization work without it. Accepts `Idempotency-Key` for safe retries.",
+    "operationId": "register_agent_api_v1_agents_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AgentCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Agent"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "idempotency_key_payload_mismatch"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/ai-work": {
+   "get": {
+    "tags": [
+     "ai-work"
+    ],
+    "summary": "List Ai Work",
+    "description": "List AI work ledger entries, optionally filtered by project or task. Any authenticated machine may read.",
+    "operationId": "list_ai_work_api_v1_ai_work_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Project Id"
+      }
+     },
+     {
+      "name": "task_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Task Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/AIWorkLog"
+         },
+         "title": "Response List Ai Work Api V1 Ai Work Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "ai-work"
+    ],
+    "summary": "Create Ai Work",
+    "description": "Log a unit of AI work. Requires a writer role. `agent_id` must reference an agent attached to the caller's own authenticated machine (register one with `POST /agents` first) \u2014 a foreign or unknown agent fails with `409 actor_not_owned`, never a silent cross-machine attribution. Accepts `Idempotency-Key` for safe retries.",
+    "operationId": "create_ai_work_api_v1_ai_work_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AIWorkLogCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AIWorkLog"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Provenance mismatch: the referenced agent identity is unknown or attached to another machine. Register an agent for the caller's own authenticated machine first (`POST /agents`), then reference it. Never silently attributed across machines. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "actor_not_owned",
+          "message": "agent_id must be an agent attached to the authenticated machine"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/ai-work/{work_id}": {
+   "patch": {
+    "tags": [
+     "ai-work"
+    ],
+    "summary": "Update Ai Work",
+    "description": "Update your own work entry (status, changed files, tests run). Only the owning machine's entries may be updated. Resolving a review (`approved` or changes requested) additionally requires a privileged role and the `review_requested` state \u2014 anything else fails with `409 invalid_status_transition`.",
+    "operationId": "update_ai_work_api_v1_ai_work__work_id__patch",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "work_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Work Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AIWorkLogUpdate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AIWorkLog"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Invalid review transition: resolving a work entry to `approved` (or requesting changes) requires a privileged role and is only possible from `review_requested` \u2014 nobody approves their own work. Move the entry to `review_requested` first, then have a privileged reviewer resolve it.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_status_transition"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/heartbeats": {
+   "post": {
+    "tags": [
+     "heartbeats"
+    ],
+    "summary": "Post Heartbeat",
+    "description": "Report machine presence. Any authenticated machine may heartbeat, including read-only ones \u2014 this is the one write that never requires a writer role. `machine_id` must equal the authenticated machine's own id. `status` is derived server-side from the last report, never stored from the client; send roughly every 30 seconds.",
+    "operationId": "post_heartbeat_api_v1_heartbeats_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/HeartbeatRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HeartbeatResponse"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "`machine_id` in the body must equal the authenticated machine's own id \u2014 it is never a free field. Send the caller's own id, never another machine's.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "machine_id_mismatch",
+          "message": "machine_id does not match the authenticated machine"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ]
+   }
+  },
+  "/api/v1/events": {
+   "post": {
+    "tags": [
+     "events"
+    ],
+    "summary": "Post Event",
+    "description": "Publish an event to a project. Requires a writer role. `event_id` is a caller-generated UUID and the replay key: resending the same `event_id` returns the stored event, never a duplicate (this endpoint does not use `Idempotency-Key`). Identity is validated against the authenticated machine: omit `machine_id` (it is derived automatically) or send the machine's own id; `actor_type=user` requires the machine owner's user id as `actor_id`; `actor_type=agent` requires an agent attached to the caller's own machine (register one with `POST /agents` first); `actor_type=system` requires the machine's own id. Working without an agent identity is fully supported \u2014 use `user` or `system`.",
+    "operationId": "post_event_api_v1_events_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/EventCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/EventEnvelope"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Event identity rejected before anything is stored: `machine_id` must be omitted (it is derived from the authenticated machine) or equal to it (`machine_id_mismatch`); `actor_type=user` requires `actor_id` equal to the machine owner's user id (`actor_id_mismatch`); `actor_type=agent` requires an agent attached to the caller's machine, and `actor_type=system` requires `actor_id` equal to the machine's own id (`actor_not_owned`). Replaying an already-stored `event_id` with a different identity never modifies the original.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "machine_id_mismatch",
+          "message": "machine_id does not match the authenticated machine"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "get": {
+    "tags": [
+     "events"
+    ],
+    "summary": "Get Events",
+    "description": "Read recent events, optionally filtered by project, task and `since` timestamp. Any authenticated machine may read. This is the polling and catch-up channel: after a disconnect, poll with `since` to retrieve missed history, then optionally resume live delivery on `GET /events/stream`.",
+    "operationId": "get_events_api_v1_events_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Project"
+      }
+     },
+     {
+      "name": "task",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Task"
+      }
+     },
+     {
+      "name": "since",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "date-time"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Since"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 500,
+       "default": 100,
+       "title": "Limit"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/EventEnvelope"
+         },
+         "title": "Response Get Events Api V1 Events Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/events/stream": {
+   "get": {
+    "tags": [
+     "events"
+    ],
+    "summary": "Stream Events",
+    "description": "Live event push for one project as Server-Sent Events (`text/event-stream`; each SSE `id:` is the event's `seq`, a strictly increasing integer). `project` is required \u2014 there is no global cross-project stream. Resuming after a cutover loses nothing: pass the last seen `seq` as `since_seq`, or rely on the standard SSE `Last-Event-ID` auto-reconnect header (`Last-Event-ID` wins when both are present). With no cursor, only events created from connection time are delivered \u2014 use `GET /events?since=` first to backfill history, then open the stream for live updates. Same authentication as the rest of the API.",
+    "operationId": "stream_events_api_v1_events_stream_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "description": "Project to subscribe to (UUID). No global stream exists.",
+       "title": "Project"
+      },
+      "description": "Project to subscribe to (UUID). No global stream exists."
+     },
+     {
+      "name": "since_seq",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Explicit resume cursor: last `seq` already seen. Ignored when `Last-Event-ID` is present.",
+       "title": "Since Seq"
+      },
+      "description": "Explicit resume cursor: last `seq` already seen. Ignored when `Last-Event-ID` is present."
+     },
+     {
+      "name": "Last-Event-ID",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Standard SSE auto-reconnect cursor (integer `seq`). Takes precedence over `since_seq`.",
+       "title": "Last-Event-Id"
+      },
+      "description": "Standard SSE auto-reconnect cursor (integer `seq`). Takes precedence over `since_seq`."
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "A `text/event-stream` response. Each frame carries one event envelope as JSON in `data:` with its `seq` in `id:`. The connection stays open; reconnect with the last `seq` to resume without loss or duplicates.",
+      "content": {
+       "application/json": {
+        "schema": {}
+       },
+       "text/event-stream": {
+        "schema": {
+         "type": "string"
+        },
+        "example": "id: 42\ndata: {\"event_id\": \"...\", \"event_type\": \"task.updated\", ...}\n\n"
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/transfers": {
+   "get": {
+    "tags": [
+     "transfers"
+    ],
+    "summary": "List Transfers",
+    "description": "List transfer metadata visible to the caller (sender, recipient, broadcast, or privileged role). The list silently omits inaccessible transfers instead of erroring.",
+    "operationId": "list_transfers_api_v1_transfers_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Project Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/Transfer"
+         },
+         "title": "Response List Transfers Api V1 Transfers Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "transfers"
+    ],
+    "summary": "Create Transfer",
+    "description": "Start a transfer: declares filename, size and participants, and reserves quota. Requires a writer role. Accepts `Idempotency-Key` for safe retries. File bytes never pass through this API: the next steps hand back short-lived signed URLs, and the client uploads directly to object storage. Oversize files fail with `413 transfer_too_large`; an exhausted quota fails with `507 quota_exceeded` (check `GET /transfers/consumption` first for large uploads).",
+    "operationId": "create_transfer_api_v1_transfers_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/TransferCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Transfer"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "idempotency_key_payload_mismatch"
+         }
+        }
+       }
+      }
+     },
+     "413": {
+      "description": "Transfer size exceeds the per-transfer maximum. Split the file or use the multipart upload path; `max_size_bytes` is the limit that applied.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "transfer_too_large",
+          "size_bytes": 1073741824,
+          "max_size_bytes": 536870912
+         }
+        }
+       }
+      }
+     },
+     "507": {
+      "description": "Project (or unscoped) storage quota exceeded. Check `GET /transfers/consumption` for `remaining_bytes` before a large upload; between the check and the creation another upload may still win the race.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "quota_exceeded",
+          "project_id": "00000000-0000-0000-0000-000000000000",
+          "consumed_bytes": 900,
+          "requested_bytes": 200,
+          "quota_bytes": 1000
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/transfers/consumption": {
+   "get": {
+    "tags": [
+     "transfers"
+    ],
+    "summary": "Get Consumption",
+    "description": "Read quota consumption (`consumed_bytes`, `quota_bytes`, `remaining_bytes`) for a project, or for the unscoped bucket when no project is given. Any authenticated machine may read. Call before a large upload to avoid a rejected creation \u2014 the reading is advisory, another upload may still win the race.",
+    "operationId": "get_consumption_api_v1_transfers_consumption_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Project Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TransferConsumption"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/transfers/{transfer_id}": {
+   "get": {
+    "tags": [
+     "transfers"
+    ],
+    "summary": "Get Transfer",
+    "description": "Get one transfer's metadata. Only the sender, the recipient, broadcast recipients, or a privileged role may read it \u2014 anyone else receives `403 forbidden`, never 404.",
+    "operationId": "get_transfer_api_v1_transfers__transfer_id__get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "transfer_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Transfer Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Transfer"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "delete": {
+    "tags": [
+     "transfers"
+    ],
+    "summary": "Delete Transfer",
+    "description": "Delete a transfer and its stored bytes. Only the sender (or a privileged role) may delete. Non-expired transfers are never removed automatically.",
+    "operationId": "delete_transfer_api_v1_transfers__transfer_id__delete",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "transfer_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Transfer Id"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/transfers/{transfer_id}/upload/initiate": {
+   "post": {
+    "tags": [
+     "transfers"
+    ],
+    "summary": "Initiate Upload",
+    "description": "Begin the byte upload and receive signed URL(s) valid for minutes. Two paths: small files use a single direct upload \u2014 send the file's MD5 (base64) as `content_md5`, it is embedded in the signed URL and storage itself rejects mismatched bytes (`422 missing_content_md5` when omitted); large files use multipart upload in 64-128 MiB chunks, each part going straight to storage. Only the sender (or a privileged role) may upload. Keep completed part numbers and their ETags locally so an interrupted multipart upload resumes without re-sending finished parts. Re-initiating an already `ready` transfer fails \u2014 completed uploads are never replaceable.",
+    "operationId": "initiate_upload_api_v1_transfers__transfer_id__upload_initiate_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "transfer_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Transfer Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/UploadInitiateRequest"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Body"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UploadInitiateResponse"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Upload state conflict: the transfer is already `ready` (`transfer_already_ready`, uploads are never replaceable), the multipart `upload_id` is unknown for this transfer (`unknown_upload_id` \u2014 discard local upload state and start over with `upload/initiate`), or the resumed part size differs from the server constant (`part_size_mismatch`).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "transfer_already_ready"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Upload integrity or shape rejected, nothing marked ready: small uploads require `content_md5` at initiate (`missing_content_md5`); the completed size must equal the size declared at creation (`size_mismatch` / `object_not_found`); on the single-upload path the stored bytes are re-verified against the presigned checksum (`content_md5_mismatch`). Part numbers outside the multipart bounds fail as `invalid_part_number`.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "missing_content_md5"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/transfers/{transfer_id}/upload/refresh-parts": {
+   "post": {
+    "tags": [
+     "transfers"
+    ],
+    "summary": "Refresh Upload Parts",
+    "description": "Resume helper for an interrupted multipart upload: reports which parts storage already holds (server truth) and re-signs URLs for the missing parts only. Adopt the returned part list as the new local state. An unknown `upload_id` means the server-side upload is gone \u2014 discard local state and restart from `upload/initiate`.",
+    "operationId": "refresh_upload_parts_api_v1_transfers__transfer_id__upload_refresh_parts_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "transfer_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Transfer Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/UploadPartsRefreshRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/UploadPartsRefreshResponse"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Upload state conflict: the transfer is already `ready` (`transfer_already_ready`, uploads are never replaceable), the multipart `upload_id` is unknown for this transfer (`unknown_upload_id` \u2014 discard local upload state and start over with `upload/initiate`), or the resumed part size differs from the server constant (`part_size_mismatch`).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "transfer_already_ready"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Upload integrity or shape rejected, nothing marked ready: small uploads require `content_md5` at initiate (`missing_content_md5`); the completed size must equal the size declared at creation (`size_mismatch` / `object_not_found`); on the single-upload path the stored bytes are re-verified against the presigned checksum (`content_md5_mismatch`). Part numbers outside the multipart bounds fail as `invalid_part_number`.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "missing_content_md5"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/transfers/{transfer_id}/upload/complete": {
+   "post": {
+    "tags": [
+     "transfers"
+    ],
+    "summary": "Complete Upload",
+    "description": "Finish the upload and mark the transfer `ready`. The declared size must equal the size given at creation (the value quota was checked against), and on the single-upload path the stored bytes are re-verified against the presigned checksum \u2014 any divergence fails instead of silently marking ready. Only the sender (or a privileged role) may complete.",
+    "operationId": "complete_upload_api_v1_transfers__transfer_id__upload_complete_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "transfer_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Transfer Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/UploadCompleteRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Transfer"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Upload integrity or shape rejected, nothing marked ready: small uploads require `content_md5` at initiate (`missing_content_md5`); the completed size must equal the size declared at creation (`size_mismatch` / `object_not_found`); on the single-upload path the stored bytes are re-verified against the presigned checksum (`content_md5_mismatch`). Part numbers outside the multipart bounds fail as `invalid_part_number`.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "missing_content_md5"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/transfers/{transfer_id}/download-url": {
+   "post": {
+    "tags": [
+     "transfers"
+    ],
+    "summary": "Get Download Url",
+    "description": "Get a short-lived presigned download URL (minutes, never the file bytes). Only the sender, the recipient, broadcast recipients, or a privileged role may obtain it. Downloads support HTTP `Range`, so a partial download resumes where it stopped.",
+    "operationId": "get_download_url_api_v1_transfers__transfer_id__download_url_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "transfer_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Transfer Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/DownloadUrlResponse"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/machines": {
+   "post": {
+    "tags": [
+     "machines"
+    ],
+    "summary": "Create Machine",
+    "description": "Provision a new machine credential. Requires the admin role. The credential is returned in clear text exactly once \u2014 store it immediately, it is never readable again. Deliberately not replayable: no `Idempotency-Key` (a replayable credential creation would persist the secret). The very first machine is created out of band, never through this endpoint.",
+    "operationId": "create_machine_api_v1_machines_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/MachineCreate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MachineCreated"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ]
+   }
+  },
+  "/api/v1/machines/{machine_id}/revoke": {
+   "post": {
+    "tags": [
+     "machines"
+    ],
+    "summary": "Revoke Machine",
+    "description": "Revoke a machine credential immediately. Requires the admin role. Revocation takes effect on the next request \u2014 there is no grace period and no rotation to manage.",
+    "operationId": "revoke_machine_api_v1_machines__machine_id__revoke_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "machine_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Machine Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Machine"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/users": {
+   "post": {
+    "tags": [
+     "users"
+    ],
+    "summary": "Create User",
+    "description": "Provision a new user with a role (`admin`, `developer`, `agent`, or `readonly` \u2014 the role alone decides what the user's machines may do). Requires the admin role. Emails are unique: reusing one fails with 409. Deliberately not replayable: no `Idempotency-Key`. The very first (admin) user is created out of band, never through this endpoint.",
+    "operationId": "create_user_api_v1_users_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/UserCreate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/User"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ]
+   }
+  }
+ },
+ "components": {
+  "schemas": {
+   "AIWorkLog": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "agent_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Agent Id"
+     },
+     "machine_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Machine Id"
+     },
+     "summary": {
+      "type": "string",
+      "title": "Summary"
+     },
+     "status": {
+      "$ref": "#/components/schemas/AIWorkStatus",
+      "default": "started"
+     },
+     "changed_files": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Changed Files",
+      "default": []
+     },
+     "tests_run": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Tests Run",
+      "default": []
+     },
+     "started_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Started At"
+     },
+     "ended_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ended At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "project_id",
+     "agent_id",
+     "summary",
+     "started_at"
+    ],
+    "title": "AIWorkLog"
+   },
+   "AIWorkLogCreate": {
+    "properties": {
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "agent_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Agent Id"
+     },
+     "machine_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Machine Id"
+     },
+     "summary": {
+      "type": "string",
+      "title": "Summary"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id",
+     "agent_id",
+     "summary"
+    ],
+    "title": "AIWorkLogCreate"
+   },
+   "AIWorkLogUpdate": {
+    "properties": {
+     "summary": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Summary"
+     },
+     "status": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/AIWorkStatus"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "changed_files": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Changed Files"
+     },
+     "tests_run": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Tests Run"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "AIWorkLogUpdate"
+   },
+   "AIWorkStatus": {
+    "type": "string",
+    "enum": [
+     "started",
+     "completed",
+     "failed",
+     "review_requested",
+     "approved",
+     "changes_requested"
+    ],
+    "title": "AIWorkStatus",
+    "description": "Work entry lifecycle. `approved` and `changes_requested` are the only\nvalid exits from `review_requested`, and only a privileged role may set\nthem \u2014 never the owning agent or machine (nobody approves their own\nwork)."
+   },
+   "Agent": {
+    "properties": {
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "machine_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Machine Id"
+     },
+     "display_name": {
+      "type": "string",
+      "title": "Display Name"
+     },
+     "agent_kind": {
+      "type": "string",
+      "title": "Agent Kind"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "created_at",
+     "updated_at",
+     "version",
+     "id",
+     "display_name",
+     "agent_kind"
+    ],
+    "title": "Agent",
+    "description": "Provenance identity attached to one machine: who did the work, for\naudit and attribution. Never an authorization input \u2014 permissions come\nfrom the machine owner's role alone."
+   },
+   "AgentCreate": {
+    "properties": {
+     "display_name": {
+      "type": "string",
+      "title": "Display Name"
+     },
+     "agent_kind": {
+      "type": "string",
+      "title": "Agent Kind",
+      "default": ""
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "display_name"
+    ],
+    "title": "AgentCreate",
+    "description": "Public registration of a provenance identity: `machine_id` is always\nderived from the authenticated machine, never client-supplied.\n`display_name` and `agent_kind` are free-form metadata \u2014 never\nauthorization inputs, never the canonical identity (the\nserver-generated `Agent.id` is)."
+   },
+   "ClaimStatus": {
+    "type": "string",
+    "enum": [
+     "active",
+     "released",
+     "expired"
+    ],
+    "title": "ClaimStatus",
+    "description": "A claim past `expires_at` is not active regardless of stored status.\nA claim is a soft lock: it warns, it never blocks a Git operation or a\nfile write."
+   },
+   "Decision": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "readable_id": {
+      "type": "string",
+      "title": "Readable Id"
+     },
+     "project_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Project Id"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "body": {
+      "type": "string",
+      "title": "Body"
+     },
+     "status": {
+      "$ref": "#/components/schemas/DecisionStatus",
+      "default": "proposed"
+     },
+     "proposed_by_type": {
+      "type": "string",
+      "title": "Proposed By Type"
+     },
+     "proposed_by_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Proposed By Id"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "readable_id",
+     "title",
+     "body",
+     "proposed_by_type",
+     "proposed_by_id",
+     "created_at"
+    ],
+    "title": "Decision",
+    "description": "A recorded project decision with a stable human-readable id\n(`readable_id`, e.g. DEC-XXXX) alongside its internal UUID."
+   },
+   "DecisionCreate": {
+    "properties": {
+     "project_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Project Id"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "body": {
+      "type": "string",
+      "title": "Body"
+     },
+     "proposed_by_type": {
+      "type": "string",
+      "title": "Proposed By Type"
+     },
+     "proposed_by_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Proposed By Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "title",
+     "body",
+     "proposed_by_type",
+     "proposed_by_id"
+    ],
+    "title": "DecisionCreate"
+   },
+   "DecisionStatus": {
+    "type": "string",
+    "enum": [
+     "proposed",
+     "accepted",
+     "superseded"
+    ],
+    "title": "DecisionStatus"
+   },
+   "DownloadUrlResponse": {
+    "properties": {
+     "transfer_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Transfer Id"
+     },
+     "download_url": {
+      "type": "string",
+      "title": "Download Url"
+     },
+     "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Expires At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "transfer_id",
+     "download_url",
+     "expires_at"
+    ],
+    "title": "DownloadUrlResponse"
+   },
+   "EventCreate": {
+    "properties": {
+     "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Event Id"
+     },
+     "event_type": {
+      "$ref": "#/components/schemas/EventType"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "machine_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Machine Id"
+     },
+     "actor_type": {
+      "type": "string",
+      "enum": [
+       "user",
+       "agent",
+       "system"
+      ],
+      "title": "Actor Type"
+     },
+     "actor_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Actor Id"
+     },
+     "client_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Client Timestamp"
+     },
+     "payload": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Payload",
+      "default": {}
+     },
+     "schema_version": {
+      "type": "integer",
+      "title": "Schema Version",
+      "default": 1
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "event_id",
+     "event_type",
+     "project_id",
+     "actor_type",
+     "actor_id",
+     "client_timestamp"
+    ],
+    "title": "EventCreate",
+    "description": "POST /events request body. `event_id` is client-generated and stable\nacross retries \u2014 it IS the idempotency key for events: replaying the\nsame event_id returns the original stored event rather than creating a\nduplicate."
+   },
+   "EventEnvelope": {
+    "properties": {
+     "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Event Id"
+     },
+     "event_type": {
+      "$ref": "#/components/schemas/EventType"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "machine_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Machine Id"
+     },
+     "actor_type": {
+      "type": "string",
+      "enum": [
+       "user",
+       "agent",
+       "system"
+      ],
+      "title": "Actor Type"
+     },
+     "actor_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Actor Id"
+     },
+     "client_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Client Timestamp"
+     },
+     "server_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Server Timestamp"
+     },
+     "payload": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Payload",
+      "default": {}
+     },
+     "schema_version": {
+      "type": "integer",
+      "title": "Schema Version",
+      "default": 1
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "event_id",
+     "event_type",
+     "project_id",
+     "actor_type",
+     "actor_id",
+     "client_timestamp",
+     "server_timestamp"
+    ],
+    "title": "EventEnvelope",
+    "description": "Fixed envelope \u2014 only `payload` grows across `schema_version` bumps;\nevery other field keeps its shape. Unknown event types or extra payload\nfields must be tolerated, never rejected."
+   },
+   "EventType": {
+    "type": "string",
+    "enum": [
+     "project.created",
+     "task.created",
+     "task.started",
+     "task.updated",
+     "task.blocked",
+     "task.completed",
+     "session.started",
+     "session.ended",
+     "resource.claimed",
+     "resource.renewed",
+     "resource.released",
+     "resource.conflict",
+     "decision.proposed",
+     "decision.created",
+     "agent.started",
+     "agent.stopped",
+     "ai_work.started",
+     "ai_work.completed",
+     "ai_work.failed",
+     "ai_work.review_requested",
+     "ai_work.approved",
+     "ai_work.changes_requested",
+     "git.commit",
+     "git.branch.changed",
+     "git.pr.opened",
+     "git.pr.merged",
+     "graph.updated",
+     "memory.proposed",
+     "memory.updated",
+     "godot.started",
+     "godot.stopped",
+     "recording.started",
+     "recording.finished",
+     "recording.marker.created",
+     "build.started",
+     "build.succeeded",
+     "build.failed",
+     "transfer.created",
+     "transfer.uploading",
+     "transfer.ready",
+     "transfer.downloaded",
+     "transfer.expired",
+     "transfer.deleted",
+     "marketing.candidate.created",
+     "marketing.post.published"
+    ],
+    "title": "EventType",
+    "description": "Fixed dotted names (`domain.verb`: task.created, session.ended, ...).\nAdditive-only: new members may appear, existing ones are never renamed\nor removed \u2014 readers should tolerate unknown types."
+   },
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
+      },
+      "type": "array",
+      "title": "Detail"
+     }
+    },
+    "type": "object",
+    "title": "HTTPValidationError"
+   },
+   "HeartbeatRequest": {
+    "properties": {
+     "machine_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Machine Id"
+     },
+     "agent_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Agent Id"
+     },
+     "client_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Client Timestamp"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "machine_id",
+     "client_timestamp"
+    ],
+    "title": "HeartbeatRequest"
+   },
+   "HeartbeatResponse": {
+    "properties": {
+     "machine_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Machine Id"
+     },
+     "status": {
+      "$ref": "#/components/schemas/MachineStatus"
+     },
+     "last_seen_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Seen At"
+     },
+     "server_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Server Timestamp"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "machine_id",
+     "status",
+     "last_seen_at",
+     "server_timestamp"
+    ],
+    "title": "HeartbeatResponse"
+   },
+   "Machine": {
+    "properties": {
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "owner_user_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Owner User Id"
+     },
+     "display_name": {
+      "type": "string",
+      "title": "Display Name"
+     },
+     "last_seen_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Seen At"
+     },
+     "status": {
+      "$ref": "#/components/schemas/MachineStatus",
+      "default": "offline"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "created_at",
+     "updated_at",
+     "version",
+     "id",
+     "owner_user_id",
+     "display_name"
+    ],
+    "title": "Machine",
+    "description": "A machine owns its own revocable credential: an opaque token whose\nhash alone is stored server-side, so a leaked database never leaks\naccess."
+   },
+   "MachineCreate": {
+    "properties": {
+     "owner_user_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Owner User Id"
+     },
+     "display_name": {
+      "type": "string",
+      "title": "Display Name"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "owner_user_id",
+     "display_name"
+    ],
+    "title": "MachineCreate"
+   },
+   "MachineCreated": {
+    "properties": {
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "owner_user_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Owner User Id"
+     },
+     "display_name": {
+      "type": "string",
+      "title": "Display Name"
+     },
+     "last_seen_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Seen At"
+     },
+     "status": {
+      "$ref": "#/components/schemas/MachineStatus",
+      "default": "offline"
+     },
+     "credential": {
+      "type": "string",
+      "title": "Credential"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "created_at",
+     "updated_at",
+     "version",
+     "id",
+     "owner_user_id",
+     "display_name",
+     "credential"
+    ],
+    "title": "MachineCreated",
+    "description": "Returned once, at creation time: the opaque credential in clear text.\nNever retrievable again afterwards \u2014 only its hash is stored."
+   },
+   "MachineStatus": {
+    "type": "string",
+    "enum": [
+     "online",
+     "idle",
+     "offline"
+    ],
+    "title": "MachineStatus"
+   },
+   "Project": {
+    "properties": {
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "slug": {
+      "type": "string",
+      "title": "Slug"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "archived": {
+      "type": "boolean",
+      "title": "Archived",
+      "default": false
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "created_at",
+     "updated_at",
+     "version",
+     "id",
+     "slug",
+     "name"
+    ],
+    "title": "Project"
+   },
+   "ProjectCreate": {
+    "properties": {
+     "slug": {
+      "type": "string",
+      "title": "Slug"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "slug",
+     "name"
+    ],
+    "title": "ProjectCreate"
+   },
+   "ProjectState": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "active_tasks": {
+      "items": {
+       "$ref": "#/components/schemas/Task"
+      },
+      "type": "array",
+      "title": "Active Tasks"
+     },
+     "active_claims": {
+      "items": {
+       "$ref": "#/components/schemas/ResourceClaim"
+      },
+      "type": "array",
+      "title": "Active Claims"
+     },
+     "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Generated At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id",
+     "active_tasks",
+     "active_claims",
+     "generated_at"
+    ],
+    "title": "ProjectState",
+    "description": "GET /projects/{id}/state \u2014 the aggregate view a client bootstraps from."
+   },
+   "ResourceClaim": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "resource_path": {
+      "type": "string",
+      "title": "Resource Path"
+     },
+     "resource_type": {
+      "$ref": "#/components/schemas/ResourceType"
+     },
+     "claimed_by_machine_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Claimed By Machine Id"
+     },
+     "claimed_by_agent_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Claimed By Agent Id"
+     },
+     "status": {
+      "$ref": "#/components/schemas/ClaimStatus",
+      "default": "active"
+     },
+     "ttl_seconds": {
+      "type": "integer",
+      "title": "Ttl Seconds"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "renewed_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Renewed At"
+     },
+     "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Expires At"
+     },
+     "released_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Released At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "project_id",
+     "resource_path",
+     "resource_type",
+     "claimed_by_machine_id",
+     "ttl_seconds",
+     "created_at",
+     "expires_at"
+    ],
+    "title": "ResourceClaim"
+   },
+   "ResourceClaimCreate": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "resource_path": {
+      "type": "string",
+      "title": "Resource Path"
+     },
+     "resource_type": {
+      "$ref": "#/components/schemas/ResourceType"
+     },
+     "ttl_seconds": {
+      "type": "integer",
+      "title": "Ttl Seconds"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id",
+     "resource_path",
+     "resource_type",
+     "ttl_seconds"
+    ],
+    "title": "ResourceClaimCreate"
+   },
+   "ResourceType": {
+    "type": "string",
+    "enum": [
+     "file",
+     "folder"
+    ],
+    "title": "ResourceType"
+   },
+   "Role": {
+    "type": "string",
+    "enum": [
+     "admin",
+     "developer",
+     "agent",
+     "readonly"
+    ],
+    "title": "Role",
+    "description": "Account roles, weakest to strongest: `readonly` (reads plus heartbeat\nonly, no business writes); `agent` (writes, but never project, machine\nor user provisioning); `developer` (writes, plus project creation);\n`admin` (everything, including machine/user provisioning and work\nreview resolution). The role always belongs to the machine owner's\nuser, never to a harness, provider, model or profile."
+   },
+   "Task": {
+    "properties": {
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "readable_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Readable Id"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "status": {
+      "$ref": "#/components/schemas/TaskStatus",
+      "default": "created"
+     },
+     "claimed_by_machine_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Claimed By Machine Id"
+     },
+     "claimed_by_agent_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Claimed By Agent Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "created_at",
+     "updated_at",
+     "version",
+     "id",
+     "project_id",
+     "title"
+    ],
+    "title": "Task"
+   },
+   "TaskCreate": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id",
+     "title"
+    ],
+    "title": "TaskCreate"
+   },
+   "TaskStatus": {
+    "type": "string",
+    "enum": [
+     "created",
+     "in_progress",
+     "blocked",
+     "completed"
+    ],
+    "title": "TaskStatus",
+    "description": "Task lifecycle. Claiming a task moves it to `in_progress`; releasing\nclears the holder without changing the status."
+   },
+   "TaskUpdate": {
+    "properties": {
+     "title": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Title"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "status": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/TaskStatus"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "TaskUpdate"
+   },
+   "Transfer": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "transfer_code": {
+      "type": "string",
+      "title": "Transfer Code"
+     },
+     "sender_user_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Sender User Id"
+     },
+     "recipient_user_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Recipient User Id"
+     },
+     "project_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Project Id"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "category": {
+      "$ref": "#/components/schemas/TransferCategory"
+     },
+     "filename": {
+      "type": "string",
+      "title": "Filename"
+     },
+     "object_key": {
+      "type": "string",
+      "title": "Object Key"
+     },
+     "content_type": {
+      "type": "string",
+      "title": "Content Type"
+     },
+     "size_bytes": {
+      "type": "integer",
+      "title": "Size Bytes"
+     },
+     "sha256": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Sha256"
+     },
+     "content_md5": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Content Md5"
+     },
+     "status": {
+      "$ref": "#/components/schemas/TransferStatus",
+      "default": "created"
+     },
+     "expires_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expires At"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "uploaded_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Uploaded At"
+     },
+     "downloaded_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Downloaded At"
+     },
+     "deleted_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Deleted At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "transfer_code",
+     "sender_user_id",
+     "category",
+     "filename",
+     "object_key",
+     "content_type",
+     "size_bytes",
+     "created_at"
+    ],
+    "title": "Transfer",
+    "description": "Complete transfer record. Every field is part of the stable shape \u2014\nreaders should ignore unknown future fields rather than reject them."
+   },
+   "TransferCategory": {
+    "type": "string",
+    "enum": [
+     "temporary",
+     "build",
+     "asset",
+     "raw_recording"
+    ],
+    "title": "TransferCategory",
+    "description": "Retention classes: `temporary` (short-lived sharing), `build`\n(retained longer), `asset` (manual/long retention), `raw_recording`\n(local by default, not auto-uploaded)."
+   },
+   "TransferConsumption": {
+    "properties": {
+     "project_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Project Id"
+     },
+     "consumed_bytes": {
+      "type": "integer",
+      "title": "Consumed Bytes"
+     },
+     "quota_bytes": {
+      "type": "integer",
+      "title": "Quota Bytes"
+     },
+     "remaining_bytes": {
+      "type": "integer",
+      "title": "Remaining Bytes"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "consumed_bytes",
+     "quota_bytes",
+     "remaining_bytes"
+    ],
+    "title": "TransferConsumption"
+   },
+   "TransferCreate": {
+    "properties": {
+     "recipient_user_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Recipient User Id"
+     },
+     "project_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Project Id"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "category": {
+      "$ref": "#/components/schemas/TransferCategory"
+     },
+     "filename": {
+      "type": "string",
+      "title": "Filename"
+     },
+     "content_type": {
+      "type": "string",
+      "title": "Content Type"
+     },
+     "size_bytes": {
+      "type": "integer",
+      "title": "Size Bytes"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "category",
+     "filename",
+     "content_type",
+     "size_bytes"
+    ],
+    "title": "TransferCreate"
+   },
+   "TransferStatus": {
+    "type": "string",
+    "enum": [
+     "created",
+     "uploading",
+     "ready",
+     "downloaded",
+     "expired",
+     "deleted"
+    ],
+    "title": "TransferStatus",
+    "description": "Transfer lifecycle, from declaration (`created`) to removal (`deleted`)."
+   },
+   "UploadCompleteRequest": {
+    "properties": {
+     "size_bytes": {
+      "type": "integer",
+      "title": "Size Bytes"
+     },
+     "sha256": {
+      "type": "string",
+      "title": "Sha256"
+     },
+     "upload_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Upload Id"
+     },
+     "parts": {
+      "anyOf": [
+       {
+        "additionalProperties": {
+         "type": "string"
+        },
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Parts"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "size_bytes",
+     "sha256"
+    ],
+    "title": "UploadCompleteRequest",
+    "description": "Multipart parts/upload_id are tracked client-side and handed back\nhere \u2014 the server never persists multipart-in-progress state.\n\n`size_bytes` must match the `Transfer.size_bytes` declared at creation\n(the value quota enforcement was computed against) and the real object\nsize in storage \u2014 a client cannot inflate the stored size past\ncreation-time quota checks by declaring a small size then completing\nwith a larger one. `sha256` is recorded as reported by the client: for\nthe single-upload path it is corroborated by the server-verified\n`content_md5`; for multipart it remains an unverified client claim."
+   },
+   "UploadInitiateRequest": {
+    "properties": {
+     "content_md5": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Content Md5"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "UploadInitiateRequest",
+    "description": "`content_md5` (base64-encoded MD5 of the whole file) is required for\nthe single-upload path: the server embeds it in the presigned URL, so\nobject storage itself rejects any byte mismatch at upload time \u2014 no\nbytes ever flow through the API process. Not used for the multipart\npath, where per-part integrity is enforced by storage's own part\nmatching instead."
+   },
+   "UploadInitiateResponse": {
+    "properties": {
+     "transfer_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Transfer Id"
+     },
+     "multipart": {
+      "type": "boolean",
+      "title": "Multipart"
+     },
+     "upload_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Upload Url"
+     },
+     "upload_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Upload Id"
+     },
+     "part_urls": {
+      "anyOf": [
+       {
+        "additionalProperties": {
+         "type": "string"
+        },
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Part Urls"
+     },
+     "part_size_bytes": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Part Size Bytes"
+     },
+     "part_urls_expires_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Part Urls Expires At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "transfer_id",
+     "multipart"
+    ],
+    "title": "UploadInitiateResponse",
+    "description": "Small file: a single pre-signed PUT. Large file: multipart parts, each\nwith its own pre-signed URL. `part_urls_expires_at` (multipart only)\nlets the client refresh proactively before the URLs actually expire\nrather than only reacting to a 403 from storage."
+   },
+   "UploadPartsRefreshRequest": {
+    "properties": {
+     "upload_id": {
+      "type": "string",
+      "title": "Upload Id"
+     },
+     "part_size_bytes": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Part Size Bytes"
+     },
+     "part_numbers": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "integer"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Part Numbers"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "upload_id"
+    ],
+    "title": "UploadPartsRefreshRequest",
+    "description": "Re-presign the still-missing parts of an in-progress multipart upload\nwhose cached URLs have expired \u2014 never re-presigns a part storage\nalready accepted. `part_size_bytes`, if given, must match the value\nfrom the original `initiate` response (`409 part_size_mismatch`\notherwise, guarding against a stale client resuming under a changed\nserver constant). `part_numbers`, if omitted, means \"every part not yet\nconfirmed by storage\"."
+   },
+   "UploadPartsRefreshResponse": {
+    "properties": {
+     "transfer_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Transfer Id"
+     },
+     "upload_id": {
+      "type": "string",
+      "title": "Upload Id"
+     },
+     "part_size_bytes": {
+      "type": "integer",
+      "title": "Part Size Bytes"
+     },
+     "part_urls": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "type": "object",
+      "title": "Part Urls"
+     },
+     "uploaded_parts": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "type": "object",
+      "title": "Uploaded Parts"
+     },
+     "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Expires At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "transfer_id",
+     "upload_id",
+     "part_size_bytes",
+     "part_urls",
+     "uploaded_parts",
+     "expires_at"
+    ],
+    "title": "UploadPartsRefreshResponse",
+    "description": "`uploaded_parts` is storage's own record (`ListParts`), the\nauthoritative source of which parts are actually durable \u2014 the client\nmust adopt it (a part PUT that succeeded but whose local SQLite write was\nlost is recovered here, not re-uploaded). `part_urls` carries only the\nparts still missing, never a part already in `uploaded_parts`."
+   },
+   "User": {
+    "properties": {
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "display_name": {
+      "type": "string",
+      "title": "Display Name"
+     },
+     "email": {
+      "type": "string",
+      "title": "Email"
+     },
+     "role": {
+      "$ref": "#/components/schemas/Role"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "created_at",
+     "updated_at",
+     "version",
+     "id",
+     "display_name",
+     "email",
+     "role"
+    ],
+    "title": "User"
+   },
+   "UserCreate": {
+    "properties": {
+     "display_name": {
+      "type": "string",
+      "title": "Display Name"
+     },
+     "email": {
+      "type": "string",
+      "title": "Email"
+     },
+     "role": {
+      "$ref": "#/components/schemas/Role",
+      "default": "developer"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "display_name",
+     "email"
+    ],
+    "title": "UserCreate",
+    "description": "Admin-only, non-replayable \u2014 no `Idempotency-Key` support, unlike\ntask/claim/decision/transfer/project creation (a replayable user\ncreation would persist sensitive material)."
+   },
+   "ValidationError": {
+    "properties": {
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        }
+       ]
+      },
+      "type": "array",
+      "title": "Location"
+     },
+     "msg": {
+      "type": "string",
+      "title": "Message"
+     },
+     "type": {
+      "type": "string",
+      "title": "Error Type"
+     },
+     "input": {
+      "title": "Input"
+     },
+     "ctx": {
+      "type": "object",
+      "title": "Context"
+     }
+    },
+    "type": "object",
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError"
+   },
+   "WorkSession": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "task_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Task Id"
+     },
+     "machine_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Machine Id"
+     },
+     "agent_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Agent Id"
+     },
+     "started_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Started At"
+     },
+     "ended_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ended At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "task_id",
+     "machine_id",
+     "started_at"
+    ],
+    "title": "WorkSession"
+   },
+   "WorkSessionCreate": {
+    "properties": {
+     "task_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Task Id"
+     },
+     "machine_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Machine Id"
+     },
+     "agent_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Agent Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "task_id",
+     "machine_id"
+    ],
+    "title": "WorkSessionCreate"
+   }
+  },
+  "securitySchemes": {
+   "MachineBearer": {
+    "type": "http",
+    "description": "Machine credential provisioned out of band. Send it as `Authorization: Bearer <machine-token>` on every request under `/api/v1`. The token is opaque: a missing, invalid or revoked credential returns 401. The only unauthenticated operation is `GET /healthz`.",
+    "scheme": "bearer"
+   }
+  }
+ },
+ "tags": [
+  {
+   "name": "health",
+   "description": "Unauthenticated liveness probe. The only operation that needs no credential."
+  },
+  {
+   "name": "projects",
+   "description": "Project registry. Creating a project requires a privileged role; reading is open to any authenticated machine."
+  },
+  {
+   "name": "tasks",
+   "description": "Work items with optimistic-concurrency updates and machine claims."
+  },
+  {
+   "name": "sessions",
+   "description": "Work sessions tying a machine to a task over a time span."
+  },
+  {
+   "name": "claims",
+   "description": "Soft locks on resource paths (files, folders). A claim warns other machines through a conflict event \u2014 it never blocks a write, a Git operation, or a transfer."
+  },
+  {
+   "name": "decisions",
+   "description": "Recorded project decisions with stable human-readable ids."
+  },
+  {
+   "name": "agents",
+   "description": "Provenance identities attached to the caller's own authenticated machine. Registering an agent grants no permission and requires no prior knowledge: any writer may materialize its own identity here. Needed only to attribute AI work logs."
+  },
+  {
+   "name": "ai-work",
+   "description": "AI work ledger. Entries reference an agent attached to the caller's own machine; foreign or unknown agents are rejected. Review transitions to approved/rejected require a privileged role."
+  },
+  {
+   "name": "heartbeats",
+   "description": "Machine presence. Any authenticated machine \u2014 including read-only ones \u2014 may heartbeat; status is derived server-side."
+  },
+  {
+   "name": "events",
+   "description": "Project activity feed. Every event carries a stable client-generated `event_id` (replay the same id, get the stored event, never a duplicate). Read history with `GET /events?since=` or subscribe live with `GET /events/stream` (Server-Sent Events, resumable). Identity fields are validated against the authenticated machine."
+  },
+  {
+   "name": "transfers",
+   "description": "File transfer coordination: metadata and short-lived signed URLs only, never file bytes. The client uploads and downloads directly to object storage with the returned URLs."
+  },
+  {
+   "name": "machines",
+   "description": "Machine provisioning (privileged role). The very first machine is created out of band."
+  },
+  {
+   "name": "users",
+   "description": "User provisioning (privileged role). The very first user is created out of band."
+  }
+ ]
+}
