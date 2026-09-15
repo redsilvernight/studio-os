@@ -15,6 +15,7 @@ from studio_mcp.tools.claims import (
 from studio_mcp.tools.decisions import studio_add_decision, studio_get_decisions
 from studio_mcp.tools.events import studio_emit_event, studio_get_recent_changes
 from studio_mcp.tools.projects import studio_get_project_state, studio_get_projects
+from studio_mcp.tools.review_queue import studio_get_review_queue
 from studio_mcp.tools.sessions import studio_end_session, studio_get_sessions, studio_start_session
 from studio_mcp.tools.tasks import (
     studio_claim_task,
@@ -25,6 +26,7 @@ from studio_mcp.tools.tasks import (
     studio_update_task,
 )
 from studio_mcp.tools.teammates import studio_get_teammate_activity
+from studio_mcp.tools.timeline import studio_get_timeline
 from studio_mcp.tools.transfers import (
     studio_create_transfer_metadata,
     studio_get_transfer,
@@ -231,6 +233,31 @@ def create_server() -> MCPServer:
         description=(
             "List AI work ledger entries, optionally filtered by project_id/task_id (UUID "
             "strings) — read-only."
+        ),
+        annotations=_READ_ONLY,
+    )
+    server.add_tool(
+        studio_get_review_queue,
+        name="studio_get_review_queue",
+        description=(
+            "Aggregated view of everything waiting on a human decision: AI work in "
+            "review_requested (resolve via studio_log_ai_work), decisions still proposed "
+            "(informational — no transition tool exists for decisions), and recent "
+            "resource.conflict events within conflict_window_hours (default 24, best-effort "
+            "and time-windowed — no persisted conflict state exists). Also serves as the "
+            "notifications surface (DEC-0051) — there is no separate notifications tool. "
+            "Read-only."
+        ),
+        annotations=_READ_ONLY,
+    )
+    server.add_tool(
+        studio_get_timeline,
+        name="studio_get_timeline",
+        description=(
+            "Day-grouped project activity (project_id UUID string, newest day first), "
+            "unfiltered — full history, not an actionable signal (use "
+            "studio_get_review_queue for what needs action). Optional since (ISO-8601 "
+            "timestamp) and limit. Read-only."
         ),
         annotations=_READ_ONLY,
     )

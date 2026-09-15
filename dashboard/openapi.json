@@ -2060,6 +2060,170 @@
     }
    }
   },
+  "/api/v1/review-queue": {
+   "get": {
+    "tags": [
+     "review-queue"
+    ],
+    "summary": "Get Review Queue",
+    "description": "Aggregated view of everything waiting on a human decision: AI work in `review_requested` (resolve via `PATCH /ai-work/{id}`), decisions still `proposed` (informational \u2014 no transition endpoint exists for decisions), and recent `resource.conflict` events within `conflict_window_hours` (best-effort and time-windowed: no persisted conflict state exists, an old unaddressed conflict silently ages out of the window). Also serves as the notifications surface (DEC-0051) \u2014 there is no separate notifications endpoint. Any authenticated machine may read.",
+    "operationId": "get_review_queue_api_v1_review_queue_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Project Id"
+      }
+     },
+     {
+      "name": "conflict_window_hours",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 168,
+       "default": 24,
+       "title": "Conflict Window Hours"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ReviewQueue"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/timeline": {
+   "get": {
+    "tags": [
+     "timeline"
+    ],
+    "summary": "Get Timeline",
+    "description": "Day-grouped project activity (newest day first), unfiltered \u2014 the full history, not an actionable signal (see GET /review-queue for that). Inherits GET /events's 'not claimed exhaustive' honesty: several event types have no server-side emission yet (question ouverte n\u00b09, ROADMAP_STEP8_BREAKDOWN.md). Any authenticated machine may read.",
+    "operationId": "get_timeline_api_v1_timeline_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Project Id"
+      }
+     },
+     {
+      "name": "since",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "date-time"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Since"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 500,
+       "default": 200,
+       "title": "Limit"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Timeline"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked machine credential. Send `Authorization: Bearer <machine-token>`; provision the token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/heartbeats": {
    "post": {
     "tags": [
@@ -4677,6 +4841,226 @@
     ],
     "title": "ResourceType"
    },
+   "ReviewQueue": {
+    "properties": {
+     "items": {
+      "items": {
+       "oneOf": [
+        {
+         "$ref": "#/components/schemas/ReviewQueueAIWorkItem"
+        },
+        {
+         "$ref": "#/components/schemas/ReviewQueueDecisionItem"
+        },
+        {
+         "$ref": "#/components/schemas/ReviewQueueConflictItem"
+        }
+       ],
+       "discriminator": {
+        "propertyName": "kind",
+        "mapping": {
+         "ai_work_review": "#/components/schemas/ReviewQueueAIWorkItem",
+         "decision_proposal": "#/components/schemas/ReviewQueueDecisionItem",
+         "resource_conflict": "#/components/schemas/ReviewQueueConflictItem"
+        }
+       }
+      },
+      "type": "array",
+      "title": "Items"
+     },
+     "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Generated At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "items",
+     "generated_at"
+    ],
+    "title": "ReviewQueue",
+    "description": "Items sorted by `requested_at` descending (newest first)."
+   },
+   "ReviewQueueAIWorkItem": {
+    "properties": {
+     "kind": {
+      "type": "string",
+      "const": "ai_work_review",
+      "title": "Kind",
+      "default": "ai_work_review"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "agent_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Agent Id"
+     },
+     "requested_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Requested At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "project_id",
+     "title",
+     "agent_id",
+     "requested_at"
+    ],
+    "title": "ReviewQueueAIWorkItem"
+   },
+   "ReviewQueueConflictItem": {
+    "properties": {
+     "kind": {
+      "type": "string",
+      "const": "resource_conflict",
+      "title": "Kind",
+      "default": "resource_conflict"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "resource_path": {
+      "type": "string",
+      "title": "Resource Path"
+     },
+     "requested_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Requested At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "project_id",
+     "title",
+     "resource_path",
+     "requested_at"
+    ],
+    "title": "ReviewQueueConflictItem",
+    "description": "`id` is the `resource.conflict` event's `event_id` \u2014 not a persisted\nconflict row (none exists, DEC-0049): a best-effort, time-windowed\nsignal, not a resolvable state."
+   },
+   "ReviewQueueDecisionItem": {
+    "properties": {
+     "kind": {
+      "type": "string",
+      "const": "decision_proposal",
+      "title": "Kind",
+      "default": "decision_proposal"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "project_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Project Id"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "readable_id": {
+      "type": "string",
+      "title": "Readable Id"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "proposed_by_type": {
+      "type": "string",
+      "title": "Proposed By Type"
+     },
+     "requested_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Requested At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "readable_id",
+     "title",
+     "proposed_by_type",
+     "requested_at"
+    ],
+    "title": "ReviewQueueDecisionItem"
+   },
    "Role": {
     "type": "string",
     "enum": [
@@ -4861,6 +5245,53 @@
     "additionalProperties": false,
     "type": "object",
     "title": "TaskUpdate"
+   },
+   "Timeline": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "days": {
+      "items": {
+       "$ref": "#/components/schemas/TimelineDay"
+      },
+      "type": "array",
+      "title": "Days"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id",
+     "days"
+    ],
+    "title": "Timeline",
+    "description": "Day-grouped project activity (newest day first, events ascending\nwithin a day) \u2014 unfiltered, unlike the Review Queue (DEC-0049): this is\nhistory, not an actionable signal. Inherits `GET /events`'s \"not claimed\nexhaustive\" honesty (DEC-0051) since it reads the same underlying data."
+   },
+   "TimelineDay": {
+    "properties": {
+     "date": {
+      "type": "string",
+      "format": "date",
+      "title": "Date"
+     },
+     "events": {
+      "items": {
+       "$ref": "#/components/schemas/EventEnvelope"
+      },
+      "type": "array",
+      "title": "Events"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "date",
+     "events"
+    ],
+    "title": "TimelineDay"
    },
    "Transfer": {
     "properties": {
@@ -5626,6 +6057,14 @@
   {
    "name": "ai-work",
    "description": "AI work ledger. Entries reference an agent attached to the caller's own machine; foreign or unknown agents are rejected. Review transitions to approved/rejected require a privileged role."
+  },
+  {
+   "name": "review-queue",
+   "description": "Aggregated view of AI work reviews, proposed decisions, and recent resource conflicts awaiting a human decision. Read-only; also serves as the notifications surface (DEC-0051)."
+  },
+  {
+   "name": "timeline",
+   "description": "Day-grouped project activity derived from the event stream. Read-only, unfiltered history \u2014 see review-queue for what needs action."
   },
   {
    "name": "heartbeats",

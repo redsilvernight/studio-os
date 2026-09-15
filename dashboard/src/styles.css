@@ -88,6 +88,16 @@ a.nav-item:hover { color: var(--text); }
 
 main { padding-top: 12px; display: grid; gap: 12px; }
 
+.conflict-banner {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--warn);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--warn) 15%, var(--panel));
+  color: var(--text);
+  font-size: 13px;
+}
+
 .health {
   display: flex;
   align-items: center;

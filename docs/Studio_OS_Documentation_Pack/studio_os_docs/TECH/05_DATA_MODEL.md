@@ -7,8 +7,17 @@ Statut : les entites Phase 1 ci-dessous (User, Machine, Agent, Project, Task,
 WorkSession, ResourceClaim, Decision, AIWorkLog, Event, Transfer) ont un
 schema de champs figé, implemente dans `packages/studio-contracts` (Pydantic,
 source d'enforcement) et `services/api/.../db/models` (SQLAlchemy). Le reste
-(MachineProjectConfig, Notification, Build, Recording, RecordingMarker,
-MarketingCandidate) reste a specifier en Phase 4-6, pas encore code.
+(MachineProjectConfig, Build, Recording, RecordingMarker, MarketingCandidate)
+reste a specifier en Phase 4-6, pas encore code.
+
+`Notification` (sortie de ce groupe par DEC-0051, sous-etape 8.5) :
+**delibrement non persistee**, pas seulement "pas encore codee" — dérivée de
+`GET /review-queue` (8.4, DEC-0049 : ce qui a besoin d'une action humaine
+maintenant) et `GET /timeline` (8.5 : historique groupe par jour). Une
+entite persistee avec etat lu/non-lu par utilisateur et dedup
+multi-machines reste differee, pas abandonnee, jusqu'a l'existence d'une
+vraie identite/session utilisateur (`TECH/04_AUTH_SYNC_CONTRACT.md` n'a
+aujourd'hui qu'une authentification machine — voir aussi DEC-0050).
 
 Toute addition de champ sur les entites deja figées est additive par defaut
 (nouveau champ optionnel) ; retirer/renommer un champ ou changer sa

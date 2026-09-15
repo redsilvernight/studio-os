@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-48 decision(s). Detail complet dans chaque ADR lie.
+51 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -70,3 +70,6 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0046 | HTTP canonical complet, MCP subset additif : surface parity non requise, enforcement parity requise | active | [decisions/DEC-0046-http-canonique-mcp-subset.md](decisions/DEC-0046-http-canonique-mcp-subset.md) |
 | DEC-0047 | UC-3 : Memory/Knowledge local-only, exposition read-only via MCP local (stdio), 3 outils | active | [decisions/DEC-0047-uc-3-memoire-locale-mcp-local-read-only.md](decisions/DEC-0047-uc-3-memoire-locale-mcp-local-read-only.md) |
 | DEC-0048 | CC-3 : evolution des contrats MCP par discovery + schemas, sans version par payload | active | [decisions/DEC-0048-evolution-contrats-mcp-sans-version-payload.md](decisions/DEC-0048-evolution-contrats-mcp-sans-version-payload.md) |
+| DEC-0049 | Sous-etape 8.4 (roadmap) : Review Queue agregee, aucune nouvelle table, revue limitee au travail IA | active | [decisions/DEC-0049-review-queue-agregation-sans-nouvelle-table.md](decisions/DEC-0049-review-queue-agregation-sans-nouvelle-table.md) |
+| DEC-0050 | Question ouverte n°3 (etape 8) : auth dashboard V0 ratifiee, token machine reutilise, aucune nouvelle mecanique | active | [decisions/DEC-0050-auth-dashboard-ratification-token-machine-v0.md](decisions/DEC-0050-auth-dashboard-ratification-token-machine-v0.md) |
+| DEC-0051 | Question ouverte n°4 (etape 8) : notifications derivees de la Review Queue, timeline sur les events, aucune entite Notification persistee | active | [decisions/DEC-0051-notifications-derivees-review-queue-timeline.md](decisions/DEC-0051-notifications-derivees-review-queue-timeline.md) |

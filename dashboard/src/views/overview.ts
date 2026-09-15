@@ -10,7 +10,8 @@
  *   most event types still require manual emission)
  * - GET /api/v1/agents               (presence below is Derived, never canonical:
  *   no HTTP read of heartbeats/machines exists yet)
- * - GET /api/v1/ai-work              (client filter status == review_requested, read-only)
+ * - GET /api/v1/review-queue         (DASH-3: AI work review_requested +
+ *   decisions proposed + recent resource.conflict, server-aggregated, read-only)
  * - GET /api/v1/transfers            (read-only)
  */
 import type { StudioClient } from "../api";
@@ -24,11 +25,11 @@ import type { components } from "../openapi-schema";
 type Project = components["schemas"]["Project"];
 type Task = components["schemas"]["Task"];
 type Agent = components["schemas"]["Agent"];
-type AIWorkLog = components["schemas"]["AIWorkLog"];
 type Transfer = components["schemas"]["Transfer"];
 type EventEnvelope = components["schemas"]["EventEnvelope"];
+type ReviewQueue = components["schemas"]["ReviewQueue"];
+type ReviewQueueItem = ReviewQueue["items"][number];
 
-export const REVIEW_STATUS = "review_requested";
 export const OVERVIEW_TASK_LIMIT = 100;
 export const OVERVIEW_EVENT_LIMIT = 100;
 export const OVERVIEW_TRANSFER_LIMIT = 10;
@@ -37,9 +38,23 @@ export function sinceIso24h(now: number = Date.now()): string {
   return new Date(now - 24 * 60 * 60 * 1000).toISOString();
 }
 
-/** Client-side read-only filters used by the Overview. */
-export function filterReviews(worklogs: AIWorkLog[]): AIWorkLog[] {
-  return worklogs.filter((w) => w.status === REVIEW_STATUS);
+const REVIEW_KIND_LABEL: Record<ReviewQueueItem["kind"], string> = {
+  ai_work_review: "AI work",
+  decision_proposal: "Decision",
+  resource_conflict: "Conflict",
+};
+
+/** Sub-title for a review-queue row: AI work → agent, decision → readable_id,
+ * conflict → resource path. */
+export function reviewQueueItemDetail(item: ReviewQueueItem): string {
+  switch (item.kind) {
+    case "ai_work_review":
+      return `agent ${shortId(item.agent_id)}`;
+    case "decision_proposal":
+      return item.readable_id;
+    case "resource_conflict":
+      return item.resource_path;
+  }
 }
 
 export function groupTasksByColumn(tasks: Task[]): Record<string, Task[]> {
@@ -89,7 +104,7 @@ export async function renderOverview(root: HTMLElement, ctx: OverviewContext): P
     root.innerHTML = sections.join("");
     return;
   }
-  const [projects, tasks, events, agents, worklogs, transfers] = await Promise.all([
+  const [projects, tasks, events, agents, transfers] = await Promise.all([
     settle(unwrap(ctx.client.GET("/api/v1/projects"))),
     settle(unwrap(ctx.client.GET("/api/v1/tasks", { params: { query: { limit: OVERVIEW_TASK_LIMIT, offset: 0 } } }))),
     settle(
@@ -100,7 +115,6 @@ export async function renderOverview(root: HTMLElement, ctx: OverviewContext): P
       ),
     ),
     settle(unwrap(ctx.client.GET("/api/v1/agents"))),
-    settle(unwrap(ctx.client.GET("/api/v1/ai-work"))),
     settle(unwrap(ctx.client.GET("/api/v1/transfers"))),
   ]);
 
@@ -110,10 +124,17 @@ export async function renderOverview(root: HTMLElement, ctx: OverviewContext): P
     const state = await settle(unwrap(ctx.client.GET("/api/v1/projects/{project_id}/state", { params: { path: { project_id: selectedId } } })));
     sections.push(projectStateHtml(state, projectsValue(projects, selectedId)));
   }
+  const reviewQueue = await settle(
+    unwrap(
+      ctx.client.GET("/api/v1/review-queue", {
+        params: { query: selectedId !== null ? { project_id: selectedId } : {} },
+      }),
+    ),
+  );
   sections.push(tasksHtml(tasks));
   sections.push(activityHtml(events));
   sections.push(agentsHtml(agents, events));
-  sections.push(reviewsHtml(worklogs));
+  sections.push(reviewsHtml(reviewQueue));
   sections.push(transfersHtml(transfers));
   root.innerHTML = sections.join("");
   bindProjectSelect(root);
@@ -260,21 +281,21 @@ function agentsHtml(settledAgents: Settled<Agent[]>, settledEvents: Settled<Even
   );
 }
 
-function reviewsHtml(settled: Settled<AIWorkLog[]>): string {
-  if (!settled.ok) return section("Reviews", "GET /ai-work", statusBlock("error", errMessage(settled.error)));
-  const pending = filterReviews(settled.value);
-  if (pending.length === 0)
-    return section("Reviews needing attention", "GET /ai-work · client filter review_requested · read-only", statusBlock("empty", "Nothing awaiting review."));
-  const rows = pending
-    .map(
-      (w) =>
-        `<tr><td>${esc(w.summary.length > 80 ? `${w.summary.slice(0, 80)}…` : w.summary)}</td><td>${idCell(w.task_id)}</td><td>${idCell(w.agent_id)}</td><td>${fmtTime(w.started_at)}</td></tr>`,
-    )
+function reviewsHtml(settled: Settled<ReviewQueue>): string {
+  if (!settled.ok) return section("Needs attention", "GET /review-queue", statusBlock("error", errMessage(settled.error)));
+  const items = settled.value.items;
+  if (items.length === 0)
+    return section("Needs attention", "GET /review-queue · read-only", statusBlock("empty", "Nothing awaiting a human decision."));
+  const rows = items
+    .map((item) => {
+      const title = item.title.length > 80 ? `${item.title.slice(0, 80)}…` : item.title;
+      return `<tr><td><span class="tag">${esc(REVIEW_KIND_LABEL[item.kind])}</span></td><td>${esc(title)}</td><td>${esc(reviewQueueItemDetail(item))}</td><td>${idCell(item.task_id)}</td><td>${fmtTime(item.requested_at)}</td></tr>`;
+    })
     .join("");
   return section(
-    "Reviews needing attention",
-    "GET /ai-work · client filter review_requested · read-only (approve/reject = DASH-4)",
-    `<table><thead><tr><th>Summary</th><th>Task</th><th>Agent</th><th>Started</th></tr></thead><tbody>${rows}</tbody></table>`,
+    "Needs attention",
+    "GET /review-queue · AI work review + proposed decisions + recent conflicts · read-only (approve/reject = DASH-4)",
+    `<table><thead><tr><th>Kind</th><th>Summary</th><th>Detail</th><th>Task</th><th>Requested</th></tr></thead><tbody>${rows}</tbody></table>`,
   );
 }
 

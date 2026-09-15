@@ -7,6 +7,7 @@ import json
 import sys
 import uuid
 from collections.abc import Awaitable, Callable, Sequence
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -241,6 +242,64 @@ def _claims_release(args: argparse.Namespace, config: ClientConfig) -> None:
         print(f"Released claim {args.claim_id}.")
 
 
+def _ai_work_list(args: argparse.Namespace, config: ClientConfig) -> None:
+    project_id = _parse_uuid(args.project_id, field="project_id") if args.project_id else None
+    task_id = _parse_uuid(args.task_id, field="task_id") if args.task_id else None
+    entries = _run(
+        config, lambda client: client.list_ai_work(project_id=project_id, task_id=task_id)
+    )
+    _print_models(entries, as_json=args.json)
+
+
+def _ai_work_show(args: argparse.Namespace, config: ClientConfig) -> None:
+    """No `GET /ai-work/{id}` endpoint exists — filters the list client-side,
+    consistent with the ledger's small expected size (same caveat as the
+    review queue's own AI-work aggregation, DEC-0049)."""
+    work_id = _parse_uuid(args.ai_work_id, field="ai_work_id")
+    entries = _run(config, lambda client: client.list_ai_work())
+    match = next((entry for entry in entries if entry.id == work_id), None)
+    if match is None:
+        print(f"error: ai_work {args.ai_work_id} not found", file=sys.stderr)
+        raise SystemExit(1)
+    _print_model(match, as_json=args.json)
+
+
+def _review_queue_list(args: argparse.Namespace, config: ClientConfig) -> None:
+    project_id = _parse_uuid(args.project_id, field="project_id") if args.project_id else None
+    queue = _run(
+        config,
+        lambda client: client.get_review_queue(
+            project_id=project_id, conflict_window_hours=args.conflict_window_hours
+        ),
+    )
+    _print_models(queue.items, as_json=args.json)
+
+
+def _notifications_list(args: argparse.Namespace, config: ClientConfig) -> None:
+    """Alias of `review-queue list` (DEC-0051): notifications ARE the review
+    queue, not a second, weaker mechanism — same client call, same output
+    shape, just the human-facing name."""
+    _review_queue_list(args, config)
+
+
+def _timeline_list(args: argparse.Namespace, config: ClientConfig) -> None:
+    project_id = _parse_uuid(args.project_id, field="project_id")
+    since = datetime.fromisoformat(args.since) if args.since else None
+    timeline = _run(
+        config,
+        lambda client: client.get_timeline(project_id, since=since, limit=args.limit),
+    )
+    if args.json:
+        print(json.dumps(timeline.model_dump(mode="json"), indent=2))
+    elif not timeline.days:
+        print("(none)")
+    else:
+        for day in timeline.days:
+            print(f"{day.date} ({len(day.events)} event(s))")
+            for event in day.events:
+                print(f"  {event.event_type}\t{event.server_timestamp}")
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="studio-client")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -341,6 +400,56 @@ def _build_parser() -> argparse.ArgumentParser:
     claims_release.add_argument("claim_id")
     _add_json_flag(claims_release)
     claims_release.set_defaults(func=_claims_release)
+
+    ai_work_parser = subparsers.add_parser("ai-work", help="AI work ledger.")
+    ai_work_sub = ai_work_parser.add_subparsers(dest="ai_work_command", required=True)
+
+    ai_work_list = ai_work_sub.add_parser("list", help="List AI work ledger entries.")
+    ai_work_list.add_argument("--project-id")
+    ai_work_list.add_argument("--task-id")
+    _add_json_flag(ai_work_list)
+    ai_work_list.set_defaults(func=_ai_work_list)
+
+    ai_work_show = ai_work_sub.add_parser("show", help="Show one AI work ledger entry.")
+    ai_work_show.add_argument("ai_work_id")
+    _add_json_flag(ai_work_show)
+    ai_work_show.set_defaults(func=_ai_work_show)
+
+    review_queue_parser = subparsers.add_parser(
+        "review-queue", help="Items awaiting a human decision."
+    )
+    review_queue_sub = review_queue_parser.add_subparsers(
+        dest="review_queue_command", required=True
+    )
+
+    review_queue_list = review_queue_sub.add_parser("list", help="List review queue items.")
+    review_queue_list.add_argument("--project-id")
+    review_queue_list.add_argument("--conflict-window-hours", type=int, default=None)
+    _add_json_flag(review_queue_list)
+    review_queue_list.set_defaults(func=_review_queue_list)
+
+    notifications_parser = subparsers.add_parser(
+        "notifications", help="Alias of review-queue (DEC-0051)."
+    )
+    notifications_sub = notifications_parser.add_subparsers(
+        dest="notifications_command", required=True
+    )
+
+    notifications_list = notifications_sub.add_parser("list", help="List notifications.")
+    notifications_list.add_argument("--project-id")
+    notifications_list.add_argument("--conflict-window-hours", type=int, default=None)
+    _add_json_flag(notifications_list)
+    notifications_list.set_defaults(func=_notifications_list)
+
+    timeline_parser = subparsers.add_parser("timeline", help="Day-grouped project activity.")
+    timeline_sub = timeline_parser.add_subparsers(dest="timeline_command", required=True)
+
+    timeline_list = timeline_sub.add_parser("list", help="List the timeline.")
+    timeline_list.add_argument("--project-id", required=True)
+    timeline_list.add_argument("--since")
+    timeline_list.add_argument("--limit", type=int, default=200)
+    _add_json_flag(timeline_list)
+    timeline_list.set_defaults(func=_timeline_list)
 
     return parser
 
