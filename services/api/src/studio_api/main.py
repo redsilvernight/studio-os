@@ -61,7 +61,7 @@ OPENAPI_TAG_DESCRIPTIONS: dict[str, str] = {
     "review-queue": (
         "Aggregated view of AI work reviews, proposed decisions, and recent "
         "resource conflicts awaiting a human decision. Read-only; also "
-        "serves as the notifications surface (DEC-0051)."
+        "serves as the notifications surface."
     ),
     "timeline": (
         "Day-grouped project activity derived from the event stream. "

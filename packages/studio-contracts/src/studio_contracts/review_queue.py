@@ -42,7 +42,7 @@ class ReviewQueueDecisionItem(ContractModel):
 
 class ReviewQueueConflictItem(ContractModel):
     """`id` is the `resource.conflict` event's `event_id` — not a persisted
-    conflict row (none exists, DEC-0049): a best-effort, time-windowed
+    conflict row (none exists): a best-effort, time-windowed
     signal, not a resolvable state."""
 
     kind: Literal[ReviewQueueKind.RESOURCE_CONFLICT] = ReviewQueueKind.RESOURCE_CONFLICT

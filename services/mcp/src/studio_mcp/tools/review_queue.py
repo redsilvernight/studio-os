@@ -27,7 +27,7 @@ async def studio_get_review_queue(
     """Aggregated view of everything waiting on a human decision: AI work in
     review_requested, decisions still proposed, and recent resource.conflict
     events (best-effort, time-windowed — no persisted conflict state exists).
-    Also serves as the notifications surface (DEC-0051): there is no separate
+    Also serves as the notifications surface: there is no separate
     notifications tool."""
 
     async def _handler(session: AsyncSession, _principal: Principal) -> dict[str, Any]:

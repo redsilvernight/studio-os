@@ -197,6 +197,10 @@ def _ai_work_body(work_id: uuid.UUID, project_id: uuid.UUID, agent_id: uuid.UUID
         "tests_run": [],
         "started_at": "2026-09-13T00:00:00Z",
         "ended_at": None,
+        "agent_profile": None,
+        "harness": None,
+        "provider": None,
+        "model": None,
     }
 
 

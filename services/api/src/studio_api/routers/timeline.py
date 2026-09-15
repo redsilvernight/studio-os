@@ -20,9 +20,8 @@ router = APIRouter(prefix="/api/v1/timeline", tags=["timeline"])
         "Day-grouped project activity (newest day first), unfiltered — the "
         "full history, not an actionable signal (see GET /review-queue for "
         "that). Inherits GET /events's 'not claimed exhaustive' honesty: "
-        "several event types have no server-side emission yet (question "
-        "ouverte n°9, ROADMAP_STEP8_BREAKDOWN.md). Any authenticated "
-        "machine may read."
+        "several event types have no server-side emission yet. Any "
+        "authenticated machine may read."
     ),
     responses={**RESP_401_UNAUTHORIZED},
 )

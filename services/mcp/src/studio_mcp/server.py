@@ -245,7 +245,7 @@ def create_server() -> MCPServer:
             "(informational — no transition tool exists for decisions), and recent "
             "resource.conflict events within conflict_window_hours (default 24, best-effort "
             "and time-windowed — no persisted conflict state exists). Also serves as the "
-            "notifications surface (DEC-0051) — there is no separate notifications tool. "
+            "notifications surface — there is no separate notifications tool. "
             "Read-only."
         ),
         annotations=_READ_ONLY,

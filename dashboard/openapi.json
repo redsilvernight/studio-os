@@ -1669,7 +1669,7 @@
      "agents"
     ],
     "summary": "Register Agent",
-    "description": "Register an agent identity for the caller's own authenticated machine. `machine_id` is always derived from the credential \u2014 never send it. `display_name` is required, `agent_kind` is free-form metadata. Registration confers no permission and is required for nothing except attributing AI work logs; authentication and authorization work without it. Accepts `Idempotency-Key` for safe retries.",
+    "description": "Register an agent identity for the caller's own authenticated machine. `machine_id` is always derived from the credential \u2014 never send it. `display_name` is required; `agent_kind`, `agent_profile`, `harness`, `provider` and `model` are optional free-form metadata (open strings, default null, every value accepted). Registration confers no permission and is required for nothing except attributing AI work logs; authentication and authorization work without it. Accepts `Idempotency-Key` for safe retries.",
     "operationId": "register_agent_api_v1_agents_post",
     "security": [
      {
@@ -1857,7 +1857,7 @@
      "ai-work"
     ],
     "summary": "Create Ai Work",
-    "description": "Log a unit of AI work. Requires a writer role. `agent_id` must reference an agent attached to the caller's own authenticated machine (register one with `POST /agents` first) \u2014 a foreign or unknown agent fails with `409 actor_not_owned`, never a silent cross-machine attribution. Accepts `Idempotency-Key` for safe retries.",
+    "description": "Log a unit of AI work. Requires a writer role. `agent_id` must reference an agent attached to the caller's own authenticated machine (register one with `POST /agents` first) \u2014 a foreign or unknown agent fails with `409 actor_not_owned`, never a silent cross-machine attribution. `agent_profile`, `harness`, `provider` and `model` are optional open-string observability metadata: any value is accepted, none is required, none affects authorization. Accepts `Idempotency-Key` for safe retries.",
     "operationId": "create_ai_work_api_v1_ai_work_post",
     "security": [
      {
@@ -2066,7 +2066,7 @@
      "review-queue"
     ],
     "summary": "Get Review Queue",
-    "description": "Aggregated view of everything waiting on a human decision: AI work in `review_requested` (resolve via `PATCH /ai-work/{id}`), decisions still `proposed` (informational \u2014 no transition endpoint exists for decisions), and recent `resource.conflict` events within `conflict_window_hours` (best-effort and time-windowed: no persisted conflict state exists, an old unaddressed conflict silently ages out of the window). Also serves as the notifications surface (DEC-0051) \u2014 there is no separate notifications endpoint. Any authenticated machine may read.",
+    "description": "Aggregated view of everything waiting on a human decision: AI work in `review_requested` (resolve via `PATCH /ai-work/{id}`), decisions still `proposed` (informational \u2014 no transition endpoint exists for decisions), and recent `resource.conflict` events within `conflict_window_hours` (best-effort and time-windowed: no persisted conflict state exists, an old unaddressed conflict silently ages out of the window). Also serves as the notifications surface \u2014 there is no separate notifications endpoint. Any authenticated machine may read.",
     "operationId": "get_review_queue_api_v1_review_queue_get",
     "security": [
      {
@@ -2143,7 +2143,7 @@
      "timeline"
     ],
     "summary": "Get Timeline",
-    "description": "Day-grouped project activity (newest day first), unfiltered \u2014 the full history, not an actionable signal (see GET /review-queue for that). Inherits GET /events's 'not claimed exhaustive' honesty: several event types have no server-side emission yet (question ouverte n\u00b09, ROADMAP_STEP8_BREAKDOWN.md). Any authenticated machine may read.",
+    "description": "Day-grouped project activity (newest day first), unfiltered \u2014 the full history, not an actionable signal (see GET /review-queue for that). Inherits GET /events's 'not claimed exhaustive' honesty: several event types have no server-side emission yet. Any authenticated machine may read.",
     "operationId": "get_timeline_api_v1_timeline_get",
     "security": [
      {
@@ -3724,6 +3724,50 @@
        }
       ],
       "title": "Ended At"
+     },
+     "agent_profile": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Agent Profile"
+     },
+     "harness": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Harness"
+     },
+     "provider": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Provider"
+     },
+     "model": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Model"
      }
     },
     "additionalProperties": false,
@@ -3735,7 +3779,8 @@
      "summary",
      "started_at"
     ],
-    "title": "AIWorkLog"
+    "title": "AIWorkLog",
+    "description": "A work entry. `agent_profile`, `harness`, `provider` and `model` are\noptional additive observability metadata \u2014 open strings snapshotting the\nruntime that produced the work, never whitelisted, never an\nauthorization or capability input."
    },
    "AIWorkLogCreate": {
     "properties": {
@@ -3776,6 +3821,50 @@
      "summary": {
       "type": "string",
       "title": "Summary"
+     },
+     "agent_profile": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Agent Profile"
+     },
+     "harness": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Harness"
+     },
+     "provider": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Provider"
+     },
+     "model": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Model"
      }
     },
     "additionalProperties": false,
@@ -3896,6 +3985,50 @@
      "agent_kind": {
       "type": "string",
       "title": "Agent Kind"
+     },
+     "agent_profile": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Agent Profile"
+     },
+     "harness": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Harness"
+     },
+     "provider": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Provider"
+     },
+     "model": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Model"
      }
     },
     "additionalProperties": false,
@@ -3909,7 +4042,7 @@
      "agent_kind"
     ],
     "title": "Agent",
-    "description": "Provenance identity attached to one machine: who did the work, for\naudit and attribution. Never an authorization input \u2014 permissions come\nfrom the machine owner's role alone."
+    "description": "Provenance identity attached to one machine: who did the work, for\naudit and attribution. Never an authorization input \u2014 permissions come\nfrom the machine owner's role alone. `agent_profile`, `harness`,\n`provider` and `model` are optional additive observability metadata:\nopen strings, never whitelisted, never a capability or compatibility\ncondition, never read to make a decision."
    },
    "AgentCreate": {
     "properties": {
@@ -3921,6 +4054,50 @@
       "type": "string",
       "title": "Agent Kind",
       "default": ""
+     },
+     "agent_profile": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Agent Profile"
+     },
+     "harness": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Harness"
+     },
+     "provider": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Provider"
+     },
+     "model": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Model"
      }
     },
     "additionalProperties": false,
@@ -3929,7 +4106,7 @@
      "display_name"
     ],
     "title": "AgentCreate",
-    "description": "Public registration of a provenance identity: `machine_id` is always\nderived from the authenticated machine, never client-supplied.\n`display_name` and `agent_kind` are free-form metadata \u2014 never\nauthorization inputs, never the canonical identity (the\nserver-generated `Agent.id` is)."
+    "description": "Public registration of a provenance identity: `machine_id` is always\nderived from the authenticated machine, never client-supplied.\n`display_name` and `agent_kind` are free-form metadata \u2014 never\nauthorization inputs, never the canonical identity (the\nserver-generated `Agent.id` is). `agent_profile`, `harness`, `provider`\nand `model` are optional open-string observability metadata: any value\nis accepted, unknown values are never rejected, and none of them is ever\nrequired."
    },
    "ClaimStatus": {
     "type": "string",
@@ -4993,7 +5170,7 @@
      "requested_at"
     ],
     "title": "ReviewQueueConflictItem",
-    "description": "`id` is the `resource.conflict` event's `event_id` \u2014 not a persisted\nconflict row (none exists, DEC-0049): a best-effort, time-windowed\nsignal, not a resolvable state."
+    "description": "`id` is the `resource.conflict` event's `event_id` \u2014 not a persisted\nconflict row (none exists): a best-effort, time-windowed\nsignal, not a resolvable state."
    },
    "ReviewQueueDecisionItem": {
     "properties": {
@@ -5268,7 +5445,7 @@
      "days"
     ],
     "title": "Timeline",
-    "description": "Day-grouped project activity (newest day first, events ascending\nwithin a day) \u2014 unfiltered, unlike the Review Queue (DEC-0049): this is\nhistory, not an actionable signal. Inherits `GET /events`'s \"not claimed\nexhaustive\" honesty (DEC-0051) since it reads the same underlying data."
+    "description": "Day-grouped project activity (newest day first, events ascending\nwithin a day) \u2014 unfiltered, unlike the Review Queue: this is\nhistory, not an actionable signal. Inherits `GET /events`'s \"not claimed\nexhaustive\" honesty since it reads the same underlying data."
    },
    "TimelineDay": {
     "properties": {
@@ -6060,7 +6237,7 @@
   },
   {
    "name": "review-queue",
-   "description": "Aggregated view of AI work reviews, proposed decisions, and recent resource conflicts awaiting a human decision. Read-only; also serves as the notifications surface (DEC-0051)."
+   "description": "Aggregated view of AI work reviews, proposed decisions, and recent resource conflicts awaiting a human decision. Read-only; also serves as the notifications surface."
   },
   {
    "name": "timeline",

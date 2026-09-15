@@ -323,7 +323,7 @@ export interface paths {
         put?: never;
         /**
          * Register Agent
-         * @description Register an agent identity for the caller's own authenticated machine. `machine_id` is always derived from the credential — never send it. `display_name` is required, `agent_kind` is free-form metadata. Registration confers no permission and is required for nothing except attributing AI work logs; authentication and authorization work without it. Accepts `Idempotency-Key` for safe retries.
+         * @description Register an agent identity for the caller's own authenticated machine. `machine_id` is always derived from the credential — never send it. `display_name` is required; `agent_kind`, `agent_profile`, `harness`, `provider` and `model` are optional free-form metadata (open strings, default null, every value accepted). Registration confers no permission and is required for nothing except attributing AI work logs; authentication and authorization work without it. Accepts `Idempotency-Key` for safe retries.
          */
         post: operations["register_agent_api_v1_agents_post"];
         delete?: never;
@@ -347,7 +347,7 @@ export interface paths {
         put?: never;
         /**
          * Create Ai Work
-         * @description Log a unit of AI work. Requires a writer role. `agent_id` must reference an agent attached to the caller's own authenticated machine (register one with `POST /agents` first) — a foreign or unknown agent fails with `409 actor_not_owned`, never a silent cross-machine attribution. Accepts `Idempotency-Key` for safe retries.
+         * @description Log a unit of AI work. Requires a writer role. `agent_id` must reference an agent attached to the caller's own authenticated machine (register one with `POST /agents` first) — a foreign or unknown agent fails with `409 actor_not_owned`, never a silent cross-machine attribution. `agent_profile`, `harness`, `provider` and `model` are optional open-string observability metadata: any value is accepted, none is required, none affects authorization. Accepts `Idempotency-Key` for safe retries.
          */
         post: operations["create_ai_work_api_v1_ai_work_post"];
         delete?: never;
@@ -385,7 +385,7 @@ export interface paths {
         };
         /**
          * Get Review Queue
-         * @description Aggregated view of everything waiting on a human decision: AI work in `review_requested` (resolve via `PATCH /ai-work/{id}`), decisions still `proposed` (informational — no transition endpoint exists for decisions), and recent `resource.conflict` events within `conflict_window_hours` (best-effort and time-windowed: no persisted conflict state exists, an old unaddressed conflict silently ages out of the window). Also serves as the notifications surface (DEC-0051) — there is no separate notifications endpoint. Any authenticated machine may read.
+         * @description Aggregated view of everything waiting on a human decision: AI work in `review_requested` (resolve via `PATCH /ai-work/{id}`), decisions still `proposed` (informational — no transition endpoint exists for decisions), and recent `resource.conflict` events within `conflict_window_hours` (best-effort and time-windowed: no persisted conflict state exists, an old unaddressed conflict silently ages out of the window). Also serves as the notifications surface — there is no separate notifications endpoint. Any authenticated machine may read.
          */
         get: operations["get_review_queue_api_v1_review_queue_get"];
         put?: never;
@@ -405,7 +405,7 @@ export interface paths {
         };
         /**
          * Get Timeline
-         * @description Day-grouped project activity (newest day first), unfiltered — the full history, not an actionable signal (see GET /review-queue for that). Inherits GET /events's 'not claimed exhaustive' honesty: several event types have no server-side emission yet (question ouverte n°9, ROADMAP_STEP8_BREAKDOWN.md). Any authenticated machine may read.
+         * @description Day-grouped project activity (newest day first), unfiltered — the full history, not an actionable signal (see GET /review-queue for that). Inherits GET /events's 'not claimed exhaustive' honesty: several event types have no server-side emission yet. Any authenticated machine may read.
          */
         get: operations["get_timeline_api_v1_timeline_get"];
         put?: never;
@@ -692,7 +692,13 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** AIWorkLog */
+        /**
+         * AIWorkLog
+         * @description A work entry. `agent_profile`, `harness`, `provider` and `model` are
+         *     optional additive observability metadata — open strings snapshotting the
+         *     runtime that produced the work, never whitelisted, never an
+         *     authorization or capability input.
+         */
         AIWorkLog: {
             /**
              * Id
@@ -734,6 +740,14 @@ export interface components {
             started_at: string;
             /** Ended At */
             ended_at?: string | null;
+            /** Agent Profile */
+            agent_profile?: string | null;
+            /** Harness */
+            harness?: string | null;
+            /** Provider */
+            provider?: string | null;
+            /** Model */
+            model?: string | null;
         };
         /** AIWorkLogCreate */
         AIWorkLogCreate: {
@@ -753,6 +767,14 @@ export interface components {
             machine_id?: string | null;
             /** Summary */
             summary: string;
+            /** Agent Profile */
+            agent_profile?: string | null;
+            /** Harness */
+            harness?: string | null;
+            /** Provider */
+            provider?: string | null;
+            /** Model */
+            model?: string | null;
         };
         /** AIWorkLogUpdate */
         AIWorkLogUpdate: {
@@ -777,7 +799,10 @@ export interface components {
          * Agent
          * @description Provenance identity attached to one machine: who did the work, for
          *     audit and attribution. Never an authorization input — permissions come
-         *     from the machine owner's role alone.
+         *     from the machine owner's role alone. `agent_profile`, `harness`,
+         *     `provider` and `model` are optional additive observability metadata:
+         *     open strings, never whitelisted, never a capability or compatibility
+         *     condition, never read to make a decision.
          */
         Agent: {
             /**
@@ -803,6 +828,14 @@ export interface components {
             display_name: string;
             /** Agent Kind */
             agent_kind: string;
+            /** Agent Profile */
+            agent_profile?: string | null;
+            /** Harness */
+            harness?: string | null;
+            /** Provider */
+            provider?: string | null;
+            /** Model */
+            model?: string | null;
         };
         /**
          * AgentCreate
@@ -810,7 +843,10 @@ export interface components {
          *     derived from the authenticated machine, never client-supplied.
          *     `display_name` and `agent_kind` are free-form metadata — never
          *     authorization inputs, never the canonical identity (the
-         *     server-generated `Agent.id` is).
+         *     server-generated `Agent.id` is). `agent_profile`, `harness`, `provider`
+         *     and `model` are optional open-string observability metadata: any value
+         *     is accepted, unknown values are never rejected, and none of them is ever
+         *     required.
          */
         AgentCreate: {
             /** Display Name */
@@ -820,6 +856,14 @@ export interface components {
              * @default
              */
             agent_kind: string;
+            /** Agent Profile */
+            agent_profile?: string | null;
+            /** Harness */
+            harness?: string | null;
+            /** Provider */
+            provider?: string | null;
+            /** Model */
+            model?: string | null;
         };
         /**
          * ClaimStatus
@@ -1315,7 +1359,7 @@ export interface components {
         /**
          * ReviewQueueConflictItem
          * @description `id` is the `resource.conflict` event's `event_id` — not a persisted
-         *     conflict row (none exists, DEC-0049): a best-effort, time-windowed
+         *     conflict row (none exists): a best-effort, time-windowed
          *     signal, not a resolvable state.
          */
         ReviewQueueConflictItem: {
@@ -1452,9 +1496,9 @@ export interface components {
         /**
          * Timeline
          * @description Day-grouped project activity (newest day first, events ascending
-         *     within a day) — unfiltered, unlike the Review Queue (DEC-0049): this is
+         *     within a day) — unfiltered, unlike the Review Queue: this is
          *     history, not an actionable signal. Inherits `GET /events`'s "not claimed
-         *     exhaustive" honesty (DEC-0051) since it reads the same underlying data.
+         *     exhaustive" honesty since it reads the same underlying data.
          */
         Timeline: {
             /**

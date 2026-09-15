@@ -14,9 +14,9 @@ class TimelineDay(ContractModel):
 
 class Timeline(ContractModel):
     """Day-grouped project activity (newest day first, events ascending
-    within a day) — unfiltered, unlike the Review Queue (DEC-0049): this is
+    within a day) — unfiltered, unlike the Review Queue: this is
     history, not an actionable signal. Inherits `GET /events`'s "not claimed
-    exhaustive" honesty (DEC-0051) since it reads the same underlying data."""
+    exhaustive" honesty since it reads the same underlying data."""
 
     project_id: UUID
     days: list[TimelineDay]

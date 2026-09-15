@@ -23,7 +23,7 @@ router = APIRouter(prefix="/api/v1/review-queue", tags=["review-queue"])
         "within `conflict_window_hours` (best-effort and time-windowed: no "
         "persisted conflict state exists, an old unaddressed conflict "
         "silently ages out of the window). Also serves as the notifications "
-        "surface (DEC-0051) — there is no separate notifications endpoint. "
+        "surface — there is no separate notifications endpoint. "
         "Any authenticated machine may read."
     ),
     responses={**RESP_401_UNAUTHORIZED},
