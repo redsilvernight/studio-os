@@ -158,24 +158,10 @@ Godot propre.
 
 ## Graphify
 
-**Sortie centralisee, obligatoire : ce depot ne doit JAMAIS contenir de dossier
-`graphify-out/`.** Tout le graphe (build initial ou `--update`) doit atterrir
-dans `E:\Graphify\Studio-OS\graphify-out\` — voir
-`~/.claude/references/graphify-centralized-output.md` pour le mecanisme exact.
-En pratique :
-- Pipeline manuelle (SKILL.md, premier build complet) : executer chaque bloc
-  bash/python avec `cwd = E:\Graphify\Studio-OS` (PAS la racine du depot), et
-  passer le vrai chemin du projet (`C:\Users\redsi\Documents\Coding\Projet\Studi'os`)
-  comme `INPUT_PATH` partout ou le step doit lire les fichiers source.
-- CLI graphify ou `graphify_incremental_update.py` : definir la variable
-  d'environnement `GRAPHIFY_OUT=E:\Graphify\Studio-OS\graphify-out` (chemin
-  absolu) avant la commande ; `--root`/le chemin du projet reste le vrai
-  chemin du depot.
-- Si un `graphify-out/` apparait quand meme a la racine du depot (skill
-  invoque sans cette precaution), c'est un bug de procedure : deplacer son
-  contenu vers `E:\Graphify\Studio-OS\graphify-out\` (en ecrasant l'ancien
-  s'il est plus a jour) puis supprimer le dossier local - ne jamais le
-  laisser trainer dans le depot.
+Sortie centralisee (regle globale, voir `~/.claude/CLAUDE.md` et
+`~/.claude/references/graphify-centralized-output.md`) :
+`E:\Super IA\Graphify\Studio-OS\graphify-out\` — jamais de `graphify-out/`
+dans ce depot.
 
 Reference du projet : `AI/02_AGENT_RULES.md` (role Brainstormer/Graphify curator) et
 `TECH/09_OBSIDIAN_GRAPHIFY.md` (GraphProvider : `refresh_graph`, `query`,
