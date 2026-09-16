@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
+from studio_api.jwt_auth import is_weak_jwt_secret
 from studio_api.services import provisioning as provisioning_service
 
 from tests.api.conftest import TEST_DATABASE_URL
@@ -54,3 +55,9 @@ async def test_jwt_can_access_api(client: AsyncClient, db_session: AsyncSession)
 
     response = await client.get("/api/v1/projects", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200
+
+
+def test_weak_jwt_secret_detection() -> None:
+    assert is_weak_jwt_secret("change-me-in-production")
+    assert is_weak_jwt_secret("short")
+    assert not is_weak_jwt_secret("a-long-random-secret-of-32-bytes!!")

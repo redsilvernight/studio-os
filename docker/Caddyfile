@@ -1,8 +1,24 @@
+# Edge security headers (DEC-0060, etape 9.3) : HSTS + baseline sur les
+# sites termines en TLS par Caddy. Le catch-all :80 (Tailscale Funnel,
+# HTTP clair) est volontairement exclu : HSTS sur HTTP est ignore par
+# spec et n'apporterait rien.
 {$API_DOMAIN} {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
 	reverse_proxy api:8000
 }
 
 {$MCP_DOMAIN} {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
 	reverse_proxy mcp:8100
 }
 
@@ -10,6 +26,14 @@
 # /openapi.json are proxied to the API service so the SPA can use same-origin
 # requests (DASH-0/1).
 {$DASHBOARD_DOMAIN} {
+	# SAMEORIGIN (et non DENY) : la SPA n'est pas concue pour etre iframée
+	# cross-origin, mais on ne casse pas un usage same-origin legitime.
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
 	route /api/* {
 		reverse_proxy api:8000
 	}
@@ -30,6 +54,12 @@
 # (.claude/rules/storage-transfers.md): this is the S3-compatible endpoint
 # itself, addressed directly by pre-signed URLs (DEC-0004, docs/DECISIONS.md).
 {$STORAGE_DOMAIN} {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
 	reverse_proxy minio:9000
 }
 

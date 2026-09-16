@@ -129,15 +129,17 @@ def create_app() -> FastAPI:
         ],
     )
 
+    from studio_api.jwt_auth import is_weak_jwt_secret
     from studio_api.settings import get_settings
 
     settings = get_settings()
     configure_logging(settings.log_format, settings.log_level)
     setup_middleware(app, settings)
 
-    if settings.jwt_secret == "change-me-in-production":
+    if is_weak_jwt_secret(settings.jwt_secret):
         logger.warning(
-            "STUDIO_JWT_SECRET is using the default value; set a strong secret in production"
+            "STUDIO_JWT_SECRET is using a default or short value (< 32 bytes); "
+            "set a strong secret in production"
         )
 
     app.include_router(health.router)

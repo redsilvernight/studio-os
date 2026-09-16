@@ -336,6 +336,14 @@ Détail et preuves : `docs/ROADMAP_STEP8_BREAKDOWN.md` et
   Aucun endpoint/table/`EventType` nouveau.
 - 9.3/9.4/9.5 : middleware/observabilité, tests de charge légers et procédures
   d'exploitation déjà tracés dans `IMPLEMENTATION/04_INTEGRATION_CHECKLIST.md`.
+- 9.3 Revue de sécurité : **implémentée** (DEC-0060, 2026-09-16) — constats
+  conformes sans changement (HMAC timing-safe, CORS deny-by-default, JWT
+  HS256 + warning secret défaut, rate limiting in-memory V1, secrets/CI) ;
+  gaps fermés au edge (HSTS + baseline `docker/Caddyfile` sur les 4 sites
+  TLS, headers `docker/dashboard.nginx.conf`). Hors périmètre : 9.1c
+  (toujours différé par DEC-0059), CSP dashboard (non vérifiable sans build
+  navigateur, réévaluée avec un test dédié), rate limiting distribué (non
+  requis mono-nœud).
 
 ### Travail attendu
 

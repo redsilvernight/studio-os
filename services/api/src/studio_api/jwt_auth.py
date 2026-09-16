@@ -19,6 +19,16 @@ from studio_api.settings import Settings
 
 ALGORITHM = "HS256"
 
+DEFAULT_JWT_SECRET = "change-me-in-production"
+MIN_JWT_SECRET_BYTES = 32
+
+
+def is_weak_jwt_secret(secret: str) -> bool:
+    """Default placeholder or shorter than the RFC 7518 section 3.2 minimum
+    for HS256. Warning-only (DEC-0060): refusing to start would break local
+    dev and CI, which intentionally run on the placeholder."""
+    return secret == DEFAULT_JWT_SECRET or len(secret.encode()) < MIN_JWT_SECRET_BYTES
+
 
 def create_access_token(user: UserModel, machine: MachineModel, settings: Settings) -> str:
     """Issue a JWT bound to a user and their dashboard machine."""

@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-59 decision(s). Detail complet dans chaque ADR lie.
+60 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -81,3 +81,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0057 | Etape 8 (roadmap), sous-etape 8.3b : Context Package compose localement par le Bloc B, part partagee lue par HTTP canonique, manifeste versionne ephemere | active | [decisions/DEC-0057-context-package-execution-boundary.md](decisions/DEC-0057-context-package-execution-boundary.md) |
 | DEC-0058 | Etape 9.2 (Bloc B) : RecordingProvider, markers video et MarketingCandidate locaux | active | [decisions/DEC-0058-recording-provider-markers-marketing.md](decisions/DEC-0058-recording-provider-markers-marketing.md) |
 | DEC-0059 | Etape 9.1 : Studio Producer, integration GitHub/build, workers | active | [decisions/DEC-0059-studio-producer-github-build-workers.md](decisions/DEC-0059-studio-producer-github-build-workers.md) |
+| DEC-0060 | Etape 9.3 : revue de securite, durcissement headers au edge | active | [decisions/DEC-0060-etape-9-3-revue-de-securite-headers-edge.md](decisions/DEC-0060-etape-9-3-revue-de-securite-headers-edge.md) |

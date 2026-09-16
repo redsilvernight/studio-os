@@ -28,7 +28,7 @@
 - [x] Middleware transverse deploye (CORS prod configurable, rate limiting in-memory, security headers, request ID) : `tests/api/test_middleware.py` 8 passed.
 - [x] Observabilite de base (`/metrics` Prometheus, logs JSON optionnels) : `tests/api/test_middleware.py::test_metrics_endpoint`.
 - [x] TLS et rotation/revocation token verifies : documentes dans `HUMAN/04_DEPLOIEMENT_OVH.md` ; revocation via `./docker/revoke-machine.sh`, rotation JWT via `STUDIO_JWT_SECRET`.
-- [x] Dashboard, MCP et CLI coherents : dashboard DASH-0 -> DASH-5 (95 tests passed, 2026-09-15), MCP 27 outils VPS + 3 outils locaux read-only conditionnels UC-3/DEC-0047 (`TECH/07`), CLI tasks/projects/sessions/claims/ai-work/review-queue/timeline/mark.
+- [x] Dashboard, MCP et CLI coherents : dashboard DASH-0 -> DASH-5 (95 tests passed, 2026-09-15), MCP 29 outils VPS (27 + `studio_get_builds`/`studio_request_producer_job` 9.1b, DEC-0059) + 3 outils locaux read-only conditionnels UC-3/DEC-0047 (`TECH/07`), CLI tasks/projects/sessions/claims/ai-work/review-queue/timeline/mark/builds/producer.
 - [x] Tests de charge legers : `tests/api/test_load_basic.py` 3 passed.
 
 ## Etape 9 — Producer, media, dashboard et Context Package (etat 2026-09-15)
@@ -57,5 +57,9 @@
 | Middleware | 8 passed | `uv run pytest tests/api/test_middleware.py` |
 | Auth JWT | 3 passed | `uv run pytest tests/api/test_auth.py` |
 | Charge leger | 3 passed | `uv run pytest tests/api/test_load_basic.py` |
+| GitHub webhook (9.1b) | 17 passed (2026-09-16) | `uv run pytest tests/api/test_github_webhook.py` (Postgres 16 + MinIO conteneurises) |
+| Producer (9.1b) | 10 passed (2026-09-16) | `uv run pytest tests/api/test_producer.py` |
+| Builds API + MCP + CLI (9.1) | 4 + 4 + 4 passed (2026-09-16) | `uv run pytest tests/api/test_builds.py tests/mcp/test_builds.py` + CLI |
+| Revue securite edge (9.3) | caddy validate + nginx -t verts, middleware+auth 12 passed, backend 590 passed (2026-09-16) | voir DEC-0060 |
 | Migrations | monte/redescend OK | `uv run -m alembic upgrade head` / `downgrade -1` |
 | Index ADR | a jour | `uv run python -m scripts.adr_index --root . --check` |
