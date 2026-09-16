@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import os
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
+from typing import TYPE_CHECKING, Any
 
 import pytest
 import pytest_asyncio
+from mcp.server.mcpserver import Context
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -25,7 +27,7 @@ TEST_DATABASE_URL = os.environ.get(
 )
 
 
-@pytest_asyncio.fixture(autouse=True)
+@pytest.fixture(autouse=True)
 def _no_stray_machine_token(monkeypatch: pytest.MonkeyPatch) -> None:
     """A developer's own shell may export `STUDIO_MCP_MACHINE_TOKEN` for real
     use — strip it here so a test asserting `unauthenticated` isn't silently
@@ -34,13 +36,25 @@ def _no_stray_machine_token(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("STUDIO_MCP_MACHINE_TOKEN", raising=False)
 
 
-class FakeContext:
+class FakeContext(Context[dict[str, Any], Any]):
     """Stand-in for `mcp.server.mcpserver.Context` in tests: the tools under
     test only ever read `.headers` (see `studio_mcp.auth`), never anything
-    else the real Context exposes — so this is all a test needs."""
+    else the real Context exposes — so this is all a test needs. Subclasses
+    the real `Context` (rather than duck-typing it) so it type-checks as one;
+    `headers` is a read-only property upstream, backed here by a private
+    attribute set via `object.__setattr__` to bypass pydantic's `BaseModel`
+    field validation."""
 
-    def __init__(self, headers: dict[str, str] | None = None) -> None:
-        self.headers = headers
+    if TYPE_CHECKING:
+        _fake_headers: Mapping[str, str] | None
+
+    def __init__(self, headers: Mapping[str, str] | None = None) -> None:
+        super().__init__()
+        object.__setattr__(self, "_fake_headers", headers)
+
+    @property
+    def headers(self) -> Mapping[str, str] | None:
+        return self._fake_headers
 
 
 @pytest_asyncio.fixture

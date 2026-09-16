@@ -19,7 +19,7 @@
 - [ ] Deux machines reelles sur deux connexions Internet.
 - [ ] Deconnexion/reconnexion testee.
 - [ ] Claim conflict test reel.
-- [ ] Context Package test avec Graphify + Obsidian (8.3b : ADR tranche et contrats mis a jour par DEC-0057, mais composition Bloc B `studio context generate` non encore implementee — reste non coche).
+- [x] Context Package test avec Graphify + Obsidian (8.3b/DEC-0057) : composition Bloc B `studio context generate`, manifeste `schema_version: 1`, budget dur, sources partagees via `StudioApiClient.list_decisions/list_events` + locales via `VaultMemoryProvider`/`GraphifyGraphProvider`. Preuve : `uv run pytest tests/client/context -v` -> **11 passed** ; `uv run ruff check .` + `uv run mypy --strict packages/studio-client/src/studio_client/context tests/client/context` verts.
 - [ ] Memory partagee read-only par defaut verifiee.
 - [ ] Upload multipart > 5 Go teste.
 - [x] Reprise upload/download testee (`tests/client/test_transfers.py` : reprise multipart apres interruption reseau, DEC-0033 ; `tests/client/test_transfers_ttl_acceptance.py` : reprise apres expiration *reelle* du TTL des URLs par-part + redemarrage client sur meme SQLite, DEC-0037 ; `tests/client/test_transfers.py::test_download_resumes_with_range_header` : reprise download HTTP Range).
@@ -42,7 +42,7 @@
 ### Conception tranchee, implementation a venir (ne pas cocher l'implementation)
 
 - [x] Context Package 8.3b — **ADR tranche et contrats mis a jour** : `docs/decisions/DEC-0057-context-package-execution-boundary.md` (status `active`, 2026-09-15) ; `TECH/07_MCP_CONTRACT.md` (`studio_generate_context_package` retire de l'inventaire MCP, reclasse en capacite Bloc B) et `TECH/09_OBSIDIAN_GRAPHIFY.md` (composition locale, manifeste `schema_version: 1`, ephemere, portee deny-all) amendes dans le meme lot. Preuve d'index : `uv run python -m scripts.adr_index --root . --check` -> `docs/DECISIONS.md est a jour.` (2026-09-15).
-- [ ] Context Package 8.3b — composition effective `studio context generate` (Bloc B, part partagee HTTP + providers DEC-0042, manifeste) : **non implementee**, `packages/studio-client/src/studio_client/context/` absent du depot.
+- [x] Context Package 8.3b — composition effective `studio context generate` (Bloc B, part partagee HTTP + providers DEC-0042, manifeste) : implementee dans `packages/studio-client/src/studio_client/context/`, CLI `studio context generate`, tests `tests/client/context/`. Preuve : `uv run pytest tests/client/context -v` -> **11 passed**.
 - [x] Studio Producer 9.1 — **ADR de conception** : `docs/decisions/DEC-0059-studio-producer-github-build-workers.md` (status `proposed`, 2026-09-15) : frontiere Bloc A/Bloc B, webhook GitHub signe, entites `Build`/`GitHubIntegration`/`ProducerJob`, worker `builds reconcile`, extension Review Queue (`build_failure`/`pr_ready`).
 - [ ] Studio Producer 9.1 — amendements de contrat annonces par DEC-0059 (`TECH/02/03/04/05`) : **non encore rediges** (`TECH/03` non modifie).
 - [ ] Studio Producer 9.1 — implementation (webhook, `services/producer.py`, modeles, worker, endpoints) : **absente** ; aucun `services/producer.py`, aucun modele `Build`/`GitHubIntegration`/`ProducerJob`, aucun `POST /github/webhook` dans le depot.

@@ -32,9 +32,9 @@ if not GLOBAL_ENGINE.exists():
     )
 
 _spec = importlib.util.spec_from_file_location("graphify_update_policy", GLOBAL_ENGINE)
+assert _spec is not None and _spec.loader is not None
 _policy_engine = importlib.util.module_from_spec(_spec)
 sys.modules[_spec.name] = _policy_engine
-assert _spec.loader is not None
 _spec.loader.exec_module(_policy_engine)
 classify, load_policy, parse_policy = (
     _policy_engine.classify,

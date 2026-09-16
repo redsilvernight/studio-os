@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from uuid import uuid4
 
@@ -16,14 +17,14 @@ def _store(path: Path) -> OutboxStore:
     return OutboxStore(connect(path))
 
 
-def _git_reader(states: list[GitState | None]):
+def _git_reader(states: list[GitState | None]) -> Callable[[], Awaitable[GitState | None]]:
     async def _read() -> GitState | None:
         return states.pop(0)
 
     return _read
 
 
-def _process_probe(values: list[bool]):
+def _process_probe(values: list[bool]) -> Callable[[], Awaitable[bool]]:
     async def _probe() -> bool:
         return values.pop(0)
 
@@ -151,7 +152,7 @@ async def test_git_watcher_run_stops_promptly(tmp_path: Path) -> None:
     async def _stop_after_first_wait(_delay: float) -> None:
         watcher.request_stop()
 
-    watcher._sleep = _stop_after_first_wait  # type: ignore[attr-defined]
+    watcher._sleep = _stop_after_first_wait
     await asyncio.wait_for(watcher.run(), timeout=1.0)
 
     assert watcher.stopped
@@ -231,7 +232,7 @@ async def test_watcher_poll_failure_is_logged_and_does_not_crash_run(tmp_path: P
     async def _stop_after_first_wait(_delay: float) -> None:
         watcher.request_stop()
 
-    watcher._sleep = _stop_after_first_wait  # type: ignore[attr-defined]
+    watcher._sleep = _stop_after_first_wait
     await asyncio.wait_for(watcher.run(), timeout=1.0)
 
     assert watcher.stopped

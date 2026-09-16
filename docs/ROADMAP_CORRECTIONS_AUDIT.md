@@ -286,12 +286,13 @@ existants listées explicitement.
 Détail et preuves : `docs/ROADMAP_STEP8_BREAKDOWN.md` et
 `IMPLEMENTATION/04_INTEGRATION_CHECKLIST.md`.
 
-- 8.1/8.2/8.3a closes (DEC-0041, DEC-0042, DEC-0047).
+- 8.1/8.2/8.3a/8.3b closes (DEC-0041, DEC-0042, DEC-0047, DEC-0057).
 - 8.3b Context Package **détranchée** de l'état DEFERRED par DEC-0057
-  (`active`) : frontière d'exécution (composition locale Bloc B), format de
-  manifeste (`schema_version: 1`, éphémère) et confidentialité tranchés ;
-  `TECH/07_MCP_CONTRACT.md` et `TECH/09_OBSIDIAN_GRAPHIFY.md` mis à jour. La
-  composition `studio context generate` n'est pas encore implémentée.
+  (`active`) et implémentée : composition locale Bloc B, part partagée lue par
+  HTTP canonique, part locale via les providers 8.2, manifeste versionné
+  éphémère (`schema_version: 1`), portée deny-all. `TECH/07_MCP_CONTRACT.md` et
+  `TECH/09_OBSIDIAN_GRAPHIFY.md` mis à jour. La commande `studio context
+  generate` et les tests `tests/client/context/` sont livrés.
 - 8.4/8.5 implémentées, vérification Postgres réelle restante (DEC-0049,
   DEC-0051).
 - 8.6 dashboard livré DASH-0 → DASH-5 (`dashboard/README.md`,

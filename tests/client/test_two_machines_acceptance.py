@@ -172,7 +172,7 @@ async def test_two_independent_machines_never_sharing_local_state_converge_on_se
                     ttl_seconds=600,
                 ).model_dump(mode="json"),
             )
-        ai_work_payload_b = {
+        ai_work_payload_b: dict[str, object] = {
             "project_id": str(project.id),
             "agent_id": str(agent_b.id),
             "machine_id": str(machine_b.id),

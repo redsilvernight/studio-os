@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -47,7 +48,9 @@ def _heartbeat_response(request: httpx.Request) -> httpx.Response:
     )
 
 
-async def _fake_sleep_counting(calls: list[float], stop_after: int, daemon: HeartbeatDaemon):
+async def _fake_sleep_counting(
+    calls: list[float], stop_after: int, daemon: HeartbeatDaemon
+) -> Callable[[float], Awaitable[None]]:
     async def _sleep(delay: float) -> None:
         calls.append(delay)
         if len(calls) >= stop_after:
@@ -86,7 +89,7 @@ async def test_sends_heartbeat_on_every_tick_with_no_real_sleep() -> None:
             jitter_ratio=0.0,
             random_fn=lambda: 0.5,
         )
-        daemon._sleep = await _fake_sleep_counting(sleep_calls, stop_after=3, daemon=daemon)  # type: ignore[attr-defined]
+        daemon._sleep = await _fake_sleep_counting(sleep_calls, stop_after=3, daemon=daemon)
 
         await asyncio.wait_for(daemon.run(), timeout=1.0)
 
@@ -103,7 +106,7 @@ async def test_jitter_spreads_delay_around_interval() -> None:
             jitter_ratio=0.1,
             random_fn=lambda: 1.0,
         )
-        assert daemon._next_delay() == pytest.approx(110.0)  # type: ignore[attr-defined]
+        assert daemon._next_delay() == pytest.approx(110.0)
 
         daemon2 = HeartbeatDaemon(
             client,
@@ -112,7 +115,7 @@ async def test_jitter_spreads_delay_around_interval() -> None:
             jitter_ratio=0.1,
             random_fn=lambda: 0.0,
         )
-        assert daemon2._next_delay() == pytest.approx(90.0)  # type: ignore[attr-defined]
+        assert daemon2._next_delay() == pytest.approx(90.0)
 
 
 async def test_stop_during_wait_returns_promptly() -> None:
@@ -168,7 +171,7 @@ async def test_daemon_replays_outbox_after_successful_heartbeat(tmp_path: Path) 
         async def _stop_after_first_wait(_delay: float) -> None:
             daemon.request_stop()
 
-        daemon._sleep = _stop_after_first_wait  # type: ignore[attr-defined]
+        daemon._sleep = _stop_after_first_wait
         await asyncio.wait_for(daemon.run(), timeout=1.0)
 
     assert events_calls["n"] == 1
@@ -195,7 +198,7 @@ async def test_daemon_does_not_replay_after_failed_heartbeat(tmp_path: Path) -> 
         async def _stop_after_first_wait(_delay: float) -> None:
             daemon.request_stop()
 
-        daemon._sleep = _stop_after_first_wait  # type: ignore[attr-defined]
+        daemon._sleep = _stop_after_first_wait
         await asyncio.wait_for(daemon.run(), timeout=1.0)
 
     assert events_calls["n"] == 0

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -18,7 +19,9 @@ from scripts.vault_lint import run_lint
 from scripts.vault_sync import apply_sync, plan_sync
 
 
-def _write_adr(decisions_dir: Path, dec_id: str, title: str, body: str, **extra_fields) -> Path:
+def _write_adr(
+    decisions_dir: Path, dec_id: str, title: str, body: str, **extra_fields: Any
+) -> Path:
     decisions_dir.mkdir(parents=True, exist_ok=True)
     fields = {
         "id": dec_id,
@@ -33,7 +36,7 @@ def _write_adr(decisions_dir: Path, dec_id: str, title: str, body: str, **extra_
 
 
 def _write_vault_note(
-    vault_dir: Path, filename: str, frontmatter: dict, body: str = "# body\n"
+    vault_dir: Path, filename: str, frontmatter: dict[str, Any], body: str = "# body\n"
 ) -> Path:
     vault_dir.mkdir(parents=True, exist_ok=True)
     text = (
@@ -65,6 +68,7 @@ def test_sync_fills_missing_status_on_vault_note(tmp_path: Path) -> None:
     assert len(plan.actions) == 1
     action = plan.actions[0]
     assert action.kind == "update"
+    assert action.new_frontmatter is not None
     assert action.new_frontmatter["status"] == "active"
     assert action.conflicts == []
 
@@ -183,15 +187,18 @@ def test_sync_creates_a_note_when_none_exists_yet(tmp_path: Path) -> None:
     plan = plan_sync(root, vault_dir)
     action = plan.actions[0]
     assert action.kind == "create"
+    assert action.new_frontmatter is not None
     assert action.new_frontmatter["aliases"] == ["DEC-0001"]
     assert action.new_frontmatter["status"] == "active"
     assert "dedupe_key" in action.new_frontmatter
     # no fabricated fields: nothing invents a Contexte/Consequences section
     # or a confidence rating that was never actually established
     assert "confidence" not in action.new_frontmatter
+    assert action.new_body is not None
     assert "Corps de la decision." in action.new_body
 
     apply_sync(plan)
+    assert action.vault_path is not None
     assert action.vault_path.exists()
 
     # idempotent: the freshly created note is now findable by alias, so a

@@ -5,6 +5,7 @@ import os
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
+from typing import Any
 
 import pytest
 import pytest_asyncio
@@ -37,7 +38,7 @@ async def _create_transfer(
     auth_headers: dict[str, str],
     size_bytes: int,
     project_id: uuid.UUID | None = None,
-) -> dict[str, object]:
+) -> dict[str, Any]:
     response = await client.post(
         "/api/v1/transfers",
         headers=auth_headers,

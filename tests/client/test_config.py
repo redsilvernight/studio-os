@@ -9,7 +9,7 @@ from studio_client.config import ClientConfig, default_config_path
 
 def test_requires_api_base_url() -> None:
     with pytest.raises(ValidationError):
-        ClientConfig()
+        ClientConfig()  # type: ignore[call-arg]  # fields resolved from STUDIO_CLIENT_* env/TOML
 
 
 def test_strips_trailing_slash() -> None:
@@ -19,7 +19,7 @@ def test_strips_trailing_slash() -> None:
 
 def test_env_used_when_init_absent(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("STUDIO_CLIENT_API_BASE_URL", "https://from-env.example.com")
-    config = ClientConfig()
+    config = ClientConfig()  # type: ignore[call-arg]  # fields resolved from STUDIO_CLIENT_* env/TOML
     assert config.api_base_url == "https://from-env.example.com"
 
 
@@ -36,7 +36,7 @@ def test_toml_file_used_when_env_and_init_absent(
     toml_path.write_text('api_base_url = "https://from-toml.example.com"\n')
     monkeypatch.setenv("STUDIO_CLIENT_CONFIG_FILE", str(toml_path))
 
-    config = ClientConfig()
+    config = ClientConfig()  # type: ignore[call-arg]  # fields resolved from STUDIO_CLIENT_* env/TOML
 
     assert config.api_base_url == "https://from-toml.example.com"
 
@@ -47,7 +47,7 @@ def test_env_overrides_toml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setenv("STUDIO_CLIENT_CONFIG_FILE", str(toml_path))
     monkeypatch.setenv("STUDIO_CLIENT_API_BASE_URL", "https://from-env.example.com")
 
-    config = ClientConfig()
+    config = ClientConfig()  # type: ignore[call-arg]  # fields resolved from STUDIO_CLIENT_* env/TOML
 
     assert config.api_base_url == "https://from-env.example.com"
 
@@ -58,7 +58,7 @@ def test_missing_toml_file_is_silently_ignored(
     monkeypatch.setenv("STUDIO_CLIENT_CONFIG_FILE", str(tmp_path / "does-not-exist.toml"))
     monkeypatch.setenv("STUDIO_CLIENT_API_BASE_URL", "https://from-env.example.com")
 
-    config = ClientConfig()
+    config = ClientConfig()  # type: ignore[call-arg]  # fields resolved from STUDIO_CLIENT_* env/TOML
 
     assert config.api_base_url == "https://from-env.example.com"
 

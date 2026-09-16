@@ -350,16 +350,20 @@ configuration). Livre : entrypoint local `local_server.py`, handlers minces
 Read-only strict, aucune ecriture, aucun Context Package. Dependait de 8.2
 (fourni : providers, DEC-0042).
 
-## Sous-etape 8.3b — Context Package (`studio_generate_context_package`) — PLANIFIÉE (ADR tranché, DEC-0057)
+## Sous-etape 8.3b — Context Package (`studio_generate_context_package`) — CLOS
 
 Détranchée de l'état DEFERRED de DEC-0047 par **DEC-0057** (`active`,
 2026-09-15) : composition locale Bloc B, part partagée lue par HTTP canonique,
 part locale via les providers 8.2, manifeste versionné éphémère
 (`schema_version: 1`), portée deny-all. `TECH/07_MCP_CONTRACT.md` et
 `TECH/09_OBSIDIAN_GRAPHIFY.md` amendés dans le même lot.
-**Implémentation restante** : `packages/studio-client/src/studio_client/context/`
-et sous-commande CLI `studio context generate` (absents du dépôt au
-2026-09-15). L'ancienne condition normative de DEC-0047 (Decision dédiée
+**Implémentation livrée** : `packages/studio-client/src/studio_client/context/`
+(`errors.py`, `manifest.py`, `git.py`, `composer.py`) + sous-commande CLI
+`studio context generate`, méthodes clientes additives `list_decisions` et
+`list_events` dans `StudioApiClient`. Tests : `tests/client/context/`
+(`test_context_composer.py`, `test_context_cli.py`, `conftest.py`), 11 passed
+sans PostgreSQL ; `ruff`/`ruff format --check`/`mypy --strict` verts sur les
+fichiers du lot. L'ancienne condition normative de DEC-0047 (Decision dédiée
 couvrant sélection des sources, confidentialité, manifest/provenance, schéma,
 persistance et frontière local→partage) est satisfaite par DEC-0057, pas un
 reliquat de 8.3a.

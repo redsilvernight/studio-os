@@ -28,6 +28,7 @@ import importlib.util
 import shutil
 import sys
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -37,21 +38,21 @@ LEDGER_SOURCE = Path.home() / ".claude" / "scripts" / "graphify_ledger.py"
 
 
 @pytest.fixture(scope="module")
-def incremental_update_module():
+def incremental_update_module() -> ModuleType:
     if not GLOBAL_SCRIPT.exists():
         pytest.skip(f"global script not present on this machine: {GLOBAL_SCRIPT}")
     spec = importlib.util.spec_from_file_location(
         "graphify_incremental_update_under_test", GLOBAL_SCRIPT
     )
+    assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
 
 def test_project_without_policy_file_is_fully_legacy(
-    incremental_update_module, tmp_path: Path
+    incremental_update_module: ModuleType, tmp_path: Path
 ) -> None:
     # The engine itself resolves via the global fallback (no project-local
     # copy needed), but with no .graphify-update.toml anywhere, the policy
@@ -69,7 +70,7 @@ def test_project_without_policy_file_is_fully_legacy(
 
 
 def test_project_with_policy_engine_override_but_no_toml_is_legacy(
-    incremental_update_module, tmp_path: Path
+    incremental_update_module: ModuleType, tmp_path: Path
 ) -> None:
     (tmp_path / "scripts").mkdir()
     shutil.copy(POLICY_ENGINE_SOURCE, tmp_path / "scripts" / "graphify_update_policy.py")
@@ -80,7 +81,7 @@ def test_project_with_policy_engine_override_but_no_toml_is_legacy(
 
 
 def test_files_list_cannot_bypass_active_policy_exclusions(
-    incremental_update_module, tmp_path: Path
+    incremental_update_module: ModuleType, tmp_path: Path
 ) -> None:
     (tmp_path / "scripts").mkdir()
     shutil.copy(POLICY_ENGINE_SOURCE, tmp_path / "scripts" / "graphify_update_policy.py")
@@ -114,7 +115,7 @@ patterns = ["docs/DECISIONS.md"]
 
 
 def test_project_without_local_ledger_falls_back_to_global(
-    incremental_update_module, tmp_path: Path
+    incremental_update_module: ModuleType, tmp_path: Path
 ) -> None:
     ledger_module = incremental_update_module.load_project_ledger(tmp_path)
     assert ledger_module is not None
@@ -122,7 +123,7 @@ def test_project_without_local_ledger_falls_back_to_global(
 
 
 def test_project_local_ledger_override_takes_precedence(
-    incremental_update_module, tmp_path: Path
+    incremental_update_module: ModuleType, tmp_path: Path
 ) -> None:
     (tmp_path / "scripts").mkdir()
     shutil.copy(LEDGER_SOURCE, tmp_path / "scripts" / "graphify_ledger.py")
@@ -133,7 +134,7 @@ def test_project_local_ledger_override_takes_precedence(
 
 
 def test_project_with_ledger_module_can_record_an_attempt(
-    incremental_update_module, tmp_path: Path
+    incremental_update_module: ModuleType, tmp_path: Path
 ) -> None:
     (tmp_path / "scripts").mkdir()
     shutil.copy(LEDGER_SOURCE, tmp_path / "scripts" / "graphify_ledger.py")
@@ -158,11 +159,13 @@ def test_project_with_ledger_module_can_record_an_attempt(
 
 
 def test_extract_chunk_reports_which_backend_succeeded(
-    incremental_update_module, monkeypatch
+    incremental_update_module: ModuleType, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     module = incremental_update_module
 
-    def fake_call_backend(backend, prompt, files, timeout=900):
+    def fake_call_backend(
+        backend: str, prompt: str, files: list[str], timeout: int = 900
+    ) -> str:
         assert backend == "qwen"
         return '{"nodes": [], "edges": [], "hyperedges": []}'
 
@@ -180,7 +183,7 @@ def test_extract_chunk_reports_which_backend_succeeded(
 
 
 def test_gemini_zero_yield_is_never_recorded_as_a_measured_success(
-    incremental_update_module, tmp_path: Path
+    incremental_update_module: ModuleType, tmp_path: Path
 ) -> None:
     """Regression test for a real incident: a Gemini 429 rate-limit was
     swallowed by extract_corpus_parallel (it still returned a normal-shaped
@@ -211,11 +214,13 @@ def test_gemini_zero_yield_is_never_recorded_as_a_measured_success(
 
 
 def test_extract_chunk_reports_no_backend_on_total_failure(
-    incremental_update_module, monkeypatch
+    incremental_update_module: ModuleType, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     module = incremental_update_module
 
-    def failing_call_backend(backend, prompt, files, timeout=900):
+    def failing_call_backend(
+        backend: str, prompt: str, files: list[str], timeout: int = 900
+    ) -> str:
         raise RuntimeError("boom")
 
     monkeypatch.setattr(module, "call_backend", failing_call_backend)

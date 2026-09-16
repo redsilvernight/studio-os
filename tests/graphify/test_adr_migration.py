@@ -94,7 +94,9 @@ def test_render_and_parse_adr_markdown_round_trip() -> None:
     assert parsed_body == "Body text.\n\nMore."
 
 
-def _write_vault_note(vault_dir: Path, dec_id: str, *, status: str, superseded_by=None) -> None:
+def _write_vault_note(
+    vault_dir: Path, dec_id: str, *, status: str, superseded_by: str | None = None
+) -> None:
     vault_dir.mkdir(parents=True, exist_ok=True)
     (vault_dir / f"{dec_id.lower()}.md").write_text(
         f"""---

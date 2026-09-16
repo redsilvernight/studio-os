@@ -8,6 +8,7 @@ import sys
 import uuid
 from collections.abc import Awaitable, Callable, Sequence
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -18,7 +19,14 @@ from studio_contracts.tasks import TaskCreate, TaskStatus, TaskUpdate
 
 from studio_client.api_client import StudioApiClient
 from studio_client.config import ClientConfig, default_config_path
+from studio_client.context import (
+    ContextError,
+    ContextPackage,
+    ContextPackageComposer,
+    ContextPackageOptions,
+)
 from studio_client.errors import StudioApiError
+from studio_client.knowledge import GraphifyGraphProvider, ScopePolicy, VaultMemoryProvider
 from studio_client.outbox import OutboxStore, connect, default_outbox_path
 from studio_client.recording import (
     ActiveRecordingStore,
@@ -353,6 +361,79 @@ def _timeline_list(args: argparse.Namespace, config: ClientConfig) -> None:
                 print(f"  {event.event_type}\t{event.server_timestamp}")
 
 
+def _context_providers(
+    config: ClientConfig,
+) -> tuple[VaultMemoryProvider | None, GraphifyGraphProvider | None]:
+    memory: VaultMemoryProvider | None = None
+    if config.knowledge_vault_path is not None:
+        memory = VaultMemoryProvider(
+            vault_root=config.knowledge_vault_path,
+            scope=ScopePolicy(allowed_prefixes=config.knowledge_scope_allow),
+        )
+    graph: GraphifyGraphProvider | None = None
+    if config.knowledge_graph_dir is not None:
+        graph = GraphifyGraphProvider(
+            graph_dir=config.knowledge_graph_dir,
+            source_root=config.knowledge_source_root,
+        )
+    return memory, graph
+
+
+def _context_generate(args: argparse.Namespace, config: ClientConfig) -> None:
+    project_id = _parse_uuid(args.project_id, field="project_id")
+    task_id = _parse_uuid(args.task_id, field="task_id") if args.task_id else None
+    memory_provider, graph_provider = _context_providers(config)
+    options = ContextPackageOptions(
+        include_memory=args.with_memory,
+        include_graph=args.with_graph,
+        include_git=args.with_git,
+        memory_query=args.memory_query or "",
+        graph_query=args.graph_query or "",
+        budget_bytes=args.budget_bytes,
+        events_limit=args.events_limit,
+        decisions_limit=args.decisions_limit,
+        ai_work_limit=args.ai_work_limit,
+        memory_limit=args.memory_limit,
+        graph_limit=args.graph_limit,
+        git_commits_limit=args.git_commits_limit,
+    )
+
+    async def action(client: StudioApiClient) -> ContextPackage:
+        composer = ContextPackageComposer(
+            client,
+            config,
+            memory_provider=memory_provider,
+            graph_provider=graph_provider,
+        )
+        return await composer.generate(project_id, task_id=task_id, options=options)
+
+    try:
+        package = _run(config, action)
+    except ContextError as exc:
+        print(f"error: {exc.message} ({exc.reason})", file=sys.stderr)
+        raise SystemExit(1) from None
+
+    if args.out:
+        path = Path(args.out)
+        path.write_text(package.to_json(indent=2), encoding="utf-8")
+        if args.json:
+            print(json.dumps({"written": str(path), "size_bytes": package.size_bytes()}))
+        else:
+            print(f"Context package written to {path} ({package.size_bytes()} bytes).")
+        return
+
+    if args.json:
+        print(package.to_json(indent=2))
+    else:
+        print(f"Context package {package.manifest.package_id}")
+        print(f"  size: {package.size_bytes()} bytes")
+        print(f"  sources: {', '.join(s.kind for s in package.manifest.sources) or '(none)'}")
+        if package.manifest.omitted:
+            print("  omitted:")
+            for omission in package.manifest.omitted:
+                print(f"    - {omission.kind}: {omission.reason} ({omission.count})")
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="studio-client")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -519,6 +600,40 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     _add_json_flag(mark_parser)
     mark_parser.set_defaults(func=_mark)
+
+    context_parser = subparsers.add_parser(
+        "context", help="Compose a local Context Package (DEC-0057)."
+    )
+    context_sub = context_parser.add_subparsers(dest="context_command", required=True)
+
+    context_generate = context_sub.add_parser("generate", help="Generate a context package.")
+    context_generate.add_argument("--project-id", required=True, help="Project UUID.")
+    context_generate.add_argument("--task-id", help="Optional task UUID.")
+    context_generate.add_argument(
+        "--with-memory", action="store_true", help="Include exposed vault notes (opt-in)."
+    )
+    context_generate.add_argument(
+        "--with-graph", action="store_true", help="Include Graphify relevant files (opt-in)."
+    )
+    context_generate.add_argument(
+        "--with-git", action="store_true", help="Include bounded Git snapshot (opt-in)."
+    )
+    context_generate.add_argument("--memory-query", help="Search query for vault notes.")
+    context_generate.add_argument("--graph-query", help="Topic/path for Graphify lookup.")
+    context_generate.add_argument(
+        "--budget-bytes", type=int, default=256 * 1024, help="Hard serialized budget."
+    )
+    context_generate.add_argument("--events-limit", type=int, default=50)
+    context_generate.add_argument("--decisions-limit", type=int, default=20)
+    context_generate.add_argument("--ai-work-limit", type=int, default=20)
+    context_generate.add_argument("--memory-limit", type=int, default=5)
+    context_generate.add_argument("--graph-limit", type=int, default=10)
+    context_generate.add_argument("--git-commits-limit", type=int, default=10)
+    context_generate.add_argument(
+        "--out", help="Write the package to this file instead of printing a summary."
+    )
+    _add_json_flag(context_generate)
+    context_generate.set_defaults(func=_context_generate)
 
     return parser
 

@@ -9,6 +9,7 @@ import httpx
 from studio_contracts.ai_work import AIWorkLog
 from studio_contracts.auth import HeartbeatRequest, HeartbeatResponse
 from studio_contracts.claims import ResourceClaim, ResourceClaimCreate
+from studio_contracts.decisions import Decision
 from studio_contracts.events import EventCreate, EventEnvelope
 from studio_contracts.project_state import ProjectState
 from studio_contracts.projects import Project
@@ -267,6 +268,31 @@ class StudioApiClient:
             params["task_id"] = str(task_id)
         response = await self._request("GET", "/api/v1/ai-work", params=params)
         return [AIWorkLog.model_validate(item) for item in response.json()]
+
+    async def list_decisions(self, *, project_id: UUID | None = None) -> list[Decision]:
+        params: dict[str, Any] = {}
+        if project_id is not None:
+            params["project_id"] = str(project_id)
+        response = await self._request("GET", "/api/v1/decisions", params=params)
+        return [Decision.model_validate(item) for item in response.json()]
+
+    async def list_events(
+        self,
+        *,
+        project_id: UUID | None = None,
+        task_id: UUID | None = None,
+        since: datetime | None = None,
+        limit: int = 100,
+    ) -> list[EventEnvelope]:
+        params: dict[str, Any] = {"limit": limit}
+        if project_id is not None:
+            params["project"] = str(project_id)
+        if task_id is not None:
+            params["task"] = str(task_id)
+        if since is not None:
+            params["since"] = since.isoformat()
+        response = await self._request("GET", "/api/v1/events", params=params)
+        return [EventEnvelope.model_validate(item) for item in response.json()]
 
     async def get_review_queue(
         self, *, project_id: UUID | None = None, conflict_window_hours: int | None = None

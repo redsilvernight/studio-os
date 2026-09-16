@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from collections.abc import Iterator
 from pathlib import Path
 
 import httpx
@@ -29,7 +30,7 @@ _PART_SIZE_BYTES = 64 * 1024 * 1024  # must match services/api PART_SIZE_BYTES
 
 
 @pytest.fixture(autouse=True)
-def _short_presigned_ttl(monkeypatch: pytest.MonkeyPatch) -> None:
+def _short_presigned_ttl(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     """`get_storage()` is process-wide `lru_cache`d (DEC-0026) — clearing it
     around this test is what makes a freshly-set short TTL actually apply to
     the presigned URLs the running app hands out, instead of whatever TTL

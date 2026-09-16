@@ -4,9 +4,11 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
-from mcp.types import Tool
+from mcp.server.mcpserver import MCPServer
+from mcp.types import CallToolResult, Tool
 from studio_client.config import ClientConfig
 from studio_client.knowledge import GraphifyGraphProvider
 from studio_mcp.local_server import (
@@ -18,6 +20,17 @@ from studio_mcp.local_server import (
     create_local_server_from_env,
 )
 from studio_mcp.local_tools import make_graph_query, make_memory_search
+
+
+async def _call(server: MCPServer, name: str, arguments: dict[str, Any]) -> CallToolResult:
+    """`MCPServer.call_tool` returns `CallToolResult | InputRequiredResult`; none
+    of these tools ever prompt for more input, so every call site here expects
+    the former — narrow it once instead of asserting it at each of the 25
+    call sites below."""
+    result = await server.call_tool(name, arguments)
+    assert isinstance(result, CallToolResult)
+    return result
+
 
 # UC-3 / 8.3a conformance for the local knowledge MCP server (DEC-0047).
 # Synthetic vaults/graphs on `tmp_path` only — never the developer's real
@@ -146,7 +159,7 @@ async def test_configured_but_missing_backend_stays_announced(tmp_path: Path) ->
         "studio_memory_read",
         "studio_memory_search",
     ]
-    result = await server.call_tool("studio_memory_search", {"query": "x"})
+    result = await _call(server, "studio_memory_search", {"query": "x"})
     assert result.structured_content == {"matches": [], "reason": "vault_missing"}
 
 
@@ -229,7 +242,7 @@ def test_description_constants_are_generic() -> None:
 
 async def test_search_nominal_and_case_insensitive(vault: Path) -> None:
     server = create_local_server(vault_path=vault, scope_allow=SCOPE)
-    result = await server.call_tool("studio_memory_search", {"query": "searchable"})
+    result = await _call(server, "studio_memory_search", {"query": "searchable"})
     assert result.structured_content is not None
     assert result.structured_content["matches"] == [
         {
@@ -239,36 +252,36 @@ async def test_search_nominal_and_case_insensitive(vault: Path) -> None:
             "truncated": False,
         }
     ]
-    upper = await server.call_tool("studio_memory_search", {"query": "SEARCHABLE"})
+    upper = await _call(server, "studio_memory_search", {"query": "SEARCHABLE"})
     assert upper.structured_content == result.structured_content
 
 
 async def test_search_bounded_and_scoped(vault: Path) -> None:
     server = create_local_server(vault_path=vault, scope_allow=SCOPE)
-    result = await server.call_tool("studio_memory_search", {"query": "bulk", "max_results": 5})
+    result = await _call(server, "studio_memory_search", {"query": "bulk", "max_results": 5})
     assert result.structured_content is not None
     assert len(result.structured_content["matches"]) == 5
-    private = await server.call_tool("studio_memory_search", {"query": "secret"})
+    private = await _call(server, "studio_memory_search", {"query": "secret"})
     assert private.structured_content == {"matches": []}
 
 
 async def test_search_invalid_limit_is_machine_readable(vault: Path) -> None:
     server = create_local_server(vault_path=vault, scope_allow=SCOPE)
-    result = await server.call_tool("studio_memory_search", {"query": "x", "max_results": 0})
+    result = await _call(server, "studio_memory_search", {"query": "x", "max_results": 0})
     assert result.structured_content is not None
     assert result.structured_content["error_code"] == "invalid_argument"
 
 
 async def test_read_nominal_truncation_and_frontmatter(vault: Path) -> None:
     server = create_local_server(vault_path=vault, scope_allow=SCOPE)
-    result = await server.call_tool("studio_memory_read", {"path": "projects/demo/alpha.md"})
+    result = await _call(server, "studio_memory_read", {"path": "projects/demo/alpha.md"})
     assert result.structured_content is not None
     assert result.structured_content["title"] == "Alpha Note"
     assert result.structured_content["truncated"] is False
-    plain = await server.call_tool("studio_memory_read", {"path": "projects/demo/plain.md"})
+    plain = await _call(server, "studio_memory_read", {"path": "projects/demo/plain.md"})
     assert plain.structured_content is not None
     assert plain.structured_content["title"] == "Plain Title"
-    big = await server.call_tool(
+    big = await _call(server, 
         "studio_memory_read", {"path": "projects/demo/big.md", "max_chars": 100}
     )
     assert big.structured_content is not None
@@ -284,11 +297,11 @@ async def test_read_errors_are_machine_readable(vault: Path) -> None:
         ("../outside.md", "out_of_scope"),
         ("projects/demo/broken.md", "invalid_frontmatter"),
     ):
-        result = await server.call_tool("studio_memory_read", {"path": path})
+        result = await _call(server, "studio_memory_read", {"path": path})
         assert result.structured_content is not None
         assert result.structured_content["error_code"] == code, path
     absolute = str(vault / "projects/demo/alpha.md")
-    result = await server.call_tool("studio_memory_read", {"path": absolute})
+    result = await _call(server, "studio_memory_read", {"path": absolute})
     assert result.structured_content is not None
     assert result.structured_content["error_code"] == "out_of_scope"
 
@@ -302,7 +315,7 @@ async def test_read_does_not_follow_scope_escaping_symlink(vault: Path, tmp_path
     except OSError:
         pytest.skip("symlinks not permitted on this platform")
     server = create_local_server(vault_path=vault, scope_allow=SCOPE)
-    result = await server.call_tool("studio_memory_read", {"path": "projects/demo/evil.md"})
+    result = await _call(server, "studio_memory_read", {"path": "projects/demo/evil.md"})
     assert result.structured_content is not None
     assert result.structured_content["error_code"] == "out_of_scope"
 
@@ -323,21 +336,21 @@ async def test_no_stack_trace_leaks_on_unexpected_failure() -> None:
 
 async def test_graph_modes_and_freshness(graph_dir: Path) -> None:
     server = create_local_server(graph_dir=graph_dir)
-    query = await server.call_tool("studio_graph_query", {"text": "alpha"})
+    query = await _call(server, "studio_graph_query", {"text": "alpha"})
     assert query.structured_content is not None
     assert query.structured_content["nodes"][0]["label"] == "alpha_func"
     assert query.structured_content["stale"] is False
     assert "stale_reason" not in query.structured_content
-    files = await server.call_tool(
+    files = await _call(server, 
         "studio_graph_query", {"text": "alpha", "mode": "relevant_files"}
     )
     assert files.structured_content is not None
     assert files.structured_content["files"] == ["a.py"]
-    deps = await server.call_tool("studio_graph_query", {"text": "a.py", "mode": "dependencies"})
+    deps = await _call(server, "studio_graph_query", {"text": "a.py", "mode": "dependencies"})
     assert deps.structured_content is not None
     assert deps.structured_content["files"] == ["b.py"]
     assert deps.structured_content["stale"] is False
-    related = await server.call_tool(
+    related = await _call(server, 
         "studio_graph_query", {"text": "b.py", "mode": "related_symbols"}
     )
     assert related.structured_content is not None
@@ -346,19 +359,19 @@ async def test_graph_modes_and_freshness(graph_dir: Path) -> None:
 
 async def test_graph_bounded(graph_dir: Path) -> None:
     server = create_local_server(graph_dir=graph_dir)
-    result = await server.call_tool("studio_graph_query", {"text": "func", "limit": 1})
+    result = await _call(server, "studio_graph_query", {"text": "func", "limit": 1})
     assert result.structured_content is not None
     assert len(result.structured_content["nodes"]) == 1
 
 
 async def test_graph_invalid_mode_rejected(graph_dir: Path) -> None:
     handler = make_graph_query(GraphifyGraphProvider(graph_dir))
-    assert (await handler("x", "nope", 20))["error_code"] == "invalid_argument"
+    assert (await handler("x", "nope", 20))["error_code"] == "invalid_argument"  # type: ignore[arg-type]
 
 
 async def test_graph_degraded_states(tmp_path: Path, graph_dir: Path) -> None:
     server = create_local_server(graph_dir=tmp_path / "no-graph")
-    missing = await server.call_tool("studio_graph_query", {"text": "x"})
+    missing = await _call(server, "studio_graph_query", {"text": "x"})
     assert missing.structured_content is not None
     assert missing.structured_content["stale"] is True
     assert missing.structured_content["stale_reason"] == "graph_missing"
@@ -368,14 +381,14 @@ async def test_graph_degraded_states(tmp_path: Path, graph_dir: Path) -> None:
         json.dumps({"nodes": [], "links": []}), encoding="utf-8"
     )
     server = create_local_server(graph_dir=no_manifest)
-    result = await server.call_tool("studio_graph_query", {"text": "x"})
+    result = await _call(server, "studio_graph_query", {"text": "x"})
     assert result.structured_content is not None
     assert result.structured_content["stale_reason"] == "manifest_missing"
     bad = tmp_path / "bad-graph"
     bad.mkdir()
     (bad / "graph.json").write_text("{not json", encoding="utf-8")
     server = create_local_server(graph_dir=bad)
-    result = await server.call_tool("studio_graph_query", {"text": "x"})
+    result = await _call(server, "studio_graph_query", {"text": "x"})
     assert result.structured_content is not None
     assert result.structured_content["stale_reason"] == "graph_invalid"
 
@@ -389,10 +402,10 @@ async def test_graph_not_covered_and_source_states(graph_dir: Path, tmp_path: Pa
     manifest = {"a.py": {"mtime": a_file.stat().st_mtime}, "b.py": {"mtime": 0}}
     (graph_dir / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     server = create_local_server(graph_dir=graph_dir, source_root=src)
-    fresh = await server.call_tool("studio_graph_query", {"text": "a.py", "mode": "dependencies"})
+    fresh = await _call(server, "studio_graph_query", {"text": "a.py", "mode": "dependencies"})
     assert fresh.structured_content is not None
     assert fresh.structured_content["stale"] is False
-    changed = await server.call_tool("studio_graph_query", {"text": "b.py", "mode": "dependencies"})
+    changed = await _call(server, "studio_graph_query", {"text": "b.py", "mode": "dependencies"})
     assert changed.structured_content is not None
     assert changed.structured_content["stale_reason"] == "changed_since_indexed"
     (src / "gone.py").write_text("z = 3\n", encoding="utf-8")
@@ -401,11 +414,11 @@ async def test_graph_not_covered_and_source_states(graph_dir: Path, tmp_path: Pa
     (src / "gone.py").unlink()
     # New server: the provider snapshots the manifest on first load.
     server = create_local_server(graph_dir=graph_dir, source_root=src)
-    gone = await server.call_tool("studio_graph_query", {"text": "gone.py", "mode": "dependencies"})
+    gone = await _call(server, "studio_graph_query", {"text": "gone.py", "mode": "dependencies"})
     assert gone.structured_content is not None
     assert gone.structured_content["stale_reason"] == "source_missing"
     server = create_local_server(graph_dir=graph_dir)
-    uncovered = await server.call_tool(
+    uncovered = await _call(server, 
         "studio_graph_query", {"text": "zzz.py", "mode": "dependencies"}
     )
     assert uncovered.structured_content is not None
@@ -472,6 +485,6 @@ async def test_call_tool_without_context(vault: Path) -> None:
     """Unknown harnesses connect without any Studi'OS identity: tool calls
     carry no auth context at all."""
     server = create_local_server(vault_path=vault, scope_allow=SCOPE)
-    result = await server.call_tool("studio_memory_search", {"query": "alpha"})
+    result = await _call(server, "studio_memory_search", {"query": "alpha"})
     assert result.structured_content is not None
     assert result.structured_content["matches"]

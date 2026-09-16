@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from scripts.adr_common import adr_filename, content_hash, render_adr_markdown
 from scripts.decision_graph import build_decision_subgraph, compose_graphs, decision_node_id
 
 
-def _write_adr(decisions_dir: Path, dec_id: str, title: str, body: str = "Corps.", **extra) -> Path:
+def _write_adr(
+    decisions_dir: Path, dec_id: str, title: str, body: str = "Corps.", **extra: Any
+) -> Path:
     decisions_dir.mkdir(parents=True, exist_ok=True)
     fields = {
         "id": dec_id,

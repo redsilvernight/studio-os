@@ -123,8 +123,10 @@ async def test_upload_small_file_retries_initiate_with_md5(tmp_path: Path) -> No
     assert result.status == TransferStatus.READY
     assert len(initiate_calls) == 2
     assert initiate_calls[0] == {"content_md5": None}
-    assert initiate_calls[1]["content_md5"]
-    assert put_seen["content_md5"] == initiate_calls[1]["content_md5"]
+    second_call = initiate_calls[1]
+    assert second_call is not None
+    assert second_call["content_md5"]
+    assert put_seen["content_md5"] == second_call["content_md5"]
     assert put_seen["content_type"] == transfer.content_type
     assert put_seen["body"] == "x" * 25
 

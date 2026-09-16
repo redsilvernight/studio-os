@@ -4,6 +4,7 @@ never the real AI-Memory vault, on the explicit model of
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -219,12 +220,13 @@ def test_write_methods_are_declared_but_unsupported(tmp_path: Path) -> None:
     _seed(tmp_path)
     provider = _provider(tmp_path)
     before = (tmp_path / "projects" / "demo" / "alpha.md").read_bytes()
-    for call in (
+    calls: tuple[Callable[[], object], ...] = (
         lambda: provider.propose(MemoryProposal(title="x")),
         lambda: provider.write_if_authorized(MemoryProposal(title="x")),
         lambda: provider.append_task_log({"text": "x"}),
         lambda: provider.create_decision_note({"title": "x"}),
-    ):
+    )
+    for call in calls:
         with pytest.raises(KnowledgeError) as exc_info:
             call()
         assert exc_info.value.reason == KnowledgeError.WRITE_UNSUPPORTED

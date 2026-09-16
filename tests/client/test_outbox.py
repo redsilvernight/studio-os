@@ -206,7 +206,7 @@ def test_move_to_dead_letter_injected_failure_leaves_no_half_transition(tmp_path
     flaky_store = OutboxStore(flaky)  # type: ignore[arg-type]
 
     with pytest.raises(sqlite3.OperationalError):
-        with transaction(flaky_store.connection):  # type: ignore[arg-type]
+        with transaction(flaky_store.connection):
             flaky_store.move_to_dead_letter(OutboxTable.EVENTS, str(event.event_id), "boom")
 
     verify_store = OutboxStore(real_conn)

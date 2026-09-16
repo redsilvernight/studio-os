@@ -47,7 +47,7 @@ def test_knowledge_toml_values(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
         encoding="utf-8",
     )
     monkeypatch.setenv("STUDIO_CLIENT_CONFIG_FILE", str(toml_path))
-    config = ClientConfig()
+    config = ClientConfig()  # type: ignore[call-arg]  # fields resolved from STUDIO_CLIENT_* env/TOML
     assert config.api_base_url == "https://from-toml.example.com"
     assert config.knowledge_vault_path == tmp_path / "vault"
     assert config.knowledge_scope_allow == ("projects/demo/",)

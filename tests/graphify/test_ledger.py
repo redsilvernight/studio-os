@@ -23,9 +23,9 @@ if not GLOBAL_ENGINE.exists():
     )
 
 _spec = importlib.util.spec_from_file_location("graphify_ledger", GLOBAL_ENGINE)
+assert _spec is not None and _spec.loader is not None
 _ledger_engine = importlib.util.module_from_spec(_spec)
 sys.modules[_spec.name] = _ledger_engine
-assert _spec.loader is not None
 _spec.loader.exec_module(_ledger_engine)
 Attempt = _ledger_engine.Attempt
 ast_semantic_ratio = _ledger_engine.ast_semantic_ratio

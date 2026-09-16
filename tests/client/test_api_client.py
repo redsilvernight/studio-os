@@ -479,6 +479,4 @@ async def test_release_claim_handles_204_no_content() -> None:
     async with StudioApiClient(
         _config(), _token_store(), transport=httpx.MockTransport(handler)
     ) as client:
-        result = await client.release_claim(uuid4())
-
-    assert result is None
+        await client.release_claim(uuid4())
