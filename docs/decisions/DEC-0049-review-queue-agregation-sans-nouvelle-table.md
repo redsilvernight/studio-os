@@ -1,10 +1,12 @@
 ---
 id: DEC-0049
-title: 'Sous-etape 8.4 (roadmap) : Review Queue agregee, aucune nouvelle table, revue limitee au travail IA'
+title: 'Sous-etape 8.4 (roadmap) : Review Queue agregee, aucune nouvelle table, revue
+  limitee au travail IA'
 status: active
 date: '2026-09-15'
 superseded_by: null
 source: docs/DECISIONS.md
+sync_hash: sha256:f800b0357c4c21d6db31eb39ad8e82d1a4bd81355e6cfdbe33120cf81afe7bb6
 ---
 
 # DEC-0049 — Sous-etape 8.4 (roadmap) : Review Queue agregee, aucune nouvelle table, revue limitee au travail IA

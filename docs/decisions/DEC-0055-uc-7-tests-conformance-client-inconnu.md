@@ -1,13 +1,15 @@
 ---
 id: DEC-0055
-title: 'UC-7 : tests de conformance dun client inconnu (unknown-harness/provider/model, sans profil)'
+title: 'UC-7 : tests de conformance dun client inconnu (unknown-harness/provider/model,
+  sans profil)'
 status: active
 date: '2026-09-15'
 superseded_by: null
 source: docs/DECISIONS.md
+sync_hash: sha256:4b285bf45c661dabf5eb25a0b625fab31acf66b37a1bf2526b52379b49e9e651
 ---
 
-# DEC-0055 — UC-7 : tests de conformance client inconnu
+# DEC-0055 — UC-7 : tests de conformance dun client inconnu (unknown-harness/provider/model, sans profil)
 
 Verrouille par test le critere d'acceptation : « A previously unknown AI
 agent/harness/provider/model can integrate with Studi'OS without modification

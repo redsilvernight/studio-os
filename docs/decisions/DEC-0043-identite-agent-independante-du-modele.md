@@ -1,14 +1,16 @@
 ---
 id: DEC-0043
-title: 'Model-Agnostic Agent Identity : separation auth_role / harness / provider / model, agent_profile optionnel'
+title: 'Model-Agnostic Agent Identity : separation auth_role / harness / provider
+  / model, agent_profile optionnel'
 status: active
 date: '2026-09-15'
 supersedes: DEC-0044
 superseded_by: null
 source: docs/DECISIONS.md
+sync_hash: sha256:97c7ecc6ff0d3289d2d7e95c38f26efab2176c33eeafe6f15ec3eeeef5b16f05
 ---
 
-# DEC-0043 — Model-Agnostic Agent Identity (amendee : rectification Phase 1)
+# DEC-0043 — Model-Agnostic Agent Identity : separation auth_role / harness / provider / model, agent_profile optionnel
 
 ## Amendement — rectification Phase 1 (2026-09-15)
 

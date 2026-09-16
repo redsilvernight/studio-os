@@ -1,11 +1,12 @@
 ---
 id: DEC-0034
-title: 'Etape 7 (tests d''acceptance) : concurrence reelle de claims + URL
-  signee expiree'
+title: 'Etape 7 (tests d''acceptance) : concurrence reelle de claims + URL signee
+  expiree'
 status: active
 date: '2026-09-14'
 superseded_by: null
 source: docs/DECISIONS.md
+sync_hash: sha256:170a79c6bd997c4ce59ea75e0546612e22b9c0c7bb8687f458e542f0b8dca5e2
 ---
 
 # DEC-0034 — Etape 7 (tests d'acceptance) : concurrence reelle de claims + URL signee expiree

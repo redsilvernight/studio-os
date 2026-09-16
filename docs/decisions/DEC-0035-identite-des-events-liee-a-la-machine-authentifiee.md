@@ -1,10 +1,11 @@
 ---
 id: DEC-0035
-title: 'Identite des events (HTTP/MCP) liee a la machine authentifiee'
+title: Identite des events (HTTP/MCP) liee a la machine authentifiee
 status: active
 date: '2026-09-14'
 superseded_by: null
 source: docs/DECISIONS.md
+sync_hash: sha256:6566597f0dbb009788e089a391931b4590bf3a0a8d7d4b85f8462cb0c8f2c0c3
 ---
 
 # DEC-0035 — Identite des events (HTTP/MCP) liee a la machine authentifiee

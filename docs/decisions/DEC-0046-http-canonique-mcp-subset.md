@@ -1,13 +1,15 @@
 ---
 id: DEC-0046
-title: 'HTTP canonical complet, MCP subset additif : surface parity non requise, enforcement parity requise'
+title: 'HTTP canonical complet, MCP subset additif : surface parity non requise, enforcement
+  parity requise'
 status: active
 date: '2026-09-15'
 superseded_by: null
 source: docs/DECISIONS.md
+sync_hash: sha256:005718f137eb8099c80f6a5a83e627714cc5d149916c67b43cb9a3a1720ac30b
 ---
 
-# DEC-0046 — HTTP canonique / MCP subset
+# DEC-0046 — HTTP canonical complet, MCP subset additif : surface parity non requise, enforcement parity requise
 
 L'audit pre-UC-2 a etabli qu'aucun contrat ne promet une parite de surface
 HTTP/MCP : les trois occurrences de « parite » (TECH/04 §159-168, TECH/02

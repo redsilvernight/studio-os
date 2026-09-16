@@ -1,10 +1,12 @@
 ---
 id: DEC-0041
-title: 'Etape 8 (roadmap), sous-etape 8.1 : tracabilite AIWorkLog -> Event, revue admin-only'
+title: 'Etape 8 (roadmap), sous-etape 8.1 : tracabilite AIWorkLog -> Event, revue
+  admin-only'
 status: active
 date: '2026-09-15'
 superseded_by: null
 source: docs/DECISIONS.md
+sync_hash: sha256:6dfa331c24d49d564dc97cc90b0ba75f7cdf1ebdb7a414d5be6de6cf1cbc6330
 ---
 
 # DEC-0041 — Etape 8 (roadmap), sous-etape 8.1 : tracabilite AIWorkLog -> Event, revue admin-only

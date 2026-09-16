@@ -1,13 +1,15 @@
 ---
 id: DEC-0044
-title: 'Specialized Agent Profiles : studio-architect, studio-tester, contract-guardian, sync-debugger comme agent_profiles harness-agnostic'
+title: 'Specialized Agent Profiles : studio-architect, studio-tester, contract-guardian,
+  sync-debugger comme agent_profiles harness-agnostic'
 status: superseded
 date: '2026-09-15'
 superseded_by: DEC-0043
 source: docs/DECISIONS.md
+sync_hash: sha256:e99e541c69acdc57e3c91ccdd10c3d393aef39b157a4f9317f8891ea9134eb14
 ---
 
-# DEC-0044 — Specialized Agent Profiles (SUPERSEDEE par DEC-0043)
+# DEC-0044 — Specialized Agent Profiles : studio-architect, studio-tester, contract-guardian, sync-debugger comme agent_profiles harness-agnostic
 
 > **Rectification Phase 1 (2026-09-15).** Cette decision est supersedee par
 > l'amendement de DEC-0043. Hypothese corrigee : `studio-architect`,

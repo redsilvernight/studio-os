@@ -1,10 +1,12 @@
 ---
 id: DEC-0050
-title: 'Question ouverte n°3 (etape 8) : auth dashboard V0 ratifiee, token machine reutilise, aucune nouvelle mecanique'
+title: 'Question ouverte n°3 (etape 8) : auth dashboard V0 ratifiee, token machine
+  reutilise, aucune nouvelle mecanique'
 status: superseded
 date: '2026-09-15'
 superseded_by: DEC-0056
 source: docs/DECISIONS.md
+sync_hash: sha256:78c05b52a1ac7519db9b595caf6ca95c3820d6496f047c82531cca9de7c777ad
 ---
 
 # DEC-0050 — Question ouverte n°3 (etape 8) : auth dashboard V0 ratifiee, token machine reutilise, aucune nouvelle mecanique

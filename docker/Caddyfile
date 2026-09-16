@@ -32,3 +32,21 @@
 {$STORAGE_DOMAIN} {
 	reverse_proxy minio:9000
 }
+
+# Catch-all for Tailscale Funnel / direct-IP access. Tailscale terminates TLS
+# and forwards plain HTTP to localhost, so this site listens on port 80.
+:80 {
+	route /api/* {
+		reverse_proxy api:8000
+	}
+
+	route /openapi.json {
+		reverse_proxy api:8000
+	}
+
+	route /healthz {
+		reverse_proxy api:8000
+	}
+
+	reverse_proxy dashboard:80
+}

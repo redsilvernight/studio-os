@@ -1,13 +1,15 @@
 ---
 id: DEC-0048
-title: 'CC-3 : evolution des contrats MCP par discovery + schemas, sans version par payload'
+title: 'CC-3 : evolution des contrats MCP par discovery + schemas, sans version par
+  payload'
 status: active
 date: '2026-09-15'
 superseded_by: null
 source: docs/DECISIONS.md
+sync_hash: sha256:29dee6ea0a05fe39027d21eafe43e16a0a41e57b1da2b32491e8ae450c04a5d8
 ---
 
-# DEC-0048 — CC-3 : evolution des contrats MCP sans version par payload
+# DEC-0048 — CC-3 : evolution des contrats MCP par discovery + schemas, sans version par payload
 
 L'audit CC-3 (28 outils : 25 VPS + 3 locaux UC-3, SDK `mcp==2.2.0`) a
 etabli que le vrai manque n'est pas l'absence d'un numero de version dans

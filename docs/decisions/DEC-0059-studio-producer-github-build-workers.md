@@ -5,9 +5,10 @@ status: proposed
 date: '2026-09-15'
 superseded_by: null
 source: docs/DECISIONS.md
+sync_hash: sha256:5aa95c8ab56ace27375f95f908d8eb732345291985af0657901d42a32b0f556e
 ---
 
-# DEC-0059 — Étape 9.1 : Studio Producer, intégration GitHub/build, workers
+# DEC-0059 — Etape 9.1 : Studio Producer, integration GitHub/build, workers
 
 Étape 9.1 de `docs/ROADMAP_CORRECTIONS_AUDIT.md` (P3), phase 5 de
 `IMPLEMENTATION/01_ROADMAP.md` (« Producer, décomposition, notifications,

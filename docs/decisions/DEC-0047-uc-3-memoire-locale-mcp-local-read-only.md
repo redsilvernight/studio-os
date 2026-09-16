@@ -1,13 +1,15 @@
 ---
 id: DEC-0047
-title: 'UC-3 : Memory/Knowledge local-only, exposition read-only via MCP local (stdio), 3 outils'
+title: 'UC-3 : Memory/Knowledge local-only, exposition read-only via MCP local (stdio),
+  3 outils'
 status: active
 date: '2026-09-15'
 superseded_by: null
 source: docs/DECISIONS.md
+sync_hash: sha256:736b28ea98cd657a61ad7d16def3792082e47ab662fe7d2ad84e87f714edbe74
 ---
 
-# DEC-0047 — UC-3 : Memory/Knowledge local-only via MCP local
+# DEC-0047 — UC-3 : Memory/Knowledge local-only, exposition read-only via MCP local (stdio), 3 outils
 
 Memory/Knowledge reste une capacite MAY du Universal Consumer Contract :
 un consommateur fonctionne normalement sans elle. Lorsqu'elle est configuree

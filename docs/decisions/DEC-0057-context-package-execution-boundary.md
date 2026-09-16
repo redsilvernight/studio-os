@@ -1,13 +1,15 @@
 ---
 id: DEC-0057
-title: 'Etape 8 (roadmap), sous-etape 8.3b : Context Package compose localement par le Bloc B, part partagee lue par HTTP canonique, manifeste versionne ephemere'
+title: 'Etape 8 (roadmap), sous-etape 8.3b : Context Package compose localement par
+  le Bloc B, part partagee lue par HTTP canonique, manifeste versionne ephemere'
 status: active
 date: '2026-09-15'
 superseded_by: null
 source: docs/DECISIONS.md
+sync_hash: sha256:ed9a3d820d08d92a39db84e8d16d5ed954186ad86a235eca2d0202c43af13af5
 ---
 
-# DEC-0057 — Sous-étape 8.3b : frontière d'exécution du Context Package
+# DEC-0057 — Etape 8 (roadmap), sous-etape 8.3b : Context Package compose localement par le Bloc B, part partagee lue par HTTP canonique, manifeste versionne ephemere
 
 Cette décision rouvre `studio_generate_context_package`, DEFERRED par
 UC-3/DEC-0047, et tranche les points laissés ouverts par le découpage de

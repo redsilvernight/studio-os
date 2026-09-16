@@ -1,10 +1,12 @@
 ---
 id: DEC-0040
-title: 'Etape 7 (roadmap) fermee : scenario "deux machines simulees sur reseaux distincts" ferme'
+title: 'Etape 7 (roadmap) fermee : scenario "deux machines simulees sur reseaux distincts"
+  ferme'
 status: active
 date: '2026-09-15'
 superseded_by: null
 source: docs/DECISIONS.md
+sync_hash: sha256:7e4fcff0e556a35682956d9c2ad7fda1264fc01ed2a550d9e7333aa51e9542eb
 graphify_entities:
 - kind: function
   node_id: tests_client_test_two_machines_acceptance_test_two_independent_machines_never_sharing_local_state_converge_on_server
@@ -14,7 +16,7 @@ graphify_entities:
   symbol: test_two_independent_machines_never_sharing_local_state_converge_on_server
 ---
 
-# DEC-0040 — Etape 7 fermee : scenario "deux machines simulees sur reseaux distincts"
+# DEC-0040 — Etape 7 (roadmap) fermee : scenario "deux machines simulees sur reseaux distincts" ferme
 
 Suite de DEC-0039. Dernier des 10 scenarios de `TECH/10_TEST_ACCEPTANCE.md`
 "Tests bout-en-bout" reste ouvert avant ce lot (voir la note de reprise

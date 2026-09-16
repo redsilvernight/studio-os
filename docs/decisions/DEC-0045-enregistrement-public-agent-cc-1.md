@@ -1,13 +1,15 @@
 ---
 id: DEC-0045
-title: 'CC-1 : enregistrement public dAgent (POST /agents) comme identite de provenance, sans autorite'
+title: 'CC-1 : enregistrement public dAgent (POST /agents) comme identite de provenance,
+  sans autorite'
 status: active
 date: '2026-09-15'
 superseded_by: null
 source: docs/DECISIONS.md
+sync_hash: sha256:1a029858a94bd9f33a83f3f8413a22f3e7ad6f72d5eb87d1dd78e35df504708b
 ---
 
-# DEC-0045 — CC-1 : enregistrement public d'Agent
+# DEC-0045 — CC-1 : enregistrement public dAgent (POST /agents) comme identite de provenance, sans autorite
 
 L'audit UC-1 a demontre une contradiction entre le Universal Consumer
 Contract (`docs/UNIVERSAL_CONSUMER_CONTRACT.md`) et le runtime : produire un

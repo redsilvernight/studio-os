@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NoProfile -File scripts/graphify-studio.ps1 hook-check"
+            "command": "pwsh -NoProfile -Command \"if (Test-Path 'C:/Users/redsi/Documents/Coding/Projet/Studi''os/graphify-out') { throw 'Accidental local graphify-out detected. Remove it and use scripts/graphify-studio.ps1 for Graphify commands.' }\""
           }
         ]
       }

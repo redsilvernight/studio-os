@@ -1,10 +1,11 @@
 ---
 id: DEC-0056
-title: 'Dashboard human authentication with JWT (DASH-4)'
+title: Dashboard human authentication with JWT (DASH-4)
 status: active
 date: '2026-09-15'
 superseded_by: null
 source: docs/DECISIONS.md
+sync_hash: sha256:4a3863ccf08014fd593d3f028937c392fb099fea0941a9a6827d5bbc9700f01c
 ---
 
 # DEC-0056 — Dashboard human authentication with JWT (DASH-4)

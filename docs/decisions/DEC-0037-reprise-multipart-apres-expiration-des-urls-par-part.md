@@ -1,13 +1,15 @@
 ---
 id: DEC-0037
-title: 'Reprise multipart apres expiration des URLs par-part : endpoint additif refresh-parts, ListParts comme verite serveur, nettoyage des uploads orphelins'
+title: 'Reprise multipart apres expiration des URLs par-part : endpoint additif refresh-parts,
+  ListParts comme verite serveur, nettoyage des uploads orphelins'
 status: active
 date: '2026-09-15'
 superseded_by: null
 source: docs/DECISIONS.md
+sync_hash: sha256:7d1621b022f7085f4f1b6c9ad86a7253c805181a10370cc682d31e6ef48d986a
 ---
 
-# DEC-0037 — Reprise multipart apres expiration des URLs par-part
+# DEC-0037 — Reprise multipart apres expiration des URLs par-part : endpoint additif refresh-parts, ListParts comme verite serveur, nettoyage des uploads orphelins
 
 Lot P2 de `docs/AUDIT_REMEDIATION_CLAUDE_CODE_2026-09-14.md` ("Fermer les
 limites de reprise et d'integrite de TransferClient", point 1), etape 7 de

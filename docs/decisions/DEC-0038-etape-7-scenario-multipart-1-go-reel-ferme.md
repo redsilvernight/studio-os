@@ -1,10 +1,12 @@
 ---
 id: DEC-0038
-title: 'Etape 7 (roadmap) : scenario "fichier multipart de 1 Go reel" ferme, test streame sans mock'
+title: 'Etape 7 (roadmap) : scenario "fichier multipart de 1 Go reel" ferme, test
+  streame sans mock'
 status: active
 date: '2026-09-15'
 superseded_by: null
 source: docs/DECISIONS.md
+sync_hash: sha256:21da4929f6d8b360b571fbab1c443eb883557efb9d44216e2c42b5ca935d8317
 graphify_entities:
 - kind: function
   node_id: tests_client_test_transfers_1gb_acceptance_test_multipart_upload_1gb_streamed_real_interruption_and_resume
@@ -14,7 +16,7 @@ graphify_entities:
   symbol: test_multipart_upload_1gb_streamed_real_interruption_and_resume
 ---
 
-# DEC-0038 — Etape 7 (roadmap) : scenario "fichier multipart de 1 Go reel" ferme
+# DEC-0038 — Etape 7 (roadmap) : scenario "fichier multipart de 1 Go reel" ferme, test streame sans mock
 
 Dernier lot P2 de `docs/AUDIT_REMEDIATION_CLAUDE_CODE_2026-09-14.md` ("Terminer
 honnetement l'etape 7"), point 1. Test pur, aucun contrat touche — pas de

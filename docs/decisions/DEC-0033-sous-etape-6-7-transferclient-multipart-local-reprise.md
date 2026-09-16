@@ -1,11 +1,12 @@
 ---
 id: DEC-0033
-title: 'Sous-etape 6.7 (TransferClient) : multipart local avec URLs mises en
-  cache, reprise download par taille de fichier, etape 6 entierement close'
+title: 'Sous-etape 6.7 (TransferClient) : multipart local avec URLs mises en cache,
+  reprise download par taille de fichier, etape 6 entierement close'
 status: active
 date: '2026-09-14'
 superseded_by: null
 source: docs/DECISIONS.md
+sync_hash: sha256:dfdb312d7509ccf43bb17e3ec0d4747116d52d6bc35f6c0af93deaeec2f072e2
 graphify_entities:
 - kind: class
   node_id: packages_studio_client_src_studio_client_transfers_transferclient

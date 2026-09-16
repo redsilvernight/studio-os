@@ -1,10 +1,12 @@
 ---
 id: DEC-0036
-title: 'Autorisation transverse minimale : role et propriete par ressource, sans nouvelle table'
+title: 'Autorisation transverse minimale : role et propriete par ressource, sans nouvelle
+  table'
 status: active
 date: '2026-09-14'
 superseded_by: null
 source: docs/DECISIONS.md
+sync_hash: sha256:a88db6c933a8014c68750c0e0a839222e0b24af467b8ad6cdd3bdb5ecaf8c4c7
 ---
 
 # DEC-0036 — Autorisation transverse minimale : role et propriete par ressource, sans nouvelle table

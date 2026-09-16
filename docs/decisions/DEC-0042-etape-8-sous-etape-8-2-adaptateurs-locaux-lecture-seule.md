@@ -1,13 +1,15 @@
 ---
 id: DEC-0042
-title: 'Etape 8 (roadmap), sous-etape 8.2 : adaptateurs locaux Obsidian/Graphify en lecture seule, portee fermee par defaut'
+title: 'Etape 8 (roadmap), sous-etape 8.2 : adaptateurs locaux Obsidian/Graphify en
+  lecture seule, portee fermee par defaut'
 status: active
 date: '2026-09-15'
 superseded_by: null
 source: docs/DECISIONS.md
+sync_hash: sha256:abcc895ab9c4c3cc3a9933a99fb906fb25c8e988e4ca51c4c8288911680b1f9b
 ---
 
-# DEC-0042 — Etape 8, sous-etape 8.2 : adaptateurs locaux en lecture seule
+# DEC-0042 — Etape 8 (roadmap), sous-etape 8.2 : adaptateurs locaux Obsidian/Graphify en lecture seule, portee fermee par defaut
 
 Sous-etape 8.2 de `docs/ROADMAP_STEP8_BREAKDOWN.md` (etape 8, "Connaissance IA
 et experience de collaboration"). Bloc B uniquement, aucun octet ne quitte le

@@ -1,10 +1,12 @@
 ---
 id: DEC-0039
-title: 'Etape 7 (roadmap) : scenario "replay offline complet" ferme, outbox generique sans ajout client'
+title: 'Etape 7 (roadmap) : scenario "replay offline complet" ferme, outbox generique
+  sans ajout client'
 status: active
 date: '2026-09-15'
 superseded_by: null
 source: docs/DECISIONS.md
+sync_hash: sha256:1563537527fb77a5b5c8bd46abf6bd06ed040e1ece08f533edf8bca571b766ad
 graphify_entities:
 - kind: function
   node_id: tests_client_test_offline_replay_acceptance_test_full_offline_replay_tasks_events_ai_work_is_lossless_and_idempotent
@@ -14,7 +16,7 @@ graphify_entities:
   symbol: test_full_offline_replay_tasks_events_ai_work_is_lossless_and_idempotent
 ---
 
-# DEC-0039 — Etape 7 (roadmap) : scenario "replay offline complet" ferme
+# DEC-0039 — Etape 7 (roadmap) : scenario "replay offline complet" ferme, outbox generique sans ajout client
 
 Suite de DEC-0038 ("Terminer honnetement l'etape 7"). Analyse d'architecture
 prealable (`studio-architect`) : test pur, aucun contrat touche — pas de

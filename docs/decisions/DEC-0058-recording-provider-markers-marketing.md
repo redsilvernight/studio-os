@@ -1,13 +1,15 @@
 ---
 id: DEC-0058
-title: 'Etape 9.2 (Bloc B) : RecordingProvider, markers video et MarketingCandidate locaux'
+title: 'Etape 9.2 (Bloc B) : RecordingProvider, markers video et MarketingCandidate
+  locaux'
 status: active
 date: '2026-09-15'
 superseded_by: null
 source: docs/DECISIONS.md
+sync_hash: sha256:683f0e603600b5150fb091c6ab2bf1678729e1c39f801f1302fd5354eeb4fbd1
 ---
 
-# DEC-0058 — Etape 9.2, Bloc B : RecordingProvider, markers et MarketingCandidate
+# DEC-0058 — Etape 9.2 (Bloc B) : RecordingProvider, markers video et MarketingCandidate locaux
 
 Sous-etape 9.2 de `docs/ROADMAP_CORRECTIONS_AUDIT.md` (etape 9, « Producer,
 media et hardening final »). Bloc B uniquement : aucun endpoint, service ou

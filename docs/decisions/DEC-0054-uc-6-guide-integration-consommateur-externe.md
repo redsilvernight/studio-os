@@ -5,9 +5,10 @@ status: active
 date: '2026-09-15'
 superseded_by: null
 source: docs/DECISIONS.md
+sync_hash: sha256:9dd1683f8349415cc90583d9daf794e25343004d5f49a345d69e01964e99f285
 ---
 
-# DEC-0054 — UC-6 : guide d'integration externe
+# DEC-0054 — UC-6 : guide dintegration dun consommateur externe, sans connaissance interne
 
 Repond au critere d'acceptation « le parcours UC-6 est executable par un
 tiers sans aide interne » et a l'ecart releve par l'audit du 2026-09-15 :
