@@ -6,9 +6,14 @@ Studio, User, Machine, Agent, Project, MachineProjectConfig, Task, WorkSession, 
 Statut : les entites Phase 1 ci-dessous (User, Machine, Agent, Project, Task,
 WorkSession, ResourceClaim, Decision, AIWorkLog, Event, Transfer) ont un
 schema de champs figé, implemente dans `packages/studio-contracts` (Pydantic,
-source d'enforcement) et `services/api/.../db/models` (SQLAlchemy). Le reste
-(MachineProjectConfig, Build, Recording, RecordingMarker, MarketingCandidate)
-reste a specifier en Phase 4-6, pas encore code.
+source d'enforcement) et `services/api/.../db/models` (SQLAlchemy). Les
+entites `Build`, `GitHubIntegration` et `ProducerJob` (etape 9.1, DEC-0059)
+sont figees de la meme façon (sections dediees ci-dessous, migration
+Alembic `0008`). Le reste
+(MachineProjectConfig, Recording, RecordingMarker, MarketingCandidate)
+reste a specifier en Phase 4-6, pas encore code cote serveur (le Bloc B
+local `RecordingProvider`/`MarketingCandidate` de DEC-0058 n'a ni endpoint
+ni table, par conception).
 
 `Notification` (sortie de ce groupe par DEC-0051, sous-etape 8.5) :
 **delibrement non persistee**, pas seulement "pas encore codee" — dérivée de
@@ -29,6 +34,8 @@ nullabilite est **breaking** et suit `.claude/skills/contract-change`
 - Task 1-N WorkSession / Decision / AIWorkLog / Transfer / Event.
 - Machine 1-N Heartbeats / sessions / agents.
 - Transfer relie sender, recipient, project/task optionnels et object_key MinIO.
+- Project 1-1 GitHubIntegration (au plus une integration GitHub par projet en v1).
+- Project 1-N Build / ProducerJob. Build 1-N Transfer (artefacts via `Transfer.build_id`).
 
 ## Champs communs (mutables)
 Tout objet mutable porte `id` (UUID), `created_at`, `updated_at` et `version`
@@ -137,3 +144,45 @@ Champs : `id`, `project_id` (FK Project), `task_id` (FK Task, nullable),
 inactif des que `expires_at` est depasse, quel que soit `status`
 stocke), `ttl_seconds`, `created_at`, `renewed_at` (nullable), `expires_at`,
 `released_at` (nullable). Append-only hors renouvellement/liberation.
+
+## GitHubIntegration (etape 9.1, DEC-0059)
+
+Cablage GitHub d'un projet. `id`, `project_id` (FK Project, unique — au
+plus une integration par projet en v1), `repo_full_name` (`owner/repo`),
+`default_branch` (defaut `main`), `enabled` (bool, defaut true),
+`created_by_user_id` (FK User), + `created_at`/`updated_at`. Le secret de
+webhook n'est jamais stocke ici : variable d'environnement process-wide
+(`STUDIO_GITHUB_WEBHOOK_SECRET`, voir `TECH/04_AUTH_SYNC_CONTRACT.md`).
+
+## Build (etape 9.1, DEC-0059)
+
+Build CI observe sur le depot GitHub d'un projet. `id`, `project_id` (FK
+Project), `task_id` (FK Task, nullable — association explicite fournie au
+dispatch ou a la creation, jamais devine), `github_integration_id` (FK
+GitHubIntegration, nullable), `workflow_run_id` (id GitHub du run),
+`workflow_name`, `run_number`, `branch`, `commit_sha`, `pr_number`
+(nullable), `status` (`queued|in_progress|succeeded|failed`, miroir des
+event types `build.*`), `conclusion` (nullable), `html_url`,
+`actor_login`, `started_at`/`completed_at` (nullables),
++ `created_at`/`updated_at`. Ecrit uniquement par le serveur (webhook
+GitHub, worker de reconciliation) — aucun endpoint PATCH client.
+Contrainte unique `(project_id, workflow_run_id)` : une redelivraison du
+webhook et le worker de reconciliation font un upsert sur la meme ligne,
+jamais un doublon.
+
+## ProducerJob (etape 9.1, DEC-0059)
+
+Calcul borne et synchrone du Studio Producer sur l'etat partage d'un
+projet. `id`, `project_id` (FK Project), `kind`
+(`priority_analysis|blocker_detection|parallelization|decomposition`),
+`status` (`requested|running|completed|failed`), `task_id` (FK Task,
+nullable — entree d'une `decomposition`), `result` (objet borne),
+`error` (nullable), `created_at`, `completed_at` (nullable).
+Append-only : jamais modifie apres completion, pas de `version`. Le
+Producer ne mute jamais `Task`/`ResourceClaim` : une `decomposition` est
+une proposition, l'appelant cree les sous-taches via `POST /tasks`.
+
+## Transfer (complement 9.1)
+
+`build_id` (FK Build, nullable, additif optionnel) relie un artefact a
+son build. Quotas (DEC-0019) et autorisation Transfer inchanges.

@@ -30,6 +30,28 @@ permet de changer ou reinitialiser un mot de passe.
 `Authorization` (comme `/healthz` et `/metrics`). Une fois le JWT obtenu, il
 est presente comme `Authorization: Bearer <jwt>` sur les endpoints `/api/v1`.
 
+## Webhook GitHub (etape 9.1, DEC-0059)
+
+`POST /github/webhook` est une exception d'authentification Bearer
+volontaire et signee : pas de token machine (GitHub ne peut pas en
+detenir un), verification HMAC-SHA256 `X-Hub-Signature-256` en temps
+constant sur le corps brut (lu avant tout parsing JSON), secret
+process-wide `STUDIO_GITHUB_WEBHOOK_SECRET` (env, prefixe `STUDIO_`,
+jamais logue ni renvoye). Signature absente/invalide -> `401` sans
+ detail exploitable. Idempotence par `X-GitHub-Delivery` (`event_id` UUID5
+ deterministe -> get-or-create par PK, DEC-0006). `X-GitHub-Event`
+inconnu -> `202` silencieux, jamais `500`. Corps borne en taille
+(`STUDIO_GITHUB_WEBHOOK_MAX_BODY_BYTES`, defaut 1 Mio). Bucket de rate
+limiting dedie (le bucket global par token ne doit pas etrangler les
+retries GitHub, qui n'ont pas de token).
+
+Le token sortant de reconciliation (`STUDIO_GITHUB_TOKEN`, scope minimal
+`actions:read`) et le secret de webhook vivent en variables
+d'environnement ; rotation = redemarrage avec les nouvelles valeurs, les
+deux etant stateless cote serveur. Aucun secret GitHub n'est stocke en
+base (`GitHubIntegration` ne porte que `repo_full_name`,
+`default_branch`, `enabled` — voir `TECH/05_DATA_MODEL.md`).
+
 ## Roles minimum
 admin, developer, agent, readonly.
 

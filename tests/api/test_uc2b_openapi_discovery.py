@@ -61,7 +61,10 @@ def test_all_api_v1_operations_require_bearer_and_healthz_is_exempt() -> None:
     assert operations, "expected documented operations"
     for (method, path), operation in operations.items():
         security = operation.get("security", [])
-        if path in ("/healthz", "/api/v1/auth/token"):
+        if path in ("/healthz", "/api/v1/auth/token", "/api/v1/github/webhook"):
+            # /healthz and POST /auth/token predate this step; the GitHub
+            # webhook is the deliberate HMAC-signed exception (etape 9.1,
+            # DEC-0059) — Bearer-exempt, never unauthenticated.
             assert security in ([], None), f"{method} {path} must stay unauthenticated"
         else:
             assert path.startswith("/api/v1"), f"unexpected public path: {path}"
@@ -86,6 +89,8 @@ def test_idempotency_key_documented_on_replayable_creations() -> None:
         "/api/v1/projects",
         "/api/v1/agents",
         "/api/v1/transfers",
+        "/api/v1/producer-jobs",
+        "/api/v1/projects/{project_id}/github-integration",
     )
     operations = _operations()
     for path in replayable:

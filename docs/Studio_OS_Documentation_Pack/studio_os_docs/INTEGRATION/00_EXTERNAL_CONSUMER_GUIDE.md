@@ -24,8 +24,9 @@ reference sont `TECH/02` (API), `TECH/03` (events), `TECH/04` (auth/sync),
 
 ## 2. S'authentifier
 
-Chaque requete `/api/v1` (sauf `/healthz`, `/metrics` et le login humain
-`POST /auth/token`) et chaque appel MCP HTTP porte
+Chaque requete `/api/v1` (sauf `/healthz`, `/metrics`, le login humain
+`POST /auth/token` et l'ingress webhook GitHub signe `POST /github/webhook`
+— HMAC `X-Hub-Signature-256`, jamais Bearer) et chaque appel MCP HTTP porte
 `Authorization: Bearer <machine-token>`.
 
 Le token est un credential de machine opaque, genere hors bande par un humain

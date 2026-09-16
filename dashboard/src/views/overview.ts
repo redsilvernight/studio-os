@@ -43,10 +43,12 @@ const REVIEW_KIND_LABEL: Record<ReviewQueueItem["kind"], string> = {
   ai_work_review: "AI work",
   decision_proposal: "Decision",
   resource_conflict: "Conflict",
+  build_failure: "Build",
+  pr_ready: "PR",
 };
 
 /** Sub-title for a review-queue row: AI work → agent, decision → readable_id,
- * conflict → resource path. */
+ * conflict → resource path, build → workflow + branch, PR → number + branch. */
 export function reviewQueueItemDetail(item: ReviewQueueItem): string {
   switch (item.kind) {
     case "ai_work_review":
@@ -55,6 +57,10 @@ export function reviewQueueItemDetail(item: ReviewQueueItem): string {
       return item.readable_id;
     case "resource_conflict":
       return item.resource_path;
+    case "build_failure":
+      return `${item.workflow_name} on ${item.branch}`;
+    case "pr_ready":
+      return `PR #${item.pr_number} ${item.head_branch} → ${item.base_branch}`;
   }
 }
 

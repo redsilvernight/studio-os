@@ -8,6 +8,12 @@ from uuid import UUID
 import httpx
 from studio_contracts.ai_work import AIWorkLog
 from studio_contracts.auth import HeartbeatRequest, HeartbeatResponse
+from studio_contracts.builds import (
+    Build,
+    BuildStatus,
+    ProducerJob,
+    ProducerJobRequest,
+)
 from studio_contracts.claims import ResourceClaim, ResourceClaimCreate
 from studio_contracts.decisions import Decision
 from studio_contracts.events import EventCreate, EventEnvelope
@@ -304,6 +310,46 @@ class StudioApiClient:
             params["conflict_window_hours"] = conflict_window_hours
         response = await self._request("GET", "/api/v1/review-queue", params=params)
         return ReviewQueue.model_validate(response.json())
+
+    async def list_builds(
+        self,
+        *,
+        project_id: UUID | None = None,
+        status: BuildStatus | None = None,
+        limit: int = 100,
+    ) -> list[Build]:
+        params: dict[str, Any] = {"limit": limit}
+        if project_id is not None:
+            params["project_id"] = str(project_id)
+        if status is not None:
+            params["status"] = status.value
+        response = await self._request("GET", "/api/v1/builds", params=params)
+        return [Build.model_validate(item) for item in response.json()]
+
+    async def get_build(self, build_id: UUID) -> Build:
+        response = await self._request("GET", f"/api/v1/builds/{build_id}")
+        return Build.model_validate(response.json())
+
+    async def request_producer_job(
+        self, job_in: ProducerJobRequest, *, idempotency_key: str
+    ) -> ProducerJob:
+        response = await self._request(
+            "POST",
+            "/api/v1/producer-jobs",
+            json=job_in.model_dump(mode="json"),
+            extra_headers={"Idempotency-Key": idempotency_key},
+            idempotent=True,
+        )
+        return ProducerJob.model_validate(response.json())
+
+    async def list_producer_jobs(
+        self, *, project_id: UUID | None = None, limit: int = 100
+    ) -> list[ProducerJob]:
+        params: dict[str, Any] = {"limit": limit}
+        if project_id is not None:
+            params["project_id"] = str(project_id)
+        response = await self._request("GET", "/api/v1/producer-jobs", params=params)
+        return [ProducerJob.model_validate(item) for item in response.json()]
 
     async def get_timeline(
         self,

@@ -19,12 +19,16 @@ router = APIRouter(prefix="/api/v1/review-queue", tags=["review-queue"])
         "Aggregated view of everything waiting on a human decision: AI work "
         "in `review_requested` (resolve via `PATCH /ai-work/{id}`), "
         "decisions still `proposed` (informational — no transition endpoint "
-        "exists for decisions), and recent `resource.conflict` events "
+        "exists for decisions), recent `resource.conflict` events "
         "within `conflict_window_hours` (best-effort and time-windowed: no "
         "persisted conflict state exists, an old unaddressed conflict "
-        "silently ages out of the window). Also serves as the notifications "
+        "silently ages out of the window), failed builds (`build_failure`, "
+        "informational — no build transition endpoint exists), and opened "
+        "PRs with no merge yet (`pr_ready`, best-effort and time-windowed "
+        "like conflicts). Also serves as the notifications "
         "surface — there is no separate notifications endpoint. "
-        "Any authenticated machine may read."
+        "Any authenticated machine may read. Clients must tolerate an "
+        "unknown `kind`."
     ),
     responses={**RESP_401_UNAUTHORIZED},
 )

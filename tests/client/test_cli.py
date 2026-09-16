@@ -510,3 +510,110 @@ def test_tasks_show_not_found_against_real_app_exits_with_short_message(
     err = capsys.readouterr().err
     assert "404" in err
     assert "Traceback" not in err
+
+
+def _build_body(build_id: uuid.UUID, project_id: uuid.UUID) -> dict[str, Any]:
+    return {
+        "id": str(build_id),
+        "project_id": str(project_id),
+        "task_id": None,
+        "github_integration_id": None,
+        "workflow_run_id": 4001,
+        "workflow_name": "CI",
+        "run_number": 1,
+        "branch": "main",
+        "commit_sha": "sha1",
+        "pr_number": None,
+        "status": "failed",
+        "conclusion": "failure",
+        "html_url": "https://example.test/runs/4001",
+        "actor_login": "dev-one",
+        "started_at": None,
+        "completed_at": None,
+        "created_at": "2026-09-16T10:00:00Z",
+        "updated_at": "2026-09-16T10:05:00Z",
+    }
+
+
+def _producer_job_body(job_id: uuid.UUID, project_id: uuid.UUID) -> dict[str, Any]:
+    return {
+        "id": str(job_id),
+        "project_id": str(project_id),
+        "kind": "priority_analysis",
+        "status": "completed",
+        "task_id": None,
+        "result": {"ranking": []},
+        "error": None,
+        "created_at": "2026-09-16T10:00:00Z",
+        "completed_at": "2026-09-16T10:00:01Z",
+    }
+
+
+def test_builds_list_json_output(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project_id, build_id = uuid.uuid4(), uuid.uuid4()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/builds"
+        return httpx.Response(200, json=[_build_body(build_id, project_id)])
+
+    _force_transport(monkeypatch, httpx.MockTransport(handler))
+
+    cli.main(["builds", "list", "--project-id", str(project_id), "--json"])
+
+    out = json.loads(capsys.readouterr().out)
+    assert out == [_build_body(build_id, project_id)]
+
+
+def test_builds_show_json_output(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project_id, build_id = uuid.uuid4(), uuid.uuid4()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == f"/api/v1/builds/{build_id}"
+        return httpx.Response(200, json=_build_body(build_id, project_id))
+
+    _force_transport(monkeypatch, httpx.MockTransport(handler))
+
+    cli.main(["builds", "show", str(build_id), "--json"])
+
+    out = json.loads(capsys.readouterr().out)
+    assert out["status"] == "failed"
+
+
+def test_builds_list_invalid_status_exits_1(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(["builds", "list", "--status", "exploded"])
+    assert excinfo.value.code == 1
+    assert "unknown build status" in capsys.readouterr().err
+
+
+def test_producer_run_posts_with_idempotency_key(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project_id, job_id = uuid.uuid4(), uuid.uuid4()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/producer-jobs"
+        assert request.headers["Idempotency-Key"]
+        return httpx.Response(201, json=_producer_job_body(job_id, project_id))
+
+    _force_transport(monkeypatch, httpx.MockTransport(handler))
+
+    cli.main(
+        [
+            "producer",
+            "run",
+            "--project-id",
+            str(project_id),
+            "--kind",
+            "priority_analysis",
+            "--json",
+        ]
+    )
+
+    out = json.loads(capsys.readouterr().out)
+    assert out["id"] == str(job_id)
+    assert out["result"] == {"ranking": []}

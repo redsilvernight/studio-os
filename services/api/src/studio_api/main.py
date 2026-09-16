@@ -10,13 +10,16 @@ from studio_api.routers import (
     agents,
     ai_work,
     auth,
+    builds,
     claims,
     decisions,
     events,
+    github,
     health,
     heartbeats,
     machines,
     metrics,
+    producer,
     projects,
     review_queue,
     sessions,
@@ -77,6 +80,20 @@ OPENAPI_TAG_DESCRIPTIONS: dict[str, str] = {
         "Read-only, unfiltered history — see review-queue for what needs "
         "action."
     ),
+    "github": (
+        "GitHub ingress and wiring. The webhook endpoint is signed "
+        "(X-Hub-Signature-256), never Bearer-authenticated; integrations "
+        "and builds are read by any authenticated machine, written by "
+        "privileged roles or the server itself."
+    ),
+    "builds": (
+        "CI builds observed on wired GitHub repositories. Server-written "
+        "(webhook, reconcile worker); read-only over HTTP."
+    ),
+    "producer": (
+        "Studio Producer: bounded, deterministic analyses over a project's "
+        "shared state. Synchronous in v1; never mutates tasks or claims."
+    ),
     "heartbeats": (
         "Machine presence. Any authenticated machine — including read-only "
         "ones — may heartbeat; status is derived server-side."
@@ -135,6 +152,9 @@ def create_app() -> FastAPI:
     app.include_router(ai_work.router)
     app.include_router(review_queue.router)
     app.include_router(timeline.router)
+    app.include_router(github.router)
+    app.include_router(builds.router)
+    app.include_router(producer.router)
     app.include_router(heartbeats.router)
     app.include_router(events.router)
     app.include_router(transfers.router)

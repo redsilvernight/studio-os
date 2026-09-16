@@ -1,7 +1,7 @@
 ---
 id: DEC-0059
 title: 'Etape 9.1 : Studio Producer, integration GitHub/build, workers'
-status: proposed
+status: active
 date: '2026-09-15'
 superseded_by: null
 source: docs/DECISIONS.md
@@ -189,13 +189,48 @@ restent des transferts, donc aucun octet de fichier ne transite par FastAPI.
 
 ## Preuves
 
-À compléter par l'implémentation (9.1a -> 9.1c) :
-- webhook : signature valide/invalide, redélivrance du même `X-GitHub-Delivery`
-  -> un seul événement et un seul build, `X-GitHub-Event` inconnu -> 202 ;
-- worker réconciliation idempotent (rejeu sans doublon) ;
-- Review Queue : `build_failure`/`pr_ready` apparaissent, un client tolérant un
-  `kind` inconnu ne casse pas ;
-- Producer : une délégation de décomposition ne crée aucune tâche directement ;
-- artefacts via `Transfer` (aucun proxy FastAPI), quota appliqué ;
-- `ruff`, `ruff format --check`, `mypy --strict` verts ; `tests/api`/`tests/mcp`
-  sur Postgres/MinIO réels.
+Implémentation 9.1a (fondation) + 9.1b (runtime), 2026-09-16, Postgres 16 +
+MinIO conteneurisés (`studio-test-pg`/`studio-test-minio`), migration
+Alembic `0008` (aller 0007→0008, retour 0008→0007, re-aller — réversible) :
+
+- webhook : `tests/api/test_github_webhook.py` (17 tests) — signature
+  valide/invalide/absente (401), secret non configuré (503), corps borné
+  (413), JSON invalide (400), redélivraison du même `X-GitHub-Delivery` →
+  un seul événement et un seul build (upsert `(project_id,
+  workflow_run_id)` + `event_id` UUID5), `X-GitHub-Event` inconnu / dépôt
+  inconnu / intégration désactivée → 202 sans écriture ;
+- worker réconciliation : `tests/api/test_builds.py::test_reconcile_is_idempotent_and_skips_disabled`
+  (fetch injecté, sans réseau) — 2 builds + événements au premier passage,
+  zéro ligne/événement supplémentaire au rejeu, intégration désactivée
+  ignorée ;
+- Review Queue : `build_failure`/`pr_ready` présents puis `pr_ready`
+  retiré après `git.pr.merged` (`test_review_queue_shows_build_failure_and_pr_ready`) ;
+  un client tolérant un `kind` inconnu ne casse pas (union discriminée
+  additive, anciens items inchangés) ;
+- Producer : `tests/api/test_producer.py` (10 tests) — les 4 kinds, ordre
+  de priorité documenté, détection de claims conflictuels, groupes
+  disjoints, `decomposition` sans écriture (comptage tasks avant/après),
+  `task_required` (422), replay `Idempotency-Key` → même job,
+  `producer.job.requested|completed` émis ;
+- MCP : `tests/mcp/test_builds.py` (4 tests, succès + erreur par outil),
+  `studio_get_builds` + `studio_request_producer_job` enregistrés
+  (serveur VPS : 27 → 29 outils) ;
+- CLI : `studio builds list/show`, `studio producer run`
+  (`tests/client/test_cli.py`, 4 tests MockTransport) ;
+- artefacts via `Transfer` (`build_id` optionnel, `404 build_not_found`
+  si inconnu), quota inchangé, aucun octet via FastAPI ;
+- `uv run ruff check .`, `uv run ruff format --check .` et `uv run mypy
+  packages/studio-contracts/src packages/studio-client/src services/api/src
+  services/mcp/src` verts (scope CI exact).
+- 9.1c (`POST /builds` dispatch `workflow_dispatch`, token sortant
+  `actions:write`) reste **différé** par cette même décision : aucun
+  endpoint de dispatch, aucun appel sortant authentifié en écriture.
+- Union Review Queue : les 2 nouveaux `kind` sont **additifs avec
+  obligation de tolérance** (même classe de changement que les types
+  `ai_work.approved`/`changes_requested` de DEC-0041) — un consommateur
+  typé épinglé sur l'ancien `studio-contracts` doit mettre à jour pour
+  voir les nouveaux items, sans bump de version de contrat ; `TECH/02`
+  l'exige comme règle client.
+
+Preuves d'origine (conception) : voir sections Architecture/Conséquences
+ci-dessus, inchangées.

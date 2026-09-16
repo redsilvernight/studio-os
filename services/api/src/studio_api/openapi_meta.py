@@ -24,8 +24,9 @@ machine_bearer_scheme = HTTPBearer(
         "`Authorization: Bearer <machine-token>` on every request under "
         "`/api/v1`. The token is opaque: a missing, invalid or revoked "
         "credential returns 401. Unauthenticated operations are "
-        "`GET /healthz`, `GET /metrics` and the human dashboard login "
-        "`POST /auth/token`."
+        "`GET /healthz`, `GET /metrics`, the human dashboard login "
+        "`POST /auth/token`, and the HMAC-signed GitHub ingress "
+        "`POST /github/webhook` (etape 9.1: signed, never Bearer)."
     ),
 )
 
@@ -249,5 +250,39 @@ RESP_422_TRANSFER_INTEGRITY: ErrorResponses = {
         "the presigned checksum (`content_md5_mismatch`). Part numbers "
         "outside the multipart bounds fail as `invalid_part_number`.",
         {"detail": {"error_code": "missing_content_md5"}},
+    )
+}
+
+RESP_401_WEBHOOK_SIGNATURE: ErrorResponses = {
+    401: _json_response(
+        "Invalid or missing GitHub webhook signature. The `X-Hub-Signature-256` "
+        "HMAC over the raw body did not verify — deliberately a plain message "
+        "with no machine-readable code, so a prober learns nothing. Retry "
+        "with the correct `STUDIO_GITHUB_WEBHOOK_SECRET`.",
+        {"detail": "invalid webhook signature"},
+    )
+}
+
+RESP_503_WEBHOOK_NOT_CONFIGURED: ErrorResponses = {
+    503: _json_response(
+        "GitHub webhook ingress is not configured on this server "
+        "(`STUDIO_GITHUB_WEBHOOK_SECRET` unset).",
+        {"detail": {"error_code": "webhook_not_configured"}},
+    )
+}
+
+RESP_413_WEBHOOK_TOO_LARGE: ErrorResponses = {
+    413: _json_response(
+        "Webhook body exceeds the bounded ingress size (`STUDIO_GITHUB_WEBHOOK_MAX_BODY_BYTES`).",
+        {"detail": {"error_code": "webhook_body_too_large"}},
+    )
+}
+
+RESP_400_WEBHOOK_MALFORMED: ErrorResponses = {
+    400: _json_response(
+        "Webhook delivery malformed: missing `X-GitHub-Event`/`X-GitHub-Delivery` "
+        "headers (`webhook_missing_headers`) or unparsable JSON "
+        "(`webhook_invalid_json`).",
+        {"detail": {"error_code": "webhook_missing_headers"}},
     )
 }

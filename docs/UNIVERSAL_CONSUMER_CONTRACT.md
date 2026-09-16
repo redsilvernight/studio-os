@@ -78,7 +78,9 @@ sont illustratifs et non normatifs.
 ## 3. Authentification
 
 - MUST : header `Authorization: Bearer <machine-token>` sur chaque requete
-  `/api/v1` (sauf `/healthz`, `/metrics` et le login humain `POST /auth/token`)
+  `/api/v1` (sauf `/healthz`, `/metrics`, le login humain `POST /auth/token`
+  et l'ingress webhook signe `POST /github/webhook` — HMAC, jamais Bearer,
+  etape 9.1/DEC-0059)
   et sur chaque appel MCP (transport HTTP), ou `STUDIO_MCP_MACHINE_TOKEN` en
   stdio local (`TECH/04`, DEC-0003/0023/0056 ;
   `services/mcp/src/studio_mcp/auth.py`). Token opaque, hash SHA-256
@@ -126,7 +128,10 @@ sont illustratifs et non normatifs.
 - MUST : regles d'identite DEC-0035 (`TECH/04` §Identite d'un event) :
   `machine_id` omis = derive, sinon `409 machine_id_mismatch` ;
   `actor_type=user` ⇒ `actor_id = owner_user_id` ; `agent` ⇒ agent attache
-  a la machine ; `system` ⇒ `actor_id = machine.id`. Le rejeu d'un
+  a la machine ; `system` ⇒ `actor_id = machine.id` pour une soumission
+  client (watchers), ou l'id de l'integration emettrice pour un evenement
+  ecrit par le serveur lui-meme (webhook GitHub, etape 9.1 — jamais soumis
+  via `POST /events`). Le rejeu d'un
   `event_id` avec une identite differente ne modifie jamais l'original.
 - SHOULD : temps reel via SSE `GET /events/stream?project={id}`, curseur
   `Last-Event-ID`/`since_seq` sur `seq`, rattrapage via `GET /events?since=`

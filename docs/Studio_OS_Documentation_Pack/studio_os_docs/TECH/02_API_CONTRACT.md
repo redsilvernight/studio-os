@@ -6,11 +6,11 @@ Base: `/api/v1`
 - JSON UTF-8.
 - IDs internes UUID.
 - IDs lisibles possibles pour Task/Decision/Transfer.
-- `Idempotency-Key` supporte sur creations rejouables (tasks, claims, decisions, transfers, sessions, ai-work, projects, agents — CC-1/DEC-0045) — meme cle + meme endpoint renvoie la reponse d'origine plutot que de recreer, y compris sous requetes concurrentes reelles : une seule ressource metier est creee pour une paire (cle, endpoint) donnee tant que la creation reste sous le seuil de reclamation d'une reservation abandonnee (limite connue documentee dans DEC-0015, non couverte par un jeton de fencing dans cette etape). Rejouer la meme cle avec un corps de requete different (hash du corps different) est une erreur client explicite `409 {"error_code": "idempotency_key_payload_mismatch"}`, jamais un rejeu silencieux de la premiere reponse ni une seconde ressource (DEC-0015). `POST /events` fait exception : c'est `event_id` (genere client-side) qui joue ce role, pas ce header — voir `TECH/04_AUTH_SYNC_CONTRACT.md`. `POST /machines` et `POST /users` sont volontairement exclus (actions administratives, interactives, jamais rejouees via la queue offline — DEC-0011/DEC-0012 ; un `Idempotency-Key` sur `POST /machines` persisterait le credential en clair dans la table d'idempotence).
+- `Idempotency-Key` supporte sur creations rejouables (tasks, claims, decisions, transfers, sessions, ai-work, projects, agents — CC-1/DEC-0045 — plus producer-jobs et github-integration, etape 9.1/DEC-0059) — meme cle + meme endpoint renvoie la reponse d'origine plutot que de recreer, y compris sous requetes concurrentes reelles : une seule ressource metier est creee pour une paire (cle, endpoint) donnee tant que la creation reste sous le seuil de reclamation d'une reservation abandonnee (limite connue documentee dans DEC-0015, non couverte par un jeton de fencing dans cette etape). Rejouer la meme cle avec un corps de requete different (hash du corps different) est une erreur client explicite `409 {"error_code": "idempotency_key_payload_mismatch"}`, jamais un rejeu silencieux de la premiere reponse ni une seconde ressource (DEC-0015). `POST /events` fait exception : c'est `event_id` (genere client-side) qui joue ce role, pas ce header — voir `TECH/04_AUTH_SYNC_CONTRACT.md`. `POST /machines` et `POST /users` sont volontairement exclus (actions administratives, interactives, jamais rejouees via la queue offline — DEC-0011/DEC-0012 ; un `Idempotency-Key` sur `POST /machines` persisterait le credential en clair dans la table d'idempotence).
 - Pagination: `limit`, `offset` ou curseur selon endpoint.
 - Dates ISO 8601 UTC.
 - Ecriture mutable sur un objet existant (`PATCH`) : header `If-Match-Version` avec la `version` lue par le client ; 409 + version serveur courante en cas de conflit (`TECH/04_AUTH_SYNC_CONTRACT.md`).
-- Authentification : header `Authorization: Bearer <machine-token>` sur tout endpoint sous `/api/v1` (sauf `/healthz`, `/metrics` et `POST /auth/token`) — voir `TECH/04_AUTH_SYNC_CONTRACT.md`. Le dashboard humain obtient un JWT court-terme via `POST /auth/token` (DASH-4, DEC-0056) et le presente ensuite comme `Authorization: Bearer <jwt>`.
+- Authentification : header `Authorization: Bearer <machine-token>` sur tout endpoint sous `/api/v1` (sauf `/healthz`, `/metrics`, `POST /auth/token` et `POST /github/webhook` — ce dernier est signe HMAC `X-Hub-Signature-256`, jamais Bearer) — voir `TECH/04_AUTH_SYNC_CONTRACT.md`. Le dashboard humain obtient un JWT court-terme via `POST /auth/token` (DASH-4, DEC-0056) et le presente ensuite comme `Authorization: Bearer <jwt>`.
 - Autorisation (DEC-0036, durcissement documente sur des endpoints existants — meme categorie que DEC-0025) : au-dela de l'authentification, certains endpoints peuvent desormais repondre `403 {"detail": {"error_code": "forbidden", "resource": ..., "action": ...}}` a une machine authentifiee mais insuffisamment autorisee (role `readonly`, machine non proprietaire d'une ressource deja possedee, ou — cas particulier des Transfers, seule categorie ou une lecture peut aussi etre concernee — appelant hors sender/recipient/diffusion/admin) — voir `TECH/04_AUTH_SYNC_CONTRACT.md` section Autorisation pour la matrice complete. Concerne, en ecriture : `POST /tasks`, `PATCH /tasks/{id}`, `POST /tasks/{id}/claim`, `POST /tasks/{id}/release`, `POST /claims`, `POST /claims/{id}/renew`, `DELETE /claims/{id}`, `POST /sessions`, `PATCH /sessions/{id}/end`, `POST /ai-work`, `PATCH /ai-work/{id}`, `POST /decisions`, `POST /events`, `POST /agents` (CC-1/DEC-0045 : `readonly` -> `403`, sans ownership — creation sans ressource preexistante), `POST /transfers`, `POST /transfers/{id}/upload/initiate`, `POST /transfers/{id}/upload/refresh-parts` (DEC-0037), `POST /transfers/{id}/upload/complete`, `DELETE /transfers/{id}` ; en lecture (Transfers uniquement, regle de visibilite) : `GET /transfers/{id}`, `POST /transfers/{id}/download-url`. Un client existant qui n'utilisait jusque-la que des roles/machines proprietaires n'observe aucun changement de comportement.
 - Enveloppe reelle d'une erreur machine-readable (`error_code` present dans ce document, ex. `413`/`507`/`409 idempotency_key_payload_mismatch`) : `{"detail": {"error_code": "...", ...}}` — FastAPI enveloppe systematiquement `HTTPException.detail`, jamais `{"error_code": "..."}` a plat. Une erreur sans `error_code` (401/403/404 génériques) renvoie `{"detail": "<message>"}`, une simple chaine. `studio_contracts.common.ErrorResponse`/`VersionConflictError` ne sont utilises par aucun code serveur actuel — clarification documentaire (DEC-0024), pas un changement de comportement.
 
@@ -102,11 +102,14 @@ n'utilisant que leurs propres agents n'observent aucun changement.
   `resource.conflict` recents (best-effort, borne dans le temps : aucun
   etat de conflit persiste n'existe). Query params : `project_id` (UUID,
   optionnel), `conflict_window_hours` (defaut 24, max 168). Reponse
-  `ReviewQueue{items: [...], generated_at}`, chaque item discrimine par
-  `kind` (`ai_work_review`/`decision_proposal`/`resource_conflict`), triee
-  par `requested_at` decroissant. Sert aussi de surface "notifications"
-  (DEC-0051, sous-etape 8.5) — il n'existe pas d'endpoint notifications
-  separe. Toute machine authentifiee peut lire.
+   `ReviewQueue{items: [...], generated_at}`, chaque item discrimine par
+   `kind` (`ai_work_review`/`decision_proposal`/`resource_conflict`, plus
+   `build_failure`/`pr_ready` depuis l'etape 9.1/DEC-0059 — voir section
+   GitHub/Builds/Producer ci-dessous), triee
+   par `requested_at` decroissant. Sert aussi de surface "notifications"
+   (DEC-0051, sous-etape 8.5) — il n'existe pas d'endpoint notifications
+   separe. Toute machine authentifiee peut lire. Les clients doivent
+   tolerer un `kind` inconnu.
 
 ### Timeline (sous-etape 8.5, additif, DEC-0051)
 - GET /timeline — activite d'un projet groupee par jour calendaire UTC
@@ -124,6 +127,44 @@ n'utilisant que leurs propres agents n'observent aucun changement.
 
 ### Heartbeats
 - POST /heartbeats
+
+### GitHub, Builds & Producer (etape 9.1, additif, DEC-0059)
+- POST /github/webhook — ingress webhook GitHub (`push`, `pull_request`,
+  `workflow_run`). **Sans Bearer** : authentifie par `X-Hub-Signature-256`
+  (HMAC-SHA256 du corps brut, temps constant, secret process-wide
+  `STUDIO_GITHUB_WEBHOOK_SECRET`). Signature absente/invalide -> `401`
+  (message generique, sans `error_code` — volontaire, pour ne rien
+  apprendre a un sondeur) ; secret non configure ->
+  `503 webhook_not_configured` ; corps > 1 Mio ->
+  `413 webhook_body_too_large` ; headers `X-GitHub-Event` /
+  `X-GitHub-Delivery` manquants -> `400 webhook_missing_headers` ; JSON
+  invalide -> `400 webhook_invalid_json`. Evenement inconnu,
+  depot non configure ou integration desactivee -> `202` (ignore,
+  jamais `500`). Redelivraison du meme `X-GitHub-Delivery` : ni second
+  evenement ni second build (upsert `(project_id, workflow_run_id)` +
+  `event_id` deterministes).
+- POST /projects/{id}/github-integration (roles `admin|developer`,
+  `Idempotency-Key` supporte) — body `GitHubIntegrationCreate`
+  (`project_id` == path, `repo_full_name`, `default_branch`/`enabled`
+  optionnels) ; doublon -> `409 integration_exists`.
+- GET /projects/{id}/github-integration — toute machine authentifiee.
+- PATCH /projects/{id}/github-integration (roles `admin|developer`).
+- GET /builds — `project_id` (optionnel), `status`
+  (`queued|in_progress|succeeded|failed`, optionnel), `limit` (defaut 100,
+  max 500). Toute machine authentifiee.
+- GET /builds/{id} — toute machine authentifiee.
+- POST /producer-jobs (ecriture, `Idempotency-Key` supporte) — body
+  `ProducerJobRequest` (`project_id`, `kind`
+  `priority_analysis|blocker_detection|parallelization|decomposition`,
+  `task_id` requis pour `decomposition` sinon `422 task_required`).
+  Synchrone et borne en v1 : la reponse est deja `completed`/`failed`.
+  Le Producer ne mute jamais taches ni claims.
+- GET /producer-jobs — `project_id` (optionnel), `limit`. Toute machine
+  authentifiee.
+- GET /producer-jobs/{id} — toute machine authentifiee.
+- `POST /transfers` accepte `build_id` (UUID, optionnel, additif) : inconnu
+  -> `404 build_not_found`, sinon l'artefact est relie a son build
+  (quotas et autorisation Transfer inchanges).
 
 ### Events
 - POST /events

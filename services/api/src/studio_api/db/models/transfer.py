@@ -28,6 +28,11 @@ class TransferModel(UUIDPKMixin, Base):
     task_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("tasks.id"), default=None
     )
+    # Optional link to the build this artefact came from (DEC-0059, 9.1) —
+    # additive, nullable, quotas and Transfer authorization unchanged.
+    build_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("builds.id"), default=None
+    )
     category: Mapped[str]
     filename: Mapped[str]
     object_key: Mapped[str] = mapped_column(unique=True)

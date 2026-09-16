@@ -43,6 +43,7 @@ READ_ONLY_TOOLS = {
     "studio_request_transfer_download",
     "studio_get_review_queue",
     "studio_get_timeline",
+    "studio_get_builds",
 }
 
 WRITE_TOOLS = {
@@ -58,6 +59,7 @@ WRITE_TOOLS = {
     "studio_log_ai_work",
     "studio_emit_event",
     "studio_create_transfer_metadata",
+    "studio_request_producer_job",
 }
 
 
@@ -73,7 +75,7 @@ def _by_name(tools: list[Tool]) -> dict[str, Tool]:
 
 
 def test_all_tools_have_external_descriptions(tools: list[Tool]) -> None:
-    assert len(tools) == 27
+    assert len(tools) == 29
     for tool in tools:
         assert tool.description, f"{tool.name} has no description"
         assert len(tool.description) >= 40, f"{tool.name} description is stub-like"

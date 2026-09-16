@@ -8,11 +8,14 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+from typing import Any
 from uuid import UUID
 
+import httpx
 from fastapi import HTTPException
 
 from studio_api.db.session import get_session_factory
+from studio_api.services import github as github_service
 from studio_api.services import projects as projects_service
 from studio_api.services import provisioning as provisioning_service
 from studio_api.services import transfers as transfers_service
@@ -87,6 +90,32 @@ async def _abort_stale_multipart_uploads(older_than_days: int, dry_run: bool) ->
     print(f"{len(stale)} multipart upload(s) {'would be aborted' if dry_run else 'aborted'}")
 
 
+async def _reconcile_builds() -> None:
+    """Build catch-up worker (roadmap etape 9.1, DEC-0059) — replays recent
+    GitHub workflow runs into `builds` + `build.*` events for every enabled
+    integration, converging with webhook deliveries (same upsert key, same
+    run-keyed event ids). Run on a schedule, same model as
+    `_expire_transfers`: no in-process scheduler. Idempotent — a re-run
+    touches no second row and emits no second event."""
+    settings = get_settings()
+    token = settings.github_token
+    if not token:
+        print("STUDIO_GITHUB_TOKEN is not set", file=sys.stderr)
+        raise SystemExit(1)
+    async with httpx.AsyncClient() as client:
+
+        async def _fetch(repo_full_name: str, limit: int) -> list[dict[str, Any]]:
+            return await github_service.fetch_workflow_runs(repo_full_name, token, limit, client)
+
+        async with get_session_factory()() as session:
+            builds = await github_service.reconcile_builds(
+                session, _fetch, settings.github_reconcile_runs_limit
+            )
+    for build in builds:
+        print(f"build reconciled: {build.id} (run {build.workflow_run_id}, {build.status})")
+    print(f"{len(builds)} build(s) reconciled")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="studio-admin")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -126,6 +155,13 @@ def main() -> None:
     )
     abort_stale.add_argument("--dry-run", action="store_true")
 
+    builds_parser = sub.add_parser("builds", help="Manage builds")
+    builds_sub = builds_parser.add_subparsers(dest="builds_command", required=True)
+    builds_sub.add_parser(
+        "reconcile",
+        help="Replay recent GitHub workflow runs into builds + events (idempotent)",
+    )
+
     args = parser.parse_args()
 
     try:
@@ -143,6 +179,8 @@ def main() -> None:
             asyncio.run(_expire_transfers())
         elif args.command == "transfers" and args.transfer_command == "abort-stale-multipart":
             asyncio.run(_abort_stale_multipart_uploads(args.older_than_days, args.dry_run))
+        elif args.command == "builds" and args.builds_command == "reconcile":
+            asyncio.run(_reconcile_builds())
     except HTTPException as exc:
         print(f"error: {exc.detail}", file=sys.stderr)
         raise SystemExit(1) from exc

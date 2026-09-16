@@ -321,11 +321,15 @@ Détail et preuves : `docs/ROADMAP_STEP8_BREAKDOWN.md` et
 
 ### État (2026-09-15)
 
-- 9.1 Studio Producer, intégration GitHub/build et workers : **en conception**
-  (DEC-0059, statut `proposed`). L'ADR fixe la frontière Bloc A/Bloc B, le
-  webhook signé, les entités `Build`/`GitHubIntegration`/`ProducerJob` et le
-  worker `builds reconcile` ; amendements de contrat et implémentation non
-  encore livrés.
+- 9.1 Studio Producer, intégration GitHub/build et workers : **implémenté
+  9.1a (fondation : contrats, modèles, migration 0008 réversible) + 9.1b
+  (webhook signé, Producer déterministe, endpoints, Review Queue étendue,
+  worker `builds reconcile`, MCP, CLI)** (DEC-0059, statut `active`,
+  2026-09-16). Seul 9.1c (dispatch `workflow_dispatch`) reste différé par
+  la décision. L'ADR fixe la frontière Bloc A/Bloc B, le webhook signé,
+  les entités `Build`/`GitHubIntegration`/`ProducerJob` et le worker
+  `builds reconcile` ; amendements de contrat `TECH/02/03/04/05/07`
+  livrés dans le même lot.
 - 9.2 RecordingProvider, markers et MarketingCandidate : **implémenté** côté
   Bloc B (DEC-0058 ; `packages/studio-client/src/studio_client/recording/`,
   CLI `studio mark`, 27 tests `tests/client/test_recording_{provider,cli}.py`).

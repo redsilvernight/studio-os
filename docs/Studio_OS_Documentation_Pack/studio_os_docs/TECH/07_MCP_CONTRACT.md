@@ -23,6 +23,8 @@ studio_log_ai_work
 studio_get_ai_work
 studio_get_review_queue
 studio_get_timeline
+studio_get_builds
+studio_request_producer_job
 studio_memory_search
 studio_memory_read
 studio_graph_query
@@ -50,7 +52,7 @@ token (pas d'attaquant reseau).
 
 ## Etat reel (roadmap etape 5, DEC-0023, UC-3/DEC-0047)
 
-Le serveur VPS enregistre 27 outils (`services/mcp/src/studio_mcp/`).
+Le serveur VPS enregistre 29 outils (`services/mcp/src/studio_mcp/`).
 Les 3 outils locaux read-only specifies ci-dessous (UC-3, exposition via
 MCP local par poste, DEC-0047) sont en place mais conditionnels au
 fichier de configuration du poste : `studio_memory_search`,
@@ -167,12 +169,26 @@ le service etant partage (DEC-0005/DEC-0036).
 ## Review Queue et notifications (sous-etape 8.4/8.5, DEC-0049/DEC-0051)
 
 `studio_get_review_queue` (lecture seule) agrege le travail IA en
-`review_requested`, les decisions `proposed`, et les evenements
+`review_requested`, les decisions `proposed`, les evenements
 `resource.conflict` recents (`conflict_window_hours`, defaut 24, best-effort
-— aucun etat de conflit persiste). Sert aussi de surface "notifications"
+— aucun etat de conflit persiste), les builds en echec (`build_failure`,
+informatif — DEC-0059) et les PR ouvertes sans merge (`pr_ready`,
+best-effort borne comme les conflits — DEC-0059). Sert aussi de surface "notifications"
 (DEC-0051) : aucun outil `studio_get_notifications` distinct n'existe — un
 second outil renvoyant les memes donnees degraderait la selection d'outil
 par le modele plutot que d'apporter une information nouvelle.
+
+## Builds & Producer (etape 9.1, DEC-0059)
+
+`studio_get_builds` (lecture seule) liste les builds CI observes sur les
+depots cables (`project_id`, `status`, `limit` optionnels).
+`studio_request_producer_job` execute une analyse bornee synchrone
+(`kind` : `priority_analysis`, `blocker_detection`, `parallelization`,
+`decomposition` — `task_id` requis pour `decomposition`) ; le Producer ne
+mute jamais taches ni claims. `idempotency_key` optionnel (namespace
+`MCP studio_request_producer_job`, DEC-0027). L'enregistrement d'une
+integration GitHub et la reception du webhook restent HTTP-only (pas de
+secret partageable comme parametre d'outil).
 
 ## Evolution des contrats d'outils (CC-3, DEC-0048)
 
@@ -201,7 +217,7 @@ coexistence n'est fixee d'avance.
 
 ### Dette output schemas
 
-Les `outputSchema` actuels des 28 outils (auto-generes depuis
+Les `outputSchema` actuels des outils (auto-generes depuis
 `dict[str, Any]`, `additionalProperties: True`) ne decrivent pas
 suffisamment leurs outputs. Des output schemas explicites sont
 necessaires avant toute evolution breaking sure d'un tool reellement

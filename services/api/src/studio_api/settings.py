@@ -39,6 +39,15 @@ class Settings(BaseSettings):
     jwt_secret: str = "change-me-in-production"
     jwt_access_token_expire_minutes: int = 480
 
+    # GitHub integration, Studio Producer (etape 9.1, DEC-0059) — secrets are
+    # env-only, never logged, never returned by the API.
+    github_webhook_secret: str | None = None
+    github_token: str | None = None
+    github_webhook_max_body_bytes: int = 1_048_576
+    github_webhook_rate_limit_per_minute: int = 600
+    github_webhook_rate_limit_burst: int = 60
+    github_reconcile_runs_limit: int = 30
+
 
 def get_settings() -> Settings:
     return Settings()

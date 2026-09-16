@@ -10,14 +10,17 @@ from studio_contracts.events import EventType
 from studio_contracts.review_queue import (
     ReviewQueue,
     ReviewQueueAIWorkItem,
+    ReviewQueueBuildItem,
     ReviewQueueConflictItem,
     ReviewQueueDecisionItem,
     ReviewQueueItem,
+    ReviewQueuePRItem,
 )
 
 from studio_api.services import ai_work as ai_work_service
 from studio_api.services import decisions as decisions_service
 from studio_api.services import events as events_service
+from studio_api.services import github as github_service
 
 
 async def get_review_queue(
@@ -28,9 +31,11 @@ async def get_review_queue(
     """Aggregates everything waiting on a human decision: AIWorkLog entries in
     `review_requested` (DEC-0041), `Decision`s still `proposed` (no transition
     endpoint exists for decisions — DEC-0049 keeps this review scoped to AI
-    work, matching DEC-0041), and recent `resource.conflict` events. Conflicts
-    have no persisted "still open" state (no Conflict table exists) — this is
-    a best-effort, time-windowed signal, not a resolvable queue entry."""
+    work, matching DEC-0041), recent `resource.conflict` events, failed
+    `Build`s (DEC-0059), and `git.pr.opened` events with no `git.pr.merged`
+    yet (DEC-0059). Conflicts and PRs have no persisted "still open" state
+    (no Conflict/PullRequest table exists) — these are best-effort,
+    time-windowed signals, not resolvable queue entries."""
     items: list[ReviewQueueItem] = []
 
     for work in await ai_work_service.list_ai_work(session, project_id=project_id):
@@ -77,6 +82,60 @@ async def get_review_queue(
                 task_id=event.task_id,
                 title=f"conflict on {resource_path}",
                 resource_path=resource_path,
+                requested_at=event.server_timestamp,
+            )
+        )
+
+    for build in await github_service.list_builds(
+        session, project_id=project_id, status_value="failed", limit=500
+    ):
+        requested_at = build.completed_at or build.updated_at
+        items.append(
+            ReviewQueueBuildItem(
+                id=build.id,
+                project_id=build.project_id,
+                task_id=build.task_id,
+                title=f"build failed: {build.workflow_name} #{build.run_number} on {build.branch}",
+                workflow_name=build.workflow_name,
+                branch=build.branch,
+                commit_sha=build.commit_sha,
+                conclusion=build.conclusion,
+                requested_at=requested_at,
+            )
+        )
+
+    opened_events = await events_service.list_events(
+        session,
+        project_id=str(project_id) if project_id is not None else None,
+        since=since,
+        event_type=EventType.GIT_PR_OPENED,
+        limit=500,
+    )
+    merged_events = await events_service.list_events(
+        session,
+        project_id=str(project_id) if project_id is not None else None,
+        since=since,
+        event_type=EventType.GIT_PR_MERGED,
+        limit=500,
+    )
+    merged_prs = {
+        event.payload.get("pr_number")
+        for event in merged_events
+        if isinstance(event.payload.get("pr_number"), int)
+    }
+    for event in opened_events:
+        pr_number = event.payload.get("pr_number")
+        if not isinstance(pr_number, int) or pr_number in merged_prs:
+            continue
+        items.append(
+            ReviewQueuePRItem(
+                id=event.event_id,
+                project_id=event.project_id,
+                task_id=event.task_id,
+                title=str(event.payload.get("title") or f"PR #{pr_number} ready"),
+                pr_number=pr_number,
+                head_branch=str(event.payload.get("head_branch") or ""),
+                base_branch=str(event.payload.get("base_branch") or ""),
                 requested_at=event.server_timestamp,
             )
         )

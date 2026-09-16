@@ -39,6 +39,7 @@ class Transfer(ContractModel):
     recipient_user_id: UUID | None = None
     project_id: UUID | None = None
     task_id: UUID | None = None
+    build_id: UUID | None = None
     category: TransferCategory
     filename: str
     object_key: str
@@ -58,6 +59,7 @@ class TransferCreate(IdempotentCreate):
     recipient_user_id: UUID | None = None
     project_id: UUID | None = None
     task_id: UUID | None = None
+    build_id: UUID | None = None
     category: TransferCategory
     filename: str
     content_type: str

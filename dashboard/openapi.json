@@ -2111,7 +2111,7 @@
      "review-queue"
     ],
     "summary": "Get Review Queue",
-    "description": "Aggregated view of everything waiting on a human decision: AI work in `review_requested` (resolve via `PATCH /ai-work/{id}`), decisions still `proposed` (informational \u2014 no transition endpoint exists for decisions), and recent `resource.conflict` events within `conflict_window_hours` (best-effort and time-windowed: no persisted conflict state exists, an old unaddressed conflict silently ages out of the window). Also serves as the notifications surface \u2014 there is no separate notifications endpoint. Any authenticated machine may read.",
+    "description": "Aggregated view of everything waiting on a human decision: AI work in `review_requested` (resolve via `PATCH /ai-work/{id}`), decisions still `proposed` (informational \u2014 no transition endpoint exists for decisions), recent `resource.conflict` events within `conflict_window_hours` (best-effort and time-windowed: no persisted conflict state exists, an old unaddressed conflict silently ages out of the window), failed builds (`build_failure`, informational \u2014 no build transition endpoint exists), and opened PRs with no merge yet (`pr_ready`, best-effort and time-windowed like conflicts). Also serves as the notifications surface \u2014 there is no separate notifications endpoint. Any authenticated machine may read. Clients must tolerate an unknown `kind`.",
     "operationId": "get_review_queue_api_v1_review_queue_get",
     "security": [
      {
@@ -2252,6 +2252,822 @@
        "application/json": {
         "example": {
          "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/github/webhook": {
+   "post": {
+    "tags": [
+     "github"
+    ],
+    "summary": "Github Webhook",
+    "description": "GitHub webhook ingress. Authenticated by `X-Hub-Signature-256` HMAC over the raw body with the process-wide webhook secret \u2014 never a machine Bearer token, so this is a deliberate signed authentication exception. Unknown event names and unconfigured repositories answer `202` (accepted-but-ignored), never `500`.",
+    "operationId": "github_webhook_api_v1_github_webhook_post",
+    "parameters": [
+     {
+      "name": "X-GitHub-Event",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "X-Github-Event"
+      }
+     },
+     {
+      "name": "X-GitHub-Delivery",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "X-Github-Delivery"
+      }
+     },
+     {
+      "name": "X-Hub-Signature-256",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "X-Hub-Signature-256"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/GitHubWebhookResult"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Invalid or missing GitHub webhook signature. The `X-Hub-Signature-256` HMAC over the raw body did not verify \u2014 deliberately a plain message with no machine-readable code, so a prober learns nothing. Retry with the correct `STUDIO_GITHUB_WEBHOOK_SECRET`.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "invalid webhook signature"
+        }
+       }
+      }
+     },
+     "503": {
+      "description": "GitHub webhook ingress is not configured on this server (`STUDIO_GITHUB_WEBHOOK_SECRET` unset).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "webhook_not_configured"
+         }
+        }
+       }
+      }
+     },
+     "413": {
+      "description": "Webhook body exceeds the bounded ingress size (`STUDIO_GITHUB_WEBHOOK_MAX_BODY_BYTES`).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "webhook_body_too_large"
+         }
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "Webhook delivery malformed: missing `X-GitHub-Event`/`X-GitHub-Delivery` headers (`webhook_missing_headers`) or unparsable JSON (`webhook_invalid_json`).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "webhook_missing_headers"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/projects/{project_id}/github-integration": {
+   "post": {
+    "tags": [
+     "github"
+    ],
+    "summary": "Create Github Integration",
+    "description": "Wire a project to a GitHub repository. Role `admin` or `developer`. Accepts `Idempotency-Key` for safe retries.",
+    "operationId": "create_github_integration_api_v1_projects__project_id__github_integration_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Project Id"
+      }
+     },
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/GitHubIntegrationCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/GitHubIntegration"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "idempotency_key_payload_mismatch"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "get": {
+    "tags": [
+     "github"
+    ],
+    "summary": "Get Github Integration",
+    "description": "Read a project's GitHub wiring. Any authenticated machine may read.",
+    "operationId": "get_github_integration_api_v1_projects__project_id__github_integration_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Project Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/GitHubIntegration"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "patch": {
+    "tags": [
+     "github"
+    ],
+    "summary": "Update Github Integration",
+    "description": "Update a project's GitHub wiring (repository, default branch, enabled flag). Role `admin` or `developer`.",
+    "operationId": "update_github_integration_api_v1_projects__project_id__github_integration_patch",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Project Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/GitHubIntegrationUpdate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/GitHubIntegration"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/builds": {
+   "get": {
+    "tags": [
+     "builds"
+    ],
+    "summary": "List Builds",
+    "description": "List CI builds observed on wired GitHub repositories, newest first. Any authenticated machine may read.",
+    "operationId": "list_builds_api_v1_builds_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Project Id"
+      }
+     },
+     {
+      "name": "status",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "$ref": "#/components/schemas/BuildStatus"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 500,
+       "default": 100,
+       "title": "Limit"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/Build"
+         },
+         "title": "Response List Builds Api V1 Builds Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/builds/{build_id}": {
+   "get": {
+    "tags": [
+     "builds"
+    ],
+    "summary": "Get Build",
+    "description": "Get one build by id. Any authenticated machine may read.",
+    "operationId": "get_build_api_v1_builds__build_id__get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "build_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Build Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Build"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/producer-jobs": {
+   "post": {
+    "tags": [
+     "producer"
+    ],
+    "summary": "Request Producer Job",
+    "description": "Run a bounded, synchronous Studio Producer analysis over one project's shared state. Requires a writer role. Accepts `Idempotency-Key` for safe retries. The Producer never mutates tasks or claims: a `decomposition` result is a proposal the caller materializes via `POST /tasks`.",
+    "operationId": "request_producer_job_api_v1_producer_jobs_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ProducerJobRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProducerJob"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "idempotency_key_payload_mismatch"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "get": {
+    "tags": [
+     "producer"
+    ],
+    "summary": "List Producer Jobs",
+    "description": "List Producer jobs, newest first. Any authenticated machine may read.",
+    "operationId": "list_producer_jobs_api_v1_producer_jobs_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Project Id"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 500,
+       "default": 100,
+       "title": "Limit"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/ProducerJob"
+         },
+         "title": "Response List Producer Jobs Api V1 Producer Jobs Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/producer-jobs/{job_id}": {
+   "get": {
+    "tags": [
+     "producer"
+    ],
+    "summary": "Get Producer Job",
+    "description": "Get one Producer job by id. Any authenticated machine may read.",
+    "operationId": "get_producer_job_api_v1_producer_jobs__job_id__get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "job_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Job Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProducerJob"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
         }
        }
       }
@@ -4153,6 +4969,160 @@
     "title": "AgentCreate",
     "description": "Public registration of a provenance identity: `machine_id` is always\nderived from the authenticated machine, never client-supplied.\n`display_name` and `agent_kind` are free-form metadata \u2014 never\nauthorization inputs, never the canonical identity (the\nserver-generated `Agent.id` is). `agent_profile`, `harness`, `provider`\nand `model` are optional open-string observability metadata: any value\nis accepted, unknown values are never rejected, and none of them is ever\nrequired."
    },
+   "Build": {
+    "properties": {
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "github_integration_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Github Integration Id"
+     },
+     "workflow_run_id": {
+      "type": "integer",
+      "title": "Workflow Run Id"
+     },
+     "workflow_name": {
+      "type": "string",
+      "title": "Workflow Name"
+     },
+     "run_number": {
+      "type": "integer",
+      "title": "Run Number"
+     },
+     "branch": {
+      "type": "string",
+      "title": "Branch"
+     },
+     "commit_sha": {
+      "type": "string",
+      "title": "Commit Sha"
+     },
+     "pr_number": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pr Number"
+     },
+     "status": {
+      "$ref": "#/components/schemas/BuildStatus",
+      "default": "queued"
+     },
+     "conclusion": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Conclusion"
+     },
+     "html_url": {
+      "type": "string",
+      "title": "Html Url"
+     },
+     "actor_login": {
+      "type": "string",
+      "title": "Actor Login"
+     },
+     "started_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Started At"
+     },
+     "completed_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Completed At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "created_at",
+     "updated_at",
+     "id",
+     "project_id",
+     "workflow_run_id",
+     "workflow_name",
+     "run_number",
+     "branch",
+     "commit_sha",
+     "html_url",
+     "actor_login"
+    ],
+    "title": "Build",
+    "description": "A CI build observed on a project's GitHub repository.\nAdditive-only: new optional fields may appear, existing ones are never\nrenamed or removed."
+   },
+   "BuildStatus": {
+    "type": "string",
+    "enum": [
+     "queued",
+     "in_progress",
+     "succeeded",
+     "failed"
+    ],
+    "title": "BuildStatus",
+    "description": "Build lifecycle, mirrored from the `build.*` event types. Transitions\nonly ever move forward (`queued` -> `in_progress` -> `succeeded`/`failed`)\nand are written by the server (GitHub webhook, reconcile worker) \u2014 no\nclient PATCH endpoint exists."
+   },
    "ClaimStatus": {
     "type": "string",
     "enum": [
@@ -4540,6 +5510,9 @@
      "build.started",
      "build.succeeded",
      "build.failed",
+     "producer.job.requested",
+     "producer.job.completed",
+     "producer.job.failed",
      "transfer.created",
      "transfer.uploading",
      "transfer.ready",
@@ -4551,6 +5524,203 @@
     ],
     "title": "EventType",
     "description": "Fixed dotted names (`domain.verb`: task.created, session.ended, ...).\nAdditive-only: new members may appear, existing ones are never renamed\nor removed \u2014 readers should tolerate unknown types."
+   },
+   "GitHubIntegration": {
+    "properties": {
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "repo_full_name": {
+      "type": "string",
+      "title": "Repo Full Name"
+     },
+     "default_branch": {
+      "type": "string",
+      "title": "Default Branch",
+      "default": "main"
+     },
+     "enabled": {
+      "type": "boolean",
+      "title": "Enabled",
+      "default": true
+     },
+     "created_by_user_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Created By User Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "created_at",
+     "updated_at",
+     "id",
+     "project_id",
+     "repo_full_name",
+     "created_by_user_id"
+    ],
+    "title": "GitHubIntegration",
+    "description": "Per-project GitHub wiring. At most one row per project in\nv1 (`project_id` unique) \u2014 the webhook secret itself is never stored\nhere: it is a single process-wide env var (`STUDIO_GITHUB_WEBHOOK_SECRET`),\nnever logged, never returned by the API."
+   },
+   "GitHubIntegrationCreate": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "repo_full_name": {
+      "type": "string",
+      "title": "Repo Full Name"
+     },
+     "default_branch": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Default Branch"
+     },
+     "enabled": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Enabled"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id",
+     "repo_full_name"
+    ],
+    "title": "GitHubIntegrationCreate"
+   },
+   "GitHubIntegrationUpdate": {
+    "properties": {
+     "repo_full_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Repo Full Name"
+     },
+     "default_branch": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Default Branch"
+     },
+     "enabled": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Enabled"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "GitHubIntegrationUpdate"
+   },
+   "GitHubWebhookResult": {
+    "properties": {
+     "status": {
+      "type": "string",
+      "title": "Status"
+     },
+     "github_event": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Github Event"
+     },
+     "build_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Build Id"
+     },
+     "pr_number": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pr Number"
+     },
+     "detail": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Detail"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "status"
+    ],
+    "title": "GitHubWebhookResult",
+    "description": "Outcome of one verified GitHub delivery. `status` is `accepted`\n(events/builds written or converged) or `ignored` (unknown event,\nunconfigured repository, disabled integration) \u2014 both answer `200`/`202`\nat HTTP level, never `500`."
    },
    "HTTPValidationError": {
     "properties": {
@@ -4782,6 +5952,135 @@
      "offline"
     ],
     "title": "MachineStatus"
+   },
+   "ProducerJob": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "kind": {
+      "$ref": "#/components/schemas/ProducerJobKind"
+     },
+     "status": {
+      "$ref": "#/components/schemas/ProducerJobStatus",
+      "default": "requested"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "result": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Result",
+      "default": {}
+     },
+     "error": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Error"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "completed_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Completed At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "project_id",
+     "kind",
+     "created_at"
+    ],
+    "title": "ProducerJob",
+    "description": "A bounded, synchronous Producer computation over one project's shared\nstate. The Producer never mutates `Task`/`ResourceClaim`:\na `decomposition` result is a proposal \u2014 the caller creates the\nsub-tasks itself via `POST /tasks` (idempotent)."
+   },
+   "ProducerJobKind": {
+    "type": "string",
+    "enum": [
+     "priority_analysis",
+     "blocker_detection",
+     "parallelization",
+     "decomposition"
+    ],
+    "title": "ProducerJobKind",
+    "description": "What the Producer was asked to compute. Deterministic and\nmodel-agnostic in v1 \u2014 no LLM in the server core."
+   },
+   "ProducerJobRequest": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "kind": {
+      "$ref": "#/components/schemas/ProducerJobKind"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id",
+     "kind"
+    ],
+    "title": "ProducerJobRequest"
+   },
+   "ProducerJobStatus": {
+    "type": "string",
+    "enum": [
+     "requested",
+     "running",
+     "completed",
+     "failed"
+    ],
+    "title": "ProducerJobStatus"
    },
    "Project": {
     "properties": {
@@ -5076,13 +6375,21 @@
         },
         {
          "$ref": "#/components/schemas/ReviewQueueConflictItem"
+        },
+        {
+         "$ref": "#/components/schemas/ReviewQueueBuildItem"
+        },
+        {
+         "$ref": "#/components/schemas/ReviewQueuePRItem"
         }
        ],
        "discriminator": {
         "propertyName": "kind",
         "mapping": {
          "ai_work_review": "#/components/schemas/ReviewQueueAIWorkItem",
+         "build_failure": "#/components/schemas/ReviewQueueBuildItem",
          "decision_proposal": "#/components/schemas/ReviewQueueDecisionItem",
+         "pr_ready": "#/components/schemas/ReviewQueuePRItem",
          "resource_conflict": "#/components/schemas/ReviewQueueConflictItem"
         }
        }
@@ -5160,6 +6467,83 @@
      "requested_at"
     ],
     "title": "ReviewQueueAIWorkItem"
+   },
+   "ReviewQueueBuildItem": {
+    "properties": {
+     "kind": {
+      "type": "string",
+      "const": "build_failure",
+      "title": "Kind",
+      "default": "build_failure"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "workflow_name": {
+      "type": "string",
+      "title": "Workflow Name"
+     },
+     "branch": {
+      "type": "string",
+      "title": "Branch"
+     },
+     "commit_sha": {
+      "type": "string",
+      "title": "Commit Sha"
+     },
+     "conclusion": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Conclusion"
+     },
+     "requested_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Requested At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "project_id",
+     "title",
+     "workflow_name",
+     "branch",
+     "commit_sha",
+     "requested_at"
+    ],
+    "title": "ReviewQueueBuildItem",
+    "description": "`id` is the failed `Build`'s id \u2014 informational (no build transition\nendpoint exists), like `ReviewQueueConflictItem`. `requested_at` is when\nthe build completed as failed."
    },
    "ReviewQueueConflictItem": {
     "properties": {
@@ -5282,6 +6666,72 @@
      "requested_at"
     ],
     "title": "ReviewQueueDecisionItem"
+   },
+   "ReviewQueuePRItem": {
+    "properties": {
+     "kind": {
+      "type": "string",
+      "const": "pr_ready",
+      "title": "Kind",
+      "default": "pr_ready"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "pr_number": {
+      "type": "integer",
+      "title": "Pr Number"
+     },
+     "head_branch": {
+      "type": "string",
+      "title": "Head Branch"
+     },
+     "base_branch": {
+      "type": "string",
+      "title": "Base Branch"
+     },
+     "requested_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Requested At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "project_id",
+     "title",
+     "pr_number",
+     "head_branch",
+     "base_branch",
+     "requested_at"
+    ],
+    "title": "ReviewQueuePRItem",
+    "description": "`id` is the `git.pr.opened` event's `event_id` \u2014 a best-effort,\ntime-windowed signal (a PR opened long ago with no `git.pr.merged` ages\nout of the window), not a resolvable state."
    },
    "Role": {
     "type": "string",
@@ -5609,6 +7059,18 @@
       ],
       "title": "Task Id"
      },
+     "build_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Build Id"
+     },
      "category": {
       "$ref": "#/components/schemas/TransferCategory"
      },
@@ -5808,6 +7270,18 @@
        }
       ],
       "title": "Task Id"
+     },
+     "build_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Build Id"
      },
      "category": {
       "$ref": "#/components/schemas/TransferCategory"
@@ -6284,7 +7758,7 @@
   "securitySchemes": {
    "MachineBearer": {
     "type": "http",
-    "description": "Machine credential provisioned out of band. Send it as `Authorization: Bearer <machine-token>` on every request under `/api/v1`. The token is opaque: a missing, invalid or revoked credential returns 401. Unauthenticated operations are `GET /healthz`, `GET /metrics` and the human dashboard login `POST /auth/token`.",
+    "description": "Machine credential provisioned out of band. Send it as `Authorization: Bearer <machine-token>` on every request under `/api/v1`. The token is opaque: a missing, invalid or revoked credential returns 401. Unauthenticated operations are `GET /healthz`, `GET /metrics`, the human dashboard login `POST /auth/token`, and the HMAC-signed GitHub ingress `POST /github/webhook` (etape 9.1: signed, never Bearer).",
     "scheme": "bearer"
    }
   }
@@ -6329,6 +7803,18 @@
   {
    "name": "timeline",
    "description": "Day-grouped project activity derived from the event stream. Read-only, unfiltered history \u2014 see review-queue for what needs action."
+  },
+  {
+   "name": "github",
+   "description": "GitHub ingress and wiring. The webhook endpoint is signed (X-Hub-Signature-256), never Bearer-authenticated; integrations and builds are read by any authenticated machine, written by privileged roles or the server itself."
+  },
+  {
+   "name": "builds",
+   "description": "CI builds observed on wired GitHub repositories. Server-written (webhook, reconcile worker); read-only over HTTP."
+  },
+  {
+   "name": "producer",
+   "description": "Studio Producer: bounded, deterministic analyses over a project's shared state. Synchronous in v1; never mutates tasks or claims."
   },
   {
    "name": "heartbeats",

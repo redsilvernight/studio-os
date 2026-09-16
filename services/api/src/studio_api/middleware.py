@@ -73,12 +73,18 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         app: Any,
         requests_per_minute: int = 120,
         burst: int = 20,
+        webhook_requests_per_minute: int = 600,
+        webhook_burst: int = 60,
     ) -> None:
         super().__init__(app)
         self.requests_per_minute = max(requests_per_minute, 1)
         self.burst = max(burst, 1)
+        self.webhook_requests_per_minute = max(webhook_requests_per_minute, 1)
+        self.webhook_burst = max(webhook_burst, 1)
         self._tokens: dict[str, float] = defaultdict(float)
         self._last_update: dict[str, float] = defaultdict(float)
+        self._webhook_tokens: dict[str, float] = defaultdict(float)
+        self._webhook_last_update: dict[str, float] = defaultdict(float)
         self._lock: Any = None
 
     async def _get_lock(self) -> Any:
@@ -107,24 +113,57 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if request.url.path in {"/healthz", "/metrics"}:
             return await call_next(request)
 
-        key = self._key(request)
-        now = time.monotonic()
-        rate_per_second = self.requests_per_minute / 60.0
-        async with await self._get_lock():
-            last = self._last_update.get(key, now)
-            tokens = min(
-                self.burst,
-                self._tokens.get(key, self.burst) + rate_per_second * (now - last),
+        # The GitHub webhook has its own bucket (DEC-0059): it carries no
+        # machine token, so the default per-token key would collapse every
+        # GitHub retry onto one IP bucket and throttle legitimate
+        # redeliveries. Keyed per repository event stream instead.
+        if request.url.path == "/api/v1/github/webhook":
+            return await self._dispatch_with_bucket(
+                request,
+                call_next,
+                self._webhook_tokens,
+                self._webhook_last_update,
+                self.webhook_requests_per_minute,
+                self.webhook_burst,
+                key_prefix="github-webhook",
             )
-            if tokens < 1.0:
+        return await self._dispatch_with_bucket(
+            request,
+            call_next,
+            self._tokens,
+            self._last_update,
+            self.requests_per_minute,
+            self.burst,
+        )
+
+    async def _dispatch_with_bucket(
+        self,
+        request: Request,
+        call_next: RequestResponseEndpoint,
+        tokens: dict[str, float],
+        last_update: dict[str, float],
+        requests_per_minute: int,
+        burst: int,
+        key_prefix: str = "",
+    ) -> Response:
+        key = key_prefix + self._key(request)
+        now = time.monotonic()
+        rate_per_second = requests_per_minute / 60.0
+        async with await self._get_lock():
+            last = last_update.get(key, now)
+            current = min(
+                burst,
+                tokens.get(key, burst) + rate_per_second * (now - last),
+            )
+            if current < 1.0:
                 return Response(
                     content='{"detail":"rate limit exceeded"}',
                     status_code=429,
                     media_type="application/json",
-                    headers={"retry-after": str(int(60 / self.requests_per_minute) + 1)},
+                    headers={"retry-after": str(int(60 / requests_per_minute) + 1)},
                 )
-            self._tokens[key] = tokens - 1.0
-            self._last_update[key] = now
+            tokens[key] = current - 1.0
+            last_update[key] = now
 
         return await call_next(request)
 
@@ -148,5 +187,7 @@ def setup_middleware(app: FastAPI, settings: Settings) -> None:
         RateLimitMiddleware,
         requests_per_minute=settings.rate_limit_requests_per_minute,
         burst=settings.rate_limit_burst,
+        webhook_requests_per_minute=settings.github_webhook_rate_limit_per_minute,
+        webhook_burst=settings.github_webhook_rate_limit_burst,
     )
     app.add_middleware(MetricsMiddleware)

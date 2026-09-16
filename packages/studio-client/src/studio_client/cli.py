@@ -13,6 +13,7 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ValidationError
+from studio_contracts.builds import BuildStatus, ProducerJobKind, ProducerJobRequest
 from studio_contracts.claims import ResourceClaimCreate, ResourceType
 from studio_contracts.sessions import WorkSessionCreate
 from studio_contracts.tasks import TaskCreate, TaskStatus, TaskUpdate
@@ -434,6 +435,47 @@ def _context_generate(args: argparse.Namespace, config: ClientConfig) -> None:
                 print(f"    - {omission.kind}: {omission.reason} ({omission.count})")
 
 
+def _builds_list(args: argparse.Namespace, config: ClientConfig) -> None:
+    project_id = _parse_uuid(args.project_id, field="project_id") if args.project_id else None
+    try:
+        status = BuildStatus(args.status) if args.status else None
+    except ValueError:
+        print(f"error: unknown build status {args.status!r}", file=sys.stderr)
+        raise SystemExit(1) from None
+    entries = _run(
+        config,
+        lambda client: client.list_builds(project_id=project_id, status=status),
+    )
+    _print_models(entries, as_json=args.json)
+
+
+def _builds_show(args: argparse.Namespace, config: ClientConfig) -> None:
+    build_id = _parse_uuid(args.build_id, field="build_id")
+    try:
+        build = _run(config, lambda client: client.get_build(build_id))
+    except StudioApiError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
+    _print_model(build, as_json=args.json)
+
+
+def _producer_run(args: argparse.Namespace, config: ClientConfig) -> None:
+    project_id = _parse_uuid(args.project_id, field="project_id")
+    task_id = _parse_uuid(args.task_id, field="task_id") if args.task_id else None
+    job_in = ProducerJobRequest(
+        project_id=project_id, kind=ProducerJobKind(args.kind), task_id=task_id
+    )
+    try:
+        job = _run(
+            config,
+            lambda client: client.request_producer_job(job_in, idempotency_key=_idempotency_key()),
+        )
+    except StudioApiError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
+    _print_model(job, as_json=args.json)
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="studio-client")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -634,6 +676,34 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     _add_json_flag(context_generate)
     context_generate.set_defaults(func=_context_generate)
+
+    builds_parser = subparsers.add_parser("builds", help="CI builds (etape 9.1).")
+    builds_sub = builds_parser.add_subparsers(dest="builds_command", required=True)
+
+    builds_list = builds_sub.add_parser("list", help="List builds, newest first.")
+    builds_list.add_argument("--project-id")
+    builds_list.add_argument("--status")
+    _add_json_flag(builds_list)
+    builds_list.set_defaults(func=_builds_list)
+
+    builds_show = builds_sub.add_parser("show", help="Show one build.")
+    builds_show.add_argument("build_id")
+    _add_json_flag(builds_show)
+    builds_show.set_defaults(func=_builds_show)
+
+    producer_parser = subparsers.add_parser("producer", help="Studio Producer (etape 9.1).")
+    producer_sub = producer_parser.add_subparsers(dest="producer_command", required=True)
+
+    producer_run = producer_sub.add_parser("run", help="Run a Producer analysis.")
+    producer_run.add_argument("--project-id", required=True)
+    producer_run.add_argument(
+        "--kind",
+        required=True,
+        choices=["priority_analysis", "blocker_detection", "parallelization", "decomposition"],
+    )
+    producer_run.add_argument("--task-id", help="Required for decomposition.")
+    _add_json_flag(producer_run)
+    producer_run.set_defaults(func=_producer_run)
 
     return parser
 

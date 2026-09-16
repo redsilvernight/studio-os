@@ -7,6 +7,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 
 from studio_mcp.tools.ai_work import studio_get_ai_work, studio_log_ai_work
+from studio_mcp.tools.builds import studio_get_builds, studio_request_producer_job
 from studio_mcp.tools.claims import (
     studio_claim_resource,
     studio_get_resource_claims,
@@ -235,6 +236,30 @@ def create_server() -> MCPServer:
             "strings) — read-only."
         ),
         annotations=_READ_ONLY,
+    )
+    server.add_tool(
+        studio_get_builds,
+        name="studio_get_builds",
+        description=(
+            "List CI builds observed on wired GitHub repositories, newest first — "
+            "read-only. Optional project_id (UUID string), status "
+            "(queued/in_progress/succeeded/failed), limit."
+        ),
+        annotations=_READ_ONLY,
+    )
+    server.add_tool(
+        studio_request_producer_job,
+        name="studio_request_producer_job",
+        description=(
+            "Run a bounded, synchronous Studio Producer analysis over one project's "
+            "shared state: kind is priority_analysis, blocker_detection, "
+            "parallelization or decomposition (task_id UUID string required for "
+            "decomposition). Requires a writer role. The Producer never mutates tasks "
+            "or claims — a decomposition result is a proposal the caller materializes "
+            "via studio_create_task. Pass idempotency_key when retrying a call that "
+            "may have already succeeded — replaying the same key+arguments returns "
+            "the original job instead of recomputing."
+        ),
     )
     server.add_tool(
         studio_get_review_queue,

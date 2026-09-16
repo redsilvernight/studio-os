@@ -18,6 +18,7 @@ from studio_contracts.transfers import (
     UploadPartsRefreshResponse,
 )
 
+from studio_api.db.models.build import BuildModel
 from studio_api.db.models.transfer import TransferModel
 from studio_api.services.authz import Principal, ensure_can_write, ensure_transfer_access
 from studio_api.services.authz import transfer_visibility_clause as _visibility_clause
@@ -95,6 +96,21 @@ async def create_transfer(
     await _enforce_transfer_limits(
         session, settings, transfer_in.project_id, transfer_in.size_bytes
     )
+    if transfer_in.build_id is not None:
+        build = await session.get(BuildModel, transfer_in.build_id)
+        if build is None:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                detail={"error_code": "build_not_found", "message": "build not found"},
+            )
+        if transfer_in.project_id is not None and build.project_id != transfer_in.project_id:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail={
+                    "error_code": "build_project_mismatch",
+                    "message": "build belongs to another project",
+                },
+            )
     transfer_id = uuid.uuid4()
     now = datetime.now(UTC)
     retention_days = _RETENTION_DAYS.get(transfer_in.category)
@@ -105,6 +121,7 @@ async def create_transfer(
         recipient_user_id=transfer_in.recipient_user_id,
         project_id=transfer_in.project_id,
         task_id=transfer_in.task_id,
+        build_id=transfer_in.build_id,
         category=transfer_in.category.value,
         filename=transfer_in.filename,
         object_key=safe_object_key(project_slug, transfer_id, transfer_in.filename),

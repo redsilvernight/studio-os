@@ -3,6 +3,7 @@
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.ai_work import AIWorkLogModel
 from studio_api.db.models.base import Base
+from studio_api.db.models.build import BuildModel, GitHubIntegrationModel, ProducerJobModel
 from studio_api.db.models.claim import ResourceClaimModel
 from studio_api.db.models.decision import DecisionModel
 from studio_api.db.models.event import EventModel
@@ -25,6 +26,9 @@ __all__ = [
     "ResourceClaimModel",
     "DecisionModel",
     "AIWorkLogModel",
+    "BuildModel",
+    "GitHubIntegrationModel",
+    "ProducerJobModel",
     "EventModel",
     "TransferModel",
     "IdempotencyKeyModel",

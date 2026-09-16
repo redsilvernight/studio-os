@@ -62,6 +62,10 @@ class EventType(StrEnum):
     BUILD_SUCCEEDED = "build.succeeded"
     BUILD_FAILED = "build.failed"
 
+    PRODUCER_JOB_REQUESTED = "producer.job.requested"
+    PRODUCER_JOB_COMPLETED = "producer.job.completed"
+    PRODUCER_JOB_FAILED = "producer.job.failed"
+
     TRANSFER_CREATED = "transfer.created"
     TRANSFER_UPLOADING = "transfer.uploading"
     TRANSFER_READY = "transfer.ready"
