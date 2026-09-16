@@ -163,9 +163,7 @@ def test_extract_chunk_reports_which_backend_succeeded(
 ) -> None:
     module = incremental_update_module
 
-    def fake_call_backend(
-        backend: str, prompt: str, files: list[str], timeout: int = 900
-    ) -> str:
+    def fake_call_backend(backend: str, prompt: str, files: list[str], timeout: int = 900) -> str:
         assert backend == "qwen"
         return '{"nodes": [], "edges": [], "hyperedges": []}'
 

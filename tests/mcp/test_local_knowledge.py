@@ -281,8 +281,8 @@ async def test_read_nominal_truncation_and_frontmatter(vault: Path) -> None:
     plain = await _call(server, "studio_memory_read", {"path": "projects/demo/plain.md"})
     assert plain.structured_content is not None
     assert plain.structured_content["title"] == "Plain Title"
-    big = await _call(server, 
-        "studio_memory_read", {"path": "projects/demo/big.md", "max_chars": 100}
+    big = await _call(
+        server, "studio_memory_read", {"path": "projects/demo/big.md", "max_chars": 100}
     )
     assert big.structured_content is not None
     assert big.structured_content["truncated"] is True
@@ -341,18 +341,14 @@ async def test_graph_modes_and_freshness(graph_dir: Path) -> None:
     assert query.structured_content["nodes"][0]["label"] == "alpha_func"
     assert query.structured_content["stale"] is False
     assert "stale_reason" not in query.structured_content
-    files = await _call(server, 
-        "studio_graph_query", {"text": "alpha", "mode": "relevant_files"}
-    )
+    files = await _call(server, "studio_graph_query", {"text": "alpha", "mode": "relevant_files"})
     assert files.structured_content is not None
     assert files.structured_content["files"] == ["a.py"]
     deps = await _call(server, "studio_graph_query", {"text": "a.py", "mode": "dependencies"})
     assert deps.structured_content is not None
     assert deps.structured_content["files"] == ["b.py"]
     assert deps.structured_content["stale"] is False
-    related = await _call(server, 
-        "studio_graph_query", {"text": "b.py", "mode": "related_symbols"}
-    )
+    related = await _call(server, "studio_graph_query", {"text": "b.py", "mode": "related_symbols"})
     assert related.structured_content is not None
     assert [node["label"] for node in related.structured_content["nodes"]] == ["beta_func"]
 
@@ -418,8 +414,8 @@ async def test_graph_not_covered_and_source_states(graph_dir: Path, tmp_path: Pa
     assert gone.structured_content is not None
     assert gone.structured_content["stale_reason"] == "source_missing"
     server = create_local_server(graph_dir=graph_dir)
-    uncovered = await _call(server, 
-        "studio_graph_query", {"text": "zzz.py", "mode": "dependencies"}
+    uncovered = await _call(
+        server, "studio_graph_query", {"text": "zzz.py", "mode": "dependencies"}
     )
     assert uncovered.structured_content is not None
     assert uncovered.structured_content["stale_reason"] == "not_covered"
