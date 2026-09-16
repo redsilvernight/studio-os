@@ -32,6 +32,12 @@ class EventType(StrEnum):
     DECISION_PROPOSED = "decision.proposed"
     DECISION_CREATED = "decision.created"
 
+    LIBRARY_VERSION_CREATED = "library.version.created"
+    LIBRARY_VERSION_ACTIVATED = "library.version.activated"
+    LIBRARY_RESOURCE_DEPRECATED = "library.resource.deprecated"
+    LIBRARY_LOCK_SET = "library.lock.set"
+    LIBRARY_LOCK_RELEASED = "library.lock.released"
+
     AGENT_STARTED = "agent.started"
     AGENT_STOPPED = "agent.stopped"
 

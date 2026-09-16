@@ -8,6 +8,12 @@ from studio_api.db.models.claim import ResourceClaimModel
 from studio_api.db.models.decision import DecisionModel
 from studio_api.db.models.event import EventModel
 from studio_api.db.models.idempotency import IdempotencyKeyModel
+from studio_api.db.models.library import (
+    LibraryProjectLockModel,
+    LibraryResourceLinkModel,
+    LibraryResourceModel,
+    LibraryResourceVersionModel,
+)
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.task import TaskModel
@@ -30,6 +36,10 @@ __all__ = [
     "GitHubIntegrationModel",
     "ProducerJobModel",
     "EventModel",
+    "LibraryResourceModel",
+    "LibraryResourceVersionModel",
+    "LibraryResourceLinkModel",
+    "LibraryProjectLockModel",
     "TransferModel",
     "IdempotencyKeyModel",
 ]

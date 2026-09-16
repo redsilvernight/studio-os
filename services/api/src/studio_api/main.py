@@ -17,6 +17,7 @@ from studio_api.routers import (
     github,
     health,
     heartbeats,
+    library,
     machines,
     metrics,
     producer,
@@ -59,6 +60,11 @@ OPENAPI_TAG_DESCRIPTIONS: dict[str, str] = {
         "write, a Git operation, or a transfer."
     ),
     "decisions": "Recorded project decisions with stable human-readable ids.",
+    "library": (
+        "Reusable AI definitions (rules, skills, agent definitions, model "
+        "profiles, workflows) with immutable versions, explicit activation "
+        "and project locks. User-scope rows are owner-or-admin only."
+    ),
     "agents": (
         "Provenance identities attached to the caller's own authenticated "
         "machine. Registering an agent grants no permission and requires "
@@ -150,6 +156,8 @@ def create_app() -> FastAPI:
     app.include_router(sessions.router)
     app.include_router(claims.router)
     app.include_router(decisions.router)
+    app.include_router(library.router)
+    app.include_router(library.locks_router)
     app.include_router(agents.router)
     app.include_router(ai_work.router)
     app.include_router(review_queue.router)

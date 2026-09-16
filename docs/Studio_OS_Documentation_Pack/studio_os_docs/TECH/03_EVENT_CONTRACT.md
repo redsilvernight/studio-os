@@ -46,6 +46,8 @@ producer.job.requested, producer.job.completed, producer.job.failed
 
 transfer.created, transfer.uploading, transfer.ready, transfer.downloaded, transfer.expired, transfer.deleted
 
+library.version.created, library.version.activated, library.resource.deprecated, library.lock.set, library.lock.released
+
 marketing.candidate.created, marketing.post.published
 
 ## Emission serveur GitHub/Producer (etape 9.1, DEC-0059)
@@ -69,3 +71,9 @@ par le Producer a chaque job. `payload.source` (`github_webhook` /
 
 ## Compatibilite
 Ajouter des champs est permis si les anciens clients peuvent les ignorer. Un changement incompatible exige une nouvelle version de schema.
+
+## Note P1 (DEC-0064)
+Les types `library.*` sont emis cote serveur uniquement pour les ressources
+de scope projet (les tables `events`/`ai_work_logs` exigent un `project_id`
+non null) ; les scopes Studio/User restent audites par les lignes de version
+(`created_by_user_id`, `created_at`) et l'AIWorkLog explicite de l'agent.

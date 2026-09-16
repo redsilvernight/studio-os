@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-61 decision(s). Detail complet dans chaque ADR lie.
+64 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -83,3 +83,6 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0059 | Etape 9.1 : Studio Producer, integration GitHub/build, workers | active | [decisions/DEC-0059-studio-producer-github-build-workers.md](decisions/DEC-0059-studio-producer-github-build-workers.md) |
 | DEC-0060 | Etape 9.3 : revue de securite, durcissement headers au edge | active | [decisions/DEC-0060-etape-9-3-revue-de-securite-headers-edge.md](decisions/DEC-0060-etape-9-3-revue-de-securite-headers-edge.md) |
 | DEC-0061 | Dashboard CSP progressive : tests statiques, e2e Playwright, Report-Only | active | [decisions/DEC-0061-dashboard-csp-progressive-report-only.md](decisions/DEC-0061-dashboard-csp-progressive-report-only.md) |
+| DEC-0062 | AI Library : AgentDefinition distinct de Agent (provenance operationnelle) | active | [decisions/DEC-0062-ai-library-agent-definition-naming.md](decisions/DEC-0062-ai-library-agent-definition-naming.md) |
+| DEC-0063 | AI Library scopes & authorization : Studio/Project/User sans ACL parallele | active | [decisions/DEC-0063-ai-library-scopes-authorization.md](decisions/DEC-0063-ai-library-scopes-authorization.md) |
+| DEC-0064 | AI Library versioning : pointeur actif, versions immuables, locks projet | active | [decisions/DEC-0064-ai-library-versioning.md](decisions/DEC-0064-ai-library-versioning.md) |

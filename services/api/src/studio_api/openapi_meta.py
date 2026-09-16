@@ -195,6 +195,37 @@ RESP_409_ALREADY_CLAIMED: ErrorResponses = {
     )
 }
 
+RESP_409_LIBRARY: ErrorResponses = {
+    409: _json_response(
+        "Library reference conflict: the `stable_key` is already taken in "
+        "this scope (`duplicate_stable_key`); a dependency pin names "
+        "several visible resources (`pin_ambiguous` — disambiguate the "
+        "pin); or a lock already exists for this `(project, resource)` "
+        "pair (`already_locked`).",
+        {"detail": {"error_code": "duplicate_stable_key"}},
+    )
+}
+
+RESP_404_LIBRARY_PIN: ErrorResponses = {
+    404: _json_response(
+        "Library reference not found: unknown id, or no visible resource "
+        "matches a dependency pin (`pin_not_found`), or the pinned "
+        "version was never created (`pin_version_not_found` / "
+        "`version_not_found`). Pins on another user's private resources "
+        "answer the same 404, never a hint of their existence.",
+        {"detail": {"error_code": "pin_not_found", "stable_key": "..."}},
+    )
+}
+
+RESP_422_LIBRARY_SCOPE: ErrorResponses = {
+    422: _json_response(
+        "Library scope context rejected, nothing stored: project scope "
+        "requires `project_id`, studio and user scopes forbid it "
+        "(`invalid_scope_context`).",
+        {"detail": {"error_code": "invalid_scope_context"}},
+    )
+}
+
 RESP_409_TRANSFER_STATE: ErrorResponses = {
     409: _json_response(
         "Upload state conflict: the transfer is already `ready` "

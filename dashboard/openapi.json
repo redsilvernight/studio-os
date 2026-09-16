@@ -1669,6 +1669,1026 @@
     }
    }
   },
+  "/api/v1/library": {
+   "get": {
+    "tags": [
+     "library"
+    ],
+    "summary": "List Library",
+    "description": "List library definitions, optionally filtered. User-scope rows are visible to their owner (or an admin) only \u2014 collections never count, list, or hint at another user's private resources.",
+    "operationId": "list_library_api_v1_library_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "kind",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Kind"
+      }
+     },
+     {
+      "name": "scope",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Scope"
+      }
+     },
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Project Id"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 500,
+       "default": 100,
+       "title": "Limit"
+      }
+     },
+     {
+      "name": "offset",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "default": 0,
+       "title": "Offset"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/LibraryResource"
+         },
+         "title": "Response List Library Api V1 Library Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "library"
+    ],
+    "summary": "Create Library Resource",
+    "description": "Create a library definition plus its draft version 1 (which never activates itself). Studio scope requires a privileged role; project scope requires its `project_id`; user scope is owned by the caller. Accepts `Idempotency-Key` for safe retries.",
+    "operationId": "create_library_resource_api_v1_library_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/LibraryResourceCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/LibraryResource"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay). Library reference conflict: the `stable_key` is already taken in this scope (`duplicate_stable_key`); a dependency pin names several visible resources (`pin_ambiguous` \u2014 disambiguate the pin); or a lock already exists for this `(project, resource)` pair (`already_locked`).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "idempotency_key_payload_mismatch"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Library reference not found: unknown id, or no visible resource matches a dependency pin (`pin_not_found`), or the pinned version was never created (`pin_version_not_found` / `version_not_found`). Pins on another user's private resources answer the same 404, never a hint of their existence.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "pin_not_found",
+          "stable_key": "..."
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Library scope context rejected, nothing stored: project scope requires `project_id`, studio and user scopes forbid it (`invalid_scope_context`).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_scope_context"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/library/{resource_id}": {
+   "get": {
+    "tags": [
+     "library"
+    ],
+    "summary": "Get Library Resource",
+    "description": "Get one library definition. A User-scope definition owned by someone else answers 404, never 403, so its existence cannot be inferred.",
+    "operationId": "get_library_resource_api_v1_library__resource_id__get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "resource_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Resource Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/LibraryResource"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/library/{resource_id}/versions": {
+   "get": {
+    "tags": [
+     "library"
+    ],
+    "summary": "List Library Versions",
+    "description": "List all versions of a library definition, oldest first.",
+    "operationId": "list_library_versions_api_v1_library__resource_id__versions_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "resource_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Resource Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/LibraryVersion"
+         },
+         "title": "Response List Library Versions Api V1 Library  Resource Id  Versions Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "library"
+    ],
+    "summary": "Create Library Version",
+    "description": "Add draft version N+1 to a library definition. Never moves `active_version` \u2014 activation is a separate explicit call. Accepts `Idempotency-Key` for safe retries.",
+    "operationId": "create_library_version_api_v1_library__resource_id__versions_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "resource_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Resource Id"
+      }
+     },
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/LibraryVersionCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/LibraryVersion"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Library reference not found: unknown id, or no visible resource matches a dependency pin (`pin_not_found`), or the pinned version was never created (`pin_version_not_found` / `version_not_found`). Pins on another user's private resources answer the same 404, never a hint of their existence.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "pin_not_found",
+          "stable_key": "..."
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay). Library reference conflict: the `stable_key` is already taken in this scope (`duplicate_stable_key`); a dependency pin names several visible resources (`pin_ambiguous` \u2014 disambiguate the pin); or a lock already exists for this `(project, resource)` pair (`already_locked`).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "idempotency_key_payload_mismatch"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/library/{resource_id}/activate": {
+   "post": {
+    "tags": [
+     "library"
+    ],
+    "summary": "Activate Library Version",
+    "description": "Explicitly move `active_version` (sets status to active). Requires the current resource `version`; a stale value is rejected with the live server version. Reactivating the active version is a successful no-op. Accepts `Idempotency-Key` for safe retries.",
+    "operationId": "activate_library_version_api_v1_library__resource_id__activate_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "resource_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Resource Id"
+      }
+     },
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/LibraryActivate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/LibraryResource"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Library reference not found: unknown id, or no visible resource matches a dependency pin (`pin_not_found`), or the pinned version was never created (`pin_version_not_found` / `version_not_found`). Pins on another user's private resources answer the same 404, never a hint of their existence.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "pin_not_found",
+          "stable_key": "..."
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version \u2014 re-read the object, merge, and retry with the new version. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/library/{resource_id}/deprecate": {
+   "post": {
+    "tags": [
+     "library"
+    ],
+    "summary": "Deprecate Library Resource",
+    "description": "Deprecate a library definition (replaces deletion: history and `active_version` are kept). Requires the current resource `version`. Already deprecated is a successful no-op. Accepts `Idempotency-Key` for safe retries of an unseen response.",
+    "operationId": "deprecate_library_resource_api_v1_library__resource_id__deprecate_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "resource_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Resource Id"
+      }
+     },
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/LibraryDeprecate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/LibraryResource"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version \u2014 re-read the object, merge, and retry with the new version. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/library-locks": {
+   "get": {
+    "tags": [
+     "library"
+    ],
+    "summary": "List Library Locks",
+    "description": "List project version locks, optionally filtered by project. Read-only for every authenticated machine, including `readonly`; locks on another user's private resources are filtered out.",
+    "operationId": "list_library_locks_api_v1_library_locks_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Project Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/LibraryProjectLock"
+         },
+         "title": "Response List Library Locks Api V1 Library Locks Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "tags": [
+     "library"
+    ],
+    "summary": "Set Library Lock",
+    "description": "Pin `(resource, locked_version)` for a project (canonical resource UUID, never `stable_key` alone). Accepts `Idempotency-Key` for safe retries.",
+    "operationId": "set_library_lock_api_v1_library_locks_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/LibraryLockCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/LibraryProjectLock"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay). Library reference conflict: the `stable_key` is already taken in this scope (`duplicate_stable_key`); a dependency pin names several visible resources (`pin_ambiguous` \u2014 disambiguate the pin); or a lock already exists for this `(project, resource)` pair (`already_locked`).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "idempotency_key_payload_mismatch"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/library-locks/{lock_id}": {
+   "delete": {
+    "tags": [
+     "library"
+    ],
+    "summary": "Release Library Lock",
+    "description": "Release a project lock. Only the creating user (or an admin) may release it.",
+    "operationId": "release_library_lock_api_v1_library_locks__lock_id__delete",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "lock_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Lock Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/LibraryProjectLock"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/agents": {
    "get": {
     "tags": [
@@ -5272,6 +6292,30 @@
     ],
     "title": "DecisionStatus"
    },
+   "DependencyPin": {
+    "properties": {
+     "kind": {
+      "$ref": "#/components/schemas/LibraryKind"
+     },
+     "stable_key": {
+      "type": "string",
+      "title": "Stable Key"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "kind",
+     "stable_key",
+     "version"
+    ],
+    "title": "DependencyPin",
+    "description": "A version-pinned reference to another library resource version\n."
+   },
    "DownloadUrlResponse": {
     "properties": {
      "transfer_id": {
@@ -5487,6 +6531,11 @@
      "resource.conflict",
      "decision.proposed",
      "decision.created",
+     "library.version.created",
+     "library.version.activated",
+     "library.resource.deprecated",
+     "library.lock.set",
+     "library.lock.released",
      "agent.started",
      "agent.stopped",
      "ai_work.started",
@@ -5798,6 +6847,423 @@
      "server_timestamp"
     ],
     "title": "HeartbeatResponse"
+   },
+   "LibraryActivate": {
+    "properties": {
+     "version": {
+      "type": "integer",
+      "minimum": 1.0,
+      "title": "Version"
+     },
+     "expected_resource_version": {
+      "type": "integer",
+      "title": "Expected Resource Version"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "version",
+     "expected_resource_version"
+    ],
+    "title": "LibraryActivate",
+    "description": "Explicit activation: moves `active_version`\nonly. `expected_resource_version` is the optimistic-concurrency guard\n(409 `version_conflict` on stale)."
+   },
+   "LibraryDeprecate": {
+    "properties": {
+     "expected_resource_version": {
+      "type": "integer",
+      "title": "Expected Resource Version"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "expected_resource_version"
+    ],
+    "title": "LibraryDeprecate",
+    "description": "Deprecation replaces deletion: flips `status`, keeps\nhistory and `active_version`. Same optimistic-concurrency guard."
+   },
+   "LibraryKind": {
+    "type": "string",
+    "enum": [
+     "rule",
+     "skill",
+     "agent_definition",
+     "model_profile",
+     "workflow"
+    ],
+    "title": "LibraryKind",
+    "description": "Closed studio taxonomy (our own domain, not a vendor catalog):\nwhat kind of reusable definition a library resource is."
+   },
+   "LibraryLockCreate": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "resource_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Resource Id"
+     },
+     "locked_version": {
+      "type": "integer",
+      "title": "Locked Version"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id",
+     "resource_id",
+     "locked_version"
+    ],
+    "title": "LibraryLockCreate"
+   },
+   "LibraryProjectLock": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "resource_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Resource Id"
+     },
+     "locked_version": {
+      "type": "integer",
+      "title": "Locked Version"
+     },
+     "created_by_user_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Created By User Id"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "project_id",
+     "resource_id",
+     "locked_version",
+     "created_at"
+    ],
+    "title": "LibraryProjectLock",
+    "description": "A project pins `(resource_id, locked_version)`: the lock key is the\ncanonical resource UUID, never `stable_key` alone."
+   },
+   "LibraryResource": {
+    "properties": {
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "kind": {
+      "$ref": "#/components/schemas/LibraryKind"
+     },
+     "stable_key": {
+      "type": "string",
+      "title": "Stable Key"
+     },
+     "scope": {
+      "$ref": "#/components/schemas/LibraryScope"
+     },
+     "status": {
+      "$ref": "#/components/schemas/LibraryStatus",
+      "default": "draft"
+     },
+     "active_version": {
+      "type": "integer",
+      "title": "Active Version",
+      "default": 0
+     },
+     "owner_user_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Owner User Id"
+     },
+     "project_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Project Id"
+     },
+     "created_by_user_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Created By User Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "created_at",
+     "updated_at",
+     "version",
+     "id",
+     "kind",
+     "stable_key",
+     "scope"
+    ],
+    "title": "LibraryResource",
+    "description": "The active pointer of one reusable definition.\n`active_version == 0` means no version has been activated yet.\nNever confused with `Agent` provenance identity."
+   },
+   "LibraryResourceCreate": {
+    "properties": {
+     "kind": {
+      "$ref": "#/components/schemas/LibraryKind"
+     },
+     "stable_key": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Stable Key"
+     },
+     "scope": {
+      "$ref": "#/components/schemas/LibraryScope"
+     },
+     "project_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Project Id"
+     },
+     "title": {
+      "type": "string",
+      "minLength": 1,
+      "title": "Title"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "content": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Content",
+      "default": {}
+     },
+     "dependencies": {
+      "items": {
+       "$ref": "#/components/schemas/DependencyPin"
+      },
+      "type": "array",
+      "title": "Dependencies",
+      "default": []
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "kind",
+     "stable_key",
+     "scope",
+     "title"
+    ],
+    "title": "LibraryResourceCreate",
+    "description": "Creates the resource row plus its draft version 1 (which never moves\n`active_version` by itself \u2014 activation is a separate explicit operation,\n`project_id` is required for project scope and\nforbidden otherwise; `owner_user_id` is always server-derived, never\nclient-supplied."
+   },
+   "LibraryScope": {
+    "type": "string",
+    "enum": [
+     "studio",
+     "project",
+     "user"
+    ],
+    "title": "LibraryScope"
+   },
+   "LibraryStatus": {
+    "type": "string",
+    "enum": [
+     "draft",
+     "active",
+     "deprecated"
+    ],
+    "title": "LibraryStatus"
+   },
+   "LibraryVersion": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "resource_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Resource Id"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "content": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Content",
+      "default": {}
+     },
+     "dependencies": {
+      "items": {
+       "$ref": "#/components/schemas/DependencyPin"
+      },
+      "type": "array",
+      "title": "Dependencies",
+      "default": []
+     },
+     "created_by_user_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Created By User Id"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "resource_id",
+     "version",
+     "title",
+     "created_at"
+    ],
+    "title": "LibraryVersion",
+    "description": "One immutable snapshot of a resource version."
+   },
+   "LibraryVersionCreate": {
+    "properties": {
+     "title": {
+      "type": "string",
+      "minLength": 1,
+      "title": "Title"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "content": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Content",
+      "default": {}
+     },
+     "dependencies": {
+      "items": {
+       "$ref": "#/components/schemas/DependencyPin"
+      },
+      "type": "array",
+      "title": "Dependencies",
+      "default": []
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "title"
+    ],
+    "title": "LibraryVersionCreate"
    },
    "Machine": {
     "properties": {
@@ -7787,6 +9253,10 @@
   {
    "name": "decisions",
    "description": "Recorded project decisions with stable human-readable ids."
+  },
+  {
+   "name": "library",
+   "description": "Reusable AI definitions (rules, skills, agent definitions, model profiles, workflows) with immutable versions, explicit activation and project locks. User-scope rows are owner-or-admin only."
   },
   {
    "name": "agents",

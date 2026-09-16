@@ -1,7 +1,7 @@
 # Modele de donnees v1
 
 ## Entites principales
-Studio, User, Machine, Agent, Project, MachineProjectConfig, Task, WorkSession, ResourceClaim, Decision, AIWorkLog, Event, Transfer, TransferPart(optional), Notification, Build, Recording, RecordingMarker, MarketingCandidate.
+Studio, User, Machine, Agent, Project, MachineProjectConfig, Task, WorkSession, ResourceClaim, Decision, AIWorkLog, Event, Transfer, TransferPart(optional), Notification, Build, Recording, RecordingMarker, MarketingCandidate, LibraryResource, LibraryResourceVersion, LibraryResourceLink, LibraryProjectLock.
 
 Statut : les entites Phase 1 ci-dessous (User, Machine, Agent, Project, Task,
 WorkSession, ResourceClaim, Decision, AIWorkLog, Event, Transfer) ont un
@@ -186,3 +186,41 @@ une proposition, l'appelant cree les sous-taches via `POST /tasks`.
 
 `build_id` (FK Build, nullable, additif optionnel) relie un artefact a
 son build. Quotas (DEC-0019) et autorisation Transfer inchanges.
+
+## AI Library — P1 (DEC-0062/0063/0064, migration Alembic `0009`)
+
+Definitions IA reutilisables (`rule|skill|agent_definition|model_profile|
+workflow`), partagees et versionnees sans RBAC/ACL parallele. `AgentDefinition`
+n'est jamais confondu avec `Agent` (provenance operationnelle, seul acteur
+valide `actor_type="agent"`, DEC-0062).
+
+`LibraryResource` : pointeur actif par definition. `id` (UUID, identite
+canonique toutes kinds/scopes confondus), `kind`, `stable_key`, `scope`
+(`studio|project|user`), `status` (`draft|active|deprecated`),
+`active_version` (0 = rien d'active), `owner_user_id` (FK User — toujours le
+createur : gate les lectures en scope User, les mutations dans tous les
+scopes), `project_id` (FK Project, scope projet uniquement),
+`created_by_user_id` (FK User, nullable), + champs communs mutables
+(`version` optimiste, `409` + version serveur). Unicite : index partiels
+`(kind, stable_key)` en scope studio, `(kind, stable_key, project_id)` en
+scope projet, `(kind, stable_key, owner_user_id)` en scope user.
+
+`LibraryResourceVersion` : snapshot immuable (`resource_id` FK,
+`version`, `title`, `description` nullable, `content` JSONB, `created_by_user_id`,
+`created_at`) — jamais modifie apres creation, sans `updated_at`/`version`.
+Contrainte unique `(resource_id, version)`.
+
+`LibraryResourceLink` : arete de dependance epinglee (`from_version_id` FK
+version, `to_resource_id` FK ressource, `to_version`) — des references, jamais
+de contenu duplique. Contrainte unique `(from_version_id, to_resource_id)`.
+
+`LibraryProjectLock` : `(project_id` FK, `resource_id` FK, `locked_version`,
+`created_by_user_id`, `created_at`) — la cle est l'UUID canonique, jamais
+`stable_key` seul (DEC-0064 precision 2). Contrainte unique
+`(project_id, resource_id)`. Advisory comme les claims : avertit la
+resolution, ne bloque aucune ecriture.
+
+Traçabilite : mutations projet-scope emettent `library.*` (types additifs,
+`TECH/03_EVENT_CONTRACT.md`) ; scopes Studio/User sans projet restant
+audites par les lignes de version (`created_by_user_id`, `created_at`) et
+l'AIWorkLog explicite de l'agent. Aucun credential provider dans ces tables.

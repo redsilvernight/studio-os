@@ -158,19 +158,35 @@ Deux niveaux, tous deux derives de champs existants (aucune nouvelle table) :
   `AIWorkLog.machine_id` est nullable), `Transfer.sender_user_id` /
   `recipient_user_id`. Jamais une ACL projet separee.
 
-`readonly` : lecture totale de l'etat partage (tous les `GET`) plus
+`readonly` : lecture totale de l'etat partage (tous les `GET`, `GET
+/library-locks` inclus) plus
 heartbeat, aucune ecriture metier nulle part (tasks, claims, sessions,
-ai-work, decisions, events, transfers). `agent` : memes ecritures que
+ai-work, decisions, events, transfers, library). `agent` : memes ecritures que
 `developer`, jamais `POST /projects` / `POST /machines` / `POST /users`
-(deja garanti par `require_roles`, `## Provisioning` ci-dessus). Heartbeat
+(deja garanti par `require_roles`, `## Provisioning` ci-dessus) ni creation
+Library en scope studio (provisioning-like, voir ci-dessous). Heartbeat
 est l'exception explicite : ecrit son propre etat (`last_seen_at`) meme sous
 `readonly` — jamais gate par `ensure_can_write`.
 
 Ownership (au-dela du role transverse — la machine proprietaire, ou un
 `admin`, uniquement) : `POST /tasks/{id}/release`, `POST /claims/{id}/renew`,
-`DELETE /claims/{id}`, `PATCH /sessions/{id}/end`, `PATCH /ai-work/{id}`. Une
+`DELETE /claims/{id}`, `PATCH /sessions/{id}/end`, `PATCH /ai-work/{id}`,
+`POST /library/{id}/versions`, `POST /library/{id}/activate`,
+`POST /library/{id}/deprecate` (ici le "proprietaire" est l'utilisateur
+createur `owner_user_id`, renseigne depuis l'appelant a la creation),
+`DELETE /library-locks/{id}` (utilisateur createur ou `admin`). Une
 ressource pas encore possedee (`claimed_by_machine_id` nul) reste ouverte a
 tout ecrivain passe le role transverse.
+
+Regle Library (P1, DEC-0063 — aucune ACL projet, aucune table
+supplementaire) : lecture Studio/Project ouverte a toute machine
+authentifiee ; lecture User restreinte au owner ou `admin`, tout autre
+acces direct repondant `404` et non `403` (aucune surface — get, liste,
+recherche, resolution, erreur, compteur, metadonnee — ne doit reveler
+l'existence d'une ressource User d'autrui) ; creation Studio exige
+`admin`/`developer` (`ensure_can_provision`), creations Project/User tout
+writer ; `GET /library` et `GET /library-locks` filtrent silencieusement
+les lignes invisibles au lieu de 403.
 
 Exception a l'ownership ci-dessus (DEC-0041) : sur `PATCH /ai-work/{id}`, un
 `status` cible `approved`/`changes_requested` exige `admin` strictement —
