@@ -21,9 +21,10 @@ for DASH-0/1 — backend, contracts and migrations are untouched.
 cd dashboard
 npm install        # clean-checkout install
 npm run dev        # vite dev server :5173
-npm test           # vitest (95 unit tests)
+npm test           # vitest (100 unit tests, dont 5 csp-static)
 npm run build      # tsc --noEmit + vite build → dist/
 npm run preview    # serve dist/ locally
+npm run test:e2e   # Playwright CSP browser test (needs dist/ built)
 ```
 
 ## API URL configuration
@@ -41,6 +42,26 @@ VITE_STUDIO_API_URL=http://localhost:8000
 
 No CORS is configured (backend has none either) — same-origin or
 same-machine dev only for now.
+
+## Content-Security-Policy (Report-Only, DEC-0061)
+
+No enforcement header anywhere yet — `Content-Security-Policy-Report-Only`
+only, until the browser tests prove the main flows clean.
+
+- Policy source of truth: `csp-policy.ts` (`buildDashboardCsp`) — mirrored
+  by the Caddy edge (`docker/Caddyfile`, dashboard site).
+- `connect-src` is environment-dependent by design: `'self'` plus the
+  pre-signed storage domain (direct MinIO/S3 uploads) plus the API origin
+  **only** when `VITE_STUDIO_API_URL` points cross-origin at build time.
+  Prod same-origin needs just the storage domain (`STORAGE_DOMAIN`); extra
+  origins go in `DASHBOARD_CSP_CONNECT_EXTRA` (`docker/.env.example`).
+- Static prerequisites: `src/csp-static.test.ts` (no inline script/style or
+  `on*=` handlers in `dist/` or `src/` templates).
+- Browser test: `e2e/csp.spec.ts` (`npm run test:e2e`) — stubbed API, login,
+  all main hash routes, zero CSP console errors, zero page errors.
+- Exit to enforcement: green e2e on real-backend (or write-covering) flows
+  + zero staging violations over a real usage cycle, then rename the header
+  to `Content-Security-Policy` in `Caddyfile` + `vite.config.ts`.
 
 ## OpenAPI client / types
 

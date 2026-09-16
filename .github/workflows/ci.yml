@@ -40,6 +40,29 @@ jobs:
       - name: mypy
         run: uv run mypy packages/studio-contracts/src packages/studio-client/src services/api/src services/mcp/src
 
+  dashboard:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Unit tests
+        run: npm test
+      - name: Install Playwright chromium
+        run: npx playwright install --with-deps chromium
+      - name: Browser CSP test
+        run: npm run test:e2e
+
   test:
     runs-on: ubuntu-latest
     services:

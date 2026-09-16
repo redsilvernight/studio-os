@@ -14,6 +14,7 @@ services:
       MCP_DOMAIN: ${MCP_DOMAIN}
       STORAGE_DOMAIN: ${STORAGE_DOMAIN}
       DASHBOARD_DOMAIN: ${DASHBOARD_DOMAIN}
+      DASHBOARD_CSP_CONNECT_EXTRA: ${DASHBOARD_CSP_CONNECT_EXTRA:-}
     depends_on:
       api:
         condition: service_healthy

@@ -34,6 +34,12 @@
 		X-Frame-Options "SAMEORIGIN"
 		Referrer-Policy "strict-origin-when-cross-origin"
 	}
+	# CSP Report-Only (DEC-0061) : aucun enforcement tant que l'e2e Playwright
+	# ne prouve pas les parcours principaux. `connect-src` couvre le domaine
+	# storage (uploads directs pré-signés, DEC-0025) ; `{$DASHBOARD_CSP_CONNECT_EXTRA}`
+	# (optionnel, vide par défaut) ajoute l'origine API quand
+	# `VITE_STUDIO_API_URL` pointe cross-origin au build.
+	header Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://{$STORAGE_DOMAIN} {$DASHBOARD_CSP_CONNECT_EXTRA}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
 	route /api/* {
 		reverse_proxy api:8000
 	}

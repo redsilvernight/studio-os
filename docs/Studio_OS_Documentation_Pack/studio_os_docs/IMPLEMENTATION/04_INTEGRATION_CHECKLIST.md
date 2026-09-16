@@ -61,5 +61,7 @@
 | Producer (9.1b) | 10 passed (2026-09-16) | `uv run pytest tests/api/test_producer.py` |
 | Builds API + MCP + CLI (9.1) | 4 + 4 + 4 passed (2026-09-16) | `uv run pytest tests/api/test_builds.py tests/mcp/test_builds.py` + CLI |
 | Revue securite edge (9.3) | caddy validate + nginx -t verts, middleware+auth 12 passed, backend 590 passed (2026-09-16) | voir DEC-0060 |
+| CSP statique dashboard (9.3) | 5 passed (2026-09-16) | `cd dashboard && npm test` (`src/csp-static.test.ts`) |
+| CSP navigateur dashboard (9.3) | 1 passed, 0 violation, Report-Only (2026-09-16) | `cd dashboard && npm run test:e2e` (Playwright, API stubbee) |
 | Migrations | monte/redescend OK | `uv run -m alembic upgrade head` / `downgrade -1` |
 | Index ADR | a jour | `uv run python -m scripts.adr_index --root . --check` |
