@@ -16,9 +16,12 @@ from studio_contracts.library import (
     LibraryKind,
     LibraryLockCreate,
     LibraryProjectLock,
+    LibraryResolution,
     LibraryResourceCreate,
+    LibraryScope,
     LibraryVersion,
     LibraryVersionCreate,
+    VersionOrigin,
 )
 
 from studio_api.db.models.library import (
@@ -567,3 +570,105 @@ async def release_lock(
             },
         )
     return released
+
+
+_SCOPE_RANK = {"user": 0, "project": 1, "studio": 2}
+
+
+class _Unresolvable(Exception):
+    """Internal diagnostic only, never serialized to a caller: every case
+    maps to the single public 404 `definition_not_found`, so an invisible
+    resource stays indistinguishable from a missing one."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
+def _definition_not_found() -> HTTPException:
+    return HTTPException(status.HTTP_404_NOT_FOUND, detail={"error_code": "definition_not_found"})
+
+
+async def resolve_definition(
+    session: AsyncSession,
+    principal: Principal,
+    kind: LibraryKind,
+    stable_key: str,
+    project_id: UUID | None = None,
+) -> LibraryResolution:
+    """Deterministic scope resolution (DEC-0065): filter visible candidates
+    first, then shadow `User > Project(project_id) > Studio`, then pick the
+    effective version (project lock, else active). Pure read: open to every
+    authenticated role, and identical inputs always yield identical outputs.
+    No endpoint exposes this in P2."""
+    try:
+        return await _resolve_inner(session, principal, kind, stable_key, project_id)
+    except _Unresolvable:
+        raise _definition_not_found() from None
+
+
+async def _resolve_inner(
+    session: AsyncSession,
+    principal: Principal,
+    kind: LibraryKind,
+    stable_key: str,
+    project_id: UUID | None,
+) -> LibraryResolution:
+    stmt = select(LibraryResourceModel).where(
+        LibraryResourceModel.kind == kind.value,
+        LibraryResourceModel.stable_key == stable_key,
+    )
+    if project_id is not None:
+        stmt = stmt.where(
+            or_(
+                LibraryResourceModel.scope != "project",
+                LibraryResourceModel.project_id == project_id,
+            )
+        )
+    else:
+        stmt = stmt.where(LibraryResourceModel.scope != "project")
+    rows = (await session.execute(stmt)).scalars().all()
+    visible = sorted(
+        (r for r in rows if r.scope in _SCOPE_RANK and _can_read(principal, r)),
+        key=lambda r: _SCOPE_RANK[r.scope],
+    )
+    if not visible:
+        raise _Unresolvable("missing_or_invisible_definition")
+    effective = visible[0]
+
+    origin = VersionOrigin.ACTIVE
+    version_number = effective.active_version
+    if project_id is not None:
+        lock_stmt = select(LibraryProjectLockModel).where(
+            LibraryProjectLockModel.project_id == project_id,
+            LibraryProjectLockModel.resource_id == effective.id,
+        )
+        lock = (await session.execute(lock_stmt)).scalar_one_or_none()
+        if lock is not None:
+            version_number = lock.locked_version
+            origin = VersionOrigin.LOCK
+    if version_number <= 0:
+        raise _Unresolvable("no_usable_version")
+    target = await _version_row(session, effective.id, version_number)
+    if target is None:
+        raise _Unresolvable("no_usable_version")
+
+    link_stmt = select(LibraryResourceLinkModel).where(
+        LibraryResourceLinkModel.from_version_id == target.id
+    )
+    for link in (await session.execute(link_stmt)).scalars().all():
+        dependency = await session.get(LibraryResourceModel, link.to_resource_id)
+        if dependency is None or not _can_read(principal, dependency):
+            raise _Unresolvable("unresolvable_dependency")
+        if await _version_row(session, dependency.id, link.to_version) is None:
+            raise _Unresolvable("unresolvable_dependency")
+
+    return LibraryResolution(
+        resource_id=effective.id,
+        kind=kind,
+        stable_key=effective.stable_key,
+        scope=LibraryScope(effective.scope),
+        version=version_number,
+        version_origin=origin,
+        deprecated=(effective.status == "deprecated"),
+    )

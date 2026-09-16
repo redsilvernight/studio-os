@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-64 decision(s). Detail complet dans chaque ADR lie.
+65 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -86,3 +86,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0062 | AI Library : AgentDefinition distinct de Agent (provenance operationnelle) | active | [decisions/DEC-0062-ai-library-agent-definition-naming.md](decisions/DEC-0062-ai-library-agent-definition-naming.md) |
 | DEC-0063 | AI Library scopes & authorization : Studio/Project/User sans ACL parallele | active | [decisions/DEC-0063-ai-library-scopes-authorization.md](decisions/DEC-0063-ai-library-scopes-authorization.md) |
 | DEC-0064 | AI Library versioning : pointeur actif, versions immuables, locks projet | active | [decisions/DEC-0064-ai-library-versioning.md](decisions/DEC-0064-ai-library-versioning.md) |
+| DEC-0065 | AI Library scope resolution : shadowing, version effective, erreurs unifiees | active | [decisions/DEC-0065-ai-library-scope-resolution.md](decisions/DEC-0065-ai-library-scope-resolution.md) |

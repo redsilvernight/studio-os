@@ -111,6 +111,26 @@ class LibraryDeprecate(ContractModel):
     expected_resource_version: int
 
 
+class VersionOrigin(StrEnum):
+    LOCK = "lock"
+    ACTIVE = "active"
+
+
+class LibraryResolution(ContractModel):
+    """Minimal scope-resolution outcome: which definition/version is
+    effective for a caller, where the version came from, and whether it is
+    deprecated. Provenance names the effective resource only, never the
+    discarded invisible candidates."""
+
+    resource_id: UUID
+    kind: LibraryKind
+    stable_key: str
+    scope: LibraryScope
+    version: int
+    version_origin: VersionOrigin
+    deprecated: bool = False
+
+
 class LibraryProjectLock(ContractModel):
     """A project pins `(resource_id, locked_version)`: the lock key is the
     canonical resource UUID, never `stable_key` alone."""

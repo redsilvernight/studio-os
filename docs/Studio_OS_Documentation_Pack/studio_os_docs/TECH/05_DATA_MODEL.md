@@ -224,3 +224,16 @@ Traçabilite : mutations projet-scope emettent `library.*` (types additifs,
 `TECH/03_EVENT_CONTRACT.md`) ; scopes Studio/User sans projet restant
 audites par les lignes de version (`created_by_user_id`, `created_at`) et
 l'AIWorkLog explicite de l'agent. Aucun credential provider dans ces tables.
+
+## AI Library — P2 resolution (DEC-0065, service pur, sans endpoint)
+
+`resolve_definition(principal, kind, stable_key, project_id?)` : filtre
+visibilite d'abord, shadowing `User > Project(project_id) > Studio` sur rang
+explicite, version effective = lock `(project, resource UUID)` sinon
+`active_version` (0 = echec), `deprecated` resolue avec flag. Dependances =
+liens UUID exacts reverifies en visibilite, sans re-shadowing. Echec public
+unique `definition_not_found` (absente, invisible, sans version utilisable,
+dependance absente/invisible confondues) ; raisons internes jamais exposees.
+Provenance minimale (`LibraryResolution` : scope, UUID, version, origine
+`lock`/`active`, flag deprecated). Resolution et compatibilite (`unknown !=
+compatible`) restent separees.
