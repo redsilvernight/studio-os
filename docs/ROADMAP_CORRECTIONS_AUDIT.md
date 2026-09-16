@@ -319,7 +319,7 @@ Détail et preuves : `docs/ROADMAP_STEP8_BREAKDOWN.md` et
 
 ## Étape 9 — Producer, media et hardening final (P3)
 
-### État (2026-09-15)
+### État (2026-09-16)
 
 - 9.1 Studio Producer, intégration GitHub/build et workers : **implémenté
   9.1a (fondation : contrats, modèles, migration 0008 réversible) + 9.1b
@@ -341,9 +341,17 @@ Détail et preuves : `docs/ROADMAP_STEP8_BREAKDOWN.md` et
   HS256 + warning secret défaut, rate limiting in-memory V1, secrets/CI) ;
   gaps fermés au edge (HSTS + baseline `docker/Caddyfile` sur les 4 sites
   TLS, headers `docker/dashboard.nginx.conf`). Hors périmètre : 9.1c
-  (toujours différé par DEC-0059), CSP dashboard (non vérifiable sans build
-  navigateur, réévaluée avec un test dédié), rate limiting distribué (non
+  (toujours différé par DEC-0059), rate limiting distribué (non
   requis mono-nœud).
+- 9.3 CSP dashboard : **Report-Only livré** (DEC-0061, 2026-09-16) — lève le
+  point différé de DEC-0060 par une mise en place progressive testable :
+  5 tests statiques vitest (`dashboard/src/csp-static.test.ts`), politique
+  unique templatée (`dashboard/csp-policy.ts`), vrai test navigateur
+  Playwright (`dashboard/e2e/csp.spec.ts`, 0 violation, API stubbée),
+  même politique en Report-Only côté `docker/Caddyfile`. Aucun
+  enforcement dans ce lot (`Content-Security-Policy-Report-Only`
+  conservé jusqu'à validation staging contre backend/auth/flux réels) ;
+  9.1c reste différé (réaffirmé par DEC-0061, sans nouveau besoin).
 
 ### Travail attendu
 
