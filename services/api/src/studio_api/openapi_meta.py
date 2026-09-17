@@ -242,13 +242,39 @@ RESP_422_LIBRARY_CONTENT: ErrorResponses = {
         "(`content_schema: studio.library.<kind>/v1`, unknown fields "
         "forbidden, `rule`/`skill` prose bounded to 65_536 characters, "
         "`model_profile` carrying vendor-neutral `requirements` only, "
-        "`agent_definition` descriptive only; `workflow` stays free-form "
-        "until P11). Per-field `details` describe the caller's own "
-        "payload only.",
+        "`agent_definition` descriptive only, `workflow` declarative only "
+        "with `participants`, `inputs`/`outputs` and no runtime field). "
+        "Per-field `details` describe the caller's own payload only.",
         {
             "detail": {
                 "error_code": "invalid_content",
                 "details": [{"field": "text", "reason": "String should have at least 1 character"}],
+            }
+        },
+    )
+}
+
+RESP_422_LIBRARY_WORKFLOW: ErrorResponses = {
+    422: _json_response(
+        "Workflow definition rejected, nothing stored (P11 declarative "
+        "workflow): the version `content` is schema-valid but structurally "
+        "incoherent — duplicate `participant_id` (`duplicate_participant`), "
+        "a `depends_on` naming no participant of this workflow "
+        "(`unknown_dependency`), a dependency cycle (`dependency_cycle`), a "
+        "participant `agent_stable_key` with no matching `composes_agent` "
+        "pin (`unknown_participant_agent`), a `composes_agent` pin no "
+        "participant uses (`unused_agent_dependency`), a duplicated I/O "
+        "name (`duplicate_io_declaration`), or a dataflow `source` that "
+        "does not resolve to a declared participant output / workflow input "
+        "(`invalid_io_reference`). Static validation only — it decides no "
+        "execution, schedules nothing and stores no run state; raised after "
+        "the auth/scope gates and before the 404/409 pin gates, never an "
+        "oracle on invisible resources.",
+        {
+            "detail": {
+                "error_code": "invalid_workflow",
+                "reason": "dependency_cycle",
+                "field": "participants",
             }
         },
     )

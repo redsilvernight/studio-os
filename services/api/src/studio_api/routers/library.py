@@ -27,6 +27,7 @@ from studio_api.openapi_meta import (
     RESP_422_LIBRARY_BINDING,
     RESP_422_LIBRARY_CONTENT,
     RESP_422_LIBRARY_SCOPE,
+    RESP_422_LIBRARY_WORKFLOW,
     merge_conflict,
     merge_status,
 )
@@ -86,7 +87,11 @@ async def list_library(
         **merge_conflict(RESP_409_IDEMPOTENCY, RESP_409_LIBRARY),
         **RESP_404_LIBRARY_PIN,
         **merge_status(
-            422, RESP_422_LIBRARY_SCOPE, RESP_422_LIBRARY_CONTENT, RESP_422_LIBRARY_BINDING
+            422,
+            RESP_422_LIBRARY_SCOPE,
+            RESP_422_LIBRARY_CONTENT,
+            RESP_422_LIBRARY_WORKFLOW,
+            RESP_422_LIBRARY_BINDING,
         ),
     },
 )
@@ -165,7 +170,9 @@ async def list_library_versions(
         **RESP_403_FORBIDDEN,
         **RESP_404_LIBRARY_PIN,
         **merge_conflict(RESP_409_IDEMPOTENCY, RESP_409_LIBRARY),
-        **merge_status(422, RESP_422_LIBRARY_CONTENT, RESP_422_LIBRARY_BINDING),
+        **merge_status(
+            422, RESP_422_LIBRARY_CONTENT, RESP_422_LIBRARY_WORKFLOW, RESP_422_LIBRARY_BINDING
+        ),
     },
 )
 async def create_library_version(

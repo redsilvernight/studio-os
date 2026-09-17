@@ -26,6 +26,7 @@ from studio_contracts.library import (
     binding_relation_for,
     binding_scope_allows,
     content_validation_errors,
+    workflow_validation_errors,
 )
 
 from studio_api.db.models.library import (
@@ -175,6 +176,18 @@ async def _create_version_row(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={"error_code": "invalid_content", "details": content_errors},
         )
+    # P11/DEC-0075: static workflow-definition validation, on the submitted
+    # content and dependency list only (duplicate participants, unknown/cyclic
+    # dependencies, participant agent agreement, static dataflow references).
+    # Purely structural, so it runs before any pin lookup and is never an
+    # existence oracle; a workflow version is stored only when it is coherent.
+    if LibraryKind(resource.kind) == LibraryKind.WORKFLOW:
+        workflow_errors = workflow_validation_errors(dict(content), dependencies)
+        if workflow_errors:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={"error_code": "invalid_workflow", **workflow_errors[0]},
+            )
     version_row = LibraryResourceVersionModel(
         resource_id=resource.id,
         version=version,
