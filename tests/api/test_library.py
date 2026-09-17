@@ -18,7 +18,24 @@ def _rule_payload(scope: str, key: str = "no-silent-upgrade") -> dict[str, objec
         "scope": scope,
         "title": "Never upgrade silently",
         "description": "Locked resources keep their version.",
-        "content": {"text": "Do not upgrade a locked resource."},
+        "content": {
+            "content_schema": "studio.library.rule/v1",
+            "text": "Do not upgrade a locked resource.",
+        },
+    }
+
+
+def _skill_payload(scope: str, key: str = "private-skill") -> dict[str, object]:
+    return {
+        "kind": "skill",
+        "stable_key": key,
+        "scope": scope,
+        "title": "Private skill",
+        "description": None,
+        "content": {
+            "content_schema": "studio.library.skill/v1",
+            "text": "Skill body.",
+        },
     }
 
 
@@ -49,7 +66,10 @@ async def test_create_then_activate_is_two_steps(
     second = await client.post(
         f"/api/v1/library/{created['id']}/versions",
         headers=auth_headers,
-        json={"title": "v2 title", "content": {"text": "v2"}},
+        json={
+            "title": "v2 title",
+            "content": {"content_schema": "studio.library.rule/v1", "text": "v2"},
+        },
     )
     assert second.status_code == 201
     assert second.json()["version"] == 2
@@ -165,7 +185,7 @@ async def test_user_scope_isolated_without_existence_leak(
         await client.post(
             "/api/v1/library",
             headers=auth_headers,
-            json={**_rule_payload("user"), "kind": "skill", "stable_key": "private-skill"},
+            json=_skill_payload("user"),
         )
     ).json()
 
@@ -226,7 +246,7 @@ async def test_version_pins_reference_without_duplication(
                 "stable_key": "uses-base",
                 "scope": "studio",
                 "title": "Skill on base rule",
-                "content": {"text": "skill body"},
+                "content": {"content_schema": "studio.library.skill/v1", "text": "skill body"},
                 "dependencies": [{"kind": "rule", "stable_key": "base-rule", "version": 1}],
             },
         )
@@ -237,7 +257,10 @@ async def test_version_pins_reference_without_duplication(
     assert versions[0]["dependencies"] == [
         {"kind": "rule", "stable_key": "base-rule", "version": 1}
     ]
-    assert versions[0]["content"] == {"text": "skill body"}
+    assert versions[0]["content"] == {
+        "content_schema": "studio.library.skill/v1",
+        "text": "skill body",
+    }
     assert rule["id"] != skill["id"]
 
 
@@ -250,7 +273,7 @@ async def test_unknown_pin_is_not_found(client: AsyncClient, auth_headers: dict[
             "stable_key": "dangling",
             "scope": "studio",
             "title": "Dangling",
-            "content": {},
+            "content": {"content_schema": "studio.library.skill/v1", "text": "Dangling skill."},
             "dependencies": [{"kind": "rule", "stable_key": "missing", "version": 1}],
         },
     )
@@ -277,7 +300,7 @@ async def test_ambiguous_pin_conflicts(
             "stable_key": "needs-disambiguation",
             "scope": "studio",
             "title": "Ambiguous",
-            "content": {},
+            "content": {"content_schema": "studio.library.skill/v1", "text": "Ambiguous skill."},
             "dependencies": [{"kind": "rule", "stable_key": "shared-key", "version": 1}],
         },
     )
@@ -406,9 +429,14 @@ async def test_agent_definition_is_not_a_valid_actor(
             "/api/v1/library",
             headers=auth_headers,
             json={
-                **_rule_payload("studio"),
                 "kind": "agent_definition",
                 "stable_key": "godot-debugger",
+                "scope": "studio",
+                "title": "Godot debugger",
+                "content": {
+                    "content_schema": "studio.library.agent_definition/v1",
+                    "summary": "Debugs Godot projects.",
+                },
             },
         )
     ).json()

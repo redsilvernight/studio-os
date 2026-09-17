@@ -225,6 +225,29 @@ Traçabilite : mutations projet-scope emettent `library.*` (types additifs,
 audites par les lignes de version (`created_by_user_id`, `created_at`) et
 l'AIWorkLog explicite de l'agent. Aucun credential provider dans ces tables.
 
+## AI Library — P3 semantic content (DEC-0066, validation applicative, sans DDL)
+
+`content` (JSONB) valide par kind a l'ecriture, sans migration :
+`RuleContent` / `SkillContent` (`content_schema`
+`studio.library.rule/v1` / `studio.library.skill/v1`, `text` 1 a
+65_536 caracteres — budget propre a Library, distinct du budget 256 Kio
+du Context Package DEC-0057) ; `ModelProfileContent`
+(`studio.library.model_profile/v1`, `requirements:
+CapabilityRequirement` vendor-neutral, `description?` — aucun
+provider/modele/harness/endpoint/secret/ranking/whitelist) ;
+`AgentDefinitionContent` (`studio.library.agent_definition/v1`,
+`summary?`/`intended_use?` — aucune capability inline, aucun runtime
+concret ; les exigences passent par un lien vers `model_profile`, un
+AgentDefinition sans lien n'exprime aucune exigence). `workflow` reste
+libre jusqu'a P11. Champs inconnus interdits (`extra="forbid"`).
+`content_schema` versionne la forme de l'artefact stocke, jamais les
+payloads MCP/API (DEC-0048 inchange). Matcher fige : `coding`,
+`context_window_min` (>=), `tools_required` (subset),
+`local_compatible`, plus `reasoning`/`multimodal`/`cost`/`latency` en
+egalite stricte de tags sans ranking ; `unknown != compatible`,
+requirement vide compatible avec tout, dimension future inconnue
+fail-closed.
+
 ## AI Library — P2 resolution (DEC-0065, service pur, sans endpoint)
 
 `resolve_definition(principal, kind, stable_key, project_id?)` : filtre

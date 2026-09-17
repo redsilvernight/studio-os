@@ -38,6 +38,7 @@ async def _create(
     kind: LibraryKind = LibraryKind.RULE,
     dependencies: list[DependencyPin] | None = None,
 ):
+    schema = "studio.library.skill/v1" if kind == LibraryKind.SKILL else "studio.library.rule/v1"
     resource, _ = await library_service.create_resource(
         db_session,
         principal,
@@ -48,7 +49,7 @@ async def _create(
             project_id=project_id,
             title=f"{key} title",
             description=None,
-            content={"text": key},
+            content={"content_schema": schema, "text": key},
             dependencies=dependencies or [],
         ),
     )
@@ -297,7 +298,10 @@ async def test_lock_selects_locked_version(
         db_session,
         principal,
         resource,
-        LibraryVersionCreate(title="v2", content={"text": "v2"}),
+        LibraryVersionCreate(
+            title="v2",
+            content={"content_schema": "studio.library.rule/v1", "text": "v2"},
+        ),
     )
     await db_session.refresh(resource)
     await library_service.activate_resource_version(

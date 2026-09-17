@@ -63,14 +63,22 @@ def _json_response(description: str, example: Any) -> dict[str, Any]:
     }
 
 
+def merge_status(status_code: int, *variants: ErrorResponses) -> ErrorResponses:
+    """Combine several variants sharing one status code into the single
+    response object OpenAPI allows per status code. Descriptions
+    concatenate; the first variant's example illustrates the shape (all
+    share the `{"detail": {"error_code", ...}}` envelope)."""
+    descriptions = [variant[status_code]["description"] for variant in variants]
+    example = variants[0][status_code]["content"]["application/json"]["example"]
+    return {status_code: _json_response(" ".join(descriptions), example)}
+
+
 def merge_conflict(*variants: ErrorResponses) -> ErrorResponses:
     """Combine several 409 variants into the single response object OpenAPI
     allows per status code. Descriptions concatenate; the first variant's
     example illustrates the shape (all share the `{"detail":
     {"error_code", ...}}` envelope)."""
-    descriptions = [variant[409]["description"] for variant in variants]
-    example = variants[0][409]["content"]["application/json"]["example"]
-    return {409: _json_response(" ".join(descriptions), example)}
+    return merge_status(409, *variants)
 
 
 RESP_401_UNAUTHORIZED: ErrorResponses = {
@@ -223,6 +231,26 @@ RESP_422_LIBRARY_SCOPE: ErrorResponses = {
         "requires `project_id`, studio and user scopes forbid it "
         "(`invalid_scope_context`).",
         {"detail": {"error_code": "invalid_scope_context"}},
+    )
+}
+
+RESP_422_LIBRARY_CONTENT: ErrorResponses = {
+    422: _json_response(
+        "Library semantic content rejected, nothing stored (P3 semantic "
+        "content): "
+        "the version `content` must match its per-kind schema "
+        "(`content_schema: studio.library.<kind>/v1`, unknown fields "
+        "forbidden, `rule`/`skill` prose bounded to 65_536 characters, "
+        "`model_profile` carrying vendor-neutral `requirements` only, "
+        "`agent_definition` descriptive only; `workflow` stays free-form "
+        "until P11). Per-field `details` describe the caller's own "
+        "payload only.",
+        {
+            "detail": {
+                "error_code": "invalid_content",
+                "details": [{"field": "text", "reason": "String should have at least 1 character"}],
+            }
+        },
     )
 }
 

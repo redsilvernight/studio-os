@@ -24,8 +24,10 @@ from studio_api.openapi_meta import (
     RESP_409_IDEMPOTENCY,
     RESP_409_LIBRARY,
     RESP_409_VERSION_CONFLICT,
+    RESP_422_LIBRARY_CONTENT,
     RESP_422_LIBRARY_SCOPE,
     merge_conflict,
+    merge_status,
 )
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import library as library_service
@@ -82,7 +84,7 @@ async def list_library(
         **RESP_403_FORBIDDEN,
         **merge_conflict(RESP_409_IDEMPOTENCY, RESP_409_LIBRARY),
         **RESP_404_LIBRARY_PIN,
-        **RESP_422_LIBRARY_SCOPE,
+        **merge_status(422, RESP_422_LIBRARY_SCOPE, RESP_422_LIBRARY_CONTENT),
     },
 )
 async def create_library_resource(
@@ -160,6 +162,7 @@ async def list_library_versions(
         **RESP_403_FORBIDDEN,
         **RESP_404_LIBRARY_PIN,
         **merge_conflict(RESP_409_IDEMPOTENCY, RESP_409_LIBRARY),
+        **RESP_422_LIBRARY_CONTENT,
     },
 )
 async def create_library_version(

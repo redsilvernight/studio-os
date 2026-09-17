@@ -108,8 +108,22 @@ n'utilisant que leurs propres agents n'observent aucun changement.
 - GET /library/{id}/versions — snapshots immuables, ordre croissant.
 - POST /library/{id}/versions — version draft N+1 (ne deplace jamais
   `active_version`). `Idempotency-Key` supporte. Dependances epinglees
-  resolues a l'ecriture : pin inconnue = `404 pin_not_found`, pin
+  resolues a l'ecriture : pin inconnue = `404 pin_not_found`, version
+  epinglee inexistante = `404 pin_version_not_found`, pin
   ambigue (meme cle dans plusieurs scopes visibles) = `409 pin_ambiguous`.
+- Contenu semantique (P3, DEC-0066) : `content` valide par kind sur
+  `POST /library` et `POST /library/{id}/versions`
+  (`content_schema: studio.library.<kind>/v1`, champs inconnus interdits,
+  prose `rule`/`skill` bornee a 65_536 caracteres, `model_profile`
+  exigences vendor-neutral uniquement, `agent_definition` descriptif
+  uniquement ; `workflow` libre jusqu'a P11). Rejet = `422
+  {"error_code": "invalid_content", "details": [...]}` apres les gates
+  d'autorisation — jamais un oracle sur des ressources invisibles.
+  Note : `content` reste optionnel au transport (defaut `{}`), mais P3
+  exige un contenu valide pour `rule`/`skill`/`model_profile`/
+  `agent_definition` (`workflow` excepte) ; `Idempotency-Key` reste
+  supporte sur ces ecritures et un rejet 422 libere la reservation
+  (rejeu identique = nouveau 422, jamais de doublon).
 - POST /library/{id}/activate — body `LibraryActivate`
   (`version`, `expected_resource_version`) : deplace explicitement
   `active_version` (passe `status` a `active`), `409 version_conflict` sur

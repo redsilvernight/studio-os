@@ -22,6 +22,7 @@ from studio_contracts.library import (
     LibraryVersion,
     LibraryVersionCreate,
     VersionOrigin,
+    content_validation_errors,
 )
 
 from studio_api.db.models.library import (
@@ -148,6 +149,17 @@ async def _create_version_row(
     content: dict[str, Any],
     dependencies: list[DependencyPin],
 ) -> LibraryResourceVersionModel:
+    # P3/DEC-0066: per-kind semantic validation, applied identically to the
+    # initial version and every later one. Both callers (`create_resource`,
+    # `create_resource_version`) enforce scope/ownership gates before reaching
+    # this point, so a 422 here only ever describes the caller's own payload
+    # — validation is never an oracle over invisible resources.
+    content_errors = content_validation_errors(LibraryKind(resource.kind), dict(content))
+    if content_errors:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"error_code": "invalid_content", "details": content_errors},
+        )
     version_row = LibraryResourceVersionModel(
         resource_id=resource.id,
         version=version,

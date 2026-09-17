@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
+from typing import Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, ValidationError
 
 from studio_contracts.common import ContractModel, IdempotentCreate, VersionedModel
 
@@ -150,10 +151,10 @@ class LibraryLockCreate(IdempotentCreate):
 
 
 class CapabilityRequirement(ContractModel):
-    """Vendor-neutral model requirements (gate P0 deliverable). All
-    dimensions are open strings/numbers, never vendor enums, whitelists or
-    commercial rankings. A `ModelProfile` resource carries one of
-    these in its version `content` (shape enforced from P3 on)."""
+    """Vendor-neutral model requirements (gate P0 deliverable, enforced from
+    P3/DEC-0066). All dimensions are open strings/numbers, never vendor enums,
+    whitelists or commercial rankings. A `ModelProfile` resource carries one
+    of these in its version `content` (see `ModelProfileContent`)."""
 
     reasoning: str | None = None
     coding: bool = False
@@ -211,3 +212,98 @@ def check_compatibility(
     if requirement.latency is not None and capabilities.latency != requirement.latency:
         unsatisfied.append(f"latency: required {requirement.latency!r}")
     return unsatisfied
+
+
+RULE_SKILL_TEXT_MAX_LENGTH = 65_536
+"""Max characters for a rule/skill version body (P3/DEC-0066).
+
+Own Library budget, unrelated to the DEC-0057 256 Kio Context Package budget
+(which bounds a composed package, never a single stored version).
+"""
+
+
+class RuleContent(ContractModel):
+    """Semantic shape of a `rule` version (P3/DEC-0066): free prose, nothing
+    else. Never a provider, model, harness or capability reference."""
+
+    content_schema: Literal["studio.library.rule/v1"]
+    text: str = Field(min_length=1, max_length=RULE_SKILL_TEXT_MAX_LENGTH)
+
+
+class SkillContent(ContractModel):
+    """Semantic shape of a `skill` version (P3/DEC-0066): free prose, nothing
+    else. Never a provider, model, harness or capability reference."""
+
+    content_schema: Literal["studio.library.skill/v1"]
+    text: str = Field(min_length=1, max_length=RULE_SKILL_TEXT_MAX_LENGTH)
+
+
+class ModelProfileContent(ContractModel):
+    """Semantic shape of a `model_profile` version (P3/DEC-0066):
+    vendor-neutral requirements only. No concrete provider, model, harness,
+    endpoint, secret, vendor family, vendor API version, ranking or
+    provider/model whitelist — `extra="forbid"` rejects them all. The
+    concrete runtime/model choice belongs to P4 bindings and P10 adapters,
+    never to the canonical domain."""
+
+    content_schema: Literal["studio.library.model_profile/v1"]
+    requirements: CapabilityRequirement
+    description: str | None = None
+
+
+class AgentDefinitionContent(ContractModel):
+    """Semantic shape of an `agent_definition` version (P3/DEC-0066): a
+    logical definition, never an execution instance. Descriptive and
+    observability metadata only — no inline capabilities (requirements come
+    exclusively through a version-pinned link to a `model_profile`, and an
+    agent definition without one simply expresses no requirement), no
+    provider, model, harness or concrete runtime. `extra="forbid"` rejects
+    them all."""
+
+    content_schema: Literal["studio.library.agent_definition/v1"]
+    summary: str | None = None
+    intended_use: str | None = None
+
+
+_CONTENT_SCHEMAS: dict[LibraryKind, type[ContractModel]] = {
+    LibraryKind.RULE: RuleContent,
+    LibraryKind.SKILL: SkillContent,
+    LibraryKind.MODEL_PROFILE: ModelProfileContent,
+    LibraryKind.AGENT_DEFINITION: AgentDefinitionContent,
+}
+"""Per-kind semantic validators (P3/DEC-0066). `workflow` is deliberately
+absent: its shape is deferred to P11 and its content stays free-form."""
+
+
+def content_validation_errors(
+    kind: LibraryKind, content: dict[str, object]
+) -> list[dict[str, str]]:
+    """Validates a version `content` against its per-kind P3 schema.
+
+    Returns `[]` when valid — or when the kind has no P3 schema yet
+    (`workflow`, deferred to P11). Otherwise returns JSON-safe
+    `[{field, reason}]` entries describing only the submitted payload, never
+    any other stored resource (P3 validation is not an existence oracle).
+    """
+
+    model = _CONTENT_SCHEMAS.get(kind)
+    if model is None:
+        return []
+    try:
+        model.model_validate(dict(content))
+    except ValidationError as exc:
+        details: list[dict[str, str]] = []
+        for error in exc.errors():
+            field = ".".join(str(part) for part in error["loc"]) or "(root)"
+            details.append({"field": field, "reason": str(error["msg"])})
+        return details
+    return []
+
+
+def validate_library_content(kind: LibraryKind, content: dict[str, object]) -> None:
+    """Raises `ValueError` carrying the `content_validation_errors` details
+    when a version `content` violates its per-kind P3 schema."""
+
+    errors = content_validation_errors(kind, content)
+    if errors:
+        raise ValueError(f"invalid {kind.value} content: {errors}")
