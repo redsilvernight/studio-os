@@ -20,6 +20,7 @@ from studio_contracts.events import EventCreate, EventEnvelope
 from studio_contracts.library import LibraryProjectLock, LibraryResource, LibraryVersion
 from studio_contracts.project_state import ProjectState
 from studio_contracts.projects import Project
+from studio_contracts.resolution import AgentResolutionRequest, ResolvedAgentDefinition
 from studio_contracts.review_queue import ReviewQueue
 from studio_contracts.sessions import WorkSession, WorkSessionCreate
 from studio_contracts.tasks import Task, TaskCreate, TaskUpdate
@@ -503,6 +504,23 @@ class StudioApiClient:
             params["project_id"] = str(project_id)
         response = await self._request("GET", "/api/v1/library-locks", params=params)
         return [LibraryProjectLock.model_validate(item) for item in response.json()]
+
+    async def resolve_agent(
+        self, stable_key: str, *, project_id: UUID | None = None
+    ) -> ResolvedAgentDefinition:
+        """Resolves one `AgentDefinition` to its canonical
+        `ResolvedAgentDefinition` over the P7 HTTP surface
+        (`POST /api/v1/resolutions`, DEC-0071). Pure read: the route never
+        persists anything, so the call is marked safe to retry. The result
+        is harness-neutral — P10 adapters project it locally."""
+        payload = AgentResolutionRequest(stable_key=stable_key, project_id=project_id)
+        response = await self._request(
+            "POST",
+            "/api/v1/resolutions",
+            json=payload.model_dump(mode="json"),
+            idempotent=True,
+        )
+        return ResolvedAgentDefinition.model_validate(response.json())
 
     async def send_mutation(
         self, method: str, path: str, payload: dict[str, Any], *, idempotency_key: str

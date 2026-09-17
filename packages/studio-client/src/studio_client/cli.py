@@ -478,6 +478,105 @@ def _producer_run(args: argparse.Namespace, config: ClientConfig) -> None:
     _print_model(job, as_json=args.json)
 
 
+def _adapters_list(args: argparse.Namespace, config: ClientConfig) -> None:
+    """List the locally registered P10 adapters (open-string ids)."""
+    from studio_client.adapters import get_adapter, list_adapters
+
+    ids = list_adapters()
+    if args.json:
+        print(
+            json.dumps([{"adapter_id": i, "managed_dir": get_adapter(i).managed_dir} for i in ids])
+        )
+    elif not ids:
+        print("(none)")
+    else:
+        for adapter_id in ids:
+            print(f"{adapter_id}\t{get_adapter(adapter_id).managed_dir}")
+
+
+def _adapters_export(args: argparse.Namespace, config: ClientConfig) -> None:
+    """Resolve one AgentDefinition over P7 HTTP, then project it locally
+    with `studio_client.adapters` (P10/DEC-0074).
+
+    Without `--out-dir` the artifacts print to stdout (dry-run); with it
+    they materialize under the directory, confined to the adapter's
+    managed dir. The adapter id is an open string — the dispatch stays
+    in this local layer, never in the core."""
+    from studio_client.adapters import AdapterError, get_adapter, materialize
+
+    try:
+        adapter = get_adapter(args.adapter)
+    except AdapterError as exc:
+        print(f"error: {exc.message} ({exc.code.value})", file=sys.stderr)
+        raise SystemExit(1) from None
+
+    project_id = _parse_uuid(args.project_id, field="project_id") if args.project_id else None
+    if args.with_context and project_id is None:
+        print("error: --with-context requires --project-id", file=sys.stderr)
+        raise SystemExit(1)
+
+    async def action(client: StudioApiClient) -> Any:
+        resolved = await client.resolve_agent(args.stable_key, project_id=project_id)
+        context = None
+        if args.with_context:
+            assert project_id is not None
+            memory_provider, graph_provider = _context_providers(config)
+            composer = ContextPackageComposer(
+                client, config, memory_provider=memory_provider, graph_provider=graph_provider
+            )
+            context = await composer.generate(
+                project_id,
+                options=ContextPackageOptions(
+                    include_library=True, library_limit=args.library_limit
+                ),
+            )
+        return adapter.translate(resolved, context=context)
+
+    try:
+        result = _run(config, action)
+    except AdapterError as exc:
+        print(f"error: {exc.message} ({exc.code.value})", file=sys.stderr)
+        raise SystemExit(1) from None
+
+    if args.out_dir:
+        try:
+            written = materialize(
+                result,
+                Path(args.out_dir),
+                overwrite=args.overwrite,
+                managed_dir=adapter.managed_dir,
+            )
+        except AdapterError as exc:
+            print(f"error: {exc.message} ({exc.code.value})", file=sys.stderr)
+            raise SystemExit(1) from None
+        if args.json:
+            print(json.dumps({"written": [str(p) for p in written]}))
+        else:
+            for path in written:
+                print(f"Wrote {path}.")
+                for warning in result.warnings:
+                    print(f"  warning {warning.code}: {warning.detail}")
+        return
+
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "adapter_id": result.adapter_id,
+                    "artifacts": [{"path": a.path, "sha256": a.sha256} for a in result.artifacts],
+                    "warnings": [{"code": w.code, "detail": w.detail} for w in result.warnings],
+                },
+                indent=2,
+            )
+        )
+        return
+    for artifact in result.artifacts:
+        print(f"--- {artifact.path} ---")
+        print(artifact.content)
+    for warning in result.warnings:
+        print(f"warning {warning.code}: {warning.detail}")
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="studio-client")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -712,6 +811,38 @@ def _build_parser() -> argparse.ArgumentParser:
     producer_run.add_argument("--task-id", help="Required for decomposition.")
     _add_json_flag(producer_run)
     producer_run.set_defaults(func=_producer_run)
+
+    adapters_parser = subparsers.add_parser(
+        "adapters", help="Project a resolved agent to a local harness (P10)."
+    )
+    adapters_sub = adapters_parser.add_subparsers(dest="adapters_command", required=True)
+
+    adapters_list = adapters_sub.add_parser("list", help="List local adapters.")
+    _add_json_flag(adapters_list)
+    adapters_list.set_defaults(func=_adapters_list)
+
+    adapters_export = adapters_sub.add_parser(
+        "export", help="Resolve an agent (P7 HTTP) and translate it locally."
+    )
+    adapters_export.add_argument(
+        "--adapter", required=True, help="Open adapter id, e.g. claude-code, opencode."
+    )
+    adapters_export.add_argument("--stable-key", required=True, help="AgentDefinition stable key.")
+    adapters_export.add_argument("--project-id", help="Project UUID for resolution context.")
+    adapters_export.add_argument(
+        "--out-dir", help="Materialize under this directory (default: print to stdout)."
+    )
+    adapters_export.add_argument(
+        "--overwrite", action="store_true", help="Replace existing managed files."
+    )
+    adapters_export.add_argument(
+        "--with-context",
+        action="store_true",
+        help="Attach a generic P9 Context Package (requires --project-id).",
+    )
+    adapters_export.add_argument("--library-limit", type=int, default=100)
+    _add_json_flag(adapters_export)
+    adapters_export.set_defaults(func=_adapters_export)
 
     return parser
 
