@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-75 decision(s). Detail complet dans chaque ADR lie.
+76 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -97,3 +97,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0073 | P9 Integration Context Package locale : AI Library comme source du composeur DEC-0057 via StudioApiClient | active | [decisions/DEC-0073-p9-contexte-package-bibliotheque-locale.md](decisions/DEC-0073-p9-contexte-package-bibliotheque-locale.md) |
 | DEC-0074 | P10 Adapters locaux : meme definition canonique vers Claude Code et OpenCode, core neutre | active | [decisions/DEC-0074-p10-adaptateurs-locaux-claude-code-opencode.md](decisions/DEC-0074-p10-adaptateurs-locaux-claude-code-opencode.md) |
 | DEC-0075 | P11 Workflows declaratifs : definition canonique Library (participants, DAG, I/O), aucune orchestration serveur | active | [decisions/DEC-0075-p11-workflows-declaratifs.md](decisions/DEC-0075-p11-workflows-declaratifs.md) |
+| DEC-0076 | P12 dashboard UI & Resolution Inspector : interface humaine au-dessus du HTTP canonique, aucune resolution frontend | active | [decisions/DEC-0076-p12-dashboard-ui-resolution-inspector.md](decisions/DEC-0076-p12-dashboard-ui-resolution-inspector.md) |

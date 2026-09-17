@@ -1,4 +1,4 @@
-# Studi'OS Dashboard — V0 (DASH-0 → DASH-5)
+# Studi'OS Dashboard — V0 (DASH-0 → DASH-5, P12)
 
 Human read-only client of the canonical Studi'OS HTTP API + SSE.
 No direct Postgres, no MCP-for-REST, no duplicated business logic,
@@ -254,6 +254,68 @@ multipart completion requires the storage CORS to expose `ETag`.
 `PATCH` + `If-Match-Version` with the version last read, then refetches. A `409`
 re-reads server truth and says so — never an optimistic reorder. The explicit
 `<select>`+Move control stays as the accessible fallback.
+
+## Implemented (P12, Library / Configuration / Resolution Inspector)
+
+Human interface over the canonical P7 HTTP routes (`DEC-0076`). The dashboard
+adds no endpoint: it lists, filters, navigates, performs the mutations P7
+already authorises, and presents the server's reasons. It never resolves
+anything locally — the server's Resolution Engine stays the only authority.
+
+**Library** (`#/library`, `#/library/<kind>`): the five canonical kinds —
+Rules, Skills, Agent Definitions, Workflows, Model Profiles. Each list shows
+the stable key, scope (Studio/Project/User), project, active version and
+lifecycle status; a detail view shows `content_schema`, the per-kind content
+(Rule/Skill text, ModelProfile requirements, AgentDefinition summary,
+Workflow participants/DAG/I-O), version history and relevant project locks.
+`create`, `create version`, `activate` and `deprecate` use the existing
+routes with a fresh `Idempotency-Key` per attempt and a server refetch after
+every mutation. Shadowing is never computed: when one `(kind, stable_key)`
+exists in several scopes the UI says so and points at the Inspector.
+
+**Configuration** (`#/configuration/...`):
+- *Runtimes* — register/list/detail/update/revoke, with `expected_version`
+  and a clean `409`; `harness_ref`/`provider_ref`/`model_ref` are free
+  strings (no closed vendor catalog).
+- *Bindings* — stored runtime choices by `(target_kind, stable_key)` and
+  level (`user`, `project_override`, `project_default`, `studio_default`);
+  the ephemeral `session` level is never stored here.
+- *Project* — project-scoped resources, locks (`RESOURCE | LOCKED VERSION`,
+  set/release) and overrides, keeping `project_override` distinct from
+  `project_default`; studio defaults appear only if the server returns them.
+
+**Resolution Inspector** (`#/inspector[/<stable-key>]`): pick an
+AgentDefinition stable key, an optional project context and an optional
+*temporary* session override (never persisted). The dashboard calls
+`POST /resolutions` and renders the canonical `ResolvedAgentDefinition`:
+effective version and origin, Rules (with their dependency paths), Skills,
+ModelProfile + requirements, the selected runtime (id / refs / capabilities /
+winning level), the compatibility verdict and the full provenance — plus
+cross-links to the Library and Runtimes views.
+
+### Diagnosing a resolution with the Inspector
+
+1. Open **Inspector** (or "Inspect resolution" from an AgentDefinition).
+2. Enter the AgentDefinition stable key, and the project ID if the answer
+   depends on a project context. Leave the session override off first.
+3. Read the result top to bottom:
+   - **Effective version** answers "why this version?" (project lock vs
+     active pointer vs version pin) — the reason is the server's.
+   - **Rules / Skills** list each resolved resource and the path or reason
+     that brought it in.
+   - **Model Profile / Requirements** shows what the agent asks for.
+   - **Runtime** shows what was actually selected, its refs and capabilities,
+     and **which binding level won**.
+   - **Requirements vs runtime capabilities** shows the canonical
+     compatibility verdict.
+4. To test a different runtime without changing anything, enable
+   *Temporary session override*, fill the target and resolve again: the
+   response provenance reads `session_override` and no binding is created.
+5. A failure is shown as the server's structured error. For
+   `runtime_incompatible` the panel names the selected binding level, the
+   matched key and the `unsatisfied` list, and states that **no fallback**
+   was attempted. A `404` is shown as not found — the server never reveals
+   whether the resource exists for someone else.
 
 ## Deliberately absent (later phases)
 
