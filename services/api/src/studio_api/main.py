@@ -22,7 +22,10 @@ from studio_api.routers import (
     metrics,
     producer,
     projects,
+    resolutions,
     review_queue,
+    runtime_bindings,
+    runtimes,
     sessions,
     tasks,
     timeline,
@@ -121,6 +124,24 @@ OPENAPI_TAG_DESCRIPTIONS: dict[str, str] = {
         "Machine provisioning (privileged role). The very first machine is created out of band."
     ),
     "users": "User provisioning (privileged role). The very first user is created out of band.",
+    "runtime-bindings": (
+        "Stored runtime choices (P4) for logical library keys. The router "
+        "never recomputes precedence — it stores, reads and releases "
+        "choices; selection happens in the services and the resolution "
+        "engine. Session overrides are ephemeral and never stored here."
+    ),
+    "runtimes": (
+        "Declared runtimes (P6 registry, generic — never provider-specific). "
+        "Register, read, update under optimistic concurrency, and logically "
+        "revoke. No secret is ever accepted or stored."
+    ),
+    "resolutions": (
+        "Canonical full resolution of an `AgentDefinition` to its "
+        "`ResolvedAgentDefinition` (P5 engine via `resolve_full`): "
+        "effective definition, rules, skills, model profile, winning "
+        "runtime, compatibility verdict and structured provenance. Pure "
+        "read — no fallback, no persistence."
+    ),
 }
 
 
@@ -158,6 +179,9 @@ def create_app() -> FastAPI:
     app.include_router(decisions.router)
     app.include_router(library.router)
     app.include_router(library.locks_router)
+    app.include_router(runtime_bindings.router)
+    app.include_router(runtimes.router)
+    app.include_router(resolutions.router)
     app.include_router(agents.router)
     app.include_router(ai_work.router)
     app.include_router(review_queue.router)

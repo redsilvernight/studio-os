@@ -269,6 +269,72 @@ RESP_422_LIBRARY_BINDING: ErrorResponses = {
 }
 
 
+RESP_404_RUNTIME: ErrorResponses = {
+    404: _json_response(
+        "Runtime reference not found: unknown runtime id (`runtime not "
+        "found`, plain message — another user's runtime answers the same "
+        "404, never a hint of its existence), unknown runtime binding id "
+        "(`runtime binding not found`), a `runtime_id` reference naming "
+        "no row (`runtime_not_found`), an attached/bound machine that "
+        "does not exist (`runtime_target_not_found`), or a project "
+        "context that does not exist (`project_not_found`).",
+        {"detail": {"error_code": "runtime_not_found"}},
+    )
+}
+
+RESP_409_RUNTIME_BINDING: ErrorResponses = {
+    409: _json_response(
+        "Runtime choice already stored for this `(level, scope, kind, "
+        "stable_key)` key (`already_bound`) — release it first, then "
+        "store the new choice. Bindings are set-once per key, never "
+        "silently overwritten.",
+        {"detail": {"error_code": "already_bound"}},
+    )
+}
+
+RESP_422_RUNTIME: ErrorResponses = {
+    422: _json_response(
+        "Runtime choice rejected, nothing stored: a `session` level sent "
+        "for persistence (`ephemeral_level_not_stored`), a kind outside "
+        "`agent_definition`/`model_profile` (`unsupported_target_kind`), "
+        "a `runtime_id` mixed with inline anchors "
+        "(`runtime_id_must_be_exclusive`), or an update/register leaving "
+        "no anchor at all (`invalid_runtime` / `no_anchor_left`). "
+        "Secret-looking metadata keys are rejected by validation before "
+        "anything is stored.",
+        {
+            "detail": {
+                "error_code": "invalid_runtime_binding",
+                "reason": "ephemeral_level_not_stored",
+            }
+        },
+    )
+}
+
+RESP_422_RESOLUTION: ErrorResponses = {
+    422: _json_response(
+        "Resolution refused, nothing stored (pure read): the winning "
+        "runtime choice does not satisfy the linked model profile "
+        "requirements (`runtime_incompatible`, with `level`, "
+        "`matched_kind`, `matched_stable_key` and `unsatisfied` — never "
+        "a silent fallback to another runtime), or the loaded snapshot "
+        "is internally inconsistent (`invalid_resolution_input`, "
+        "including a duplicated session override key). "
+        "Missing or invisible definitions answer 404 "
+        "`definition_not_found` instead, never a hint of their existence.",
+        {
+            "detail": {
+                "error_code": "runtime_incompatible",
+                "level": "user",
+                "matched_kind": "agent_definition",
+                "matched_stable_key": "...",
+                "unsatisfied": ["coding: required"],
+            }
+        },
+    )
+}
+
+
 RESP_409_TRANSFER_STATE: ErrorResponses = {
     409: _json_response(
         "Upload state conflict: the transfer is already `ready` "

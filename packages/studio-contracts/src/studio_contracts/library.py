@@ -192,7 +192,7 @@ class VersionOrigin(StrEnum):
     """How an effective version was picked: P2 shadowing selection yields
     `lock`/`active`; an exact version-pinned dependency edge yields `pin`.
     Only the P5 resolved output emits `pin` — `LibraryResolution` (P2) still
-    emits `lock`/`active` alone (DEC-0069, additive)."""
+    emits `lock`/`active` alone (P5, additive)."""
 
     LOCK = "lock"
     ACTIVE = "active"
@@ -234,7 +234,7 @@ class LibraryLockCreate(IdempotentCreate):
 
 class CapabilityRequirement(ContractModel):
     """Vendor-neutral model requirements (gate P0 deliverable, enforced from
-    P3/DEC-0066). All dimensions are open strings/numbers, never vendor enums,
+    P3). All dimensions are open strings/numbers, never vendor enums,
     whitelists or commercial rankings. A `ModelProfile` resource carries one
     of these in its version `content` (see `ModelProfileContent`)."""
 

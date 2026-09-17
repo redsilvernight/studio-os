@@ -65,6 +65,7 @@ def to_contract(runtime: RuntimeModel) -> RuntimeRegistration:
         capability_source=CapabilitySource(runtime.capability_source),
         runtime_metadata=dict(runtime.runtime_metadata or {}),
         status=RuntimeStatus(runtime.status),
+        version=runtime.version,
         created_at=runtime.created_at,
         updated_at=runtime.updated_at,
     )

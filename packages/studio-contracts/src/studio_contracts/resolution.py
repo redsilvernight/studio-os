@@ -26,6 +26,8 @@ from __future__ import annotations
 from enum import StrEnum
 from uuid import UUID
 
+from pydantic import Field
+
 from studio_contracts.common import ContractModel
 from studio_contracts.library import (
     BindingRelation,
@@ -61,7 +63,7 @@ class ResolutionErrorCode(StrEnum):
 class ResolutionError(ContractModel):
     """Structured resolution failure. Carries codes and JSON-safe details only —
     never a private resource body. The service adapter maps dependency
-    failures to the public `definition_not_found` (DEC-0065 §2, non-oracle)."""
+    failures to the public `definition_not_found` (scope resolution, non-oracle)."""
 
     error_code: ResolutionErrorCode
     details: dict[str, object] = {}
@@ -170,7 +172,7 @@ class PreservedReference(ContractModel):
     """A `composes_agent` / `references_workflow` dependency, preserved with
     identity, exact version and provenance — never expanded: workflow
     execution semantics belong to P11 and agent-composition execution has no
-    defined semantics yet (DEC-0067, DEC-0069)."""
+    defined semantics yet (library bindings, resolution engine)."""
 
     resource_id: UUID
     kind: LibraryKind
@@ -200,7 +202,7 @@ class ResolvedRuntime(ContractModel):
 class ResolvedAgentDefinition(ContractModel):
     """Canonical P5 output: the complete logical agent specification.
 
-    Harness-neutral (no Claude/Code/Cursor/Continue branch) and
+    Harness-neutral (no harness-specific branch) and
     provider-neutral (`provider_ref`/`model_ref` travel as opaque strings
     when a binding carries them; no vendor catalog lives here). Stable input
     for P7 HTTP, P8 MCP, P9 Context Package and P10 adapters."""
@@ -260,6 +262,32 @@ class AgentResolutionSnapshot(ContractModel):
     agent: ResolutionNode
     nodes: list[ResolutionNode] = []
     runtime_candidates: list[RuntimeCandidate] = []
+
+
+class SessionRuntimeOverride(ContractModel):
+    """One ephemeral session-level runtime choice carried by a resolution
+    request (P7). Same key shape as a stored binding
+    (`target_kind`, `target_stable_key`) plus the concrete `target` — but
+    never persisted: the router forwards it as resolution context only
+    (`session_overrides`), and the service validates it exactly like a
+    stored choice (unknown machine 404, another user's machine 403)."""
+
+    target_kind: LibraryKind
+    target_stable_key: str = Field(min_length=1, max_length=200)
+    target: RuntimeTarget
+
+
+class AgentResolutionRequest(ContractModel):
+    """Canonical HTTP (and future MCP) input for full agent resolution
+    (P7): which `AgentDefinition` (`stable_key`, kind fixed —
+    the engine only resolves agent definitions), in which project
+    context, with which ephemeral session overrides. Identity always
+    comes from auth, never from this body. The response is the complete
+    `ResolvedAgentDefinition`, never a simplified shape."""
+
+    stable_key: str = Field(min_length=1, max_length=200)
+    project_id: UUID | None = None
+    session_overrides: list[SessionRuntimeOverride] = []
 
 
 def _fail(code: ResolutionErrorCode, **details: object) -> ResolutionFailure:

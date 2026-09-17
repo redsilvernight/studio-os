@@ -25,7 +25,7 @@ class RuntimeLevel(StrEnum):
 
 
 class CapabilitySource(StrEnum):
-    """Where registered capabilities come from (P6/DEC-0070).
+    """Where registered capabilities come from (P6 registry).
 
     P6 MVP only ever stores `declared` (explicitly registered, no discovery,
     no detection, no adapter report). The enum — not a closed vendor list —
@@ -36,7 +36,7 @@ class CapabilitySource(StrEnum):
 
 
 class RuntimeStatus(StrEnum):
-    """Registry lifecycle (P6/DEC-0070): logical revocation only, never a
+    """Registry lifecycle (P6): logical revocation only, never a
     physical delete — a revoked runtime stays readable (diagnostics) but
     resolves as non-live, so a binding toward it falls through instead of
     silently becoming another target."""
@@ -93,7 +93,7 @@ def _open_ref(value: str | None, *, where: str) -> str | None:
 
 
 class RuntimeRegistration(ContractModel):
-    """Canonical persisted description of one declared runtime (P6/DEC-0070).
+    """Canonical persisted description of one declared runtime (P6).
 
     Harness, provider, model and runtime are four different concepts, stored
     side by side but never fused: `harness_ref` names the consuming
@@ -117,6 +117,17 @@ class RuntimeRegistration(ContractModel):
     capability_source: CapabilitySource = CapabilitySource.DECLARED
     runtime_metadata: dict[str, object] = {}
     status: RuntimeStatus = RuntimeStatus.ACTIVE
+    version: int = Field(
+        default=1,
+        description=(
+            "Optimistic-concurrency revision (P7): mirrors the server-side "
+            "revision column. Additive P7 exposure — previously only "
+            "visible server-side; readers need it to send "
+            "`expected_version` on update instead of guessing. Defaults "
+            "to 1 (the DB default) so non-persisted constructions stay "
+            "valid."
+        ),
+    )
     created_at: datetime
     updated_at: datetime | None = None
 
@@ -196,10 +207,22 @@ class RuntimeRegistrationUpdate(ContractModel):
         return self
 
 
+class RuntimeRegistrationUpdateRequest(ContractModel):
+    """HTTP/MCP input for a registry update (P7): the descriptor
+    patch plus the optimistic-concurrency guard. Nested (not flattened) so
+    the patch shape stays exactly `RuntimeRegistrationUpdate` — one
+    definition for HTTP, MCP and service, never a divergent copy. The
+    router forwards `update` and `expected_version` unchanged to
+    `update_runtime`."""
+
+    update: RuntimeRegistrationUpdate
+    expected_version: int = Field(ge=1)
+
+
 class RuntimeTarget(ContractModel):
     """A concrete, non-secret runtime choice.
 
-    Two shapes, never mixed at input (P6/DEC-0070): either `runtime_id`
+    Two shapes, never mixed at input (P6): either `runtime_id`
     references a registered runtime (canonical — identity, refs and
     capabilities then come from the Registry) or the inline anchors
     (`machine_id`, `harness_ref`, `provider_ref`, `model_ref`,
