@@ -16,6 +16,7 @@ from studio_api.db.models.library import (
 )
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.runtime import RuntimeBindingModel
 from studio_api.db.models.task import TaskModel
 from studio_api.db.models.transfer import TransferModel
 from studio_api.db.models.user import UserModel
@@ -40,6 +41,7 @@ __all__ = [
     "LibraryResourceVersionModel",
     "LibraryResourceLinkModel",
     "LibraryProjectLockModel",
+    "RuntimeBindingModel",
     "TransferModel",
     "IdempotencyKeyModel",
 ]
