@@ -38,6 +38,7 @@ from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.runtime import RuntimeBindingModel
 from studio_api.services import library as library_service
+from studio_api.services import runtime_registry as registry_service
 from studio_api.services.authz import (
     Principal,
     ensure_can_provision,
@@ -77,9 +78,28 @@ def _is_visible(principal: Principal, binding: RuntimeBindingModel) -> bool:
 async def _checked_target(
     session: AsyncSession, principal: Principal, target: RuntimeTarget
 ) -> None:
-    """Fail-closed machine gate: unknown machine is 404, another user's
-    machine is 403 — a caller may only ever bind toward a machine they own
-    (admins included: ownership is per-user, never ambient)."""
+    """Fail-closed target gate: a `runtime_id` reference must be exclusive
+    (422 — no inline fields beside it, the Registry is canonical) and name
+    an existing registry row (404 `runtime_not_found`) owned by the caller
+    (403 — another user's private runtime is never an oracle); an inline
+    machine must exist (404) and be owned by the caller (403)."""
+    if target.runtime_id is not None:
+        if (
+            target.machine_id is not None
+            or target.harness_ref is not None
+            or target.provider_ref is not None
+            or target.model_ref is not None
+            or target.capabilities != RuntimeCapabilities()
+        ):
+            raise _invalid_runtime_binding("runtime_id_must_be_exclusive")
+        runtime = await session.get(registry_service.RuntimeModel, target.runtime_id)
+        if runtime is None:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, detail={"error_code": "runtime_not_found"}
+            )
+        if runtime.owner_user_id != principal.user.id:
+            raise forbidden("runtime", "bind")
+        return
     if target.machine_id is None:
         return
     machine = await session.get(MachineModel, target.machine_id)
@@ -89,6 +109,28 @@ async def _checked_target(
         )
     if machine.owner_user_id != principal.user.id:
         raise forbidden("runtime_binding", "bind")
+
+
+async def _effective_target(session: AsyncSession, target: RuntimeTarget) -> RuntimeTarget | None:
+    """Resolves a stored/session choice to its effective target. A
+    `runtime_id` reference is canonical: identity, refs and capabilities
+    come from the Registry row (P6/DEC-0070). A revoked/removed runtime —
+    like a deleted or credential-revoked machine — is non-live: the level
+    falls through to the next one, never a hard error and never a silent
+    use of a dead target."""
+    if target.runtime_id is not None:
+        row, live = await registry_service.resolve_effective_target(session, target.runtime_id)
+        if not live or row is None:
+            return None
+        return RuntimeTarget(
+            runtime_id=row.id,
+            machine_id=row.machine_id,
+            harness_ref=row.harness_ref,
+            provider_ref=row.provider_ref,
+            model_ref=row.model_ref,
+            capabilities=RuntimeCapabilities.model_validate(dict(row.capabilities or {})),
+        )
+    return await _live_target(session, target)
 
 
 async def _live_target(session: AsyncSession, target: RuntimeTarget) -> RuntimeTarget | None:
@@ -267,13 +309,14 @@ async def load_candidates(
         candidate = overrides.get((key_kind, key_name))
         if candidate is not None:
             await _checked_target(session, principal, candidate)
-            if await _live_target(session, candidate) is not None:
+            effective = await _effective_target(session, candidate)
+            if effective is not None:
                 candidates.append(
                     RuntimeCandidate(
                         level=RuntimeLevel.SESSION,
                         kind=key_kind,
                         stable_key=key_name,
-                        target=candidate,
+                        target=effective,
                         live=True,
                     )
                 )
@@ -297,13 +340,14 @@ async def load_candidates(
             else:
                 stored = await _stored_choice(session, level, key_kind, key_name)
             if stored is not None:
+                effective = await _effective_target(session, stored)
                 candidates.append(
                     RuntimeCandidate(
                         level=level,
                         kind=key_kind,
                         stable_key=key_name,
-                        target=stored,
-                        live=(await _live_target(session, stored)) is not None,
+                        target=effective if effective is not None else stored,
+                        live=effective is not None,
                     )
                 )
     return candidates

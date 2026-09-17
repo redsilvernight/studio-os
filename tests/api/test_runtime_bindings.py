@@ -450,7 +450,11 @@ async def test_stored_payload_contains_no_secrets(
         db_session, mine, RuntimeLevel.USER, AGENT, "agent-k", _target(machine[0].id, "m")
     )
     assert set(binding.target.keys()) <= {
+        # P6/DEC-0070 adds two non-secret anchors; the intent is unchanged:
+        # nowhere to put a key, token or credential.
+        "runtime_id",
         "machine_id",
+        "harness_ref",
         "provider_ref",
         "model_ref",
         "capabilities",

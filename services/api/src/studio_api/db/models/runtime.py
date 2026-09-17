@@ -9,7 +9,43 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from studio_api.db.models.base import Base, TimestampMixin, UUIDPKMixin
+from studio_api.db.models.base import Base, TimestampMixin, UUIDPKMixin, VersionMixin
+
+
+class RuntimeModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
+    """One declared runtime in the P6 Registry (DEC-0070).
+
+    Stable identity is the surrogate `id` — never a fragile
+    `machine/provider/model` concatenation: several rows may share the same
+    `provider_ref`/`model_ref` while differing by machine, harness,
+    capabilities or owner, so no uniqueness exists on those columns.
+    `owner_user_id` is always the registering user (server-derived).
+    `machine_id` is optional (attached local runtime vs remote/cloud
+    runtime, same abstraction). Refs are open strings, never a vendor
+    catalog. `capabilities` are declared snapshots feeding the pure
+    `check_compatibility` matcher. `runtime_metadata` holds non-secret
+    descriptors only. Lifecycle is logical revocation (`status`), never a
+    physical delete: bindings referencing a revoked runtime fall through
+    instead of silently retargeting."""
+
+    __tablename__ = "runtimes"
+    __table_args__ = (
+        sa.Index("ix_runtimes_owner", "owner_user_id"),
+        sa.Index("ix_runtimes_machine", "machine_id"),
+        sa.Index("ix_runtimes_status", "status"),
+    )
+
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("users.id"))
+    machine_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("machines.id"), default=None
+    )
+    harness_ref: Mapped[str | None] = mapped_column(sa.String(200), default=None)
+    provider_ref: Mapped[str | None] = mapped_column(sa.String(200), default=None)
+    model_ref: Mapped[str | None] = mapped_column(sa.String(200), default=None)
+    capabilities: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    capability_source: Mapped[str] = mapped_column(sa.String(32), default="declared")
+    runtime_metadata: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    status: Mapped[str] = mapped_column(sa.String(16), default="active")
 
 
 class RuntimeBindingModel(UUIDPKMixin, TimestampMixin, Base):
