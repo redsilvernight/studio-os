@@ -9,6 +9,13 @@ source: docs/DECISIONS.md
 
 # DEC-0067 — AI Library bindings P5 : relations typées, matrice kind, fail-closed
 
+> Portée (clarification) : ce chantier est les **Library Bindings** —
+> arêtes typées entre définitions (`library_resource_links`). Il ne couvre
+> pas les **User/Runtime Bindings** (choix runtime/model par utilisateur,
+> overrides projet/session — vrai P4 restant à réaliser). Les deux couches
+> sont distinctes et `library_resource_links` ne stockera jamais de choix
+> runtime.
+
 Tranche l'implémentation des Library Bindings (gate P4 accepté) en
 transformant le mécanisme existant (`DependencyPin` +
 `library_resource_links`) en système typé, contraint, version-pinned et

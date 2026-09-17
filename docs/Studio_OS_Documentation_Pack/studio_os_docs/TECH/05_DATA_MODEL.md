@@ -216,6 +216,10 @@ de contenu duplique. Contrainte unique `(from_version_id, to_resource_id)`.
 
 ## AI Library — P5 bindings (DEC-0067, migration Alembic `0010`, additive)
 
+> Library Bindings uniquement (arêtes entre définitions). Les User/Runtime
+> Bindings (choix runtime/model par utilisateur, vrai P4) sont une couche
+> distincte et ne sont jamais stockés dans `library_resource_links`.
+
 `library_resource_links` gagne `relation` (vocabulaire ferme :
 `requires_model_profile`/`uses_skill`/`applies_rule`/`composes_agent`/
 `references_workflow`/`refines_skill_rule`, un par couple autorise —
