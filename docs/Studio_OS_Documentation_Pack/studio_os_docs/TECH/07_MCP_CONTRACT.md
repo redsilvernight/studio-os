@@ -30,6 +30,13 @@ studio_memory_read
 studio_graph_query
 studio_emit_event
 
+## AI Library via MCP — inventaire (P8, DEC-0072)
+studio_resolve_agent
+studio_discover_definitions
+studio_publish_definition
+studio_configure_runtime
+studio_register_runtime
+
 ## Studio Transfer via MCP
 studio_create_transfer_metadata
 studio_get_transfers
@@ -50,9 +57,10 @@ dans un processus stdio lance par le consommateur lui-meme, sans DB ni
 `Principal` serveur — la frontiere de confiance est le processus, pas un
 token (pas d'attaquant reseau).
 
-## Etat reel (roadmap etape 5, DEC-0023, UC-3/DEC-0047)
+## Etat reel (roadmap etape 5, DEC-0023, UC-3/DEC-0047, P8/DEC-0072)
 
-Le serveur VPS enregistre 29 outils (`services/mcp/src/studio_mcp/`).
+Le serveur VPS enregistre 34 outils (`services/mcp/src/studio_mcp/` : 29
+historiques + 5 AI Library P8, section ci-dessous).
 Les 3 outils locaux read-only specifies ci-dessous (UC-3, exposition via
 MCP local par poste, DEC-0047) sont en place mais conditionnels au
 fichier de configuration du poste : `studio_memory_search`,
@@ -217,12 +225,50 @@ coexistence n'est fixee d'avance.
 
 ### Dette output schemas
 
-Les `outputSchema` actuels des outils (auto-generes depuis
+Les `outputSchema` des 29 outils historiques (auto-generes depuis
 `dict[str, Any]`, `additionalProperties: True`) ne decrivent pas
 suffisamment leurs outputs. Des output schemas explicites sont
 necessaires avant toute evolution breaking sure d'un tool reellement
-consomme. Non implementes ici (ni modeles Pydantic, ni refactor de
-handlers — CC-3 reste documentaire).
+consomme. Les 5 outils P8 (section « AI Library via MCP ») sont les
+premiers a publier des output schemas explicites (modeles Pydantic
+domaine + bras d'erreur `McpError`, derives de l'annotation de retour
+via `structured_output` auto-detecte du SDK) ; les 29 historiques restent
+en l'etat (additif : P8 ne les touche pas — CC-3 reste documentaire
+pour eux).
+
+## AI Library via MCP (P8, DEC-0072)
+
+HTTP (`TECH/02`, 20 operations Library/P4/P5/P6) est le contrat
+canonique ; ces 5 outils orientés use-cases en sont le subset additif
+agent (DEC-0046). Chaque handler est mince
+(`parse/entree -> Principal -> service commun -> contrat domaine`,
+jamais `MCP -> HTTP localhost`, jamais de logique P1–P7 reimplementee)
+et conserve la semantique HTTP (identites, scopes, ownership,
+precedences, erreurs metier).
+
+| Tool | Use case | Service | Mutation | Idempotence | Output schema |
+|---|---|---|---|---|---|
+| `studio_resolve_agent` | resoudre la definition agent complete (+ override session ephemere) | `resolution.resolve_full` (kind fixe `AGENT_DEFINITION`) | non | N-A (lecture pure, comme HTTP) | `ResolvedAgentDefinition \| McpError` |
+| `studio_discover_definitions` | decouvrir/lire sans UUID (filtres kind/scope/project, ou `resource_id`, ou kind+`stable_key`, `include_versions?`) | `library.list_resources` / `get_resource` / `list_versions` (+ `resolve_definition` P2 pour la cle logique) | non | N-A | `DefinitionList \| DefinitionDetail \| McpError` |
+| `studio_publish_definition` | publier : `create` / `create_version` / `activate` / `deprecate` (creation et activation separees, DEC-0064) | `library.create_resource` / `create_resource_version` / `activate_resource_version` / `deprecate_resource` | oui | `idempotency_key` supporte, namespace `MCP studio_publish_definition` | `PublishDefinitionResult{resource, version?} \| McpError` |
+| `studio_configure_runtime` | `set`/`clear` le choix runtime d'une cle `(kind, stable_key)` (niveaux stockes ; `session` refuse, utiliser la resolution) | `bindings.create_binding` / `list_bindings`+`delete_binding` | oui | `set` supporte (namespace `MCP studio_configure_runtime`), `clear` N-A (absent -> `not_found`) | `RuntimeBinding \| McpError` |
+| `studio_register_runtime` | `register`/`update` (+ `revoke` logique) la description de son runtime (refs ouvertes, aucun vendor) | `registry.register_runtime` / `update_runtime` / `revoke_runtime` | oui | `register`/`update` supportes (namespace `MCP studio_register_runtime`), `revoke` N-A (no-op naturel) | `RuntimeRegistration \| McpError` |
+
+Regles transverses : `Principal` resolu avant toute reservation
+d'idempotence (`ensure_can_write` avant le court-circuit, comme les
+outils historiques et les routers HTTP) ; espace de cles idempotentes
+distinct de HTTP (`MCP <outil>` vs `METHOD /path`, DEC-0027) ;
+vocabulaire d'erreurs metier preserve (`definition_not_found`,
+`invalid_runtime_binding` (avec `reason`, ex. `ephemeral_level_not_stored`),
+`runtime_incompatible`, `already_bound`,
+`runtime_not_found`, `version_conflict`, `forbidden`, ...) sans
+seconde taxonomie ; aucun `version`/`schema_version` en payload
+(DEC-0048) ; overrides session valides comme des choix stockes,
+gagnants selon P4, jamais persists.
+Volontairement absents : `resolve_definition` P2 seul (redondant avec
+P5 canonique), locks projet (lus via la resolution), lecture Registry
+detaillee (couverte par discovery/configure), P9 (Context Package) et
+P10 (adaptateurs/execution).
 
 ## Context Package (8.3b, DEC-0057)
 

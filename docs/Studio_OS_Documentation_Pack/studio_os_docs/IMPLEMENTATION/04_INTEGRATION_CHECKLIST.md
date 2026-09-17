@@ -14,6 +14,7 @@
 - [ ] Migrations DB accompagnees de schemas/API.
 - [ ] Les mocks suivent le contrat reel.
 - [ ] Tests contractuels executes.
+- [x] AI Library P8 MCP minimal (2026-09-17) : 5 outils use-cases additifs (`studio_resolve_agent`, `studio_discover_definitions`, `studio_publish_definition`, `studio_configure_runtime`, `studio_register_runtime`, DEC-0072, `TECH/07` amende dans le meme lot) sur les services communs HTTP P7, output schemas explicites, aucun des 29 outils historiques modifie, aucun mock Bloc B ni `dashboard/openapi.json` concerne (HTTP inchange). Preuve : `tests/mcp/test_p8_ai_library.py` (14 tests) + `tests/mcp/test_uc2b_tools_metadata.py` (34 outils).
 
 ## Integration finale
 - [ ] Deux machines reelles sur deux connexions Internet.
