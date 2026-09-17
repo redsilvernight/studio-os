@@ -406,7 +406,12 @@ async def test_create_agent_definition_with_profile_link(
         await client.get(f"/api/v1/library/{agent['id']}/versions", headers=auth_headers)
     ).json()
     assert versions[0]["dependencies"] == [
-        {"kind": "model_profile", "stable_key": "linked-profile", "version": 1}
+        {
+            "kind": "model_profile",
+            "stable_key": "linked-profile",
+            "version": 1,
+            "relation": "requires_model_profile",
+        }
     ]
 
 

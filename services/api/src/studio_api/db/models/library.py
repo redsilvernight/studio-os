@@ -90,12 +90,16 @@ class LibraryResourceVersionModel(UUIDPKMixin, Base):
 
 class LibraryResourceLinkModel(UUIDPKMixin, Base):
     """A version-pinned dependency edge: `from_version_id` depends on
-    exactly `(to_resource_id, to_version)` (DEC-0064)."""
+    exactly `(to_resource_id, to_version)` (DEC-0064), qualified by a closed
+    `relation` vocabulary (P5/DEC-0067). Uniqueness stays on
+    `(from_version_id, to_resource_id)`: every allowed kind couple maps to a
+    single relation, so no relaxation is needed."""
 
     __tablename__ = "library_resource_links"
     __table_args__ = (
         sa.UniqueConstraint("from_version_id", "to_resource_id", name="uq_library_link_edge"),
         sa.Index("ix_library_links_from", "from_version_id"),
+        sa.Index("ix_library_links_to", "to_resource_id"),
     )
 
     from_version_id: Mapped[uuid.UUID] = mapped_column(
@@ -105,6 +109,7 @@ class LibraryResourceLinkModel(UUIDPKMixin, Base):
         PGUUID(as_uuid=True), ForeignKey("library_resources.id")
     )
     to_version: Mapped[int]
+    relation: Mapped[str]
 
 
 class LibraryProjectLockModel(UUIDPKMixin, Base):

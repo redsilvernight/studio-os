@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.auth import Role
 from studio_contracts.events import EventCreate, EventType
 from studio_contracts.library import (
+    BindingRelation,
     DependencyPin,
     LibraryKind,
     LibraryLockCreate,
@@ -22,6 +23,8 @@ from studio_contracts.library import (
     LibraryVersion,
     LibraryVersionCreate,
     VersionOrigin,
+    binding_relation_for,
+    binding_scope_allows,
     content_validation_errors,
 )
 
@@ -139,6 +142,18 @@ async def _version_row(
     return (await session.execute(stmt)).scalar_one_or_none()
 
 
+def _invalid_binding(reason: str) -> HTTPException:
+    """422 for a structurally invalid Library Binding (P5/DEC-0067).
+
+    Only ever raised after the pin resolved to an existing, visible target
+    at an existing version — so it never leaks another user's private
+    existence (that stays 404 `pin_not_found`)."""
+    return HTTPException(
+        status.HTTP_422_UNPROCESSABLE_CONTENT,
+        detail={"error_code": "invalid_binding", "reason": reason},
+    )
+
+
 async def _create_version_row(
     session: AsyncSession,
     principal: Principal,
@@ -170,6 +185,11 @@ async def _create_version_row(
     )
     session.add(version_row)
     await session.flush()
+    # P5/DEC-0067: Library Binding validation, after existence/visibility
+    # gates (404/409 above) so a 422 only ever describes visible resources.
+    source_kind = LibraryKind(resource.kind)
+    seen_targets: set[UUID] = set()
+    model_profile_count = 0
     for pin in dependencies:
         target = await _resolve_pin(session, principal, pin)
         target_version = await _version_row(session, target.id, pin.version)
@@ -178,11 +198,31 @@ async def _create_version_row(
                 status.HTTP_404_NOT_FOUND,
                 detail={"error_code": "pin_version_not_found", "stable_key": pin.stable_key},
             )
+        expected = binding_relation_for(source_kind, LibraryKind(target.kind))
+        if expected is None:
+            raise _invalid_binding("forbidden_kind_pair")
+        if pin.relation is not None and pin.relation != expected:
+            raise _invalid_binding("relation_mismatch")
+        if expected == BindingRelation.REQUIRES_MODEL_PROFILE:
+            model_profile_count += 1
+            if model_profile_count > 1:
+                raise _invalid_binding("too_many_model_profiles")
+        if target.id in seen_targets:
+            raise _invalid_binding("duplicate_binding")
+        seen_targets.add(target.id)
+        if not binding_scope_allows(
+            LibraryScope(resource.scope),
+            resource.owner_user_id,
+            LibraryScope(target.scope),
+            target.owner_user_id,
+        ):
+            raise _invalid_binding("forbidden_scope")
         session.add(
             LibraryResourceLinkModel(
                 from_version_id=version_row.id,
                 to_resource_id=target.id,
                 to_version=pin.version,
+                relation=expected.value,
             )
         )
     return version_row
@@ -296,16 +336,23 @@ async def create_resource(
         raise HTTPException(
             status.HTTP_409_CONFLICT, detail={"error_code": "duplicate_stable_key"}
         ) from exc
-    version_row = await _create_version_row(
-        session,
-        principal,
-        resource,
-        1,
-        data.title,
-        data.description,
-        data.content,
-        data.dependencies,
-    )
+    try:
+        version_row = await _create_version_row(
+            session,
+            principal,
+            resource,
+            1,
+            data.title,
+            data.description,
+            data.content,
+            data.dependencies,
+        )
+    except HTTPException:
+        # Atomicity (P5/DEC-0067): a rejected pin/binding must leave neither
+        # a partial version row nor partial links behind, whatever the
+        # caller's session lifecycle is.
+        await session.rollback()
+        raise
     await session.commit()
     await session.refresh(resource)
     await _emit_library_event(
@@ -344,16 +391,21 @@ async def create_resource_version(
         )
     ).scalar_one()
     next_version = int(max_version or 0) + 1
-    version_row = await _create_version_row(
-        session,
-        principal,
-        locked,
-        next_version,
-        data.title,
-        data.description,
-        data.content,
-        data.dependencies,
-    )
+    try:
+        version_row = await _create_version_row(
+            session,
+            principal,
+            locked,
+            next_version,
+            data.title,
+            data.description,
+            data.content,
+            data.dependencies,
+        )
+    except HTTPException:
+        # Same atomicity as `create_resource`: no partial version/links.
+        await session.rollback()
+        raise
     locked.version += 1
     await session.commit()
     await session.refresh(version_row)
@@ -466,6 +518,7 @@ async def version_detail(
                 kind=LibraryKind(target.kind),
                 stable_key=target.stable_key,
                 version=link.to_version,
+                relation=BindingRelation(link.relation),
             )
         )
     return LibraryVersion(

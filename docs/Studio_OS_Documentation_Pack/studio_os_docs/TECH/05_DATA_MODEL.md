@@ -214,6 +214,21 @@ Contrainte unique `(resource_id, version)`.
 version, `to_resource_id` FK ressource, `to_version`) — des references, jamais
 de contenu duplique. Contrainte unique `(from_version_id, to_resource_id)`.
 
+## AI Library — P5 bindings (DEC-0067, migration Alembic `0010`, additive)
+
+`library_resource_links` gagne `relation` (vocabulaire ferme :
+`requires_model_profile`/`uses_skill`/`applies_rule`/`composes_agent`/
+`references_workflow`/`refines_skill_rule`, un par couple autorise —
+`rule` et `model_profile` ne sourcent jamais) + index inverse
+`(to_resource_id)`. Backfill deterministe depuis les kinds (couple
+autorise = relation unique) ; ligne legacy hors matrice = echec fort de
+migration, jamais d'invention. Unicite `(from_version_id,
+to_resource_id)` conservee ; `agent_definition → model_profile` 0..1 par
+version ; scope structurel : partage ne depend jamais de prive ;
+validation apres gates 404/409 (`422 invalid_binding`), echec = rollback
+complet. Pins immuables, resolution P2 inchangee (profondeur 1),
+`check_compatibility` non branche, aucun RuntimeBinding.
+
 `LibraryProjectLock` : `(project_id` FK, `resource_id` FK, `locked_version`,
 `created_by_user_id`, `created_at`) — la cle est l'UUID canonique, jamais
 `stable_key` seul (DEC-0064 precision 2). Contrainte unique

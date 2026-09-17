@@ -111,6 +111,19 @@ n'utilisant que leurs propres agents n'observent aucun changement.
   resolues a l'ecriture : pin inconnue = `404 pin_not_found`, version
   epinglee inexistante = `404 pin_version_not_found`, pin
   ambigue (meme cle dans plusieurs scopes visibles) = `409 pin_ambiguous`.
+- Bindings types (P5, DEC-0067) : chaque dependance porte une `relation`
+  (`requires_model_profile`/`uses_skill`/`applies_rule`/`composes_agent`/
+  `references_workflow`/`refines_skill_rule`, omise = inferee sans
+  ambiguite depuis le couple kind, explicite fausse ou couple interdit =
+  `422 {"error_code": "invalid_binding", "reason": ...}` apres les gates
+  404/409 — jamais un oracle sur des ressources invisibles ;
+  `agent_definition → model_profile` 0..1, autres couples N ; un partage
+  `agent_definition → model_profile` 0..1, autres couples N ; un partage
+  (studio/project) ne depend jamais d'un prive (user). Echec = rollback
+  complet (ni version ni lien partiels). Les reponses `dependencies`
+  incluent desormais toujours `relation` (renseignee). Aucun endpoint
+  intermediaire dedie, aucun outil MCP : creation atomique avec la version
+  uniquement.
 - Contenu semantique (P3, DEC-0066) : `content` valide par kind sur
   `POST /library` et `POST /library/{id}/versions`
   (`content_schema: studio.library.<kind>/v1`, champs inconnus interdits,

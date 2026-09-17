@@ -240,7 +240,7 @@ async def test_invisible_uuid_dependency_is_not_found(
         db_session,
         mine,
         "my-skill",
-        LibraryScope.STUDIO,
+        LibraryScope.USER,
         kind=LibraryKind.SKILL,
         dependencies=[DependencyPin(kind=LibraryKind.RULE, stable_key="my-rule", version=1)],
     )
@@ -271,7 +271,7 @@ async def test_no_implicit_substitution_same_key_different_uuid(
         db_session,
         mine,
         "rebound-skill",
-        LibraryScope.STUDIO,
+        LibraryScope.USER,
         kind=LibraryKind.SKILL,
         dependencies=[DependencyPin(kind=LibraryKind.RULE, stable_key="rebound", version=1)],
     )

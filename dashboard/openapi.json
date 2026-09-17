@@ -1894,7 +1894,7 @@
       }
      },
      "422": {
-      "description": "Library scope context rejected, nothing stored: project scope requires `project_id`, studio and user scopes forbid it (`invalid_scope_context`). Library semantic content rejected, nothing stored (P3 semantic content): the version `content` must match its per-kind schema (`content_schema: studio.library.<kind>/v1`, unknown fields forbidden, `rule`/`skill` prose bounded to 65_536 characters, `model_profile` carrying vendor-neutral `requirements` only, `agent_definition` descriptive only; `workflow` stays free-form until P11). Per-field `details` describe the caller's own payload only.",
+      "description": "Library scope context rejected, nothing stored: project scope requires `project_id`, studio and user scopes forbid it (`invalid_scope_context`). Library semantic content rejected, nothing stored (P3 semantic content): the version `content` must match its per-kind schema (`content_schema: studio.library.<kind>/v1`, unknown fields forbidden, `rule`/`skill` prose bounded to 65_536 characters, `model_profile` carrying vendor-neutral `requirements` only, `agent_definition` descriptive only; `workflow` stays free-form until P11). Per-field `details` describe the caller's own payload only. Library binding rejected, nothing stored (P5 typed bindings): the dependency pin names a forbidden kind couple (`forbidden_kind_pair`), an explicit relation that does not match the couple (`relation_mismatch`), a second model profile on one agent definition (`too_many_model_profiles`), twice the same target (`duplicate_binding`), or a private user target from a shared definition (`forbidden_scope`). Raised only after the 404/409 existence gates \u2014 never an oracle on invisible resources.",
       "content": {
        "application/json": {
         "example": {
@@ -2162,7 +2162,7 @@
       }
      },
      "422": {
-      "description": "Library semantic content rejected, nothing stored (P3 semantic content): the version `content` must match its per-kind schema (`content_schema: studio.library.<kind>/v1`, unknown fields forbidden, `rule`/`skill` prose bounded to 65_536 characters, `model_profile` carrying vendor-neutral `requirements` only, `agent_definition` descriptive only; `workflow` stays free-form until P11). Per-field `details` describe the caller's own payload only.",
+      "description": "Library semantic content rejected, nothing stored (P3 semantic content): the version `content` must match its per-kind schema (`content_schema: studio.library.<kind>/v1`, unknown fields forbidden, `rule`/`skill` prose bounded to 65_536 characters, `model_profile` carrying vendor-neutral `requirements` only, `agent_definition` descriptive only; `workflow` stays free-form until P11). Per-field `details` describe the caller's own payload only. Library binding rejected, nothing stored (P5 typed bindings): the dependency pin names a forbidden kind couple (`forbidden_kind_pair`), an explicit relation that does not match the couple (`relation_mismatch`), a second model profile on one agent definition (`too_many_model_profiles`), twice the same target (`duplicate_binding`), or a private user target from a shared definition (`forbidden_scope`). Raised only after the 404/409 existence gates \u2014 never an oracle on invisible resources.",
       "content": {
        "application/json": {
         "example": {
@@ -5997,6 +5997,19 @@
     "title": "AgentCreate",
     "description": "Public registration of a provenance identity: `machine_id` is always\nderived from the authenticated machine, never client-supplied.\n`display_name` and `agent_kind` are free-form metadata \u2014 never\nauthorization inputs, never the canonical identity (the\nserver-generated `Agent.id` is). `agent_profile`, `harness`, `provider`\nand `model` are optional open-string observability metadata: any value\nis accepted, unknown values are never rejected, and none of them is ever\nrequired."
    },
+   "BindingRelation": {
+    "type": "string",
+    "enum": [
+     "requires_model_profile",
+     "uses_skill",
+     "applies_rule",
+     "composes_agent",
+     "references_workflow",
+     "refines_skill_rule"
+    ],
+    "title": "BindingRelation",
+    "description": "Closed vocabulary of Library Binding types.\n\nEvery allowed `(source kind, target kind)` couple maps to exactly one\nrelation (see `_BINDING_MATRIX`) \u2014 the relation is a label on that\ncouple, never a free-form string. Unknown values are rejected by\nPydantic before any existence check runs."
+   },
    "Build": {
     "properties": {
      "created_at": {
@@ -6312,6 +6325,16 @@
      "version": {
       "type": "integer",
       "title": "Version"
+     },
+     "relation": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/BindingRelation"
+       },
+       {
+        "type": "null"
+       }
+      ]
      }
     },
     "additionalProperties": false,
@@ -6322,7 +6345,7 @@
      "version"
     ],
     "title": "DependencyPin",
-    "description": "A version-pinned reference to another library resource version\n."
+    "description": "A version-pinned reference to another library resource version.\n\n`relation` names the Library Binding type. When omitted it\nis inferred server-side from the unique matrix mapping for the\n`(source kind, target kind)` couple; an explicitly wrong relation for an\notherwise allowed couple is rejected with `422 invalid_binding`."
    },
    "DownloadUrlResponse": {
     "properties": {

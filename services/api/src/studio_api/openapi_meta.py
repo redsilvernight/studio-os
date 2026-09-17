@@ -254,6 +254,21 @@ RESP_422_LIBRARY_CONTENT: ErrorResponses = {
     )
 }
 
+RESP_422_LIBRARY_BINDING: ErrorResponses = {
+    422: _json_response(
+        "Library binding rejected, nothing stored (P5 typed bindings): "
+        "the dependency pin names a forbidden kind couple "
+        "(`forbidden_kind_pair`), an explicit relation that does not match "
+        "the couple (`relation_mismatch`), a second model profile on one "
+        "agent definition (`too_many_model_profiles`), twice the same "
+        "target (`duplicate_binding`), or a private user target from a "
+        "shared definition (`forbidden_scope`). Raised only after the "
+        "404/409 existence gates — never an oracle on invisible resources.",
+        {"detail": {"error_code": "invalid_binding", "reason": "forbidden_kind_pair"}},
+    )
+}
+
+
 RESP_409_TRANSFER_STATE: ErrorResponses = {
     409: _json_response(
         "Upload state conflict: the transfer is already `ready` "

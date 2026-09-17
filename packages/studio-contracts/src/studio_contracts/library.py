@@ -33,13 +33,89 @@ class LibraryStatus(StrEnum):
     DEPRECATED = "deprecated"
 
 
+class BindingRelation(StrEnum):
+    """Closed vocabulary of Library Binding types.
+
+    Every allowed `(source kind, target kind)` couple maps to exactly one
+    relation (see `_BINDING_MATRIX`) — the relation is a label on that
+    couple, never a free-form string. Unknown values are rejected by
+    Pydantic before any existence check runs."""
+
+    REQUIRES_MODEL_PROFILE = "requires_model_profile"
+    USES_SKILL = "uses_skill"
+    APPLIES_RULE = "applies_rule"
+    COMPOSES_AGENT = "composes_agent"
+    REFERENCES_WORKFLOW = "references_workflow"
+    REFINES_SKILL_RULE = "refines_skill_rule"
+
+
 class DependencyPin(ContractModel):
-    """A version-pinned reference to another library resource version
-    ."""
+    """A version-pinned reference to another library resource version.
+
+    `relation` names the Library Binding type. When omitted it
+    is inferred server-side from the unique matrix mapping for the
+    `(source kind, target kind)` couple; an explicitly wrong relation for an
+    otherwise allowed couple is rejected with `422 invalid_binding`."""
 
     kind: LibraryKind
     stable_key: str
     version: int
+    relation: BindingRelation | None = None
+
+
+_BINDING_MATRIX: dict[tuple[LibraryKind, LibraryKind], BindingRelation] = {
+    (LibraryKind.AGENT_DEFINITION, LibraryKind.RULE): BindingRelation.APPLIES_RULE,
+    (LibraryKind.AGENT_DEFINITION, LibraryKind.SKILL): BindingRelation.USES_SKILL,
+    (LibraryKind.AGENT_DEFINITION, LibraryKind.MODEL_PROFILE): (
+        BindingRelation.REQUIRES_MODEL_PROFILE
+    ),
+    (LibraryKind.AGENT_DEFINITION, LibraryKind.AGENT_DEFINITION): BindingRelation.COMPOSES_AGENT,
+    (LibraryKind.AGENT_DEFINITION, LibraryKind.WORKFLOW): BindingRelation.REFERENCES_WORKFLOW,
+    (LibraryKind.SKILL, LibraryKind.RULE): BindingRelation.REFINES_SKILL_RULE,
+    (LibraryKind.WORKFLOW, LibraryKind.RULE): BindingRelation.APPLIES_RULE,
+    (LibraryKind.WORKFLOW, LibraryKind.SKILL): BindingRelation.USES_SKILL,
+    (LibraryKind.WORKFLOW, LibraryKind.AGENT_DEFINITION): BindingRelation.COMPOSES_AGENT,
+}
+"""Single source of truth for allowed Library Binding couples (P5/DEC-0067).
+
+`rule` and `model_profile` never source a binding; every listed couple maps
+to exactly one relation, so an omitted pin relation is inferred without
+ambiguity and the `(from_version_id, to_resource_id)` uniqueness stays
+sufficient (no relaxation needed)."""
+
+
+def binding_relation_for(
+    source_kind: LibraryKind, target_kind: LibraryKind
+) -> BindingRelation | None:
+    """Returns the unique relation for an allowed couple, `None` when the
+    couple is forbidden. Pure function of the two kinds — no existence
+    oracle, safe to call before or after resolution."""
+
+    return _BINDING_MATRIX.get((source_kind, target_kind))
+
+
+def binding_scope_allows(
+    source_scope: LibraryScope,
+    source_owner: UUID | None,
+    target_scope: LibraryScope,
+    target_owner: UUID | None,
+) -> bool:
+    """Structural scope rule for Library Bindings (P5/DEC-0067, DEC-0063).
+
+    A shared definition (studio/project) must never depend on a private
+    (user) one — other readers would fail the whole resolution. A user
+    definition may only bind a user target owned by the same user. Every
+    other combination is allowed here; target visibility itself (`_can_read`
+    filter-first, 404 on invisible) is enforced separately before this runs,
+    so a `False` here only ever concerns resources visible to the caller."""
+
+    if target_scope == LibraryScope.USER:
+        return (
+            source_scope == LibraryScope.USER
+            and source_owner is not None
+            and source_owner == target_owner
+        )
+    return True
 
 
 class LibraryResource(VersionedModel):

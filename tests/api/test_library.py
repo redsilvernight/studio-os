@@ -255,7 +255,7 @@ async def test_version_pins_reference_without_duplication(
         await client.get(f"/api/v1/library/{skill['id']}/versions", headers=auth_headers)
     ).json()
     assert versions[0]["dependencies"] == [
-        {"kind": "rule", "stable_key": "base-rule", "version": 1}
+        {"kind": "rule", "stable_key": "base-rule", "version": 1, "relation": "refines_skill_rule"}
     ]
     assert versions[0]["content"] == {
         "content_schema": "studio.library.skill/v1",

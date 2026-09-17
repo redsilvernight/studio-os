@@ -88,3 +88,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0064 | AI Library versioning : pointeur actif, versions immuables, locks projet | active | [decisions/DEC-0064-ai-library-versioning.md](decisions/DEC-0064-ai-library-versioning.md) |
 | DEC-0065 | AI Library scope resolution : shadowing, version effective, erreurs unifiees | active | [decisions/DEC-0065-ai-library-scope-resolution.md](decisions/DEC-0065-ai-library-scope-resolution.md) |
 | DEC-0066 | AI Library semantic content P3 : schemas par kind, ModelProfile exigences pures, matcher fige | active | [decisions/DEC-0066-ai-library-semantic-content-p3.md](decisions/DEC-0066-ai-library-semantic-content-p3.md) |
+| DEC-0067 | AI Library bindings P5 : relations typees, matrice kind, fail-closed | active | [decisions/DEC-0067-ai-library-bindings-p5.md](decisions/DEC-0067-ai-library-bindings-p5.md) |
