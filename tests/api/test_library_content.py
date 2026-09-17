@@ -194,12 +194,14 @@ def test_agent_definition_content_rejects_wrong_schema() -> None:
     assert content_validation_errors(LibraryKind.AGENT_DEFINITION, content) != []
 
 
-# --- P3 schemas: workflow deferred to P11 ---------------------------------------
+# --- P3 schemas: workflow now owns the P11 schema (DEC-0075) ---------------------
 
 
-def test_workflow_content_stays_free_form() -> None:
-    assert content_validation_errors(LibraryKind.WORKFLOW, {}) == []
-    assert content_validation_errors(LibraryKind.WORKFLOW, {"anything": [1, 2]}) == []
+def test_workflow_content_is_no_longer_free_form() -> None:
+    """P11 replaced the free-form placeholder with the declarative schema
+    `studio.library.workflow/v1` (hardening, same category as DEC-0066 §6)."""
+    assert content_validation_errors(LibraryKind.WORKFLOW, {}) != []
+    assert content_validation_errors(LibraryKind.WORKFLOW, {"anything": [1, 2]}) != []
 
 
 # --- Capability matching (frozen P3 semantics) -----------------------------------

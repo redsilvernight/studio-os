@@ -884,3 +884,105 @@ async def test_p8_register_update_parity(
     assert _stable(as_dict(mcp_updated), "provider_ref") == _stable(
         http_updated.model_dump(mode="json"), "provider_ref"
     )
+
+
+# ---------------------------------------------------------------------------
+# P11: the generic Library surfaces transport a workflow definition unchanged
+# ---------------------------------------------------------------------------
+
+
+async def test_p8_workflow_publish_and_discover(
+    db_session: AsyncSession,
+    machine: tuple[MachineModel, str],
+    auth_ctx: FakeContext,
+) -> None:
+    mine = await _principal(db_session, machine)
+    writer_key = _key("p8-wf-writer")
+    reviewer_key = _key("p8-wf-reviewer")
+    await _create(db_session, mine, AGENT, writer_key, _agent_content())
+    await _create(db_session, mine, AGENT, reviewer_key, _agent_content())
+
+    key = _key("p8-wf")
+    created = await p8.studio_publish_definition(
+        "create",
+        auth_ctx,
+        kind="workflow",
+        stable_key=key,
+        scope="studio",
+        title="P8 workflow",
+        content={
+            "content_schema": "studio.library.workflow/v1",
+            "participants": [
+                {
+                    "participant_id": "implementer",
+                    "agent_stable_key": writer_key,
+                    "outputs": [{"name": "patch"}],
+                },
+                {
+                    "participant_id": "reviewer",
+                    "agent_stable_key": reviewer_key,
+                    "depends_on": ["implementer"],
+                    "inputs": [
+                        {
+                            "name": "patch",
+                            "source": {"participant_id": "implementer", "name": "patch"},
+                        }
+                    ],
+                    "outputs": [{"name": "review_report"}],
+                },
+            ],
+            "outputs": [
+                {
+                    "name": "review_report",
+                    "source": {"participant_id": "reviewer", "name": "review_report"},
+                }
+            ],
+        },
+        dependencies=[
+            DependencyPin(kind=AGENT, stable_key=writer_key, version=1),
+            DependencyPin(kind=AGENT, stable_key=reviewer_key, version=1),
+        ],
+    )
+    assert not isinstance(created, McpError)
+    detail = as_dict(created)
+    assert detail["resource"]["kind"] == "workflow"
+    assert detail["version"]["content"]["content_schema"] == "studio.library.workflow/v1"
+    assert {dep["relation"] for dep in detail["version"]["dependencies"]} == {"composes_agent"}
+
+    activated = await p8.studio_publish_definition(
+        "activate",
+        auth_ctx,
+        resource_id=detail["resource"]["id"],
+        version=1,
+        expected_resource_version=detail["resource"]["version"],
+    )
+    assert not isinstance(activated, McpError)
+
+    discovered = await p8.studio_discover_definitions(
+        auth_ctx, kind="workflow", stable_key=key, include_versions=True
+    )
+    found = as_dict(discovered)
+    assert found["resource"]["stable_key"] == key
+    assert found["versions"][0]["content"]["participants"][0]["participant_id"] == "implementer"
+
+    cyclic = await p8.studio_publish_definition(
+        "create",
+        auth_ctx,
+        kind="workflow",
+        stable_key=_key("p8-wf-bad"),
+        scope="studio",
+        title="Cyclic workflow",
+        content={
+            "content_schema": "studio.library.workflow/v1",
+            "participants": [
+                {"participant_id": "a", "agent_stable_key": writer_key, "depends_on": ["b"]},
+                {"participant_id": "b", "agent_stable_key": reviewer_key, "depends_on": ["a"]},
+            ],
+        },
+        dependencies=[
+            DependencyPin(kind=AGENT, stable_key=writer_key, version=1),
+            DependencyPin(kind=AGENT, stable_key=reviewer_key, version=1),
+        ],
+    )
+    assert isinstance(cyclic, McpError)
+    assert cyclic.error_code == "invalid_workflow"

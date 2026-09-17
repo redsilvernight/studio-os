@@ -43,8 +43,20 @@ def _agent_content() -> dict[str, object]:
     }
 
 
-def _workflow_content() -> dict[str, object]:
-    return {"notes": "Free-form until P11."}
+def _workflow_content(agent_key: str) -> dict[str, object]:
+    """Minimal P11-valid workflow: one participant composing `agent_key`
+    (the matching `composes_agent` pin is added by the caller)."""
+    return {
+        "content_schema": "studio.library.workflow/v1",
+        "participants": [
+            {
+                "participant_id": "worker",
+                "agent_stable_key": agent_key,
+                "outputs": [{"name": "result"}],
+            }
+        ],
+        "outputs": [{"name": "result", "source": {"participant_id": "worker", "name": "result"}}],
+    }
 
 
 _CONTENTS = {
@@ -52,7 +64,6 @@ _CONTENTS = {
     "skill": _skill_content(),
     "model_profile": _profile_content(),
     "agent_definition": _agent_content(),
-    "workflow": _workflow_content(),
 }
 
 
@@ -62,13 +73,14 @@ def _payload(
     scope: str = "studio",
     dependencies: list[dict[str, object]] | None = None,
     project_id: object = None,
+    content: dict[str, object] | None = None,
 ) -> dict[str, object]:
     body: dict[str, object] = {
         "kind": kind,
         "stable_key": key,
         "scope": scope,
         "title": f"{key} title",
-        "content": _CONTENTS[kind],
+        "content": content if content is not None else _CONTENTS[kind],
         "dependencies": dependencies or [],
     }
     if project_id is not None:
@@ -164,7 +176,16 @@ async def test_agent_binds_all_five_kinds(
     await _create(client, auth_headers, _payload("skill", "p5-skill"))
     await _create(client, auth_headers, _payload("model_profile", "p5-profile"))
     await _create(client, auth_headers, _payload("agent_definition", "p5-peer"))
-    await _create(client, auth_headers, _payload("workflow", "p5-flow"))
+    await _create(
+        client,
+        auth_headers,
+        _payload(
+            "workflow",
+            "p5-flow",
+            content=_workflow_content("p5-peer"),
+            dependencies=[_pin("agent_definition", "p5-peer")],
+        ),
+    )
     agent = await _create(
         client,
         auth_headers,
@@ -197,6 +218,7 @@ async def test_skill_refines_rule_and_workflow_binds(
     client: AsyncClient, auth_headers: dict[str, str]
 ) -> None:
     await _create(client, auth_headers, _payload("rule", "p5-w-rule"))
+    await _create(client, auth_headers, _payload("agent_definition", "p5-w-agent"))
     skill = await _create(
         client,
         auth_headers,
@@ -212,9 +234,11 @@ async def test_skill_refines_rule_and_workflow_binds(
         _payload(
             "workflow",
             "p5-w-flow",
+            content=_workflow_content("p5-w-agent"),
             dependencies=[
                 _pin("rule", "p5-w-rule"),
                 _pin("skill", "p5-w-skill"),
+                _pin("agent_definition", "p5-w-agent"),
             ],
         ),
     )
@@ -224,6 +248,7 @@ async def test_skill_refines_rule_and_workflow_binds(
     assert {d["relation"] for d in flow_versions[0]["dependencies"]} == {
         "applies_rule",
         "uses_skill",
+        "composes_agent",
     }
 
 
@@ -234,7 +259,12 @@ async def test_workflow_binds_agent_definition(
     flow = await _create(
         client,
         auth_headers,
-        _payload("workflow", "p5-f-flow", dependencies=[_pin("agent_definition", "p5-f-agent")]),
+        _payload(
+            "workflow",
+            "p5-f-flow",
+            content=_workflow_content("p5-f-agent"),
+            dependencies=[_pin("agent_definition", "p5-f-agent")],
+        ),
     )
     versions = (
         await client.get(f"/api/v1/library/{flow['id']}/versions", headers=auth_headers)

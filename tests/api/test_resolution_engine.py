@@ -425,7 +425,12 @@ def test_duplicate_live_candidates_are_invalid_input() -> None:
 
 def test_composed_agents_and_workflows_preserved_not_expanded() -> None:
     other = _node(AGENT, "other", _agent_content(), origin=VersionOrigin.ACTIVE)
-    flow = _node(WORKFLOW, "flow", {"note": "free-form until P11"}, origin=VersionOrigin.ACTIVE)
+    flow = _node(
+        WORKFLOW,
+        "flow",
+        {"content_schema": "studio.library.workflow/v1"},
+        origin=VersionOrigin.ACTIVE,
+    )
     agent = _node(
         AGENT,
         "a",
