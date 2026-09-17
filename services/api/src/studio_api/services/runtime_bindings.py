@@ -16,6 +16,11 @@ from studio_contracts.library import (
     RuntimeCapabilities,
     check_compatibility,
 )
+from studio_contracts.resolution import (
+    ResolutionFailure,
+    RuntimeCandidate,
+    select_runtime,
+)
 from studio_contracts.runtime import (
     RuntimeBinding,
     RuntimeBindingCreate,
@@ -243,6 +248,67 @@ async def _stored_choice(
     return RuntimeTarget.model_validate(dict(row.target))
 
 
+async def load_candidates(
+    session: AsyncSession,
+    principal: Principal,
+    keys: list[tuple[LibraryKind, str]],
+    project_id: UUID | None = None,
+    session_overrides: Mapping[tuple[LibraryKind, str], RuntimeTarget] | None = None,
+) -> list[RuntimeCandidate]:
+    """Acquisition shared by P4 selection and the P5 engine: validates session
+    overrides explicitly (unknown machine 404, another user's machine
+    403) and liveness-checks every stored choice (deleted/revoked machine =
+    non-live, never a hard error). Pure selection happens downstream via
+    `select_runtime` — this function only loads."""
+
+    overrides = dict(session_overrides or {})
+    candidates: list[RuntimeCandidate] = []
+    for key_kind, key_name in keys:
+        candidate = overrides.get((key_kind, key_name))
+        if candidate is not None:
+            await _checked_target(session, principal, candidate)
+            if await _live_target(session, candidate) is not None:
+                candidates.append(
+                    RuntimeCandidate(
+                        level=RuntimeLevel.SESSION,
+                        kind=key_kind,
+                        stable_key=key_name,
+                        target=candidate,
+                        live=True,
+                    )
+                )
+    for level, scoped in (
+        (RuntimeLevel.PROJECT_OVERRIDE, True),
+        (RuntimeLevel.USER, False),
+        (RuntimeLevel.PROJECT_DEFAULT, True),
+        (RuntimeLevel.STUDIO_DEFAULT, False),
+    ):
+        if scoped and project_id is None:
+            continue
+        for key_kind, key_name in keys:
+            if level == RuntimeLevel.USER:
+                stored = await _stored_choice(
+                    session, level, key_kind, key_name, owner_id=principal.user.id
+                )
+            elif scoped:
+                stored = await _stored_choice(
+                    session, level, key_kind, key_name, project_id=project_id
+                )
+            else:
+                stored = await _stored_choice(session, level, key_kind, key_name)
+            if stored is not None:
+                candidates.append(
+                    RuntimeCandidate(
+                        level=level,
+                        kind=key_kind,
+                        stable_key=key_name,
+                        target=stored,
+                        live=(await _live_target(session, stored)) is not None,
+                    )
+                )
+    return candidates
+
+
 async def resolve_runtime(
     session: AsyncSession,
     principal: Principal,
@@ -315,71 +381,26 @@ async def resolve_runtime(
             dict(profile_version.content.get("requirements", {}))
         )
     keys = [(kind, stable_key)] + ([profile_key] if profile_key is not None else [])
-    overrides = dict(session_overrides or {})
-    for key_kind, key_name in keys:
-        candidate = overrides.get((key_kind, key_name))
-        if candidate is not None:
-            await _checked_target(session, principal, candidate)
-            live = await _live_target(session, candidate)
-            if live is not None:
-                return _verdict(
-                    resolved, live, RuntimeLevel.SESSION, key_kind, key_name, requirements
-                )
-    if project_id is not None:
-        for key_kind, key_name in keys:
-            candidate = await _stored_choice(
-                session,
-                RuntimeLevel.PROJECT_OVERRIDE,
-                key_kind,
-                key_name,
-                project_id=project_id,
-            )
-            if candidate is not None and await _live_target(session, candidate) is not None:
-                return _verdict(
-                    resolved,
-                    candidate,
-                    RuntimeLevel.PROJECT_OVERRIDE,
-                    key_kind,
-                    key_name,
-                    requirements,
-                )
-    for key_kind, key_name in keys:
-        candidate = await _stored_choice(
-            session, RuntimeLevel.USER, key_kind, key_name, owner_id=principal.user.id
+    candidates = await load_candidates(session, principal, keys, project_id, session_overrides)
+    try:
+        winner = select_runtime(candidates, (kind, stable_key), profile_key)
+    except ResolutionFailure as failure:
+        # Unreachable via `load_candidates` (one row per key, session dict
+        # keys unique): duplicate live candidates would mean a broken
+        # uniqueness invariant, never a caller error — fail loud, not silent.
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error_code": "runtime_resolution_failed"},
+        ) from failure
+    if winner is not None:
+        return _verdict(
+            resolved,
+            winner.target,
+            winner.level,
+            winner.kind,
+            winner.stable_key,
+            requirements,
         )
-        if candidate is not None and await _live_target(session, candidate) is not None:
-            return _verdict(
-                resolved, candidate, RuntimeLevel.USER, key_kind, key_name, requirements
-            )
-    if project_id is not None:
-        for key_kind, key_name in keys:
-            candidate = await _stored_choice(
-                session,
-                RuntimeLevel.PROJECT_DEFAULT,
-                key_kind,
-                key_name,
-                project_id=project_id,
-            )
-            if candidate is not None and await _live_target(session, candidate) is not None:
-                return _verdict(
-                    resolved,
-                    candidate,
-                    RuntimeLevel.PROJECT_DEFAULT,
-                    key_kind,
-                    key_name,
-                    requirements,
-                )
-    for key_kind, key_name in keys:
-        candidate = await _stored_choice(session, RuntimeLevel.STUDIO_DEFAULT, key_kind, key_name)
-        if candidate is not None and await _live_target(session, candidate) is not None:
-            return _verdict(
-                resolved,
-                candidate,
-                RuntimeLevel.STUDIO_DEFAULT,
-                key_kind,
-                key_name,
-                requirements,
-            )
     return RuntimeResolution(
         target=None,
         level=None,

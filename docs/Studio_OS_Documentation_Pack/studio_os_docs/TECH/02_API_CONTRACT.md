@@ -163,6 +163,20 @@ n'utilisant que leurs propres agents n'observent aucun changement.
   invalide (donnee de l'appelant) = erreur explicite. Compatibilite
   toujours rapportee (`unknown != compatible`), jamais silenciee.
 
+- Resolution Engine P5 (DEC-0069, service interne sans endpoint ni MCP
+  — exposition P7/P8) : `resolve_full` (acquisition : racine P2,
+  visibilite/liveness P4) + coeur pur `resolve_agent`
+  (`studio_contracts`, sans SQL/HTTP/LLM) produisant
+  `ResolvedAgentDefinition` (versions exactes, provenance structuree,
+  runtime gagnant + niveau, verdict). Precedence partagee avec P4
+  (`select_runtime`, ordre et semantique inchanges). Incompatible
+  explicite = `422 runtime_incompatible` (niveau/cle/`unsatisfied`,
+  sans fallback vers un niveau inferieur) ; dependance
+  absente/invisible = `404 definition_not_found` ; entree incoherente
+  = `422 invalid_resolution_input`. Sans choix : `runtime = null`
+  valide. Harness-neutral et provider-neutral ; frontiere P6 (aucun
+  catalogue/discovery) et P10 (aucun adaptateur) hors scope.
+
 ### Review Queue (sous-etape 8.4, additif, DEC-0049)
 - GET /review-queue — vue agregee, lecture seule, de tout ce qui attend une
   action humaine : `AIWorkLog` en `review_requested` (resoudre via

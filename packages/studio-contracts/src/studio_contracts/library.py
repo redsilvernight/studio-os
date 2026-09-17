@@ -189,8 +189,14 @@ class LibraryDeprecate(ContractModel):
 
 
 class VersionOrigin(StrEnum):
+    """How an effective version was picked: P2 shadowing selection yields
+    `lock`/`active`; an exact version-pinned dependency edge yields `pin`.
+    Only the P5 resolved output emits `pin` — `LibraryResolution` (P2) still
+    emits `lock`/`active` alone (DEC-0069, additive)."""
+
     LOCK = "lock"
     ACTIVE = "active"
+    PIN = "pin"
 
 
 class LibraryResolution(ContractModel):

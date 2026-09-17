@@ -299,3 +299,29 @@ Provenance minimale (`LibraryResolution` : scope, UUID, version, origine
 `lock`/`active`, flag deprecated). Resolution et compatibilite (`unknown !=
 compatible`) restent separees. (Le P5 n'introduit aucun RuntimeBinding ;
 voir la section P4 ci-dessus.)
+
+## AI Library — P5 Resolution Engine (DEC-0069, sans DDL, sans endpoint)
+
+`ResolvedAgentDefinition` (`studio_contracts/resolution.py`, coeur pur
+sans SQL/HTTP/LLM/horloge) : agent + rules + skills + model_profile 0..1
+aux versions exactes epinglees, `CapabilityRequirement` exacte (aucune
+exigence implicite sans profil), references `composes_agent`/
+`references_workflow` preservees sans expansion (workflows : P11),
+runtime gagnant + niveau + verdict. Seule transitivite : `skill → rule`
+un niveau ; meme rule par deux chemins = un objet + un `RulePath` par
+chemin. Provenance structuree (`source`, `resource_id`, `stable_key`,
+`scope`, `version`, `version_origin` — dont `pin` additif emis par la
+seule sortie P5 — `locked`, `relation`, `binding_level`, `via`).
+Precedence unique et partagee avec P4 (`select_runtime` : `session >
+project_override > user > project_default > studio_default`, cle agent
+avant cle profil ; `resolve_runtime` refactoré dessus, comportement
+inchange). Selection puis jugement : incompatible explicite =
+`runtime_incompatible`, jamais de fallback vers un niveau inferieur,
+jamais de `null` silencieux ; sans choix `runtime = null` valide ;
+`unknown != compatible`. Erreurs fermees
+(`definition_not_found`/`unresolvable_dependency`/`runtime_incompatible`/
+`invalid_resolution_input`), dependances invisibles toujours
+`404 definition_not_found` (non-oracle). Acquisition (`resolve_full`,
+interne, sans endpoint) : racine P2, visibilite/liveness P4, puis coeur
+pur. Harness-neutral et provider-neutral (`provider_ref`/`model_ref`
+opaques). Frontiere P6 : aucun catalogue, aucune discovery.
