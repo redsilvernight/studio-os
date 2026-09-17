@@ -176,6 +176,20 @@ n'utilisant que leurs propres agents n'observent aucun changement.
   = `422 invalid_resolution_input`. Sans choix : `runtime = null`
   valide. Harness-neutral et provider-neutral ; frontiere P6 (aucun
   catalogue/discovery) et P10 (aucun adaptateur) hors scope.
+- Runtime Registry P6 (DEC-0070, service interne sans endpoint ni MCP
+  — exposition P7/P8) : runtimes declares (`register/read/list/update/
+  revoke`, owner toujours l'appelant, machine attachee possedee par
+  l'appelant, `machine_id` null = distant/cloud, meme abstraction).
+  Identite stable UUID (aucune unicite sur `provider_ref`/`model_ref`,
+  chaines ouvertes, aucun catalogue vendor) ; capabilities declarees
+  (`declared`, `unknown != compatible`) ; metadata non secrets (cles
+  secretes rejetees) ; revocation logique (revoque = non-live, niveau
+  traverse, jamais re-cible silencieusement). Bindings P4 : `target`
+  accepte `runtime_id` exclusif (canonique Registry, `404
+  runtime_not_found`, `403` cross-user) ou forme inline P4 inchangee
+  (migration no-op) ; `harness_ref` additif separe du provider.
+  Erreurs `422 runtime_id_must_be_exclusive` (sous
+  `invalid_runtime_binding`), `422 invalid_runtime`.
 
 ### Review Queue (sous-etape 8.4, additif, DEC-0049)
 - GET /review-queue — vue agregee, lecture seule, de tout ce qui attend une

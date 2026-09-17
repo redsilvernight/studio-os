@@ -286,6 +286,27 @@ partagés lisibles comme les ressources projet. Résolution déterministe
 `check_compatibility` rapporté, jamais silencié. `LibraryProjectLock`
 (pin de version) distinct de l'override runtime projet.
 
+## AI Library — P6 Runtime Registry (DEC-0070, migration `0012`, additive)
+
+`runtimes` : runtimes déclarés (`id` identité stable — jamais une
+concaténation `machine/provider/model`), `owner_user_id` (toujours le
+déclarant, server-derived), `machine_id?` (FK optionnelle : attaché local
+vs distant/cloud, même abstraction), `harness_ref?`/`provider_ref?`/
+`model_ref?` (chaînes ouvertes, au moins une ancre, aucune unicité sur le
+couple provider/modèle, aucun catalogue vendor), `capabilities` JSONB
+(snapshot déclaré, `unknown != compatible` via `check_compatibility`
+inchangé), `capability_source` (`declared`, point d'extension), `runtime_metadata` JSONB (non secrets, clés secrètes rejetées au contrat),
+`status` (`active`/`revoked` — révocation logique, jamais de delete),
+`version` (concurrence optimiste : `expected_version`, 409
+`version_conflict` sur écriture périmée, jamais d'écrasement silencieux).
+Runtimes toujours privés (owner-ou-admin, 404 masqué). `RuntimeTarget`
+gagne `runtime_id?` (référence canonique exclusive à l'entrée) et
+`harness_ref?` ; bindings P4 sans `runtime_id` inchangés (migration
+no-op). Non-live = révoqué ou machine attachée supprimée/révoquée
+(liveness Machine réutilisée) → niveau traversé. Cœur P5 intact
+(acquisition enrichie uniquement). Aucun endpoint/MCP (P7/P8),
+aucun adaptateur (P10).
+
 ## AI Library — P2 resolution (DEC-0065, service pur, sans endpoint)
 
 `resolve_definition(principal, kind, stable_key, project_id?)` : filtre

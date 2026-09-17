@@ -91,3 +91,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0067 | AI Library bindings P5 : relations typees, matrice kind, fail-closed | active | [decisions/DEC-0067-ai-library-bindings-p5.md](decisions/DEC-0067-ai-library-bindings-p5.md) |
 | DEC-0068 | AI Library User/Runtime Bindings P4 : choix runtime par utilisateur, precedences | active | [decisions/DEC-0068-ai-library-user-runtime-bindings-p4.md](decisions/DEC-0068-ai-library-user-runtime-bindings-p4.md) |
 | DEC-0069 | AI Library Resolution Engine P5 : coeur pur, provenance, erreur stricte | active | [decisions/DEC-0069-ai-library-resolution-engine-p5.md](decisions/DEC-0069-ai-library-resolution-engine-p5.md) |
+| DEC-0070 | AI Library Runtime Registry P6 : runtimes declares, identite stable, neutre provider/harness | active | [decisions/DEC-0070-ai-library-runtime-registry-p6.md](decisions/DEC-0070-ai-library-runtime-registry-p6.md) |
