@@ -24,8 +24,9 @@ TEXTUAL_LIBRARY_KINDS: tuple[str, ...] = ("rule", "skill")
 
 `model_profile` carries capability requirements (not prose to inject),
 `agent_definition` is structural (P5 resolution owns it — P9 never resolves),
-`workflow` content is free-form deferred to P11. Those kinds are skipped with
-`out_of_scope`, never serialized blindly.
+`workflow` is a declarative definition (P11/DEC-0075 — participants, DAG and
+I/O, no injectable prose). Those kinds are skipped with `out_of_scope`, never
+serialized blindly.
 """
 
 _SCOPE_RANK = {"user": 0, "project": 1, "studio": 2}

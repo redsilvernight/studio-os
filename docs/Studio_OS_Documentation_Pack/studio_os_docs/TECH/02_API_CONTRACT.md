@@ -124,19 +124,31 @@ n'utilisant que leurs propres agents n'observent aucun changement.
   incluent desormais toujours `relation` (renseignee). Aucun endpoint
   intermediaire dedie, aucun outil MCP : creation atomique avec la version
   uniquement.
-- Contenu semantique (P3, DEC-0066) : `content` valide par kind sur
-  `POST /library` et `POST /library/{id}/versions`
+- Contenu semantique (P3, DEC-0066 ; P11, DEC-0075) : `content` valide par
+  kind sur `POST /library` et `POST /library/{id}/versions`
   (`content_schema: studio.library.<kind>/v1`, champs inconnus interdits,
   prose `rule`/`skill` bornee a 65_536 caracteres, `model_profile`
   exigences vendor-neutral uniquement, `agent_definition` descriptif
-  uniquement ; `workflow` libre jusqu'a P11). Rejet = `422
+  uniquement, `workflow` declaratif uniquement — participants, DAG,
+  inputs/outputs, aucun champ d'execution/runtime). Rejet = `422
   {"error_code": "invalid_content", "details": [...]}` apres les gates
   d'autorisation — jamais un oracle sur des ressources invisibles.
-  Note : `content` reste optionnel au transport (defaut `{}`), mais P3
-  exige un contenu valide pour `rule`/`skill`/`model_profile`/
-  `agent_definition` (`workflow` excepte) ; `Idempotency-Key` reste
+  Note : `content` reste optionnel au transport (defaut `{}`), mais le
+  contenu valide est exige pour les cinq kinds ; `Idempotency-Key` reste
   supporte sur ces ecritures et un rejet 422 libere la reservation
   (rejeu identique = nouveau 422, jamais de doublon).
+- Workflow declaratif (P11, DEC-0075) : un `content` de kind `workflow`
+  schema-valide mais structurellement incoherent (participant duplique,
+  `depends_on` inconnu, cycle de dependances, `agent_stable_key` sans pin
+  `composes_agent`, pin `composes_agent` inutilise, nom d'I/O duplique,
+  reference dataflow irresolvable) est rejete `422 {"error_code":
+  "invalid_workflow", "reason": "...", "field": "..."}` (reasons fermes :
+  `duplicate_participant`, `unknown_dependency`, `dependency_cycle`,
+  `unknown_participant_agent`, `unused_agent_dependency`,
+  `duplicate_io_declaration`, `invalid_io_reference`). Validation statique
+  de definition : aucun endpoint dedie, aucun `WorkflowRun`, aucune
+  orchestration serveur — l'execution appartient au harness, et toute
+  orchestration serveur future exigerait une nouvelle DEC.
 - POST /library/{id}/activate — body `LibraryActivate`
   (`version`, `expected_resource_version`) : deplace explicitement
   `active_version` (passe `status` a `active`), `409 version_conflict` sur

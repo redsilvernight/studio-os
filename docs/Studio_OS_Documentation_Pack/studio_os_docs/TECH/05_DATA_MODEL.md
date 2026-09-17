@@ -258,8 +258,9 @@ provider/modele/harness/endpoint/secret/ranking/whitelist) ;
 `AgentDefinitionContent` (`studio.library.agent_definition/v1`,
 `summary?`/`intended_use?` — aucune capability inline, aucun runtime
 concret ; les exigences passent par un lien vers `model_profile`, un
-AgentDefinition sans lien n'exprime aucune exigence). `workflow` reste
-libre jusqu'a P11. Champs inconnus interdits (`extra="forbid"`).
+AgentDefinition sans lien n'exprime aucune exigence) ; `WorkflowContent`
+(P11/DEC-0075, `studio.library.workflow/v1`, section dediee ci-dessous).
+Champs inconnus interdits (`extra="forbid"`).
 `content_schema` versionne la forme de l'artefact stocke, jamais les
 payloads MCP/API (DEC-0048 inchange). Matcher fige : `coding`,
 `context_window_min` (>=), `tools_required` (subset),
@@ -332,7 +333,8 @@ voir la section P4 ci-dessus.)
 sans SQL/HTTP/LLM/horloge) : agent + rules + skills + model_profile 0..1
 aux versions exactes epinglees, `CapabilityRequirement` exacte (aucune
 exigence implicite sans profil), references `composes_agent`/
-`references_workflow` preservees sans expansion (workflows : P11),
+`references_workflow` preservees sans expansion (workflow = definition
+declarative P11/DEC-0075, jamais executee par le resolver),
 runtime gagnant + niveau + verdict. Seule transitivite : `skill → rule`
 un niveau ; meme rule par deux chemins = un objet + un `RulePath` par
 chemin. Provenance structuree (`source`, `resource_id`, `stable_key`,
@@ -353,3 +355,26 @@ pur — exposee par `POST /resolutions` (body `AgentResolutionRequest`,
 `session_overrides` ephemeres, reponse `ResolvedAgentDefinition`
 complete). Harness-neutral et provider-neutral (`provider_ref`/`model_ref`
 opaques). Frontiere P6 : aucun catalogue, aucune discovery.
+
+## AI Library — P11 Workflow definition (DEC-0075, sans DDL)
+
+`WorkflowContent` (`studio.library.workflow/v1`) : definition declarative
+du `content` d'une version `workflow`, validee a l'ecriture au meme point
+unique `_create_version_row` que P3. Elle possede l'identite des
+participants (`participant_id` local stable, syntaxe portable
+`^[A-Za-z][A-Za-z0-9_-]{0,127}$`), leur `description?`, leur
+`agent_stable_key`, leur `depends_on` (DAG valide statiquement) et leurs
+declarations `inputs`/`outputs`, plus les `inputs`/`outputs` du workflow.
+Les references AgentDefinition/Rule/Skill restent la propriete des pins
+versionnes (`library_resource_links`, relations `composes_agent`/
+`applies_rule`/`uses_skill`), jamais copiees dans le content. Un meme
+AgentDefinition peut jouer plusieurs roles : un seul pin partage, plusieurs
+`participant_id`. Validation structurelle pure
+(`workflow_validation_errors`, sans acces aux ressources stockees) :
+`duplicate_participant`, `unknown_dependency`, `dependency_cycle`,
+`unknown_participant_agent`, `unused_agent_dependency`,
+`duplicate_io_declaration`, `invalid_io_reference` → `422 invalid_workflow`
+avant les gates 404/409, echec = rollback complet. Aucun run, aucun etat
+d'execution, aucun scheduler, aucun appel LLM cote serveur : Studi'OS
+decrit le graphe, le harness le parcourt. Toute orchestration serveur
+future exige une nouvelle DEC.
