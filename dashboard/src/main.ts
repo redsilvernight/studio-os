@@ -18,6 +18,9 @@ import { renderTasksInto } from "./views/tasks";
 import { renderMachines } from "./views/machines";
 import { renderDecisions } from "./views/decisions";
 import { renderTransfers } from "./views/transfers";
+import { renderLibrary, renderLibraryDetail } from "./views/library";
+import { renderBindings, renderProjectConfig, renderRuntimeDetail, renderRuntimes } from "./views/configuration";
+import { renderInspector } from "./views/inspector";
 import { loginOverlayHtml, renderLogin } from "./login";
 import { parseRoute, type Route } from "./router";
 import { esc } from "./ui";
@@ -47,7 +50,11 @@ function navHtml(route: Route): string {
     "#/transfers",
     "Transfers",
     route.name === "transfers",
-  )}${disabled}</nav>`;
+  )}${item("#/library", "Library", route.name === "library" || route.name === "libraryDetail")}${item(
+    "#/configuration/runtimes",
+    "Configuration",
+    route.name === "configRuntimes" || route.name === "configRuntime" || route.name === "configBindings" || route.name === "configProject",
+  )}${item("#/inspector", "Inspector", route.name === "inspector")}${disabled}</nav>`;
 }
 
 function shellHtml(apiUrl: string, route: Route): string {
@@ -113,6 +120,27 @@ async function render(): Promise<void> {
       break;
     case "transfers":
       await renderTransfers(view, { client, authed });
+      break;
+    case "library":
+      await renderLibrary(view, { client, authed }, route.kind);
+      break;
+    case "libraryDetail":
+      await renderLibraryDetail(view, { client, authed }, route.kind, route.id);
+      break;
+    case "configRuntimes":
+      await renderRuntimes(view, { client, authed });
+      break;
+    case "configRuntime":
+      await renderRuntimeDetail(view, { client, authed }, route.id);
+      break;
+    case "configBindings":
+      await renderBindings(view, { client, authed });
+      break;
+    case "configProject":
+      await renderProjectConfig(view, { client, authed }, route.tab);
+      break;
+    case "inspector":
+      await renderInspector(view, { client, authed, stableKey: route.stableKey });
       break;
     case "dashboard":
     default:

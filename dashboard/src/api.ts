@@ -17,12 +17,16 @@ export interface ApiErrorDetails {
   message: string;
   /** Present on 409 version_conflict: the live server version to re-read. */
   serverVersion: number | null;
+  /** Raw structured `detail` object when the backend sent one (e.g. the
+   *  `runtime_incompatible` level/unsatisfied fields). Never a secret. */
+  details?: unknown;
 }
 
 export class ApiError extends Error {
   readonly status: number;
   readonly errorCode: string | null;
   readonly serverVersion: number | null;
+  readonly details: unknown;
 
   constructor(details: ApiErrorDetails) {
     super(details.message);
@@ -30,6 +34,7 @@ export class ApiError extends Error {
     this.status = details.status;
     this.errorCode = details.errorCode;
     this.serverVersion = details.serverVersion;
+    this.details = details.details ?? null;
   }
 
   get isAuth(): boolean {
@@ -66,6 +71,7 @@ export function parseErrorBody(status: number, body: unknown): ApiErrorDetails {
         status,
         errorCode: code,
         serverVersion,
+        details: detail,
         message: code !== null ? `${code} (HTTP ${status})` : `HTTP ${status}`,
       };
     }

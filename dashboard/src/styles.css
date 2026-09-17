@@ -310,3 +310,82 @@ progress {
   align-self: center;
 }
 
+/* P12 — Library / Configuration / Inspector */
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; margin-top: 8px; }
+a.card.link, .card.link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 8px 10px;
+  background: var(--bg);
+}
+a.card.link:hover { border-color: var(--accent); }
+.card.link .title { display: block; font-weight: 600; }
+.card.link .sub { display: block; color: var(--dim); font-size: 11px; margin-top: 2px; }
+
+.notice {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--warn);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--warn) 12%, var(--panel));
+  font-size: 12px;
+}
+
+details.editor, details.version {
+  margin-top: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+}
+details.editor > summary, details.version > summary { cursor: pointer; font-size: 12px; color: var(--dim); }
+details.version[open] > summary { color: var(--text); }
+
+.repeat { display: grid; gap: 6px; margin-top: 6px; }
+.repeat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+}
+label.cell { display: grid; gap: 3px; font-size: 11px; color: var(--dim); }
+label.cell input, label.cell select { background: var(--bg); border: 1px solid var(--line); color: var(--text); border-radius: 4px; padding: 4px 6px; font-size: 12px; }
+label.check { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text); }
+.stack-form label.stack { display: grid; gap: 4px; }
+
+pre.code {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+}
+
+ul.edges { margin: 6px 0; padding-left: 18px; }
+ul.edges li { margin: 2px 0; }
+
+.compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+.compare h4 { margin: 0 0 4px; font-size: 12px; color: var(--dim); }
+@media (max-width: 640px) {
+  .compare { grid-template-columns: 1fr; }
+}
+
+.reasons { display: grid; gap: 6px; font-size: 12px; }
+.reasons strong { color: var(--text); }
+
+table + form, .editor + form { margin-top: 12px; }
+
+

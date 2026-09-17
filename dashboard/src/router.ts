@@ -1,5 +1,8 @@
 /** Hash routes (DOM-free so they stay unit-testable). */
+import { isLibraryKindSlug, type LibraryKindSlug } from "./libraryFormat";
 import type { ProjectTab } from "./views/projectDetail";
+
+export type ProjectConfigTab = "resources" | "locks" | "overrides";
 
 export type Route =
   | { name: "dashboard" }
@@ -9,7 +12,22 @@ export type Route =
   | { name: "task"; id: string }
   | { name: "machines" }
   | { name: "decisions" }
-  | { name: "transfers" };
+  | { name: "transfers" }
+  | { name: "library"; kind: LibraryKindSlug | null }
+  | { name: "libraryDetail"; kind: LibraryKindSlug; id: string }
+  | { name: "configRuntimes" }
+  | { name: "configRuntime"; id: string }
+  | { name: "configBindings" }
+  | { name: "configProject"; tab: ProjectConfigTab }
+  | { name: "inspector"; stableKey: string | null };
+
+function decode(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
 
 export function parseRoute(hash: string): Route {
   const parts = hash.replace(/^#\/?/, "").split("/").filter((p) => p !== "");
@@ -24,5 +42,37 @@ export function parseRoute(hash: string): Route {
   if (parts[0] === "machines" && parts.length === 1) return { name: "machines" };
   if (parts[0] === "decisions" && parts.length === 1) return { name: "decisions" };
   if (parts[0] === "transfers" && parts.length === 1) return { name: "transfers" };
+  if (parts[0] === "library") {
+    if (parts.length === 1) return { name: "library", kind: null };
+    const kind = parts[1];
+    if (kind !== undefined && isLibraryKindSlug(kind)) {
+      if (parts.length === 2) return { name: "library", kind };
+      if (parts.length === 3 && parts[2] !== undefined) {
+        return { name: "libraryDetail", kind, id: decode(parts[2]) };
+      }
+    }
+    return { name: "dashboard" };
+  }
+  if (parts[0] === "configuration") {
+    if (parts.length === 1) return { name: "configRuntimes" };
+    if (parts[1] === "runtimes" && parts.length === 2) return { name: "configRuntimes" };
+    if (parts[1] === "runtimes" && parts.length === 3 && parts[2] !== undefined) {
+      return { name: "configRuntime", id: decode(parts[2]) };
+    }
+    if (parts[1] === "bindings" && parts.length === 2) return { name: "configBindings" };
+    if (parts[1] === "project" && parts.length <= 3) {
+      const tab: ProjectConfigTab =
+        parts[2] === "locks" || parts[2] === "overrides" ? parts[2] : "resources";
+      return { name: "configProject", tab };
+    }
+    return { name: "dashboard" };
+  }
+  if (parts[0] === "inspector") {
+    if (parts.length === 1) return { name: "inspector", stableKey: null };
+    if (parts.length === 2 && parts[1] !== undefined) {
+      return { name: "inspector", stableKey: decode(parts[1]) };
+    }
+    return { name: "dashboard" };
+  }
   return { name: "dashboard" };
 }

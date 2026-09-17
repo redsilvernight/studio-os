@@ -10,7 +10,20 @@ import { expect, test } from "@playwright/test";
 
 const CSP_RE = /content security policy|securitypolicyviolation/i;
 
-const MAIN_ROUTES = ["#/", "#/projects", "#/tasks", "#/machines", "#/decisions", "#/transfers"];
+const MAIN_ROUTES = [
+  "#/",
+  "#/projects",
+  "#/tasks",
+  "#/machines",
+  "#/decisions",
+  "#/transfers",
+  "#/library",
+  "#/library/rules",
+  "#/configuration/runtimes",
+  "#/configuration/bindings",
+  "#/configuration/project",
+  "#/inspector",
+];
 
 test("main flows run with zero CSP violations and zero page errors", async ({ page }) => {
   const cspErrors: string[] = [];
