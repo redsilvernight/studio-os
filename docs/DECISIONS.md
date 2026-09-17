@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-72 decision(s). Detail complet dans chaque ADR lie.
+73 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -94,3 +94,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0070 | AI Library Runtime Registry P6 : runtimes declares, identite stable, neutre provider/harness | active | [decisions/DEC-0070-ai-library-runtime-registry-p6.md](decisions/DEC-0070-ai-library-runtime-registry-p6.md) |
 | DEC-0071 | AI Library HTTP canonique P7 : surface de reference Library/P4/P5/P6 via services communs | active | [decisions/DEC-0071-ai-library-http-canonique-p7.md](decisions/DEC-0071-ai-library-http-canonique-p7.md) |
 | DEC-0072 | AI Library MCP minimal P8 : 5 outils use-cases sur services communs, output schemas explicites | active | [decisions/DEC-0072-ai-library-mcp-minimal-p8.md](decisions/DEC-0072-ai-library-mcp-minimal-p8.md) |
+| DEC-0073 | P9 Integration Context Package locale : AI Library comme source du composeur DEC-0057 via StudioApiClient | active | [decisions/DEC-0073-p9-contexte-package-bibliotheque-locale.md](decisions/DEC-0073-p9-contexte-package-bibliotheque-locale.md) |
