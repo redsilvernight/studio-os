@@ -6,6 +6,13 @@ from typing import Literal, get_args
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 
+from studio_mcp.tools.ai_library import (
+    studio_configure_runtime,
+    studio_discover_definitions,
+    studio_publish_definition,
+    studio_register_runtime,
+    studio_resolve_agent,
+)
 from studio_mcp.tools.ai_work import studio_get_ai_work, studio_log_ai_work
 from studio_mcp.tools.builds import studio_get_builds, studio_request_producer_job
 from studio_mcp.tools.claims import (
@@ -345,6 +352,80 @@ def create_server() -> MCPServer:
             "outsiders fail with forbidden. Download with HTTP Range to resume a partial fetch."
         ),
         annotations=_READ_ONLY,
+    )
+    server.add_tool(
+        studio_resolve_agent,
+        name="studio_resolve_agent",
+        description=(
+            "Resolve one agent definition (stable_key string, optional project_id UUID string) "
+            "into its full structured result: effective definition version, rules, skills, "
+            "model profile, capability requirements, winning runtime, compatibility verdict "
+            "and provenance — read-only. Same result as POST /api/v1/resolutions. Optional "
+            "ephemeral session_overrides (validated like stored choices, winning per stored "
+            "precedence, never persisted). A selected-but-incompatible runtime fails with "
+            "runtime_incompatible — no fallback to another runtime. Unknown or invisible "
+            "definitions fail with definition_not_found."
+        ),
+        annotations=_READ_ONLY,
+    )
+    server.add_tool(
+        studio_discover_definitions,
+        name="studio_discover_definitions",
+        description=(
+            "Discover and read AI library definitions (rules, skills, agent definitions, "
+            "model profiles, workflows) without knowing UUIDs — read-only. Filter the list "
+            "by kind/scope/project_id, or fetch one definition by resource_id (UUID string) "
+            "or by kind plus stable_key, with optional include_versions. Another user's "
+            "private definitions are silently omitted and fail with definition_not_found, "
+            "never forbidden."
+        ),
+        annotations=_READ_ONLY,
+    )
+    server.add_tool(
+        studio_publish_definition,
+        name="studio_publish_definition",
+        description=(
+            "Publish a library change over the definition lifecycle. Requires a writer role "
+            "(read-only callers fail with forbidden). Actions: create a new definition "
+            "(kind/stable_key/scope/title, optional project/content/links), draft a new "
+            "version, move the active pointer (activate with version plus "
+            "expected_resource_version — a stale version fails with version_conflict), or "
+            "deprecate. Creation and activation stay two distinct steps. Pass "
+            "idempotency_key when retrying a call that may have already succeeded — "
+            "replaying the same key and arguments returns the original result instead of a "
+            "duplicate; the same key with different arguments fails with "
+            "idempotency_key_payload_mismatch."
+        ),
+    )
+    server.add_tool(
+        studio_configure_runtime,
+        name="studio_configure_runtime",
+        description=(
+            "Set or clear the runtime choice for one logical (kind, stable_key) definition "
+            "key. Requires a writer role (read-only callers fail with forbidden). Levels "
+            "user, project_override, project_default and studio_default persist; session "
+            "is ephemeral and rejected here — pass it to studio_resolve_agent instead. "
+            "Set stores an open runtime target (concrete machine, harness/provider/model "
+            "refs, capabilities) and accepts idempotency_key for safe retries (replaying "
+            "the same key and arguments returns the original binding instead of a "
+            "duplicate; key reuse with different arguments fails with "
+            "idempotency_key_payload_mismatch). Clear removes the stored choice and fails "
+            "with not_found when nothing is stored."
+        ),
+    )
+    server.add_tool(
+        studio_register_runtime,
+        name="studio_register_runtime",
+        description=(
+            "Register or maintain a runtime description for the caller's own execution "
+            "target. Requires a writer role. Any provider or harness is an ordinary "
+            "runtime described with open harness/provider/model refs plus declared "
+            "capabilities — no special cases. Actions: register a new runtime, update its "
+            "descriptors under expected_version (a stale version fails with "
+            "version_conflict), or revoke it (logical, repeatable, keeps history readable). "
+            "Register and update accept idempotency_key for safe retries (replaying the "
+            "same key and arguments returns the original runtime instead of a duplicate)."
+        ),
     )
     return server
 
