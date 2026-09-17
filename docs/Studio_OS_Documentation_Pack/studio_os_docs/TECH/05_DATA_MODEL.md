@@ -231,7 +231,8 @@ to_resource_id)` conservee ; `agent_definition → model_profile` 0..1 par
 version ; scope structurel : partage ne depend jamais de prive ;
 validation apres gates 404/409 (`422 invalid_binding`), echec = rollback
 complet. Pins immuables, resolution P2 inchangee (profondeur 1),
-`check_compatibility` non branche, aucun RuntimeBinding.
+`check_compatibility` non branche par le P5, aucun RuntimeBinding introduit
+par le P5 (voir la section P4 ci-dessous).
 
 `LibraryProjectLock` : `(project_id` FK, `resource_id` FK, `locked_version`,
 `created_by_user_id`, `created_at`) — la cle est l'UUID canonique, jamais
@@ -267,6 +268,24 @@ egalite stricte de tags sans ranking ; `unknown != compatible`,
 requirement vide compatible avec tout, dimension future inconnue
 fail-closed.
 
+## AI Library — P4 User/Runtime Bindings (DEC-0068, migration `0011`, additive)
+
+`runtime_bindings` : choix runtime stockés par clé logique (`target_kind`
+`agent_definition|model_profile`, `target_stable_key` — jamais de pin, la
+préférence suit la définition), `level` (`user|project_override|
+project_default|studio_default` — `session` jamais persisté),
+`owner_user_id` (toujours le créateur : bénéficiaire en `user`, auteur
+sinon), `project_id` (niveaux projet), `target` JSONB (`machine_id?`,
+`provider_ref?`/`model_ref?` open strings, `capabilities?` — aucun champ
+secret par construction). Unicités partielles par niveau (`already_bound`
+en 409). Visibilité : `user` owner-ou-admin en 404 masqué, niveaux
+partagés lisibles comme les ressources projet. Résolution déterministe
+`session > project_override > user > project_default > studio_default`
+(clé agent avant clé profil, définition effective P2 + lien
+`requires_model_profile`) ; machine supprimée/révoquée = niveau traversé ;
+`check_compatibility` rapporté, jamais silencié. `LibraryProjectLock`
+(pin de version) distinct de l'override runtime projet.
+
 ## AI Library — P2 resolution (DEC-0065, service pur, sans endpoint)
 
 `resolve_definition(principal, kind, stable_key, project_id?)` : filtre
@@ -278,4 +297,5 @@ unique `definition_not_found` (absente, invisible, sans version utilisable,
 dependance absente/invisible confondues) ; raisons internes jamais exposees.
 Provenance minimale (`LibraryResolution` : scope, UUID, version, origine
 `lock`/`active`, flag deprecated). Resolution et compatibilite (`unknown !=
-compatible`) restent separees.
+compatible`) restent separees. (Le P5 n'introduit aucun RuntimeBinding ;
+voir la section P4 ci-dessus.)

@@ -149,6 +149,19 @@ n'utilisant que leurs propres agents n'observent aucun changement.
   (`Idempotency-Key` supporte, `409 already_locked` si un lock existe deja
   pour `(project, resource)`), DELETE /library-locks/{id} (createur ou
   `admin`, sinon `403 forbidden`).
+- User/Runtime Bindings (P4, DEC-0068, service interne sans endpoint ni
+  MCP — exposition P7/P8) : choix runtime concrets non secrets par cle
+  logique (`agent_definition`/`model_profile` + `stable_key`, jamais un pin
+  de version). Niveaux `session` (ephemere, non stocke) >
+  `project_override` > `user` > `project_default` > `studio_default`, cle
+  agent avant cle profil ; ecriture `user`/`project` tout writer (owner =
+  appelant, machine cible possedee par l'appelant), `studio_default`
+  `admin`/`developer` ; erreurs `422 invalid_runtime_binding`, `404
+  runtime_target_not_found` (machine inconnue), `403 forbidden` (machine
+  d'autrui), `404 project_not_found`, `409 already_bound`. Choix stocke
+  vers machine supprimee/revoquee = niveau traverse ; override session
+  invalide (donnee de l'appelant) = erreur explicite. Compatibilite
+  toujours rapportee (`unknown != compatible`), jamais silenciee.
 
 ### Review Queue (sous-etape 8.4, additif, DEC-0049)
 - GET /review-queue — vue agregee, lecture seule, de tout ce qui attend une
