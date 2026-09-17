@@ -351,7 +351,14 @@ export function formReader(form: HTMLFormElement): FormReader {
   return {
     text(name: string): string {
       const field = form.elements.namedItem(name);
-      return field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement ? field.value : "";
+      if (
+        field instanceof HTMLInputElement ||
+        field instanceof HTMLTextAreaElement ||
+        field instanceof HTMLSelectElement
+      ) {
+        return field.value;
+      }
+      return "";
     },
     checked(name: string): boolean {
       const field = form.elements.namedItem(name);
