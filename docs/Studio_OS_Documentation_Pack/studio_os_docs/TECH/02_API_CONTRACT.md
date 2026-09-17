@@ -6,12 +6,12 @@ Base: `/api/v1`
 - JSON UTF-8.
 - IDs internes UUID.
 - IDs lisibles possibles pour Task/Decision/Transfer.
-- `Idempotency-Key` supporte sur creations rejouables (tasks, claims, decisions, transfers, sessions, ai-work, projects, agents — CC-1/DEC-0045 — plus producer-jobs et github-integration, etape 9.1/DEC-0059, library resources/versions/activations/deprecations/locks, P1/DEC-0064) — meme cle + meme endpoint renvoie la reponse d'origine plutot que de recreer, y compris sous requetes concurrentes reelles : une seule ressource metier est creee pour une paire (cle, endpoint) donnee tant que la creation reste sous le seuil de reclamation d'une reservation abandonnee (limite connue documentee dans DEC-0015, non couverte par un jeton de fencing dans cette etape). Rejouer la meme cle avec un corps de requete different (hash du corps different) est une erreur client explicite `409 {"error_code": "idempotency_key_payload_mismatch"}`, jamais un rejeu silencieux de la premiere reponse ni une seconde ressource (DEC-0015). `POST /events` fait exception : c'est `event_id` (genere client-side) qui joue ce role, pas ce header — voir `TECH/04_AUTH_SYNC_CONTRACT.md`. `POST /machines` et `POST /users` sont volontairement exclus (actions administratives, interactives, jamais rejouees via la queue offline — DEC-0011/DEC-0012 ; un `Idempotency-Key` sur `POST /machines` persisterait le credential en clair dans la table d'idempotence).
+- `Idempotency-Key` supporte sur creations rejouables (tasks, claims, decisions, transfers, sessions, ai-work, projects, agents — CC-1/DEC-0045 — plus producer-jobs et github-integration, etape 9.1/DEC-0059, library resources/versions/activations/deprecations/locks, P1/DEC-0064, runtime-bindings P4, runtimes register/update P6 — P7/DEC-0071) — meme cle + meme endpoint renvoie la reponse d'origine plutot que de recreer, y compris sous requetes concurrentes reelles : une seule ressource metier est creee pour une paire (cle, endpoint) donnee tant que la creation reste sous le seuil de reclamation d'une reservation abandonnee (limite connue documentee dans DEC-0015, non couverte par un jeton de fencing dans cette etape). Rejouer la meme cle avec un corps de requete different (hash du corps different) est une erreur client explicite `409 {"error_code": "idempotency_key_payload_mismatch"}`, jamais un rejeu silencieux de la premiere reponse ni une seconde ressource (DEC-0015). `POST /events` fait exception : c'est `event_id` (genere client-side) qui joue ce role, pas ce header — voir `TECH/04_AUTH_SYNC_CONTRACT.md`. `POST /machines` et `POST /users` sont volontairement exclus (actions administratives, interactives, jamais rejouees via la queue offline — DEC-0011/DEC-0012 ; un `Idempotency-Key` sur `POST /machines` persisterait le credential en clair dans la table d'idempotence). Lectures pures (`GET`, `POST /resolutions`, `POST /runtimes/{id}/revoke`, `DELETE /runtime-bindings/{id}`, `DELETE /library-locks/{id}`) : N/A — revoke/suppressions sont naturellement idempotents, la resolution ne persiste rien.
 - Pagination: `limit`, `offset` ou curseur selon endpoint.
 - Dates ISO 8601 UTC.
 - Ecriture mutable sur un objet existant (`PATCH`) : header `If-Match-Version` avec la `version` lue par le client ; 409 + version serveur courante en cas de conflit (`TECH/04_AUTH_SYNC_CONTRACT.md`).
 - Authentification : header `Authorization: Bearer <machine-token>` sur tout endpoint sous `/api/v1` (sauf `/healthz`, `/metrics`, `POST /auth/token` et `POST /github/webhook` — ce dernier est signe HMAC `X-Hub-Signature-256`, jamais Bearer) — voir `TECH/04_AUTH_SYNC_CONTRACT.md`. Le dashboard humain obtient un JWT court-terme via `POST /auth/token` (DASH-4, DEC-0056) et le presente ensuite comme `Authorization: Bearer <jwt>`.
-- Autorisation (DEC-0036, durcissement documente sur des endpoints existants — meme categorie que DEC-0025) : au-dela de l'authentification, certains endpoints peuvent desormais repondre `403 {"detail": {"error_code": "forbidden", "resource": ..., "action": ...}}` a une machine authentifiee mais insuffisamment autorisee (role `readonly`, machine non proprietaire d'une ressource deja possedee, ou — cas particulier des Transfers, seule categorie ou une lecture peut aussi etre concernee — appelant hors sender/recipient/diffusion/admin) — voir `TECH/04_AUTH_SYNC_CONTRACT.md` section Autorisation pour la matrice complete. Concerne, en ecriture : `POST /tasks`, `PATCH /tasks/{id}`, `POST /tasks/{id}/claim`, `POST /tasks/{id}/release`, `POST /claims`, `POST /claims/{id}/renew`, `DELETE /claims/{id}`, `POST /sessions`, `PATCH /sessions/{id}/end`, `POST /ai-work`, `PATCH /ai-work/{id}`, `POST /decisions`, `POST /events`, `POST /agents` (CC-1/DEC-0045 : `readonly` -> `403`, sans ownership — creation sans ressource preexistante), `POST /transfers`, `POST /transfers/{id}/upload/initiate`, `POST /transfers/{id}/upload/refresh-parts` (DEC-0037), `POST /transfers/{id}/upload/complete`, `DELETE /transfers/{id}`, `POST /library`, `POST /library/{id}/versions`, `POST /library/{id}/activate`, `POST /library/{id}/deprecate`, `POST /library-locks`, `DELETE /library-locks/{id}` (P1/DEC-0063 : creation Studio = `admin`/`developer`, mutations = machine owner ou `admin`, mainlevee de lock = createur ou `admin`) ; en lecture (Transfers, regle de visibilite silencieuse, et `GET /library/{id}` en scope User, qui repond `404` et non `403` face a un non-owner pour ne pas reveler l'existence, DEC-0063 precision 1) : `GET /transfers/{id}`, `POST /transfers/{id}/download-url`. Un client existant qui n'utilisait jusque-la que des roles/machines proprietaires n'observe aucun changement de comportement.
+- Autorisation (DEC-0036, durcissement documente sur des endpoints existants — meme categorie que DEC-0025) : au-dela de l'authentification, certains endpoints peuvent desormais repondre `403 {"detail": {"error_code": "forbidden", "resource": ..., "action": ...}}` a une machine authentifiee mais insuffisamment autorisee (role `readonly`, machine non proprietaire d'une ressource deja possedee, ou — cas particulier des Transfers, seule categorie ou une lecture peut aussi etre concernee — appelant hors sender/recipient/diffusion/admin) — voir `TECH/04_AUTH_SYNC_CONTRACT.md` section Autorisation pour la matrice complete. Concerne, en ecriture : `POST /tasks`, `PATCH /tasks/{id}`, `POST /tasks/{id}/claim`, `POST /tasks/{id}/release`, `POST /claims`, `POST /claims/{id}/renew`, `DELETE /claims/{id}`, `POST /sessions`, `PATCH /sessions/{id}/end`, `POST /ai-work`, `PATCH /ai-work/{id}`, `POST /decisions`, `POST /events`, `POST /agents` (CC-1/DEC-0045 : `readonly` -> `403`, sans ownership — creation sans ressource preexistante), `POST /transfers`, `POST /transfers/{id}/upload/initiate`, `POST /transfers/{id}/upload/refresh-parts` (DEC-0037),   `POST /transfers/{id}/upload/complete`, `DELETE /transfers/{id}`, `POST /library`, `POST /library/{id}/versions`, `POST /library/{id}/activate`, `POST /library/{id}/deprecate`, `POST /library-locks`, `DELETE /library-locks/{id}` (P1/DEC-0063 : creation Studio = `admin`/`developer`, mutations = machine owner ou `admin`, mainlevee de lock = createur ou `admin`), `POST /runtime-bindings`, `DELETE /runtime-bindings/{id}` (P4/P7 : ecriture `user`/`project` tout writer, `studio_default` `admin`/`developer`, mainlevee = createur ou `admin`), `POST /runtimes`, `PATCH /runtimes/{id}`, `POST /runtimes/{id}/revoke` (P6/P7 : owner-ou-`admin`) ; en lecture (Transfers, regle de visibilite silencieuse, et `GET /library/{id}` en scope User, qui repond `404` et non `403` face a un non-owner pour ne pas reveler l'existence, DEC-0063 precision 1, meme regle pour `GET /runtime-bindings/{id}` et `GET /runtimes/{id}` — P7/DEC-0071) : `GET /transfers/{id}`, `POST /transfers/{id}/download-url`. Un client existant qui n'utilisait jusque-la que des roles/machines proprietaires n'observe aucun changement de comportement.
 - Enveloppe reelle d'une erreur machine-readable (`error_code` present dans ce document, ex. `413`/`507`/`409 idempotency_key_payload_mismatch`) : `{"detail": {"error_code": "...", ...}}` — FastAPI enveloppe systematiquement `HTTPException.detail`, jamais `{"error_code": "..."}` a plat. Une erreur sans `error_code` (401/403/404 génériques) renvoie `{"detail": "<message>"}`, une simple chaine. `studio_contracts.common.ErrorResponse`/`VersionConflictError` ne sont utilises par aucun code serveur actuel — clarification documentaire (DEC-0024), pas un changement de comportement.
 
 ## Endpoints principaux
@@ -149,26 +149,42 @@ n'utilisant que leurs propres agents n'observent aucun changement.
   (`Idempotency-Key` supporte, `409 already_locked` si un lock existe deja
   pour `(project, resource)`), DELETE /library-locks/{id} (createur ou
   `admin`, sinon `403 forbidden`).
-- User/Runtime Bindings (P4, DEC-0068, service interne sans endpoint ni
-  MCP — exposition P7/P8) : choix runtime concrets non secrets par cle
-  logique (`agent_definition`/`model_profile` + `stable_key`, jamais un pin
-  de version). Niveaux `session` (ephemere, non stocke) >
-  `project_override` > `user` > `project_default` > `studio_default`, cle
-  agent avant cle profil ; ecriture `user`/`project` tout writer (owner =
-  appelant, machine cible possedee par l'appelant), `studio_default`
-  `admin`/`developer` ; erreurs `422 invalid_runtime_binding`, `404
-  runtime_target_not_found` (machine inconnue), `403 forbidden` (machine
-  d'autrui), `404 project_not_found`, `409 already_bound`. Choix stocke
-  vers machine supprimee/revoquee = niveau traverse ; override session
-  invalide (donnee de l'appelant) = erreur explicite. Compatibilite
-  toujours rapportee (`unknown != compatible`), jamais silenciee.
+- User/Runtime Bindings (P4, DEC-0068 ; HTTP canonique P7/DEC-0071) :
+  `POST /runtime-bindings` (body `RuntimeBindingCreate`, owner toujours
+  l'appelant, `Idempotency-Key` supporte, `409 already_bound` si la cle
+  `(level, scope, kind, stable_key)` est deja prise), `GET
+  /runtime-bindings` (filtres `level`, `project_id`, `kind`,
+  `stable_key`, `limit`/`offset` ; bindings `user` d'autrui filtres avant
+  exposition), `GET /runtime-bindings/{id}` (`404` masque pour le `user`
+  d'autrui), `DELETE /runtime-bindings/{id}` (snapshot retourne, regles
+  de mainlevee miroir des locks). Choix runtime concrets non secrets par
+  cle logique (`agent_definition`/`model_profile` + `stable_key`, jamais
+  un pin de version). Niveaux `session` (ephemere, non stocke — rejete
+  ici par `422 ephemeral_level_not_stored`, a passer a `POST
+  /resolutions`) > `project_override` > `user` > `project_default` >
+  `studio_default`, cle agent avant cle profil ; ecriture `user`/`project`
+  tout writer (owner = appelant, machine cible possedee par l'appelant),
+  `studio_default` `admin`/`developer` ; erreurs `422
+  invalid_runtime_binding`, `404 runtime_target_not_found` (machine
+  inconnue) / `404 runtime_not_found` (`runtime_id` inconnu), `403
+  forbidden` (machine ou runtime d'autrui), `404 project_not_found`,
+  `409 already_bound`. Choix stocke vers machine supprimee/revoquee ou
+  runtime revoque = niveau traverse ; override session invalide (donnee
+  de l'appelant) = erreur explicite. Compatibilite toujours rapportee
+  (`unknown != compatible`), jamais silenciee.
 
-- Resolution Engine P5 (DEC-0069, service interne sans endpoint ni MCP
-  — exposition P7/P8) : `resolve_full` (acquisition : racine P2,
-  visibilite/liveness P4) + coeur pur `resolve_agent`
-  (`studio_contracts`, sans SQL/HTTP/LLM) produisant
+- Resolution Engine P5 (DEC-0069 ; HTTP canonique P7/DEC-0071) : `POST
+  /resolutions` (body `AgentResolutionRequest` : `stable_key`,
+  `project_id` optionnel, `session_overrides` optionnels ; reponse
+  `ResolvedAgentDefinition` complete, jamais simplifiee) delegue a
+  `resolve_full` (acquisition : racine P2, visibilite/liveness P4) + coeur
+  pur `resolve_agent` (`studio_contracts`, sans SQL/HTTP/LLM) et produit
   `ResolvedAgentDefinition` (versions exactes, provenance structuree,
-  runtime gagnant + niveau, verdict). Precedence partagee avec P4
+  runtime gagnant + niveau, verdict). `session_overrides` : contexte
+  ephemere de requete (valide comme un choix stocke, gagnant selon P4,
+  trace en provenance, jamais persiste — DB inchangee). Doublon
+  volontairement absent : `resolve_definition` P2 n'a pas de route
+  dediee, la resolution P5 est l'unique surface canonique. Precedence partagee avec P4
   (`select_runtime`, ordre et semantique inchanges). Incompatible
   explicite = `422 runtime_incompatible` (niveau/cle/`unsatisfied`,
   sans fallback vers un niveau inferieur) ; dependance
@@ -176,10 +192,20 @@ n'utilisant que leurs propres agents n'observent aucun changement.
   = `422 invalid_resolution_input`. Sans choix : `runtime = null`
   valide. Harness-neutral et provider-neutral ; frontiere P6 (aucun
   catalogue/discovery) et P10 (aucun adaptateur) hors scope.
-- Runtime Registry P6 (DEC-0070, service interne sans endpoint ni MCP
-  — exposition P7/P8) : runtimes declares (`register/read/list/update/
-  revoke`, owner toujours l'appelant, machine attachee possedee par
-  l'appelant, `machine_id` null = distant/cloud, meme abstraction).
+- Runtime Registry P6 (DEC-0070 ; HTTP canonique P7/DEC-0071) : `POST
+  /runtimes` (body `RuntimeRegistrationCreate`, `Idempotency-Key`
+  supporte), `GET /runtimes` (`status`, `include_revoked`), `GET
+  /runtimes/{id}` (`404` masque cross-user, revoque lisible), `PATCH
+  /runtimes/{id}` (body `RuntimeRegistrationUpdateRequest` : patch +
+  `expected_version`, `409 version_conflict` + version serveur,
+  `Idempotency-Key` supporte — garde en body comme
+  `LibraryActivate`/`LibraryDeprecate`, pas de header `If-Match-Version`
+  sur ces routes), `POST /runtimes/{id}/revoke` (logique,
+  idempotent, sans delete). Reponse `RuntimeRegistration` expose
+  desormais `version` (additif P7, miroir `VersionMixin`, requis pour
+  l'`expected_version`). Generique — aucune route provider-specific.
+  Runtimes declares (owner toujours l'appelant, machine attachee possedee
+  par l'appelant, `machine_id` null = distant/cloud, meme abstraction).
   Identite stable UUID (aucune unicite sur `provider_ref`/`model_ref`,
   chaines ouvertes, aucun catalogue vendor) ; capabilities declarees
   (`declared`, `unknown != compatible`) ; metadata non secrets (cles

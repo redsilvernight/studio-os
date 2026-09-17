@@ -284,7 +284,9 @@ partagés lisibles comme les ressources projet. Résolution déterministe
 (clé agent avant clé profil, définition effective P2 + lien
 `requires_model_profile`) ; machine supprimée/révoquée = niveau traversé ;
 `check_compatibility` rapporté, jamais silencié. `LibraryProjectLock`
-(pin de version) distinct de l'override runtime projet.
+(pin de version) distinct de l'override runtime projet. HTTP canonique
+P7/DEC-0071 (`POST/GET /runtime-bindings`,
+`GET/DELETE /runtime-bindings/{id}`).
 
 ## AI Library — P6 Runtime Registry (DEC-0070, migration `0012`, additive)
 
@@ -304,7 +306,10 @@ gagne `runtime_id?` (référence canonique exclusive à l'entrée) et
 `harness_ref?` ; bindings P4 sans `runtime_id` inchangés (migration
 no-op). Non-live = révoqué ou machine attachée supprimée/révoquée
 (liveness Machine réutilisée) → niveau traversé. Cœur P5 intact
-(acquisition enrichie uniquement). Aucun endpoint/MCP (P7/P8),
+(acquisition enrichie uniquement). HTTP canonique P7/DEC-0071
+(`POST/GET /runtimes`, `PATCH /runtimes/{id}`,
+`POST /runtimes/{id}/revoke`) ; `RuntimeRegistration` expose `version`
+(additif P7, miroir de la colonne, requis pour `expected_version`) ;
 aucun adaptateur (P10).
 
 ## AI Library — P2 resolution (DEC-0065, service pur, sans endpoint)
@@ -321,7 +326,7 @@ Provenance minimale (`LibraryResolution` : scope, UUID, version, origine
 compatible`) restent separees. (Le P5 n'introduit aucun RuntimeBinding ;
 voir la section P4 ci-dessus.)
 
-## AI Library — P5 Resolution Engine (DEC-0069, sans DDL, sans endpoint)
+## AI Library — P5 Resolution Engine (DEC-0069, sans DDL ; HTTP canonique P7/DEC-0071)
 
 `ResolvedAgentDefinition` (`studio_contracts/resolution.py`, coeur pur
 sans SQL/HTTP/LLM/horloge) : agent + rules + skills + model_profile 0..1
@@ -342,7 +347,9 @@ jamais de `null` silencieux ; sans choix `runtime = null` valide ;
 `unknown != compatible`. Erreurs fermees
 (`definition_not_found`/`unresolvable_dependency`/`runtime_incompatible`/
 `invalid_resolution_input`), dependances invisibles toujours
-`404 definition_not_found` (non-oracle). Acquisition (`resolve_full`,
-interne, sans endpoint) : racine P2, visibilite/liveness P4, puis coeur
-pur. Harness-neutral et provider-neutral (`provider_ref`/`model_ref`
+`404 definition_not_found` (non-oracle). Acquisition (`resolve_full`)
+: racine P2, visibilite/liveness P4, puis coeur
+pur — exposee par `POST /resolutions` (body `AgentResolutionRequest`,
+`session_overrides` ephemeres, reponse `ResolvedAgentDefinition`
+complete). Harness-neutral et provider-neutral (`provider_ref`/`model_ref`
 opaques). Frontiere P6 : aucun catalogue, aucune discovery.

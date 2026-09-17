@@ -480,6 +480,142 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/runtime-bindings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Runtime Bindings
+         * @description List stored runtime choices, optionally filtered. Another user's `user`-level bindings are filtered out before exposure — collections never count, list, or hint at them.
+         */
+        get: operations["list_runtime_bindings_api_v1_runtime_bindings_get"];
+        put?: never;
+        /**
+         * Create Runtime Binding
+         * @description Store one runtime choice for a logical `(kind, stable_key)` key. The owner is always the caller (server-derived). Only the four stored levels persist — `session` is ephemeral and rejected here (`ephemeral_level_not_stored`); pass it to the resolution call instead. Accepts `Idempotency-Key` for safe retries.
+         */
+        post: operations["create_runtime_binding_api_v1_runtime_bindings_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runtime-bindings/{binding_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Runtime Binding
+         * @description Get one stored runtime choice. Another user's `user`-level binding answers 404, never 403, so its existence cannot be inferred.
+         */
+        get: operations["get_runtime_binding_api_v1_runtime_bindings__binding_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Runtime Binding
+         * @description Release a stored runtime choice (snapshot returned). Release rules mirror project locks: `user` level by owner-or-admin, shared project levels by creator-or-admin, `studio_default` by privileged roles. Naturally idempotent — no `Idempotency-Key` needed.
+         */
+        delete: operations["delete_runtime_binding_api_v1_runtime_bindings__binding_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runtimes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Runtimes
+         * @description List runtimes declared by the caller. Runtimes are always per-user private: another user's rows are filtered out before exposure. Revoked rows are excluded by default.
+         */
+        get: operations["list_runtimes_api_v1_runtimes_get"];
+        put?: never;
+        /**
+         * Register Runtime
+         * @description Declare one runtime (generic — never provider-specific). The owner is always the caller (server-derived); an attached machine must exist and be owned by the caller. Refs are open chains, never a vendor catalog. Secret-looking metadata keys are rejected. Accepts `Idempotency-Key` for safe retries.
+         */
+        post: operations["register_runtime_api_v1_runtimes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runtimes/{runtime_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Runtime
+         * @description Get one declared runtime. Another user's runtime answers 404, never 403, so its existence cannot be inferred. Revoked rows stay readable (diagnostics).
+         */
+        get: operations["get_runtime_api_v1_runtimes__runtime_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Runtime
+         * @description Mutate a runtime's descriptors without rotating its identity. Requires the current `version`; a stale value is rejected with the live server version. Accepts `Idempotency-Key` for safe retries of an unseen response.
+         */
+        patch: operations["update_runtime_api_v1_runtimes__runtime_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/runtimes/{runtime_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke Runtime
+         * @description Logically revoke a runtime (idempotent: already revoked is a successful no-op). The row stays readable but resolves as non-live, so bindings toward it fall through instead of silently retargeting. No physical delete exists. Naturally idempotent — no `Idempotency-Key` needed.
+         */
+        post: operations["revoke_runtime_api_v1_runtimes__runtime_id__revoke_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/resolutions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve Agent Definition
+         * @description Resolve an `AgentDefinition` to its canonical `ResolvedAgentDefinition`: effective definition version, rules, skills, model profile, requirements, winning runtime, compatibility verdict and full structured provenance. Delegates to `resolve_full` — this route never re-decides anything (no fallback to another runtime on incompatibility). Optional `session_overrides` are ephemeral resolution context: validated like stored choices (unknown machine 404, another user's machine or runtime 403), winning per P4 precedence, appearing in provenance — and never persisted. Overrides naming a key outside the resolved set (agent definition + linked model profile) are ignored. Pure read: safe to retry, no `Idempotency-Key` needed.
+         */
+        post: operations["resolve_agent_definition_api_v1_resolutions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agents": {
         parameters: {
             query?: never;
@@ -1170,6 +1306,26 @@ export interface components {
             model?: string | null;
         };
         /**
+         * AgentResolutionRequest
+         * @description Canonical HTTP (and future MCP) input for full agent resolution
+         *     (P7): which `AgentDefinition` (`stable_key`, kind fixed —
+         *     the engine only resolves agent definitions), in which project
+         *     context, with which ephemeral session overrides. Identity always
+         *     comes from auth, never from this body. The response is the complete
+         *     `ResolvedAgentDefinition`, never a simplified shape.
+         */
+        AgentResolutionRequest: {
+            /** Stable Key */
+            stable_key: string;
+            /** Project Id */
+            project_id?: string | null;
+            /**
+             * Session Overrides
+             * @default []
+             */
+            session_overrides: components["schemas"]["SessionRuntimeOverride"][];
+        };
+        /**
          * BindingRelation
          * @description Closed vocabulary of Library Binding types.
          *
@@ -1245,6 +1401,51 @@ export interface components {
          * @enum {string}
          */
         BuildStatus: "queued" | "in_progress" | "succeeded" | "failed";
+        /**
+         * CapabilityRequirement
+         * @description Vendor-neutral model requirements (gate P0 deliverable, enforced from
+         *     P3). All dimensions are open strings/numbers, never vendor enums,
+         *     whitelists or commercial rankings. A `ModelProfile` resource carries one
+         *     of these in its version `content` (see `ModelProfileContent`).
+         */
+        CapabilityRequirement: {
+            /** Reasoning */
+            reasoning?: string | null;
+            /**
+             * Coding
+             * @default false
+             */
+            coding: boolean;
+            /** Context Window Min */
+            context_window_min?: number | null;
+            /**
+             * Tools Required
+             * @default []
+             */
+            tools_required: string[];
+            /** Multimodal */
+            multimodal?: string | null;
+            /**
+             * Local Compatible
+             * @default false
+             */
+            local_compatible: boolean;
+            /** Cost */
+            cost?: string | null;
+            /** Latency */
+            latency?: string | null;
+        };
+        /**
+         * CapabilitySource
+         * @description Where registered capabilities come from (P6 registry).
+         *
+         *     P6 MVP only ever stores `declared` (explicitly registered, no discovery,
+         *     no detection, no adapter report). The enum — not a closed vendor list —
+         *     is the extension point for future `detected` / `adapter-reported`
+         *     sources; any other value is fail-closed until its semantics are defined.
+         * @enum {string}
+         */
+        CapabilitySource: "declared";
         /**
          * ClaimStatus
          * @description A claim past `expires_at` is not active regardless of stored status.
@@ -1892,6 +2093,34 @@ export interface components {
          */
         MachineStatus: "online" | "idle" | "offline";
         /**
+         * PreservedReference
+         * @description A `composes_agent` / `references_workflow` dependency, preserved with
+         *     identity, exact version and provenance — never expanded: workflow
+         *     execution semantics belong to P11 and agent-composition execution has no
+         *     defined semantics yet (library bindings, resolution engine).
+         */
+        PreservedReference: {
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            kind: components["schemas"]["LibraryKind"];
+            /** Stable Key */
+            stable_key: string;
+            scope: components["schemas"]["LibraryScope"];
+            /** Version */
+            version: number;
+            version_origin: components["schemas"]["VersionOrigin"];
+            /**
+             * Deprecated
+             * @default false
+             */
+            deprecated: boolean;
+            relation: components["schemas"]["BindingRelation"];
+            provenance: components["schemas"]["Provenance"];
+        };
+        /**
          * ProducerJob
          * @description A bounded, synchronous Producer computation over one project's shared
          *     state. The Producer never mutates `Task`/`ResourceClaim`:
@@ -2013,6 +2242,240 @@ export interface components {
              * Format: date-time
              */
             generated_at: string;
+        };
+        /**
+         * Provenance
+         * @description Complete provenance for one resolved element.
+         *
+         *     Answers: why this resource, why this version (lock vs active vs pin),
+         *     through which relation, which runtime level won and whether an override
+         *     decided. Every field is data, never a human sentence.
+         */
+        Provenance: {
+            source: components["schemas"]["ProvenanceSource"];
+            /** Resource Id */
+            resource_id?: string | null;
+            /** Stable Key */
+            stable_key?: string | null;
+            scope?: components["schemas"]["LibraryScope"] | null;
+            /** Version */
+            version?: number | null;
+            version_origin?: components["schemas"]["VersionOrigin"] | null;
+            /**
+             * Locked
+             * @default false
+             */
+            locked: boolean;
+            relation?: components["schemas"]["BindingRelation"] | null;
+            binding_level?: components["schemas"]["RuntimeLevel"] | null;
+            /** Via */
+            via?: string | null;
+        };
+        /**
+         * ProvenanceSource
+         * @description Where a resolved element came from (structured, never prose).
+         * @enum {string}
+         */
+        ProvenanceSource: "active_pointer" | "project_lock" | "version_pin" | "runtime_binding" | "session_override";
+        /** ResolvedAgent */
+        ResolvedAgent: {
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            kind: components["schemas"]["LibraryKind"];
+            /** Stable Key */
+            stable_key: string;
+            scope: components["schemas"]["LibraryScope"];
+            /** Version */
+            version: number;
+            version_origin: components["schemas"]["VersionOrigin"];
+            /**
+             * Deprecated
+             * @default false
+             */
+            deprecated: boolean;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /**
+             * Content
+             * @default {}
+             */
+            content: {
+                [key: string]: unknown;
+            };
+            provenance: components["schemas"]["Provenance"];
+        };
+        /**
+         * ResolvedAgentDefinition
+         * @description Canonical P5 output: the complete logical agent specification.
+         *
+         *     Harness-neutral (no harness-specific branch) and
+         *     provider-neutral (`provider_ref`/`model_ref` travel as opaque strings
+         *     when a binding carries them; no vendor catalog lives here). Stable input
+         *     for P7 HTTP, P8 MCP, P9 Context Package and P10 adapters.
+         */
+        ResolvedAgentDefinition: {
+            agent: components["schemas"]["ResolvedAgent"];
+            /**
+             * Rules
+             * @default []
+             */
+            rules: components["schemas"]["ResolvedRule"][];
+            /**
+             * Skills
+             * @default []
+             */
+            skills: components["schemas"]["ResolvedSkill"][];
+            model_profile?: components["schemas"]["ResolvedModelProfile"] | null;
+            /**
+             * @default {
+             *       "coding": false,
+             *       "tools_required": [],
+             *       "local_compatible": false
+             *     }
+             */
+            requirements: components["schemas"]["CapabilityRequirement"];
+            /**
+             * Composed Agents
+             * @default []
+             */
+            composed_agents: components["schemas"]["PreservedReference"][];
+            /**
+             * Workflows
+             * @default []
+             */
+            workflows: components["schemas"]["PreservedReference"][];
+            runtime?: components["schemas"]["ResolvedRuntime"] | null;
+        };
+        /** ResolvedModelProfile */
+        ResolvedModelProfile: {
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            /** Stable Key */
+            stable_key: string;
+            scope: components["schemas"]["LibraryScope"];
+            /** Version */
+            version: number;
+            version_origin: components["schemas"]["VersionOrigin"];
+            /**
+             * Deprecated
+             * @default false
+             */
+            deprecated: boolean;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /**
+             * @default {
+             *       "coding": false,
+             *       "tools_required": [],
+             *       "local_compatible": false
+             *     }
+             */
+            requirements: components["schemas"]["CapabilityRequirement"];
+            provenance: components["schemas"]["Provenance"];
+        };
+        /** ResolvedRule */
+        ResolvedRule: {
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            /** Stable Key */
+            stable_key: string;
+            scope: components["schemas"]["LibraryScope"];
+            /** Version */
+            version: number;
+            version_origin: components["schemas"]["VersionOrigin"];
+            /**
+             * Deprecated
+             * @default false
+             */
+            deprecated: boolean;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /**
+             * Content
+             * @default {}
+             */
+            content: {
+                [key: string]: unknown;
+            };
+            /**
+             * Paths
+             * @default []
+             */
+            paths: components["schemas"]["RulePath"][];
+        };
+        /**
+         * ResolvedRuntime
+         * @description The winning runtime choice. `compatible` is always `True` here: an
+         *     explicitly selected but incompatible target is a `runtime_incompatible`
+         *     error, never a silent fallback and never a silent `null`.
+         */
+        ResolvedRuntime: {
+            target: components["schemas"]["RuntimeTarget"];
+            level: components["schemas"]["RuntimeLevel"];
+            matched_kind: components["schemas"]["LibraryKind"];
+            /** Matched Stable Key */
+            matched_stable_key: string;
+            /**
+             * Compatible
+             * @default true
+             */
+            compatible: boolean;
+            /**
+             * Unsatisfied
+             * @default []
+             */
+            unsatisfied: string[];
+            provenance?: components["schemas"]["Provenance"] | null;
+        };
+        /** ResolvedSkill */
+        ResolvedSkill: {
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            /** Stable Key */
+            stable_key: string;
+            scope: components["schemas"]["LibraryScope"];
+            /** Version */
+            version: number;
+            version_origin: components["schemas"]["VersionOrigin"];
+            /**
+             * Deprecated
+             * @default false
+             */
+            deprecated: boolean;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /**
+             * Content
+             * @default {}
+             */
+            content: {
+                [key: string]: unknown;
+            };
+            provenance: components["schemas"]["Provenance"];
         };
         /** ResourceClaim */
         ResourceClaim: {
@@ -2273,6 +2736,330 @@ export interface components {
          * @enum {string}
          */
         Role: "admin" | "developer" | "agent" | "readonly";
+        /**
+         * RulePath
+         * @description One provenance path that produced a resolved rule.
+         *
+         *     The same rule reached through several paths yields one logical object
+         *     with one `RulePath` per path — deduplicated content, preserved history.
+         */
+        RulePath: {
+            relation: components["schemas"]["BindingRelation"];
+            via_kind: components["schemas"]["LibraryKind"];
+            /**
+             * Via Resource Id
+             * Format: uuid
+             */
+            via_resource_id: string;
+            /** Via Stable Key */
+            via_stable_key: string;
+            /** Via Version */
+            via_version: number;
+        };
+        /**
+         * RuntimeBinding
+         * @description One stored runtime choice for a logical `(kind, stable_key)` key.
+         *
+         *     The key is logical (never a version pin): the preference follows the
+         *     definition across versions. `owner_user_id` is always the creating user
+         *     (server-derived, never client-supplied): for `user` bindings it is the
+         *     beneficiary, for shared levels it is the creator (release rules mirror
+         *     project locks).
+         */
+        RuntimeBinding: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            level: components["schemas"]["RuntimeLevel"];
+            /**
+             * Owner User Id
+             * Format: uuid
+             */
+            owner_user_id: string;
+            /** Project Id */
+            project_id?: string | null;
+            target_kind: components["schemas"]["LibraryKind"];
+            /** Target Stable Key */
+            target_stable_key: string;
+            target: components["schemas"]["RuntimeTarget"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * RuntimeBindingCreate
+         * @description Creates one stored runtime choice. `owner_user_id` is never accepted:
+         *     the server derives it from the authenticated principal.
+         */
+        RuntimeBindingCreate: {
+            level: components["schemas"]["RuntimeLevel"];
+            /** Project Id */
+            project_id?: string | null;
+            target_kind: components["schemas"]["LibraryKind"];
+            /** Target Stable Key */
+            target_stable_key: string;
+            target: components["schemas"]["RuntimeTarget"];
+        };
+        /**
+         * RuntimeCapabilities
+         * @description Abstract capability surface the P6 Runtime Registry will satisfy.
+         *     Open strings, same vocabulary as `CapabilityRequirement`, never a vendor
+         *     catalog.
+         */
+        RuntimeCapabilities: {
+            /** Reasoning */
+            reasoning?: string | null;
+            /**
+             * Coding
+             * @default false
+             */
+            coding: boolean;
+            /** Context Window */
+            context_window?: number | null;
+            /**
+             * Tools
+             * @default []
+             */
+            tools: string[];
+            /** Multimodal */
+            multimodal?: string | null;
+            /**
+             * Local
+             * @default false
+             */
+            local: boolean;
+            /** Cost */
+            cost?: string | null;
+            /** Latency */
+            latency?: string | null;
+        };
+        /**
+         * RuntimeLevel
+         * @description Stored and ephemeral levels of runtime choice, strongest first.
+         *
+         *     `session` is never persisted — it travels with the resolve call only.
+         *     `project_override` beats a personal choice (explicit project pinning);
+         *     `project_default` and `studio_default` only apply below it.
+         * @enum {string}
+         */
+        RuntimeLevel: "session" | "project_override" | "user" | "project_default" | "studio_default";
+        /**
+         * RuntimeRegistration
+         * @description Canonical persisted description of one declared runtime (P6).
+         *
+         *     Harness, provider, model and runtime are four different concepts, stored
+         *     side by side but never fused: `harness_ref` names the consuming
+         *     software, `provider_ref` the system exposing models, `model_ref` the
+         *     concrete model, and the row identity (`id`, stable UUID) names the
+         *     runtime itself. All refs are open strings. `owner_user_id` is always
+         *     server-derived. `machine_id` is optional: local/attached runtimes point
+         *     at an owned machine, remote/cloud runtimes leave it null — one
+         *     abstraction, no per-locus architecture. `capabilities` are declared
+         *     (`capability_source`) and feed the pure `check_compatibility` matcher;
+         *     `unknown != compatible` still holds — a model name never proves a
+         *     capability. No secret field exists by construction.
+         */
+        RuntimeRegistration: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Owner User Id
+             * Format: uuid
+             */
+            owner_user_id: string;
+            /** Machine Id */
+            machine_id?: string | null;
+            /** Harness Ref */
+            harness_ref?: string | null;
+            /** Provider Ref */
+            provider_ref?: string | null;
+            /** Model Ref */
+            model_ref?: string | null;
+            /**
+             * @default {
+             *       "coding": false,
+             *       "tools": [],
+             *       "local": false
+             *     }
+             */
+            capabilities: components["schemas"]["RuntimeCapabilities"];
+            /** @default declared */
+            capability_source: components["schemas"]["CapabilitySource"];
+            /**
+             * Runtime Metadata
+             * @default {}
+             */
+            runtime_metadata: {
+                [key: string]: unknown;
+            };
+            /** @default active */
+            status: components["schemas"]["RuntimeStatus"];
+            /**
+             * Version
+             * @description Optimistic-concurrency revision (P7): mirrors the server-side revision column. Additive P7 exposure — previously only visible server-side; readers need it to send `expected_version` on update instead of guessing. Defaults to 1 (the DB default) so non-persisted constructions stay valid.
+             * @default 1
+             */
+            version: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Updated At */
+            updated_at?: string | null;
+        };
+        /**
+         * RuntimeRegistrationCreate
+         * @description Registers one runtime. `owner_user_id` is never accepted (server
+         *     derives it from the authenticated principal); `status` is always
+         *     `active` at creation (revocation is a separate explicit operation).
+         *     Only `declared` capabilities exist in P6 — any other source is
+         *     fail-closed until defined.
+         */
+        RuntimeRegistrationCreate: {
+            /** Machine Id */
+            machine_id?: string | null;
+            /** Harness Ref */
+            harness_ref?: string | null;
+            /** Provider Ref */
+            provider_ref?: string | null;
+            /** Model Ref */
+            model_ref?: string | null;
+            /**
+             * @default {
+             *       "coding": false,
+             *       "tools": [],
+             *       "local": false
+             *     }
+             */
+            capabilities: components["schemas"]["RuntimeCapabilities"];
+            /** @default declared */
+            capability_source: components["schemas"]["CapabilitySource"];
+            /**
+             * Runtime Metadata
+             * @default {}
+             */
+            runtime_metadata: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * RuntimeRegistrationUpdate
+         * @description Mutates the descriptors of one runtime without rotating its identity:
+         *     changing capabilities (or refs) never creates a new runtime — `id` is
+         *     the stable     identity, refs are mutable descriptors. Every field is
+         *     optional; omitted fields are left untouched. `machine_id` can be
+         *     attached or moved (a value sets a new locus); detaching uses the
+         *     explicit `detach_machine` flag — an omitted `machine_id` (`None`)
+         *     means "leave untouched", never "detach" — because the model cannot
+         *     distinguish omitted from explicit `null`. The target machine must
+         *     still be owned by the caller. `expected_version` (service call) guards
+         *     against stale writes (409).
+         */
+        RuntimeRegistrationUpdate: {
+            /** Machine Id */
+            machine_id?: string | null;
+            /**
+             * Detach Machine
+             * @default false
+             */
+            detach_machine: boolean;
+            /** Harness Ref */
+            harness_ref?: string | null;
+            /** Provider Ref */
+            provider_ref?: string | null;
+            /** Model Ref */
+            model_ref?: string | null;
+            capabilities?: components["schemas"]["RuntimeCapabilities"] | null;
+            /** Runtime Metadata */
+            runtime_metadata?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /**
+         * RuntimeRegistrationUpdateRequest
+         * @description HTTP/MCP input for a registry update (P7): the descriptor
+         *     patch plus the optimistic-concurrency guard. Nested (not flattened) so
+         *     the patch shape stays exactly `RuntimeRegistrationUpdate` — one
+         *     definition for HTTP, MCP and service, never a divergent copy. The
+         *     router forwards `update` and `expected_version` unchanged to
+         *     `update_runtime`.
+         */
+        RuntimeRegistrationUpdateRequest: {
+            update: components["schemas"]["RuntimeRegistrationUpdate"];
+            /** Expected Version */
+            expected_version: number;
+        };
+        /**
+         * RuntimeStatus
+         * @description Registry lifecycle (P6): logical revocation only, never a
+         *     physical delete — a revoked runtime stays readable (diagnostics) but
+         *     resolves as non-live, so a binding toward it falls through instead of
+         *     silently becoming another target.
+         * @enum {string}
+         */
+        RuntimeStatus: "active" | "revoked";
+        /**
+         * RuntimeTarget
+         * @description A concrete, non-secret runtime choice.
+         *
+         *     Two shapes, never mixed at input (P6): either `runtime_id`
+         *     references a registered runtime (canonical — identity, refs and
+         *     capabilities then come from the Registry) or the inline anchors
+         *     (`machine_id`, `harness_ref`, `provider_ref`, `model_ref`,
+         *     `capabilities`) carry the choice directly (P4 legacy, still valid).
+         *     The input exclusivity is enforced service-side (`invalid_runtime_binding`):
+         *     the *resolved* effective target legitimately carries both the
+         *     `runtime_id` (provenance) and the registry-resolved fields.
+         *     Open references only: an owned machine locus, abstract harness/provider/model
+         *     labels (same status as agent observability metadata — never a vendor
+         *     catalog, never a whitelist), and a capability snapshot used for
+         *     compatibility checks. No secret field exists on this model by
+         *     construction: there is nowhere to put an API key, token or credential.
+         *     At least one anchor is required.
+         */
+        RuntimeTarget: {
+            /** Runtime Id */
+            runtime_id?: string | null;
+            /** Machine Id */
+            machine_id?: string | null;
+            /** Harness Ref */
+            harness_ref?: string | null;
+            /** Provider Ref */
+            provider_ref?: string | null;
+            /** Model Ref */
+            model_ref?: string | null;
+            /**
+             * @default {
+             *       "coding": false,
+             *       "tools": [],
+             *       "local": false
+             *     }
+             */
+            capabilities: components["schemas"]["RuntimeCapabilities"];
+        };
+        /**
+         * SessionRuntimeOverride
+         * @description One ephemeral session-level runtime choice carried by a resolution
+         *     request (P7). Same key shape as a stored binding
+         *     (`target_kind`, `target_stable_key`) plus the concrete `target` — but
+         *     never persisted: the router forwards it as resolution context only
+         *     (`session_overrides`), and the service validates it exactly like a
+         *     stored choice (unknown machine 404, another user's machine 403).
+         */
+        SessionRuntimeOverride: {
+            target_kind: components["schemas"]["LibraryKind"];
+            /** Target Stable Key */
+            target_stable_key: string;
+            target: components["schemas"]["RuntimeTarget"];
+        };
         /** Task */
         Task: {
             /**
@@ -2652,6 +3439,15 @@ export interface components {
             /** Context */
             ctx?: Record<string, never>;
         };
+        /**
+         * VersionOrigin
+         * @description How an effective version was picked: P2 shadowing selection yields
+         *     `lock`/`active`; an exact version-pinned dependency edge yields `pin`.
+         *     Only the P5 resolved output emits `pin` — `LibraryResolution` (P2) still
+         *     emits `lock`/`active` alone (P5, additive).
+         * @enum {string}
+         */
+        VersionOrigin: "lock" | "active" | "pin";
         /** WorkSession */
         WorkSession: {
             /**
@@ -4895,6 +5691,792 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_runtime_bindings_api_v1_runtime_bindings_get: {
+        parameters: {
+            query?: {
+                level?: components["schemas"]["RuntimeLevel"] | null;
+                project_id?: string | null;
+                kind?: components["schemas"]["LibraryKind"] | null;
+                stable_key?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeBinding"][];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_runtime_binding_api_v1_runtime_bindings_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RuntimeBindingCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeBinding"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Runtime reference not found: unknown runtime id (`runtime not found`, plain message — another user's runtime answers the same 404, never a hint of its existence), unknown runtime binding id (`runtime binding not found`), a `runtime_id` reference naming no row (`runtime_not_found`), an attached/bound machine that does not exist (`runtime_target_not_found`), or a project context that does not exist (`project_not_found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "runtime_not_found"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). Runtime choice already stored for this `(level, scope, kind, stable_key)` key (`already_bound`) — release it first, then store the new choice. Bindings are set-once per key, never silently overwritten. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "idempotency_key_payload_mismatch"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Runtime choice rejected, nothing stored: a `session` level sent for persistence (`ephemeral_level_not_stored`), a kind outside `agent_definition`/`model_profile` (`unsupported_target_kind`), a `runtime_id` mixed with inline anchors (`runtime_id_must_be_exclusive`), or an update/register leaving no anchor at all (`invalid_runtime` / `no_anchor_left`). Secret-looking metadata keys are rejected by validation before anything is stored. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_runtime_binding",
+                     *         "reason": "ephemeral_level_not_stored"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    get_runtime_binding_api_v1_runtime_bindings__binding_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                binding_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeBinding"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_runtime_binding_api_v1_runtime_bindings__binding_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                binding_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeBinding"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_runtimes_api_v1_runtimes_get: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["RuntimeStatus"] | null;
+                include_revoked?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeRegistration"][];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    register_runtime_api_v1_runtimes_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RuntimeRegistrationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeRegistration"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Runtime reference not found: unknown runtime id (`runtime not found`, plain message — another user's runtime answers the same 404, never a hint of its existence), unknown runtime binding id (`runtime binding not found`), a `runtime_id` reference naming no row (`runtime_not_found`), an attached/bound machine that does not exist (`runtime_target_not_found`), or a project context that does not exist (`project_not_found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "runtime_not_found"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "idempotency_key_payload_mismatch"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Runtime choice rejected, nothing stored: a `session` level sent for persistence (`ephemeral_level_not_stored`), a kind outside `agent_definition`/`model_profile` (`unsupported_target_kind`), a `runtime_id` mixed with inline anchors (`runtime_id_must_be_exclusive`), or an update/register leaving no anchor at all (`invalid_runtime` / `no_anchor_left`). Secret-looking metadata keys are rejected by validation before anything is stored. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_runtime_binding",
+                     *         "reason": "ephemeral_level_not_stored"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    get_runtime_api_v1_runtimes__runtime_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runtime_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeRegistration"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_runtime_api_v1_runtimes__runtime_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                runtime_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RuntimeRegistrationUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeRegistration"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version — re-read the object, merge, and retry with the new version. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "idempotency_key_payload_mismatch"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Runtime choice rejected, nothing stored: a `session` level sent for persistence (`ephemeral_level_not_stored`), a kind outside `agent_definition`/`model_profile` (`unsupported_target_kind`), a `runtime_id` mixed with inline anchors (`runtime_id_must_be_exclusive`), or an update/register leaving no anchor at all (`invalid_runtime` / `no_anchor_left`). Secret-looking metadata keys are rejected by validation before anything is stored. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_runtime_binding",
+                     *         "reason": "ephemeral_level_not_stored"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    revoke_runtime_api_v1_runtimes__runtime_id__revoke_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runtime_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeRegistration"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_agent_definition_api_v1_resolutions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentResolutionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedAgentDefinition"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Runtime reference not found: unknown runtime id (`runtime not found`, plain message — another user's runtime answers the same 404, never a hint of its existence), unknown runtime binding id (`runtime binding not found`), a `runtime_id` reference naming no row (`runtime_not_found`), an attached/bound machine that does not exist (`runtime_target_not_found`), or a project context that does not exist (`project_not_found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "runtime_not_found"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Resolution refused, nothing stored (pure read): the winning runtime choice does not satisfy the linked model profile requirements (`runtime_incompatible`, with `level`, `matched_kind`, `matched_stable_key` and `unsatisfied` — never a silent fallback to another runtime), or the loaded snapshot is internally inconsistent (`invalid_resolution_input`, including a duplicated session override key). Missing or invisible definitions answer 404 `definition_not_found` instead, never a hint of their existence. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "runtime_incompatible",
+                     *         "level": "user",
+                     *         "matched_kind": "agent_definition",
+                     *         "matched_stable_key": "...",
+                     *         "unsatisfied": [
+                     *           "coding: required"
+                     *         ]
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
                 };
             };
         };
