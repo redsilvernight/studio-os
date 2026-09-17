@@ -17,6 +17,7 @@ from studio_contracts.builds import (
 from studio_contracts.claims import ResourceClaim, ResourceClaimCreate
 from studio_contracts.decisions import Decision
 from studio_contracts.events import EventCreate, EventEnvelope
+from studio_contracts.library import LibraryProjectLock, LibraryResource, LibraryVersion
 from studio_contracts.project_state import ProjectState
 from studio_contracts.projects import Project
 from studio_contracts.review_queue import ReviewQueue
@@ -462,6 +463,46 @@ class StudioApiClient:
 
     async def delete_transfer(self, transfer_id: UUID) -> None:
         await self._request("DELETE", f"/api/v1/transfers/{transfer_id}")
+
+    async def list_library_resources(
+        self,
+        *,
+        kind: str | None = None,
+        scope: str | None = None,
+        project_id: UUID | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[LibraryResource]:
+        """Read-only Library listing over the P7 HTTP surface
+        (`GET /api/v1/library`, DEC-0071). Pure GET: safe to retry, never
+        mutates, never resolves shadowing — the caller selects the effective
+        definition from the visible rows (P9/DEC-0073)."""
+        params: dict[str, Any] = {"limit": limit, "offset": offset}
+        if kind is not None:
+            params["kind"] = kind
+        if scope is not None:
+            params["scope"] = scope
+        if project_id is not None:
+            params["project_id"] = str(project_id)
+        response = await self._request("GET", "/api/v1/library", params=params)
+        return [LibraryResource.model_validate(item) for item in response.json()]
+
+    async def get_library_resource(self, resource_id: UUID) -> LibraryResource:
+        response = await self._request("GET", f"/api/v1/library/{resource_id}")
+        return LibraryResource.model_validate(response.json())
+
+    async def list_library_versions(self, resource_id: UUID) -> list[LibraryVersion]:
+        response = await self._request("GET", f"/api/v1/library/{resource_id}/versions")
+        return [LibraryVersion.model_validate(item) for item in response.json()]
+
+    async def list_library_locks(
+        self, *, project_id: UUID | None = None
+    ) -> list[LibraryProjectLock]:
+        params: dict[str, Any] = {}
+        if project_id is not None:
+            params["project_id"] = str(project_id)
+        response = await self._request("GET", "/api/v1/library-locks", params=params)
+        return [LibraryProjectLock.model_validate(item) for item in response.json()]
 
     async def send_mutation(
         self, method: str, path: str, payload: dict[str, Any], *, idempotency_key: str

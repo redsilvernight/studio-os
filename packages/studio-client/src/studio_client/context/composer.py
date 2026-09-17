@@ -8,6 +8,12 @@ from uuid import UUID
 
 from studio_client.config import ClientConfig
 from studio_client.context.git import read_git_snapshot
+from studio_client.context.library import (
+    LIBRARY_CONTEXT_KIND,
+    TEXTUAL_LIBRARY_KINDS,
+    LibraryContextProvider,
+    library_source_ref,
+)
 from studio_client.context.manifest import (
     ContextPackageManifest,
     Generator,
@@ -39,6 +45,9 @@ class ContextPackageOptions:
     graph_limit: int = 10
     git_commits_limit: int = 10
     task_only_project_state: bool = False
+    include_library: bool = False
+    library_limit: int = 100
+    library_kinds: tuple[str, ...] = TEXTUAL_LIBRARY_KINDS
 
 
 @dataclass(frozen=True)
@@ -61,18 +70,21 @@ class ContextPackage:
 _SourceName = str
 _SourcePriority = int
 
-# Priority order for removal when the budget is exceeded (DEC-0057).
-# Lower number = removed first.
+# Priority order for removal when the budget is exceeded (DEC-0057, P9/DEC-0073).
+# Lower number = removed first. Core shared state (negative) is never removed
+# automatically; `library` sits below `decisions` and above `ai_work`: curated
+# shared instructions survive volatile local sources but never core state.
 _SOURCE_PRIORITY: dict[_SourceName, _SourcePriority] = {
     "memory": 5,
     "graph": 4,
     "git": 3,
     "events": 2,
     "ai_work": 1,
-    "decisions": 0,
-    "claims": -1,
-    "project_state": -2,
-    "task": -3,
+    "library": 0,
+    "decisions": -1,
+    "claims": -2,
+    "project_state": -3,
+    "task": -4,
 }
 
 
@@ -92,11 +104,13 @@ class ContextPackageComposer:
         *,
         memory_provider: VaultMemoryProvider | None = None,
         graph_provider: GraphifyGraphProvider | None = None,
+        library_provider: LibraryContextProvider | None = None,
     ) -> None:
         self._api = api_client
         self._config = config
         self._memory = memory_provider
         self._graph = graph_provider
+        self._library = library_provider
 
     async def generate(
         self,
@@ -163,6 +177,13 @@ class ContextPackageComposer:
                 sources["git"] = (ref, git.__dict__)
             else:
                 omitted.append(Omission("git", 0, "repo_not_configured"))
+
+        # AI Library (P9/DEC-0073): one more source, same degraded-reading rule.
+        if opts.include_library:
+            ref, payload, library_omitted = await self._compose_library(project_id, opts)
+            omitted.extend(library_omitted)
+            if ref is not None:
+                sources[LIBRARY_CONTEXT_KIND] = (ref, payload)
 
         # Apply hard budget.
         manifest, sources, omitted, truncated = self._apply_budget(manifest, sources, omitted, opts)
@@ -322,6 +343,34 @@ class ContextPackageComposer:
         payload = {"files": result.files}
         return ref, payload
 
+    async def _compose_library(
+        self, project_id: UUID, opts: ContextPackageOptions
+    ) -> tuple[SourceRef | None, Any, list[Omission]]:
+        """Fetch Library candidates through `StudioApiClient` (P7 HTTP only).
+
+        A `TransportError` degrades to `omitted(server_unreachable)` and the
+        package continues with local sources — never an outbox write (reads
+        are not mutations). Any other error (auth, contract, invalid content)
+        propagates: degraded mode must not mask it.
+        """
+        from studio_client.errors import TransportError
+
+        provider = self._library or LibraryContextProvider(self._api)
+        try:
+            result = await provider.fetch(
+                project_id, limit=opts.library_limit, kinds=opts.library_kinds
+            )
+        except TransportError:
+            return None, None, [Omission(LIBRARY_CONTEXT_KIND, 0, "server_unreachable")]
+        omitted = [
+            Omission(LIBRARY_CONTEXT_KIND, count, reason)
+            for reason, count in sorted(result.skipped.items())
+            if count > 0
+        ]
+        ref = library_source_ref(project_id, len(result.items))
+        payload = [item.to_dict() for item in result.items]
+        return ref, payload, omitted
+
     def _apply_budget(
         self,
         manifest: ContextPackageManifest,
@@ -329,12 +378,17 @@ class ContextPackageComposer:
         omitted: list[Omission],
         opts: ContextPackageOptions,
     ) -> tuple[ContextPackageManifest, dict[str, tuple[SourceRef, Any]], list[Omission], bool]:
-        """Remove lowest-priority sources until the package fits the budget."""
-        truncated = False
-        manifest_size = manifest.package_size_bytes()
-        current_size = manifest_size + sum(_json_size(payload) for _, payload in sources.values())
+        """Remove lowest-priority sources until the package fits the budget.
 
-        while current_size > opts.budget_bytes and sources:
+        Measured on the exact final serialization (`{"manifest": …,
+        "data": …}` in UTF-8 bytes — never `len(str)`), so a package at the
+        limit is accepted and any byte over it drops a source per P9 §37.
+        """
+        truncated = False
+
+        while sources:
+            if self._measured_size(manifest, sources, omitted, truncated) <= opts.budget_bytes:
+                break
             # Pick removable source with lowest priority number.
             removable = [
                 (name, _SOURCE_PRIORITY.get(name, 0))
@@ -342,11 +396,12 @@ class ContextPackageComposer:
                 if _SOURCE_PRIORITY.get(name, 0) >= 0
             ]
             if not removable:
+                # Even the core sources don't fit — flag it but keep them.
+                truncated = True
                 break
             removable.sort(key=lambda item: (item[1], item[0]))
             name_to_drop = removable[0][0]
-            ref, payload = sources.pop(name_to_drop)
-            dropped_size = _json_size(payload)
+            ref, _ = sources.pop(name_to_drop)
             omitted.append(
                 Omission(
                     kind=name_to_drop,
@@ -354,14 +409,40 @@ class ContextPackageComposer:
                     reason="budget",
                 )
             )
-            current_size -= dropped_size
-            truncated = True
-
-        if current_size > opts.budget_bytes and sources:
-            # Even the core sources don't fit — flag it but keep them.
             truncated = True
 
         return manifest, sources, omitted, truncated
+
+    @staticmethod
+    def _measured_size(
+        manifest: ContextPackageManifest,
+        sources: dict[str, tuple[SourceRef, Any]],
+        omitted: list[Omission],
+        truncated: bool,
+    ) -> int:
+        """Byte size of the exact document `ContextPackage.size_bytes()` will
+        report once assembled: same `json.dumps` settings, same shape."""
+        probe = ContextPackageManifest(
+            schema_version=manifest.schema_version,
+            package_id=manifest.package_id,
+            generated_at=manifest.generated_at,
+            project_id=manifest.project_id,
+            task_id=manifest.task_id,
+            generator=manifest.generator,
+            manifest_scope=manifest.manifest_scope,
+            limits=manifest.limits,
+            sources=[ref for _, (ref, _) in sorted(sources.items())],
+            omitted=list(omitted),
+            truncated=truncated,
+        )
+        data = {name: payload for name, (_, payload) in sorted(sources.items())}
+        return len(
+            json.dumps(
+                {"manifest": probe.to_dict(), "data": data},
+                ensure_ascii=False,
+                default=str,
+            ).encode("utf-8")
+        )
 
     @staticmethod
     def _is_transport_error(exc: Exception) -> bool:

@@ -388,6 +388,7 @@ def _context_generate(args: argparse.Namespace, config: ClientConfig) -> None:
         include_memory=args.with_memory,
         include_graph=args.with_graph,
         include_git=args.with_git,
+        include_library=args.with_library,
         memory_query=args.memory_query or "",
         graph_query=args.graph_query or "",
         budget_bytes=args.budget_bytes,
@@ -397,6 +398,7 @@ def _context_generate(args: argparse.Namespace, config: ClientConfig) -> None:
         memory_limit=args.memory_limit,
         graph_limit=args.graph_limit,
         git_commits_limit=args.git_commits_limit,
+        library_limit=args.library_limit,
     )
 
     async def action(client: StudioApiClient) -> ContextPackage:
@@ -660,6 +662,11 @@ def _build_parser() -> argparse.ArgumentParser:
     context_generate.add_argument(
         "--with-git", action="store_true", help="Include bounded Git snapshot (opt-in)."
     )
+    context_generate.add_argument(
+        "--with-library",
+        action="store_true",
+        help="Include AI Library rule/skill excerpts via StudioApiClient (P7 HTTP, opt-in).",
+    )
     context_generate.add_argument("--memory-query", help="Search query for vault notes.")
     context_generate.add_argument("--graph-query", help="Topic/path for Graphify lookup.")
     context_generate.add_argument(
@@ -671,6 +678,7 @@ def _build_parser() -> argparse.ArgumentParser:
     context_generate.add_argument("--memory-limit", type=int, default=5)
     context_generate.add_argument("--graph-limit", type=int, default=10)
     context_generate.add_argument("--git-commits-limit", type=int, default=10)
+    context_generate.add_argument("--library-limit", type=int, default=100)
     context_generate.add_argument(
         "--out", help="Write the package to this file instead of printing a summary."
     )

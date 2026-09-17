@@ -6,6 +6,14 @@ from studio_client.context.composer import (
     ContextPackageOptions,
 )
 from studio_client.context.errors import ContextError
+from studio_client.context.library import (
+    LIBRARY_CONTEXT_KIND,
+    TEXTUAL_LIBRARY_KINDS,
+    LibraryContextItem,
+    LibraryContextProvider,
+    LibraryFetchResult,
+    library_source_ref,
+)
 from studio_client.context.manifest import (
     ContextPackageManifest,
     Generator,
@@ -21,7 +29,13 @@ __all__ = [
     "ContextPackageManifest",
     "ContextPackageOptions",
     "Generator",
+    "LIBRARY_CONTEXT_KIND",
+    "TEXTUAL_LIBRARY_KINDS",
+    "LibraryContextItem",
+    "LibraryContextProvider",
+    "LibraryFetchResult",
     "Limits",
     "Omission",
     "SourceRef",
+    "library_source_ref",
 ]
