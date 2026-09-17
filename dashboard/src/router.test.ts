@@ -26,4 +26,31 @@ describe("parseRoute", () => {
     expect(parseRoute("#/transfers")).toEqual({ name: "transfers" });
     expect(parseRoute("#/machines/extra")).toEqual({ name: "dashboard" });
   });
+
+  it("parses the P12 Library routes", () => {
+    expect(parseRoute("#/library")).toEqual({ name: "library", kind: null });
+    expect(parseRoute("#/library/rules")).toEqual({ name: "library", kind: "rules" });
+    expect(parseRoute("#/library/skills")).toEqual({ name: "library", kind: "skills" });
+    expect(parseRoute("#/library/agent-definitions")).toEqual({ name: "library", kind: "agent-definitions" });
+    expect(parseRoute("#/library/workflows")).toEqual({ name: "library", kind: "workflows" });
+    expect(parseRoute("#/library/model-profiles")).toEqual({ name: "library", kind: "model-profiles" });
+    expect(parseRoute("#/library/rules/abc")).toEqual({ name: "libraryDetail", kind: "rules", id: "abc" });
+    expect(parseRoute("#/library/nope")).toEqual({ name: "dashboard" });
+  });
+
+  it("parses the P12 Configuration routes", () => {
+    expect(parseRoute("#/configuration")).toEqual({ name: "configRuntimes" });
+    expect(parseRoute("#/configuration/runtimes")).toEqual({ name: "configRuntimes" });
+    expect(parseRoute("#/configuration/runtimes/rt1")).toEqual({ name: "configRuntime", id: "rt1" });
+    expect(parseRoute("#/configuration/bindings")).toEqual({ name: "configBindings" });
+    expect(parseRoute("#/configuration/project")).toEqual({ name: "configProject", tab: "resources" });
+    expect(parseRoute("#/configuration/project/locks")).toEqual({ name: "configProject", tab: "locks" });
+    expect(parseRoute("#/configuration/project/overrides")).toEqual({ name: "configProject", tab: "overrides" });
+  });
+
+  it("parses the Resolution Inspector routes", () => {
+    expect(parseRoute("#/inspector")).toEqual({ name: "inspector", stableKey: null });
+    expect(parseRoute("#/inspector/review-helper")).toEqual({ name: "inspector", stableKey: "review-helper" });
+    expect(parseRoute("#/inspector/a%2Fb")).toEqual({ name: "inspector", stableKey: "a/b" });
+  });
 });
