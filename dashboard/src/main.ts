@@ -26,7 +26,7 @@ import { renderTaskDetail } from "./views/taskDetail";
 import { renderTasksInto } from "./views/tasks";
 import { renderAgentDetail, renderAgents } from "./views/agents";
 import { renderMachines } from "./views/machines";
-import { renderDecisions } from "./views/decisions";
+import { renderDecisionsV2 as renderDecisions } from "./views/decisionsV2";
 import { renderTransfers } from "./views/transfers";
 import { renderLibrary, renderLibraryDetail } from "./views/library";
 import { renderBindings, renderProjectConfig, renderRuntimeDetail, renderRuntimes } from "./views/configuration";
@@ -46,6 +46,7 @@ import "./views/overview.css";
 import "./views/projects.css";
 import "./views/library.css";
 import "./views/workspace.css";
+import "./views/decisions.css";
 import "./styles.css";
 
 type EventEnvelope = components["schemas"]["EventEnvelope"];

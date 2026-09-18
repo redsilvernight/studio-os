@@ -18,7 +18,7 @@ import { taskStatusLabel, taskStatusTone } from "../taskStatus";
 import { describeError, esc, fmtTime } from "../ui";
 import { renderActivityInto } from "./activity";
 import { renderClaimsInto } from "./claims";
-import { renderDecisions } from "./decisions";
+import { renderDecisionsV2 as renderDecisions } from "./decisionsV2";
 import { renderTasksInto } from "./tasks";
 
 type Project = components["schemas"]["Project"];
