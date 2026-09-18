@@ -213,6 +213,10 @@ function mountShell(): void {
   document.getElementById("nav-open")?.addEventListener("click", () => openDrawer());
   document.getElementById("nav-close")?.addEventListener("click", () => closeDrawer());
   document.getElementById("app-scrim")?.addEventListener("click", () => closeDrawer());
+  app.querySelector(".ds-skip-link")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    document.getElementById("view")?.focus();
+  });
   if (!shellListenersMounted) {
     shellListenersMounted = true;
     document.addEventListener("keydown", (event) => {

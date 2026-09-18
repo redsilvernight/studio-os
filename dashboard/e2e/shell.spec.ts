@@ -69,12 +69,57 @@ test.describe("appshell", () => {
     expect(pageErrors).toEqual([]);
   });
 
-  test("skip-link reaches the main content", async ({ page }) => {
+  test("skip-link focuses main content without touching the route (no render race)", async ({
+    page,
+  }) => {
+    const pageErrors: Error[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error));
+
     await login(page, "#/tasks");
+    await expect(page.locator("#view")).toContainText("Tâches");
+    await expect(page).toHaveURL(/#\/tasks$/);
+
+    // Marque le nœud #view courant : tout render() parasite le remplacerait
+    // (staging.replaceWith), donc l'identité du nœud prouve l'absence de rendu.
+    await page.evaluate(() => {
+      const view = document.getElementById("view");
+      if (view === null) throw new Error("#view missing");
+      (window as unknown as { __skipLinkView?: Element }).__skipLinkView = view;
+    });
+
+    const expectStableSkip = async (): Promise<void> => {
+      // Focus sur le contenu principal courant.
+      await expect(page.locator("#view")).toBeFocused();
+      // Route/hash inchangés : aucune navigation "#view" ne doit avoir lieu.
+      await expect(page).toHaveURL(/#\/tasks$/);
+      // Aucun render parasite : le nœud #view est toujours le même
+      // (tout render() le remplacerait via staging.replaceWith).
+      const sameNode = await page.evaluate(
+        () =>
+          document.getElementById("view") ===
+          (window as unknown as { __skipLinkView?: Element }).__skipLinkView,
+      );
+      expect(sameNode).toBe(true);
+      // Le contenu reste celui de la route courante, pas un 404 "#view".
+      await expect(page.locator("#view")).toContainText("Tâches");
+    };
+
+    // Premier arrêt Tab naturel depuis le chargement : le skip-link.
     await page.keyboard.press("Tab");
     await expect(page.locator(".ds-skip-link")).toBeFocused();
+    // Activation clavier : le skip-link intercepte (preventDefault) et
+    // déplace le focus sur le contenu principal courant.
     await page.keyboard.press("Enter");
-    await expect(page.locator("#view")).toBeFocused();
+    await expectStableSkip();
+
+    // Stabilité répétée : le point de départ séquentiel restant après #view,
+    // les activations suivantes refocalisent le skip-link avant l'appui clavier.
+    for (let i = 0; i < 4; i++) {
+      await page.locator(".ds-skip-link").focus();
+      await page.keyboard.press("Enter");
+      await expectStableSkip();
+    }
+    expect(pageErrors).toEqual([]);
   });
 
   test("unknown hash shows an explicit 404 with a way home", async ({ page }) => {
