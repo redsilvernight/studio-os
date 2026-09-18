@@ -37,26 +37,26 @@ export function contentFieldsHtml(kind: LibraryKind): string {
   switch (kind) {
     case "rule":
     case "skill":
-      return `<label class="stack">Text <textarea name="text" rows="8" required placeholder="Canonical text of this ${kind}"></textarea></label>`;
+      return `<label class="stack">Texte <textarea name="text" rows="8" required placeholder="Texte canonique de ${kind === "rule" ? "cette règle" : "cette compétence"}"></textarea></label>`;
     case "agent_definition":
       return (
-        `<label class="stack">Summary <input name="summary" placeholder="one-line summary (optional)" /></label>` +
-        `<label class="stack">Intended use <textarea name="intended_use" rows="3" placeholder="intended use (optional)"></textarea></label>`
+        `<label class="stack">Résumé <input name="summary" placeholder="résumé en une ligne (facultatif)" /></label>` +
+        `<label class="stack">Usage prévu <textarea name="intended_use" rows="3" placeholder="usage prévu (facultatif)"></textarea></label>`
       );
     case "model_profile":
       return (
-        `<label class="stack">Profile description <input name="profile_description" placeholder="optional" /></label>` +
-        `<label class="stack">Reasoning <input name="reasoning" placeholder="open tag, e.g. high (optional)" /></label>` +
-        `<label class="stack">Context window min <input name="context_window_min" type="number" min="1" placeholder="optional" /></label>` +
-        `<label class="stack">Tools required <input name="tools_required" placeholder="comma-separated (optional)" /></label>` +
-        `<label class="stack">Multimodal <input name="multimodal" placeholder="open tag (optional)" /></label>` +
-        `<label class="stack">Cost <input name="cost" placeholder="open tag (optional)" /></label>` +
-        `<label class="stack">Latency <input name="latency" placeholder="open tag (optional)" /></label>` +
-        `<label class="check">Coding <input name="coding" type="checkbox" /></label>` +
-        `<label class="check">Local compatible <input name="local_compatible" type="checkbox" /></label>`
+        `<label class="stack">Description du profil <input name="profile_description" placeholder="facultatif" /></label>` +
+        `<label class="stack">Raisonnement <input name="reasoning" placeholder="étiquette libre, ex. élevé (facultatif)" /></label>` +
+        `<label class="stack">Fenêtre de contexte min <input name="context_window_min" type="number" min="1" placeholder="facultatif" /></label>` +
+        `<label class="stack">Outils requis <input name="tools_required" placeholder="séparés par des virgules (facultatif)" /></label>` +
+        `<label class="stack">Multimodal <input name="multimodal" placeholder="étiquette libre (facultatif)" /></label>` +
+        `<label class="stack">Coût <input name="cost" placeholder="étiquette libre (facultatif)" /></label>` +
+        `<label class="stack">Latence <input name="latency" placeholder="étiquette libre (facultatif)" /></label>` +
+        `<label class="check">Code <input name="coding" type="checkbox" /></label>` +
+        `<label class="check">Compatible local <input name="local_compatible" type="checkbox" /></label>`
       );
     case "workflow":
-      return `<label class="stack">Summary <input name="summary" placeholder="optional" /></label>`;
+      return `<label class="stack">Résumé <input name="summary" placeholder="facultatif" /></label>`;
   }
 }
 
@@ -64,7 +64,7 @@ export function buildContent(kind: LibraryKind, read: FormReader): BuildResult<R
   const schema = contentSchemaFor(kind);
   if (kind === "rule" || kind === "skill") {
     const text = read.text("text").trim();
-    if (text === "") return { ok: false, error: "text is required" };
+    if (text === "") return { ok: false, error: "Le texte est obligatoire." };
     return { ok: true, value: { content_schema: schema, text } };
   }
   if (kind === "agent_definition") {
@@ -97,7 +97,7 @@ export function buildContent(kind: LibraryKind, read: FormReader): BuildResult<R
     if (description !== null) value["description"] = description;
     return { ok: true, value };
   }
-  return { ok: false, error: "workflow content is built from its participants and I/O" };
+  return { ok: false, error: "Le contenu d'un flux se construit depuis ses participants et ses entrées/sorties." };
 }
 
 export interface DependencyInput {
@@ -115,11 +115,11 @@ export function dependencyRowHtml(values: Partial<DependencyInput> = {}): string
   ).join("");
   return (
     `<span class="repeat-row" data-row="dependency">` +
-    `<label class="cell">Kind <select data-field="kind">${kindOptions}</select></label>` +
-    `<label class="cell">Stable key <input data-field="stable_key" value="${esc(values.stable_key ?? "")}" placeholder="stable key" /></label>` +
+    `<label class="cell">Type <select data-field="kind">${kindOptions}</select></label>` +
+    `<label class="cell">Clé stable <input data-field="stable_key" value="${esc(values.stable_key ?? "")}" placeholder="clé stable" /></label>` +
     `<label class="cell">Version <input data-field="version" type="number" min="1" value="${esc(values.version ?? "")}" placeholder="1" /></label>` +
-    `<label class="cell">Relation <input data-field="relation" value="${esc(values.relation ?? "")}" placeholder="inferred if blank" /></label>` +
-    `<button type="button" data-remove-row aria-label="Remove dependency">Remove</button>` +
+    `<label class="cell">Relation <input data-field="relation" value="${esc(values.relation ?? "")}" placeholder="déduite si vide" /></label>` +
+    `<button type="button" data-remove-row aria-label="Retirer la dépendance">Retirer</button>` +
     `</span>`
   );
 }
@@ -131,10 +131,10 @@ export function buildDependencies(rows: DependencyInput[]): BuildResult<Dependen
     const versionRaw = row.version.trim();
     if (stableKey === "" && versionRaw === "") continue;
     const meta = LIBRARY_KINDS.find((candidate) => candidate.kind === row.kind);
-    if (meta === undefined) return { ok: false, error: `unknown dependency kind ${row.kind}` };
-    if (stableKey === "") return { ok: false, error: "dependency stable key is required" };
+    if (meta === undefined) return { ok: false, error: `Type de dépendance inconnu : ${row.kind}` };
+    if (stableKey === "") return { ok: false, error: "La clé stable de la dépendance est obligatoire." };
     const version = Number(versionRaw);
-    if (!Number.isInteger(version) || version < 1) return { ok: false, error: `dependency ${stableKey} needs a version ≥ 1` };
+    if (!Number.isInteger(version) || version < 1) return { ok: false, error: `La dépendance ${stableKey} exige une version ≥ 1.` };
     const relation = row.relation.trim();
     const pin: DependencyPinInput = { kind: meta.kind, stable_key: stableKey, version };
     if (relation !== "") pin.relation = relation;
@@ -146,11 +146,11 @@ export function buildDependencies(rows: DependencyInput[]): BuildResult<Dependen
 export function participantRowHtml(values: Partial<{ participant_id: string; agent_stable_key: string; depends_on: string; description: string }> = {}): string {
   return (
     `<span class="repeat-row" data-row="participant">` +
-    `<label class="cell">Participant id <input data-field="participant_id" value="${esc(values.participant_id ?? "")}" placeholder="implementer" /></label>` +
-    `<label class="cell">Agent stable key <input data-field="agent_stable_key" value="${esc(values.agent_stable_key ?? "")}" placeholder="review-helper" /></label>` +
-    `<label class="cell">Depends on <input data-field="depends_on" value="${esc(values.depends_on ?? "")}" placeholder="comma-separated ids" /></label>` +
-    `<label class="cell">Description <input data-field="description" value="${esc(values.description ?? "")}" placeholder="optional" /></label>` +
-    `<button type="button" data-remove-row aria-label="Remove participant">Remove</button>` +
+    `<label class="cell">Identifiant du participant <input data-field="participant_id" value="${esc(values.participant_id ?? "")}" placeholder="implementer" /></label>` +
+    `<label class="cell">Clé stable de l'agent <input data-field="agent_stable_key" value="${esc(values.agent_stable_key ?? "")}" placeholder="review-helper" /></label>` +
+    `<label class="cell">Dépend de <input data-field="depends_on" value="${esc(values.depends_on ?? "")}" placeholder="identifiants séparés par des virgules" /></label>` +
+    `<label class="cell">Description <input data-field="description" value="${esc(values.description ?? "")}" placeholder="facultatif" /></label>` +
+    `<button type="button" data-remove-row aria-label="Retirer le participant">Retirer</button>` +
     `</span>`
   );
 }
@@ -176,9 +176,9 @@ export function buildParticipants(rows: ParticipantInput[]): BuildResult<Workflo
     const participantId = row.participant_id.trim();
     const agentKey = row.agent_stable_key.trim();
     if (participantId === "" && agentKey === "") continue;
-    if (participantId === "") return { ok: false, error: "participant id is required" };
-    if (agentKey === "") return { ok: false, error: `participant ${participantId} needs an agent stable key` };
-    if (seen.has(participantId)) return { ok: false, error: `duplicate participant ${participantId}` };
+    if (participantId === "") return { ok: false, error: "L'identifiant du participant est obligatoire." };
+    if (agentKey === "") return { ok: false, error: `Le participant ${participantId} exige une clé stable d'agent.` };
+    if (seen.has(participantId)) return { ok: false, error: `Participant en double : ${participantId}.` };
     seen.add(participantId);
     const dependsOn = row.depends_on
       .split(",")
@@ -189,24 +189,24 @@ export function buildParticipants(rows: ParticipantInput[]): BuildResult<Workflo
     if (description !== null) payload.description = description;
     participants.push(payload);
   }
-  if (participants.length === 0) return { ok: false, error: "at least one participant is required" };
+  if (participants.length === 0) return { ok: false, error: "Au moins un participant est obligatoire." };
   return { ok: true, value: participants };
 }
 
 export function ioRowHtml(rowKind: "input" | "output", values: Partial<{ name: string; description: string; type: string; required: string; source_participant: string; source_name: string }> = {}): string {
   const source =
     rowKind === "output"
-      ? `<label class="cell">Source participant <input data-field="source_participant" value="${esc(values.source_participant ?? "")}" placeholder="producer id" /></label>` +
-        `<label class="cell">Source name <input data-field="source_name" value="${esc(values.source_name ?? "")}" placeholder="output name" /></label>`
+      ? `<label class="cell">Participant source <input data-field="source_participant" value="${esc(values.source_participant ?? "")}" placeholder="identifiant producteur" /></label>` +
+        `<label class="cell">Nom source <input data-field="source_name" value="${esc(values.source_name ?? "")}" placeholder="nom de la sortie" /></label>`
       : "";
   return (
     `<span class="repeat-row" data-row="io-${rowKind}">` +
-    `<label class="cell">Name <input data-field="name" value="${esc(values.name ?? "")}" placeholder="name" /></label>` +
-    `<label class="cell">Description <input data-field="description" value="${esc(values.description ?? "")}" placeholder="optional" /></label>` +
-    `<label class="cell">Type <input data-field="type" value="${esc(values.type ?? "")}" placeholder="open string (optional)" /></label>` +
-    `<label class="cell">Required <select data-field="required"><option value="true"${values.required === "false" ? "" : " selected"}>required</option><option value="false"${values.required === "false" ? " selected" : ""}>optional</option></select></label>` +
+    `<label class="cell">Nom <input data-field="name" value="${esc(values.name ?? "")}" placeholder="nom" /></label>` +
+    `<label class="cell">Description <input data-field="description" value="${esc(values.description ?? "")}" placeholder="facultatif" /></label>` +
+    `<label class="cell">Type <input data-field="type" value="${esc(values.type ?? "")}" placeholder="texte libre (facultatif)" /></label>` +
+    `<label class="cell">Requise <select data-field="required"><option value="true"${values.required === "false" ? "" : " selected"}>requise</option><option value="false"${values.required === "false" ? " selected" : ""}>facultative</option></select></label>` +
     source +
-    `<button type="button" data-remove-row aria-label="Remove ${rowKind}">Remove</button>` +
+    `<button type="button" data-remove-row aria-label="Retirer ${rowKind === "input" ? "l'entrée" : "la sortie"}">Retirer</button>` +
     `</span>`
   );
 }
@@ -251,7 +251,7 @@ export function buildWorkflowOutputs(rows: IoInput[]): BuildResult<WorkflowIoPay
     const participant = row.source_participant.trim();
     const sourceName = row.source_name.trim();
     if (participant === "" || sourceName === "") {
-      return { ok: false, error: `workflow output ${name} needs a source participant and name` };
+      return { ok: false, error: `La sortie ${name} exige un participant et un nom sources.` };
     }
     const payload: WorkflowIoPayload = {
       name,

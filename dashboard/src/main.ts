@@ -43,6 +43,7 @@ import "./ds/components.css";
 import "./shell.css";
 import "./views/overview.css";
 import "./views/projects.css";
+import "./views/library.css";
 import "./views/workspace.css";
 import "./styles.css";
 

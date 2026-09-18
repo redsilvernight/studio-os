@@ -42,7 +42,7 @@ describe("content schema", () => {
 describe("buildContent", () => {
   it("requires text for a rule", () => {
     const result = buildContent("rule", reader({ text: "  " }));
-    expect(result).toEqual({ ok: false, error: "text is required" });
+    expect(result).toEqual({ ok: false, error: "Le texte est obligatoire." });
   });
 
   it("builds a rule payload", () => {
@@ -98,11 +98,11 @@ describe("dependencies", () => {
   it("rejects a bad version and an empty key", () => {
     expect(buildDependencies([{ kind: "rule", stable_key: "a", version: "0", relation: "" }])).toEqual({
       ok: false,
-      error: "dependency a needs a version ≥ 1",
+      error: "La dépendance a exige une version ≥ 1.",
     });
     expect(buildDependencies([{ kind: "rule", stable_key: "", version: "1", relation: "" }])).toEqual({
       ok: false,
-      error: "dependency stable key is required",
+      error: "La clé stable de la dépendance est obligatoire.",
     });
   });
 
@@ -134,20 +134,20 @@ describe("participants and workflow content", () => {
       { participant_id: "a", agent_stable_key: "x", depends_on: "", description: "" },
       { participant_id: "a", agent_stable_key: "y", depends_on: "", description: "" },
     ]);
-    expect(result).toEqual({ ok: false, error: "duplicate participant a" });
+    expect(result).toEqual({ ok: false, error: "Participant en double : a." });
   });
 
   it("requires an agent stable key per participant", () => {
     expect(buildParticipants([{ participant_id: "a", agent_stable_key: "", depends_on: "", description: "" }])).toEqual({
       ok: false,
-      error: "participant a needs an agent stable key",
+      error: "Le participant a exige une clé stable d'agent.",
     });
   });
 
   it("requires a source for a workflow output", () => {
     expect(buildWorkflowOutputs([{ name: "verdict", description: "", type: "", required: "true", source_participant: "", source_name: "" }])).toEqual({
       ok: false,
-      error: "workflow output verdict needs a source participant and name",
+      error: "La sortie verdict exige un participant et un nom sources.",
     });
   });
 
