@@ -59,7 +59,10 @@ généré) puis propose de créer une machine. Il délègue toute la logique à 
 `studio-admin` exécutée dans le conteneur `api` (`user create`,
 `set-password --password-stdin`, `machine create`). Si l'email existe déjà, il
 l'indique sans écraser le rôle ni le mot de passe, et propose seulement la
-création facultative d'une nouvelle machine.
+création facultative d'une nouvelle machine. À la fin, il écrit les identifiants
+utiles (mot de passe dashboard et token machine) dans un fichier
+`studi-os-credentials-*.txt` sur le bureau (répertoire surchargeable via
+`STUDIO_CREDENTIALS_DIR`), car un terminal peut se fermer avant lecture.
 
 ### User, mot de passe, Machine, token
 

@@ -52,6 +52,9 @@ Le script interactif orchestre `studio-admin` dans le conteneur `api` :
 facultativement, `machine create`. Il fonctionne a l'identique sur le
 deploiement Docker Compose local et sur le VPS : aucun hostname, IP ou chemin
 local n'est code en dur, et il n'accede jamais directement a PostgreSQL.
+A la fin, il ecrit les identifiants utiles (mot de passe dashboard et token
+machine) dans un fichier `studi-os-credentials-*.txt` sur le bureau, ou dans
+`STUDIO_CREDENTIALS_DIR` si ce repertoire est defini.
 
 Si l'email existe deja, le script le signale sans ecraser le role ni le mot de
 passe, et propose uniquement la creation d'une nouvelle machine. En cas d'echec
