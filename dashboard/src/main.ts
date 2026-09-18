@@ -70,7 +70,7 @@ async function render(): Promise<void> {
         client,
         authed,
         projectId: uiState.selectedProjectId ?? undefined,
-        scopeLabel: uiState.selectedProjectId ? "selected project (change in Overview/Projects)" : "all projects",
+        scopeLabel: uiState.selectedProjectId ? "Projet sélectionné (à changer dans Vue d'ensemble ou Projets)" : "Tous les projets",
       });
       break;
     case "task":

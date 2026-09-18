@@ -363,6 +363,9 @@ test.describe("UI-4 viewports 1280 et tablette 768", () => {
       }
       if (name === "1280") {
         await page.goto(`/#/projects/${P1}/tasks`);
+        // UI-5 : la Liste est la vue par défaut, le Tableau reste disponible.
+        await expect(view.locator(".tasks-list").first()).toBeVisible();
+        await view.locator('[data-view="board"]').click();
         await expect(view.locator(".kanban").first()).toBeVisible();
         await page.screenshot({ path: `${SHOTS}/workspace-tasks-1280.png` });
       }

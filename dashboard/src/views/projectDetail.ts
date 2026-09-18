@@ -14,6 +14,7 @@ import type { StudioClient } from "../api";
 import { ApiError, parseErrorBody } from "../api";
 import type { components } from "../openapi-schema";
 import { dsBadge, dsEmptyState, dsSectionHeader, dsSkeleton } from "../ds/ds";
+import { taskStatusLabel, taskStatusTone } from "../taskStatus";
 import { describeError, esc, fmtTime } from "../ui";
 import { renderActivityInto } from "./activity";
 import { renderClaimsInto } from "./claims";
@@ -40,27 +41,20 @@ export const PROJECT_TABS: ReadonlyArray<{ id: ProjectTab; label: string; suffix
   { id: "decisions", label: "Décisions", suffix: "/decisions" },
 ];
 
+/** Libellés FR des statuts (source unique : taskStatus.ts, UI-5). */
 const TASK_STATUS_LABEL: Record<string, string> = {
-  created: "À faire",
-  in_progress: "En cours",
-  blocked: "Bloquée",
-  completed: "Terminée",
+  created: taskStatusLabel("created"),
+  in_progress: taskStatusLabel("in_progress"),
+  blocked: taskStatusLabel("blocked"),
+  completed: taskStatusLabel("completed"),
 };
 
 export const OVERVIEW_PREVIEW_LIMIT = 5;
 const CLAIM_EXPIRY_SOON_MS = 24 * 60 * 60 * 1000;
 
+/** Teinte DS d'un statut de tâche (source unique : taskStatus.ts, UI-5). */
 function taskTone(status: string): "neutral" | "info" | "warning" | "success" {
-  switch (status) {
-    case "in_progress":
-      return "info";
-    case "blocked":
-      return "warning";
-    case "completed":
-      return "success";
-    default:
-      return "neutral";
-  }
+  return taskStatusTone(status);
 }
 
 /** Navigation locale : mêmes classes que la primitive DS, mais en liens pour
@@ -210,7 +204,7 @@ export async function renderProjectDetail(
     return;
   }
   if (tab === "tasks") {
-    panel.innerHTML = `<p class="ds-list-sub">Les tâches du projet — actions conservées, présentation alignée sur le nouveau shell. Le nouveau système de tâches arrivera en UI-5. <a href="#/tasks">Toutes les tâches</a>.</p><div data-slot></div>`;
+    panel.innerHTML = `<p class="ds-list-sub">Les tâches du projet — même présentation que la page Tâches, filtrées sur ce projet. <a href="#/tasks">Toutes les tâches</a>.</p><div data-slot></div>`;
     const slot = panel.querySelector<HTMLElement>("[data-slot]");
     if (slot !== null) {
       await renderTasksInto(slot, {
@@ -218,6 +212,7 @@ export async function renderProjectDetail(
         authed: ctx.authed,
         projectId: project.id,
         scopeLabel: `projet ${project.slug}`,
+        headingLevel: 2,
       });
     }
     return;

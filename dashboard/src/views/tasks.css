@@ -1,0 +1,260 @@
+/**
+ * UI-5 — Tâches : Liste par défaut, Tableau en colonnes confortables,
+ * modale de création DS. Mobile : colonnes à défilement horizontal local
+ * (jamais de scroll global), cartes utilisables au doigt.
+ */
+
+.tasks {
+  display: grid;
+  gap: var(--ds-space-6);
+  max-width: 1020px;
+  padding-bottom: var(--ds-space-12);
+}
+
+.tasks-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--ds-space-3) var(--ds-space-4);
+}
+
+.tasks-view-toggle {
+  display: inline-flex;
+  gap: var(--ds-space-1);
+}
+
+.tasks-toolbar .ds-search {
+  flex: 1;
+  min-width: 220px;
+}
+
+.tasks-status-filter {
+  display: grid;
+  gap: var(--ds-space-1);
+  font-size: var(--ds-text-sm);
+  font-weight: 600;
+}
+
+.tasks-toolbar .ds-list-sub {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.tasks-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--ds-space-3);
+}
+
+.task-row {
+  display: flex;
+  gap: var(--ds-space-3);
+  align-items: flex-start;
+}
+
+.task-row .grow {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: var(--ds-space-1);
+}
+
+.task-row .ds-list-sub {
+  overflow-wrap: anywhere;
+}
+
+.tasks-board {
+  align-items: start;
+}
+
+.task-col {
+  min-width: 0;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius, 8px);
+  padding: var(--ds-space-3);
+  background: var(--ds-surface, transparent);
+}
+
+.task-col-title {
+  margin: 0 0 var(--ds-space-3);
+  font-size: var(--ds-text-md);
+  display: flex;
+  align-items: baseline;
+  gap: var(--ds-space-2);
+}
+
+.task-col-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--ds-space-2);
+}
+
+.task-card {
+  display: grid;
+  gap: var(--ds-space-2);
+}
+
+.task-card-title {
+  overflow-wrap: anywhere;
+}
+
+.task-card .ds-list-sub {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.task-move {
+  display: grid;
+  gap: var(--ds-space-1);
+  border-top: 1px solid var(--ds-border);
+  padding-top: var(--ds-space-2);
+}
+
+.task-move > label {
+  font-size: var(--ds-text-sm);
+  font-weight: 600;
+}
+
+.task-move-row {
+  display: flex;
+  gap: var(--ds-space-2);
+  flex-wrap: wrap;
+}
+
+.task-move-row .ds-select {
+  flex: 1;
+  min-width: 140px;
+}
+
+.task-card[draggable="true"] {
+  cursor: grab;
+}
+
+.task-card.dragging {
+  opacity: 0.5;
+}
+
+.task-col.drop-target {
+  outline: 2px dashed var(--accent);
+  outline-offset: 2px;
+}
+
+.tasks-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-3);
+}
+
+.tasks-footer .ds-list-sub {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.tasks-msg-tech {
+  color: var(--ds-text-muted);
+}
+
+#task-create-form {
+  display: grid;
+  gap: var(--ds-space-4);
+}
+
+/* Détail tâche : sections verticales lisibles, technique repliée. */
+
+.task-detail-section {
+  display: grid;
+  gap: var(--ds-space-3);
+  padding-bottom: var(--ds-space-4);
+  border-bottom: 1px solid var(--ds-border);
+}
+
+.task-detail-section:last-of-type {
+  border-bottom: none;
+}
+
+.task-overview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-3);
+}
+
+.task-overview p {
+  margin: 0;
+}
+
+.task-description {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+#task-edit-form {
+  display: grid;
+  gap: var(--ds-space-4);
+}
+
+.task-tech {
+  border-top: 1px solid var(--ds-border);
+  padding-top: var(--ds-space-2);
+  font-size: var(--ds-text-sm);
+  color: var(--ds-text-muted);
+}
+
+.task-tech summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: var(--ds-target-sm);
+  display: inline-flex;
+  align-items: center;
+}
+
+.task-tech dl {
+  margin: var(--ds-space-2) 0 0;
+  display: grid;
+  gap: var(--ds-space-1);
+}
+
+.task-tech dl > div {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: var(--ds-space-2);
+}
+
+.task-tech dt {
+  font-weight: 600;
+}
+
+.task-tech dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Tablette / mobile : le tableau défile horizontalement EN LOCAL, avec des
+   colonnes assez larges pour rester lisibles et tactiles. La liste et le
+   détail s'empilent naturellement, sans scroll global. */
+@media (max-width: 900px) {
+  .tasks-board {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(250px, 78vw);
+    grid-template-columns: none;
+    overflow-x: auto;
+    padding-bottom: var(--ds-space-2);
+  }
+}
+
+@media (max-width: 640px) {
+  .tasks-toolbar {
+    display: grid;
+  }
+
+  .task-row {
+    flex-wrap: wrap;
+  }
+}

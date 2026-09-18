@@ -1,146 +1,454 @@
 /**
- * DASH-2/DASH-5 — Tasks list + Kanban.
+ * UI-5 — Tâches : véritable surface de travail quotidienne.
  *
- * - Source: GET /api/v1/tasks?project_id&limit&offset (real pagination;
- *   no server total/status-filter/sort/search — extras are client-side).
- * - Kanban columns mirror the canonical statuses 1:1; `blocked` is never
- *   merged into `in_progress`.
- * - DASH-5 drag & drop: dropping a card on a column calls
- *   PATCH /tasks/{id} {status} + If-Match-Version (the version last read),
- *   then a server refetch. Never an optimistic reorder: a 409 re-reads the
- *   server truth and says so. The explicit per-card <select>+Move control is
- *   kept as the accessible fallback.
- * - DASH-5 create: POST /tasks with a fresh Idempotency-Key, then refetch.
+ * - Deux présentations des MÊMES données et actions : Liste (trouver,
+ *   filtrer, parcourir — vue par défaut, la plus accessible) et Tableau
+ *   (comprendre et modifier les états rapidement).
+ * - Source : GET /api/v1/tasks?project_id&limit&offset (pagination réelle,
+ *   sans total/filtre/tri/recherche serveur — tout le reste est un filtre
+ *   client honnête sur les tâches déjà chargées, dans l'ordre du serveur).
+ * - Clés backend inchangées (created/in_progress/blocked/completed), seuls
+ *   les libellés visibles sont français (taskStatus.ts).
+ * - Changement de statut : drag & drop + alternative clavier explicite
+ *   « Déplacer vers… ». PATCH + If-Match-Version, 409 → relecture serveur,
+ *   AUCUN retry automatique silencieux.
+ * - Création : POST /tasks + Idempotency-Key fraîche par tentative, en
+ *   modale DS (focus, Échap, retour focus, double soumission empêchée).
  */
 import type { StudioClient } from "../api";
+import { ApiError } from "../api";
 import { listTasks, patchTask, TASK_PAGE_LIMIT, type Task } from "../tasksApi";
 import { createTask, isUuid, type Project } from "../creationsApi";
-import { selectTask } from "../store";
-import { columnToStatus, statusColumn, TASK_COLUMNS } from "../taskStatus";
-import { describeError, esc, idCell, section, statusBlock } from "../ui";
+import { newIdempotencyKey } from "../claimsApi";
+import {
+  closeDsDialog,
+  dsBadge,
+  dsEmptyState,
+  dsField,
+  dsModalHtml,
+  dsNotify,
+  dsPageHeader,
+  dsSkeleton,
+  openDsDialog,
+} from "../ds/ds";
+import {
+  columnToStatus,
+  statusColumn,
+  TASK_COLUMNS,
+  taskClaimHint,
+  taskStatusLabel,
+  taskStatusTone,
+  type TaskStatus,
+} from "../taskStatus";
+import { describeError, esc } from "../ui";
+// Styles colocalisés : la page reste autonome sans toucher au bloc
+// d'imports CSS de main.ts.
+import "./tasks.css";
 
 export interface TasksContext {
   client: StudioClient;
   authed: boolean;
   projectId?: string;
   scopeLabel: string;
+  /** 2 lorsque le bloc est embarqué (Workspace) : titre en h2, un seul h1 par page. */
+  headingLevel?: 1 | 2;
 }
 
-type StatusFilter = "all" | "created" | "in_progress" | "blocked" | "completed";
+export type TasksView = "list" | "board";
 
-const STATUSES = ["created", "in_progress", "blocked", "completed"] as const;
+export type TasksStatusFilter = "all" | TaskStatus;
 
-function visibleTasks(tasks: Task[], filter: StatusFilter): Task[] {
-  return filter === "all" ? tasks : tasks.filter((t) => t.status === filter);
+export interface TasksPageState {
+  view: TasksView;
+  filter: TasksStatusFilter;
+  query: string;
 }
 
-function cardHtml(task: Task, authed: boolean): string {
-  const held = task.claimed_by_machine_id !== null && task.claimed_by_machine_id !== undefined;
+export interface TasksPageMessage {
+  human: string;
+  technical?: string;
+}
+
+const STATUSES: TaskStatus[] = ["created", "in_progress", "blocked", "completed"];
+
+/** État initial : Liste par défaut (meilleure accessibilité et lisibilité). */
+export function initialTasksState(): TasksPageState {
+  return { view: "list", filter: "all", query: "" };
+}
+
+/** Rien de saisi, rien de filtré : le bouton de réinitialisation dort. */
+export function isTasksDefaultState(state: TasksPageState): boolean {
+  return state.filter === "all" && state.query.trim() === "";
+}
+
+/**
+ * Filtre client honnête sur les tâches déjà chargées : statut exact, puis
+ * sous-chaîne insensible à la casse sur titre, description et nom de projet.
+ * L'ordre du serveur est toujours conservé (aucun tri inventé).
+ */
+export function filterTasks(
+  tasks: Task[],
+  state: TasksPageState,
+  projectNames: Record<string, string> = {},
+): Task[] {
+  const query = state.query.trim().toLowerCase();
+  return tasks.filter((task) => {
+    if (state.filter !== "all" && task.status !== state.filter) return false;
+    if (query === "") return true;
+    const haystack = `${task.title}\n${task.description ?? ""}\n${projectNames[task.project_id] ?? ""}`.toLowerCase();
+    return haystack.includes(query);
+  });
+}
+
+export function tasksLoadingHtml(scopeLabel: string, headingLevel: 1 | 2 = 1): string {
+  return `${tasksHeaderHtml(scopeLabel, false, headingLevel)}${dsSkeleton(4)}`;
+}
+
+/**
+ * En-tête : h1 en page pleine, h2 lorsque le bloc est embarqué dans le
+ * Workspace projet (qui porte déjà son propre h1) — un seul h1 par page.
+ */
+export function tasksHeaderHtml(scopeLabel: string, authed: boolean, headingLevel: 1 | 2 = 1): string {
+  if (headingLevel === 1) {
+    return dsPageHeader("Tâches", scopeLabel, authed ? [{ label: "+ Nouvelle tâche", id: "task-new", variant: "primary" }] : []);
+  }
+  const action = authed
+    ? `<p><button class="ds-btn ds-btn--primary" type="button" id="task-new">+ Nouvelle tâche</button></p>`
+    : "";
+  return `<div class="ds-section-header"><h2>Tâches</h2></div><p class="ds-list-sub">${esc(scopeLabel)}</p>${action}`;
+}
+
+function viewToggleHtml(view: TasksView): string {
+  const pressed = (value: TasksView): string => (view === value ? ` aria-pressed="true"` : ` aria-pressed="false"`);
+  const cls = (value: TasksView): string =>
+    view === value ? "ds-btn ds-btn--primary" : "ds-btn";
+  return `<div class="tasks-view-toggle" role="group" aria-label="Présentation des tâches">` +
+    `<button class="${cls("list")}" type="button" data-view="list"${pressed("list")}>Liste</button>` +
+    `<button class="${cls("board")}" type="button" data-view="board"${pressed("board")}>Tableau</button>` +
+    `</div>`;
+}
+
+export function tasksToolbarHtml(
+  state: TasksPageState,
+  shown: number,
+  total: number,
+): string {
+  const statusOptions = [`<option value="all"${state.filter === "all" ? " selected" : ""}>Tous les statuts</option>`]
+    .concat(
+      STATUSES.map(
+        (status) =>
+          `<option value="${status}"${state.filter === status ? " selected" : ""}>${esc(taskStatusLabel(status))}</option>`,
+      ),
+    )
+    .join("");
+  return `<div class="tasks-toolbar" role="search" aria-label="Filtrer les tâches chargées">` +
+    `${viewToggleHtml(state.view)}` +
+    `<div class="ds-search"><span class="ds-search-icon" aria-hidden="true">⌕</span>` +
+    `<label class="ds-sr-only" for="tasks-search">Filtrer les tâches déjà chargées</label>` +
+    `<input class="ds-input" type="search" id="tasks-search" value="${esc(state.query)}" placeholder="Filtrer par titre, description ou projet…" autocomplete="off" /></div>` +
+    `<label class="tasks-status-filter"><span>Statut</span>` +
+    `<select class="ds-select" id="tasks-status">${statusOptions}</select></label>` +
+    `<button class="ds-btn ds-btn--ghost" type="button" data-reset${isTasksDefaultState(state) ? " disabled" : ""}>Réinitialiser</button>` +
+    `<p class="ds-list-sub" role="status" aria-live="polite">${shown} tâche(s) affichée(s) sur ${total} chargée(s) — recherche et filtre locaux.</p>` +
+    `</div>`;
+}
+
+function taskDescriptionExcerpt(task: Task, max = 140): string {
+  const raw = (task.description ?? "").trim().replace(/\s+/g, " ");
+  if (raw === "") return "";
+  return raw.length > max ? `${raw.slice(0, max)}…` : raw;
+}
+
+/**
+ * Contrôle de changement de statut au clavier (alternative explicite au
+ * drag & drop, présente dans les deux vues). Même PATCH versionné, même
+ * sémantique 409 que le drop.
+ */
+export function taskMoveControlHtml(task: Task, authed: boolean): string {
   const options = STATUSES.map(
-    (s) => `<option value="${s}" ${task.status === s ? "selected" : ""}>${s}</option>`,
+    (status) =>
+      `<option value="${status}"${task.status === status ? " selected" : ""}>${esc(taskStatusLabel(status))}</option>`,
   ).join("");
-  return `<div class="card" data-card="${esc(task.id)}" data-version="${task.version}" data-status-current="${esc(task.status)}" ${authed ? 'draggable="true"' : ""}>
-    <div class="title">${esc(task.title)}</div>
-    <div class="sub">${idCell(task.id)} · v${task.version} · ${held ? `held ${esc(task.claimed_by_machine_id?.slice(0, 8) ?? "")}…` : "unclaimed"}</div>
-    <div class="card-actions">
-      <button type="button" data-open="${esc(task.id)}">Open</button>
-      <select data-status="${esc(task.id)}" ${authed ? "" : "disabled"} title="Move column (PATCH status)">${options}</select>
-      <button type="button" data-move="${esc(task.id)}" data-version="${task.version}" ${authed ? "" : "disabled"}>Move</button>
-    </div></div>`;
+  return `<div class="task-move"><label for="move-${esc(task.id)}">Déplacer vers…</label>` +
+    `<div class="task-move-row"><select class="ds-select" id="move-${esc(task.id)}" data-status="${esc(task.id)}"${authed ? "" : " disabled"}>${options}</select>` +
+    `<button class="ds-btn ds-btn--sm" type="button" data-move="${esc(task.id)}" data-version="${task.version}"${authed ? "" : " disabled"}>Déplacer</button></div></div>`;
 }
 
-function createFormHtml(authed: boolean, projectId: string | undefined, projects: Project[]): string {
+export interface TasksRenderOptions {
+  authed: boolean;
+  showProject: boolean;
+  projectNames?: Record<string, string>;
+}
+
+function taskContextLine(task: Task, options: TasksRenderOptions): string {
+  const parts: string[] = [];
+  if (options.showProject) {
+    const name = options.projectNames?.[task.project_id] ?? null;
+    parts.push(name === null || name === "" ? "Projet inconnu" : name);
+  }
+  const excerpt = taskDescriptionExcerpt(task);
+  if (excerpt !== "") parts.push(excerpt);
+  parts.push(taskClaimHint(task));
+  return parts.map((part) => esc(part)).join(" · ");
+}
+
+export function tasksListHtml(tasks: Task[], options: TasksRenderOptions): string {
+  if (tasks.length === 0) return "";
+  return `<ul class="ds-list tasks-list">` +
+    tasks
+      .map(
+        (task) =>
+          `<li class="ds-list-item task-row"><div class="grow">` +
+          `<div class="ds-list-title"><a href="#/tasks/${esc(task.id)}">${esc(task.title)}</a></div>` +
+          `<div class="ds-list-sub">${taskContextLine(task, options)}</div>` +
+          `${taskMoveControlHtml(task, options.authed)}` +
+          `</div>${dsBadge(taskStatusLabel(task.status), taskStatusTone(task.status))}</li>`,
+      )
+      .join("") +
+    `</ul>`;
+}
+
+export function tasksBoardHtml(tasks: Task[], options: TasksRenderOptions): string {
+  const groups: Record<string, Task[]> = { TODO: [], "IN PROGRESS": [], BLOCKED: [], DONE: [] };
+  for (const task of tasks) {
+    const column = statusColumn(task.status);
+    if (column !== "UNKNOWN") groups[column]?.push(task);
+  }
+  return `<div class="kanban tasks-board">` +
+    TASK_COLUMNS.map((column) => {
+      const cards = groups[column] ?? [];
+      const label = taskStatusLabel(columnToStatus(column));
+      const items = cards
+        .map(
+          (task) =>
+            `<li class="ds-card task-card" data-card="${esc(task.id)}" data-version="${task.version}" data-status-current="${esc(task.status)}"${options.authed ? ` draggable="true"` : ""}>` +
+            `<div class="ds-list-title task-card-title"><a href="#/tasks/${esc(task.id)}">${esc(task.title)}</a></div>` +
+            `<p class="ds-list-sub">${taskContextLine(task, options)}</p>` +
+            `${taskMoveControlHtml(task, options.authed)}</li>`,
+        )
+        .join("");
+      return `<section class="task-col" data-column="${column}" aria-label="${esc(label)}, ${cards.length} tâche(s)">` +
+        `<h3 class="task-col-title">${esc(label)} <span class="ds-list-sub">(${cards.length})</span></h3>` +
+        (items === "" ? `<p class="ds-list-sub">Aucune tâche ici.</p>` : `<ul class="task-col-list">${items}</ul>`) +
+        `</section>`;
+    }).join("") +
+    `</div>`;
+}
+
+/** Corps de la modale de création : projet, titre, description. */
+export function taskCreateFormHtml(
+  projectId: string | undefined,
+  projects: Project[],
+  scopeLabel: string,
+): string {
   const projectField =
     projectId !== undefined
-      ? `<span class="meta">project ${esc(projectId)}</span>`
-      : `<label>Project <select name="project_id" required ${authed ? "" : "disabled"}>${projects
-          .map((p) => `<option value="${esc(p.id)}">${esc(p.name)} (${esc(p.slug)})</option>`)
-          .join("")}</select></label>`;
-  return `<form data-create class="inline-form"><h3>New task</h3>
-    ${projectField}
-    <label>Title <input name="title" required ${authed ? "" : "disabled"} /></label>
-    <label>Description <input name="description" ${authed ? "" : "disabled"} /></label>
-    <button type="submit" ${authed ? "" : "disabled"}>Create</button>
-    <span class="meta">POST /tasks · Idempotency-Key per attempt</span>
-    <div data-create-msg class="meta"></div></form>`;
+      ? `<p class="ds-list-sub">Projet : ${esc(scopeLabel)}</p>`
+      : `<div>${dsField("task-project", "Projet", `<select class="ds-select" id="FIELD" name="project_id" required>${projects.map((project) => `<option value="${esc(project.id)}">${esc(project.name)} (${esc(project.slug)})</option>`).join("")}</select>`, "La tâche sera créée dans ce projet.")}</div>`;
+  return `<form id="task-create-form" novalidate>` +
+    projectField +
+    dsField("task-title", "Titre", `<input class="ds-input" id="FIELD" name="title" required autocomplete="off" />`) +
+    dsField(
+      "task-desc",
+      "Description (facultative)",
+      `<textarea class="ds-textarea" id="FIELD" name="description" rows="3"></textarea>`,
+    ) +
+    `<p class="ds-list-sub">POST /tasks · clé d'idempotence générée par tentative : créer deux fois de suite ne duplique rien.</p>` +
+    `<div class="ds-field-error" id="task-create-error" role="alert" hidden></div>` +
+    `<div class="ds-dialog-actions"><button class="ds-btn" type="button" data-ds-close>Annuler</button>` +
+    `<button class="ds-btn ds-btn--primary" type="submit" id="task-create-submit">Créer la tâche</button></div>` +
+    `</form>`;
+}
+
+export interface TasksPageData {
+  tasks: Task[];
+  state: TasksPageState;
+  limit: number;
+  exhausted: boolean;
+  authed: boolean;
+  scopeLabel: string;
+  headingLevel?: 1 | 2;
+  projectId?: string;
+  projects: Project[];
+  projectNames: Record<string, string>;
+  msg: TasksPageMessage;
+}
+
+export function tasksPageHtml(data: TasksPageData): string {
+  const visible = filterTasks(data.tasks, data.state, data.projectNames);
+  const showProject = data.projectId === undefined;
+  const options: TasksRenderOptions = { authed: data.authed, showProject, projectNames: data.projectNames };
+  const header = tasksHeaderHtml(data.scopeLabel, data.authed, data.headingLevel ?? 1);
+  const toolbar = tasksToolbarHtml(data.state, visible.length, data.tasks.length);
+  let body: string;
+  if (data.tasks.length === 0) {
+    body = dsEmptyState(
+      "Aucune tâche",
+      data.projectId === undefined
+        ? "Créez votre première tâche pour commencer à travailler."
+        : "Ce projet ne contient aucune tâche pour le moment.",
+    );
+  } else if (visible.length === 0) {
+    body =
+      dsEmptyState(
+        "Aucune tâche ne correspond aux filtres",
+        "Modifiez ou réinitialisez les filtres pour retrouver vos tâches déjà chargées.",
+      ) + `<p><button class="ds-btn" type="button" data-reset>Réinitialiser les filtres</button></p>`;
+  } else {
+    body = data.state.view === "list" ? tasksListHtml(visible, options) : tasksBoardHtml(visible, options);
+  }
+  const more = data.exhausted
+    ? `<p class="ds-list-sub">Toutes les tâches chargées.</p>`
+    : `<button class="ds-btn" type="button" data-more>Afficher plus</button>`;
+  const footer =
+    `<div class="tasks-footer"><button class="ds-btn ds-btn--ghost" type="button" data-reload>Actualiser</button>${more}` +
+    `<p class="ds-list-sub">Chargement par pages de ${TASK_PAGE_LIMIT} — les filtres s'appliquent aux tâches chargées, dans l'ordre du serveur.</p></div>`;
+  const msg =
+    data.msg.human === ""
+      ? `<div data-msg class="ds-list-sub" role="status" aria-live="polite"></div>`
+      : `<div data-msg class="ds-list-sub" role="status" aria-live="polite">${esc(data.msg.human)}${data.msg.technical === undefined || data.msg.technical === "" ? "" : ` <span class="tasks-msg-tech">${esc(data.msg.technical)}</span>`}</div>`;
+  const readonlyNote = data.authed
+    ? ""
+    : `<p class="ds-list-sub">Lecture seule : connectez-vous pour déplacer les cartes, modifier ou créer des tâches.</p>`;
+  const modal = data.authed
+    ? dsModalHtml({ id: "task-create-dialog", title: "Nouvelle tâche", body: taskCreateFormHtml(data.projectId, data.projects, data.scopeLabel) })
+    : "";
+  const boardHint =
+    data.state.view === "board" && data.authed
+      ? `<p class="ds-list-sub">Glissez une carte vers une colonne pour changer son statut — ou utilisez « Déplacer vers… » au clavier.</p>`
+      : "";
+  return `<div class="tasks">${header}${toolbar}${readonlyNote}${boardHint}${body}${footer}${msg}${modal}</div>`;
 }
 
 export async function renderTasksInto(root: HTMLElement, ctx: TasksContext): Promise<void> {
+  const headingLevel = ctx.headingLevel ?? 1;
+  root.innerHTML = tasksLoadingHtml(ctx.scopeLabel, headingLevel);
+  const state = initialTasksState();
   let limit = TASK_PAGE_LIMIT;
-  let filter: StatusFilter = "all";
   let tasks: Task[] = [];
   let exhausted = false;
-  let projects: Project[] = ctx.projectId === undefined ? await loadProjects(ctx) : [];
+  let projects: Project[] = [];
+  let projectNames: Record<string, string> = {};
+  let msg: TasksPageMessage = { human: "" };
 
-  const reload = async (): Promise<void> => {
-    paint(statusBlock("loading"));
-    if (ctx.projectId === undefined && projects.length === 0) projects = await loadProjects(ctx);
+  const reload = async (keepMsg?: TasksPageMessage): Promise<void> => {
+    paint(keepMsg ?? { human: "" });
+    if (ctx.projectId === undefined) {
+      projects = await loadProjects(ctx);
+      projectNames = Object.fromEntries(projects.map((project) => [project.id, project.name]));
+    }
     try {
       tasks = await listTasks(ctx.client, { projectId: ctx.projectId, limit, offset: 0 });
       exhausted = tasks.length < limit;
-      paint("");
+      msg = keepMsg ?? { human: "" };
+      paint();
     } catch (error) {
-      paint(statusBlock("error", describeError(error)));
-    }
-  };
-
-  const paint = (inner: string): void => {
-    if (inner !== "") {
-      root.innerHTML = section("Tasks", meta(), inner);
-      return;
-    }
-    const visible = visibleTasks(tasks, filter);
-    const groups: Record<string, Task[]> = { TODO: [], "IN PROGRESS": [], BLOCKED: [], DONE: [] };
-    for (const task of visible) {
-      const column = statusColumn(task.status);
-      if (column !== "UNKNOWN") groups[column]?.push(task);
-    }
-    const filterOptions = [`<option value="all">all (client-side)</option>`]
-      .concat(STATUSES.map((s) => `<option value="${s}" ${filter === s ? "selected" : ""}>${s}</option>`))
-      .join("");
-    const columns = TASK_COLUMNS.map(
-      (column) =>
-        `<div class="col" data-column="${column}"><h3>${column} (${groups[column]?.length ?? 0})</h3>${(groups[column] ?? []).map((t) => cardHtml(t, ctx.authed)).join("")}</div>`,
-    ).join("");
-    root.innerHTML = section(
-      "Tasks",
-      meta(),
-      `${ctx.authed ? "" : `<div class="state empty">Read-only: set a token to move cards or open editing.</div>`}
-       <div class="row"><label>Status filter <select data-filter>${filterOptions}</select></label>
-       <button type="button" data-reload>Reload</button>
-       ${exhausted ? `<span class="meta">all loaded</span>` : `<button type="button" data-more>Load more</button>`}
-       ${ctx.authed ? `<span class="meta">drag a card onto a column to change its status</span>` : ""}</div>
-       <div class="kanban">${columns}</div>${createFormHtml(ctx.authed, ctx.projectId, projects)}<div data-msg class="meta"></div>`,
-    );
-    bind();
-  };
-
-  const meta = (): string =>
-    `${ctx.scopeLabel} · GET /tasks · limit ${limit} offset 0 · no server total/filter/sort`;
-
-  const setMsg = (text: string): void => {
-    const node = root.querySelector("[data-msg]");
-    if (node !== null) node.textContent = text;
-  };
-
-  const move = (id: string, version: number, next: Task["status"], current: Task["status"]): void => {
-    if (next === current) {
-      setMsg(`Already ${next} — no change.`);
-      return;
-    }
-    setMsg(`Moving ${id.slice(0, 8)}… → ${next}`);
-    patchTask(ctx.client, id, { status: next }, version)
-      .then(() => reload())
-      .catch((error: unknown) => {
-        setMsg(describeError(error));
+      root.innerHTML =
+        `${tasksHeaderHtml(ctx.scopeLabel, false, headingLevel)}` +
+        `<div class="ds-notice ds-notice--danger" role="alert"><strong>Tâches indisponibles.</strong> ${esc(describeError(error))} <button class="ds-btn ds-btn--sm" type="button" data-reload>Réessayer</button></div>`;
+      root.querySelector("[data-reload]")?.addEventListener("click", () => {
+        limit = TASK_PAGE_LIMIT;
         void reload();
+      });
+    }
+  };
+
+  const paint = (nextMsg?: TasksPageMessage, focusSelector?: string): void => {
+    if (nextMsg !== undefined) msg = nextMsg;
+    root.innerHTML = tasksPageHtml({
+      tasks,
+      state,
+      limit,
+      exhausted,
+      authed: ctx.authed,
+      scopeLabel: ctx.scopeLabel,
+      headingLevel,
+      projectId: ctx.projectId,
+      projects,
+      projectNames,
+      msg,
+    });
+    bind();
+    if (focusSelector !== undefined) {
+      const target = root.querySelector<HTMLElement>(focusSelector);
+      if (target !== null) {
+        target.focus();
+        if (target instanceof HTMLInputElement && target.type === "search") {
+          target.setSelectionRange(target.value.length, target.value.length);
+        }
+      }
+    }
+  };
+
+  const setMsg = (message: TasksPageMessage): void => {
+    msg = message;
+    const node = root.querySelector("[data-msg]");
+    if (node === null) return;
+    node.innerHTML =
+      message.human === ""
+        ? ""
+        : `${esc(message.human)}${message.technical === undefined || message.technical === "" ? "" : ` <span class="tasks-msg-tech">${esc(message.technical)}</span>`}`;
+  };
+
+  const findTask = (id: string): Task | undefined => tasks.find((task) => task.id === id);
+
+  const move = (id: string, version: number, next: TaskStatus, current: TaskStatus): void => {
+    const title = findTask(id)?.title ?? id.slice(0, 8);
+    if (next === current) {
+      setMsg({ human: `« ${title} » est déjà « ${taskStatusLabel(next)} » — aucune modification.` });
+      return;
+    }
+    setMsg({ human: `Déplacement de « ${title} » vers « ${taskStatusLabel(next)} »…` });
+    patchTask(ctx.client, id, { status: next }, version)
+      .then(() => reload({ human: `« ${title} » déplacée vers « ${taskStatusLabel(next)} ».` }))
+      .catch((error: unknown) => {
+        // Pas de retry automatique : on relit la vérité serveur, l'utilisateur réessaie consciemment.
+        // Le message survit à la relecture (reload(keepMsg)).
+        if (error instanceof ApiError && error.errorCode === "version_conflict") {
+          void reload({
+            human: "Cette tâche a changé ailleurs. Les données ont été actualisées — vérifiez puis réessayez.",
+            technical: describeError(error),
+          });
+        } else {
+          void reload({ human: "Déplacement impossible.", technical: describeError(error) });
+        }
       });
   };
 
+  const setCreateError = (message: string): void => {
+    const node = root.querySelector("#task-create-error");
+    if (node === null) return;
+    if (message === "") {
+      node.setAttribute("hidden", "");
+      node.textContent = "";
+    } else {
+      node.removeAttribute("hidden");
+      node.textContent = message;
+    }
+  };
+
   const bind = (): void => {
-    root.querySelector("[data-filter]")?.addEventListener("change", (event) => {
-      filter = (event.target as HTMLSelectElement).value as StatusFilter;
-      paint("");
+    root.querySelectorAll<HTMLButtonElement>("[data-view]").forEach((button) => {
+      button.addEventListener("click", () => {
+        state.view = (button.dataset["view"] ?? "list") as TasksView;
+        paint(undefined, `[data-view="${state.view}"]`);
+      });
+    });
+    const search = root.querySelector<HTMLInputElement>("#tasks-search");
+    search?.addEventListener("input", () => {
+      state.query = search.value;
+      paint(undefined, "#tasks-search");
+    });
+    root.querySelector<HTMLSelectElement>("#tasks-status")?.addEventListener("change", (event) => {
+      state.filter = (event.target as HTMLSelectElement).value as TasksStatusFilter;
+      paint(undefined, "#tasks-status");
+    });
+    root.querySelectorAll("[data-reset]").forEach((button) => {
+      button.addEventListener("click", () => {
+        state.filter = "all";
+        state.query = "";
+        paint(undefined, "#tasks-search");
+      });
     });
     root.querySelector("[data-reload]")?.addEventListener("click", () => {
       limit = TASK_PAGE_LIMIT;
@@ -150,51 +458,70 @@ export async function renderTasksInto(root: HTMLElement, ctx: TasksContext): Pro
       limit += TASK_PAGE_LIMIT;
       void reload();
     });
-    root.querySelectorAll("[data-open]").forEach((button) => {
-      button.addEventListener("click", () => {
-        const id = (button as HTMLElement).dataset["open"] ?? "";
-        selectTask(id);
-        location.hash = `#/tasks/${id}`;
-      });
-    });
     root.querySelectorAll("[data-move]").forEach((button) => {
       button.addEventListener("click", () => {
         const element = button as HTMLElement;
         const id = element.dataset["move"] ?? "";
         const version = Number(element.dataset["version"] ?? "0");
-        const select = root.querySelector<HTMLSelectElement>(`[data-card="${CSS.escape(id)}"] select[data-status]`);
-        const next = (select?.value ?? "") as Task["status"];
-        const current = (element.closest<HTMLElement>("[data-card]")?.dataset["statusCurrent"] ?? "") as Task["status"];
+        const card = element.closest<HTMLElement>("[data-card], .task-row");
+        const select = card?.querySelector<HTMLSelectElement>("select[data-status]") ?? null;
+        const next = (select?.value ?? "") as TaskStatus;
+        const current = (findTask(id)?.status ?? "") as TaskStatus;
         (button as HTMLButtonElement).disabled = true;
         move(id, version, next, current);
       });
     });
     bindDragAndDrop(root, move);
-    const form = root.querySelector<HTMLFormElement>("[data-create]");
+    const openButton = root.querySelector<HTMLElement>("#task-new");
+    openButton?.addEventListener("click", () => {
+      setCreateError("");
+      openDsDialog(root, "task-create-dialog", openButton);
+      root.querySelector<HTMLElement>("#task-title")?.focus();
+    });
+    const form = root.querySelector<HTMLFormElement>("#task-create-form");
     form?.addEventListener("submit", (event) => {
       event.preventDefault();
       const data = new FormData(form);
       const projectId = ctx.projectId ?? String(data.get("project_id") ?? "");
-      const msg = form.querySelector("[data-create-msg]");
-      const submit = form.querySelector<HTMLButtonElement>("button[type=submit]");
+      const title = String(data.get("title") ?? "").trim();
       if (!isUuid(projectId)) {
-        if (msg !== null) msg.textContent = "A project is required to create a task.";
+        setCreateError("Un projet est nécessaire pour créer une tâche.");
+        root.querySelector<HTMLElement>("#task-project")?.focus();
         return;
       }
-      if (submit !== null) submit.disabled = true;
+      if (title === "") {
+        setCreateError("Le titre est obligatoire.");
+        root.querySelector<HTMLElement>("#task-title")?.focus();
+        return;
+      }
+      const submit = root.querySelector<HTMLButtonElement>("#task-create-submit");
+      if (submit !== null) {
+        submit.disabled = true;
+        submit.classList.add("ds-btn--loading");
+        submit.textContent = "Création en cours…";
+      }
+      setCreateError("");
       const description = String(data.get("description") ?? "").trim();
-      createTask(ctx.client, {
-        project_id: projectId,
-        title: String(data.get("title") ?? ""),
-        description: description === "" ? null : description,
-      })
+      // Clé fraîche par tentative logique : la double soumission est empêchée
+      // par le bouton désactivé, une nouvelle tentative après erreur rejoue
+      // un corps identique sous une clé neuve.
+      createTask(
+        ctx.client,
+        { project_id: projectId, title, description: description === "" ? null : description },
+        newIdempotencyKey(),
+      )
         .then((created) => {
-          if (msg !== null) msg.textContent = `Created ${created.readable_id ?? created.id}.`;
+          closeDsDialog(root, "task-create-dialog");
+          dsNotify(`Tâche « ${created.title} » créée.`, "success");
           void reload();
         })
         .catch((error: unknown) => {
-          if (msg !== null) msg.textContent = describeError(error);
-          if (submit !== null) submit.disabled = false;
+          setCreateError(describeError(error));
+          if (submit !== null) {
+            submit.disabled = false;
+            submit.classList.remove("ds-btn--loading");
+            submit.textContent = "Créer la tâche";
+          }
         });
     });
   };
@@ -204,7 +531,7 @@ export async function renderTasksInto(root: HTMLElement, ctx: TasksContext): Pro
 
 export function bindDragAndDrop(
   root: HTMLElement,
-  move: (id: string, version: number, status: Task["status"], current: Task["status"]) => void,
+  move: (id: string, version: number, status: TaskStatus, current: TaskStatus) => void,
 ): void {
   root.querySelectorAll<HTMLElement>("[data-card]").forEach((card) => {
     card.addEventListener("dragstart", (event) => {
@@ -229,10 +556,10 @@ export function bindDragAndDrop(
       const card = root.querySelector<HTMLElement>(`[data-card="${CSS.escape(dragged)}"]`);
       if (dragged === "" || card === null) return;
       const columnName = column.dataset["column"];
-      if (columnName !== "TODO" && columnName !== "IN PROGRESS" && columnName !== "BLOCKED" && columnName !== "DONE") return;
+      if (!TASK_COLUMNS.includes(columnName as (typeof TASK_COLUMNS)[number])) return;
       const version = Number(card.dataset["version"] ?? "0");
-      const current = (card.dataset["statusCurrent"] ?? "") as Task["status"];
-      move(dragged, version, columnToStatus(columnName), current);
+      const current = (card.dataset["statusCurrent"] ?? "") as TaskStatus;
+      move(dragged, version, columnToStatus(columnName as (typeof TASK_COLUMNS)[number]), current);
     });
   });
 }
