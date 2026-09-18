@@ -600,7 +600,7 @@ function bindListButtons(root: HTMLElement, ctx: TransfersContext, data: Transfe
 }
 
 function bindUploadOpen(root: HTMLElement): void {
-  root.querySelectorAll<HTMLElement>("[data-transfer-upload-open]").forEach((button) => {
+  root.querySelectorAll<HTMLElement>("[data-transfer-upload-open], #transfer-upload-open").forEach((button) => {
     button.addEventListener("click", () => openDsDialog(root, "transfer-upload", button));
   });
 }
