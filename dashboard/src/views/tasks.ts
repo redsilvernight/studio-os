@@ -330,9 +330,12 @@ export async function renderTasksInto(root: HTMLElement, ctx: TasksContext): Pro
   let projects: Project[] = [];
   let projectNames: Record<string, string> = {};
   let msg: TasksPageMessage = { human: "" };
+  let painted = false;
+  let movePending = false;
+  let createPending = false;
 
   const reload = async (keepMsg?: TasksPageMessage): Promise<void> => {
-    paint(keepMsg ?? { human: "" });
+    if (painted) paint(keepMsg ?? { human: "" });
     if (ctx.projectId === undefined) {
       projects = await loadProjects(ctx);
       projectNames = Object.fromEntries(projects.map((project) => [project.id, project.name]));
@@ -351,10 +354,13 @@ export async function renderTasksInto(root: HTMLElement, ctx: TasksContext): Pro
         void reload();
       });
     }
+    movePending = false;
   };
 
   const paint = (nextMsg?: TasksPageMessage, focusSelector?: string): void => {
     if (nextMsg !== undefined) msg = nextMsg;
+    const existingDialog = root.querySelector<HTMLElement>("#task-create-dialog");
+    existingDialog?.remove();
     root.innerHTML = tasksPageHtml({
       tasks,
       state,
@@ -368,7 +374,12 @@ export async function renderTasksInto(root: HTMLElement, ctx: TasksContext): Pro
       projectNames,
       msg,
     });
+    if (existingDialog !== null) {
+      root.querySelector("#task-create-dialog")?.remove();
+      root.querySelector(".tasks")?.append(existingDialog);
+    }
     bind();
+    painted = true;
     if (focusSelector !== undefined) {
       const target = root.querySelector<HTMLElement>(focusSelector);
       if (target !== null) {
@@ -393,11 +404,13 @@ export async function renderTasksInto(root: HTMLElement, ctx: TasksContext): Pro
   const findTask = (id: string): Task | undefined => tasks.find((task) => task.id === id);
 
   const move = (id: string, version: number, next: TaskStatus, current: TaskStatus): void => {
+    if (movePending) return;
     const title = findTask(id)?.title ?? id.slice(0, 8);
     if (next === current) {
       setMsg({ human: `« ${title} » est déjà « ${taskStatusLabel(next)} » — aucune modification.` });
       return;
     }
+    movePending = true;
     setMsg({ human: `Déplacement de « ${title} » vers « ${taskStatusLabel(next)} »…` });
     patchTask(ctx.client, id, { status: next }, version)
       .then(() => reload({ human: `« ${title} » déplacée vers « ${taskStatusLabel(next)} ».` }))
@@ -467,63 +480,84 @@ export async function renderTasksInto(root: HTMLElement, ctx: TasksContext): Pro
         const select = card?.querySelector<HTMLSelectElement>("select[data-status]") ?? null;
         const next = (select?.value ?? "") as TaskStatus;
         const current = (findTask(id)?.status ?? "") as TaskStatus;
+        if (next === current) {
+          move(id, version, next, current);
+          return;
+        }
         (button as HTMLButtonElement).disabled = true;
         move(id, version, next, current);
       });
     });
     bindDragAndDrop(root, move);
+    const resetCreateForm = (): void => {
+      createPending = false;
+      root.querySelector<HTMLFormElement>("#task-create-form")?.reset();
+      setCreateError("");
+      const submit = root.querySelector<HTMLButtonElement>("#task-create-submit");
+      if (submit !== null) {
+        submit.disabled = false;
+        submit.classList.remove("ds-btn--loading");
+        submit.textContent = "Créer la tâche";
+      }
+    };
     const openButton = root.querySelector<HTMLElement>("#task-new");
     openButton?.addEventListener("click", () => {
-      setCreateError("");
+      resetCreateForm();
       openDsDialog(root, "task-create-dialog", openButton);
       root.querySelector<HTMLElement>("#task-title")?.focus();
     });
     const form = root.querySelector<HTMLFormElement>("#task-create-form");
-    form?.addEventListener("submit", (event) => {
-      event.preventDefault();
-      const data = new FormData(form);
-      const projectId = ctx.projectId ?? String(data.get("project_id") ?? "");
-      const title = String(data.get("title") ?? "").trim();
-      if (!isUuid(projectId)) {
-        setCreateError("Un projet est nécessaire pour créer une tâche.");
-        root.querySelector<HTMLElement>("#task-project")?.focus();
-        return;
-      }
-      if (title === "") {
-        setCreateError("Le titre est obligatoire.");
-        root.querySelector<HTMLElement>("#task-title")?.focus();
-        return;
-      }
-      const submit = root.querySelector<HTMLButtonElement>("#task-create-submit");
-      if (submit !== null) {
-        submit.disabled = true;
-        submit.classList.add("ds-btn--loading");
-        submit.textContent = "Création en cours…";
-      }
-      setCreateError("");
-      const description = String(data.get("description") ?? "").trim();
-      // Clé fraîche par tentative logique : la double soumission est empêchée
-      // par le bouton désactivé, une nouvelle tentative après erreur rejoue
-      // un corps identique sous une clé neuve.
-      createTask(
-        ctx.client,
-        { project_id: projectId, title, description: description === "" ? null : description },
-        newIdempotencyKey(),
-      )
-        .then((created) => {
-          closeDsDialog(root, "task-create-dialog");
-          dsNotify(`Tâche « ${created.title} » créée.`, "success");
-          void reload();
-        })
-        .catch((error: unknown) => {
-          setCreateError(describeError(error));
-          if (submit !== null) {
-            submit.disabled = false;
-            submit.classList.remove("ds-btn--loading");
-            submit.textContent = "Créer la tâche";
-          }
-        });
-    });
+    if (form !== null && form.dataset["bound"] !== "yes") {
+      form.dataset["bound"] = "yes";
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (createPending) return;
+        const data = new FormData(form);
+        const projectId = ctx.projectId ?? String(data.get("project_id") ?? "");
+        const title = String(data.get("title") ?? "").trim();
+        if (!isUuid(projectId)) {
+          setCreateError("Un projet est nécessaire pour créer une tâche.");
+          root.querySelector<HTMLElement>("#task-project")?.focus();
+          return;
+        }
+        if (title === "") {
+          setCreateError("Le titre est obligatoire.");
+          root.querySelector<HTMLElement>("#task-title")?.focus();
+          return;
+        }
+        createPending = true;
+        const submit = root.querySelector<HTMLButtonElement>("#task-create-submit");
+        if (submit !== null) {
+          submit.disabled = true;
+          submit.classList.add("ds-btn--loading");
+          submit.textContent = "Création en cours…";
+        }
+        setCreateError("");
+        const description = String(data.get("description") ?? "").trim();
+        // Clé fraîche par tentative logique : la double soumission est empêchée
+        // par le bouton désactivé, une nouvelle tentative après erreur rejoue
+        // un corps identique sous une clé neuve.
+        createTask(
+          ctx.client,
+          { project_id: projectId, title, description: description === "" ? null : description },
+          newIdempotencyKey(),
+        )
+          .then((created) => {
+            closeDsDialog(root, "task-create-dialog");
+            dsNotify(`Tâche « ${created.title} » créée.`, "success");
+            void reload();
+          })
+          .catch((error: unknown) => {
+            createPending = false;
+            setCreateError(describeError(error));
+            if (submit !== null) {
+              submit.disabled = false;
+              submit.classList.remove("ds-btn--loading");
+              submit.textContent = "Créer la tâche";
+            }
+          });
+      });
+    }
   };
 
   await reload();

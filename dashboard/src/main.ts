@@ -258,17 +258,6 @@ function mountShell(): void {
     mountLogin();
   });
 
-  if (!shellListenersMounted) {
-    shellListenersMounted = true;
-    subscribe(() => {
-      syncRealtimeConnection();
-      void render();
-    });
-    window.addEventListener("hashchange", () => {
-      if (isDrawerOpen()) closeDrawer(false);
-      void render();
-    });
-  }
   syncRealtimeConnection();
   void render();
 }
