@@ -430,7 +430,7 @@ test("library creation reads the scope select (D1 regression)", async ({ page })
   await bootAuthedDashboard(page);
 
   await goHash(page, "#/library/rules");
-  await page.locator("summary", { hasText: "New" }).click();
+  await page.locator("#library-new").click();
   await expect(page.locator("form[data-create]")).toBeVisible();
   await page.fill("form[data-create] input[name=stable_key]", "e2e-created-rule");
   await page.selectOption("form[data-create] select[name=scope]", "user");
