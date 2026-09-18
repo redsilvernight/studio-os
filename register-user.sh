@@ -65,6 +65,7 @@ while [[ -z "$EMAIL" || "$EMAIL" != *"@"* ]]; do
   read -rp "Email : " EMAIL
   EMAIL="$(printf '%s' "$EMAIL" | tr '[:upper:]' '[:lower:]')"
 done
+SAFE_EMAIL="$(printf '%s' "$EMAIL" | tr -c '[:alnum:]._-' '_')"
 
 ROLES=(developer admin agent readonly)
 echo ""
@@ -89,6 +90,67 @@ generate_password() {
   else
     die "aucune source cryptographique sûre disponible (openssl, python3 ou /dev/urandom requis)."
   fi
+}
+
+credentials_dir() {
+  local candidate
+  for candidate in \
+    "${STUDIO_CREDENTIALS_DIR:-}" \
+    "$HOME/Desktop" \
+    "$HOME/OneDrive/Desktop" \
+    "$HOME/Bureau" \
+    "$HOME/OneDrive/Bureau" \
+    "$HOME"; do
+    if [[ -n "$candidate" && -d "$candidate" ]]; then
+      printf '%s' "$candidate"
+      return 0
+    fi
+  done
+  printf '%s' "$HOME"
+}
+
+write_credentials_file() {
+  local dir file
+  dir="$(credentials_dir)"
+  file="$dir/studi-os-credentials-${SAFE_EMAIL}-$(date +%Y%m%d-%H%M%S).txt"
+  (
+    umask 077
+    {
+      echo "Studi'OS — Identifiants de compte"
+      echo "Généré le : $(date '+%Y-%m-%d %H:%M:%S')"
+      echo ""
+      echo "Compte"
+      echo "──────"
+      if [[ "$EXISTING" -eq 1 ]]; then
+        echo "Email     : $EMAIL"
+        echo "(rôle et mot de passe existants inchangés)"
+      else
+        echo "Nom       : $DISPLAY_NAME"
+        echo "Email     : $EMAIL"
+        echo "Rôle      : $ROLE"
+      fi
+      if [[ "$USER_CREATED" -eq 1 && "$PASSWORD_SET" -eq 1 ]]; then
+        echo ""
+        echo "Mot de passe dashboard"
+        echo "──────────────────────"
+        echo "$PASSWORD"
+      fi
+      if [[ "$MACHINE_CREATED" -eq 1 ]]; then
+        echo ""
+        echo "Machine"
+        echo "───────"
+        echo "Nom       : $MACHINE_NAME"
+        echo "Token     : $MACHINE_TOKEN"
+      fi
+      echo ""
+      echo "SÉCURITÉ"
+      echo "Fichier contenant des secrets : ne pas versionner, ne pas partager."
+      echo "Enregistrez ces identifiants dans un gestionnaire de secrets,"
+      echo "puis supprimez ce fichier."
+    } > "$file"
+  )
+  chmod 600 "$file" 2>/dev/null || true
+  printf '%s' "$file"
 }
 
 echo ""
@@ -259,4 +321,12 @@ fi
 echo ""
 if [[ "$EXISTING" -eq 1 && "$MACHINE_CREATED" -eq 0 ]]; then
   echo "Rien d'autre à faire : l'utilisateur est inchangé."
+fi
+
+if [[ "$USER_CREATED" -eq 1 || "$MACHINE_CREATED" -eq 1 ]]; then
+  CREDENTIALS_FILE="$(write_credentials_file)"
+  echo ""
+  echo "Identifiants enregistrés dans :"
+  echo "  $CREDENTIALS_FILE"
+  echo "(fichier local contenant des secrets — ne pas versionner)"
 fi
