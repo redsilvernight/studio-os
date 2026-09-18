@@ -12,7 +12,8 @@ from typing import Any
 from uuid import UUID
 
 import httpx
-from fastapi import HTTPException
+from fastapi import HTTPException, status
+from studio_contracts.auth import Role
 
 from studio_api.db.session import get_session_factory
 from studio_api.services import github as github_service
@@ -29,6 +30,23 @@ async def _bootstrap_admin(display_name: str, email: str, password: str | None) 
         if password:
             await provisioning_service.set_user_password(session, email, password)
         print(f"admin user created: {user.id} ({user.email})")
+
+
+async def _create_user(display_name: str, email: str, role: str) -> None:
+    normalized_email = email.strip().lower()
+    async with get_session_factory()() as session:
+        user = await provisioning_service.create_user(
+            session, display_name.strip(), normalized_email, role
+        )
+        print(f"user created: {user.id} ({user.email}, {user.role})")
+
+
+def _read_password_from_stdin() -> str:
+    password = sys.stdin.readline()
+    if not password:
+        print("error: no password received on stdin", file=sys.stderr)
+        raise SystemExit(1)
+    return password.rstrip("\r\n")
 
 
 async def _set_password(email: str, password: str) -> None:
@@ -125,9 +143,22 @@ def main() -> None:
     bootstrap.add_argument("--email", required=True)
     bootstrap.add_argument("--password", default=None, help="Initial dashboard password")
 
+    user_parser = sub.add_parser("user", help="Manage users")
+    user_sub = user_parser.add_subparsers(dest="user_command", required=True)
+    user_create = user_sub.add_parser("create", help="Create a human user")
+    user_create.add_argument("--display-name", required=True)
+    user_create.add_argument("--email", required=True)
+    user_create.add_argument("--role", required=True, choices=[role.value for role in Role])
+
     password_parser = sub.add_parser("set-password", help="Set a user's dashboard password")
     password_parser.add_argument("--email", required=True)
-    password_parser.add_argument("--password", required=True)
+    password_source = password_parser.add_mutually_exclusive_group(required=True)
+    password_source.add_argument("--password")
+    password_source.add_argument(
+        "--password-stdin",
+        action="store_true",
+        help="Read the password from stdin instead of an argument (keeps it out of ps/logs)",
+    )
 
     machine_parser = sub.add_parser("machine", help="Manage machines")
     machine_sub = machine_parser.add_subparsers(dest="machine_command", required=True)
@@ -167,8 +198,18 @@ def main() -> None:
     try:
         if args.command == "bootstrap-admin":
             asyncio.run(_bootstrap_admin(args.display_name, args.email, args.password))
+        elif args.command == "user" and args.user_command == "create":
+            email = args.email.strip().lower()
+            if not email or "@" not in email:
+                print("error: --email must be a valid email address", file=sys.stderr)
+                raise SystemExit(2)
+            if not args.display_name.strip():
+                print("error: --display-name must not be empty", file=sys.stderr)
+                raise SystemExit(2)
+            asyncio.run(_create_user(args.display_name, email, args.role))
         elif args.command == "set-password":
-            asyncio.run(_set_password(args.email, args.password))
+            password = _read_password_from_stdin() if args.password_stdin else args.password
+            asyncio.run(_set_password(args.email, password))
         elif args.command == "machine" and args.machine_command == "create":
             asyncio.run(_create_machine(args.owner_email, args.display_name))
         elif args.command == "machine" and args.machine_command == "revoke":
@@ -183,7 +224,8 @@ def main() -> None:
             asyncio.run(_reconcile_builds())
     except HTTPException as exc:
         print(f"error: {exc.detail}", file=sys.stderr)
-        raise SystemExit(1) from exc
+        exit_code = 2 if exc.status_code == status.HTTP_409_CONFLICT else 1
+        raise SystemExit(exit_code) from exc
 
 
 if __name__ == "__main__":
