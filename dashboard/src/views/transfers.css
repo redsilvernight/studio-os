@@ -1,0 +1,185 @@
+/**
+ * UI-10 — Transferts : liste calme de cartes, tiroir de détail DS, envoi en
+ * modale. Le stockage (bucket, clé S3, URL signée) reste invisible par défaut.
+ * Mobile : une seule colonne, actions tactiles, aucun scroll global.
+ */
+
+.transfers {
+  display: grid;
+  gap: var(--ds-space-4);
+  max-width: 1080px;
+  padding-bottom: var(--ds-space-12);
+}
+
+.transfers-notice {
+  border: 1px solid var(--ds-border);
+  border-left-width: 4px;
+  border-radius: var(--ds-radius-md);
+  padding: var(--ds-space-3) var(--ds-space-4);
+  font-size: var(--ds-text-sm);
+  background: var(--ds-surface);
+}
+
+.transfers-notice--warning {
+  border-left-color: var(--ds-warning);
+}
+
+.transfers-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--ds-space-3) var(--ds-space-4);
+}
+
+.transfers-toolbar .ds-search {
+  flex: 1;
+  min-width: 220px;
+}
+
+.transfers-filter {
+  display: grid;
+  gap: var(--ds-space-1);
+  font-size: var(--ds-text-sm);
+  font-weight: 600;
+}
+
+.transfers-toolbar .ds-list-sub {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.transfers-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--ds-space-3);
+}
+
+.transfer-row {
+  align-items: flex-start;
+}
+
+.transfer-row .grow {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: var(--ds-space-1);
+}
+
+.transfer-row .ds-list-title,
+.transfer-row .ds-list-sub {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.transfer-side {
+  display: grid;
+  gap: var(--ds-space-2);
+  justify-items: end;
+  flex-shrink: 0;
+}
+
+.transfer-status {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-1);
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.transfer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+  justify-content: flex-end;
+}
+
+.transfer-drawer-title {
+  margin: 0 0 var(--ds-space-2);
+  overflow-wrap: anywhere;
+}
+
+.transfer-drawer-summary {
+  display: grid;
+  gap: var(--ds-space-2);
+  margin-bottom: var(--ds-space-4);
+}
+
+.transfer-facts {
+  margin: var(--ds-space-2) 0 0;
+  display: grid;
+  gap: var(--ds-space-1);
+  font-size: var(--ds-text-sm);
+}
+
+.transfer-facts > div {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: var(--ds-space-2);
+}
+
+.transfer-facts dt {
+  font-weight: 600;
+}
+
+.transfer-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.transfer-technical {
+  margin-top: var(--ds-space-4);
+  border-top: 1px solid var(--ds-border);
+  padding-top: var(--ds-space-2);
+  font-size: var(--ds-text-sm);
+  color: var(--ds-text-muted);
+}
+
+.transfer-technical summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: var(--ds-target-sm);
+  display: inline-flex;
+  align-items: center;
+}
+
+.transfer-upload-form {
+  display: grid;
+  gap: var(--ds-space-3);
+}
+
+.transfer-upload-progress:empty {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .transfers-toolbar {
+    display: grid;
+  }
+
+  .transfer-row {
+    flex-wrap: wrap;
+  }
+
+  .transfer-side {
+    justify-items: start;
+  }
+
+  .transfer-status,
+  .transfer-actions {
+    justify-content: flex-start;
+  }
+
+  .transfer-facts > div {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .transfers * {
+    transition: none;
+    animation: none;
+  }
+}
