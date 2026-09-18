@@ -22,6 +22,38 @@ async def get_machine(session: AsyncSession, machine_id: uuid.UUID) -> MachineMo
     return await session.get(MachineModel, machine_id)
 
 
+async def list_machines(
+    session: AsyncSession, owner_email: str | None = None
+) -> list[tuple[MachineModel, UserModel]]:
+    """Admin-facing listing: the machine UUID is only ever printed once at
+    creation, so an operator that kept only the token has no other way to
+    recover it (`get_machine_by_token` covers that case)."""
+    stmt = select(MachineModel, UserModel).join(
+        UserModel, MachineModel.owner_user_id == UserModel.id
+    )
+    if owner_email is not None:
+        stmt = stmt.where(UserModel.email == owner_email)
+    stmt = stmt.order_by(MachineModel.created_at)
+    result = await session.execute(stmt)
+    return [(machine, owner) for machine, owner in result.all()]
+
+
+async def get_machine_by_token(
+    session: AsyncSession, token: str
+) -> tuple[MachineModel, UserModel] | None:
+    """Resolve a machine from its opaque token by comparing the stored hash:
+    the token itself is never logged nor persisted, only compared."""
+    result = await session.execute(
+        select(MachineModel, UserModel)
+        .join(UserModel, MachineModel.owner_user_id == UserModel.id)
+        .where(MachineModel.credential_hash == hash_token(token))
+    )
+    row = result.first()
+    if row is None:
+        return None
+    return row[0], row[1]
+
+
 async def bootstrap_admin(session: AsyncSession, display_name: str, email: str) -> UserModel:
     """CLI-only entry point (DEC-0011): creates the very first admin before any
     machine token exists to authenticate an API call."""
