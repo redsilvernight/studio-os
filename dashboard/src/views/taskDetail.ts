@@ -439,7 +439,6 @@ async function doRelease(root: HTMLElement, ctx: TaskDetailContext, taskId: stri
   }
   try {
     await releaseTask(ctx.client, taskId);
-    dsNotify("Tâche libérée — le statut reste inchangé.", "success");
     const data = await readComplements(root, ctx, taskId);
     paint(root, ctx, {
       ...data,

@@ -918,12 +918,10 @@ export async function renderLibraryDetail(
   root.innerHTML = `<div class="library">${libraryTabsHtml(meta.slug)}${libraryLoadingHtml(fr.singular)}</div>`;
   let resource: LibraryResource;
   let versions: LibraryVersion[];
-  let locks: LibraryProjectLock[];
   try {
-    [resource, versions, locks] = await Promise.all([
+    [resource, versions] = await Promise.all([
       getLibraryResource(ctx.client, resourceId),
       listLibraryVersions(ctx.client, resourceId),
-      listLibraryLocks(ctx.client),
     ]);
   } catch (error) {
     root.innerHTML =
@@ -933,6 +931,13 @@ export async function renderLibraryDetail(
       `</div>`;
     return;
   }
+  let locks: LibraryProjectLock[] = [];
+  let locksError: string | undefined;
+  try {
+    locks = await listLibraryLocks(ctx.client);
+  } catch (error) {
+    locksError = describeError(error);
+  }
   let siblings: LibraryResource[] = [];
   try {
     siblings = await listLibraryResources(ctx.client, { kind: resource.kind });
@@ -941,7 +946,11 @@ export async function renderLibraryDetail(
   }
   const relevantLocks = locks.filter((lock) => lock.resource_id === resource.id);
   void relevantLocks;
-  root.innerHTML = libraryDetailHtml(resource, versions, locks, siblings);
+  const locksWarning =
+    locksError === undefined
+      ? ""
+      : `<div class="ds-notice ds-notice--warning" role="alert"><strong>Verrous indisponibles.</strong> ${esc(locksError)}</div>`;
+  root.innerHTML = libraryDetailHtml(resource, versions, locks, siblings) + locksWarning;
   bindRepeatable(root);
   bindDetail(root, ctx, meta.slug, resource);
 }
@@ -1058,13 +1067,15 @@ function bindDetail(
       const lockId = button.dataset["releaseLock"];
       if (lockId === undefined) return;
       if (!window.confirm("Libérer ce verrou projet ?")) return;
+      button.disabled = true;
       releaseLibraryLock(ctx.client, lockId)
         .then(() => {
           dsNotify("Verrou libéré.", "info");
           refresh();
         })
         .catch((error: unknown) => {
-          window.alert(describeError(error));
+          button.disabled = false;
+          dsNotify(`Libération impossible. ${describeError(error)}`, "danger");
         });
     });
   });

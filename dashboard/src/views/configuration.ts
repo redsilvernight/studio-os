@@ -64,7 +64,7 @@ import {
 import { formReader } from "./libraryForms";
 import { uiState } from "../store";
 import { describeError, esc, fmtTime, shortId, statusBlock } from "../ui";
-import { dsBadge, dsEmptyState, dsPageHeader, dsSkeleton, type DsTone } from "../ds/ds";
+import { dsBadge, dsEmptyState, dsNotify, dsPageHeader, dsSkeleton, type DsTone } from "../ds/ds";
 // Styles colocalisés : la page reste autonome sans toucher au CSS global.
 import "./configuration.css";
 
@@ -503,6 +503,7 @@ function revokeRuntimeFormHtml(runtime: RuntimeRegistration): string {
     `<details class="editor settings-editor settings-danger"><summary>Révoquer ce runtime</summary><form class="stack-form" data-revoke>` +
     `<p class="meta">La révocation est logique : la ligne reste consultable mais n'est plus « live », et les bindings qui la visent retombent. Aucune suppression physique n'existe.</p>` +
     `<button type="submit" class="ds-btn ds-btn--danger" ${disabled}>Révoquer le runtime</button>` +
+    `<div data-msg class="meta" role="status" aria-live="polite"></div>` +
     `</form></details>`
   );
 }
@@ -565,14 +566,17 @@ function bindRuntimeDetail(root: HTMLElement, ctx: ConfigurationContext, runtime
   const revokeForm = root.querySelector<HTMLFormElement>("[data-revoke]");
   revokeForm?.addEventListener("submit", (event) => {
     event.preventDefault();
+    const msg = revokeForm.querySelector("[data-msg]");
+    const submit = revokeForm.querySelector<HTMLButtonElement>("button[type=submit]");
     if (!window.confirm("Révoquer ce runtime ? La ligne reste consultable mais n'est plus active.")) return;
+    if (submit !== null) submit.disabled = true;
     revokeRuntime(ctx.client, runtime.id)
       .then(() => {
         void renderRuntimeDetail(root, ctx, runtime.id);
       })
       .catch((error: unknown) => {
-        const msg = revokeForm.querySelector("[data-msg]");
         if (msg !== null) msg.textContent = describeError(error);
+        if (submit !== null) submit.disabled = false;
       });
   });
 }
@@ -838,12 +842,14 @@ function bindBindingDeletes(root: HTMLElement, ctx: ConfigurationContext): void 
       const bindingId = button.dataset["deleteBinding"];
       if (bindingId === undefined) return;
       if (!window.confirm("Supprimer ce binding ? Le runtime visé n'est pas supprimé.")) return;
+      button.disabled = true;
       deleteRuntimeBinding(ctx.client, bindingId)
         .then(() => {
           void renderBindings(root, ctx);
         })
         .catch((error: unknown) => {
-          window.alert(describeError(error));
+          button.disabled = false;
+          dsNotify(`Suppression impossible. ${describeError(error)}`, "danger");
         });
     });
   });
@@ -971,12 +977,15 @@ function bindProjectTab(root: HTMLElement, ctx: ConfigurationContext, tab: "reso
       if (msg !== null) msg.textContent = "Un identifiant de ressource et une version ≥ 1 sont requis.";
       return;
     }
+    const submit = lockForm.querySelector<HTMLButtonElement>("button[type=submit]");
+    if (submit !== null) submit.disabled = true;
     createLibraryLock(ctx.client, { project_id: projectId, resource_id: resourceId, locked_version: version })
       .then(() => {
         void renderProjectConfig(root, ctx, "locks");
       })
       .catch((error: unknown) => {
         if (msg !== null) msg.textContent = describeError(error);
+        if (submit !== null) submit.disabled = false;
       });
   });
   root.querySelectorAll<HTMLButtonElement>("[data-release-lock]").forEach((button) => {
@@ -984,12 +993,14 @@ function bindProjectTab(root: HTMLElement, ctx: ConfigurationContext, tab: "reso
       const lockId = button.dataset["releaseLock"];
       if (lockId === undefined) return;
       if (!window.confirm("Libérer ce verrou de projet ?")) return;
+      button.disabled = true;
       releaseLibraryLock(ctx.client, lockId)
         .then(() => {
           void renderProjectConfig(root, ctx, "locks");
         })
         .catch((error: unknown) => {
-          window.alert(describeError(error));
+          button.disabled = false;
+          dsNotify(`Libération impossible. ${describeError(error)}`, "danger");
         });
     });
   });
@@ -1038,14 +1049,20 @@ async function projectLocksHtml(ctx: ConfigurationContext, projectId: string): P
 
 async function projectOverridesHtml(ctx: ConfigurationContext, projectId: string): Promise<string> {
   const [overrides, defaults, studioDefaults] = await Promise.all([
-    listRuntimeBindings(ctx.client, { projectId, level: "project_override" }),
-    listRuntimeBindings(ctx.client, { projectId, level: "project_default" }),
-    listRuntimeBindings(ctx.client, { level: "studio_default" }),
+    settle(listRuntimeBindings(ctx.client, { projectId, level: "project_override" })),
+    settle(listRuntimeBindings(ctx.client, { projectId, level: "project_default" })),
+    settle(listRuntimeBindings(ctx.client, { level: "studio_default" })),
   ]);
+  const section = (title: string, meta: string, result: Settled<RuntimeBinding[]>, empty: string): string => {
+    const body = result.ok
+      ? bindingsTableHtml(result.value, empty)
+      : `<div class="ds-notice ds-notice--warning" role="alert"><strong>Section indisponible.</strong> ${esc(describeError(result.error))}</div>`;
+    return `<h3>${esc(title)}</h3><p class="meta">${esc(meta)}</p>${body}`;
+  };
   return (
-    `<h3>Overrides de projet</h3><p class="meta">GET /runtime-bindings?project_id=…&amp;level=project_override — épinglage explicite pour ce projet.</p>${bindingsTableHtml(overrides, "Aucun override de projet.")}` +
-    `<h3>Défauts de projet</h3><p class="meta">level=project_default — repli pour ce projet, distinct d'un override.</p>${bindingsTableHtml(defaults, "Aucun défaut de projet.")}` +
-    `<h3>Défauts de studio</h3><p class="meta">level=studio_default — affichés uniquement si le serveur les renvoie pour ce jeton.</p>${bindingsTableHtml(studioDefaults, "Aucun défaut de studio visible.")}` +
+    section("Overrides de projet", "GET /runtime-bindings?project_id=…&level=project_override — épinglage explicite pour ce projet.", overrides, "Aucun override de projet.") +
+    section("Défauts de projet", "level=project_default — repli pour ce projet, distinct d'un override.", defaults, "Aucun défaut de projet.") +
+    section("Défauts de studio", "level=studio_default — affichés uniquement si le serveur les renvoie pour ce jeton.", studioDefaults, "Aucun défaut de studio visible.") +
     `<p><a href="#/inspector">Ouvrir l'Inspecteur de résolution</a> pour voir quel niveau gagne réellement pour une AgentDefinition donnée.</p>`
   );
 }

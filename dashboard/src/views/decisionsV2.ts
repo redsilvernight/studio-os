@@ -324,16 +324,17 @@ export function decisionsHtml(
 
   if (decisions.length === 0) {
     const createAction = authed
-      ? { label: "Créer une décision", href: "#create-decision" }
-      : undefined;
+      ? `<p><button class="ds-btn ds-btn--primary" type="button" id="create-decision-btn">Créer une décision</button></p>`
+      : "";
     return `<section class="decisions-section" aria-labelledby="decisions-heading">${header}` +
       dsEmptyState(
         "Aucune décision",
         projectId
           ? "Aucune décision liée à ce projet pour le moment."
           : "Aucune décision globale pour le moment.",
-        createAction,
-      ) + `</section>`;
+      ) +
+      createAction +
+      `</section>`;
   }
 
   const rows = decisions.map((d) => decisionHtml(d, authed)).join("");
@@ -531,6 +532,10 @@ function bindDecisionActions(
         bindDecisionActions(root, newPanel, ctx, proposerId);
       }
     } catch (error) {
+      // Nouvelle tentative indépendante après un échec définitif : clé neuve,
+      // jamais réutilisée pour un corps potentiellement modifié.
+      const keyInput = form.querySelector<HTMLInputElement>('input[name="idempotency_key"]');
+      if (keyInput !== null) keyInput.value = generateIdempotencyKey();
       if (msg !== null) msg.textContent = describeError(error);
       if (submitBtn !== null) submitBtn.disabled = false;
     }

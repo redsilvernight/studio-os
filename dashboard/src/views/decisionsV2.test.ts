@@ -335,7 +335,8 @@ describe("decisionsHtml", () => {
     expect(html).toContain("Aucune décision");
     expect(html).toContain("globales");
     expect(html).toContain("Créer une décision");
-    expect(html).toContain('href="#create-decision"');
+    expect(html).toContain('id="create-decision-btn"');
+    expect(html).not.toContain('href="#create-decision"');
   });
 
   it("vide project-scopé : message projet, pas de bouton création si pas authed", () => {
