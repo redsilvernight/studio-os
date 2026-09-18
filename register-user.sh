@@ -18,6 +18,7 @@ COMPOSE_DIR="$ROOT_DIR/docker"
 
 PASSWORD=""
 MACHINE_TOKEN=""
+MACHINE_ID=""
 cleanup() { unset PASSWORD MACHINE_TOKEN 2>/dev/null || true; }
 trap cleanup EXIT
 
@@ -140,6 +141,7 @@ write_credentials_file() {
         echo "Machine"
         echo "───────"
         echo "Nom       : $MACHINE_NAME"
+        echo "ID        : $MACHINE_ID"
         echo "Token     : $MACHINE_TOKEN"
       fi
       echo ""
@@ -243,6 +245,8 @@ if [[ "$CREATE_MACHINE" -eq 1 ]]; then
   echo "[3/3] Création de la machine '$MACHINE_NAME'..."
   if MACHINE_OUTPUT="$(run_admin machine create --owner-email "$EMAIL" --display-name "$MACHINE_NAME" </dev/null)"; then
     MACHINE_CREATED=1
+    MACHINE_ID="$(printf '%s\n' "$MACHINE_OUTPUT" \
+      | sed -n 's/^machine created: //p')"
     MACHINE_TOKEN="$(printf '%s\n' "$MACHINE_OUTPUT" \
       | sed -n 's/^token (store now, never shown again): //p')"
   else
@@ -307,6 +311,9 @@ if [[ "$MACHINE_CREATED" -eq 1 ]]; then
   echo ""
   echo "Machine token"
   echo "────────────────────────────────"
+  if [[ -n "$MACHINE_ID" ]]; then
+    echo "ID machine : $MACHINE_ID"
+  fi
   if [[ -n "$MACHINE_TOKEN" ]]; then
     echo "$MACHINE_TOKEN"
   else

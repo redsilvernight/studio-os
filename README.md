@@ -60,9 +60,13 @@ généré) puis propose de créer une machine. Il délègue toute la logique à 
 `set-password --password-stdin`, `machine create`). Si l'email existe déjà, il
 l'indique sans écraser le rôle ni le mot de passe, et propose seulement la
 création facultative d'une nouvelle machine. À la fin, il écrit les identifiants
-utiles (mot de passe dashboard et token machine) dans un fichier
+utiles (mot de passe dashboard, UUID et token machine) dans un fichier
 `studi-os-credentials-*.txt` sur le bureau (répertoire surchargeable via
-`STUDIO_CREDENTIALS_DIR`), car un terminal peut se fermer avant lecture.
+`STUDIO_CREDENTIALS_DIR`), car un terminal peut se fermer avant lecture. L'UUID
+machine est nécessaire au client (`STUDIO_CLIENT_MACHINE_ID`) et n'est pas
+déductible du token : `studio-admin machine list [--owner-email ...]` liste les
+machines, et `studio-admin machine show` (token lu sur stdin) résout un token
+vers son UUID, son nom et son propriétaire.
 
 ### User, mot de passe, Machine, token
 

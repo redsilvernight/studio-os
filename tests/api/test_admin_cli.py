@@ -397,3 +397,105 @@ async def test_workflow_no_machine_requested(
         .all()
     )
     assert machines == []
+
+
+async def test_cli_machine_list(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _bind_session(monkeypatch, db_session)
+    user = await provisioning_service.create_user(
+        db_session, "User", f"{uuid.uuid4()}@example.test", "developer"
+    )
+    machine, _token = await provisioning_service.create_machine(db_session, user.id, "list-desktop")
+
+    await admin_cli._list_machines(None)
+
+    out = capsys.readouterr().out
+    assert str(machine.id) in out
+    assert "list-desktop" in out
+    assert user.email in out
+    assert "active" in out
+
+
+async def test_cli_machine_list_filters_by_owner(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _bind_session(monkeypatch, db_session)
+    owner = await provisioning_service.create_user(
+        db_session, "Owner", f"{uuid.uuid4()}@example.test", "developer"
+    )
+    await provisioning_service.create_machine(db_session, owner.id, "owner-desktop")
+    other = await provisioning_service.create_user(
+        db_session, "Other", f"{uuid.uuid4()}@example.test", "developer"
+    )
+    await provisioning_service.create_machine(db_session, other.id, "other-desktop")
+
+    await admin_cli._list_machines(owner.email)
+
+    out = capsys.readouterr().out
+    assert "owner-desktop" in out
+    assert "other-desktop" not in out
+
+
+async def test_cli_machine_show_by_token(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _bind_session(monkeypatch, db_session)
+    user = await provisioning_service.create_user(
+        db_session, "User", f"{uuid.uuid4()}@example.test", "developer"
+    )
+    machine, token = await provisioning_service.create_machine(db_session, user.id, "show-desktop")
+
+    await admin_cli._show_machine_by_token(token)
+
+    out = capsys.readouterr().out
+    assert f"machine_id: {machine.id}" in out
+    assert "display_name: show-desktop" in out
+    assert f"owner_email: {user.email}" in out
+    assert "status: active" in out
+
+
+async def test_cli_machine_show_revoked(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _bind_session(monkeypatch, db_session)
+    user = await provisioning_service.create_user(
+        db_session, "User", f"{uuid.uuid4()}@example.test", "developer"
+    )
+    machine, token = await provisioning_service.create_machine(
+        db_session, user.id, "revoked-desktop"
+    )
+    await provisioning_service.revoke_machine(db_session, machine)
+
+    await admin_cli._show_machine_by_token(token)
+
+    out = capsys.readouterr().out
+    assert "status: revoked" in out
+
+
+async def test_cli_machine_show_unknown_token(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _bind_session(monkeypatch, db_session)
+
+    with pytest.raises(SystemExit) as exc_info:
+        await admin_cli._show_machine_by_token("not-a-real-token")
+
+    assert exc_info.value.code == 1
+
+
+def test_main_machine_show_reads_token_from_stdin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+
+    async def fake_show(token: str) -> None:
+        calls.append(token)
+
+    monkeypatch.setattr(admin_cli, "_show_machine_by_token", fake_show)
+    monkeypatch.setattr(sys, "stdin", io.StringIO("token-from-stdin\n"))
+    monkeypatch.setattr(sys, "argv", ["studio-admin", "machine", "show"])
+
+    admin_cli.main()
+
+    assert calls == ["token-from-stdin"]
