@@ -564,7 +564,7 @@ test("binding creation reads the level and target_kind selects (D1 regression)",
   await bootAuthedDashboard(page);
 
   await goHash(page, "#/configuration/bindings");
-  await page.locator("summary", { hasText: "New binding" }).click();
+  await page.locator("summary", { hasText: "Nouveau binding" }).click();
   await expect(page.locator("form[data-binding-create]")).toBeVisible();
   await page.selectOption("form[data-binding-create] select[name=level]", "project_default");
   await page.fill(
@@ -576,6 +576,9 @@ test("binding creation reads the level and target_kind selects (D1 regression)",
     "model_profile",
   );
   await page.fill("form[data-binding-create] input[name=target_stable_key]", "review-profile");
+  await page
+    .locator("form[data-binding-create] summary", { hasText: "Ou ancres inline" })
+    .click();
   await page.fill("form[data-binding-create] input[name=model_ref]", "model_a");
   await page.locator("form[data-binding-create] button[type=submit]").click();
 
