@@ -63,7 +63,7 @@ test.describe("appshell", () => {
 
     await page.locator('.app-sidebar a[href="#/projects"]').click();
     await expect(page.locator('.app-sidebar a[href="#/projects"]')).toHaveAttribute("aria-current", "page");
-    await expect(page.locator("#view")).toContainText("Projects");
+    await expect(page.locator("#view")).toContainText("Projets");
 
     expect(cspErrors).toEqual([]);
     expect(pageErrors).toEqual([]);

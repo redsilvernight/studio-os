@@ -14,7 +14,7 @@ export function fmtTime(iso: string | null | undefined): string {
   if (iso === null || iso === undefined || iso === "") return "—";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return esc(iso);
-  return esc(date.toLocaleString());
+  return esc(date.toLocaleString("fr-FR"));
 }
 
 export function shortId(id: string | null | undefined): string {

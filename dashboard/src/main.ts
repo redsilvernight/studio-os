@@ -42,6 +42,8 @@ import "./ds/tokens.css";
 import "./ds/components.css";
 import "./shell.css";
 import "./views/overview.css";
+import "./views/projects.css";
+import "./views/workspace.css";
 import "./styles.css";
 
 type EventEnvelope = components["schemas"]["EventEnvelope"];

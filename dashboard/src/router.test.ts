@@ -18,6 +18,12 @@ describe("parseRoute", () => {
     expect(parseRoute("#/projects/abc/claims")).toEqual({ name: "project", id: "abc", tab: "claims" });
   });
 
+  it("parses the UI-4 workspace tabs and falls back to overview otherwise", () => {
+    expect(parseRoute("#/projects/abc/activity")).toEqual({ name: "project", id: "abc", tab: "activity" });
+    expect(parseRoute("#/projects/abc/decisions")).toEqual({ name: "project", id: "abc", tab: "decisions" });
+    expect(parseRoute("#/projects/abc/unknown")).toEqual({ name: "project", id: "abc", tab: "overview" });
+  });
+
   it("parses tasks and task detail", () => {
     expect(parseRoute("#/tasks")).toEqual({ name: "tasks" });
     expect(parseRoute("#/tasks/t-1")).toEqual({ name: "task", id: "t-1" });

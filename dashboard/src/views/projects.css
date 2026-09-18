@@ -1,0 +1,128 @@
+/**
+ * UI-4 — Page Projets : grille de cartes confortable, barre d'outils
+ * (filtre local + état), modale de création du Design System.
+ */
+
+.projects {
+  display: grid;
+  gap: var(--ds-space-6);
+  max-width: 1020px;
+  padding-bottom: var(--ds-space-12);
+}
+
+.projects-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--ds-space-3) var(--ds-space-4);
+}
+
+.projects-toolbar .ds-search {
+  flex: 1;
+  min-width: 220px;
+}
+
+.projects-state-filter {
+  display: grid;
+  gap: var(--ds-space-1);
+  font-size: var(--ds-text-sm);
+  font-weight: 600;
+}
+
+.projects-toolbar .ds-list-sub {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.projects-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--ds-space-4);
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+.project-card {
+  display: grid;
+  gap: var(--ds-space-2);
+  align-content: start;
+}
+
+.project-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ds-space-3);
+}
+
+.project-card-title {
+  margin: 0;
+  font-size: var(--ds-text-lg);
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.project-card-desc {
+  margin: 0;
+  color: var(--ds-text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.project-card .ds-list-sub {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.project-card-tech {
+  border-top: 1px solid var(--ds-border);
+  padding-top: var(--ds-space-2);
+  font-size: var(--ds-text-sm);
+  color: var(--ds-text-muted);
+}
+
+.project-card-tech summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: var(--ds-target-sm);
+  display: inline-flex;
+  align-items: center;
+}
+
+.project-card-tech dl {
+  margin: var(--ds-space-2) 0 0;
+  display: grid;
+  gap: var(--ds-space-1);
+}
+
+.project-card-tech dl > div {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: var(--ds-space-2);
+}
+
+.project-card-tech dt {
+  font-weight: 600;
+}
+
+.project-card-tech dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+#project-create-form {
+  display: grid;
+  gap: var(--ds-space-4);
+}
+
+@media (max-width: 640px) {
+  .projects-toolbar {
+    display: grid;
+  }
+  .projects-grid {
+    grid-template-columns: 1fr;
+  }
+}
