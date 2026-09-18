@@ -6,11 +6,9 @@
  * via addEventListener (montés par main.ts). Aucune recherche globale ni
  * cloche de notifications : aucun backend ne les supporte.
  *
- * Navigation = routes existantes uniquement, sauf « Agents IA » (page
- * UI-6 : pastille « Bientôt », aucun contenu fictif) et « Paramètres »
- * (route existante pertinente : #/configuration/runtimes, future section
- * réglages UI-12). Activity/Workloads, jamais fonctionnels, sortent de la
- * nav (l'Activité reviendra comme onglet projet en UI-4).
+ * Navigation = routes existantes uniquement. « Agents IA » (UI-6) pointe
+ * vers la vraie page #/agents. Activity/Workloads, jamais fonctionnels,
+ * sortent de la nav (l'Activité reviendra comme onglet projet en UI-4).
  */
 import type { Route } from "./router";
 import { esc } from "./ui";
@@ -59,7 +57,7 @@ export function shellNavGroups(route: Route): ShellNavGroup[] {
         { href: "#/", label: "Accueil", icon: "home", active: is("dashboard", "notFound") },
         { href: "#/projects", label: "Projets", icon: "folder", active: is("projects", "project") },
         { href: "#/tasks", label: "Tâches", icon: "tasks", active: is("tasks", "task") },
-        { href: "#/machines", label: "Agents IA", icon: "agents", active: false, soon: true },
+        { href: "#/agents", label: "Agents IA", icon: "agents", active: is("agents", "agent") },
       ],
     },
     {
