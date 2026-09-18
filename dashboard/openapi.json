@@ -1669,6 +1669,196 @@
     }
    }
   },
+  "/api/v1/decisions/{decision_id}/accept": {
+   "post": {
+    "tags": [
+     "decisions"
+    ],
+    "summary": "Accept Decision",
+    "description": "Accept a recorded decision (`proposed` -> `accepted`). Requires an `admin` role: accepting a decision is a human governance action, the same trust boundary as resolving an AI work review. Accepting a decision that is not `proposed` fails with `409 invalid_status_transition`; the status set is unchanged (`proposed|accepted|superseded`).",
+    "operationId": "accept_decision_api_v1_decisions__decision_id__accept_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "decision_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Decision Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Decision"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Invalid decision transition: accepting requires the decision to be `proposed`; superseding requires `proposed` or `accepted`. An already-terminal decision can never be re-opened or re-superseded.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_status_transition"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/decisions/{decision_id}/supersede": {
+   "post": {
+    "tags": [
+     "decisions"
+    ],
+    "summary": "Supersede Decision",
+    "description": "Mark a recorded decision as `superseded` (`proposed` or `accepted` -> `superseded`). Requires an `admin` role. Superseding an already `superseded` decision fails with `409 invalid_status_transition`; the status set is unchanged (`proposed|accepted|superseded`).",
+    "operationId": "supersede_decision_api_v1_decisions__decision_id__supersede_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "decision_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Decision Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Decision"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Invalid decision transition: accepting requires the decision to be `proposed`; superseding requires `proposed` or `accepted`. An already-terminal decision can never be re-opened or re-superseded.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_status_transition"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/library": {
    "get": {
     "tags": [
@@ -4106,7 +4296,7 @@
      "review-queue"
     ],
     "summary": "Get Review Queue",
-    "description": "Aggregated view of everything waiting on a human decision: AI work in `review_requested` (resolve via `PATCH /ai-work/{id}`), decisions still `proposed` (informational \u2014 no transition endpoint exists for decisions), recent `resource.conflict` events within `conflict_window_hours` (best-effort and time-windowed: no persisted conflict state exists, an old unaddressed conflict silently ages out of the window), failed builds (`build_failure`, informational \u2014 no build transition endpoint exists), and opened PRs with no merge yet (`pr_ready`, best-effort and time-windowed like conflicts). Also serves as the notifications surface \u2014 there is no separate notifications endpoint. Any authenticated machine may read. Clients must tolerate an unknown `kind`.",
+    "description": "Aggregated view of everything waiting on a human decision: AI work in `review_requested` (resolve via `PATCH /ai-work/{id}`), decisions still `proposed` (resolve via `POST /decisions/{id}/accept` or `/supersede`, admin-only), recent `resource.conflict` events within `conflict_window_hours` (best-effort and time-windowed: no persisted conflict state exists, an old unaddressed conflict silently ages out of the window), failed builds (`build_failure`, informational \u2014 no build transition endpoint exists), and opened PRs with no merge yet (`pr_ready`, best-effort and time-windowed like conflicts). Also serves as the notifications surface \u2014 there is no separate notifications endpoint. Any authenticated machine may read. Clients must tolerate an unknown `kind`.",
     "operationId": "get_review_queue_api_v1_review_queue_get",
     "security": [
      {

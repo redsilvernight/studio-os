@@ -56,6 +56,8 @@ WRITE_TOOLS = {
     "studio_claim_resource",
     "studio_release_resource",
     "studio_add_decision",
+    "studio_accept_decision",
+    "studio_supersede_decision",
     "studio_start_session",
     "studio_end_session",
     "studio_log_ai_work",
@@ -80,7 +82,7 @@ def _by_name(tools: list[Tool]) -> dict[str, Tool]:
 
 
 def test_all_tools_have_external_descriptions(tools: list[Tool]) -> None:
-    assert len(tools) == 34
+    assert len(tools) == 36
     for tool in tools:
         assert tool.description, f"{tool.name} has no description"
         assert len(tool.description) >= 40, f"{tool.name} description is stub-like"

@@ -322,5 +322,6 @@ cross-links to the Library and Runtimes views.
 Human login/JWT is already present (`src/login.ts`, DEC-0056) and the V0 token
 bar still accepts a machine token. Remaining gaps: CORS (same-origin/same-machine
 only), a global (non-per-project) SSE stream for project-independent screens like
-Machines, resumable multipart upload UI, decision accept/supersede (no server
-endpoint exists), and Activity/Worklogs views (nav entries stay disabled).
+Machines, resumable multipart upload UI, decision accept/supersede actions
+(the server endpoints exist since DEC-0078, this UI does not wire them yet),
+and Activity/Worklogs views (nav entries stay disabled).

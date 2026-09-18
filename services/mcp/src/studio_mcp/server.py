@@ -20,7 +20,12 @@ from studio_mcp.tools.claims import (
     studio_get_resource_claims,
     studio_release_resource,
 )
-from studio_mcp.tools.decisions import studio_add_decision, studio_get_decisions
+from studio_mcp.tools.decisions import (
+    studio_accept_decision,
+    studio_add_decision,
+    studio_get_decisions,
+    studio_supersede_decision,
+)
 from studio_mcp.tools.events import studio_emit_event, studio_get_recent_changes
 from studio_mcp.tools.projects import studio_get_project_state, studio_get_projects
 from studio_mcp.tools.review_queue import studio_get_review_queue
@@ -178,6 +183,25 @@ def create_server() -> MCPServer:
         ),
     )
     server.add_tool(
+        studio_accept_decision,
+        name="studio_accept_decision",
+        description=(
+            "Accept a recorded decision (proposed -> accepted) by decision_id (UUID string). "
+            "Requires an admin role; anyone else fails with forbidden. A decision that is not "
+            "proposed fails with invalid_status_transition. This is the actionable half of a "
+            "review-queue decision_proposal item."
+        ),
+    )
+    server.add_tool(
+        studio_supersede_decision,
+        name="studio_supersede_decision",
+        description=(
+            "Mark a recorded decision as superseded (proposed or accepted -> superseded) by "
+            "decision_id (UUID string). Requires an admin role; anyone else fails with "
+            "forbidden. An already superseded decision fails with invalid_status_transition."
+        ),
+    )
+    server.add_tool(
         studio_get_recent_changes,
         name="studio_get_recent_changes",
         description=(
@@ -274,7 +298,8 @@ def create_server() -> MCPServer:
         description=(
             "Aggregated view of everything waiting on a human decision: AI work in "
             "review_requested (resolve via studio_log_ai_work), decisions still proposed "
-            "(informational — no transition tool exists for decisions), and recent "
+            "(resolve via studio_accept_decision or studio_supersede_decision, admin-only), "
+            "and recent "
             "resource.conflict events within conflict_window_hours (default 24, best-effort "
             "and time-windowed — no persisted conflict state exists). Also serves as the "
             "notifications surface — there is no separate notifications tool. "

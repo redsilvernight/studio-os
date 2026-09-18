@@ -18,8 +18,9 @@ router = APIRouter(prefix="/api/v1/review-queue", tags=["review-queue"])
     description=(
         "Aggregated view of everything waiting on a human decision: AI work "
         "in `review_requested` (resolve via `PATCH /ai-work/{id}`), "
-        "decisions still `proposed` (informational — no transition endpoint "
-        "exists for decisions), recent `resource.conflict` events "
+        "decisions still `proposed` (resolve via `POST "
+        "/decisions/{id}/accept` or `/supersede`, admin-only), recent "
+        "`resource.conflict` events "
         "within `conflict_window_hours` (best-effort and time-windowed: no "
         "persisted conflict state exists, an old unaddressed conflict "
         "silently ages out of the window), failed builds (`build_failure`, "

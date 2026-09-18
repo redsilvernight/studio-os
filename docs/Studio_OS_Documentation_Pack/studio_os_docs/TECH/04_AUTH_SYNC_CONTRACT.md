@@ -192,6 +192,11 @@ Exception a l'ownership ci-dessus (DEC-0041) : sur `PATCH /ai-work/{id}`, un
 `status` cible `approved`/`changes_requested` exige `admin` strictement —
 jamais la machine/l'agent proprietaire, qui ne peut pas resoudre sa propre
 revue — et seulement depuis `review_requested` (sinon `409
+invalid_status_transition`). De meme, `POST /decisions/{id}/accept` et
+`POST /decisions/{id}/supersede` (DEC-0078) exigent `admin` strictement —
+accepter une decision est une action de gouvernance humaine, jamais un
+ecrivain quelconque — et seulement depuis un statut source legal (`proposed`
+pour `accept` ; `proposed` ou `accepted` pour `supersede`, sinon `409
 invalid_status_transition`).
 
 Regle Transfer (le defaut concretement exploitable identifie par l'audit) —
@@ -225,7 +230,7 @@ un rejeu.
 d'enumeration : UUID v4, pas de lookup par code humain, les listes filtrent
 deja). Enveloppe : `403 {"detail": {"error_code": "forbidden", "resource":
 "<task|claim|session|ai_work|decision|event|transfer|...>", "action":
-"<write|release|renew|end|update|read>"}}`.
+"<write|release|renew|end|update|read|accept|supersede>"}}`.
 
 Cote client (`packages/studio-client`), un `403` reste dans la meme
 categorie `ForbiddenError` que le reste de ce document (jamais rejouable,

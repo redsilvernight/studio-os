@@ -53,6 +53,11 @@ unifiee de "ce qui a besoin d'une decision humaine maintenant".
    actionnable reste `PATCH /ai-work/{id}` ; decisions et conflits restent
    informatifs dans cette vue (aucune route de transition n'existe pour
    `Decision`, et ce lot n'en ajoute pas).
+   *Amendement (DEC-0078, 2026-09-19)* : ce constat decrivait l'etat a ce
+   lot. DEC-0078 ajoute plus tard `POST /decisions/{id}/accept` et
+   `/supersede` (admin-only) ; les items `decision_proposal` de la Review
+   Queue sont desormais actionnables, sans que cette vue devienne un
+   endpoint de transition pour autant.
 5. **Outil MCP** `studio_get_review_queue` (nouveau, `_READ_ONLY`), meme
    moule mince que `studio_get_ai_work` (`_compact_review_queue`, `run_tool`,
    `parse_uuid`).

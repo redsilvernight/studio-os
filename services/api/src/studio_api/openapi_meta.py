@@ -194,6 +194,15 @@ RESP_409_REVIEW_TRANSITION: ErrorResponses = {
     )
 }
 
+RESP_409_DECISION_TRANSITION: ErrorResponses = {
+    409: _json_response(
+        "Invalid decision transition: accepting requires the decision to be "
+        "`proposed`; superseding requires `proposed` or `accepted`. An "
+        "already-terminal decision can never be re-opened or re-superseded.",
+        {"detail": {"error_code": "invalid_status_transition"}},
+    )
+}
+
 RESP_409_ALREADY_CLAIMED: ErrorResponses = {
     409: _json_response(
         "Another machine already holds this task's claim (soft lock). "

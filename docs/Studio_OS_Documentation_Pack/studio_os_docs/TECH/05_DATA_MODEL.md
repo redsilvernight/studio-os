@@ -90,7 +90,14 @@ nullable), `started_at`, `ended_at` (nullable). Append-only : pas de
 nullable — une decision peut etre globale), `task_id` (FK Task, nullable),
 `title`, `body`, `status` (`proposed|accepted|superseded`),
 `proposed_by_type` (`user|agent|system`), `proposed_by_id`, `created_at`.
-Append-only.
+Append-only sur ses champs de contenu ; seul `status` evolue, par transitions
+explicites `admin`-only (`POST /decisions/{id}/accept` : `proposed` ->
+`accepted` ; `POST /decisions/{id}/supersede` : `proposed`/`accepted` ->
+`superseded`, DEC-0078). Aucun `version` : l'ecriture est un compare-and-set
+atomique sur `(id, status source)`, donc deux transitions concurrentes ne
+peuvent pas gagner toutes les deux — la perdante repond `409
+invalid_status_transition` sans ecriture partielle, comme un rejeu sequentiel.
+L'ensemble des statuts reste inchange (`proposed|accepted|superseded`).
 
 ## AIWorkLog
 `id`, `task_id` (FK Task, nullable), `project_id` (FK Project), `agent_id`

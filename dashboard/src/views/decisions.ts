@@ -6,8 +6,10 @@
  * requires a proposer (`proposed_by_type`, `proposed_by_id`); the field is
  * prefilled from the dashboard JWT's `sub` claim when the token is a JWT
  * (memory-only, never an authorization decision), and must be entered manually
- * for an opaque machine token. There is no decision transition endpoint
- * (accept/supersede) — the UI never invents one.
+ * for an opaque machine token. Decision transitions (accept/supersede) exist
+ * server-side (`POST /api/v1/decisions/{id}/accept|supersede`, admin-only,
+ * DEC-0078) but this view does not wire them yet — the UI never invents a
+ * route the server does not have.
  */
 import type { StudioClient } from "../api";
 import { ApiError, parseErrorBody } from "../api";
@@ -48,7 +50,7 @@ function createFormHtml(authed: boolean, projectId: string | undefined, proposer
     <label>Proposed by type <select name="proposed_by_type" ${authed ? "" : "disabled"}>${PROPOSER_TYPES.map((t) => `<option value="${t}">${t}</option>`).join("")}</select></label>
     <label>Proposed by ID (user UUID) <input name="proposed_by_id" value="${esc(proposerId)}" placeholder="uuid" required ${authed ? "" : "disabled"} /></label>
     <button type="submit" ${authed ? "" : "disabled"}>Create</button>
-    <span class="meta">POST /decisions · Idempotency-Key per attempt · no accept/supersede endpoint exists</span>
+    <span class="meta">POST /decisions · Idempotency-Key per attempt · accept/supersede exist server-side (admin), not wired in this UI yet</span>
     <div data-create-msg class="meta"></div></form>`;
 }
 

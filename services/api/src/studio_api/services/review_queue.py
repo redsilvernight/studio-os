@@ -29,9 +29,9 @@ async def get_review_queue(
     conflict_window_hours: int = 24,
 ) -> ReviewQueue:
     """Aggregates everything waiting on a human decision: AIWorkLog entries in
-    `review_requested` (DEC-0041), `Decision`s still `proposed` (no transition
-    endpoint exists for decisions — DEC-0049 keeps this review scoped to AI
-    work, matching DEC-0041), recent `resource.conflict` events, failed
+    `review_requested` (DEC-0041), `Decision`s still `proposed` (resolve via
+    `POST /decisions/{id}/accept` or `/supersede`, admin-only, DEC-0078),
+    recent `resource.conflict` events, failed
     `Build`s (DEC-0059), and `git.pr.opened` events with no `git.pr.merged`
     yet (DEC-0059). Conflicts and PRs have no persisted "still open" state
     (no Conflict/PullRequest table exists) — these are best-effort,

@@ -14,6 +14,8 @@ studio_claim_resource
 studio_release_resource
 studio_get_decisions
 studio_add_decision
+studio_accept_decision
+studio_supersede_decision
 studio_get_recent_changes
 studio_get_sessions
 studio_get_teammate_activity
@@ -59,7 +61,7 @@ token (pas d'attaquant reseau).
 
 ## Etat reel (roadmap etape 5, DEC-0023, UC-3/DEC-0047, P8/DEC-0072)
 
-Le serveur VPS enregistre 34 outils (`services/mcp/src/studio_mcp/` : 29
+Le serveur VPS enregistre 36 outils (`services/mcp/src/studio_mcp/` : 31
 historiques + 5 AI Library P8, section ci-dessous).
 Les 3 outils locaux read-only specifies ci-dessous (UC-3, exposition via
 MCP local par poste, DEC-0047) sont en place mais conditionnels au
@@ -177,7 +179,9 @@ le service etant partage (DEC-0005/DEC-0036).
 ## Review Queue et notifications (sous-etape 8.4/8.5, DEC-0049/DEC-0051)
 
 `studio_get_review_queue` (lecture seule) agrege le travail IA en
-`review_requested`, les decisions `proposed`, les evenements
+`review_requested`, les decisions `proposed` (actionnables via
+`studio_accept_decision` / `studio_supersede_decision`, `admin` strictement,
+DEC-0078), les evenements
 `resource.conflict` recents (`conflict_window_hours`, defaut 24, best-effort
 — aucun etat de conflit persiste), les builds en echec (`build_failure`,
 informatif — DEC-0059) et les PR ouvertes sans merge (`pr_ready`,
@@ -185,6 +189,18 @@ best-effort borne comme les conflits — DEC-0059). Sert aussi de surface "notif
 (DEC-0051) : aucun outil `studio_get_notifications` distinct n'existe — un
 second outil renvoyant les memes donnees degraderait la selection d'outil
 par le modele plutot que d'apporter une information nouvelle.
+
+## Decisions (DEC-0078)
+
+`studio_add_decision` (createur, role writer, `idempotency_key` optionnel)
+est complete par deux outils de transition : `studio_accept_decision`
+(`proposed` -> `accepted`) et `studio_supersede_decision` (`proposed` ou
+`accepted` -> `superseded`). Les deux exigent `admin` strictement (un autre
+role repond `forbidden`), un id inconnu repond `decision not found`, et une
+transition illegale `invalid_status_transition` — ce ne sont pas des
+creations rejouables, donc sans `idempotency_key` (meme regle que les
+endpoints HTTP, DEC-0078). L'ensemble des statuts reste
+`proposed|accepted|superseded`.
 
 ## Builds & Producer (etape 9.1, DEC-0059)
 
@@ -225,16 +241,17 @@ coexistence n'est fixee d'avance.
 
 ### Dette output schemas
 
-Les `outputSchema` des 29 outils historiques (auto-generes depuis
+Les `outputSchema` des 31 outils historiques (auto-generes depuis
 `dict[str, Any]`, `additionalProperties: True`) ne decrivent pas
 suffisamment leurs outputs. Des output schemas explicites sont
 necessaires avant toute evolution breaking sure d'un tool reellement
 consomme. Les 5 outils P8 (section « AI Library via MCP ») sont les
 premiers a publier des output schemas explicites (modeles Pydantic
 domaine + bras d'erreur `McpError`, derives de l'annotation de retour
-via `structured_output` auto-detecte du SDK) ; les 29 historiques restent
+via `structured_output` auto-detecte du SDK) ; les 31 historiques restent
 en l'etat (additif : P8 ne les touche pas — CC-3 reste documentaire
-pour eux).
+pour eux, et les deux outils de transition de decision DEC-0078 heritent
+de ce meme `dict[str, Any]`).
 
 ## AI Library via MCP (P8, DEC-0072)
 

@@ -103,3 +103,35 @@ async def studio_add_decision(
         )
 
     return await run_tool(ctx, _handler)
+
+
+async def studio_accept_decision(ctx: Context, decision_id: str) -> dict[str, Any]:
+    """Accept a recorded decision (`proposed` -> `accepted`). Requires an
+    `admin` role — a non-admin caller gets `forbidden`. An unknown decision
+    id answers `decision not found`; a decision that is not `proposed`
+    answers `invalid_status_transition`."""
+
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
+        parsed = parse_uuid(decision_id, "decision_id")
+        if isinstance(parsed, dict):
+            return parsed
+        decision = await decisions_service.accept_decision(session, principal, parsed)
+        return _compact_decision(decision)
+
+    return await run_tool(ctx, _handler)
+
+
+async def studio_supersede_decision(ctx: Context, decision_id: str) -> dict[str, Any]:
+    """Mark a recorded decision as `superseded` (`proposed` or `accepted` ->
+    `superseded`). Requires an `admin` role — a non-admin caller gets
+    `forbidden`. An unknown decision id answers `decision not found`; an
+    already `superseded` decision answers `invalid_status_transition`."""
+
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
+        parsed = parse_uuid(decision_id, "decision_id")
+        if isinstance(parsed, dict):
+            return parsed
+        decision = await decisions_service.supersede_decision(session, principal, parsed)
+        return _compact_decision(decision)
+
+    return await run_tool(ctx, _handler)

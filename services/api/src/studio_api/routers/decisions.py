@@ -10,6 +10,8 @@ from studio_api.openapi_meta import (
     IDEMPOTENCY_KEY_DESCRIPTION,
     RESP_401_UNAUTHORIZED,
     RESP_403_FORBIDDEN,
+    RESP_404_NOT_FOUND,
+    RESP_409_DECISION_TRANSITION,
     RESP_409_IDEMPOTENCY,
 )
 from studio_api.services import decisions as decisions_service
@@ -71,4 +73,54 @@ async def create_decision(
         Decision,
         _create,
         status.HTTP_201_CREATED,
+    )
+
+
+@router.post(
+    "/{decision_id}/accept",
+    response_model=Decision,
+    description=(
+        "Accept a recorded decision (`proposed` -> `accepted`). Requires an "
+        "`admin` role: accepting a decision is a human governance action, the "
+        "same trust boundary as resolving an AI work review. Accepting a "
+        "decision that is not `proposed` fails with `409 "
+        "invalid_status_transition`; the status set is unchanged "
+        "(`proposed|accepted|superseded`)."
+    ),
+    responses={
+        **RESP_401_UNAUTHORIZED,
+        **RESP_403_FORBIDDEN,
+        **RESP_404_NOT_FOUND,
+        **RESP_409_DECISION_TRANSITION,
+    },
+)
+async def accept_decision(
+    decision_id: UUID, session: DbSession, principal: CurrentPrincipal
+) -> Decision:
+    return Decision.model_validate(
+        await decisions_service.accept_decision(session, principal, decision_id)
+    )
+
+
+@router.post(
+    "/{decision_id}/supersede",
+    response_model=Decision,
+    description=(
+        "Mark a recorded decision as `superseded` (`proposed` or `accepted` "
+        "-> `superseded`). Requires an `admin` role. Superseding an already "
+        "`superseded` decision fails with `409 invalid_status_transition`; "
+        "the status set is unchanged (`proposed|accepted|superseded`)."
+    ),
+    responses={
+        **RESP_401_UNAUTHORIZED,
+        **RESP_403_FORBIDDEN,
+        **RESP_404_NOT_FOUND,
+        **RESP_409_DECISION_TRANSITION,
+    },
+)
+async def supersede_decision(
+    decision_id: UUID, session: DbSession, principal: CurrentPrincipal
+) -> Decision:
+    return Decision.model_validate(
+        await decisions_service.supersede_decision(session, principal, decision_id)
     )
