@@ -1,50 +1,53 @@
 /**
- * DASH-1 — read-only Overview.
+ * UI-3 — Accueil calme (remplace le cockpit DASH-1).
  *
- * Data sources (all existing endpoints, no invention):
- * - GET /healthz (no auth)
- * - GET /api/v1/projects
- * - GET /api/v1/projects/{id}/state  (active_tasks, active_claims, generated_at)
- * - GET /api/v1/tasks?limit&offset   (statuses: created/in_progress/blocked/completed)
- * - GET /api/v1/events?limit&since   (last 24h; timeline NOT claimed exhaustive —
- *   most event types still require manual emission)
- * - GET /api/v1/agents               (presence below is Derived, never canonical:
- *   no HTTP read of heartbeats/machines exists yet)
- * - GET /api/v1/review-queue         (DASH-3: AI work review_requested +
- *   decisions proposed + recent resource.conflict, server-aggregated, read-only)
- * - GET /api/v1/transfers            (read-only)
+ * Densité = limite haute : résumé (3 indicateurs) + Projets (3 max) +
+ * Travail en cours (5 max) + À examiner (3 max) + état système compact.
+ * Le reste vit sur ses pages : Kanban et détail → #/tasks, transferts →
+ * #/transfers, diagnostics → Inspector, activité → onglet projet (UI-4).
+ *
+ * Dette de migration : les actions Approve / Request changes
+ * (ai_work_review) restent sur l'Accueil en format discret jusqu'à la page
+ * Review dédiée (UI-8) — 0 perte fonctionnelle. Les autres kinds n'ont
+ * aucune action car aucun backend/frontend ne les rend actionnables.
+ *
+ * Données = endpoints existants uniquement, aucune invention : GET
+ * /healthz, /api/v1/projects, /api/v1/tasks, /api/v1/review-queue,
+ * /api/v1/transfers. La présence agents (Derived) est volontairement
+ * absente du résumé : jamais canonique, donc jamais affichée ici.
  */
 import type { StudioClient } from "../api";
 import { ApiError, parseErrorBody } from "../api";
 import { joinUrl } from "../config";
+import { dsBadge, dsEmptyState, dsMetric, dsPageHeader, dsSectionHeader, dsSkeleton, dsStatus } from "../ds/ds";
 import { resolveReview, type ReviewResolution } from "../reviewApi";
-import { uiState, selectProject } from "../store";
-import { TASK_COLUMNS, statusColumn } from "../taskStatus";
-import { describeError, esc, fmtTime, idCell, section, shortId, statusBlock } from "../ui";
+import { describeError, esc } from "../ui";
 import type { components } from "../openapi-schema";
 
 type Project = components["schemas"]["Project"];
 type Task = components["schemas"]["Task"];
-type Agent = components["schemas"]["Agent"];
 type Transfer = components["schemas"]["Transfer"];
-type EventEnvelope = components["schemas"]["EventEnvelope"];
 type ReviewQueue = components["schemas"]["ReviewQueue"];
 type ReviewQueueItem = ReviewQueue["items"][number];
 
-export const OVERVIEW_TASK_LIMIT = 100;
-export const OVERVIEW_EVENT_LIMIT = 100;
-export const OVERVIEW_TRANSFER_LIMIT = 10;
-
-export function sinceIso24h(now: number = Date.now()): string {
-  return new Date(now - 24 * 60 * 60 * 1000).toISOString();
-}
+export const HOME_TASK_LIMIT = 100;
+export const HOME_PROJECT_LIMIT = 3;
+export const HOME_WORK_LIMIT = 5;
+export const HOME_REVIEW_LIMIT = 3;
 
 const REVIEW_KIND_LABEL: Record<ReviewQueueItem["kind"], string> = {
-  ai_work_review: "AI work",
-  decision_proposal: "Decision",
-  resource_conflict: "Conflict",
+  ai_work_review: "IA",
+  decision_proposal: "Décision",
+  resource_conflict: "Conflit",
   build_failure: "Build",
   pr_ready: "PR",
+};
+
+const TASK_STATUS_LABEL: Record<string, string> = {
+  created: "À faire",
+  in_progress: "En cours",
+  blocked: "Bloquée",
+  completed: "Terminée",
 };
 
 /** Sub-title for a review-queue row: AI work → agent, decision → readable_id,
@@ -52,7 +55,7 @@ const REVIEW_KIND_LABEL: Record<ReviewQueueItem["kind"], string> = {
 export function reviewQueueItemDetail(item: ReviewQueueItem): string {
   switch (item.kind) {
     case "ai_work_review":
-      return `agent ${shortId(item.agent_id)}`;
+      return `agent ${shortAgent(item.agent_id)}`;
     case "decision_proposal":
       return item.readable_id;
     case "resource_conflict":
@@ -64,24 +67,12 @@ export function reviewQueueItemDetail(item: ReviewQueueItem): string {
   }
 }
 
-export function groupTasksByColumn(tasks: Task[]): Record<string, Task[]> {
-  const groups: Record<string, Task[]> = { TODO: [], "IN PROGRESS": [], BLOCKED: [], DONE: [], UNKNOWN: [] };
-  for (const task of tasks) {
-    const column = statusColumn(task.status);
-    groups[column]?.push(task);
-  }
-  return groups;
+function shortAgent(id: string | null | undefined): string {
+  if (!id) return "—";
+  return id.length > 8 ? `${id.slice(0, 8)}…` : id;
 }
 
-/** Agent ids observed in recent events → "seen recently" marker (Derived). */
-export function agentsSeenInEvents(events: EventEnvelope[]): Set<string> {
-  const seen = new Set<string>();
-  for (const event of events) {
-    if (event.actor_type === "agent" && event.actor_id) seen.add(event.actor_id);
-    if (event.machine_id) seen.add(event.machine_id);
-  }
-  return seen;
-}
+export type HomeResult<T> = { ok: true; value: T } | { ok: false; message: string };
 
 async function unwrap<T>(promise: Promise<{ data?: T; error?: unknown; response: Response }>): Promise<T> {
   const result = await promise;
@@ -89,9 +80,25 @@ async function unwrap<T>(promise: Promise<{ data?: T; error?: unknown; response:
   throw new ApiError(parseErrorBody(result.response.status, result.error));
 }
 
-function errMessage(error: unknown): string {
-  if (error instanceof ApiError) return `${error.message}${error.errorCode ? ` [${error.errorCode}]` : ""}`;
-  return error instanceof Error ? error.message : String(error);
+async function settle<T>(promise: Promise<T>): Promise<HomeResult<T>> {
+  try {
+    return { ok: true, value: await promise };
+  } catch (error) {
+    return { ok: false, message: describeError(error) };
+  }
+}
+
+export interface HealthInfo {
+  reachable: boolean;
+}
+
+export async function checkHealth(baseUrl: string): Promise<HealthInfo> {
+  try {
+    const response = await fetch(joinUrl(baseUrl, "/healthz"));
+    return { reachable: response.ok };
+  } catch {
+    return { reachable: false };
+  }
 }
 
 export interface OverviewContext {
@@ -101,216 +108,180 @@ export interface OverviewContext {
 }
 
 export async function renderOverview(root: HTMLElement, ctx: OverviewContext): Promise<void> {
-  root.innerHTML = `<div class="state loading">Loading overview…</div>`;
+  root.innerHTML = homeLoadingHtml();
   const health = await checkHealth(ctx.baseUrl);
-  const sections: string[] = [healthHtml(health)];
   if (!ctx.authed) {
-    sections.push(
-      section("Overview", "read-only", statusBlock("empty", "Set a machine token above to load projects, tasks and activity.")),
-    );
-    root.innerHTML = sections.join("");
+    root.innerHTML = homePageHtml({
+      health,
+      projects: { ok: true, value: [] },
+      tasks: { ok: true, value: [] },
+      reviewQueue: { ok: true, value: null },
+      transfers: { ok: true, value: [] },
+      authed: false,
+    });
     return;
   }
-  const [projects, tasks, events, agents, transfers] = await Promise.all([
+  const [projects, tasks, reviewQueue, transfers] = await Promise.all([
     settle(unwrap(ctx.client.GET("/api/v1/projects"))),
-    settle(unwrap(ctx.client.GET("/api/v1/tasks", { params: { query: { limit: OVERVIEW_TASK_LIMIT, offset: 0 } } }))),
     settle(
       unwrap(
-        ctx.client.GET("/api/v1/events", {
-          params: { query: { limit: OVERVIEW_EVENT_LIMIT, since: sinceIso24h() } },
-        }),
+        ctx.client.GET("/api/v1/tasks", { params: { query: { limit: HOME_TASK_LIMIT, offset: 0 } } }),
       ),
     ),
-    settle(unwrap(ctx.client.GET("/api/v1/agents"))),
+    settle(unwrap(ctx.client.GET("/api/v1/review-queue"))),
     settle(unwrap(ctx.client.GET("/api/v1/transfers"))),
   ]);
-
-  sections.push(projectsHtml(projects));
-  const selectedId = pickProject(projects, uiState.selectedProjectId);
-  if (selectedId !== null) {
-    const state = await settle(unwrap(ctx.client.GET("/api/v1/projects/{project_id}/state", { params: { path: { project_id: selectedId } } })));
-    sections.push(projectStateHtml(state, projectsValue(projects, selectedId)));
-  }
-  const reviewQueue = await settle(
-    unwrap(
-      ctx.client.GET("/api/v1/review-queue", {
-        params: { query: selectedId !== null ? { project_id: selectedId } : {} },
-      }),
-    ),
-  );
-  sections.push(tasksHtml(tasks));
-  sections.push(activityHtml(events));
-  sections.push(agentsHtml(agents, events));
-  sections.push(reviewsHtml(reviewQueue, ctx.authed));
-  sections.push(transfersHtml(transfers));
-  root.innerHTML = sections.join("");
-  bindProjectSelect(root);
+  root.innerHTML = homePageHtml({ health, projects, tasks, reviewQueue, transfers, authed: ctx.authed });
   bindReviewActions(root, ctx);
 }
 
-type Settled<T> = { ok: true; value: T } | { ok: false; error: unknown };
+export interface HomeData {
+  health: HealthInfo;
+  projects: HomeResult<Project[]>;
+  tasks: HomeResult<Task[]>;
+  reviewQueue: HomeResult<ReviewQueue | null>;
+  transfers: HomeResult<Transfer[]>;
+  authed: boolean;
+}
 
-async function settle<T>(promise: Promise<T>): Promise<Settled<T>> {
-  try {
-    return { ok: true, value: await promise };
-  } catch (error) {
-    return { ok: false, error };
+export function homeLoadingHtml(): string {
+  return `${dsPageHeader("Accueil", "L'essentiel en un coup d'œil.")}${dsSkeleton(4)}`;
+}
+
+export function homePageHtml(data: HomeData): string {
+  const projectList = data.projects.ok ? data.projects.value : [];
+  const taskList = data.tasks.ok ? data.tasks.value : [];
+  const reviewTotal = data.reviewQueue.ok ? (data.reviewQueue.value?.items.length ?? 0) : null;
+  const activeProjects = projectList.filter((p) => !p.archived).length;
+  const activeTasks = taskList.filter((t) => t.status !== "completed").length;
+  const sections = [
+    dsPageHeader("Accueil", "L'essentiel en un coup d'œil : projets, travail en cours et points à examiner."),
+    homeHealthHtml(data.health),
+    homeMetricsHtml(activeProjects, activeTasks, reviewTotal),
+    homeProjectsHtml(data.projects),
+    homeTasksHtml(data.tasks, projectList),
+    homeReviewHtml(data.reviewQueue, data.authed),
+    homeTransferSignalHtml(data.transfers),
+  ];
+  if (!data.authed) {
+    sections.push(
+      dsEmptyState(
+        "Connectez-vous pour voir vos données",
+        "Saisissez votre jeton machine pour charger projets, tâches et éléments à examiner.",
+      ),
+    );
   }
+  return `<div class="home">${sections.join("")}</div>`;
 }
 
-export interface HealthInfo {
-  reachable: boolean;
-  message: string;
+export function homeHealthHtml(health: HealthInfo): string {
+  return `<p class="home-health">${
+    health.reachable ? dsStatus("success", "Système opérationnel") : dsStatus("danger", "Système indisponible")
+  }</p>`;
 }
 
-export async function checkHealth(baseUrl: string): Promise<HealthInfo> {
-  try {
-    const response = await fetch(joinUrl(baseUrl, "/healthz"));
-    if (response.ok) return { reachable: true, message: "API reachable" };
-    return { reachable: false, message: `API HTTP ${response.status}` };
-  } catch {
-    return { reachable: false, message: "API unreachable" };
+export function homeMetricsHtml(activeProjects: number, activeTasks: number, reviewTotal: number | null): string {
+  return `<section class="home-section" aria-label="Résumé"><div class="home-metrics">` +
+    `${dsMetric("Projets actifs", activeProjects)}` +
+    `${dsMetric("Tâches en cours", activeTasks)}` +
+    `${dsMetric("À examiner", reviewTotal ?? "—")}` +
+    `</div></section>`;
+}
+
+/** Projets récents non archivés d'abord (tri updated_at desc), 3 max. */
+export function pickHomeProjects(projects: Project[]): Project[] {
+  return [...projects]
+    .sort((a, b) => {
+      if (a.archived !== b.archived) return a.archived ? 1 : -1;
+      return b.updated_at.localeCompare(a.updated_at);
+    })
+    .slice(0, HOME_PROJECT_LIMIT);
+}
+
+export function homeProjectsHtml(result: HomeResult<Project[]>): string {
+  const header = dsSectionHeader("Projets", { label: "Voir tous les projets", href: "#/projects" });
+  if (!result.ok) {
+    return `<section class="home-section" aria-labelledby="home-projets"><div id="home-projets">${header}</div><div class="ds-notice ds-notice--danger"><strong>Projets indisponibles.</strong>${esc(result.message)}</div></section>`;
   }
-}
-
-function healthHtml(health: HealthInfo): string {
-  const cls = health.reachable ? "ok" : "bad";
-  return `<div class="health ${cls}"><span class="dot"></span>${esc(health.message)}<span class="meta">GET /healthz · no auth</span></div>`;
-}
-
-function projectsValue(settled: Settled<Project[]>, id: string): Project | undefined {
-  return settled.ok ? settled.value.find((p) => p.id === id) : undefined;
-}
-
-function pickProject(settled: Settled<Project[]>, selected: string | null): string | null {
-  if (!settled.ok || settled.value.length === 0) return null;
-  if (selected !== null && settled.value.some((p) => p.id === selected)) return selected;
-  const first = settled.value[0];
-  return first ? first.id : null;
-}
-
-function bindProjectSelect(root: HTMLElement): void {
-  const select = root.querySelector<HTMLSelectElement>("[data-project-select]");
-  if (select === null) return;
-  select.addEventListener("change", () => {
-    selectProject(select.value === "" ? null : select.value);
-  });
-}
-
-function projectsHtml(settled: Settled<Project[]>): string {
-  if (!settled.ok) return section("Projects", "GET /projects", statusBlock("error", errMessage(settled.error)));
-  if (settled.value.length === 0) return section("Projects", "GET /projects", statusBlock("empty", "No projects."));
-  const options = settled.value
-    .map((p) => `<option value="${esc(p.id)}" ${uiState.selectedProjectId === p.id ? "selected" : ""}>${esc(p.name)} (${esc(p.slug)})</option>`)
-    .join("");
-  const rows = settled.value
-    .map(
-      (p) =>
-        `<tr><td>${esc(p.name)}</td><td><code class="mono">${esc(p.slug)}</code></td><td>${idCell(p.id)}</td><td>${p.archived ? "archived" : "active"}</td><td>${fmtTime(p.updated_at)}</td></tr>`,
-    )
-    .join("");
-  return section(
-    "Projects",
-    "GET /projects",
-    `<div class="row"><label>Project <select data-project-select>${options}</select></label></div>` +
-      `<table><thead><tr><th>Name</th><th>Slug</th><th>ID</th><th>State</th><th>Updated</th></tr></thead><tbody>${rows}</tbody></table>`,
-  );
-}
-
-function projectStateHtml(
-  settled: Settled<components["schemas"]["ProjectState"]>,
-  project: Project | undefined,
-): string {
-  const name = project ? `${project.name} (${project.slug})` : shortId(uiState.selectedProjectId);
-  if (!settled.ok) return section(`Project · ${name}`, "GET /state", statusBlock("error", errMessage(settled.error)));
-  const tasks = settled.value.active_tasks
-    .map((t) => `<tr><td>${esc(t.title)}</td><td>${esc(t.status)}</td><td>${idCell(t.id)}</td></tr>`)
-    .join("");
-  const claims = settled.value.active_claims
-    .map((c) => `<tr><td><code class="mono">${esc(c.resource_path)}</code></td><td>${esc(c.resource_type)}</td><td>${fmtTime(c.expires_at)}</td></tr>`)
-    .join("");
-  return section(
-    `Project · ${name}`,
-    `GET /state · generated ${fmtTime(settled.value.generated_at)}`,
-    `<h3>Active tasks (${settled.value.active_tasks.length})</h3>` +
-      (tasks === "" ? statusBlock("empty", "No active tasks.") : `<table><thead><tr><th>Title</th><th>Status</th><th>ID</th></tr></thead><tbody>${tasks}</tbody></table>`) +
-      `<h3>Active claims (${settled.value.active_claims.length})</h3>` +
-      (claims === "" ? statusBlock("empty", "No active claims.") : `<table><thead><tr><th>Path</th><th>Type</th><th>Expires</th></tr></thead><tbody>${claims}</tbody></table>`),
-  );
-}
-
-function tasksHtml(settled: Settled<Task[]>): string {
-  if (!settled.ok) return section("Active tasks", "GET /tasks", statusBlock("error", errMessage(settled.error)));
-  const visible = settled.value.filter((t) => t.status !== "completed");
-  if (visible.length === 0) return section("Active tasks", "GET /tasks", statusBlock("empty", "No active tasks."));
-  const groups = groupTasksByColumn(visible);
-  const columns = TASK_COLUMNS.map(
-    (column) =>
-      `<div class="col"><h3>${column} (${groups[column]?.length ?? 0})</h3>${(groups[column] ?? [])
-        .map((t) => `<div class="card"><div class="title">${esc(t.title)}</div><div class="sub">${idCell(t.id)} · v${t.version}</div></div>`)
-        .join("")}</div>`,
-  ).join("");
-  return section("Active tasks", `GET /tasks · limit ${OVERVIEW_TASK_LIMIT} · completed hidden`, `<div class="kanban">${columns}</div>`);
-}
-
-function activityHtml(settled: Settled<EventEnvelope[]>): string {
-  if (!settled.ok) return section("Recent activity", "GET /events", statusBlock("error", errMessage(settled.error)));
-  if (settled.value.length === 0)
-    return section("Recent activity", "GET /events · 24h", statusBlock("empty", "No events in the last 24h."));
-  const rows = settled.value
-    .map(
-      (e) =>
-        `<tr><td><code class="mono">${esc(e.event_type)}</code></td><td>${idCell(e.task_id)}</td><td>${esc(e.actor_type)}:${esc(shortId(e.actor_id))}</td><td>${fmtTime(e.server_timestamp)}</td></tr>`,
-    )
-    .join("");
-  return section(
-    "Recent activity",
-    "GET /events · 24h · not claimed exhaustive",
-    `<table><thead><tr><th>Type</th><th>Task</th><th>Actor</th><th>Server time</th></tr></thead><tbody>${rows}</tbody></table>`,
-  );
-}
-
-function agentsHtml(settledAgents: Settled<Agent[]>, settledEvents: Settled<EventEnvelope[]>): string {
-  if (!settledAgents.ok) return section("Agents", "GET /agents", statusBlock("error", errMessage(settledAgents.error)));
-  if (settledAgents.value.length === 0) return section("Agents", "GET /agents", statusBlock("empty", "No agents registered."));
-  const seen = settledEvents.ok ? agentsSeenInEvents(settledEvents.value) : new Set<string>();
-  const rows = settledAgents.value
-    .map((a) => {
-      const derived = seen.has(a.id) || (a.machine_id !== null && a.machine_id !== undefined && seen.has(a.machine_id));
-      return `<tr><td>${esc(a.display_name)}</td><td><code class="mono">${esc(a.agent_kind === "" ? "—" : a.agent_kind)}</code></td><td>${idCell(a.machine_id)}</td><td>${
-        derived ? `<span class="tag derived" title="Inferred from recent events — not canonical">seen recently · Derived</span>` : `<span class="tag">—</span>`
-      }</td></tr>`;
+  if (result.value.length === 0) {
+    return `<section class="home-section" aria-labelledby="home-projets"><div id="home-projets">${header}</div>${dsEmptyState("Aucun projet", "Créez votre premier projet pour commencer.", { label: "Voir les projets", href: "#/projects" })}</section>`;
+  }
+  const items = pickHomeProjects(result.value)
+    .map((p) => {
+      const rawDesc = p.description ?? "";
+      const desc = rawDesc.trim() === "" ? "" : `<div class="ds-list-sub">${esc(rawDesc)}</div>`;
+      const badge = p.archived ? dsBadge("Archivé", "warning") : "";
+      return `<li class="ds-list-item"><div class="grow"><div class="ds-list-title"><a href="#/projects/${esc(p.id)}">${esc(p.name)}</a></div>${desc}</div>${badge}</li>`;
     })
     .join("");
-  return section(
-    "Agents",
-    "GET /agents · presence Derived, never canonical",
-    `<table><thead><tr><th>Display name</th><th>Kind</th><th>Machine</th><th>Presence</th></tr></thead><tbody>${rows}</tbody></table>`,
-  );
+  return `<section class="home-section" aria-labelledby="home-projets"><div id="home-projets">${header}</div><ul class="ds-list">${items}</ul></section>`;
+}
+
+function taskTone(status: string): "neutral" | "info" | "warning" | "success" {
+  switch (status) {
+    case "in_progress":
+      return "info";
+    case "blocked":
+      return "warning";
+    case "completed":
+      return "success";
+    default:
+      return "neutral";
+  }
+}
+
+export function homeTasksHtml(result: HomeResult<Task[]>, projects: Project[]): string {
+  const header = dsSectionHeader("Travail en cours", { label: "Voir toutes les tâches", href: "#/tasks" });
+  if (!result.ok) {
+    return `<section class="home-section" aria-labelledby="home-travail"><div id="home-travail">${header}</div><div class="ds-notice ds-notice--danger"><strong>Tâches indisponibles.</strong>${esc(result.message)}</div></section>`;
+  }
+  const active = result.value.filter((t) => t.status !== "completed").slice(0, HOME_WORK_LIMIT);
+  if (active.length === 0) {
+    return `<section class="home-section" aria-labelledby="home-travail"><div id="home-travail">${header}</div>${dsEmptyState("Rien en cours", "Aucune tâche active pour le moment.", { label: "Voir les tâches", href: "#/tasks" })}</section>`;
+  }
+  const names = new Map(projects.map((p) => [p.id, p.name]));
+  const items = active
+    .map((t) => {
+      const project = names.get(t.project_id) ?? "Projet";
+      const label = TASK_STATUS_LABEL[t.status] ?? t.status;
+      return `<li class="ds-list-item"><div class="grow"><div class="ds-list-title"><a href="#/tasks/${esc(t.id)}">${esc(t.title)}</a></div><div class="ds-list-sub">${esc(project)} · ${esc(label)}</div></div>${dsBadge(label, taskTone(t.status))}</li>`;
+    })
+    .join("");
+  return `<section class="home-section" aria-labelledby="home-travail"><div id="home-travail">${header}</div><ul class="ds-list">${items}</ul></section>`;
 }
 
 export function reviewActionsHtml(item: ReviewQueueItem, authed: boolean): string {
-  if (item.kind !== "ai_work_review") return `<span class="meta">—</span>`;
-  return `<button type="button" data-review-approve="${esc(item.id)}" ${authed ? "" : "disabled"}>Approve</button>` +
-    `<button type="button" data-review-changes="${esc(item.id)}" ${authed ? "" : "disabled"}>Request changes</button>`;
+  if (item.kind !== "ai_work_review") return "";
+  return `<span class="home-review-actions"><button class="ds-btn ds-btn--sm" type="button" data-review-approve="${esc(item.id)}" ${authed ? "" : "disabled"}>Approuver</button>` +
+    `<button class="ds-btn ds-btn--sm" type="button" data-review-changes="${esc(item.id)}" ${authed ? "" : "disabled"}>Demander des modifications</button></span>`;
 }
 
-function reviewsHtml(settled: Settled<ReviewQueue>, authed: boolean): string {
-  if (!settled.ok) return section("Needs attention", "GET /review-queue", statusBlock("error", errMessage(settled.error)));
-  const items = settled.value.items;
-  if (items.length === 0)
-    return section("Needs attention", "GET /review-queue", statusBlock("empty", "Nothing awaiting a human decision."));
-  const rows = items
+export function homeReviewHtml(result: HomeResult<ReviewQueue | null>, authed: boolean): string {
+  const header = dsSectionHeader("À examiner", { label: "Voir les décisions", href: "#/decisions" });
+  if (!result.ok) {
+    return `<section class="home-section" aria-labelledby="home-examiner"><div id="home-examiner">${header}</div><div class="ds-notice ds-notice--danger"><strong>File d'examen indisponible.</strong>${esc(result.message)}</div></section>`;
+  }
+  const items = result.value?.items ?? [];
+  if (items.length === 0) {
+    return `<section class="home-section" aria-labelledby="home-examiner"><div id="home-examiner">${header}</div>${dsEmptyState("Rien à examiner", "Aucun élément n'attend une décision humaine.", { label: "Voir les décisions", href: "#/decisions" })}</section>`;
+  }
+  const shown = items.slice(0, HOME_REVIEW_LIMIT);
+  const rows = shown
     .map((item) => {
       const title = item.title.length > 80 ? `${item.title.slice(0, 80)}…` : item.title;
-      return `<tr><td><span class="tag">${esc(REVIEW_KIND_LABEL[item.kind])}</span></td><td>${esc(title)}</td><td>${esc(reviewQueueItemDetail(item))}</td><td>${idCell(item.task_id)}</td><td>${fmtTime(item.requested_at)}</td><td class="actions">${reviewActionsHtml(item, authed)}</td></tr>`;
+      return `<li class="ds-list-item"><div class="grow"><div class="ds-list-title">${esc(title)}</div><div class="ds-list-sub">${esc(REVIEW_KIND_LABEL[item.kind])} · ${esc(reviewQueueItemDetail(item))}</div></div>${reviewActionsHtml(item, authed)}</li>`;
     })
     .join("");
-  return section(
-    "Needs attention",
-    "GET /review-queue · AI work review (resolve via PATCH /ai-work/{id}, admin) + proposed decisions (informational) + recent conflicts",
-    `<table><thead><tr><th>Kind</th><th>Summary</th><th>Detail</th><th>Task</th><th>Requested</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table><div data-review-msg class="meta"></div>`,
-  );
+  const more = items.length > shown.length ? `<p class="ds-list-sub">+ ${items.length - shown.length} autre(s) — voir les décisions.</p>` : "";
+  return `<section class="home-section" aria-labelledby="home-examiner"><div id="home-examiner">${header}</div><p class="ds-list-sub">${items.length} élément(s) à examiner.</p><ul class="ds-list">${rows}</ul>${more}<div data-review-msg class="ds-list-sub" role="status"></div></section>`;
+}
+
+/** Signal discret uniquement si un envoi est réellement en cours. */
+export function homeTransferSignalHtml(result: HomeResult<Transfer[]>): string {
+  if (!result.ok) return "";
+  const pending = result.value.filter((t) => t.status === "created" || t.status === "uploading");
+  if (pending.length === 0) return "";
+  return `<div class="ds-notice ds-notice--info"><strong>Transfert en cours.</strong>${pending.length} envoi(s) en cours — <a href="#/transfers">voir les transferts</a>.</div>`;
 }
 
 function bindReviewActions(root: HTMLElement, ctx: OverviewContext): void {
@@ -337,21 +308,4 @@ function bindReviewActions(root: HTMLElement, ctx: OverviewContext): void {
 function setReviewMsg(root: HTMLElement, text: string): void {
   const node = root.querySelector("[data-review-msg]");
   if (node !== null) node.textContent = text;
-}
-
-function transfersHtml(settled: Settled<Transfer[]>): string {
-  if (!settled.ok) return section("Transfers", "GET /transfers", statusBlock("error", errMessage(settled.error)));
-  const recent = settled.value.slice(0, OVERVIEW_TRANSFER_LIMIT);
-  if (recent.length === 0) return section("Transfers", "GET /transfers · read-only", statusBlock("empty", "No transfers visible to this token."));
-  const rows = recent
-    .map(
-      (t) =>
-        `<tr><td><code class="mono">${esc(t.transfer_code)}</code></td><td>${esc(t.filename)}</td><td>${esc(t.category)}</td><td>${esc(t.status)}</td><td>${fmtTime(t.created_at)}</td></tr>`,
-    )
-    .join("");
-  return section(
-    "Transfers",
-    `GET /transfers · read-only · first ${OVERVIEW_TRANSFER_LIMIT} shown`,
-    `<table><thead><tr><th>Code</th><th>Filename</th><th>Category</th><th>Status</th><th>Created</th></tr></thead><tbody>${rows}</tbody></table>`,
-  );
 }

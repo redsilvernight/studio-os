@@ -1,0 +1,51 @@
+/**
+ * UI-3 — Accueil : air avant tout. Une colonne étroite, sections très
+ * espacées, métriques en ligne fluide (jamais de grille 2x2 forcée),
+ * empilement naturel sur mobile.
+ */
+
+.home {
+  display: grid;
+  gap: var(--ds-space-12);
+  max-width: 860px;
+  padding-bottom: var(--ds-space-12);
+}
+
+.home-health {
+  margin: 0;
+}
+
+.home-section {
+  display: grid;
+  gap: var(--ds-space-2);
+  align-content: start;
+}
+
+.home-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-6) var(--ds-space-12);
+}
+
+.home-review-actions {
+  display: inline-flex;
+  gap: var(--ds-space-2);
+  flex: none;
+}
+
+@media (max-width: 640px) {
+  .home {
+    gap: var(--ds-space-8);
+  }
+  .home-metrics {
+    display: grid;
+    gap: var(--ds-space-4);
+  }
+  .home .ds-list-item {
+    flex-wrap: wrap;
+  }
+  .home-review-actions {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+}

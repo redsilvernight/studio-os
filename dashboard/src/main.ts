@@ -41,6 +41,7 @@ import type { components } from "./openapi-schema";
 import "./ds/tokens.css";
 import "./ds/components.css";
 import "./shell.css";
+import "./views/overview.css";
 import "./styles.css";
 
 type EventEnvelope = components["schemas"]["EventEnvelope"];
