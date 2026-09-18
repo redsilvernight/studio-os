@@ -48,10 +48,10 @@ test("design-system primitives render and behave (keyboard + live region)", asyn
   await page.fill("#login-email", "e2e@example.test");
   await page.fill("#login-password", "e2e-secret");
   await page.locator("#login-form button[type=submit]").click();
-  await expect(page.locator("nav.nav")).toBeVisible();
+  await expect(page.locator(".app-sidebar")).toBeVisible();
 
   // The demo route is internal: no nav entry, direct hash only.
-  await expect(page.locator("nav.nav")).not.toContainText("Design System");
+  await expect(page.locator(".app-sidebar")).not.toContainText("Design System");
   await expect(page.locator(".ds-page-header h1")).toContainText("Design System");
   await expect(page.locator("html")).toHaveAttribute("lang", "fr");
 

@@ -277,7 +277,7 @@ async function bootAuthedDashboard(page: Page): Promise<void> {
   await page.fill("#login-email", "e2e@example.test");
   await page.fill("#login-password", "e2e-secret");
   await page.locator("#login-form button[type=submit]").click();
-  await expect(page.locator("nav.nav")).toBeVisible();
+  await expect(page.locator(".app-sidebar")).toBeVisible();
   await page.waitForLoadState("networkidle");
 }
 

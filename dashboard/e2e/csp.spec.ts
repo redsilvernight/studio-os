@@ -73,7 +73,7 @@ test("main flows run with zero CSP violations and zero page errors", async ({ pa
   await page.fill("#login-email", "e2e@example.test");
   await page.fill("#login-password", "e2e-secret");
   await page.locator("#login-form button[type=submit]").click();
-  await expect(page.locator("nav.nav")).toBeVisible();
+  await expect(page.locator(".app-sidebar")).toBeVisible();
 
   for (const hash of MAIN_ROUTES) {
     await page.evaluate((h) => {

@@ -351,3 +351,19 @@ français (termes backend/code inchangés), TypeScript vanilla sans framework.
   direct uniquement, **aucune entrée de navigation**, aucun appel API,
   retirable en supprimant une route + une vue.
 - CSP inchangée (aucun `style=`/`on*=` inline) — voir section ci-dessus.
+
+## AppShell (UI-2, DEC-0079)
+
+`src/shell.ts` + `src/shell.css` : sidebar bleu nuit (groupes Principal /
+Connaissances / Infrastructure / Outils, Paramètres + compte en bas),
+topbar minimale (menu mobile + pastille auth réelle — ni recherche
+globale ni notifications : aucun backend), zone de contenu aérée.
+Le shell est monté une fois ; `render()` (`src/main.ts`) ne remplace que
+`#view` + `aria-current`. Hashs inconnus → page « introuvable » explicite
+(`src/views/notFound.ts`), plus de repli silencieux vers l'Accueil.
+
+**Anti-race** : `src/renderGuard.ts` — chaque rendu peint dans un nœud
+détaché, seul le jeton courant est attaché. Une ancienne route ne repeint
+jamais la courante (régression E2E `shell.spec.ts`, unit.
+`renderGuard.test.ts`). Responsive : drawer < 900 px (Échap, focus
+restauré), landmarks + skip-link vers `#view`.

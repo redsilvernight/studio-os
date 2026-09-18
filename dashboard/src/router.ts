@@ -20,7 +20,8 @@ export type Route =
   | { name: "configBindings" }
   | { name: "configProject"; tab: ProjectConfigTab }
   | { name: "inspector"; stableKey: string | null }
-  | { name: "designSystem" };
+  | { name: "designSystem" }
+  | { name: "notFound"; hash: string };
 
 function decode(value: string): string {
   try {
@@ -28,6 +29,11 @@ function decode(value: string): string {
   } catch {
     return value;
   }
+}
+
+/** Hash inconnu → route 404 explicite (UI-2 : plus de repli silencieux). */
+function notFound(hash: string): Route {
+  return { name: "notFound", hash };
 }
 
 export function parseRoute(hash: string): Route {
@@ -52,7 +58,7 @@ export function parseRoute(hash: string): Route {
         return { name: "libraryDetail", kind, id: decode(parts[2]) };
       }
     }
-    return { name: "dashboard" };
+    return notFound(hash);
   }
   if (parts[0] === "configuration") {
     if (parts.length === 1) return { name: "configRuntimes" };
@@ -66,15 +72,15 @@ export function parseRoute(hash: string): Route {
         parts[2] === "locks" || parts[2] === "overrides" ? parts[2] : "resources";
       return { name: "configProject", tab };
     }
-    return { name: "dashboard" };
+    return notFound(hash);
   }
   if (parts[0] === "inspector") {
     if (parts.length === 1) return { name: "inspector", stableKey: null };
     if (parts.length === 2 && parts[1] !== undefined) {
       return { name: "inspector", stableKey: decode(parts[1]) };
     }
-    return { name: "dashboard" };
+    return notFound(hash);
   }
   if (parts[0] === "design-system" && parts.length === 1) return { name: "designSystem" };
-  return { name: "dashboard" };
+  return notFound(hash);
 }

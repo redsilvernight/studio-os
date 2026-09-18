@@ -5,7 +5,10 @@ describe("parseRoute", () => {
   it("defaults to the dashboard", () => {
     expect(parseRoute("")).toEqual({ name: "dashboard" });
     expect(parseRoute("#/")).toEqual({ name: "dashboard" });
-    expect(parseRoute("#/unknown")).toEqual({ name: "dashboard" });
+  });
+
+  it("routes unknown hashes to notFound, no longer silently to the dashboard (UI-2, DEC-0079)", () => {
+    expect(parseRoute("#/unknown")).toEqual({ name: "notFound", hash: "#/unknown" });
   });
 
   it("parses projects and project tabs", () => {
@@ -24,7 +27,7 @@ describe("parseRoute", () => {
     expect(parseRoute("#/machines")).toEqual({ name: "machines" });
     expect(parseRoute("#/decisions")).toEqual({ name: "decisions" });
     expect(parseRoute("#/transfers")).toEqual({ name: "transfers" });
-    expect(parseRoute("#/machines/extra")).toEqual({ name: "dashboard" });
+    expect(parseRoute("#/machines/extra")).toEqual({ name: "notFound", hash: "#/machines/extra" });
   });
 
   it("parses the P12 Library routes", () => {
@@ -35,7 +38,7 @@ describe("parseRoute", () => {
     expect(parseRoute("#/library/workflows")).toEqual({ name: "library", kind: "workflows" });
     expect(parseRoute("#/library/model-profiles")).toEqual({ name: "library", kind: "model-profiles" });
     expect(parseRoute("#/library/rules/abc")).toEqual({ name: "libraryDetail", kind: "rules", id: "abc" });
-    expect(parseRoute("#/library/nope")).toEqual({ name: "dashboard" });
+    expect(parseRoute("#/library/nope")).toEqual({ name: "notFound", hash: "#/library/nope" });
   });
 
   it("parses the P12 Configuration routes", () => {
@@ -56,6 +59,6 @@ describe("parseRoute", () => {
 
   it("parses the internal UI-1 Design System route (DEC-0078, no nav entry)", () => {
     expect(parseRoute("#/design-system")).toEqual({ name: "designSystem" });
-    expect(parseRoute("#/design-system/extra")).toEqual({ name: "dashboard" });
+    expect(parseRoute("#/design-system/extra")).toEqual({ name: "notFound", hash: "#/design-system/extra" });
   });
 });

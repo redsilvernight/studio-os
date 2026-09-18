@@ -102,6 +102,14 @@
   --ds-target: 40px;
   --ds-target-sm: 36px;
 
+  /* Sidebar bleu nuit (chrome applicatif, UI-2). Texte #e8eef7 sur
+     #101f3c ≈ 13:1 ; texte atténué #a9bcd6 ≈ 7:1. */
+  --ds-navy: #101f3c;
+  --ds-navy-deep: #0b1730;
+  --ds-navy-text: #e8eef7;
+  --ds-navy-muted: #a9bcd6;
+  --ds-navy-active: #ffffff;
+
   /* Aliases historiques : les vues non migrées (UI-2+) restent lisibles
      sur le thème clair pendant la transition. */
   --bg: var(--ds-bg);

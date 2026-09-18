@@ -1,0 +1,286 @@
+/**
+ * AppShell StudiOS (UI-2) : sidebar bleu nuit + topbar minimale + contenu.
+ * Layout applicatif (non générique) : tokens partagés, aucune seconde
+ * couche de tokens (seuls les 4 bleu nuit vivent en tokens.css).
+ */
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+  min-height: 100vh;
+  align-items: start;
+}
+
+/* Sidebar : bleu nuit, calme, un seul niveau. */
+.app-sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-4);
+  padding: var(--ds-space-4);
+  background: var(--ds-navy);
+  color: var(--ds-navy-text);
+}
+
+.app-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-3);
+  padding: 0 var(--ds-space-2);
+}
+.app-brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-action);
+  color: #fff;
+  font-weight: 800;
+  font-size: var(--ds-text-lg);
+  flex: none;
+}
+.app-brand-name {
+  font-size: var(--ds-text-lg);
+  font-weight: 700;
+  flex: 1;
+}
+
+.app-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-4);
+  flex: 1;
+}
+.app-navgroup h2 {
+  margin: 0 0 var(--ds-space-2);
+  padding: 0 var(--ds-space-2);
+  font-size: var(--ds-text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ds-navy-muted);
+}
+.app-navgroup ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.app-navlink {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-3);
+  min-height: var(--ds-target);
+  padding: var(--ds-space-2) var(--ds-space-3);
+  border-radius: var(--ds-radius-md);
+  color: var(--ds-navy-text);
+  text-decoration: none;
+  font-size: var(--ds-text-base);
+}
+.app-navlink:hover {
+  background: rgb(255 255 255 / 0.08);
+  color: var(--ds-navy-active);
+}
+.app-navlink.active {
+  background: rgb(255 255 255 / 0.14);
+  color: var(--ds-navy-active);
+  font-weight: 600;
+}
+.app-navlink .app-icon {
+  flex: none;
+  opacity: 0.85;
+}
+.app-navitem-disabled {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-3);
+  min-height: var(--ds-target);
+  padding: var(--ds-space-2) var(--ds-space-3);
+  color: var(--ds-navy-muted);
+  font-size: var(--ds-text-base);
+  cursor: not-allowed;
+}
+.app-navitem-disabled .ds-badge {
+  margin-left: auto;
+}
+
+.app-sidebar-foot {
+  display: grid;
+  gap: var(--ds-space-3);
+  padding-top: var(--ds-space-4);
+  border-top: 1px solid rgb(255 255 255 / 0.14);
+}
+.app-account {
+  display: grid;
+  gap: var(--ds-space-2);
+  padding: 0 var(--ds-space-2);
+  font-size: var(--ds-text-sm);
+  color: var(--ds-navy-muted);
+}
+.app-logout {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  min-height: var(--ds-target-sm);
+  padding: var(--ds-space-1) var(--ds-space-2);
+  border: 1px solid rgb(255 255 255 / 0.2);
+  border-radius: var(--ds-radius-md);
+  background: transparent;
+  color: var(--ds-navy-text);
+  font-size: var(--ds-text-sm);
+  cursor: pointer;
+  justify-self: start;
+}
+.app-logout:hover {
+  border-color: currentColor;
+  color: var(--ds-navy-active);
+}
+.app-tokenrow {
+  display: flex;
+  gap: var(--ds-space-2);
+}
+.app-tokenrow input {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--ds-target-sm);
+  padding: var(--ds-space-1) var(--ds-space-2);
+  border: 1px solid rgb(255 255 255 / 0.25);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-navy-deep);
+  color: var(--ds-navy-text);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-xs);
+}
+.app-tokenbtn {
+  min-height: var(--ds-target-sm);
+  padding: var(--ds-space-1) var(--ds-space-3);
+  border: 1px solid rgb(255 255 255 / 0.25);
+  border-radius: var(--ds-radius-md);
+  background: transparent;
+  color: var(--ds-navy-text);
+  cursor: pointer;
+  font-weight: 600;
+}
+.app-tokenhint {
+  margin: 0;
+  font-size: var(--ds-text-xs);
+}
+
+/* Boutons icônes du shell. */
+.app-iconbtn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--ds-target);
+  height: var(--ds-target);
+  border: 1px solid transparent;
+  border-radius: var(--ds-radius-md);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+#nav-close {
+  display: none;
+}
+.app-iconbtn--light {
+  color: var(--ds-text-muted);
+  border-color: var(--ds-border);
+  background: var(--ds-surface);
+}
+
+/* Colonne contenu : topbar minimale + zone aérée. */
+.app-col {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+}
+.app-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-3);
+  min-height: 60px;
+  padding: var(--ds-space-2) var(--ds-space-6);
+  background: color-mix(in srgb, var(--ds-bg) 88%, transparent);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--ds-border);
+}
+.app-topbar-state {
+  margin-left: auto;
+  font-size: var(--ds-text-sm);
+  color: var(--ds-text-muted);
+  font-weight: 600;
+}
+.app-col main {
+  padding: var(--ds-space-6);
+  max-width: 1080px;
+}
+.app-col .conflict-banner {
+  margin: var(--ds-space-4) var(--ds-space-6) 0;
+  max-width: 1080px;
+}
+
+/* Pastille « Bientôt » sur fond nuit. */
+.app-sidebar .ds-badge {
+  background: transparent;
+  border-color: rgb(255 255 255 / 0.3);
+  color: var(--ds-navy-muted);
+}
+
+/* Focus visible renforcé sur fond nuit. */
+.app-sidebar :focus-visible {
+  outline-color: #fff;
+}
+
+/* Responsive : drawer sous 900 px. */
+.app-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--ds-z-drawer);
+  background: rgb(26 39 51 / 0.45);
+}
+.app-scrim[hidden] {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .app-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: calc(var(--ds-z-drawer) + 1);
+    width: min(300px, 84vw);
+    height: 100dvh;
+    transform: translateX(-105%);
+    transition: transform 0.2s ease;
+  }
+  .app-sidebar.open {
+    transform: none;
+  }
+  #nav-open,
+  #nav-close {
+    display: inline-flex;
+  }
+  .app-col main {
+    padding: var(--ds-space-4);
+  }
+  .app-topbar {
+    padding: var(--ds-space-2) var(--ds-space-4);
+  }
+}
+
+@media (min-width: 1400px) {
+  .app-shell {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+}
