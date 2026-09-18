@@ -191,6 +191,10 @@ test.describe("UI-10 page Transferts", () => {
     // Télécharger seulement pour un objet réellement disponible.
     await expect(view.locator('[data-transfer-download]')).toHaveCount(1);
     await page.screenshot({ path: `${SHOTS}/transfers-liste-1280.png` });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.screenshot({ path: `${SHOTS}/transfers-liste-1440.png` });
+    await page.setViewportSize({ width: 768, height: 900 });
+    await page.screenshot({ path: `${SHOTS}/transfers-liste-768.png` });
     expect(csp).toEqual([]);
     expect(fatal).toEqual([]);
   });
@@ -275,6 +279,7 @@ test.describe("UI-10 page Transferts", () => {
       buffer: Buffer.from("abc"),
     });
     await expect(modal.locator("[data-file-info]")).toContainText("tiny.bin");
+    await page.screenshot({ path: `${SHOTS}/transfers-envoi-1280.png` });
 
     await modal.locator('button[type="submit"]').click();
     await expect(page.locator("#ds-toast-region")).toContainText("envoyé");
