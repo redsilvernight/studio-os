@@ -23,6 +23,7 @@ import type { components } from "./openapi-schema";
 
 export type Transfer = components["schemas"]["Transfer"];
 export type TransferCreate = components["schemas"]["TransferCreate"];
+export type TransferCategory = components["schemas"]["TransferCategory"];
 export type TransferConsumption = components["schemas"]["TransferConsumption"];
 export type UploadInitiateResponse = components["schemas"]["UploadInitiateResponse"];
 export type UploadCompleteRequest = components["schemas"]["UploadCompleteRequest"];
