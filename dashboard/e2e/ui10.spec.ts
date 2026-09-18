@@ -78,6 +78,7 @@ interface StubOptions {
   empty?: boolean;
   failTransfers?: boolean;
   upload?: boolean;
+  uploadError?: boolean;
   captured?: { create?: unknown; initiateMd5?: boolean };
 }
 
@@ -115,6 +116,10 @@ function apiStub(opts: StubOptions = {}) {
       return;
     }
     if (/\/api\/v1\/transfers\/?$/.test(url) && method === "POST") {
+      if (opts.uploadError === true) {
+        await json(413, { detail: { error_code: "transfer_too_large", size_bytes: 5 * 1024 * 1024, max_size_bytes: 1024 * 1024 * 1024 } });
+        return;
+      }
       const body = request.postDataJSON() as Record<string, unknown> | null;
       if (opts.captured !== undefined) opts.captured.create = body;
       await json(201, transfer("new-0000", { ...(body ?? {}), status: "created", uploaded_at: null }));
@@ -307,6 +312,41 @@ test.describe("UI-10 page Transferts", () => {
     const view = page.locator("#view");
     await expect(view.locator('[role="alert"]')).toContainText("Impossible de charger les transferts");
     await expect(view.locator("#transfers-reload")).toBeVisible();
+    expect(csp).toEqual([]);
+    expect(fatal).toEqual([]);
+  });
+
+  test("envoi refusé : la limite de taille est affichée, pas un échec générique", async ({ page }) => {
+    const { csp, fatal } = watchErrors(page);
+    await login(page, { uploadError: true });
+    const view = page.locator("#view");
+    await view.locator("#transfer-upload-open").click();
+    const modal = view.locator("#transfer-upload");
+    await modal.locator('input[type="file"]').setInputFiles({
+      name: "trop-gros.bin",
+      mimeType: "application/octet-stream",
+      buffer: Buffer.from("0123456789"),
+    });
+    await modal.locator('button[type="submit"]').click();
+    await expect(modal.locator("[data-upload-error]")).toContainText("taille maximale");
+    await expect(modal.locator("[data-upload-error]")).toContainText("1 Go");
+    expect(csp).toEqual([]);
+    expect(fatal).toEqual([]);
+  });
+
+  test("responsive 1440 / 768 : aucun débordement horizontal", async ({ page }) => {
+    const { csp, fatal } = watchErrors(page);
+    await login(page);
+    const view = page.locator("#view");
+    await expect(view.locator(".transfer-row")).toHaveCount(3);
+    for (const width of [1440, 768]) {
+      await page.setViewportSize({ width, height: 900 });
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(overflow, `overflow at ${width}px`).toBeLessThanOrEqual(1);
+      await expect(view.locator(".transfer-row")).toHaveCount(3);
+    }
     expect(csp).toEqual([]);
     expect(fatal).toEqual([]);
   });
