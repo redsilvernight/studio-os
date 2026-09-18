@@ -206,11 +206,11 @@ export function reviewItemHtml(item: ReviewQueueItem, authed: boolean): string {
     `</div>` +
     `<div class="review-item-meta">` +
     `<span>Projet: ${projectLink}</span>` +
-    `<span>·</span>` +
+    `<span class="meta-sep" aria-hidden="true">·</span>` +
     `<span>Tâche: ${taskLink}</span>` +
-    `<span>·</span>` +
+    `<span class="meta-sep" aria-hidden="true">·</span>` +
     `<span>${detail}</span>` +
-    `<span>·</span>` +
+    `<span class="meta-sep" aria-hidden="true">·</span>` +
     `<span>${esc(time)}</span>` +
     `</div>` +
     `</div>` +
@@ -289,13 +289,13 @@ export function decisionHtml(decision: Decision, authed: boolean): string {
     `</div>` +
     `<div class="decision-item-meta">` +
     `<span>${decision.readable_id}</span>` +
-    `<span>·</span>` +
+    `<span class="meta-sep" aria-hidden="true">·</span>` +
     `<span>Projet: ${projectLink}</span>` +
-    `<span>·</span>` +
+    `<span class="meta-sep" aria-hidden="true">·</span>` +
     `<span>Tâche: ${taskLink}</span>` +
-    `<span>·</span>` +
+    `<span class="meta-sep" aria-hidden="true">·</span>` +
     `<span>Par: ${agentLink}</span>` +
-    `<span>·</span>` +
+    `<span class="meta-sep" aria-hidden="true">·</span>` +
     `<span>${esc(time)}</span>` +
     `</div>` +
     `</div>` +

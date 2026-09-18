@@ -284,6 +284,11 @@
     gap: var(--ds-space-1);
   }
 
+  .review-item-meta .meta-sep,
+  .decision-item-meta .meta-sep {
+    display: none;
+  }
+
   .review-item-actions,
   .decision-form-actions {
     width: 100%;
