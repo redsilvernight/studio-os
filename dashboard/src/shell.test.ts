@@ -21,7 +21,7 @@ describe("shellNavGroups (UI-2)", () => {
       "#/",
       "#/projects",
       "#/tasks",
-      "#/machines",
+      "#/agents",
       "#/library",
       "#/decisions",
       "#/transfers",
@@ -35,6 +35,8 @@ describe("shellNavGroups (UI-2)", () => {
       { name: "dashboard" },
       { name: "projects" },
       { name: "task", id: "t-1" },
+      { name: "agents" },
+      { name: "agent", id: "a-1" },
       { name: "libraryDetail", kind: "rules", id: "x" },
     ] as const) {
       const active = shellNavGroups(route).flatMap((group) => group.items).filter((item) => item.active);
@@ -74,11 +76,16 @@ describe("shellHtml (UI-2)", () => {
     expect(html).not.toMatch(/notification|cloche|recherche globale/i);
   });
 
-  it("announces Agents IA as upcoming without a fake destination", () => {
+  it("links Agents IA to the real page, no longer upcoming", () => {
     const html = authedShell({ name: "dashboard" });
     expect(html).toContain("Agents IA");
-    expect(html).toContain("Bientôt");
-    expect(html).not.toMatch(/<a[^>]*>Agents IA/s);
+    expect(html).toContain('href="#/agents"');
+    expect(html).not.toContain("Bientôt");
+  });
+
+  it("marks the agents link active on list and detail", () => {
+    expect(authedShell({ name: "agents" })).toContain('href="#/agents" aria-current="page"');
+    expect(authedShell({ name: "agent", id: "a-1" })).toContain('href="#/agents" aria-current="page"');
   });
 
   it("sets aria-current on the active link only", () => {

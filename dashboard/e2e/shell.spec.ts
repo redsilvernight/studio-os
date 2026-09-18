@@ -57,7 +57,8 @@ test.describe("appshell", () => {
     await login(page, "#/tasks");
     await expect(page.locator('.app-sidebar a[href="#/tasks"]')).toHaveAttribute("aria-current", "page");
     await expect(page.locator(".app-sidebar")).toContainText("Agents IA");
-    await expect(page.locator(".app-sidebar")).toContainText("Bientôt");
+    await expect(page.locator('.app-sidebar a[href="#/agents"]')).toBeVisible();
+    await expect(page.locator(".app-sidebar")).not.toContainText("Bientôt");
     await expect(page.locator(".app-sidebar")).not.toContainText("Design System");
     await expect(page.locator("header.app-topbar")).not.toContainText("Rechercher");
 

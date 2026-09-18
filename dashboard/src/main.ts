@@ -24,6 +24,7 @@ import { renderProjects } from "./views/projects";
 import { renderProjectDetail } from "./views/projectDetail";
 import { renderTaskDetail } from "./views/taskDetail";
 import { renderTasksInto } from "./views/tasks";
+import { renderAgentDetail, renderAgents } from "./views/agents";
 import { renderMachines } from "./views/machines";
 import { renderDecisions } from "./views/decisions";
 import { renderTransfers } from "./views/transfers";
@@ -76,6 +77,12 @@ async function render(): Promise<void> {
       break;
     case "task":
       await renderTaskDetail(staging, { client, authed }, route.id);
+      break;
+    case "agents":
+      await renderAgents(staging, { client, authed });
+      break;
+    case "agent":
+      await renderAgentDetail(staging, { client, authed }, route.id);
       break;
     case "machines":
       await renderMachines(staging, { client, baseUrl, authed });

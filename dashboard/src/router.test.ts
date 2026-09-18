@@ -36,6 +36,13 @@ describe("parseRoute", () => {
     expect(parseRoute("#/machines/extra")).toEqual({ name: "notFound", hash: "#/machines/extra" });
   });
 
+  it("parses the UI-6 Agents routes (detail utiles, pas de détail vide)", () => {
+    expect(parseRoute("#/agents")).toEqual({ name: "agents" });
+    expect(parseRoute("#/agents/a-1")).toEqual({ name: "agent", id: "a-1" });
+    expect(parseRoute("#/agents/a%2Fb")).toEqual({ name: "agent", id: "a/b" });
+    expect(parseRoute("#/agents/a/b")).toEqual({ name: "notFound", hash: "#/agents/a/b" });
+  });
+
   it("parses the P12 Library routes", () => {
     expect(parseRoute("#/library")).toEqual({ name: "library", kind: null });
     expect(parseRoute("#/library/rules")).toEqual({ name: "library", kind: "rules" });
