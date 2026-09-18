@@ -1,0 +1,227 @@
+/**
+ * Inspector view styles (UI-11).
+ *
+ * Grid: form on the left, result on the right (desktop); stacked on mobile.
+ * No global shell/documentation changes — scoped to the Inspector surface.
+ */
+.inspector-grid {
+  display: grid;
+  gap: var(--ds-space-6);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 960px) {
+  .inspector-grid {
+    grid-template-columns: minmax(300px, 360px) 1fr;
+    align-items: start;
+  }
+  .inspector-form-panel {
+    position: sticky;
+    top: var(--ds-space-4);
+    max-height: calc(100vh - var(--ds-space-8));
+    overflow-y: auto;
+  }
+}
+
+.inspector-form {
+  display: grid;
+  gap: var(--ds-space-4);
+}
+
+.inspector-form-section {
+  display: grid;
+  gap: var(--ds-space-3);
+}
+
+.inspector-form-section h3 {
+  margin: 0;
+  font-size: var(--ds-text-base);
+  font-weight: 600;
+  color: var(--ds-text-muted);
+}
+
+.inspector-result-panel {
+  min-width: 0;
+}
+
+.inspector-section {
+  margin-bottom: var(--ds-space-4);
+}
+
+.inspector-section .ds-empty {
+  padding: var(--ds-space-8) var(--ds-space-4);
+  margin: 0;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--ds-space-2) var(--ds-space-4);
+  font-size: var(--ds-text-base);
+}
+
+.detail-grid dt {
+  color: var(--ds-text-muted);
+  font-weight: 500;
+}
+
+.detail-grid dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.detail-grid code.mono {
+  font-size: var(--ds-text-sm);
+}
+
+.compare {
+  display: grid;
+  gap: var(--ds-space-6);
+}
+
+@media (min-width: 768px) {
+  .compare {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.compare h4 {
+  margin: 0 0 var(--ds-space-3);
+  font-size: var(--ds-text-base);
+  color: var(--ds-text-muted);
+}
+
+.reasons {
+  display: grid;
+  gap: var(--ds-space-2);
+}
+
+.reasons > div {
+  padding: var(--ds-space-2) var(--ds-space-3);
+  background: var(--ds-surface-soft);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+}
+
+.reasons strong {
+  color: var(--ds-text);
+}
+
+.status {
+  font-weight: 600;
+}
+
+.status.ok {
+  color: var(--ds-success);
+}
+
+.status.bad {
+  color: var(--ds-danger);
+}
+
+.editor {
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface);
+  padding: var(--ds-space-4);
+  margin-top: var(--ds-space-2);
+}
+
+.editor > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--ds-text);
+}
+
+.editor > summary:hover {
+  color: var(--ds-action);
+}
+
+.inspector-raw {
+  margin-top: var(--ds-space-2);
+}
+
+.code {
+  background: var(--ds-surface-sunken);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  padding: var(--ds-space-4);
+  overflow: auto;
+  font-size: var(--ds-text-sm);
+  line-height: 1.5;
+  max-height: 420px;
+}
+
+.stack-form {
+  display: grid;
+  gap: var(--ds-space-3);
+}
+
+.stack-form .stack {
+  display: grid;
+  gap: var(--ds-space-1);
+}
+
+.stack-form .stack > span {
+  font-weight: 600;
+  font-size: var(--ds-text-sm);
+}
+
+.stack-form input,
+.stack-form select {
+  min-height: var(--ds-target);
+  padding: var(--ds-space-2) var(--ds-space-3);
+  border: 1px solid var(--ds-border-strong);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface);
+  color: var(--ds-text);
+  font-size: var(--ds-text-base);
+  font-family: inherit;
+  width: 100%;
+}
+
+.stack-form .check {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  font-weight: 500;
+}
+
+.stack-form .meta {
+  font-size: var(--ds-text-sm);
+  color: var(--ds-text-muted);
+}
+
+.inspector-form input:focus-visible,
+.inspector-form select:focus-visible,
+.inspector-form button:focus-visible {
+  outline: 3px solid var(--ds-action);
+  outline-offset: 2px;
+  border-radius: var(--ds-radius-sm);
+}
+
+.ds-field-error[role="alert"] {
+  color: var(--ds-danger);
+  font-weight: 600;
+  font-size: var(--ds-text-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-skeleton-bar {
+    background: var(--ds-surface-soft);
+  }
+}
+
+@media (max-width: 640px) {
+  .inspector-form-panel {
+    position: static;
+    max-height: none;
+  }
+  .detail-grid {
+    grid-template-columns: 1fr;
+    gap: var(--ds-space-1) var(--ds-space-2);
+  }
+  .detail-grid dt {
+    font-weight: 600;
+  }
+}
