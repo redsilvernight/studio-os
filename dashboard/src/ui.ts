@@ -1,4 +1,4 @@
-/** Tiny HTML helpers — no framework, escaped by default. */
+/** Tiny HTML helpers — no framework, escaped by default. French user-facing strings (DEC-0078). */
 
 import { ApiError } from "./api";
 
@@ -30,9 +30,11 @@ export function idCell(id: string | null | undefined): string {
 export type SectionStatus = "loading" | "error" | "empty" | "ready";
 
 export function statusBlock(status: SectionStatus, message = ""): string {
-  if (status === "loading") return `<div class="state loading">Loading…</div>`;
-  if (status === "error") return `<div class="state error">Error: ${esc(message)}</div>`;
-  if (status === "empty") return `<div class="state empty">${esc(message === "" ? "Nothing to show." : message)}</div>`;
+  if (status === "loading")
+    return `<div class="state loading" role="status" aria-busy="true">Chargement…</div>`;
+  if (status === "error") return `<div class="state error" role="alert">Erreur : ${esc(message)}</div>`;
+  if (status === "empty")
+    return `<div class="state empty">${esc(message === "" ? "Rien à afficher." : message)}</div>`;
   return "";
 }
 

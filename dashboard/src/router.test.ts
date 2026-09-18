@@ -53,4 +53,9 @@ describe("parseRoute", () => {
     expect(parseRoute("#/inspector/review-helper")).toEqual({ name: "inspector", stableKey: "review-helper" });
     expect(parseRoute("#/inspector/a%2Fb")).toEqual({ name: "inspector", stableKey: "a/b" });
   });
+
+  it("parses the internal UI-1 Design System route (DEC-0078, no nav entry)", () => {
+    expect(parseRoute("#/design-system")).toEqual({ name: "designSystem" });
+    expect(parseRoute("#/design-system/extra")).toEqual({ name: "dashboard" });
+  });
 });

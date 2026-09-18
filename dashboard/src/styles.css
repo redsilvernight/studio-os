@@ -1,15 +1,6 @@
-:root {
-  --bg: #111418;
-  --panel: #1a1f26;
-  --line: #2a313b;
-  --text: #d7dde5;
-  --dim: #8b95a3;
-  --accent: #4da3ff;
-  --ok: #3fb96b;
-  --bad: #e05d5d;
-  --warn: #d9a13b;
-  --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
-}
+/* UI-1 (DEC-0078) : les tokens vivent dans src/ds/tokens.css (thème clair
+   unique). Ce fichier ne garde que les styles des vues non migrées, qui
+   résolvent les variables historiques via les aliases de tokens.css. */
 
 * { box-sizing: border-box; }
 
@@ -182,7 +173,7 @@ select {
 }
 .tab.active { color: var(--text); background: var(--bg); border-bottom-color: var(--bg); }
 
-tr.selected td { background: #222b36; }
+tr.selected td { background: var(--ds-action-soft); }
 
 .detail-grid { display: grid; gap: 4px; margin-bottom: 8px; font-size: 12px; }
 .stats { display: flex; gap: 16px; }

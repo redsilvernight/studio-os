@@ -23,6 +23,7 @@ const MAIN_ROUTES = [
   "#/configuration/bindings",
   "#/configuration/project",
   "#/inspector",
+  "#/design-system",
 ];
 
 test("main flows run with zero CSP violations and zero page errors", async ({ page }) => {

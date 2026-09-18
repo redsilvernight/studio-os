@@ -19,7 +19,8 @@ export type Route =
   | { name: "configRuntime"; id: string }
   | { name: "configBindings" }
   | { name: "configProject"; tab: ProjectConfigTab }
-  | { name: "inspector"; stableKey: string | null };
+  | { name: "inspector"; stableKey: string | null }
+  | { name: "designSystem" };
 
 function decode(value: string): string {
   try {
@@ -74,5 +75,6 @@ export function parseRoute(hash: string): Route {
     }
     return { name: "dashboard" };
   }
+  if (parts[0] === "design-system" && parts.length === 1) return { name: "designSystem" };
   return { name: "dashboard" };
 }

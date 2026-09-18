@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-77 decision(s). Detail complet dans chaque ADR lie.
+78 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -99,3 +99,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0075 | P11 Workflows declaratifs : definition canonique Library (participants, DAG, I/O), aucune orchestration serveur | active | [decisions/DEC-0075-p11-workflows-declaratifs.md](decisions/DEC-0075-p11-workflows-declaratifs.md) |
 | DEC-0076 | P12 dashboard UI & Resolution Inspector : interface humaine au-dessus du HTTP canonique, aucune resolution frontend | active | [decisions/DEC-0076-p12-dashboard-ui-resolution-inspector.md](decisions/DEC-0076-p12-dashboard-ui-resolution-inspector.md) |
 | DEC-0077 | P13 validation E2E finale : sous-système Library/Runtime/Resolution accepté de bout en bout, un défaut P12 corrigé | active | [decisions/DEC-0077-p13-validation-e2e-finale.md](decisions/DEC-0077-p13-validation-e2e-finale.md) |
+| DEC-0078 | Refonte UI-1 : Design System StudiOS — thème clair unique, interface en français, route interne #/design-system | active | [decisions/DEC-0078-refonte-ui-1-design-system.md](decisions/DEC-0078-refonte-ui-1-design-system.md) |

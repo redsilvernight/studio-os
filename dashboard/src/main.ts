@@ -2,9 +2,11 @@
  * Application shell (DASH-0/2).
  *
  * Routes: #/ (Dashboard overview), #/projects, #/projects/<id>[/tasks|/claims],
- * #/tasks, #/tasks/<id>. Activity/Agents/Worklogs/Decisions/Transfers stay
- * DISABLED (no fake content, no Machines entry). Token bar: manual Bearer,
- * memory-only, one-click clear.
+ * #/tasks, #/tasks/<id>, #/machines, #/decisions, #/transfers, #/library…,
+ * #/configuration/…, #/inspector[…]. Activity/Worklogs stay DISABLED
+ * (no fake content). #/design-system is the internal Design System demo
+ * (DEC-0078, no nav entry). Token bar: manual Bearer, memory-only,
+ * one-click clear.
  */
 import { apiBaseUrl, createApiClient } from "./api";
 import { resolveApiUrl } from "./config";
@@ -21,11 +23,14 @@ import { renderTransfers } from "./views/transfers";
 import { renderLibrary, renderLibraryDetail } from "./views/library";
 import { renderBindings, renderProjectConfig, renderRuntimeDetail, renderRuntimes } from "./views/configuration";
 import { renderInspector } from "./views/inspector";
+import { renderDesignSystem } from "./views/designSystem";
 import { loginOverlayHtml, renderLogin } from "./login";
 import { parseRoute, type Route } from "./router";
 import { esc } from "./ui";
 import { startRealtimeConnection, type RealtimeConnection } from "./realtime";
 import type { components } from "./openapi-schema";
+import "./ds/tokens.css";
+import "./ds/components.css";
 import "./styles.css";
 
 type EventEnvelope = components["schemas"]["EventEnvelope"];
@@ -60,6 +65,7 @@ function navHtml(route: Route): string {
 function shellHtml(apiUrl: string, route: Route): string {
   const shownUrl = apiUrl === "" ? "same-origin" : apiUrl;
   return `
+  <a class="ds-skip-link" href="#view">Aller au contenu</a>
   <header class="topbar">
     <div class="brand">Studi'OS <span class="v0">dashboard v0</span></div>
     ${navHtml(route)}
@@ -74,8 +80,9 @@ function shellHtml(apiUrl: string, route: Route): string {
     <span id="token-state" class="meta"></span>
     <span class="meta warn" title="The token stays in page memory. It is never stored, never logged, never rendered back. Clearing drops it from this session.">memory-only · never stored</span>
   </div>
-  <div id="conflict-banner" class="conflict-banner" hidden></div>
-  <main id="view"></main>`;
+  <div id="conflict-banner" class="conflict-banner" role="status" hidden></div>
+  <main id="view" tabindex="-1"></main>
+  <div id="ds-toast-region" class="ds-toasts" role="status" aria-live="polite"></div>`;
 }
 
 function refreshTokenState(): void {
@@ -141,6 +148,9 @@ async function render(): Promise<void> {
       break;
     case "inspector":
       await renderInspector(view, { client, authed, stableKey: route.stableKey });
+      break;
+    case "designSystem":
+      renderDesignSystem(view);
       break;
     case "dashboard":
     default:
