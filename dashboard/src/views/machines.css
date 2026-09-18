@@ -1,0 +1,180 @@
+/**
+ * UI-9 — Machines : liste calme de cartes (jamais de table SQL), tiroir de
+ * détail DS, technique en divulgation progressive. Mobile : une seule
+ * colonne, actions tactiles, aucun scroll global.
+ */
+
+.machines {
+  display: grid;
+  gap: var(--ds-space-4);
+  max-width: 1020px;
+  padding-bottom: var(--ds-space-12);
+}
+
+.machines-notice {
+  border: 1px solid var(--ds-border);
+  border-left-width: 4px;
+  border-radius: var(--ds-radius, 8px);
+  padding: var(--ds-space-3) var(--ds-space-4);
+  font-size: var(--ds-text-sm);
+  background: var(--ds-surface, transparent);
+}
+
+.machines-notice--warning {
+  border-left-color: var(--ds-warning, #b7791f);
+}
+
+.machines-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--ds-space-3) var(--ds-space-4);
+}
+
+.machines-toolbar .ds-search {
+  flex: 1;
+  min-width: 220px;
+}
+
+.machines-activity-filter {
+  display: grid;
+  gap: var(--ds-space-1);
+  font-size: var(--ds-text-sm);
+  font-weight: 600;
+}
+
+.machines-toolbar .ds-list-sub {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.machines-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--ds-space-3);
+}
+
+.machine-row {
+  display: flex;
+  gap: var(--ds-space-3);
+  align-items: flex-start;
+}
+
+.machine-row .grow {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: var(--ds-space-1);
+}
+
+.machine-row .ds-list-title {
+  overflow-wrap: anywhere;
+}
+
+.machine-row .ds-list-sub {
+  overflow-wrap: anywhere;
+}
+
+.machine-side {
+  display: grid;
+  gap: var(--ds-space-2);
+  justify-items: end;
+  flex-shrink: 0;
+}
+
+.machine-status {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-1);
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.machine-drawer-title {
+  margin: 0 0 var(--ds-space-2);
+  overflow-wrap: anywhere;
+}
+
+.machine-drawer-summary {
+  display: grid;
+  gap: var(--ds-space-2);
+  margin-bottom: var(--ds-space-4);
+}
+
+.machine-facts {
+  margin: var(--ds-space-2) 0 0;
+  display: grid;
+  gap: var(--ds-space-1);
+  font-size: var(--ds-text-sm);
+}
+
+.machine-facts > div {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: var(--ds-space-2);
+}
+
+.machine-facts dt {
+  font-weight: 600;
+}
+
+.machine-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.machine-sessions,
+.machine-runtimes {
+  margin: 0 0 var(--ds-space-4);
+  padding-left: var(--ds-space-5);
+  display: grid;
+  gap: var(--ds-space-1);
+  font-size: var(--ds-text-sm);
+}
+
+.machine-technical {
+  border-top: 1px solid var(--ds-border);
+  padding-top: var(--ds-space-2);
+  font-size: var(--ds-text-sm);
+  color: var(--ds-text-muted);
+}
+
+.machine-technical summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: var(--ds-target-sm);
+  display: inline-flex;
+  align-items: center;
+}
+
+@media (max-width: 640px) {
+  .machines-toolbar {
+    display: grid;
+  }
+
+  .machine-row {
+    flex-wrap: wrap;
+  }
+
+  .machine-side {
+    justify-items: start;
+  }
+
+  .machine-status {
+    justify-content: flex-start;
+  }
+
+  .machine-facts > div {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .machines * {
+    transition: none;
+    animation: none;
+  }
+}

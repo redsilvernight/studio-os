@@ -174,6 +174,108 @@ export function activeSessions(sessions: WorkSession[]): WorkSession[] {
   return sessions.filter((session) => session.ended_at === null || session.ended_at === undefined);
 }
 
+/* ------------------------------------------------------------------ */
+/* UI-9 — présentation honnête (français, canonique vs déduit).        */
+/*                                                                     */
+/* Règle de vocabulaire : les valeurs `online`/`idle`/`offline` ne     */
+/* sont des états de connectivité que lorsqu'elles viennent du         */
+/* heartbeat serveur (`statusSource === "canonical"`). Sinon elles     */
+/* décrivent une activité observée — les libellés le disent.           */
+/* ------------------------------------------------------------------ */
+
+export type MachineActivityFilter = "all" | MachineStatus;
+
+export interface MachinesPageState {
+  query: string;
+  activity: MachineActivityFilter;
+}
+
+export function initialMachinesState(): MachinesPageState {
+  return { query: "", activity: "all" };
+}
+
+export function isMachinesDefaultState(state: MachinesPageState): boolean {
+  return state.activity === "all" && state.query.trim() === "";
+}
+
+export interface ActivityLabel {
+  label: string;
+  tone: "success" | "warning" | "danger";
+  hint: string;
+}
+
+/**
+ * Libellé français d'activité. Jamais "En ligne"/"Hors ligne" pour du
+ * déduit : ces mots promettraient une connectivité que le backend ne
+ * garantit pas (pas de GET /machines, pas de last_seen_at canonique).
+ */
+export function activityLabelFr(status: MachineStatus, source: "canonical" | "derived"): ActivityLabel {
+  if (source === "canonical") {
+    if (status === "online")
+      return { label: "En ligne", tone: "success", hint: "État confirmé par le serveur (heartbeat)." };
+    if (status === "idle")
+      return { label: "En veille", tone: "warning", hint: "État confirmé par le serveur (heartbeat)." };
+    return { label: "Hors ligne", tone: "danger", hint: "État confirmé par le serveur (heartbeat)." };
+  }
+  if (status === "online")
+    return {
+      label: "Activité récente",
+      tone: "success",
+      hint: "Présence déduite des agents, sessions et événements — non garantie.",
+    };
+  if (status === "idle")
+    return {
+      label: "Peu d'activité récente",
+      tone: "warning",
+      hint: "Présence déduite des agents, sessions et événements — non garantie.",
+    };
+  return {
+    label: "Aucune activité récente connue",
+    tone: "danger",
+    hint: "Présence déduite des agents, sessions et événements — non garantie.",
+  };
+}
+
+/**
+ * Titre humain. `display_name` canonique quand GET /machines répond
+ * (absent aujourd'hui) ; sinon un libellé honnête — jamais
+ * "Machine 1"/"Machine 2" fabriqué depuis l'ordre de réponse.
+ */
+export function machineDisplayTitle(row: Pick<MachineRow, "displayName">): string {
+  const name = row.displayName?.trim() ?? "";
+  return name === "" ? "Machine sans nom enregistré" : name;
+}
+
+/**
+ * Filtre client honnête sur les lignes déjà chargées : activité exacte,
+ * puis sous-chaîne insensible à la casse sur le nom et l'identifiant.
+ * L'ordre du tri (activité puis récence) est conservé.
+ */
+export function filterMachineRows(rows: MachineRow[], state: MachinesPageState): MachineRow[] {
+  const query = state.query.trim().toLowerCase();
+  return rows.filter((row) => {
+    if (state.activity !== "all" && row.status !== state.activity) return false;
+    if (query === "") return true;
+    const haystack = `${row.displayName ?? ""}\n${row.machineId}`.toLowerCase();
+    return haystack.includes(query);
+  });
+}
+
+/** Durée relative française ("il y a 4 min"). `null` si horodatage absent. */
+export function formatRelativeFr(iso: string | null | undefined, now: number): string | null {
+  if (iso === null || iso === undefined || iso === "") return null;
+  const time = new Date(iso).getTime();
+  if (Number.isNaN(time)) return null;
+  const seconds = Math.max(Math.floor((now - time) / 1000), 0);
+  if (seconds < 60) return "à l'instant";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `il y a ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `il y a ${hours} h`;
+  const days = Math.floor(hours / 24);
+  return days === 1 ? "il y a 1 jour" : `il y a ${days} jours`;
+}
+
 /**
  * Canonical machines read. Returns `null` when the endpoint is absent
  * (404/405/501) so the caller can fall back to derived presence; throws only
