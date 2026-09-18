@@ -57,6 +57,7 @@ import {
   openDsDialog,
 } from "../ds/ds";
 import { describeError, esc, fmtTime, shortId } from "../ui";
+import { parseRoute } from "../router";
 import "./machines.css";
 
 export interface MachinesContext {
@@ -205,16 +206,21 @@ export function machineDrawerBodyHtml(
     `<li><a href="#/tasks/${esc(session.task_id)}">Tâche ${esc(shortId(session.task_id))}</a>` +
     ` · démarrée le ${machineTimeHtml(session.started_at, now)}` +
     (session.agent_id !== null && session.agent_id !== undefined && agentById.has(session.agent_id)
-      ? ` · agent ${esc(agentById.get(session.agent_id)?.display_name ?? shortId(session.agent_id))}`
+      ? ` · agent <a href="#/agents/${esc(session.agent_id)}">${esc(agentById.get(session.agent_id)?.display_name ?? shortId(session.agent_id))}</a>`
       : "") +
     `</li>`;
+
+  const observedAgents = agents
+    .filter((agent) => agent.machine_id === row.machineId)
+    .map((agent) => `<a href="#/agents/${esc(agent.id)}">${esc(agent.display_name)}</a>`)
+    .join(", ");
 
   const summary =
     `<div class="machine-drawer-summary">${machineStatusHtml(row)}` +
     `<p class="ds-list-sub">${esc(activity.hint)}</p>` +
     `<dl class="machine-facts">` +
     `<div><dt>Dernière activité connue</dt><dd>${machineTimeHtml(row.lastActivityAt, now)}</dd></div>` +
-    `<div><dt>Agents observés</dt><dd>${agents.length === 0 ? "Aucun" : esc(agents.map((agent) => agent.display_name).join(", "))}</dd></div>` +
+    `<div><dt>Agents observés</dt><dd>${agents.length === 0 ? "Aucun" : observedAgents}</dd></div>` +
     `<div><dt>Sessions en cours</dt><dd>${active.length === 0 ? "Aucune" : String(active.length)}</dd></div>` +
     `</dl></div>`;
 

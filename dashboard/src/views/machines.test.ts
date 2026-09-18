@@ -237,7 +237,8 @@ describe("machineDrawerBodyHtml", () => {
   });
 
   it("montre agents, sessions liées aux tâches et runtimes liés", () => {
-    expect(html).toContain("Claude, Qwen");
+    expect(html).toContain('href="#/agents/ag1">Claude</a>');
+    expect(html).toContain('href="#/agents/ag2">Qwen</a>');
     expect(html).toContain('href="#/tasks/t1"');
     expect(html).toContain("opencode · anthropic");
     expect(html).toContain('href="#/configuration/runtimes/rt1"');
