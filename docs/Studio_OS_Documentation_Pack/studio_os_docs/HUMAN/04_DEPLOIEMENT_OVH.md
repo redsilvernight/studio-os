@@ -40,9 +40,36 @@ Pour deux developpeurs, un petit VPS est suffisant pour l'orchestration. Le stoc
 4. Configurer `STUDIO_JWT_SECRET` (long, aleatoire) et `STUDIO_CORS_ORIGINS` dans
    `docker/.env`, puis redemarrer le service `api`.
 
+## Utilisateurs suivants
+Aucune inscription publique n'existe : chaque utilisateur est cree par un
+administrateur sur le serveur. Depuis la racine du depot :
+
+    ./register-user.sh
+
+Le script interactif orchestre `studio-admin` dans le conteneur `api` :
+`user create` (nom affiche, email, role), `set-password --password-stdin`
+(mot de passe saisi sans echo ou genere cryptographiquement), puis,
+facultativement, `machine create`. Il fonctionne a l'identique sur le
+deploiement Docker Compose local et sur le VPS : aucun hostname, IP ou chemin
+local n'est code en dur, et il n'accede jamais directement a PostgreSQL.
+
+Si l'email existe deja, le script le signale sans ecraser le role ni le mot de
+passe, et propose uniquement la creation d'une nouvelle machine. En cas d'echec
+partiel (utilisateur cree mais mot de passe non defini), il s'arrete avant la
+machine et indique la commande exacte pour reprendre sans doublon.
+
+Distinction a retenir :
+- **`User`** : identite humaine (email unique, role `admin|developer|agent|readonly`).
+- **mot de passe** : authentification du dashboard (JWT), different d'un token machine.
+- **`Machine`** : identite technique rattachee a un `User`.
+- **machine token** : affiche une seule fois a la creation, jamais reaffiche.
+
 ## Rotation / revocation
 - Revocation d'une machine : `./revoke-machine.sh <machine_id>`.
-- Mot de passe dashboard oublie/compromis : `studio-admin set-password --email ... --password ...`.
+- Mot de passe dashboard oublie/compromis : preferer
+  `studio-admin set-password --email ... --password-stdin` (le secret passe par
+  stdin, jamais par les arguments de processus). `--password ...` reste accepte
+  pour compatibilite.
 - Rotation du secret JWT : changer `STUDIO_JWT_SECRET` et redemarrer `api` invalide
   les sessions actives ; les utilisateurs doivent se reconnecter.
 

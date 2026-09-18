@@ -45,6 +45,33 @@ En local : se placer dans `services/api/` et exécuter `uv run studio-admin boot
 
 En production (Docker) : `cd docker && ./bootstrap.sh --create-machine "premier-poste"`.
 
+## Utilisateurs suivants
+
+`bootstrap-admin` reste réservé au tout premier administrateur. Pour chaque
+utilisateur suivant, depuis la racine du dépôt :
+
+```bash
+./register-user.sh
+```
+
+Le script demande nom affiché, email, rôle, mot de passe (saisi sans écho ou
+généré) puis propose de créer une machine. Il délègue toute la logique à la CLI
+`studio-admin` exécutée dans le conteneur `api` (`user create`,
+`set-password --password-stdin`, `machine create`). Si l'email existe déjà, il
+l'indique sans écraser le rôle ni le mot de passe, et propose seulement la
+création facultative d'une nouvelle machine.
+
+### User, mot de passe, Machine, token
+
+- **`User`** : identité humaine (`email` unique, rôle `admin|developer|agent|readonly`).
+- **mot de passe** : authentification du dashboard humain (JWT) ; ce n'est pas
+  un token machine ni un secret partagé.
+- **`Machine`** : identité technique appartenant à un `User` ; son **token**
+  opaque n'est affiché qu'une seule fois, à sa création.
+- **bootstrap** : le tout premier admin est créé hors-bande (`bootstrap.sh`) ;
+  `register-user.sh` ne le remplace pas et n'ouvre aucune inscription publique.
+
+
 ## Tests
 
 - Backend : `uv run pytest` (500 passed, 3 skipped au 2026-09-15).
