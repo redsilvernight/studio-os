@@ -1,3 +1,9 @@
+# Interim hors VPS (pas de DNS public) : TLS automatique desactive, l'acces
+# distant passe par le reseau chiffre Tailscale. A retirer au deploiement VPS.
+{
+	auto_https off
+}
+
 # Edge security headers (DEC-0060, etape 9.3) : HSTS + baseline sur les
 # sites termines en TLS par Caddy. Le catch-all :80 (Tailscale Funnel,
 # HTTP clair) est volontairement exclu : HSTS sur HTTP est ignore par
@@ -69,6 +75,12 @@
 	reverse_proxy minio:9000
 }
 
+# S3 API dedie (interim) : permet aux URLs pre-signees d'etre joignables via
+# l'hote Tailscale sans DNS public, tout en gardant MinIO non publie.
+:9000 {
+	reverse_proxy minio:9000
+}
+
 # Catch-all for Tailscale Funnel / direct-IP access. Tailscale terminates TLS
 # and forwards plain HTTP to localhost, so this site listens on port 80.
 :80 {
@@ -82,6 +94,10 @@
 
 	route /healthz {
 		reverse_proxy api:8000
+	}
+
+	route /mcp* {
+		reverse_proxy mcp:8100
 	}
 
 	reverse_proxy dashboard:80
