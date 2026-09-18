@@ -1,0 +1,229 @@
+/**
+ * UI-12 — Paramètres : surface de configuration (Runtimes, Bindings, Projet).
+ *
+ * Styles colocalisés et scopés sous `.settings` : aucune modification du CSS
+ * global ni du shell (parallélisme UI-10). Cartes empilées, divulgation
+ * progressive, mobile d'abord.
+ */
+
+.settings {
+  display: grid;
+  gap: var(--ds-space-4);
+  max-width: 1080px;
+  padding-bottom: var(--ds-space-12);
+}
+
+.settings-domain {
+  display: grid;
+  gap: var(--ds-space-4);
+  margin: 0;
+}
+
+.settings-domain > h2 {
+  margin: 0;
+  font-size: var(--ds-text-lg, 1.125rem);
+}
+
+.settings-domain > h3 {
+  margin: var(--ds-space-2) 0 0;
+  font-size: var(--ds-text-base);
+  color: var(--ds-text-muted);
+}
+
+.settings-intro {
+  margin: 0;
+  max-width: 72ch;
+  font-size: var(--ds-text-sm);
+  color: var(--ds-text-muted);
+}
+
+.settings-back {
+  margin: 0;
+}
+
+.settings-intro code.mono,
+.settings-ref code.mono {
+  font-size: var(--ds-text-sm);
+}
+
+/* --- Barre d'outils ------------------------------------------------------ */
+
+.settings-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--ds-space-3) var(--ds-space-4);
+}
+
+.settings-toolbar .ds-search {
+  flex: 1;
+  min-width: 220px;
+}
+
+.settings-filter {
+  display: grid;
+  gap: var(--ds-space-1);
+  font-size: var(--ds-text-sm);
+  font-weight: 600;
+}
+
+.settings-check {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  font-size: var(--ds-text-sm);
+  font-weight: 500;
+}
+
+.settings-toolbar-count {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+/* --- Listes de cartes ---------------------------------------------------- */
+
+.settings-list {
+  display: grid;
+  gap: var(--ds-space-2);
+}
+
+.settings-runtime-row,
+.settings-binding-row {
+  align-items: flex-start;
+  gap: var(--ds-space-4);
+}
+
+.settings-card-title {
+  margin: 0;
+  font-size: var(--ds-text-base);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.settings-binding-row .settings-card-title code.mono {
+  font-size: var(--ds-text-base);
+}
+
+.settings-caps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-1) var(--ds-space-2);
+  align-items: center;
+}
+
+.settings-row-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--ds-space-2);
+  flex-shrink: 0;
+}
+
+/* --- Grilles de faits ---------------------------------------------------- */
+
+.settings-refs {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--ds-space-2) var(--ds-space-4);
+  margin: 0;
+  font-size: var(--ds-text-base);
+}
+
+.settings-ref {
+  display: contents;
+}
+
+.settings-ref dt {
+  color: var(--ds-text-muted);
+  font-weight: 500;
+}
+
+.settings-ref dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* --- Divulgation progressive --------------------------------------------- */
+
+.settings-editor,
+.settings-technical,
+.settings-subeditor {
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface);
+  padding: var(--ds-space-4);
+  margin-top: var(--ds-space-2);
+}
+
+.settings-subeditor {
+  background: var(--ds-surface-soft, var(--ds-surface));
+}
+
+.settings-editor > summary,
+.settings-technical > summary,
+.settings-subeditor > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--ds-text);
+}
+
+.settings-editor > summary:hover,
+.settings-technical > summary:hover,
+.settings-subeditor > summary:hover {
+  color: var(--ds-action);
+}
+
+.settings-danger {
+  border-color: var(--ds-danger, currentColor);
+}
+
+.settings-technical h4 {
+  margin: var(--ds-space-4) 0 var(--ds-space-2);
+  font-size: var(--ds-text-sm);
+  color: var(--ds-text-muted);
+}
+
+.settings-technical .settings-refs {
+  margin-top: var(--ds-space-3);
+}
+
+/* --- Responsive ---------------------------------------------------------- */
+
+@media (max-width: 640px) {
+  .settings .ds-table {
+    min-width: 540px;
+  }
+  .settings-runtime-row,
+  .settings-binding-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .settings-row-side {
+    align-items: stretch;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .settings-refs {
+    grid-template-columns: 1fr;
+    gap: var(--ds-space-1) var(--ds-space-2);
+  }
+  .settings-refs dt {
+    font-weight: 600;
+  }
+  .settings-ref {
+    display: grid;
+  }
+  .settings-ref dd + .settings-ref,
+  .settings-ref + .settings-ref {
+    margin-top: var(--ds-space-2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-editor > summary,
+  .settings-technical > summary,
+  .settings-subeditor > summary {
+    transition: none;
+  }
+}
