@@ -61,6 +61,11 @@ pas deducible du token. Pour le retrouver : `studio-admin machine list
 [--owner-email ...]` (UUID, nom, proprietaire, statut) ou `studio-admin machine
 show` avec le token lu sur stdin (jamais en argument).
 
+Le script affiche toutes les URLs du serveur heberge (Dashboard, API, MCP,
+Sante, OpenAPI, Stockage) et les ecrit dans le fichier de credentials. L'origine
+est auto-detectee (IP Tailscale ou nom d'hote), surchargeable via
+`STUDIO_PUBLIC_BASE_URL`.
+
 Si l'email existe deja, le script le signale sans ecraser le role ni le mot de
 passe, et propose uniquement la creation d'une nouvelle machine. En cas d'echec
 partiel (utilisateur cree mais mot de passe non defini), il s'arrete avant la

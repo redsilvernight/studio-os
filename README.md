@@ -66,7 +66,10 @@ utiles (mot de passe dashboard, UUID et token machine) dans un fichier
 machine est nécessaire au client (`STUDIO_CLIENT_MACHINE_ID`) et n'est pas
 déductible du token : `studio-admin machine list [--owner-email ...]` liste les
 machines, et `studio-admin machine show` (token lu sur stdin) résout un token
-vers son UUID, son nom et son propriétaire.
+vers son UUID, son nom et son propriétaire. Le script affiche aussi **toutes les
+URLs du serveur** (Dashboard, API, MCP, Santé, OpenAPI, Stockage) et les
+enregistre dans le fichier de credentials. L'origine est auto-détectée (nom
+Tailscale ou nom d'hôte), surchargeable via `STUDIO_PUBLIC_BASE_URL`.
 
 ### User, mot de passe, Machine, token
 
