@@ -110,6 +110,48 @@ credentials_dir() {
   printf '%s' "$HOME"
 }
 
+env_value() {
+  local key="$1" file="$COMPOSE_DIR/.env"
+  [[ -f "$file" ]] || return 1
+  sed -n "s/^${key}=//p" "$file" | head -n1
+}
+
+resolve_base_url() {
+  if [[ -n "${STUDIO_PUBLIC_BASE_URL:-}" ]]; then
+    printf '%s' "${STUDIO_PUBLIC_BASE_URL%/}"
+    return 0
+  fi
+  if command -v tailscale >/dev/null 2>&1; then
+    local ip
+    ip="$(tailscale ip -4 2>/dev/null | head -n1)"
+    if [[ -n "$ip" ]]; then
+      printf 'http://%s' "$ip"
+      return 0
+    fi
+  fi
+  local host
+  host="$(hostname 2>/dev/null || true)"
+  if [[ -n "$host" ]]; then
+    printf 'http://%s' "$host"
+    return 0
+  fi
+  printf 'http://localhost'
+}
+
+emit_endpoints() {
+  local base storage
+  base="$(resolve_base_url)"
+  storage="$(env_value STUDIO_S3_PUBLIC_ENDPOINT_URL || true)"
+  echo "Dashboard : $base/"
+  echo "API       : $base/api/v1"
+  echo "MCP       : $base/mcp"
+  echo "Santé     : $base/healthz"
+  echo "OpenAPI   : $base/openapi.json"
+  if [[ -n "$storage" ]]; then
+    echo "Stockage  : $storage"
+  fi
+}
+
 write_credentials_file() {
   local dir file
   dir="$(credentials_dir)"
@@ -144,6 +186,10 @@ write_credentials_file() {
         echo "ID        : $MACHINE_ID"
         echo "Token     : $MACHINE_TOKEN"
       fi
+      echo ""
+      echo "URLs du serveur"
+      echo "───────────────"
+      emit_endpoints
       echo ""
       echo "SÉCURITÉ"
       echo "Fichier contenant des secrets : ne pas versionner, ne pas partager."
@@ -337,3 +383,8 @@ if [[ "$USER_CREATED" -eq 1 || "$MACHINE_CREATED" -eq 1 ]]; then
   echo "  $CREDENTIALS_FILE"
   echo "(fichier local contenant des secrets — ne pas versionner)"
 fi
+
+echo ""
+echo "URLs du serveur Studi'OS"
+echo "────────────────────────────────"
+emit_endpoints
