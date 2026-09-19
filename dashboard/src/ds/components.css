@@ -365,7 +365,9 @@ summary:focus-visible,
   border-bottom: 0;
 }
 
-/* Listes : une information par ligne, action « Voir tout ». */
+/* Listes : une information par ligne, action « Voir tout ».
+   UI-15 : min-width 0 — une ligne ne doit jamais imposer sa largeur
+   (titre nowrap) aux ancêtres grid ; le titre tronque déjà par ellipsis. */
 .ds-list {
   list-style: none;
   margin: 0;
@@ -378,6 +380,7 @@ summary:focus-visible,
   gap: var(--ds-space-3);
   padding: var(--ds-space-3) var(--ds-space-1);
   border-bottom: 1px solid var(--ds-border);
+  min-width: 0;
 }
 .ds-list-item:last-child {
   border-bottom: 0;
