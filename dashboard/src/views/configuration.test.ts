@@ -309,8 +309,8 @@ describe("createRuntimeFormHtml", () => {
     const html = createRuntimeFormHtml();
     expect(html).toContain("Déclarer un runtime");
     expect(html).toContain("chaînes ouvertes");
-    expect(html).toContain("POST /runtimes");
-    expect(html).toContain("Idempotency-Key");
+    expect(html).toContain("Un envoi répété ne crée pas de doublon.");
+    expect(html).not.toContain("POST /runtimes");
     expect(html).not.toMatch(/anthropic|openai|ollama|gemini|mistral|gpt-4/i);
   });
 });

@@ -475,7 +475,7 @@ export async function renderTransfers(root: HTMLElement, ctx: TransfersContext):
 
   if (!transfersResult.ok) {
     root.innerHTML =
-      `<div class="transfers">${dsPageHeader("Transferts", "Échange de fichiers via Studi'OS.", [{ label: "Recharger", id: "transfers-reload" }])}` +
+      `<div class="transfers">${dsPageHeader("Transferts", "Échange de fichiers via Studi'OS.", [{ label: "Actualiser", id: "transfers-reload" }])}` +
       `<div class="state error" role="alert">Impossible de charger les transferts : ${esc(describeError(transfersResult.error))}</div></div>`;
     root.querySelector("#transfers-reload")?.addEventListener("click", () => {
       void renderTransfers(root, ctx);

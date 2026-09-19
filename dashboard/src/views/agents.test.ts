@@ -256,7 +256,7 @@ describe("agentDetailHtml (fiche justifiée par les données)", () => {
 
   it("sessions honnêtes, relecture renvoyée vers UI-8", () => {
     expect(html).toContain("pas preuve de connexion");
-    expect(html).toContain("Review (UI-8)");
+    expect(html).toContain("Décisions, onglet À examiner");
     expect(html).not.toContain("Approuver");
   });
 
@@ -264,7 +264,7 @@ describe("agentDetailHtml (fiche justifiée par les données)", () => {
     expect(html).toContain("n'est pas une sous-catégorie");
     expect(html).toContain('href="#/machines"');
     expect(html).toContain('href="#/configuration/runtimes"');
-    expect(html).toContain("sans lien backend");
+    expect(html).toContain("simple étiquette libre");
   });
 
   it("technique en divulgation progressive, CSP respectée", () => {

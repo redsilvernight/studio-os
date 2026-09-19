@@ -360,10 +360,10 @@ test.describe("UI-14 noms accessibles et formulaires", () => {
     const view = page.locator("#view");
     await expect(view.locator("[data-ws-tab=claims]")).toContainText("Réservations");
     await expect(view.locator("table caption")).toContainText("Réservations du projet");
-    for (const header of ["Chemin", "Type", "Machine", "Tâche", "État", "TTL", "Actions"]) {
+    for (const header of ["Chemin", "Type", "Machine", "Tâche", "État", "Échéance", "Actions"]) {
       await expect(view.locator("table thead th", { hasText: header })).toHaveAttribute("scope", "col");
     }
-    await expect(view.locator("table tbody")).toContainText("active");
+    await expect(view.locator("table tbody")).toContainText("Active");
     await expect(view.locator("table tbody")).not.toContainText("Renew");
     const renew = view.getByRole("button", { name: /renouveler la réservation/i });
     await expect(renew).toBeVisible();

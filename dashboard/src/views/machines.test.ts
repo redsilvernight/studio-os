@@ -180,7 +180,7 @@ describe("machinesPageHtml nominal", () => {
 
   it("français partout, aucune action inventée", () => {
     expect(html).toContain("Détails");
-    expect(html).toContain("Recharger");
+    expect(html).toContain("Actualiser");
     expect(html).toContain("Réinitialiser");
     expect(html).not.toMatch(/Online|Offline|Loading|Retry|New machine|Delete|Restart|Ping|Wake|Disable|Ban/);
     expect(html).not.toContain("+ Nouvelle machine");

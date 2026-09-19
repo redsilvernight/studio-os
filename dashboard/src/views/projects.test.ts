@@ -95,9 +95,9 @@ describe("projectsPageHtml nominal", () => {
   });
 
   it("relègue UUID/version/horodatages dans un détail secondaire", () => {
-    expect(html).toContain("Détails techniques");
+    expect(html).toContain("Informations techniques");
     expect(html).toContain(ID_A);
-    const [foreground] = html.split("Détails techniques");
+    const [foreground] = html.split("Informations techniques");
     expect(foreground).not.toContain(`>${ID_A}<`);
     expect(foreground).not.toMatch(/Version<\/|v3/);
   });
@@ -161,7 +161,7 @@ describe("projectCreateFormHtml", () => {
     expect(html).toContain("hidden");
     expect(html).toContain("Annuler");
     expect(html).toContain("Créer le projet");
-    expect(html).toMatch(/idempotence/i);
+    expect(html).toContain("Un envoi répété ne crée pas de doublon.");
   });
 
   it("échappe le contenu (jamais d'injection via les aides)", () => {

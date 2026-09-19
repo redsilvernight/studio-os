@@ -230,7 +230,7 @@ export async function renderProjectDetail(
   }
   if (tab === "claims") {
     panel.innerHTML =
-      `<p class="ds-list-sub">Un claim est un verrou souple : il signale qu'une ressource est utilisée, sans jamais bloquer Git ni les écritures. Un chevauchement reste accepté (201) et signalé par événement.</p><div data-slot></div>`;
+      `<p class="ds-list-sub">Une réservation signale qu'une ressource est en cours d'utilisation, sans jamais bloquer Git ni les écritures. Un chevauchement reste accepté et est signalé dans l'onglet Activité.</p><div data-slot></div>`;
     const slot = panel.querySelector<HTMLElement>("[data-slot]");
     if (slot !== null) {
       await renderClaimsInto(slot, { client: ctx.client, projectId: project.id, authed: ctx.authed });

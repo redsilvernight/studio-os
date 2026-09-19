@@ -254,7 +254,7 @@ export function taskCreateFormHtml(
       "Description (facultative)",
       `<textarea class="ds-textarea" id="FIELD" name="description" rows="3"></textarea>`,
     ) +
-    `<p class="ds-list-sub">POST /tasks · clé d'idempotence générée par tentative : créer deux fois de suite ne duplique rien.</p>` +
+    `<p class="ds-list-sub">Un envoi répété ne crée pas de doublon.</p>` +
     `<div class="ds-field-error" id="task-create-error" role="alert" hidden></div>` +
     `<div class="ds-dialog-actions"><button class="ds-btn" type="button" data-ds-close>Annuler</button>` +
     `<button class="ds-btn ds-btn--primary" type="submit" id="task-create-submit">Créer la tâche</button></div>` +

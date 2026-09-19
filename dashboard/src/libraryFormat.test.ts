@@ -15,7 +15,6 @@ import {
   requirementEntries,
   runtimeTargetEntries,
   scopeLabel,
-  statusLabel,
   statusTone,
   versionOriginLabel,
   workflowEdges,
@@ -42,9 +41,8 @@ describe("kind vocabulary", () => {
 describe("labels", () => {
   it("renders scope, status, level, origin and source labels", () => {
     expect(scopeLabel("studio")).toBe("Studio");
-    expect(scopeLabel("project")).toBe("Project");
-    expect(scopeLabel("user")).toBe("User");
-    expect(statusLabel("deprecated")).toBe("Deprecated");
+    expect(scopeLabel("project")).toBe("Projet");
+    expect(scopeLabel("user")).toBe("Utilisateur");
     expect(statusTone("active")).toBe("ok");
     expect(statusTone("deprecated")).toBe("bad");
     expect(statusTone("draft")).toBe("warn");

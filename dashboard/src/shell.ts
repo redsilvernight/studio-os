@@ -18,8 +18,6 @@ export interface ShellNavItem {
   label: string;
   icon: string;
   active: boolean;
-  /** Destination réelle à venir (UI-6) : rendue non cliquable, sans route fictive. */
-  soon?: boolean;
 }
 
 export interface ShellNavGroup {
@@ -47,7 +45,7 @@ function icon(name: string): string {
   return `<svg class="app-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
 }
 
-/** Groupes cibles UI-2 : routes existantes + 1 pastille honnête. */
+/** Groupes de navigation : routes existantes uniquement. */
 export function shellNavGroups(route: Route): ShellNavGroup[] {
   const is = (...names: Route["name"][]): boolean => names.includes(route.name);
   return [
@@ -84,9 +82,6 @@ export function shellNavGroups(route: Route): ShellNavGroup[] {
 }
 
 function navItemHtml(item: ShellNavItem): string {
-  if (item.soon === true) {
-    return `<li><span class="app-navitem-disabled" title="Page dédiée en préparation (UI-6) — les agents restent visibles dans Machines en attendant">${icon(item.icon)}<span>${esc(item.label)}</span><span class="ds-badge">Bientôt</span></span></li>`;
-  }
   const current = item.active ? ' aria-current="page"' : "";
   return `<li><a class="app-navlink${item.active ? " active" : ""}" href="${esc(item.href)}"${current}>${icon(item.icon)}<span>${esc(item.label)}</span></a></li>`;
 }
@@ -107,7 +102,7 @@ export function shellHtml(route: Route, authed: boolean): string {
   const configActive = route.name === "configRuntimes" || route.name === "configRuntime" || route.name === "configBindings" || route.name === "configProject";
   const accountBlock = authed
     ? `<div class="app-account"><span class="app-account-state">Connecté · jeton masqué</span><button class="app-logout" type="button" id="token-clear">${icon("logout")}<span>Se déconnecter</span></button></div>`
-    : `<div class="app-account"><span class="app-account-state">Non connecté</span><div class="app-tokenrow"><label class="ds-sr-only" for="token-input">Jeton machine</label><input id="token-input" type="password" autocomplete="off" spellcheck="false" placeholder="Jeton machine (mémoire seule)" /><button class="app-tokenbtn" type="button" id="token-set">OK</button></div><p class="app-tokenhint">Mémoire seule · jamais stocké</p></div>`;
+    : `<div class="app-account"><span class="app-account-state">Non connecté</span><div class="app-tokenrow"><label class="ds-sr-only" for="token-input">Jeton machine</label><input id="token-input" type="password" autocomplete="off" spellcheck="false" placeholder="Jeton machine (mémoire seule)" /><button class="app-tokenbtn" type="button" id="token-set">Connecter</button></div><p class="app-tokenhint">Mémoire seule · jamais stocké</p></div>`;
   return `<a class="ds-skip-link" href="#view">Aller au contenu</a>
 <div class="app-shell">
   <div class="app-scrim" id="app-scrim" hidden></div>

@@ -231,7 +231,7 @@ describe("taskCreateFormHtml (modale, Idempotency-Key préservée)", () => {
     expect(html).toContain("Jeu Phare");
     expect(html).toContain("Créer la tâche");
     expect(html).toContain("Annuler");
-    expect(html).toContain("idempotence");
+    expect(html).toContain("Un envoi répété ne crée pas de doublon.");
   });
 
   it("projet fixé et affiché en contexte scopé", () => {

@@ -270,7 +270,7 @@ export function machinesPageHtml(data: MachinesPageData): string {
   const header = dsPageHeader(
     "Machines",
     "Environnements enregistrés sur lesquels le travail s'exécute — à distinguer des agents qui y travaillent.",
-    [{ label: "Recharger", id: "machines-reload" }],
+    [{ label: "Actualiser", id: "machines-reload" }],
   );
   const notice = data.canonicalAvailable
     ? `<div class="machines-notice" role="status">Présence confirmée par le serveur (heartbeat).</div>`
@@ -357,7 +357,7 @@ export async function renderMachines(root: HTMLElement, ctx: MachinesContext): P
 
   if (rows.length === 0 && problems.length > 0) {
     root.innerHTML =
-      `<div class="machines">${dsPageHeader("Machines", "Environnements enregistrés sur lesquels le travail s'exécute.", [{ label: "Recharger", id: "machines-reload" }])}` +
+      `<div class="machines">${dsPageHeader("Machines", "Environnements enregistrés sur lesquels le travail s'exécute.", [{ label: "Actualiser", id: "machines-reload" }])}` +
       `<div class="state error" role="alert">Impossible de charger les machines : ${esc(problems.join(" · "))}</div></div>`;
     root.querySelector("#machines-reload")?.addEventListener("click", () => {
       void renderMachines(root, ctx);

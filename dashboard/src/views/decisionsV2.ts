@@ -227,11 +227,9 @@ export function reviewQueueHtml(
   projectId?: string,
   reviewError?: string,
 ): string {
-  const scopeLabel = projectId ? `projet ${shortId(projectId)}` : "globale";
-  const header = dsSectionHeader(`À examiner (${scopeLabel})`, {
-    label: projectId ? "Voir la file globale" : "Voir les décisions",
-    href: projectId ? "#/decisions" : "#/decisions",
-  });
+  // Sur la page globale, un lien « Voir les décisions » pointerait vers elle-même :
+  // le lien de sortie n'existe que dans l'espace projet.
+  const header = dsSectionHeader("À examiner", projectId ? { label: "Voir la file globale", href: "#/decisions" } : undefined);
 
   if (reviewError !== undefined) {
     return `<section class="review-section" aria-labelledby="review-heading">${header}` +
@@ -244,7 +242,7 @@ export function reviewQueueHtml(
       dsEmptyState(
         "Rien à examiner",
         "Aucun élément n'attend une décision humaine pour le moment.",
-        { label: projectId ? "Voir la file globale" : "Voir les décisions", href: "#/decisions" },
+        projectId ? { label: "Voir la file globale", href: "#/decisions" } : undefined,
       ) + `</section>`;
   }
 
@@ -312,11 +310,7 @@ export function decisionsHtml(
   projectId?: string,
   decisionsError?: string,
 ): string {
-  const scopeLabel = projectId ? `projet ${shortId(projectId)}` : "globales";
-  const header = dsSectionHeader(`Décisions ${scopeLabel}`, {
-    label: projectId ? "Voir les décisions globales" : "Voir les décisions du projet",
-    href: projectId ? "#/decisions" : `#/projects/${projectId}/decisions`,
-  });
+  const header = dsSectionHeader("Décisions", projectId ? { label: "Voir les décisions globales", href: "#/decisions" } : undefined);
 
   if (decisionsError !== undefined) {
     return `<section class="decisions-section" aria-labelledby="decisions-heading">${header}` +
@@ -384,17 +378,26 @@ export function decisionsTabsHtml(activeTab: "review" | "decisions"): string {
   ], activeTab, "Décisions");
 }
 
+/**
+ * Titre de page. Dans l'espace projet (`projectId`), la vue est un onglet du
+ * workspace qui porte déjà le h1 : pas de second titre de page.
+ */
+function decisionsPageHeader(projectId: string | undefined): string {
+  return projectId === undefined
+    ? dsPageHeader("Décisions", "Ce qui attend un examen humain, et l'historique des décisions.")
+    : "";
+}
+
 export async function renderDecisionsV2(root: HTMLElement, ctx: DecisionsContext): Promise<void> {
   if (!ctx.authed) {
     root.innerHTML =
-      dsPageHeader("Décisions & Review", "File d'examen et historique des décisions.") +
+      decisionsPageHeader(ctx.projectId) +
       dsEmptyState("Connectez-vous", "Saisissez votre jeton machine pour charger la file d'examen et les décisions.");
     return;
   }
 
   const projectId = ctx.projectId;
-  const scopeLabel = projectId ? `projet ${shortId(projectId)}` : "globale";
-  root.innerHTML = dsPageHeader("Décisions & Review", `File d'examen et historique des décisions (${scopeLabel}).`) + dsSkeleton(4);
+  root.innerHTML = decisionsPageHeader(projectId) + dsSkeleton(4);
 
   const [reviewResult, decisionsResult] = await Promise.allSettled([
     fetchReviewQueue(ctx.client, projectId),
@@ -408,7 +411,7 @@ export async function renderDecisionsV2(root: HTMLElement, ctx: DecisionsContext
 
   // Rendu initial avec onglets
   root.innerHTML =
-    dsPageHeader("Décisions & Review", `File d'examen et historique des décisions (${scopeLabel}).`) +
+    decisionsPageHeader(projectId) +
     decisionsTabsHtml("review") +
     `<div id="review-modal-host"></div>` +
     `<div id="decision-modal-host"></div>`;
@@ -549,9 +552,4 @@ function bindDecisionActions(
       if (submitBtn !== null) submitBtn.disabled = false;
     }
   });
-}
-
-/** Compatibilité : l'ancien renderDecisions est conservé pour le workspace projet. */
-export async function renderDecisions(root: HTMLElement, ctx: DecisionsContext): Promise<void> {
-  await renderDecisionsV2(root, ctx);
 }

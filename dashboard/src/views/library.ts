@@ -34,6 +34,7 @@ import {
   parseWorkflowContent,
   relationLabel,
   requirementEntries,
+  scopeLabel,
   statusTone,
   workflowEdges,
   type CapabilityRequirement,
@@ -88,7 +89,7 @@ import {
   openDsDialog,
 } from "../ds/ds";
 import { newIdempotencyKey } from "../claimsApi";
-import { describeError, esc, fmtTime, shortId } from "../ui";
+import { CONFIRM_RELEASE_LOCK, describeError, esc, fmtTime, shortId } from "../ui";
 
 export interface LibraryContext {
   client: StudioClient;
@@ -158,15 +159,6 @@ export function kindFr(kind: LibraryKind): LibraryKindFr {
   return { slug: "rules", kind, singular: String(kind), plural: String(kind), description: "" };
 }
 
-const SCOPE_FR: Record<LibraryScope, string> = {
-  studio: "Studio",
-  project: "Projet",
-  user: "Utilisateur",
-};
-
-export function scopeLabelFr(scope: LibraryScope): string {
-  return SCOPE_FR[scope] ?? String(scope);
-}
 
 const STATUS_FR: Record<LibraryStatus, string> = {
   draft: "Brouillon",
@@ -185,7 +177,7 @@ function statusBadge(status: LibraryStatus): string {
 }
 
 function scopeBadge(scope: LibraryScope): string {
-  return dsBadge(scopeLabelFr(scope), "neutral");
+  return dsBadge(scopeLabel(scope), "neutral");
 }
 
 /* ------------------------------------------------------------------ */
@@ -227,7 +219,7 @@ function shadowNoteForDetail(resource: LibraryResource, siblings: LibraryResourc
   if (!clash) return "";
   return (
     `<div class="ds-notice ds-notice--warning" role="note"><strong>Cette clé existe dans plusieurs portées.</strong>` +
-    `Ce que vous lisez est la ressource ${esc(scopeLabelFr(resource.scope))} « ${esc(resource.stable_key)} ». ` +
+    `Ce que vous lisez est la ressource ${esc(scopeLabel(resource.scope))} « ${esc(resource.stable_key)} ». ` +
     `L'<a href="#/inspector/${esc(encodeURIComponent(resource.stable_key))}">Inspecteur de résolution</a> montre la version effective.</div>`
   );
 }
@@ -250,7 +242,7 @@ export function filterLibraryResources(resources: LibraryResource[], state: Libr
     if (state.status !== "all" && resource.status !== state.status) return false;
     if (query === "") return true;
     const haystack =
-      `${resource.stable_key}\n${resource.scope}\n${scopeLabelFr(resource.scope)}\n${resource.status}\n${statusLabelFr(resource.status)}`.toLowerCase();
+      `${resource.stable_key}\n${resource.scope}\n${scopeLabel(resource.scope)}\n${resource.status}\n${statusLabelFr(resource.status)}`.toLowerCase();
     return haystack.includes(query);
   });
 }
@@ -437,7 +429,7 @@ export function createFormFieldsHtml(kind: LibraryKind): string {
   return (
     `<fieldset class="library-fieldset"><legend>Informations principales</legend>` +
     `<label class="stack">Clé stable <input name="stable_key" required autocomplete="off" placeholder="ma-ressource" /></label>` +
-    `<label class="stack">Portée <select name="scope">${SCOPE_VALUES.map((scope) => `<option value="${scope}">${esc(scopeLabelFr(scope))}</option>`).join("")}</select></label>` +
+    `<label class="stack">Portée <select name="scope">${SCOPE_VALUES.map((scope) => `<option value="${scope}">${esc(scopeLabel(scope))}</option>`).join("")}</select></label>` +
     `<label class="stack">ID projet (exigé pour la portée Projet) <input name="project_id" placeholder="uuid" autocomplete="off" /></label>` +
     `<label class="stack">Titre <input name="title" required autocomplete="off" placeholder="Titre lisible de la version 1" /></label>` +
     `<label class="stack">Description <input name="description" autocomplete="off" placeholder="À quoi sert cette ressource (facultatif)" /></label>` +
@@ -445,7 +437,7 @@ export function createFormFieldsHtml(kind: LibraryKind): string {
     `</fieldset>` +
     `<details class="library-advanced"><summary>Paramètres avancés / techniques</summary>` +
     `<h3>Dépendances (épingles de version)</h3>${rowContainerHtml("dependency", "Ajouter une dépendance", dependencyRowHtml())}` +
-    `<p class="ds-list-sub">POST /library · clé d'idempotence générée par tentative · la version 1 est créée en brouillon.</p>` +
+    `<p class="ds-list-sub">La version 1 est créée en brouillon. Un envoi répété ne crée pas de doublon.</p>` +
     `</details>` +
     `<div data-msg class="ds-field-error" role="alert"></div>`
   );
@@ -771,7 +763,7 @@ function lifecycleFormsHtml(resource: LibraryResource): string {
     `<div class="library-actions">` +
     `<form class="library-action" data-activate>` +
     `<h3>Activer une version</h3>` +
-    `<p class="ds-list-sub">Déplace le pointeur actif. Révision attendue : v${resource.version} (conflit 409 si périmée).</p>` +
+    `<p class="ds-list-sub">Déplace le pointeur actif. Révision attendue : v${resource.version} — si la ressource a changé entre-temps, l'action est refusée.</p>` +
     `<label class="library-inline-field">Version à activer <input class="ds-input" name="version" type="number" min="1" value="${esc(activeVersion)}" required /></label>` +
     `<button class="ds-btn ds-btn--primary ds-btn--sm" type="submit">Activer</button>` +
     `<div data-msg class="ds-field-error" role="alert"></div></form>` +
@@ -892,10 +884,10 @@ export function libraryDetailHtml(
     `<label class="library-inline-field">ID projet <input class="ds-input" name="lock_project_id" placeholder="uuid" required autocomplete="off" /></label>` +
     `<label class="library-inline-field">Version <input class="ds-input" name="lock_version" type="number" min="1" required /></label>` +
     `<button class="ds-btn ds-btn--sm" type="submit">Figer la version</button>` +
-    `<p class="ds-list-sub">POST /library-locks · identifiant canonique de ressource, jamais la clé stable seule.</p>` +
+    `<p class="ds-list-sub">Le verrou vise cette ressource précise, pas seulement sa clé stable.</p>` +
     `<div data-msg class="ds-field-error" role="alert"></div></form>` +
     `</div></section>` +
-    `<details class="library-tech"><summary>Détails techniques</summary>${identityTechHtml(resource, activeSchema)}</details>` +
+    `<details class="library-tech"><summary>Informations techniques</summary>${identityTechHtml(resource, activeSchema)}</details>` +
     `</div>`
   );
 }
@@ -1093,7 +1085,7 @@ function bindDetail(
     button.addEventListener("click", () => {
       const lockId = button.dataset["releaseLock"];
       if (lockId === undefined) return;
-      if (!window.confirm("Libérer ce verrou projet ?")) return;
+      if (!window.confirm(CONFIRM_RELEASE_LOCK)) return;
       button.disabled = true;
       releaseLibraryLock(ctx.client, lockId)
         .then(() => {

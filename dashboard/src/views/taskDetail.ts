@@ -131,7 +131,7 @@ function claimSectionHtml(task: Task, authed: boolean): string {
     `<p class="ds-list-sub">Prendre signale que votre machine travaille dessus et passe le statut à « En cours ». ` +
     `Libérer garde le statut tel quel : modifiez-le explicitement si besoin.</p>` +
     `<p class="ds-list-sub">À ne pas confondre avec les réservations de ressources (onglet Réservations du projet) : ` +
-    `ici, « prendre » désigne qui travaille sur la tâche, pas un verrou sur un fichier.</p>` +
+    `ici, « prendre » désigne qui travaille sur la tâche, pas la réservation d'un fichier.</p>` +
     `<div class="tasks-footer">` +
     `<button class="ds-btn${held ? "" : " ds-btn--primary"}" type="button" data-claim${authed && !held ? "" : " disabled"}>Prendre cette tâche</button>` +
     `<button class="ds-btn" type="button" data-release${authed && held ? "" : " disabled"}>Libérer la tâche</button>` +

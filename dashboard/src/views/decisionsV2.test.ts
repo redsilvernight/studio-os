@@ -238,11 +238,16 @@ describe("reviewItemHtml", () => {
 });
 
 describe("reviewQueueHtml", () => {
-  it("vide : état positif FR avec lien vers décisions", () => {
+  it("vide global : état positif FR, sans lien vers la page courante", () => {
     const html = reviewQueueHtml({ items: [], generated_at: "" }, true);
     expect(html).toContain("Rien à examiner");
     expect(html).toContain("Aucun élément n'attend une décision humaine");
-    expect(html).toContain("Voir les décisions");
+    expect(html).not.toContain('href="#/decisions"');
+  });
+
+  it("vide projet : propose la file globale", () => {
+    const html = reviewQueueHtml({ items: [], generated_at: "" }, true, P1);
+    expect(html).toContain("Voir la file globale");
     expect(html).toContain('href="#/decisions"');
   });
 
@@ -253,16 +258,19 @@ describe("reviewQueueHtml", () => {
     expect(html).not.toContain("Error 500");
   });
 
-  it("project-scopé : scope affiché, lien vers global", () => {
+  it("project-scopé : lien vers la file globale", () => {
     const html = reviewQueueHtml(mixedQueue(), true, P1);
-    expect(html).toContain("projet 11111111…");
+    expect(html).toContain("À examiner");
+    expect(html).toContain("Voir la file globale");
     expect(html).toContain('href="#/decisions"');
     expect(html).toContain("5 élément(s) à examiner");
   });
 
-  it("global : scope affiché, lien vers projet si projectId", () => {
+  it("global : aucun lien de sortie (la page est la file globale)", () => {
     const html = reviewQueueHtml(mixedQueue(), true);
-    expect(html).toContain("globale");
+    expect(html).toContain("À examiner");
+    expect(html).not.toContain("Voir la file globale");
+    expect(html).not.toContain("Voir les décisions");
   });
 
   it("CSP : aucun style ni handler inline", () => {
@@ -332,16 +340,16 @@ describe("decisionHtml", () => {
 describe("decisionsHtml", () => {
   it("vide global : état contextualisé + bouton création si authed", () => {
     const html = decisionsHtml([], true);
-    expect(html).toContain("Aucune décision");
-    expect(html).toContain("globales");
+    expect(html).toContain("Aucune décision globale");
     expect(html).toContain("Créer une décision");
+    expect(html).not.toContain("undefined");
     expect(html).toContain('id="create-decision-btn"');
     expect(html).not.toContain('href="#create-decision"');
   });
 
   it("vide project-scopé : message projet, pas de bouton création si pas authed", () => {
     const html = decisionsHtml([], false, P1);
-    expect(html).toContain("projet 11111111…");
+    expect(html).toContain("Voir les décisions globales");
     expect(html).toContain("liée à ce projet");
     expect(html).not.toContain("Créer une décision");
   });

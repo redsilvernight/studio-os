@@ -440,7 +440,7 @@ test.describe("UI-12 Paramètres — états et robustesse", () => {
 
     await page.goto("/#/configuration/bindings");
     await expect(page.locator("#view")).toContainText("Impossible de charger les bindings");
-    await expect(page.locator("#view")).toContainText("Recharger");
+    await expect(page.locator("#view")).toContainText("Actualiser");
     await page.screenshot({ path: `${SHOTS}/settings-erreur-partielle-1280.png` });
     expect(csp).toEqual([]);
     expect(fatal).toEqual([]);

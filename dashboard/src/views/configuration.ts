@@ -23,7 +23,6 @@
 import type { StudioClient } from "../api";
 import {
   capabilityEntries,
-  kindMeta,
   libraryKindHref,
   runtimeTargetEntries,
   scopeLabel,
@@ -62,9 +61,9 @@ import {
   capabilityFieldsHtml,
 } from "./configForms";
 import { formReader } from "./libraryForms";
-import { statusLabelFr } from "./library";
+import { kindFr, statusLabelFr } from "./library";
 import { uiState } from "../store";
-import { describeError, esc, fmtTime, shortId, statusBlock } from "../ui";
+import { CONFIRM_RELEASE_LOCK, describeError, esc, fmtTime, shortId, statusBlock } from "../ui";
 import { dsBadge, dsEmptyState, dsNotify, dsPageHeader, dsSkeleton, focusDsErrorBox, type DsTone } from "../ds/ds";
 // Styles colocalisés : la page reste autonome sans toucher au CSS global.
 import "./configuration.css";
@@ -300,7 +299,7 @@ export function createRuntimeFormHtml(): string {
     `<details class="settings-subeditor"><summary>Capacités déclarées (facultatif)</summary>${capabilityFieldsHtml()}</details>` +
     `<label class="stack">Métadonnées libres (une par ligne, <code class="mono">clé=valeur</code>) <textarea name="metadata" rows="2" placeholder="facultatif — les secrets sont refusés par le serveur"></textarea></label>` +
     `<button type="submit" class="ds-btn ds-btn--primary">Déclarer le runtime</button>` +
-    `<span class="meta">POST /runtimes · Idempotency-Key par tentative · double soumission impossible</span>` +
+    `<span class="meta">Un envoi répété ne crée pas de doublon.</span>` +
     `<div data-msg class="meta" role="status" aria-live="polite"></div></form></details>`
   );
 }
@@ -321,7 +320,7 @@ export async function renderRuntimes(root: HTMLElement, ctx: ConfigurationContex
     runtimes = await listRuntimes(ctx.client, { includeRevoked: runtimesState.includeRevoked });
   } catch (error) {
     root.innerHTML =
-      `<div class="settings">${settingsHeader("Paramètres", SETTINGS_DESCRIPTION, [{ label: "Recharger", id: "settings-runtimes-reload" }])}${head}` +
+      `<div class="settings">${settingsHeader("Paramètres", SETTINGS_DESCRIPTION, [{ label: "Actualiser", id: "settings-runtimes-reload" }])}${head}` +
       `<div class="state error" role="alert">Impossible de charger les runtimes : ${esc(describeError(error))}</div></div>`;
     root.querySelector("#settings-runtimes-reload")?.addEventListener("click", () => {
       void renderRuntimes(root, ctx);
@@ -336,7 +335,7 @@ export function runtimesPageHtml(runtimes: RuntimeRegistration[]): string {
   const visible = filterRuntimes(runtimes, runtimesState);
   const body = runtimes.length === 0 ? runtimesEmptyHtml() : visible.length === 0 ? runtimesNoMatchHtml() : runtimesListHtml(visible);
   return (
-    `<div class="settings">${settingsHeader("Paramètres", SETTINGS_DESCRIPTION, [{ label: "Recharger", id: "settings-runtimes-reload" }])}${configTabsHtml("runtimes")}` +
+    `<div class="settings">${settingsHeader("Paramètres", SETTINGS_DESCRIPTION, [{ label: "Actualiser", id: "settings-runtimes-reload" }])}${configTabsHtml("runtimes")}` +
     `<section class="settings-domain"><h2>Runtimes enregistrés</h2>` +
     `<p class="settings-intro">Un runtime est un environnement/cible d'exécution. Le provider, le model et le harness sont des références ouvertes ; le model n'est pas le runtime, et une machine n'est pas un runtime.</p>` +
     `${runtimesToolbarHtml(runtimesState, runtimes, visible.length)}` +
@@ -489,7 +488,7 @@ function updateRuntimeFormHtml(runtime: RuntimeRegistration): string {
   const disabled = runtime.status === "revoked" ? "disabled" : "";
   return (
     `<details class="editor settings-editor"><summary>Modifier ce runtime</summary><form class="stack-form" data-runtime-update>` +
-    `<p class="meta">Un champ laissé vide reste inchangé. La modification exige la version courante : une version périmée renvoie un conflit 409, jamais un écrasement silencieux.</p>` +
+    `<p class="meta">Un champ laissé vide reste inchangé. La modification exige la version courante : si le runtime a changé entre-temps, elle est refusée plutôt que d'écraser les changements.</p>` +
     `<label class="stack">Harness (vide = inchangé) <input name="harness_ref" placeholder="${esc(runtime.harness_ref ?? "inchangé")}" ${disabled} /></label>` +
     `<label class="stack">Provider (vide = inchangé) <input name="provider_ref" placeholder="${esc(runtime.provider_ref ?? "inchangé")}" ${disabled} /></label>` +
     `<label class="stack">Model (vide = inchangé) <input name="model_ref" placeholder="${esc(runtime.model_ref ?? "inchangé")}" ${disabled} /></label>` +
@@ -500,7 +499,7 @@ function updateRuntimeFormHtml(runtime: RuntimeRegistration): string {
     `<label class="stack">Métadonnées (clé=valeur par ligne, vide = inchangées) <textarea name="metadata" rows="2" ${disabled}></textarea></label>` +
     `<label class="stack">Version attendue <input name="expected_version" type="number" min="1" value="${runtime.version}" required ${disabled} /></label>` +
     `<button type="submit" class="ds-btn ds-btn--primary" ${disabled}>Enregistrer</button>` +
-    `<span class="meta">PATCH /runtimes/{id} · version périmée → 409 · aucun retry silencieux</span>` +
+    `<span class="meta">En cas de conflit de version, rien n'est écrasé ni renvoyé automatiquement.</span>` +
     `<div data-msg class="meta" role="status" aria-live="polite"></div></form></details>`
   );
 }
@@ -528,7 +527,7 @@ export async function renderRuntimeDetail(root: HTMLElement, ctx: ConfigurationC
   const [runtime, bindings] = await Promise.all([settle(getRuntime(ctx.client, runtimeId)), settle(listRuntimeBindings(ctx.client))]);
   if (!runtime.ok) {
     root.innerHTML =
-      `<div class="settings">${settingsHeader("Paramètres", SETTINGS_DESCRIPTION, [{ label: "Recharger", id: "settings-runtime-reload" }])}${head}` +
+      `<div class="settings">${settingsHeader("Paramètres", SETTINGS_DESCRIPTION, [{ label: "Actualiser", id: "settings-runtime-reload" }])}${head}` +
       `<div class="state error" role="alert">Impossible de charger ce runtime : ${esc(describeError(runtime.error))}</div>` +
       `<p><a href="#/configuration/runtimes">Retour aux runtimes</a></p></div>`;
     root.querySelector("#settings-runtime-reload")?.addEventListener("click", () => {
@@ -539,7 +538,7 @@ export async function renderRuntimeDetail(root: HTMLElement, ctx: ConfigurationC
   const related = bindings.ok ? bindings.value.filter((binding) => binding.target.runtime_id === runtime.value.id) : null;
   root.innerHTML =
     `<div class="settings">${settingsHeader(runtimeHumanTitle(runtime.value), "Détail d'un runtime — environnement/cible d'exécution enregistré.", [
-      { label: "Recharger", id: "settings-runtime-reload" },
+      { label: "Actualiser", id: "settings-runtime-reload" },
     ])}${head}` +
     `<p class="settings-back"><a href="#/configuration/runtimes">← Retour aux runtimes</a></p>` +
     runtimeDetailHtml(runtime.value, related, bindings.ok ? null : describeError(bindings.error)) +
@@ -687,7 +686,7 @@ export function bindingCardHtml(binding: RuntimeBinding, runtimesById: Map<strin
     : '<span class="meta">Sans projet</span>';
   return (
     `<li class="ds-list-item settings-binding-row"><div class="grow">` +
-    `<h3 class="settings-card-title">${esc(kindMeta(binding.target_kind).singular)} · <code class="mono">${esc(binding.target_stable_key)}</code></h3>` +
+    `<h3 class="settings-card-title">${esc(kindFr(binding.target_kind).singular)} · <code class="mono">${esc(binding.target_stable_key)}</code></h3>` +
     `<div class="ds-list-sub">${dsBadge(bindingScopeLabel(binding.level), bindingScopeTone(binding.level))} <span class="meta">${esc(bindingScopeDescription(binding.level))}</span></div>` +
     `<div class="ds-list-sub">Cible : ${bindingTargetHtml(binding, runtimesById)}</div>` +
     `<div class="ds-list-sub">${project} · propriétaire ${esc(shortId(binding.owner_user_id))} · créé le ${fmtTime(binding.created_at)}</div>` +
@@ -705,7 +704,7 @@ export function runtimeBindingsTableHtml(bindings: RuntimeBinding[]): string {
   const rows = bindings
     .map(
       (binding) =>
-        `<tr><td>${esc(kindMeta(binding.target_kind).singular)}</td><td><code class="mono">${esc(binding.target_stable_key)}</code></td>` +
+        `<tr><td>${esc(kindFr(binding.target_kind).singular)}</td><td><code class="mono">${esc(binding.target_stable_key)}</code></td>` +
         `<td>${esc(bindingScopeLabel(binding.level))}</td>` +
         `<td>${nonEmpty(binding.project_id) ? esc(shortId(binding.project_id)) : '<span class="meta">—</span>'}</td><td>${fmtTime(binding.created_at)}</td></tr>`,
     )
@@ -718,7 +717,7 @@ export function bindingsTableHtml(bindings: RuntimeBinding[], emptyMessage: stri
   const rows = bindings
     .map(
       (binding) =>
-        `<tr><td>${esc(kindMeta(binding.target_kind).singular)}</td><td><code class="mono">${esc(binding.target_stable_key)}</code></td>` +
+        `<tr><td>${esc(kindFr(binding.target_kind).singular)}</td><td><code class="mono">${esc(binding.target_stable_key)}</code></td>` +
         `<td>${esc(bindingScopeLabel(binding.level))}</td><td>${runtimeTargetSummary(binding.target)}</td></tr>`,
     )
     .join("");
@@ -747,7 +746,7 @@ function createBindingFormHtml(runtimes: RuntimeRegistration[], stableKeys: stri
     `<p class="meta">Un binding dit « pour cette clé logique, utiliser ce runtime ». Les niveaux sont des choix stockés ; le niveau gagnant est décidé par le serveur (voir Inspecteur). Le niveau « session » est éphémère et n'est jamais stocké ici.</p>` +
     `<label class="stack">Niveau <select name="level">${(STORED_RUNTIME_LEVELS as readonly RuntimeLevel[]).map((level) => `<option value="${esc(level)}">${esc(bindingScopeLabel(level))}</option>`).join("")}</select></label>` +
     `<label class="stack">Projet (niveaux projet uniquement) <input name="project_id" value="${esc(defaultProject)}" placeholder="uuid" /></label>` +
-    `<label class="stack">Type de cible <select name="target_kind"><option value="agent_definition">Agent Definition</option><option value="model_profile">Model Profile</option></select></label>` +
+    `<label class="stack">Type de cible <select name="target_kind"><option value="agent_definition">Définition d'agent</option><option value="model_profile">Profil de modèle</option></select></label>` +
     `<label class="stack">Clé logique cible <input name="target_stable_key" list="settings-stable-keys" required placeholder="clé stable" /></label>` +
     `<datalist id="settings-stable-keys">${datalist}</datalist>` +
     `<label class="stack">Runtime cible (registre) <select name="runtime_id"><option value="">— sélectionner un runtime —</option>${runtimeOptions}</select></label>` +
@@ -758,7 +757,7 @@ function createBindingFormHtml(runtimes: RuntimeRegistration[], stableKeys: stri
     `<label class="stack">Model <input name="model_ref" /></label>` +
     `${capabilityFieldsHtml()}</details>` +
     `<button type="submit" class="ds-btn ds-btn--primary">Créer le binding</button>` +
-    `<span class="meta">POST /runtime-bindings · Idempotency-Key par tentative · double soumission impossible</span>` +
+    `<span class="meta">Un envoi répété ne crée pas de doublon.</span>` +
     `<div data-msg class="meta" role="status" aria-live="polite"></div></form></details>`
   );
 }
@@ -781,7 +780,7 @@ export async function renderBindings(root: HTMLElement, ctx: ConfigurationContex
   ]);
   if (!bindings.ok) {
     root.innerHTML =
-      `<div class="settings">${settingsHeader("Paramètres", SETTINGS_DESCRIPTION, [{ label: "Recharger", id: "settings-bindings-reload" }])}${head}` +
+      `<div class="settings">${settingsHeader("Paramètres", SETTINGS_DESCRIPTION, [{ label: "Actualiser", id: "settings-bindings-reload" }])}${head}` +
       `<div class="state error" role="alert">Impossible de charger les bindings : ${esc(describeError(bindings.error))}</div></div>`;
     root.querySelector("#settings-bindings-reload")?.addEventListener("click", () => {
       void renderBindings(root, ctx);
@@ -797,7 +796,7 @@ export async function renderBindings(root: HTMLElement, ctx: ConfigurationContex
   const body = bindings.value.length === 0 ? bindingsEmptyHtml() : visible.length === 0 ? bindingsNoMatchHtml() : bindingsListHtml(visible, runtimesById);
   const degraded = runtimes.ok ? "" : `<p class="state error" role="alert">Runtimes indisponibles : ${esc(describeError(runtimes.error))} — les cibles du registre sont affichées sous forme d'identifiant.</p>`;
   root.innerHTML =
-    `<div class="settings">${settingsHeader("Paramètres", SETTINGS_DESCRIPTION, [{ label: "Recharger", id: "settings-bindings-reload" }])}${head}` +
+    `<div class="settings">${settingsHeader("Paramètres", SETTINGS_DESCRIPTION, [{ label: "Actualiser", id: "settings-bindings-reload" }])}${head}` +
     `<section class="settings-domain"><h2>Règles d'affectation (bindings)</h2>` +
     `<p class="settings-intro">Un binding est un choix stocké par clé logique, pas un runtime ni un agent. Les bindings de niveau « personnel » sont privés : ceux des autres utilisateurs ne sont jamais exposés par l'API.</p>` +
     (bindings.value.length === 0 ? "" : bindingsToolbarHtml(bindingsState, visible.length, bindings.value.length)) +
@@ -849,7 +848,7 @@ function bindBindingDeletes(root: HTMLElement, ctx: ConfigurationContext): void 
     button.addEventListener("click", () => {
       const bindingId = button.dataset["deleteBinding"];
       if (bindingId === undefined) return;
-      if (!window.confirm("Supprimer ce binding ? Le runtime visé n'est pas supprimé.")) return;
+      if (!window.confirm("Supprimer ce binding ? Cette règle d'affectation disparaît ; le runtime visé n'est pas supprimé.")) return;
       button.disabled = true;
       deleteRuntimeBinding(ctx.client, bindingId)
         .then(() => {
@@ -1000,7 +999,7 @@ function bindProjectTab(root: HTMLElement, ctx: ConfigurationContext, tab: "reso
     button.addEventListener("click", () => {
       const lockId = button.dataset["releaseLock"];
       if (lockId === undefined) return;
-      if (!window.confirm("Libérer ce verrou de projet ?")) return;
+      if (!window.confirm(CONFIRM_RELEASE_LOCK)) return;
       button.disabled = true;
       releaseLibraryLock(ctx.client, lockId)
         .then(() => {
@@ -1020,7 +1019,7 @@ async function projectResourcesHtml(ctx: ConfigurationContext, projectId: string
     .map(
       (resource) =>
         `<tr><td><a href="${esc(libraryKindHref(resource.kind, resource.id))}"><code class="mono">${esc(resource.stable_key)}</code></a></td>` +
-        `<td>${esc(kindMeta(resource.kind).singular)}</td><td>${esc(scopeLabel(resource.scope))}</td>` +
+        `<td>${esc(kindFr(resource.kind).singular)}</td><td>${esc(scopeLabel(resource.scope))}</td>` +
         `<td>${resource.active_version === 0 ? '<span class="meta">aucune</span>' : `v${resource.active_version}`}</td><td>${esc(statusLabelFr(resource.status))}</td></tr>`,
     )
     .join("");
@@ -1028,7 +1027,7 @@ async function projectResourcesHtml(ctx: ConfigurationContext, projectId: string
     resources.length === 0
       ? statusBlock("empty", "Aucune ressource de bibliothèque propre à ce projet.")
       : `<div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">Ressources de bibliothèque du projet</caption><thead><tr><th scope="col">Clé stable</th><th scope="col">Type</th><th scope="col">Portée</th><th scope="col">Active</th><th scope="col">Statut</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-  return `<h3>Ressources</h3><p class="meta">GET /library?project_id=… — définitions propres au projet. Les ressources Studio/Utilisateur ne sont pas des appartenances de projet.</p>${table}`;
+  return `<h3>Ressources</h3><p class="meta">Définitions propres au projet. Les ressources de portée Studio ou Utilisateur n'appartiennent pas à un projet.</p>${table}`;
 }
 
 async function projectLocksHtml(ctx: ConfigurationContext, projectId: string): Promise<string> {
@@ -1051,7 +1050,7 @@ async function projectLocksHtml(ctx: ConfigurationContext, projectId: string): P
     `<label>Identifiant de ressource <input name="resource_id" placeholder="uuid" required /></label>` +
     `<label>Version <input name="lock_version" type="number" min="1" required /></label>` +
     `<button type="submit" class="ds-btn">Poser le verrou</button>` +
-    `<span class="meta">POST /library-locks</span><div data-msg class="meta" role="status" aria-live="polite"></div></form>`
+    `<div data-msg class="meta" role="status" aria-live="polite"></div></form>`
   );
 }
 
@@ -1068,9 +1067,9 @@ async function projectOverridesHtml(ctx: ConfigurationContext, projectId: string
     return `<h3>${esc(title)}</h3><p class="meta">${esc(meta)}</p>${body}`;
   };
   return (
-    section("Overrides de projet", "GET /runtime-bindings?project_id=…&level=project_override — épinglage explicite pour ce projet.", overrides, "Aucun override de projet.") +
-    section("Défauts de projet", "level=project_default — repli pour ce projet, distinct d'un override.", defaults, "Aucun défaut de projet.") +
-    section("Défauts de studio", "level=studio_default — affichés uniquement si le serveur les renvoie pour ce jeton.", studioDefaults, "Aucun défaut de studio visible.") +
+    section("Overrides de projet", "Épinglage explicite pour ce projet.", overrides, "Aucun override de projet.") +
+    section("Défauts de projet", "Repli pour ce projet, distinct d'un override.", defaults, "Aucun défaut de projet.") +
+    section("Défauts de studio", "Affichés uniquement si le serveur les renvoie pour ce jeton.", studioDefaults, "Aucun défaut de studio visible.") +
     `<p><a href="#/inspector">Ouvrir l'Inspecteur de résolution</a> pour voir quel niveau gagne réellement pour une AgentDefinition donnée.</p>`
   );
 }

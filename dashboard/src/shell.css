@@ -96,20 +96,6 @@
   flex: none;
   opacity: 0.85;
 }
-.app-navitem-disabled {
-  display: flex;
-  align-items: center;
-  gap: var(--ds-space-3);
-  min-height: var(--ds-target);
-  padding: var(--ds-space-2) var(--ds-space-3);
-  color: var(--ds-navy-muted);
-  font-size: var(--ds-text-base);
-  cursor: not-allowed;
-}
-.app-navitem-disabled .ds-badge {
-  margin-left: auto;
-}
-
 .app-sidebar-foot {
   display: grid;
   gap: var(--ds-space-3);
@@ -222,17 +208,12 @@
 .app-col main {
   padding: var(--ds-space-6);
   max-width: 1080px;
+  /* Le skip-link amène le focus ici : ne jamais laisser le haut sous la barre collante. */
+  scroll-margin-top: 60px;
 }
 .app-col .conflict-banner {
   margin: var(--ds-space-4) var(--ds-space-6) 0;
   max-width: 1080px;
-}
-
-/* Pastille « Bientôt » sur fond nuit. */
-.app-sidebar .ds-badge {
-  background: transparent;
-  border-color: rgb(255 255 255 / 0.3);
-  color: var(--ds-navy-muted);
 }
 
 /* Focus visible renforcé sur fond nuit. */

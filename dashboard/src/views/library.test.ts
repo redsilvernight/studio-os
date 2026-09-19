@@ -9,6 +9,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { scopeLabel } from "../libraryFormat";
 import {
   createFormFieldsHtml,
   dependenciesTableHtml,
@@ -22,7 +23,6 @@ import {
   libraryTabsHtml,
   locksTableHtml,
   resourcesTableHtml,
-  scopeLabelFr,
   shadowNoteHtml,
   statusLabelFr,
   versionContentHtml,
@@ -120,9 +120,9 @@ describe("vocabulaire français (présentation seule)", () => {
   it("ne traduit jamais les valeurs de contrat", () => {
     expect(kindFr("rule").kind).toBe("rule");
     expect(kindFr("agent_definition").slug).toBe("agent-definitions");
-    expect(scopeLabelFr("studio")).toBe("Studio");
-    expect(scopeLabelFr("project")).toBe("Projet");
-    expect(scopeLabelFr("user")).toBe("Utilisateur");
+    expect(scopeLabel("studio")).toBe("Studio");
+    expect(scopeLabel("project")).toBe("Projet");
+    expect(scopeLabel("user")).toBe("Utilisateur");
     expect(statusLabelFr("draft")).toBe("Brouillon");
     expect(statusLabelFr("active")).toBe("Actif");
     expect(statusLabelFr("deprecated")).toBe("Déprécié");
@@ -198,7 +198,7 @@ describe("libraryKindPageHtml (liste #/library/<kind>)", () => {
 
   it("ne montre aucune information technique au premier plan", () => {
     const html = libraryKindPageHtml("rule", all, blank);
-    const [foreground] = html.split("Détails techniques");
+    const [foreground] = html.split("Informations techniques");
     expect(foreground ?? html).not.toContain("content_schema");
     expect(foreground ?? html).not.toContain("payload");
     expect(html).not.toContain("11111111-1111-4111-8111-111111111111".slice(0, 36).replace(/-/g, "") + "x");
@@ -276,11 +276,11 @@ describe("createFormFieldsHtml (POST /library, Idempotency-Key par tentative)", 
     expect(workflow).toContain("Entrées du flux");
   });
 
-  it("garde les erreurs accessibles et la mention d'idempotence", () => {
+  it("garde les erreurs accessibles et la mention de non-duplication", () => {
     const html = createFormFieldsHtml("rule");
     expect(html).toContain('data-msg');
     expect(html).toContain('role="alert"');
-    expect(html).toContain("idempotence");
+    expect(html).toContain("Un envoi répété ne crée pas de doublon.");
   });
 });
 
@@ -297,8 +297,8 @@ describe("libraryDetailHtml (#/library/<kind>/<id>)", () => {
     expect(html).toContain("Coding standard v2");
     expect(html).toContain("Always verify twice.");
     expect(html).toContain("Contenu actuel — v2");
-    // L'UUID complet n'apparaît qu'après le repli « Détails techniques ».
-    const [reading, tech] = html.split("Détails techniques");
+    // L'UUID complet n'apparaît qu'après le repli « Informations techniques ».
+    const [reading, tech] = html.split("Informations techniques");
     expect(reading ?? "").not.toContain("11111111-1111-4111-8111-111111111111");
     expect(tech ?? "").toContain("11111111-1111-4111-8111-111111111111");
   });
@@ -314,11 +314,11 @@ describe("libraryDetailHtml (#/library/<kind>/<id>)", () => {
   it("replie les détails techniques par défaut", () => {
     const html = libraryDetailHtml(resource({}), versions, [], []);
     expect(html).toContain("<details");
-    expect(html).toContain("Détails techniques");
+    expect(html).toContain("Informations techniques");
     expect(html).toContain("content_schema");
     expect(html).toContain("studio.library.rule/v1");
     // Technique après le contenu de lecture.
-    expect(html.indexOf("Contenu actuel")).toBeLessThan(html.indexOf("Détails techniques"));
+    expect(html.indexOf("Contenu actuel")).toBeLessThan(html.indexOf("Informations techniques"));
   });
 
   it("garde l'historique accessible sans dominer : versions repliables, active ouverte", () => {

@@ -85,7 +85,7 @@ function cardHtml(project: Project): string {
   return `<li class="ds-card project-card"><div class="project-card-top"><h2 class="project-card-title"><a href="#/projects/${esc(project.id)}" data-open="${esc(project.id)}">${esc(project.name)}</a></h2>${badge}</div>` +
     `${desc}` +
     `<p class="ds-list-sub"><code class="mono">${esc(project.slug)}</code></p>` +
-    `<details class="project-card-tech"><summary>Détails techniques</summary><dl>` +
+    `<details class="project-card-tech"><summary>Informations techniques</summary><dl>` +
     `<div><dt>Identifiant</dt><dd><code class="mono">${esc(project.id)}</code></dd></div>` +
     `<div><dt>Version</dt><dd>${project.version}</dd></div>` +
     `<div><dt>Créé le</dt><dd>${fmtTime(project.created_at)}</dd></div>` +
@@ -100,7 +100,7 @@ export function projectCreateFormHtml(): string {
     dsField("project-slug", "Slug", `<input class="ds-input" id="FIELD" name="slug" required placeholder="mon-projet" autocomplete="off" />`, "Identifiant lisible, sans espaces.") +
     dsField("project-name", "Nom", `<input class="ds-input" id="FIELD" name="name" required autocomplete="off" />`) +
     dsField("project-desc", "Description (facultative)", `<textarea class="ds-textarea" id="FIELD" name="description" rows="3"></textarea>`) +
-    `<p class="ds-list-sub">POST /projects · admin/developer · clé d'idempotence générée par tentative.</p>` +
+    `<p class="ds-list-sub">Réservé aux administrateurs et aux développeurs. Un envoi répété ne crée pas de doublon.</p>` +
     `<div class="ds-field-error" id="project-create-error" role="alert" hidden></div>` +
     `<div class="ds-dialog-actions"><button class="ds-btn" type="button" data-ds-close>Annuler</button>` +
     `<button class="ds-btn ds-btn--primary" type="submit" id="project-create-submit">Créer le projet</button></div>` +

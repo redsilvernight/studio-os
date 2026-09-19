@@ -302,11 +302,11 @@ test.describe("UI-4 projets et workspace", () => {
     expect(fatal).toEqual([]);
   });
 
-  test("claims : explication soft-lock, Create/Renew/Release préservés", async ({ page }) => {
+  test("claims : explication non bloquante, Create/Renew/Release préservés", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     await login(page, `#/projects/${P1}/claims`);
     const view = page.locator("#view");
-    await expect(view).toContainText("verrou souple");
+    await expect(view).toContainText("sans jamais bloquer Git");
     await expect(view).toContainText("godot/scenes/niveau.tscn");
     await expect(view.locator("[data-renew]")).toHaveCount(2);
     await expect(view.locator("[data-release]")).toHaveCount(2);

@@ -194,9 +194,12 @@ function syncRealtimeConnection(): void {
  * de lecture dans la page. Réservé aux navigations explicites (hashchange) :
  * le rendu initial et les re-rendus temps réel ne volent jamais le focus,
  * pour préserver le premier Tab vers le skip-link (invariant UI-2/UI-13).
+ * Une nouvelle page démarre en haut : sans remise à zéro, le défilement de la
+ * vue précédente subsiste et le titre reste masqué (sous la barre collante).
  */
 function focusView(): void {
-  document.getElementById("view")?.focus();
+  window.scrollTo(0, 0);
+  document.getElementById("view")?.focus({ preventScroll: true });
 }
 
 function openDrawer(): void {
