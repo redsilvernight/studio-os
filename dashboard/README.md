@@ -1,4 +1,4 @@
-# Studi'OS Dashboard — V0 (DASH-0 → DASH-5, P12) + refonte UI (UI-1)
+# Studi'OS Dashboard — V0 (DASH-0 → DASH-5, P12) + refonte UI/UX terminée (UI-1 → UI-16)
 
 Human read-only client of the canonical Studi'OS HTTP API + SSE.
 No direct Postgres, no MCP-for-REST, no duplicated business logic,
@@ -336,6 +336,7 @@ endpoint exists), and Activity/Worklogs views (nav entries stay disabled).
 ## Design System (UI-1, DEC-0078) — refonte UI/UX
 
 Roadmap: `docs/StudiOS_Roadmap_Refonte_UI_UX.pdf` (baseline UI-0 acceptée).
+**Refonte UI/UX terminée** : UI-1 → UI-16 intégrées (clôture : DEC-0081). Les évolutions suivantes sont des features, correctifs ou maintenance.
 Thème clair unique (le sombre est supprimé comme référence), interface en
 français (termes backend/code inchangés), TypeScript vanilla sans framework.
 
