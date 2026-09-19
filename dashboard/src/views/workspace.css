@@ -76,6 +76,13 @@
   min-width: 0;
 }
 
+/* UI-15 : l'emplacement de contenu async (onglets Tâches/Réservations)
+   doit pouvoir rétrécir sous le min-content de son contenu (table, lignes
+   à titre nowrap) ; le scroll reste local au tableau, jamais global. */
+.workspace-panel [data-slot] {
+  min-width: 0;
+}
+
 /* Tableaux hérités (Tâches/Claims) : scroll horizontal sur petits écrans. */
 .workspace-panel table {
   display: block;
