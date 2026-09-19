@@ -13,7 +13,6 @@ import { initialTransfersFilterState, type TransfersFilterContext } from "../tra
 import {
   transferDrawerBodyHtml,
   transferStatusHtml,
-  transfersEmptyHtml,
   transfersLoadingHtml,
   transfersPageHtml,
   transfersToolbarHtml,

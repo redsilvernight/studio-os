@@ -204,3 +204,22 @@
     display: none;
   }
 }
+
+/* Onglet Réservations : formulaire de création aéré, champs en grille. */
+.claims-create {
+  margin-top: var(--ds-space-6);
+}
+.claims-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--ds-space-4);
+  align-items: start;
+}
+.claims-form > p,
+.claims-form > button,
+.claims-form > [data-create-msg] {
+  grid-column: 1 / -1;
+}
+.claims-form > button {
+  justify-self: start;
+}

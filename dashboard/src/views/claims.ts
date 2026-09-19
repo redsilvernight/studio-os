@@ -64,7 +64,7 @@ function rowsHtml(claims: ResourceClaim[], authed: boolean): string {
 function createFormHtml(authed: boolean): string {
   const off = authed ? "" : " disabled";
   return (
-    `<form data-create>` +
+    `<form data-create class="claims-form">` +
     dsField("claim-path", "Chemin", `<input class="ds-input" id="FIELD" name="resource_path" required placeholder="godot/scenes/level1.tscn" autocomplete="off"${off} />`) +
     dsField("claim-type", "Type", `<select class="ds-select" id="FIELD" name="resource_type"${off}><option value="file">Fichier</option><option value="folder">Dossier</option></select>`) +
     dsField("claim-ttl", "Durée (secondes)", `<input class="ds-input" id="FIELD" name="ttl_seconds" type="number" min="1" value="3600" required${off} />`, "La réservation expire d'elle-même à l'issue de cette durée.") +
@@ -93,7 +93,7 @@ export async function renderClaimsInto(root: HTMLElement, ctx: ClaimsContext): P
     root.innerHTML = panelHtml(
       `${claims.length} réservation(s) · renouvellement et libération réservés au détenteur ou à un administrateur`,
       `${ctx.authed ? "" : `<p class="ds-list-sub">Lecture seule : connectez-vous pour créer, renouveler ou libérer.</p>`}${table}` +
-        `<div>${dsSectionHeader("Nouvelle réservation")}${createFormHtml(ctx.authed)}</div>` +
+        `<div class="claims-create">${dsSectionHeader("Nouvelle réservation")}${createFormHtml(ctx.authed)}</div>` +
         `<div data-msg class="ds-list-sub" role="status"></div>`,
     );
     bind(root, ctx, reload);

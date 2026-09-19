@@ -29,7 +29,6 @@ import {
   contentSchema,
   contentText,
   kindFromSlug,
-  kindMeta,
   libraryKindHref,
   parseWorkflowContent,
   relationLabel,
@@ -585,8 +584,8 @@ export function libraryKindPageHtml(kind: LibraryKind, resources: LibraryResourc
     body = resourcesTableHtml(visible);
   }
   return (
-    `${libraryTabsHtml(fr.slug)}${header}` +
-    `<p><a href="#/library">← Retour à la bibliothèque</a></p>` +
+    `${libraryTabsHtml(fr.slug)}` +
+    `<p><a href="#/library">← Retour à la bibliothèque</a></p>${header}` +
     `${listToolbarHtml(fr, state, visible.length, resources.length)}` +
     `${shadowNoteHtml(resources)}${body}`
   );

@@ -38,18 +38,13 @@ import {
   dsAgentBadge,
 } from "../ds/ds";
 import { resolveReview, type ReviewResolution } from "../reviewApi";
-import { describeError, esc, fmtTime, shortId, idCell } from "../ui";
+import { describeError, esc, fmtTime, shortId } from "../ui";
 import type { components } from "../openapi-schema";
 
 type Decision = components["schemas"]["Decision"];
 type DecisionCreate = components["schemas"]["DecisionCreate"];
 type ReviewQueue = components["schemas"]["ReviewQueue"];
 type ReviewQueueItem = ReviewQueue["items"][number];
-type ReviewQueueAIWorkItem = components["schemas"]["ReviewQueueAIWorkItem"];
-type ReviewQueueDecisionItem = components["schemas"]["ReviewQueueDecisionItem"];
-type ReviewQueueConflictItem = components["schemas"]["ReviewQueueConflictItem"];
-type ReviewQueueBuildItem = components["schemas"]["ReviewQueueBuildItem"];
-type ReviewQueuePRItem = components["schemas"]["ReviewQueuePRItem"];
 
 export type { Decision, DecisionCreate, ReviewQueue, ReviewQueueItem };
 
@@ -413,14 +408,12 @@ export async function renderDecisionsV2(root: HTMLElement, ctx: DecisionsContext
   root.innerHTML =
     decisionsPageHeader(projectId) +
     decisionsTabsHtml("review") +
-    `<div id="review-modal-host"></div>` +
     `<div id="decision-modal-host"></div>`;
 
   initDsTabs(root, "decisions-main");
 
   const reviewPanel = root.querySelector<HTMLElement>("#review-panel");
   const decisionsPanel = root.querySelector<HTMLElement>("#decisions-panel");
-  const reviewModalHost = root.querySelector<HTMLElement>("#review-modal-host");
   const decisionModalHost = root.querySelector<HTMLElement>("#decision-modal-host");
 
   // Rendu Review Queue

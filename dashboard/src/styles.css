@@ -13,67 +13,6 @@ body {
 
 #app { max-width: 1280px; margin: 0 auto; padding: 0 16px 48px; }
 
-.topbar {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--line);
-  flex-wrap: wrap;
-}
-
-.brand { font-size: 16px; font-weight: 700; }
-.brand .v0 { color: var(--dim); font-weight: 400; font-size: 12px; }
-
-.nav { display: flex; gap: 4px; flex-wrap: wrap; }
-.nav-item {
-  padding: 4px 10px;
-  border-radius: 4px;
-  color: var(--dim);
-  font-size: 12px;
-  text-decoration: none;
-}
-.nav-item.active { background: var(--panel); color: var(--text); border: 1px solid var(--line); }
-a.nav-item:hover { color: var(--text); }
-.nav-item.disabled { opacity: 0.55; cursor: not-allowed; }
-.badge {
-  margin-left: 6px;
-  font-size: 10px;
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  padding: 0 4px;
-  color: var(--dim);
-}
-
-.api-url { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--dim); }
-
-.tokenbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--line);
-  flex-wrap: wrap;
-}
-.tokenbar input {
-  width: 280px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  color: var(--text);
-  border-radius: 4px;
-  padding: 5px 8px;
-  font-family: var(--mono);
-  font-size: 12px;
-}
-.tokenbar button {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  color: var(--text);
-  border-radius: 4px;
-  padding: 5px 12px;
-  cursor: pointer;
-}
-.tokenbar button:hover { border-color: var(--accent); }
 .meta { color: var(--dim); font-size: 11px; }
 .meta.warn { color: var(--warn); }
 
@@ -163,26 +102,34 @@ select {
   padding: 4px 8px;
 }
 
-/* UI-15 : les onglets legacy (Bibliothèque, Paramètres) passent à la ligne
-   sur étroit au lieu de déborder — les deep links sont inchangés. */
-.tabs { display: flex; gap: 4px; margin-top: 8px; flex-wrap: wrap; }
+/* Onglets de navigation (Bibliothèque, Paramètres) : même rendu que les
+   onglets DS (soulignement), avec retour à la ligne sur étroit (UI-15) —
+   les liens profonds restent des liens. */
+.tabs {
+  display: flex;
+  gap: var(--ds-space-1);
+  margin-top: var(--ds-space-2);
+  flex-wrap: wrap;
+  border-bottom: 2px solid var(--ds-border);
+}
 .tab {
-  padding: 4px 12px;
-  border: 1px solid var(--line);
-  border-radius: 4px 4px 0 0;
-  color: var(--dim);
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ds-target);
+  padding: var(--ds-space-2) var(--ds-space-4);
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-base);
+  font-weight: 600;
   text-decoration: none;
 }
-.tab.active { color: var(--text); background: var(--bg); border-bottom-color: var(--bg); }
+.tab:hover { color: var(--ds-text); }
+.tab.active { color: var(--ds-action); border-bottom-color: var(--ds-action); }
 
 tr.selected td { background: var(--ds-action-soft); }
 
 .detail-grid { display: grid; gap: 4px; margin-bottom: 8px; font-size: 12px; }
-.stats { display: flex; gap: 16px; }
-
-.card-actions { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
-.card-actions select { font-size: 11px; padding: 2px 4px; }
 button, .card button {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -274,6 +221,9 @@ td.actions button { margin-right: 4px; }
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+/* Verdict en phrase : seul le mot-clé est en capitales, pas toute la phrase. */
+p.status { text-transform: none; letter-spacing: 0; font-size: var(--ds-text-base); }
+p.status strong { text-transform: uppercase; letter-spacing: 0.04em; }
 .status.ok { color: var(--ok); }
 .status.warn { color: var(--warn); }
 .status.bad { color: var(--bad); }

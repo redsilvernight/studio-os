@@ -9,9 +9,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   REVIEW_KIND_LABEL,
-  REVIEW_KIND_TONE,
   DECISION_STATUS_LABEL,
-  DECISION_STATUS_TONE,
   PROPOSER_TYPE_LABEL,
   reviewQueueItemDetail,
   reviewItemHtml,
@@ -25,7 +23,6 @@ import {
 } from "./decisionsV2";
 
 const P1 = "11111111-2222-4333-8444-555555555555";
-const P2 = "22222222-3333-4444-9555-666666666666";
 const A1 = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 const T1 = "tttttttt-uuuu-vvvv-wwww-xxxxxxxxxxxx";
 

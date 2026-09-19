@@ -25,7 +25,6 @@ import type { StudioClient } from "../api";
 import { ApiError, parseErrorBody } from "../api";
 import { getToken } from "../auth";
 import {
-  activeSessions,
   activityLabelFr,
   buildMachineRows,
   fetchAgents,
@@ -56,7 +55,6 @@ import {
   openDsDialog,
 } from "../ds/ds";
 import { describeError, esc, fmtTime, shortId } from "../ui";
-import { parseRoute } from "../router";
 import "./machines.css";
 
 export interface MachinesContext {

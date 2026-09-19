@@ -326,7 +326,7 @@ describe("rulesTableHtml / skillsTableHtml", () => {
     const fixture = resolved();
     fixture.rules![0]!.deprecated = true;
     const html = rulesTableHtml(fixture.rules);
-    expect(html).toContain("deprecated");
+    expect(html).toContain("Déprécié");
     expect(html).toContain("status bad");
   });
 

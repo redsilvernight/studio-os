@@ -374,7 +374,7 @@ export function uploadModalBodyHtml(projects: Project[], consumption: TransferCo
     .join("");
   return (
     `<form data-upload class="transfer-upload-form">` +
-    dsField("transfer-file", "Fichier", `<input class="ds-input" type="file" id="FIELD" name="file" required />`, "Les octets vont directement au stockage via des URL signées, jamais via l'API.") +
+    dsField("transfer-file", "Fichier", `<input class="ds-input" type="file" id="FIELD" name="file" required />`, "Le fichier est envoyé directement au stockage, sans passer par le serveur d'API.") +
     `<p class="ds-list-sub" data-file-info role="status" aria-live="polite"></p>` +
     projectSelectHtml(projects, quota) +
     dsField("transfer-recipient", "Destinataire (identifiant utilisateur, optionnel)", `<input class="ds-input" type="text" id="FIELD" name="recipient_user_id" placeholder="uuid" autocomplete="off" />`, "Laissez vide pour diffuser aux destinataires autorisés. Aucun annuaire utilisateur n'est consultable ici.") +

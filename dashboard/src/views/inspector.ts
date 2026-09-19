@@ -122,7 +122,7 @@ export function inspectorFormHtml(stableKey: string | null, projectId: string | 
 
 export function identityHtml(resolved: ResolvedAgentDefinition): string {
   const agent = resolved.agent;
-  const deprecated = agent.deprecated ? ' <span class="status bad">deprecated</span>' : "";
+  const deprecated = agent.deprecated ? ' <span class="status bad">Déprécié</span>' : "";
   return (
     `<dl class="detail-grid">` +
     `<dt>AgentDefinition</dt><dd>${resourceLink("agent_definition", agent.resource_id, agent.stable_key)}${deprecated}</dd>` +
@@ -149,7 +149,7 @@ export function rulesTableHtml(rules: ResolvedRule[] | undefined): string {
   const rows = list
     .map(
       (rule) =>
-        `<tr><td>${resourceLink("rule", rule.resource_id, rule.stable_key)}${rule.deprecated ? ' <span class="status bad">deprecated</span>' : ""}</td>` +
+        `<tr><td>${resourceLink("rule", rule.resource_id, rule.stable_key)}${rule.deprecated ? ' <span class="status bad">Déprécié</span>' : ""}</td>` +
         `<td>v${rule.version}</td><td>${esc(versionOriginLabel(rule.version_origin))}</td><td>${esc(scopeLabel(rule.scope))}</td>` +
         `<td>${rulePathsHtml(rule)}</td></tr>`,
     )
@@ -163,7 +163,7 @@ export function skillsTableHtml(skills: ResolvedSkill[] | undefined): string {
   const rows = list
     .map(
       (skill) =>
-        `<tr><td>${resourceLink("skill", skill.resource_id, skill.stable_key)}${skill.deprecated ? ' <span class="status bad">deprecated</span>' : ""}</td>` +
+        `<tr><td>${resourceLink("skill", skill.resource_id, skill.stable_key)}${skill.deprecated ? ' <span class="status bad">Déprécié</span>' : ""}</td>` +
         `<td>v${skill.version}</td><td>${esc(versionOriginLabel(skill.version_origin))}</td><td>${esc(scopeLabel(skill.scope))}</td>` +
         `<td>${esc(provenanceReason(skill.provenance))}</td></tr>`,
     )

@@ -108,12 +108,6 @@ function ageMs(iso: string | null | undefined, now: number): number | null {
   return Math.max(now - time, 0);
 }
 
-function newest(current: string | null, candidate: string | null | undefined): string | null {
-  if (candidate === null || candidate === undefined || candidate === "") return current;
-  if (current === null) return candidate;
-  return new Date(candidate).getTime() > new Date(current).getTime() ? candidate : current;
-}
-
 /**
  * Dérive l'activité d'un agent depuis les seules relations réelles
  * (`session.agent_id`, `ai-work.agent_id`, `task.claimed_by_agent_id`,
