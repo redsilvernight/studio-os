@@ -4,6 +4,14 @@
  * couche de tokens (seuls les 4 bleu nuit vivent en tokens.css).
  */
 
+/* Le shell occupe toute la fenêtre : la contrainte historique de #app
+   (1280 px, écran de connexion) ne s'applique qu'hors shell. */
+#app:has(.app-shell) {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 264px minmax(0, 1fr);
@@ -206,14 +214,20 @@
   font-weight: 600;
 }
 .app-col main {
-  padding: var(--ds-space-6);
-  max-width: 1080px;
+  padding: var(--ds-space-8);
+  width: 100%;
+  max-width: var(--ds-content-wide);
+  /* Centré dans la colonne : sur grand écran l'espace vide se répartit des
+     deux côtés au lieu de s'accumuler à droite. Chaque page borne sa propre
+     mesure (bord gauche commun). */
+  margin-inline: auto;
   /* Le skip-link amène le focus ici : ne jamais laisser le haut sous la barre collante. */
   scroll-margin-top: 60px;
 }
 .app-col .conflict-banner {
-  margin: var(--ds-space-4) var(--ds-space-6) 0;
-  max-width: 1080px;
+  margin: var(--ds-space-4) auto 0;
+  width: calc(100% - 2 * var(--ds-space-8));
+  max-width: calc(var(--ds-content-wide) - 2 * var(--ds-space-8));
 }
 
 /* Focus visible renforcé sur fond nuit. */
@@ -254,6 +268,9 @@
   }
   .app-col main {
     padding: var(--ds-space-4);
+  }
+  .app-col .conflict-banner {
+    width: calc(100% - 2 * var(--ds-space-4));
   }
   .app-topbar {
     padding: var(--ds-space-2) var(--ds-space-4);

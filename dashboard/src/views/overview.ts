@@ -201,10 +201,10 @@ export function pickHomeProjects(projects: Project[]): Project[] {
 export function homeProjectsHtml(result: HomeResult<Project[]>): string {
   const header = dsSectionHeader("Projets", { label: "Voir tous les projets", href: "#/projects" });
   if (!result.ok) {
-    return `<section class="home-section" aria-labelledby="home-projets"><div id="home-projets">${header}</div><div class="ds-notice ds-notice--danger"><strong>Projets indisponibles.</strong>${esc(result.message)}</div></section>`;
+    return `<section class="home-section home-section--projects" aria-labelledby="home-projets"><div id="home-projets">${header}</div><div class="ds-notice ds-notice--danger"><strong>Projets indisponibles.</strong>${esc(result.message)}</div></section>`;
   }
   if (result.value.length === 0) {
-    return `<section class="home-section" aria-labelledby="home-projets"><div id="home-projets">${header}</div>${dsEmptyState("Aucun projet", "Créez votre premier projet pour commencer.", { label: "Voir les projets", href: "#/projects" })}</section>`;
+    return `<section class="home-section home-section--projects" aria-labelledby="home-projets"><div id="home-projets">${header}</div>${dsEmptyState("Aucun projet", "Créez votre premier projet pour commencer.", { label: "Voir les projets", href: "#/projects" })}</section>`;
   }
   const items = pickHomeProjects(result.value)
     .map((p) => {
@@ -214,7 +214,7 @@ export function homeProjectsHtml(result: HomeResult<Project[]>): string {
       return `<li class="ds-list-item"><div class="grow"><div class="ds-list-title"><a href="#/projects/${esc(p.id)}">${esc(p.name)}</a></div>${desc}</div>${badge}</li>`;
     })
     .join("");
-  return `<section class="home-section" aria-labelledby="home-projets"><div id="home-projets">${header}</div><ul class="ds-list">${items}</ul></section>`;
+  return `<section class="home-section home-section--projects" aria-labelledby="home-projets"><div id="home-projets">${header}</div><ul class="ds-list ds-list--card">${items}</ul></section>`;
 }
 
 function taskTone(status: string): "neutral" | "info" | "warning" | "success" {
@@ -233,11 +233,11 @@ function taskTone(status: string): "neutral" | "info" | "warning" | "success" {
 export function homeTasksHtml(result: HomeResult<Task[]>, projects: Project[]): string {
   const header = dsSectionHeader("Travail en cours", { label: "Voir toutes les tâches", href: "#/tasks" });
   if (!result.ok) {
-    return `<section class="home-section" aria-labelledby="home-travail"><div id="home-travail">${header}</div><div class="ds-notice ds-notice--danger"><strong>Tâches indisponibles.</strong>${esc(result.message)}</div></section>`;
+    return `<section class="home-section home-section--work" aria-labelledby="home-travail"><div id="home-travail">${header}</div><div class="ds-notice ds-notice--danger"><strong>Tâches indisponibles.</strong>${esc(result.message)}</div></section>`;
   }
   const active = result.value.filter((t) => t.status !== "completed").slice(0, HOME_WORK_LIMIT);
   if (active.length === 0) {
-    return `<section class="home-section" aria-labelledby="home-travail"><div id="home-travail">${header}</div>${dsEmptyState("Rien en cours", "Aucune tâche active pour le moment.", { label: "Voir les tâches", href: "#/tasks" })}</section>`;
+    return `<section class="home-section home-section--work" aria-labelledby="home-travail"><div id="home-travail">${header}</div>${dsEmptyState("Rien en cours", "Aucune tâche active pour le moment.", { label: "Voir les tâches", href: "#/tasks" })}</section>`;
   }
   const names = new Map(projects.map((p) => [p.id, p.name]));
   const items = active
@@ -247,7 +247,7 @@ export function homeTasksHtml(result: HomeResult<Task[]>, projects: Project[]): 
       return `<li class="ds-list-item"><div class="grow"><div class="ds-list-title"><a href="#/tasks/${esc(t.id)}">${esc(t.title)}</a></div><div class="ds-list-sub">${esc(project)} · ${esc(label)}</div></div>${dsBadge(label, taskTone(t.status))}</li>`;
     })
     .join("");
-  return `<section class="home-section" aria-labelledby="home-travail"><div id="home-travail">${header}</div><ul class="ds-list">${items}</ul></section>`;
+  return `<section class="home-section home-section--work" aria-labelledby="home-travail"><div id="home-travail">${header}</div><ul class="ds-list ds-list--card">${items}</ul></section>`;
 }
 
 export function reviewActionsHtml(item: ReviewQueueItem, authed: boolean): string {
@@ -259,11 +259,11 @@ export function reviewActionsHtml(item: ReviewQueueItem, authed: boolean): strin
 export function homeReviewHtml(result: HomeResult<ReviewQueue | null>, authed: boolean): string {
   const header = dsSectionHeader("À examiner", { label: "Voir les décisions", href: "#/decisions" });
   if (!result.ok) {
-    return `<section class="home-section" aria-labelledby="home-examiner"><div id="home-examiner">${header}</div><div class="ds-notice ds-notice--danger"><strong>File d'examen indisponible.</strong>${esc(result.message)}</div></section>`;
+    return `<section class="home-section home-section--review" aria-labelledby="home-examiner"><div id="home-examiner">${header}</div><div class="ds-notice ds-notice--danger"><strong>File d'examen indisponible.</strong>${esc(result.message)}</div></section>`;
   }
   const items = result.value?.items ?? [];
   if (items.length === 0) {
-    return `<section class="home-section" aria-labelledby="home-examiner"><div id="home-examiner">${header}</div>${dsEmptyState("Rien à examiner", "Aucun élément n'attend une décision humaine.", { label: "Voir les décisions", href: "#/decisions" })}</section>`;
+    return `<section class="home-section home-section--review" aria-labelledby="home-examiner"><div id="home-examiner">${header}</div>${dsEmptyState("Rien à examiner", "Aucun élément n'attend une décision humaine.", { label: "Voir les décisions", href: "#/decisions" })}</section>`;
   }
   const shown = items.slice(0, HOME_REVIEW_LIMIT);
   const rows = shown
@@ -273,7 +273,7 @@ export function homeReviewHtml(result: HomeResult<ReviewQueue | null>, authed: b
     })
     .join("");
   const more = items.length > shown.length ? `<p class="ds-list-sub">+ ${items.length - shown.length} autre(s) — voir les décisions.</p>` : "";
-  return `<section class="home-section" aria-labelledby="home-examiner"><div id="home-examiner">${header}</div><p class="ds-list-sub">${items.length} élément(s) à examiner.</p><ul class="ds-list">${rows}</ul>${more}<div data-review-msg class="ds-list-sub" role="status"></div></section>`;
+  return `<section class="home-section home-section--review" aria-labelledby="home-examiner"><div id="home-examiner">${header}</div><p class="ds-list-sub">${items.length} élément(s) à examiner.</p><ul class="ds-list ds-list--card">${rows}</ul>${more}<div data-review-msg class="ds-list-sub" role="status"></div></section>`;
 }
 
 /** Signal discret uniquement si un envoi est réellement en cours. */

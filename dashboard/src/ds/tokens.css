@@ -64,9 +64,11 @@
   --ds-text-xs: 12px;
   --ds-text-sm: 13px;
   --ds-text-base: 14px;
+  --ds-text-md: 15px;
   --ds-text-lg: 17px;
   --ds-text-xl: 21px;
   --ds-text-2xl: 26px;
+  --ds-text-3xl: 30px;
   --ds-leading: 1.55;
 
   /* Espacements (échelle 4 px, respiration volontaire) */
@@ -93,6 +95,14 @@
   --ds-bp-sm: 640px;
   --ds-bp-md: 900px;
   --ds-bp-lg: 1280px;
+
+  /* Largeurs de contenu (Visual Polish V2) : la zone principale est centrée
+     dans la colonne ; chaque page choisit sa mesure. Large = surfaces de
+     travail (Accueil, Projets, Tâches), défaut = pages mixtes, lecture =
+     texte long. */
+  --ds-content-wide: 1320px;
+  --ds-content-default: 1120px;
+  --ds-content-reading: 880px;
 
   /* Z-index */
   --ds-z-skip: 300;

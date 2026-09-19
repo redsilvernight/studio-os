@@ -7,7 +7,7 @@
 .workspace {
   display: grid;
   gap: var(--ds-space-4);
-  max-width: 1020px;
+  max-width: var(--ds-content-default);
   padding-bottom: var(--ds-space-12);
 }
 

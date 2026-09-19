@@ -390,14 +390,41 @@ summary:focus-visible,
   min-width: 0;
 }
 .ds-list-title {
+  font-size: var(--ds-text-md);
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Titre d'élément : encre principale, souligné seulement au survol/focus
+   (le contenu attire l'œil avant les liens secondaires). */
+.ds-list-title a {
+  color: var(--ds-text);
+  text-decoration: none;
+}
+.ds-list-title a:hover {
+  color: var(--ds-action);
+  text-decoration: underline;
+}
 .ds-list-sub {
   color: var(--ds-text-muted);
   font-size: var(--ds-text-sm);
+}
+
+/* Liste en surface : un groupe logique = une carte (bordure, rayon, ombre
+   très légère) ; les lignes restent séparées par un filet. */
+.ds-list--card {
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  box-shadow: var(--ds-shadow-sm);
+  overflow: hidden;
+}
+.ds-list--card .ds-list-item {
+  padding: var(--ds-space-4) var(--ds-space-6);
+}
+.ds-list--card .ds-list-item:hover {
+  background: color-mix(in srgb, var(--ds-action-soft) 35%, var(--ds-surface));
 }
 
 /* État vide : explication + action. */
@@ -559,12 +586,15 @@ summary:focus-visible,
 }
 .ds-page-header h1 {
   margin: 0;
-  font-size: var(--ds-text-2xl);
-  letter-spacing: -0.01em;
+  font-size: var(--ds-text-3xl);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
 }
 .ds-page-header p {
-  margin: var(--ds-space-1) 0 0;
+  margin: var(--ds-space-2) 0 0;
   color: var(--ds-text-muted);
+  font-size: var(--ds-text-md);
   max-width: 70ch;
 }
 .ds-page-actions {
@@ -581,6 +611,8 @@ summary:focus-visible,
 .ds-section-header h2 {
   margin: 0;
   font-size: var(--ds-text-lg);
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 .ds-section-header a {
   margin-left: auto;
@@ -713,6 +745,9 @@ summary:focus-visible,
 @media (max-width: 900px) {
   .ds-page-header h1 {
     font-size: var(--ds-text-xl);
+  }
+  .ds-list--card .ds-list-item {
+    padding: var(--ds-space-3) var(--ds-space-4);
   }
   .ds-card {
     padding: var(--ds-space-4);
