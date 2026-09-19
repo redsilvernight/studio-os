@@ -131,21 +131,21 @@ def install_signal_handlers(stop: Callable[[], None]) -> list[signal.Signals]:
 
 
 def build_watchers(config: ClientConfig, store: OutboxStore) -> list[PollingWatcher]:
-    """A watcher only starts when both its repo/pattern and its
-    `*_project_id` are configured — either alone leaves it disabled."""
+    """One `GitWatcher` per `git_watches` entry (0..N, all sharing `store`), plus
+    a Godot watcher only when both its pattern and `*_project_id` are
+    configured — either alone leaves it disabled."""
     if config.machine_id is None:
         return []
-    watchers: list[PollingWatcher] = []
-    if config.git_watch_repo_path is not None and config.git_watch_project_id is not None:
-        watchers.append(
-            GitWatcher(
-                repo_path=config.git_watch_repo_path,
-                project_id=config.git_watch_project_id,
-                machine_id=config.machine_id,
-                outbox=store,
-                interval_seconds=config.git_watch_interval_seconds,
-            )
+    watchers: list[PollingWatcher] = [
+        GitWatcher(
+            repo_path=git_watch.repo_path,
+            project_id=git_watch.project_id,
+            machine_id=config.machine_id,
+            outbox=store,
+            interval_seconds=config.git_watch_interval_seconds,
         )
+        for git_watch in config.git_watches
+    ]
     if config.godot_watch_process_pattern is not None and config.godot_watch_project_id is not None:
         watchers.append(
             GodotWatcher(

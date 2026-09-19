@@ -156,3 +156,79 @@ relevees et corrigees/consignees ici :
   heartbeat catche deja `StudioApiError` en interne) ; a garder en tete
   si un futur correctif touche l'arret du daemon, hors perimetre de
   cette sous-etape pour le traiter maintenant.
+
+## Addendum — surveillance multi-depots (un daemon, N `GitWatcher`)
+
+Etendu ici plutot que par une nouvelle DEC : meme perimetre (watchers
+Git), aucune frontiere de contrat nouvelle. Audit prealable : `/events`
+et la table `events` portent deja `project_id` par evenement sans le lier
+a la machine ; l'outbox et `sync_state` sont communs ; `asyncio.gather`
+de `main()` fait deja tourner N watchers. Aucun changement backend,
+contrat, evenement ni Dashboard.
+
+### Decision
+
+Un daemon par machine surveille plusieurs depots Git, chacun associe a
+son projet Studio OS ; les evenements `git.commit` / `git.branch.changed`
+partent avec le `project_id` du depot qui les a detectes.
+
+```text
+1 daemon -> N GitWatcher (depot A/projet A, depot B/projet B, ...) -> 1 Outbox -> API
+```
+
+- Format canonique (TOML, `ClientConfig.git_watches`,
+  `studio_client.config.GitWatchConfig`) :
+
+  ```toml
+  [[git_watches]]
+  repo_path = "C:/Dev/studio-os"
+  project_id = "UUID_A"
+
+  [[git_watches]]
+  repo_path = "C:/Dev/BLFinder"
+  project_id = "UUID_B"
+  ```
+
+  Via l'environnement : `STUDIO_CLIENT_GIT_WATCHES` (tableau JSON).
+  `git_watch_interval_seconds` reste global et partage.
+- Format legacy `git_watch_repo_path` + `git_watch_project_id`
+  (TOML ou `STUDIO_CLIENT_GIT_WATCH_*`) toujours accepte : normalise au
+  chargement en une liste d'un element ; ensuite le programme ne voit que
+  `git_watches` (les deux champs legacy valent `None` apres chargement).
+- Validation fail-closed a la construction de `ClientConfig` : une entree
+  sans `repo_path` ou sans `project_id` est rejetee ; un seul des deux
+  champs legacy est rejete (avant, le watcher restait silencieusement
+  desactive) ; ancien ET nouveau format simultanement sont rejetes, sans
+  fusion implicite ; un depot en double est rejete meme avec un autre
+  `project_id` (chemin absolu normalise, insensible a la casse sous
+  Windows). Un meme `project_id` pour plusieurs depots reste permis
+  (front/back d'un meme projet).
+- Aucune entree Git -> aucun `GitWatcher`, le daemon tourne normalement.
+  Un depot temporairement illisible/absent reste tolere (poll saute, cf.
+  ci-dessus) : seule la structure de la config est validee.
+- Identite persistee inchangee : `sync_state` cle
+  `git_watcher:<repo_path absolu>`, donc HEAD/branche de chaque depot ont
+  leur propre baseline et un depot n'est jamais compare a un autre. Les
+  baselines des installations existantes (chemin deja absolu) sont
+  conservees.
+- `ContextComposer` (source `git`) resout le depot par `project_id` via
+  `ClientConfig.git_repo_for_project` (premier depot declare pour ce
+  projet) au lieu de l'ancien `git_watch_repo_path` unique : un Context
+  Package n'embarque plus l'historique d'un depot appartenant a un autre
+  projet.
+
+### Consequences
+
+Changement de comportement assume : un ancien `git_watch_repo_path` seul
+(sans `git_watch_project_id`), qui alimentait le seul snapshot Git du
+Context Package, est maintenant rejete au chargement avec un message
+explicite. Hors perimetre, inchange : statut du working tree, staging,
+push, PR GitHub, association commit/tache.
+
+### Preuves
+
+`tests/client/test_config.py` (normalisation legacy, rejets, doublons,
+chemins relatifs/casse), `tests/client/test_watchers.py` (`build_watchers`
+0/1/3 depots ; deux depots Git reels temporaires : commit A seul -> un
+`git.commit` projet A, aucun pour B ; branche ; reconstruction des
+watchers sans faux evenement ; deux watchers sur une meme outbox).
