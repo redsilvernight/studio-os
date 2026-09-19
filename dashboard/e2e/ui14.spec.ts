@@ -622,7 +622,7 @@ test.describe("UI-14 erreurs, annonces, mouvement, zoom", () => {
     await dialog.locator("#task-create-submit").click();
     const toast = page.locator("#ds-toast-region .ds-toast");
     await expect(toast).toContainText("créée");
-    expect(await activeId(page)).toBe("#task-new");
+    await expect.poll(() => activeId(page)).toBe("#task-new");
     expect(csp).toEqual([]);
     expect(fatal).toEqual([]);
   });
