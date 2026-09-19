@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-79 decision(s). Detail complet dans chaque ADR lie.
+80 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -101,3 +101,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0077 | P13 validation E2E finale : sous-système Library/Runtime/Resolution accepté de bout en bout, un défaut P12 corrigé | active | [decisions/DEC-0077-p13-validation-e2e-finale.md](decisions/DEC-0077-p13-validation-e2e-finale.md) |
 | DEC-0078 | Refonte UI-1 : Design System StudiOS — thème clair unique, interface en français, route interne #/design-system | active | [decisions/DEC-0078-refonte-ui-1-design-system.md](decisions/DEC-0078-refonte-ui-1-design-system.md) |
 | DEC-0079 | Refonte UI-2 : AppShell (sidebar bleu nuit, topbar minimale) + garde anti-race du rendu | active | [decisions/DEC-0079-refonte-ui-2-appshell.md](decisions/DEC-0079-refonte-ui-2-appshell.md) |
+| DEC-0080 | MCP studio_prepare_context : façade de lecture bornée et déterministe sur les services existants | active | [decisions/DEC-0080-mcp-prepare-context-facade.md](decisions/DEC-0080-mcp-prepare-context-facade.md) |

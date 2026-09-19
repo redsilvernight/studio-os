@@ -59,8 +59,9 @@ token (pas d'attaquant reseau).
 
 ## Etat reel (roadmap etape 5, DEC-0023, UC-3/DEC-0047, P8/DEC-0072)
 
-Le serveur VPS enregistre 34 outils (`services/mcp/src/studio_mcp/` : 29
-historiques + 5 AI Library P8, section ci-dessous).
+Le serveur VPS enregistre 35 outils (`services/mcp/src/studio_mcp/` : 29
+historiques + 5 AI Library P8, section ci-dessous, + `studio_prepare_context`,
+DEC-0080, section « Contexte projet borné »).
 Les 3 outils locaux read-only specifies ci-dessous (UC-3, exposition via
 MCP local par poste, DEC-0047) sont en place mais conditionnels au
 fichier de configuration du poste : `studio_memory_search`,
@@ -269,6 +270,35 @@ Volontairement absents : `resolve_definition` P2 seul (redondant avec
 P5 canonique), locks projet (lus via la resolution), lecture Registry
 detaillee (couverte par discovery/configure), P9 (Context Package) et
 P10 (adaptateurs/execution).
+
+## Contexte projet borné (`studio_prepare_context`, DEC-0080)
+
+Voie recommandée pour amorcer le contexte d'un agent : un appel, lecture
+seule, réponse bornée et déterministe. Les outils `get/list/discover`
+restent disponibles pour les besoins précis ou avancés.
+
+Entrée : `project_id` (UUID) et `objective` (1..1000 car.) requis ;
+optionnels `task_id` (doit appartenir au projet, sinon `not_found`),
+`files` (≤ 20 chemins), `limit` (1..20, défaut 5, éléments par catégorie),
+`max_chars` (1000..50000, défaut 12000, budget de texte libre).
+
+Sortie `PreparedContext | McpError` (enveloppée sous `result`) :
+`project`, `query_terms`, `task`, `related_tasks`, `decisions`, `rules`,
+`skills`, `active_work.claims`, `returned`, `additional_available`,
+`omitted_for_budget`, `limits`. Chaque élément porte `why`
+(`requested`, `linked_to_task`, `task_claim`, `path_conflict`,
+`project_scope` ou `lexical` + `matched_terms`).
+
+Garanties : au plus `limit` éléments par catégorie ; texte libre coupé à
+1500 caractères par élément puis au budget `max_chars` (`truncated`,
+`omitted_for_budget`) ; ce qui existe sans être retourné est compté dans
+`additional_available`. Le budget compte des caractères, pas des tokens.
+Sélection = liens structurels + recouvrement lexical exact avec l'objectif,
+jamais de recherche sémantique ni de LLM. Mêmes règles d'accès que les
+outils de lecture composés (Library `user` d'autrui invisible, tâche d'un
+autre projet = `not_found`). Non couvert : sessions, AIWorkLog, événements,
+builds, transferts, mémoire/graphe/Git locaux. Ce n'est pas le Context
+Package (DEC-0057, composé localement par le Bloc B).
 
 ## Context Package (8.3b, DEC-0057)
 

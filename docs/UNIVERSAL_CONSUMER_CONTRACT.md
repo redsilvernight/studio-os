@@ -62,8 +62,8 @@ sont illustratifs et non normatifs.
 
 ## 2. Decouverte des capacites disponibles
 
-- MUST : la liste des outils MCP (`TECH/07`, 34 outils nommes
-  `studio_*` : 29 historiques + 5 AI Library P8/DEC-0072) et les contrats `TECH/02-09` sont l'inventaire de reference.
+- MUST : la liste des outils MCP (`TECH/07`, 35 outils nommes
+  `studio_*` : 29 historiques + 5 AI Library P8/DEC-0072 + `studio_prepare_context`/DEC-0080) et les contrats `TECH/02-09` sont l'inventaire de reference.
   HTTP est l'interface canonique complete, MCP un subset additif : la
   parite de surface n'est pas requise, voir DEC-0046.
 - SHOULD : le client HTTP derive les routes du schema OpenAPI ; le client
