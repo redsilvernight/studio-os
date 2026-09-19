@@ -135,7 +135,7 @@ describe("machinesLoadingHtml", () => {
     const html = machinesLoadingHtml();
     expect(html).toContain("Machines");
     expect(html).toContain("Chargement");
-    expect(html).toContain('aria-busy="true"');
+    expect(html).toContain('role="status"');
   });
 });
 

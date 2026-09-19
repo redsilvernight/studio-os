@@ -79,11 +79,12 @@ describe("dsEmptyState", () => {
 });
 
 describe("dsSkeleton", () => {
-  it("is announced busy and hides decorative bars", () => {
+  it("announces loading once and hides decorative bars", () => {
     const html = dsSkeleton(2);
-    expect(html).toContain('aria-busy="true"');
+    expect(html).toContain('role="status"');
     expect(html).toContain("Chargement en cours");
     expect(html).toContain('aria-hidden="true"');
+    expect(html).not.toContain("aria-label=");
   });
 });
 
@@ -111,8 +112,16 @@ describe("dsAvatar / dsAgentBadge", () => {
   it("derives initials and keeps the full name accessible", () => {
     const html = dsAvatar("Amina Benali");
     expect(html).toContain("AB");
+    expect(html).toContain('role="img"');
     expect(html).toContain('aria-label="Amina Benali"');
     expect(dsAgentBadge("Auxiliaire")).toContain("ds-badge--ai");
+  });
+
+  it("announces the agent name only once inside a badge", () => {
+    const html = dsAgentBadge("Auxiliaire");
+    expect(html).toContain('aria-hidden="true"');
+    expect(html).not.toContain('aria-label="Auxiliaire"');
+    expect(html.match(/Auxiliaire/g)).toHaveLength(1);
   });
 });
 
@@ -126,6 +135,24 @@ describe("dsTabsHtml", () => {
     expect(html).toContain('role="tabpanel"');
     expect(html.match(/aria-selected="true"/g)).toHaveLength(1);
     expect(html).toContain("hidden");
+  });
+
+  it("names the tablist in French when a label is provided", () => {
+    const html = dsTabsHtml(
+      "decisions-main",
+      [
+        { id: "a", label: "À examiner", panel: "<p>A</p>" },
+        { id: "b", label: "Décisions", panel: "<p>B</p>" },
+      ],
+      "a",
+      "Décisions",
+    );
+    expect(html).toContain('aria-label="Décisions"');
+  });
+
+  it("falls back to the technical id when no label is provided", () => {
+    const html = dsTabsHtml("demo", [{ id: "a", label: "Liste", panel: "<p>A</p>" }]);
+    expect(html).toContain('aria-label="demo"');
   });
 });
 

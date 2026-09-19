@@ -20,6 +20,7 @@ import {
   dsBadge,
   dsEmptyState,
   dsField,
+  focusDsErrorBox,
   dsModalHtml,
   dsNotify,
   dsPageHeader,
@@ -147,6 +148,7 @@ function setCreateError(root: HTMLElement, message: string): void {
   } else {
     node.removeAttribute("hidden");
     node.textContent = message;
+    if (node instanceof HTMLElement) focusDsErrorBox(node);
   }
 }
 
@@ -189,7 +191,10 @@ function bindCreateDialog(root: HTMLElement, client: StudioClient, refresh: () =
       .then((created) => {
         closeDsDialog(root, dialogId);
         dsNotify(`Projet « ${created.name} » créé.`, "success");
-        void refresh();
+        // Le rechargement remplace le déclencheur : le refocaliser après.
+        void refresh().then(() => {
+          root.querySelector<HTMLElement>("#project-new")?.focus();
+        });
       })
       .catch((error: unknown) => {
         setCreateError(root, describeError(error));

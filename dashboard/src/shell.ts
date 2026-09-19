@@ -111,9 +111,9 @@ export function shellHtml(route: Route, authed: boolean): string {
   return `<a class="ds-skip-link" href="#view">Aller au contenu</a>
 <div class="app-shell">
   <div class="app-scrim" id="app-scrim" hidden></div>
-  <aside class="app-sidebar" id="app-sidebar" aria-label="Navigation principale">
+  <aside class="app-sidebar" id="app-sidebar">
     <div class="app-brand"><span class="app-brand-mark" aria-hidden="true">S</span><span class="app-brand-name">Studi'OS</span><button class="app-iconbtn" type="button" id="nav-close" aria-label="Fermer la navigation">${icon("close")}</button></div>
-    <nav class="app-nav">${groups}</nav>
+    <nav class="app-nav" aria-label="Navigation principale">${groups}</nav>
     <div class="app-sidebar-foot">
       <a class="app-navlink${configActive ? " active" : ""}" href="#/configuration/runtimes"${configActive ? ' aria-current="page"' : ""}>${icon("settings")}<span>Paramètres</span></a>
       ${accountBlock}

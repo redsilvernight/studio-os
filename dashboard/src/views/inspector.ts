@@ -154,7 +154,7 @@ export function rulesTableHtml(rules: ResolvedRule[] | undefined): string {
         `<td>${rulePathsHtml(rule)}</td></tr>`,
     )
     .join("");
-  return `<div class="ds-table-wrap"><table class="ds-table"><caption>Règles résolues — ${list.length}</caption><thead><tr><th>Règle</th><th>Version</th><th>Origine</th><th>Portée</th><th>Chemin / raison</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return `<div class="ds-table-wrap"><table class="ds-table"><caption>Règles résolues — ${list.length}</caption><thead><tr><th scope="col">Règle</th><th scope="col">Version</th><th scope="col">Origine</th><th scope="col">Portée</th><th scope="col">Chemin / raison</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 export function skillsTableHtml(skills: ResolvedSkill[] | undefined): string {
@@ -168,13 +168,13 @@ export function skillsTableHtml(skills: ResolvedSkill[] | undefined): string {
         `<td>${esc(provenanceReason(skill.provenance))}</td></tr>`,
     )
     .join("");
-  return `<div class="ds-table-wrap"><table class="ds-table"><caption>Compétences résolues — ${list.length}</caption><thead><tr><th>Compétence</th><th>Version</th><th>Origine</th><th>Portée</th><th>Raison</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return `<div class="ds-table-wrap"><table class="ds-table"><caption>Compétences résolues — ${list.length}</caption><thead><tr><th scope="col">Compétence</th><th scope="col">Version</th><th scope="col">Origine</th><th scope="col">Portée</th><th scope="col">Raison</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
-function entriesTable(entries: { label: string; value: string }[], emptyMessage: string): string {
+function entriesTable(entries: { label: string; value: string }[], emptyMessage: string, caption = "Détails"): string {
   if (entries.length === 0) return `<p class="meta">${esc(emptyMessage)}</p>`;
   const rows = entries.map((entry) => `<tr><td>${esc(entry.label)}</td><td><code class="mono">${esc(entry.value)}</code></td></tr>`).join("");
-  return `<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Dimension</th><th>Valeur</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return `<div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">${esc(caption)}</caption><thead><tr><th scope="col">Dimension</th><th scope="col">Valeur</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 export function modelProfileHtml(profile: ResolvedModelProfile | null | undefined): string {
@@ -186,9 +186,9 @@ export function modelProfileHtml(profile: ResolvedModelProfile | null | undefine
   }
   return (
     `<dl class="detail-grid">` +
-    `<dt>Model Profile</dt><dd>${resourceLink("model_profile", profile.resource_id, profile.stable_key)} v${profile.version}${profile.deprecated ? ' <span class="status bad">deprecated</span>' : ""}</dd>` +
+    `<dt>Model Profile</dt><dd>${resourceLink("model_profile", profile.resource_id, profile.stable_key)} v${profile.version}${profile.deprecated ? ' <span class="status bad">Déprécié</span>' : ""}</dd>` +
     `<dt>Origine</dt><dd>${esc(versionOriginLabel(profile.version_origin))} · portée : ${esc(scopeLabel(profile.scope))} · raison : ${esc(provenanceReason(profile.provenance))}</dd>` +
-    `<dt>Exigences déclarées</dt><dd>${entriesTable(requirementEntries(profile.requirements as CapabilityRequirement), "aucune exigence déclarée")}</dd>` +
+    `<dt>Exigences déclarées</dt><dd>${entriesTable(requirementEntries(profile.requirements as CapabilityRequirement), "aucune exigence déclarée", "Exigences déclarées")}</dd>` +
     `</dl>`
   );
 }
@@ -219,7 +219,7 @@ export function runtimeHtml(runtime: ResolvedRuntime | null | undefined): string
     `<dt>Binding gagnant</dt><dd><strong>${esc(bindingLevelLabel(runtime.level))}</strong></dd>` +
     `<dt>Clé matchée</dt><dd>${esc(kindMeta(runtime.matched_kind).singular)} <code class="mono">${esc(runtime.matched_stable_key)}</code></dd>` +
     `<dt>Cible runtime</dt><dd>${refs !== "" ? refs : '<span class="meta">aucune ancre</span>'}</dd>` +
-    `<dt>Capacités déclarées</dt><dd>${entriesTable(capabilityEntries(target.capabilities), "aucune déclarée")}</dd>` +
+    `<dt>Capacités déclarées</dt><dd>${entriesTable(capabilityEntries(target.capabilities), "aucune déclarée", "Capacités déclarées")}</dd>` +
     `<dt>Provenance</dt><dd>${runtime.provenance != null ? esc(provenanceReason(runtime.provenance)) : '<span class="meta">—</span>'}</dd>` +
     `</dl>`
   );
@@ -227,12 +227,12 @@ export function runtimeHtml(runtime: ResolvedRuntime | null | undefined): string
 
 /** Requirements vs runtime capabilities, with the canonical verdict. */
 export function compatibilityComparisonHtml(resolved: ResolvedAgentDefinition): string {
-  const requirements = entriesTable(requirementEntries(resolved.requirements as CapabilityRequirement), "Aucune exigence exprimée.");
+  const requirements = entriesTable(requirementEntries(resolved.requirements as CapabilityRequirement), "Aucune exigence exprimée.", "Exigences du ModelProfile");
   const runtime = resolved.runtime;
   if (runtime == null) {
     return `${requirements}<p class="meta">Aucun runtime sélectionné : la compatibilité n'est pas évaluée.</p>`;
   }
-  const capabilities = entriesTable(capabilityEntries(runtime.target.capabilities), "aucune déclarée");
+  const capabilities = entriesTable(capabilityEntries(runtime.target.capabilities), "aucune déclarée", "Capacités runtime déclarées");
   const unsatisfied = runtime.unsatisfied ?? [];
   const verdict =
     unsatisfied.length === 0

@@ -80,13 +80,13 @@ export function dsEmptyState(title: string, message: string, action?: { label: s
   return `<div class="ds-empty" role="status"><span class="ds-empty-icon" aria-hidden="true">○</span><h3>${esc(title)}</h3><p>${esc(message)}</p>${link}</div>`;
 }
 
-/** Squelette de chargement : forme sans texte, masqué aux lecteurs. */
+/** Squelette de chargement : annonce unique, barres décoratives. */
 export function dsSkeleton(lines = 3): string {
   const bars = [`<div class="ds-skeleton-bar ds-skeleton-bar--title"></div>`];
   for (let i = 0; i < lines; i += 1) {
     bars.push(`<div class="ds-skeleton-bar${i === lines - 1 ? " ds-skeleton-bar--short" : ""}"></div>`);
   }
-  return `<div class="ds-skeleton" role="status" aria-busy="true" aria-label="Chargement en cours"><span class="ds-sr-only">Chargement en cours…</span><div aria-hidden="true">${bars.join("")}</div></div>`;
+  return `<div class="ds-skeleton" role="status"><span class="ds-sr-only">Chargement en cours…</span><div aria-hidden="true">${bars.join("")}</div></div>`;
 }
 
 /** Champ + label + aide/erreur associés (aria-describedby). */
@@ -115,22 +115,27 @@ export function dsProgress(value: number, max: number, label: string): string {
   return `<div class="ds-progress"><progress value="${safeValue}" max="${safeMax}">${esc(label)}</progress><span class="ds-progress-label">${esc(label)}</span></div>`;
 }
 
-/** Avatar : initiales, jamais d'image sans alternative. */
-export function dsAvatar(name: string): string {
-  const initials =
+/** Initiales d'un nom (avatar), jamais d'image sans alternative. */
+function avatarInitials(name: string): string {
+  return (
     name
       .trim()
       .split(/\s+/)
       .map((part) => part.slice(0, 1))
       .join("")
       .slice(0, 2)
-      .toUpperCase() || "?";
-  return `<span class="ds-avatar" title="${esc(name)}" aria-label="${esc(name)}">${esc(initials)}</span>`;
+      .toUpperCase() || "?"
+  );
 }
 
-/** Badge agent IA : pastille violette + avatar + nom. */
+/** Avatar : initiales + nom accessible (image informative). */
+export function dsAvatar(name: string): string {
+  return `<span class="ds-avatar" role="img" title="${esc(name)}" aria-label="${esc(name)}">${esc(avatarInitials(name))}</span>`;
+}
+
+/** Badge agent IA : pastille violette + avatar décoratif + nom (annoncé une fois). */
 export function dsAgentBadge(name: string): string {
-  return `<span class="ds-agent">${dsAvatar(name)}<span>${dsBadge(`IA · ${name}`, "ai")}</span></span>`;
+  return `<span class="ds-agent"><span class="ds-avatar" aria-hidden="true">${esc(avatarInitials(name))}</span><span>${dsBadge(`IA · ${name}`, "ai")}</span></span>`;
 }
 
 export interface DsTab {
@@ -141,9 +146,11 @@ export interface DsTab {
 
 /**
  * Onglets accessibles : tablist/tab/tabpanel, sélection au clic et au
- * clavier (flèches gauche/droite). Activer avec initDsTabs().
+ * clavier (flèches gauche/droite, Début/Fin). Activer avec initDsTabs().
+ * `label` nomme le tablist en français ; à défaut, l'identifiant technique
+ * est conservé (compatibilité, jamais un nom vide).
  */
-export function dsTabsHtml(groupId: string, tabs: DsTab[], activeId?: string): string {
+export function dsTabsHtml(groupId: string, tabs: DsTab[], activeId?: string, label?: string): string {
   const current = tabs.some((tab) => tab.id === activeId) ? (activeId as string) : tabs[0]?.id;
   const buttons = tabs
     .map(
@@ -157,7 +164,7 @@ export function dsTabsHtml(groupId: string, tabs: DsTab[], activeId?: string): s
         `<div class="ds-tabpanel" role="tabpanel" id="${esc(groupId)}-panel-${esc(tab.id)}" aria-labelledby="${esc(groupId)}-tab-${esc(tab.id)}"${tab.id === current ? "" : " hidden"}>${tab.panel}</div>`,
     )
     .join("");
-  return `<div data-ds-tabs="${esc(groupId)}"><div class="ds-tabs" role="tablist" aria-label="${esc(groupId)}">${buttons}</div>${panels}</div>`;
+  return `<div data-ds-tabs="${esc(groupId)}"><div class="ds-tabs" role="tablist" aria-label="${esc(label ?? groupId)}">${buttons}</div>${panels}</div>`;
 }
 
 /** Câble le clavier et le clic d'un groupe d'onglets rendu par dsTabsHtml. */
@@ -184,13 +191,26 @@ export function initDsTabs(root: ParentNode, groupId: string): void {
   for (const [index, tab] of tabs.entries()) {
     tab.addEventListener("click", () => select(tab, false));
     tab.addEventListener("keydown", (event) => {
-      if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
-      event.preventDefault();
-      const next =
-        event.key === "ArrowRight"
-          ? tabs[(index + 1) % tabs.length]
-          : tabs[(index - 1 + tabs.length) % tabs.length];
-      if (next !== undefined) select(next, true);
+      if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+        event.preventDefault();
+        const next =
+          event.key === "ArrowRight"
+            ? tabs[(index + 1) % tabs.length]
+            : tabs[(index - 1 + tabs.length) % tabs.length];
+        if (next !== undefined) select(next, true);
+        return;
+      }
+      if (event.key === "Home") {
+        event.preventDefault();
+        const first = tabs[0];
+        if (first !== undefined) select(first, true);
+        return;
+      }
+      if (event.key === "End") {
+        event.preventDefault();
+        const last = tabs[tabs.length - 1];
+        if (last !== undefined) select(last, true);
+      }
     });
   }
 }
@@ -230,10 +250,58 @@ export function dsDrawerHtml(dialog: DsDialog): string {
 
 let dsLastTrigger: HTMLElement | null = null;
 
-/** Ouvre un dialogue : mémorise le déclencheur, focus le titre, Échap ferme. */
+const DS_FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
+
+/** Éléments atteignables au clavier dans un dialogue ouvert. */
+function dsDialogFocusables(overlay: Element): HTMLElement[] {
+  return [...overlay.querySelectorAll<HTMLElement>(DS_FOCUSABLE)].filter(
+    (node) => node.closest("[hidden]") === null,
+  );
+}
+
+/**
+ * Câble un dialogue UNE fois (marqueur data-ds-wired) : Échap ferme,
+ * Tab/Shift+Tab restent piégés dans le dialogue, les boutons
+ * [data-ds-close] ferment. Idempotent entre réouvertures.
+ */
+function wireDsDialog(root: ParentNode, dialogId: string): void {
+  const overlay = root.querySelector(`#${CSS.escape(dialogId)}`);
+  if (overlay === null || overlay.hasAttribute("data-ds-wired")) return;
+  overlay.setAttribute("data-ds-wired", "true");
+  overlay.addEventListener("keydown", (event) => {
+    if (!(event instanceof KeyboardEvent)) return;
+    if (event.key === "Escape") {
+      closeDsDialog(root, dialogId);
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const items = dsDialogFocusables(overlay);
+    if (items.length === 0) {
+      event.preventDefault();
+      return;
+    }
+    const first = items[0] as HTMLElement;
+    const last = items[items.length - 1] as HTMLElement;
+    const active = overlay.ownerDocument.activeElement;
+    if (event.shiftKey && (active === first || !overlay.contains(active))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && active === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
+  overlay.querySelectorAll("[data-ds-close]").forEach((button) => {
+    button.addEventListener("click", () => closeDsDialog(root, dialogId));
+  });
+}
+
+/** Ouvre un dialogue : mémorise le déclencheur, focus le titre, piège Tab, Échap ferme. */
 export function openDsDialog(root: ParentNode, dialogId: string, trigger: HTMLElement | null = null): void {
   const overlay = root.querySelector(`#${CSS.escape(dialogId)}`);
   if (overlay === null) return;
+  wireDsDialog(root, dialogId);
   dsLastTrigger = trigger;
   overlay.removeAttribute("hidden");
   const title = overlay.querySelector<HTMLElement>("h2[tabindex], h2");
@@ -241,39 +309,45 @@ export function openDsDialog(root: ParentNode, dialogId: string, trigger: HTMLEl
     title.setAttribute("tabindex", "-1");
     title.focus();
   }
-  const onKey = (event: Event): void => {
-    if (event instanceof KeyboardEvent && event.key === "Escape") {
-      closeDsDialog(root, dialogId);
-    }
-  };
-  overlay.addEventListener("keydown", onKey, { once: true });
-  overlay.querySelectorAll("[data-ds-close]").forEach((button) => {
-    button.addEventListener("click", () => closeDsDialog(root, dialogId), { once: true });
-  });
 }
 
 export function closeDsDialog(root: ParentNode, dialogId: string): void {
   const overlay = root.querySelector(`#${CSS.escape(dialogId)}`);
-  if (overlay === null) return;
-  overlay.setAttribute("hidden", "");
-  if (dsLastTrigger !== null && root.contains(dsLastTrigger)) {
-    dsLastTrigger.focus();
+  if (overlay === null) {
     dsLastTrigger = null;
+    return;
   }
+  overlay.setAttribute("hidden", "");
+  const trigger = dsLastTrigger;
+  dsLastTrigger = null;
+  if (trigger !== null && root.contains(trigger)) {
+    trigger.focus();
+  }
+}
+
+/**
+ * Erreur de formulaire : rend le bloc atteignable au clavier puis le
+ * focalise (le bloc porte déjà role="alert" : annonce + point de reprise).
+ */
+export function focusDsErrorBox(box: HTMLElement): void {
+  box.setAttribute("tabindex", "-1");
+  box.focus();
 }
 
 export type DsToastTone = "success" | "warning" | "danger" | "info";
 
 /**
  * Toast : ajouté à la région aria-live du shell (#ds-toast-region),
- * refermable, disparition automatique. Jamais d'information critique
+ * refermable, disparition automatique. Une erreur (danger) est annoncée en
+ * alerte et persiste plus longtemps ; jamais d'information critique
  * uniquement en toast (doubler d'une surface persistante).
  */
-export function dsNotify(message: string, tone: DsToastTone = "info", timeoutMs = 6000): void {
+export function dsNotify(message: string, tone: DsToastTone = "info", timeoutMs?: number): void {
   const region = document.getElementById("ds-toast-region");
   if (region === null) return;
   const toast = document.createElement("div");
   toast.className = `ds-toast ds-toast--${tone}`;
+  if (tone === "danger") toast.setAttribute("role", "alert");
   const text = document.createElement("p");
   text.textContent = message;
   const close = document.createElement("button");
@@ -284,5 +358,5 @@ export function dsNotify(message: string, tone: DsToastTone = "info", timeoutMs 
   close.addEventListener("click", () => toast.remove());
   toast.append(text, close);
   region.append(toast);
-  window.setTimeout(() => toast.remove(), timeoutMs);
+  window.setTimeout(() => toast.remove(), timeoutMs ?? (tone === "danger" ? 12000 : 6000));
 }

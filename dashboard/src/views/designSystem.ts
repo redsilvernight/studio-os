@@ -70,7 +70,7 @@ export function designSystemHtml(): string {
     { id: "liste", label: "Liste", panel: "<p>Premier panneau : contenu de la liste.</p>" },
     { id: "board", label: "Tableau", panel: "<p>Deuxième panneau : contenu du tableau.</p>" },
     { id: "calendrier", label: "Calendrier", panel: "<p>Troisième panneau : contenu du calendrier.</p>" },
-  ]);
+  ], undefined, "Démonstration des onglets");
 
   const table = `<div class="ds-table-wrap"><table class="ds-table">
     <caption>Exemple : trois projets, colonnes utiles uniquement.</caption>

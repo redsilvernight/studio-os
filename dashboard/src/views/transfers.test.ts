@@ -75,7 +75,7 @@ describe("transfersLoadingHtml", () => {
   it("affiche un squelette accessible", () => {
     const html = transfersLoadingHtml();
     expect(html).toContain("Transferts");
-    expect(html).toContain('aria-busy="true"');
+    expect(html).toContain('role="status"');
   });
 });
 

@@ -36,7 +36,7 @@ export interface ProjectDetailContext {
 export const PROJECT_TABS: ReadonlyArray<{ id: ProjectTab; label: string; suffix: string }> = [
   { id: "overview", label: "Vue d'ensemble", suffix: "" },
   { id: "tasks", label: "Tâches", suffix: "/tasks" },
-  { id: "claims", label: "Claims", suffix: "/claims" },
+  { id: "claims", label: "Réservations", suffix: "/claims" },
   { id: "activity", label: "Activité", suffix: "/activity" },
   { id: "decisions", label: "Décisions", suffix: "/decisions" },
 ];
@@ -63,25 +63,36 @@ export function workspaceTabsHtml(projectId: string, tab: ProjectTab): string {
   const links = PROJECT_TABS.map((entry) => {
     const active = entry.id === tab;
     const current = active ? ` aria-current="page"` : "";
-    return `<a class="ds-tab" role="tab" href="#/projects/${esc(projectId)}${entry.suffix}" aria-selected="${active ? "true" : "false"}" tabindex="${active ? "0" : "-1"}" data-ws-tab="${entry.id}"${current}>${esc(entry.label)}</a>`;
+    return `<a class="ds-tab" role="tab" id="ws-tab-${entry.id}" aria-controls="workspace-panel" href="#/projects/${esc(projectId)}${entry.suffix}" aria-selected="${active ? "true" : "false"}" tabindex="${active ? "0" : "-1"}" data-ws-tab="${entry.id}"${current}>${esc(entry.label)}</a>`;
   }).join("");
   return `<nav class="ds-tabs" role="tablist" aria-label="Sections du projet" data-ws-tabs>${links}</nav>`;
 }
 
-/** Flèches gauche/droite entre onglets (activation au clavier via Entrée). */
+/** Flèches gauche/droite et Début/Fin entre onglets (activation au clavier via Entrée). */
 export function initWorkspaceTabs(root: ParentNode): void {
   const group = root.querySelector("[data-ws-tabs]");
   if (group === null) return;
   const tabs = [...group.querySelectorAll<HTMLAnchorElement>('[role="tab"]')];
   for (const [index, tab] of tabs.entries()) {
     tab.addEventListener("keydown", (event) => {
-      if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
-      event.preventDefault();
-      const next =
-        event.key === "ArrowRight"
-          ? tabs[(index + 1) % tabs.length]
-          : tabs[(index - 1 + tabs.length) % tabs.length];
-      next?.focus();
+      if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+        event.preventDefault();
+        const next =
+          event.key === "ArrowRight"
+            ? tabs[(index + 1) % tabs.length]
+            : tabs[(index - 1 + tabs.length) % tabs.length];
+        next?.focus();
+        return;
+      }
+      if (event.key === "Home") {
+        event.preventDefault();
+        tabs[0]?.focus();
+        return;
+      }
+      if (event.key === "End") {
+        event.preventDefault();
+        tabs[tabs.length - 1]?.focus();
+      }
     });
   }
 }
@@ -154,7 +165,7 @@ export function projectOverviewHtml(project: Project, state: ProjectState, now: 
 
   return `<div class="workspace-overview">` +
     `<section class="workspace-section" aria-label="Tâches actives">${dsSectionHeader(`Tâches actives (${state.active_tasks.length})`, { label: "Voir les tâches", href: `#/projects/${esc(project.id)}/tasks` })}${tasksBody}</section>` +
-    `<section class="workspace-section" aria-label="Réservations actives">${dsSectionHeader(`Réservations actives (${state.active_claims.length})`, { label: "Voir les claims", href: `#/projects/${esc(project.id)}/claims` })}${claimsBody}</section>` +
+    `<section class="workspace-section" aria-label="Réservations actives">${dsSectionHeader(`Réservations actives (${state.active_claims.length})`, { label: "Voir les réservations", href: `#/projects/${esc(project.id)}/claims` })}${claimsBody}</section>` +
     `<section class="workspace-section" aria-label="Attention requise">${dsSectionHeader("À surveiller")}${attentionBody}</section>` +
     `<section class="workspace-section" aria-label="Historique et décisions"><p class="ds-list-sub">L'historique complet vit dans <a href="#/projects/${esc(project.id)}/activity">Activité</a>, les décisions liées au projet dans <a href="#/projects/${esc(project.id)}/decisions">Décisions</a>.</p></section>` +
     `</div>`;
@@ -195,7 +206,7 @@ export async function renderProjectDetail(
     return;
   }
   root.innerHTML =
-    `<div class="workspace">${workspaceHeaderHtml(project)}${workspaceTabsHtml(project.id, tab)}<div class="workspace-panel" role="tabpanel" id="workspace-panel" aria-label="${esc(PROJECT_TABS.find((entry) => entry.id === tab)?.label ?? "")}"></div></div>`;
+    `<div class="workspace">${workspaceHeaderHtml(project)}${workspaceTabsHtml(project.id, tab)}<div class="workspace-panel" role="tabpanel" id="workspace-panel" aria-labelledby="ws-tab-${tab}"></div></div>`;
   initWorkspaceTabs(root);
   const panel = root.querySelector<HTMLElement>("#workspace-panel");
   if (panel === null) return;

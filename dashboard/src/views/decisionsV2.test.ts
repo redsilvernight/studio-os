@@ -228,7 +228,7 @@ describe("reviewItemHtml", () => {
     expect(html).toContain("Informations techniques");
     expect(html).toContain("<details");
     expect(html).toContain("Identifiant");
-    expect(html).toContain("Kind");
+    expect(html).toContain("Type");
     expect(html).toContain("Projet");
     expect(html).toContain("Tâche");
     expect(html).toContain("Agent");

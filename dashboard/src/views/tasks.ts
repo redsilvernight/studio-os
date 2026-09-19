@@ -25,6 +25,7 @@ import {
   dsBadge,
   dsEmptyState,
   dsField,
+  focusDsErrorBox,
   dsModalHtml,
   dsNotify,
   dsPageHeader,
@@ -437,6 +438,7 @@ export async function renderTasksInto(root: HTMLElement, ctx: TasksContext): Pro
     } else {
       node.removeAttribute("hidden");
       node.textContent = message;
+      if (node instanceof HTMLElement) focusDsErrorBox(node);
     }
   };
 
@@ -545,7 +547,11 @@ export async function renderTasksInto(root: HTMLElement, ctx: TasksContext): Pro
           .then((created) => {
             closeDsDialog(root, "task-create-dialog");
             dsNotify(`Tâche « ${created.title} » créée.`, "success");
-            void reload();
+            // Le rechargement remplace le déclencheur : le refocaliser après,
+            // jamais <body> sans raison.
+            void reload().then(() => {
+              root.querySelector<HTMLElement>("#task-new")?.focus();
+            });
           })
           .catch((error: unknown) => {
             createPending = false;

@@ -14,7 +14,7 @@ export type LoginResult = { ok: true } | { ok: false; error: string };
 export function renderLogin(container: HTMLElement, onLogin: () => void): void {
   container.innerHTML = `
     <div class="login-box">
-      <h2>Studi'OS</h2>
+      <h1>Studi'OS</h1>
       <p class="meta">Connectez-vous avec votre compte Studio OS.</p>
       <form id="login-form">
         <label>Email
@@ -34,6 +34,7 @@ export function renderLogin(container: HTMLElement, onLogin: () => void): void {
   const emailInput = container.querySelector<HTMLInputElement>("#login-email");
   const passwordInput = container.querySelector<HTMLInputElement>("#login-password");
   const errorBox = container.querySelector<HTMLDivElement>("#login-error");
+  const submit = form?.querySelector<HTMLButtonElement>("button[type=submit]") ?? null;
 
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -41,10 +42,18 @@ export function renderLogin(container: HTMLElement, onLogin: () => void): void {
 
     const email = emailInput?.value.trim() ?? "";
     const password = passwordInput?.value ?? "";
+    if (submit !== null) {
+      submit.disabled = true;
+      submit.textContent = "Connexion…";
+    }
     const result = await attemptLogin(email, password);
     if (result.ok) {
       onLogin();
     } else {
+      if (submit !== null) {
+        submit.disabled = false;
+        submit.textContent = "Se connecter";
+      }
       if (errorBox !== null) {
         errorBox.textContent = result.error;
         errorBox.hidden = false;
@@ -78,5 +87,5 @@ async function attemptLogin(email: string, password: string): Promise<LoginResul
 }
 
 export function loginOverlayHtml(): string {
-  return `<div id="login-overlay" class="login-overlay">${esc("Authenticating...")}</div>`;
+  return `<div id="login-overlay" class="login-overlay">${esc("Authentification…")}</div>`;
 }

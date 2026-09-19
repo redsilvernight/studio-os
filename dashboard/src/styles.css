@@ -232,7 +232,7 @@ td.actions button { margin-right: 4px; }
   padding: 24px;
 }
 
-.login-box h2 { margin: 0 0 4px; }
+.login-box h1 { margin: 0 0 4px; font-size: 21px; }
 
 .login-box form {
   display: grid;

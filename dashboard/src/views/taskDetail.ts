@@ -23,6 +23,7 @@ import {
   dsBadge,
   dsEmptyState,
   dsField,
+  focusDsErrorBox,
   dsNotify,
   dsPageHeader,
   dsSectionHeader,
@@ -129,7 +130,7 @@ function claimSectionHtml(task: Task, authed: boolean): string {
     `${dsSectionHeader("Prise en charge")}${stateLine}` +
     `<p class="ds-list-sub">Prendre signale que votre machine travaille dessus et passe le statut à « En cours ». ` +
     `Libérer garde le statut tel quel : modifiez-le explicitement si besoin.</p>` +
-    `<p class="ds-list-sub">À ne pas confondre avec les réservations de ressources (onglet Claims du projet) : ` +
+    `<p class="ds-list-sub">À ne pas confondre avec les réservations de ressources (onglet Réservations du projet) : ` +
     `ici, « prendre » désigne qui travaille sur la tâche, pas un verrou sur un fichier.</p>` +
     `<div class="tasks-footer">` +
     `<button class="ds-btn${held ? "" : " ds-btn--primary"}" type="button" data-claim${authed && !held ? "" : " disabled"}>Prendre cette tâche</button>` +
@@ -271,7 +272,7 @@ export function taskDetailHtml(data: TaskDetailData): string {
   const claimsLine =
     data.taskClaims === null
       ? ""
-      : `<p class="ds-list-sub">Réservations de ressources liées : ${data.taskClaims} — <a href="#/projects/${esc(task.project_id)}/claims">voir l'onglet Claims du projet</a>.</p>`;
+      : `<p class="ds-list-sub">Réservations de ressources liées : ${data.taskClaims} — <a href="#/projects/${esc(task.project_id)}/claims">voir l'onglet Réservations du projet</a>.</p>`;
   return `<div class="tasks task-detail">${header}${notice}${overview}${edit}${claimSectionHtml(task, data.authed)}` +
     `<div data-msg class="ds-list-sub" role="status" aria-live="polite"></div>` +
     `${sessionsSectionHtml(data.sessions)}${aiWorkSectionHtml(data.worklogs)}${claimsLine}${techDetailsHtml(task)}</div>`;
@@ -330,6 +331,7 @@ function setEditError(root: HTMLElement, message: string): void {
   } else {
     node.removeAttribute("hidden");
     node.textContent = message;
+    if (node instanceof HTMLElement) focusDsErrorBox(node);
   }
 }
 
