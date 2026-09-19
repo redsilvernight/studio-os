@@ -25,12 +25,12 @@ function trimOrNull(value: string): string | null {
 export function capabilityFieldsHtml(disabled = false): string {
   const attr = disabled ? "disabled" : "";
   return (
-    `<label class="stack">Reasoning <input name="cap_reasoning" placeholder="open tag (optional)" ${attr} /></label>` +
-    `<label class="stack">Context window <input name="cap_context_window" type="number" min="1" placeholder="optional" ${attr} /></label>` +
-    `<label class="stack">Tools <input name="cap_tools" placeholder="comma-separated (optional)" ${attr} /></label>` +
-    `<label class="stack">Multimodal <input name="cap_multimodal" placeholder="open tag (optional)" ${attr} /></label>` +
-    `<label class="stack">Cost <input name="cap_cost" placeholder="open tag (optional)" ${attr} /></label>` +
-    `<label class="stack">Latency <input name="cap_latency" placeholder="open tag (optional)" ${attr} /></label>` +
+    `<label class="stack">Reasoning <input name="cap_reasoning" placeholder="étiquette libre (optionnel)" ${attr} /></label>` +
+    `<label class="stack">Context window <input name="cap_context_window" type="number" min="1" placeholder="optionnel" ${attr} /></label>` +
+    `<label class="stack">Tools <input name="cap_tools" placeholder="séparés par des virgules (optionnel)" ${attr} /></label>` +
+    `<label class="stack">Multimodal <input name="cap_multimodal" placeholder="étiquette libre (optionnel)" ${attr} /></label>` +
+    `<label class="stack">Cost <input name="cap_cost" placeholder="étiquette libre (optionnel)" ${attr} /></label>` +
+    `<label class="stack">Latency <input name="cap_latency" placeholder="étiquette libre (optionnel)" ${attr} /></label>` +
     `<label class="check">Coding <input name="cap_coding" type="checkbox" ${attr} /></label>` +
     `<label class="check">Local <input name="cap_local" type="checkbox" ${attr} /></label>`
   );
@@ -117,7 +117,7 @@ export function buildRuntimeCreate(read: FormReader): BuildResult<RuntimeRegistr
   const provider = trimOrNull(read.text("provider_ref"));
   const model = trimOrNull(read.text("model_ref"));
   if (machineId === null && harness === null && provider === null && model === null) {
-    return { ok: false, error: "at least one of machine, harness, provider or model is required" };
+    return { ok: false, error: "au moins un ancrage est requis : machine, harness, provider ou model" };
   }
   const value: RuntimeRegistrationCreate = {
     machine_id: machineId,
@@ -146,25 +146,25 @@ export function buildRuntimeUpdate(read: FormReader): BuildResult<RuntimeRegistr
   const metadata = read.text("metadata").trim();
   if (metadata !== "") update.runtime_metadata = parseMetadataLines(metadata);
   const expected = Number(read.text("expected_version"));
-  if (!Number.isInteger(expected) || expected < 1) return { ok: false, error: "expected_version must be ≥ 1" };
+  if (!Number.isInteger(expected) || expected < 1) return { ok: false, error: "la version attendue (expected_version) doit être ≥ 1" };
   return { ok: true, value: { update, expected_version: expected } };
 }
 
 export function buildBindingCreate(read: FormReader): BuildResult<RuntimeBindingCreate> {
   const level = read.text("level");
   if (!(STORED_RUNTIME_LEVELS as readonly string[]).includes(level)) {
-    return { ok: false, error: "level must be one of user, project_override, project_default, studio_default" };
+    return { ok: false, error: "le niveau doit être user, project_override, project_default ou studio_default" };
   }
   const projectId = trimOrNull(read.text("project_id"));
   if ((level === "project_override" || level === "project_default") && projectId === null) {
-    return { ok: false, error: `${level} requires a project ID` };
+    return { ok: false, error: `${level} exige un ID de projet` };
   }
   const targetKind = read.text("target_kind");
   if (targetKind !== "agent_definition" && targetKind !== "model_profile") {
-    return { ok: false, error: "target kind must be agent_definition or model_profile" };
+    return { ok: false, error: "le type de cible doit être agent_definition ou model_profile" };
   }
   const stableKey = read.text("target_stable_key").trim();
-  if (stableKey === "") return { ok: false, error: "target stable key is required" };
+  if (stableKey === "") return { ok: false, error: "la clé stable cible est requise" };
 
   const runtimeId = trimOrNull(read.text("runtime_id"));
   let target: RuntimeTarget;
@@ -178,7 +178,7 @@ export function buildBindingCreate(read: FormReader): BuildResult<RuntimeBinding
     if (machineId === null && harness === null && provider === null && model === null) {
       return {
         ok: false,
-        error: "provide a runtime registry id, or at least one inline anchor (machine/harness/provider/model)",
+        error: "fournissez un ID de registre runtime, ou au moins un ancrage direct (machine/harness/provider/model)",
       };
     }
     target = {

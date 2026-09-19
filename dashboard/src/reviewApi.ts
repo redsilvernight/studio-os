@@ -1,12 +1,10 @@
 /**
- * DASH-5 — AI work review resolution.
+ * DASH-5 / UI-8 — Review Queue actions.
  *
- * `PATCH /api/v1/ai-work/{id}` with `status: "approved" | "changes_requested"`
- * is the only valid exit from `review_requested`, and the server allows it for
- * a privileged role only (DEC-0041: `403` for the owning non-admin machine,
- * `409 invalid_status_transition` outside `review_requested`). The dashboard
- * never guesses the outcome: it sends the transition and surfaces whatever the
- * server answers.
+ * Only `ai_work_review` has a real backend transition:
+ *   PATCH /api/v1/ai-work/{id} with status "approved" | "changes_requested"
+ * Other kinds (decision_proposal, resource_conflict, build_failure, pr_ready)
+ * are informational / best-effort signals — no transition endpoint exists.
  */
 import type { StudioClient } from "./api";
 import { ApiError, parseErrorBody } from "./api";

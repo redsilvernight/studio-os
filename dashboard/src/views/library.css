@@ -1,0 +1,407 @@
+/**
+ * UI-7 — Bibliothèque : surfaces calmes, listes documentaires aérées,
+ * lecture prioritaire. Aucun style inline ailleurs : tout passe ici.
+ */
+
+.library {
+  display: grid;
+  gap: var(--ds-space-6);
+  max-width: var(--ds-content-default);
+  padding-bottom: var(--ds-space-12);
+}
+
+/* Racine : cinq catégories, beaucoup d'air. */
+.library-cats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--ds-space-4);
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
+.library-cat {
+  display: grid;
+  gap: var(--ds-space-2);
+  align-content: start;
+}
+
+.library-cat h2 {
+  margin: 0;
+  font-size: var(--ds-text-lg);
+}
+
+.library-cat p {
+  margin: 0;
+  color: var(--ds-text-muted);
+}
+
+/* Barre d'outils : recherche dominante, filtres secondaires. */
+.library-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--ds-space-3) var(--ds-space-4);
+}
+
+.library-toolbar .ds-search {
+  flex: 1;
+  min-width: 220px;
+}
+
+.library-filter {
+  display: grid;
+  gap: var(--ds-space-1);
+  font-size: var(--ds-text-sm);
+  font-weight: 600;
+}
+
+.library-toolbar .ds-list-sub {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+/* Liste documentaire : une ressource = une carte légère. */
+.library-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--ds-space-3);
+}
+
+.library-item {
+  display: grid;
+  gap: var(--ds-space-1);
+  padding: var(--ds-space-4) var(--ds-space-5);
+}
+
+.library-item-top {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ds-space-3);
+  flex-wrap: wrap;
+}
+
+.library-item-title {
+  margin: 0;
+  font-size: var(--ds-text-base);
+  flex: 1;
+  min-width: 200px;
+  overflow-wrap: anywhere;
+}
+
+.library-item-badges {
+  display: inline-flex;
+  gap: var(--ds-space-2);
+  flex-wrap: wrap;
+}
+
+.library-item .ds-list-sub {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Détail : lecture d'abord. */
+.library-detail {
+  gap: var(--ds-space-4);
+}
+
+.library-badges {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  flex-wrap: wrap;
+  margin: 0;
+}
+
+.library-reading .body {
+  display: grid;
+  gap: var(--ds-space-3);
+}
+
+.library-prose {
+  margin: 0;
+  max-width: 75ch;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  padding: var(--ds-space-4);
+}
+
+.library-kv {
+  margin: 0;
+  display: grid;
+  gap: var(--ds-space-3);
+}
+
+.library-kv > div {
+  display: grid;
+  gap: var(--ds-space-1);
+}
+
+.library-kv dt {
+  font-weight: 600;
+  font-size: var(--ds-text-sm);
+  color: var(--ds-text-muted);
+}
+
+.library-kv dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.library-edges {
+  margin: 0;
+  padding-left: var(--ds-space-5);
+  display: grid;
+  gap: var(--ds-space-1);
+}
+
+.library-actions {
+  display: grid;
+  gap: var(--ds-space-4);
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.library-action {
+  display: grid;
+  gap: var(--ds-space-2);
+  align-content: start;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  padding: var(--ds-space-4);
+  margin: 0;
+}
+
+.library-action h3 {
+  margin: 0;
+  font-size: var(--ds-text-base);
+}
+
+.library-action--danger {
+  border-color: var(--ds-danger-border);
+}
+
+.library-inline-field {
+  display: grid;
+  gap: var(--ds-space-1);
+  font-size: var(--ds-text-sm);
+  font-weight: 600;
+}
+
+/* Versions : divulgation progressive accessible. */
+.library-versions {
+  display: grid;
+  gap: var(--ds-space-2);
+}
+
+.library-version {
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  padding: 0 var(--ds-space-4);
+  background: var(--ds-surface);
+}
+
+.library-version summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: var(--ds-target);
+  display: flex;
+  align-items: center;
+}
+
+.library-version-body {
+  display: grid;
+  gap: var(--ds-space-3);
+  padding-bottom: var(--ds-space-4);
+}
+
+.library-version-body h4 {
+  margin: var(--ds-space-2) 0 0;
+}
+
+/* Détails techniques : repliés par défaut, secondaires. */
+.library-tech {
+  border-top: 1px solid var(--ds-border);
+  padding-top: var(--ds-space-2);
+  font-size: var(--ds-text-sm);
+  color: var(--ds-text-muted);
+}
+
+.library-tech summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: var(--ds-target-sm);
+  display: inline-flex;
+  align-items: center;
+}
+
+.library-tech-list {
+  margin: var(--ds-space-2) 0 0;
+  display: grid;
+  gap: var(--ds-space-1);
+}
+
+.library-tech-list > div {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: var(--ds-space-2);
+}
+
+.library-tech-list dt {
+  font-weight: 600;
+}
+
+.library-tech-list dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Formulaires : principal / avancé. */
+.library-fieldset {
+  display: grid;
+  gap: var(--ds-space-3);
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.library-fieldset legend {
+  font-weight: 700;
+  padding: 0;
+  margin-bottom: var(--ds-space-2);
+}
+
+/* Lignes héritées des éditeurs Library (libraryForms.ts) : même contrat,
+   présentation alignée sur le Design System sans toucher au partagé. */
+.library-fieldset .stack,
+.library-advanced .stack {
+  display: grid;
+  gap: var(--ds-space-1);
+  font-size: var(--ds-text-sm);
+  font-weight: 600;
+}
+
+.library-fieldset .stack input,
+.library-fieldset .stack select,
+.library-fieldset .stack textarea,
+.library-advanced .stack input,
+.library-advanced .stack select,
+.library-advanced .stack textarea,
+.library-inline-field .ds-input {
+  min-height: var(--ds-target);
+  padding: var(--ds-space-2) var(--ds-space-3);
+  border: 1px solid var(--ds-border-strong);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface);
+  color: var(--ds-text);
+  font-size: var(--ds-text-base);
+  font-family: inherit;
+  font-weight: 400;
+  width: 100%;
+}
+
+.library-fieldset .stack textarea,
+.library-advanced .stack textarea {
+  resize: vertical;
+  min-height: 96px;
+}
+
+.library-fieldset .check,
+.library-advanced .check {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  font-size: var(--ds-text-sm);
+  font-weight: 600;
+  min-height: var(--ds-target-sm);
+}
+
+.library-fieldset h3,
+.library-advanced h3 {
+  margin: var(--ds-space-2) 0 0;
+  font-size: var(--ds-text-base);
+}
+
+.repeat {
+  display: grid;
+  gap: var(--ds-space-2);
+}
+
+.repeat-row {
+  display: grid;
+  gap: var(--ds-space-2);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  padding: var(--ds-space-3);
+}
+
+.repeat-row .cell {
+  display: grid;
+  gap: var(--ds-space-1);
+  font-size: var(--ds-text-sm);
+  font-weight: 600;
+}
+
+.repeat-row .cell input,
+.repeat-row .cell select {
+  min-height: var(--ds-target-sm);
+  padding: var(--ds-space-1) var(--ds-space-2);
+  border: 1px solid var(--ds-border-strong);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface);
+  color: var(--ds-text);
+  font-size: var(--ds-text-sm);
+  font-family: inherit;
+  font-weight: 400;
+  width: 100%;
+}
+
+.repeat-row button[data-remove-row] {
+  justify-self: start;
+  min-height: var(--ds-target-sm);
+  padding: var(--ds-space-1) var(--ds-space-3);
+  border: 1px solid var(--ds-border-strong);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-soft);
+  color: var(--ds-text);
+  font-size: var(--ds-text-sm);
+  cursor: pointer;
+}
+
+.library-advanced {
+  border-top: 1px solid var(--ds-border);
+  padding-top: var(--ds-space-2);
+}
+
+.library-advanced summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: var(--ds-target-sm);
+  display: inline-flex;
+  align-items: center;
+}
+
+#library-create-form,
+#library-version-form {
+  display: grid;
+  gap: var(--ds-space-4);
+}
+
+@media (max-width: 640px) {
+  .library-toolbar {
+    display: grid;
+  }
+  .library-cats {
+    grid-template-columns: 1fr;
+  }
+  .library-tech-list > div {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}

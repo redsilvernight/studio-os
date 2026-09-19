@@ -277,7 +277,7 @@ async function bootAuthedDashboard(page: Page): Promise<void> {
   await page.fill("#login-email", "e2e@example.test");
   await page.fill("#login-password", "e2e-secret");
   await page.locator("#login-form button[type=submit]").click();
-  await expect(page.locator("nav.nav")).toBeVisible();
+  await expect(page.locator(".app-sidebar")).toBeVisible();
   await page.waitForLoadState("networkidle");
 }
 
@@ -332,11 +332,11 @@ test("inspector displays the server's winning level, not a local guess", async (
   const result = page.locator("[data-result]");
   await expect(result).toContainText("review-agent");
   await expect(result).toContainText("project override");
-  await expect(result).toContainText("Provider:");
+  await expect(result).toContainText("Provider :");
   await expect(result).toContainText("provider_a");
-  await expect(result).toContainText("Model:");
+  await expect(result).toContainText("Model :");
   await expect(result).toContainText("model_a");
-  await expect(result).toContainText("Which binding won?");
+  await expect(result).toContainText("Quel binding a gagné");
   await expect(result).toContainText("project override");
 
   expect(errors).toEqual([]);
@@ -355,7 +355,7 @@ test("inspector session override wins, is sent ephemerally and does not persist"
 
   await goHash(page, "#/inspector");
   await page.fill("input[name=stable_key]", "review-agent");
-  await page.locator("summary", { hasText: "Temporary session override" }).click();
+  await page.locator("summary", { hasText: "Remplacement de session éphémère" }).click();
   await page.check("input[name=enable_override]");
   await page.fill("input[name=override_stable_key]", "review-agent");
   await page.fill("input[name=override_model_ref]", "session-model");
@@ -363,7 +363,7 @@ test("inspector session override wins, is sent ephemerally and does not persist"
 
   await expect(page.locator("[data-result]")).toContainText("session (ephemeral)");
   await expect(page.locator("[data-result]")).toContainText("temporary session override");
-  await expect(page.locator("[data-msg]")).toContainText("Resolved");
+  await expect(page.locator("[data-msg]")).toContainText("Résolution terminée");
 
   const body = captured.body as {
     stable_key?: string;
@@ -398,11 +398,11 @@ test("inspector renders runtime_incompatible with the selected binding and no fa
   await bootAuthedDashboard(page);
 
   await goHash(page, "#/inspector/review-agent");
-  const failure = page.locator(".state.error");
+  const failure = page.locator(".ds-notice--danger");
   await expect(failure).toContainText("runtime_incompatible");
-  await expect(failure).toContainText("Selected binding: project override");
-  await expect(failure).toContainText("Unsatisfied: coding: required");
-  await expect(failure).toContainText("No fallback performed");
+  await expect(failure).toContainText("Binding sélectionné : project override");
+  await expect(failure).toContainText("Exigences non satisfaites : coding: required");
+  await expect(failure).toContainText("Aucun repli automatique");
 
   expect(errors).toEqual([]);
 });
@@ -415,10 +415,116 @@ test("inspector masks a 404 without leaking ownership", async ({ page }) => {
   await bootAuthedDashboard(page);
 
   await goHash(page, "#/inspector/review-agent");
-  const failure = page.locator(".state.error");
-  await expect(failure).toContainText("Not found");
-  await expect(failure).toContainText("never reveals which");
+  const failure = page.locator(".ds-notice--danger");
+  await expect(failure).toContainText("Non trouvé");
+  await expect(failure).toContainText("ne révèle jamais laquelle");
   await expect(failure).not.toContainText(/\bown/i);
+
+  expect(errors).toEqual([]);
+});
+
+test("inspector shows the canonical Compatible verdict with requirements and capabilities", async ({ page }) => {
+  const errors = watchPageErrors(page);
+  await stubApi(page, { resolution: { status: 200, body: resolvedAgent("project_override", "runtime_binding") } });
+  await bootAuthedDashboard(page);
+
+  await goHash(page, "#/inspector/review-agent");
+  const result = page.locator("[data-result]");
+  await expect(result).toContainText("Exigences (ModelProfile)");
+  await expect(result).toContainText("Capacités runtime (déclarées)");
+  await expect(result).toContainText("Compatible");
+
+  expect(errors).toEqual([]);
+});
+
+test("inspector never shows Compatible when no runtime was selected (unknown != compatible)", async ({ page }) => {
+  const errors = watchPageErrors(page);
+  const body = { ...resolvedAgent("user", "runtime_binding"), runtime: null };
+  await stubApi(page, { resolution: { status: 200, body } });
+  await bootAuthedDashboard(page);
+
+  await goHash(page, "#/inspector/review-agent");
+  const result = page.locator("[data-result]");
+  await expect(result).toContainText("Aucun binding runtime sélectionné");
+  await expect(result).toContainText("résultat valide");
+  await expect(result).not.toContainText("Compatible");
+
+  expect(errors).toEqual([]);
+});
+
+test("inspector deep link from the Library prefills and resolves", async ({ page }) => {
+  const errors = watchPageErrors(page);
+  await stubApi(page, { resolution: { status: 200, body: resolvedAgent("user", "runtime_binding") } });
+  await bootAuthedDashboard(page);
+
+  await goHash(page, `#/library/agent-definitions/${AGENT_ID}`);
+  await expect(page.locator("#view")).toContainText("review-agent");
+  await page.getByRole("link", { name: "Inspecter la résolution" }).click();
+
+  await expect(page).toHaveURL(/#\/inspector\/review-agent$/);
+  await expect(page.locator("input[name=stable_key]")).toHaveValue("review-agent");
+  await expect(page.locator("[data-result]")).toContainText("review-agent");
+
+  expect(errors).toEqual([]);
+});
+
+test("inspector is keyboard operable and survives back/forward", async ({ page }) => {
+  const errors = watchPageErrors(page);
+  await stubApi(page, { resolution: { status: 200, body: resolvedAgent("user", "runtime_binding") } });
+  await bootAuthedDashboard(page);
+
+  await goHash(page, "#/inspector");
+  const input = page.locator("input[name=stable_key]");
+  await input.fill("review-agent");
+  await input.press("Enter");
+  await expect(page.locator("[data-result]")).toContainText("review-agent");
+
+  await goHash(page, `#/inspector/review-agent`);
+  await expect(page.locator("[data-result]")).toContainText("review-agent");
+  await goHash(page, "#/agents");
+  await page.goBack();
+  await expect(page).toHaveURL(/#\/inspector\/review-agent$/);
+  await expect(page.locator("[data-result]")).toContainText("review-agent");
+
+  expect(errors).toEqual([]);
+});
+
+test("inspector mobile 375: stacked layout, no global overflow, raw JSON secondary", async ({ page }) => {
+  const errors = watchPageErrors(page);
+  await stubApi(page, { resolution: { status: 200, body: resolvedAgent("user", "runtime_binding") } });
+  await bootAuthedDashboard(page);
+  await page.setViewportSize({ width: 375, height: 720 });
+
+  await goHash(page, "#/inspector/review-agent");
+  await expect(page.locator("[data-result]")).toContainText("review-agent");
+
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(1);
+
+  const raw = page.locator(".inspector-raw");
+  await expect(raw).toBeVisible();
+  await expect(raw.locator("pre.code")).toBeHidden();
+  await raw.locator("summary").click();
+  await expect(raw.locator("pre.code")).toBeVisible();
+
+  expect(errors).toEqual([]);
+});
+
+test("inspector never exposes secrets, even in the raw JSON drawer", async ({ page }) => {
+  const errors = watchPageErrors(page);
+  await stubApi(page, { resolution: { status: 200, body: resolvedAgent("user", "runtime_binding") } });
+  await bootAuthedDashboard(page);
+
+  await goHash(page, "#/inspector/review-agent");
+  await expect(page.locator("[data-result]")).toContainText("review-agent");
+  await page.locator(".inspector-raw summary").click();
+
+  const text = ((await page.locator("[data-result]").textContent()) ?? "").toLowerCase();
+  for (const forbidden of ["token", "secret", "password", "authorization", "bearer", "credential", "api_key"]) {
+    expect(text).not.toContain(forbidden);
+  }
 
   expect(errors).toEqual([]);
 });
@@ -430,7 +536,7 @@ test("library creation reads the scope select (D1 regression)", async ({ page })
   await bootAuthedDashboard(page);
 
   await goHash(page, "#/library/rules");
-  await page.locator("summary", { hasText: "New" }).click();
+  await page.locator("#library-new").click();
   await expect(page.locator("form[data-create]")).toBeVisible();
   await page.fill("form[data-create] input[name=stable_key]", "e2e-created-rule");
   await page.selectOption("form[data-create] select[name=scope]", "user");
@@ -458,7 +564,7 @@ test("binding creation reads the level and target_kind selects (D1 regression)",
   await bootAuthedDashboard(page);
 
   await goHash(page, "#/configuration/bindings");
-  await page.locator("summary", { hasText: "New binding" }).click();
+  await page.locator("summary", { hasText: "Nouveau binding" }).click();
   await expect(page.locator("form[data-binding-create]")).toBeVisible();
   await page.selectOption("form[data-binding-create] select[name=level]", "project_default");
   await page.fill(
@@ -470,6 +576,9 @@ test("binding creation reads the level and target_kind selects (D1 regression)",
     "model_profile",
   );
   await page.fill("form[data-binding-create] input[name=target_stable_key]", "review-profile");
+  await page
+    .locator("form[data-binding-create] summary", { hasText: "Ou ancres inline" })
+    .click();
   await page.fill("form[data-binding-create] input[name=model_ref]", "model_a");
   await page.locator("form[data-binding-create] button[type=submit]").click();
 

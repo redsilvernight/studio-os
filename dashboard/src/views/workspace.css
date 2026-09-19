@@ -1,0 +1,225 @@
+/**
+ * UI-4 — Workspace projet : cadre stable (header compact + onglets),
+ * overview respirant, timeline lisible. Les tableaux hérités des onglets
+ * Tâches/Claims défilent horizontalement sur mobile en attendant UI-5.
+ */
+
+.workspace {
+  display: grid;
+  gap: var(--ds-space-4);
+  max-width: var(--ds-content-default);
+  padding-bottom: var(--ds-space-12);
+}
+
+.workspace-back {
+  margin: 0;
+}
+
+.workspace-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ds-space-3);
+  flex-wrap: wrap;
+}
+
+.workspace-title-row h1 {
+  margin: 0;
+  font-size: var(--ds-text-2xl);
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.workspace-desc {
+  margin: 0;
+  color: var(--ds-text-muted);
+  max-width: 70ch;
+}
+
+.workspace-tech {
+  font-size: var(--ds-text-sm);
+  color: var(--ds-text-muted);
+}
+
+.workspace-tech summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: var(--ds-target-sm);
+  display: inline-flex;
+  align-items: center;
+}
+
+.workspace-tech dl {
+  margin: var(--ds-space-2) 0 0;
+  display: grid;
+  gap: var(--ds-space-1);
+}
+
+.workspace-tech dl > div {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: var(--ds-space-2);
+}
+
+.workspace-tech dt {
+  font-weight: 600;
+}
+
+.workspace-tech dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.workspace-panel {
+  display: grid;
+  gap: var(--ds-space-4);
+  align-content: start;
+  min-width: 0;
+}
+
+/* UI-15 : l'emplacement de contenu async (onglets Tâches/Réservations)
+   doit pouvoir rétrécir sous le min-content de son contenu (table, lignes
+   à titre nowrap) ; le scroll reste local au tableau, jamais global. */
+.workspace-panel [data-slot] {
+  min-width: 0;
+}
+
+/* Tableaux hérités (Tâches/Claims) : scroll horizontal sur petits écrans. */
+.workspace-panel table {
+  display: block;
+  overflow-x: auto;
+  width: 100%;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface);
+  border-collapse: collapse;
+  font-size: var(--ds-text-sm);
+}
+
+.workspace-panel table th,
+.workspace-panel table td {
+  text-align: left;
+  padding: var(--ds-space-2) var(--ds-space-3);
+  border-bottom: 1px solid var(--ds-border);
+  white-space: nowrap;
+}
+
+.workspace-panel .kanban {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(220px, 1fr));
+  gap: var(--ds-space-3);
+  overflow-x: auto;
+  padding-bottom: var(--ds-space-2);
+}
+
+/* Vue d'ensemble : sections très espacées, listes résumées. */
+.workspace-overview {
+  display: grid;
+  gap: var(--ds-space-8);
+}
+
+.workspace-section {
+  display: grid;
+  gap: var(--ds-space-2);
+  align-content: start;
+}
+
+/* Timeline : lisible sans la ligne graphique (marqueur décoratif seul). */
+.tl-day {
+  display: grid;
+  gap: var(--ds-space-3);
+}
+
+.tl-day > h3 {
+  margin: 0;
+  font-size: var(--ds-text-base);
+  color: var(--ds-text-muted);
+}
+
+.tl-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--ds-space-3);
+}
+
+.tl-item {
+  display: grid;
+  grid-template-columns: 12px 1fr;
+  gap: var(--ds-space-3);
+  align-items: start;
+}
+
+.tl-marker {
+  width: 12px;
+  height: 12px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--ds-surface-sunken);
+  border: 2px solid var(--ds-border-strong);
+}
+
+.tl-card {
+  display: grid;
+  gap: var(--ds-space-1);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  padding: var(--ds-space-3) var(--ds-space-4);
+  min-width: 0;
+}
+
+.tl-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.tl-context {
+  color: var(--ds-text);
+  overflow-wrap: anywhere;
+}
+
+.tl-meta {
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-sm);
+  overflow-wrap: anywhere;
+}
+
+.tl-task {
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .workspace-title-row h1 {
+    font-size: var(--ds-text-xl);
+  }
+  .workspace-tech dl > div {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .tl-item {
+    grid-template-columns: 1fr;
+  }
+  .tl-marker {
+    display: none;
+  }
+}
+
+/* Onglet Réservations : formulaire de création aéré, champs en grille. */
+.claims-create {
+  margin-top: var(--ds-space-6);
+}
+.claims-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--ds-space-4);
+  align-items: start;
+}
+.claims-form > p,
+.claims-form > button,
+.claims-form > [data-create-msg] {
+  grid-column: 1 / -1;
+}
+.claims-form > button {
+  justify-self: start;
+}

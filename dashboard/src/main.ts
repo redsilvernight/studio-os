@@ -1,10 +1,19 @@
 /**
- * Application shell (DASH-0/2).
+ * Application shell (UI-2, DEC-0079).
  *
- * Routes: #/ (Dashboard overview), #/projects, #/projects/<id>[/tasks|/claims],
- * #/tasks, #/tasks/<id>. Activity/Agents/Worklogs/Decisions/Transfers stay
- * DISABLED (no fake content, no Machines entry). Token bar: manual Bearer,
- * memory-only, one-click clear.
+ * AppShell : sidebar bleu nuit + topbar minimale + contenu principal.
+ * Le shell est construit UNE fois (mountShell) ; render() ne remplace
+ * que #view et synchronise l'état actif — jamais de reconstruction qui
+ * fermerait le drawer ou perdrait le focus.
+ *
+ * Anti-race (arbitrage UI-2) : chaque render() prend un jeton
+ * (renderGuard) et peint dans un nœud détaché ; seul le rendu encore
+ * courant est attaché. Une ancienne route ne repeint jamais la courante.
+ *
+ * Routes : voir src/router.ts. #/design-system = démo interne (aucune
+ * entrée nav). Activity/Worklogs sortis de la nav (Activité reviendra
+ * comme onglet projet en UI-4). Token : mémoire seule, déconnexion =
+ * retour à l'écran de connexion.
  */
 import { apiBaseUrl, createApiClient } from "./api";
 import { resolveApiUrl } from "./config";
@@ -15,143 +24,119 @@ import { renderProjects } from "./views/projects";
 import { renderProjectDetail } from "./views/projectDetail";
 import { renderTaskDetail } from "./views/taskDetail";
 import { renderTasksInto } from "./views/tasks";
+import { renderAgentDetail, renderAgents } from "./views/agents";
 import { renderMachines } from "./views/machines";
-import { renderDecisions } from "./views/decisions";
+import { renderDecisionsV2 as renderDecisions } from "./views/decisionsV2";
 import { renderTransfers } from "./views/transfers";
 import { renderLibrary, renderLibraryDetail } from "./views/library";
 import { renderBindings, renderProjectConfig, renderRuntimeDetail, renderRuntimes } from "./views/configuration";
 import { renderInspector } from "./views/inspector";
+import { renderDesignSystem } from "./views/designSystem";
+import { renderNotFound } from "./views/notFound";
 import { loginOverlayHtml, renderLogin } from "./login";
-import { parseRoute, type Route } from "./router";
-import { esc } from "./ui";
+import { parseRoute } from "./router";
+import { shellHtml, syncAuthState, syncNav } from "./shell";
+import { createRenderGuard } from "./renderGuard";
 import { startRealtimeConnection, type RealtimeConnection } from "./realtime";
 import type { components } from "./openapi-schema";
+import "./ds/tokens.css";
+import "./ds/components.css";
+import "./shell.css";
+import "./views/overview.css";
+import "./views/projects.css";
+import "./views/library.css";
+import "./views/workspace.css";
+import "./views/decisions.css";
 import "./styles.css";
 
 type EventEnvelope = components["schemas"]["EventEnvelope"];
 
-const DISABLED_SECTIONS = ["Activity", "Worklogs"] as const;
-
-function navHtml(route: Route): string {
-  const item = (href: string, label: string, active: boolean): string =>
-    `<a class="nav-item${active ? " active" : ""}" href="${href}">${esc(label)}</a>`;
-  const disabled = DISABLED_SECTIONS.map(
-    (name) => `<span class="nav-item disabled" title="Planned later">${esc(name)}<span class="badge">later</span></span>`,
-  ).join("");
-  return `<nav class="nav">${item("#/", "Dashboard", route.name === "dashboard")}${item(
-    "#/projects",
-    "Projects",
-    route.name === "projects" || route.name === "project",
-  )}${item("#/tasks", "Tasks", route.name === "tasks" || route.name === "task")}${item(
-    "#/machines",
-    "Machines",
-    route.name === "machines",
-  )}${item("#/decisions", "Decisions", route.name === "decisions")}${item(
-    "#/transfers",
-    "Transfers",
-    route.name === "transfers",
-  )}${item("#/library", "Library", route.name === "library" || route.name === "libraryDetail")}${item(
-    "#/configuration/runtimes",
-    "Configuration",
-    route.name === "configRuntimes" || route.name === "configRuntime" || route.name === "configBindings" || route.name === "configProject",
-  )}${item("#/inspector", "Inspector", route.name === "inspector")}${disabled}</nav>`;
-}
-
-function shellHtml(apiUrl: string, route: Route): string {
-  const shownUrl = apiUrl === "" ? "same-origin" : apiUrl;
-  return `
-  <header class="topbar">
-    <div class="brand">Studi'OS <span class="v0">dashboard v0</span></div>
-    ${navHtml(route)}
-    <div class="api-url" title="API base URL (VITE_STUDIO_API_URL, empty = same-origin)">${esc(shownUrl)}</div>
-  </header>
-  <div class="tokenbar">
-    <label>Machine token
-      <input id="token-input" type="password" autocomplete="off" spellcheck="false" placeholder="Bearer token (memory only)" />
-    </label>
-    <button id="token-set" type="button">Set</button>
-    <button id="token-clear" type="button">Clear</button>
-    <span id="token-state" class="meta"></span>
-    <span class="meta warn" title="The token stays in page memory. It is never stored, never logged, never rendered back. Clearing drops it from this session.">memory-only · never stored</span>
-  </div>
-  <div id="conflict-banner" class="conflict-banner" hidden></div>
-  <main id="view"></main>`;
-}
-
-function refreshTokenState(): void {
-  const state = document.getElementById("token-state");
-  const input = document.getElementById("token-input") as HTMLInputElement | null;
-  if (state !== null) state.textContent = hasToken() ? "token set (hidden)" : "no token";
-  if (input !== null && hasToken()) input.value = "";
-}
+const renderGuard = createRenderGuard();
+let shellListenersMounted = false;
 
 async function render(): Promise<void> {
-  const view = document.getElementById("view");
-  const topbar = document.querySelector(".topbar");
-  if (view === null) return;
+  const my = renderGuard.next();
   const route = parseRoute(location.hash);
-  if (topbar !== null) topbar.outerHTML = `<header class="topbar"><div class="brand">Studi'OS <span class="v0">dashboard v0</span></div>${navHtml(route)}<div class="api-url">${esc(apiUrlShown())}</div></header>`;
   const baseUrl = resolveApiUrl(apiBaseUrl());
   const client = createApiClient(baseUrl);
   const authed = hasToken();
+  const staging = document.createElement("main");
   switch (route.name) {
     case "projects":
-      await renderProjects(view, { client, authed });
+      await renderProjects(staging, { client, authed });
       break;
     case "project":
-      await renderProjectDetail(view, { client, authed }, route.id, route.tab);
+      await renderProjectDetail(staging, { client, authed }, route.id, route.tab);
       break;
     case "tasks":
-      await renderTasksInto(view, {
+      await renderTasksInto(staging, {
         client,
         authed,
         projectId: uiState.selectedProjectId ?? undefined,
-        scopeLabel: uiState.selectedProjectId ? "selected project (change in Overview/Projects)" : "all projects",
+        scopeLabel: uiState.selectedProjectId ? "Projet sélectionné (à changer dans Vue d'ensemble ou Projets)" : "Tous les projets",
       });
       break;
     case "task":
-      await renderTaskDetail(view, { client, authed }, route.id);
+      await renderTaskDetail(staging, { client, authed }, route.id);
+      break;
+    case "agents":
+      await renderAgents(staging, { client, authed });
+      break;
+    case "agent":
+      await renderAgentDetail(staging, { client, authed }, route.id);
       break;
     case "machines":
-      await renderMachines(view, { client, baseUrl, authed });
+      await renderMachines(staging, { client, baseUrl, authed });
       break;
     case "decisions":
-      await renderDecisions(view, { client, authed });
+      await renderDecisions(staging, { client, authed });
       break;
     case "transfers":
-      await renderTransfers(view, { client, authed });
+      await renderTransfers(staging, { client, authed });
       break;
     case "library":
-      await renderLibrary(view, { client, authed }, route.kind);
+      await renderLibrary(staging, { client, authed }, route.kind);
       break;
     case "libraryDetail":
-      await renderLibraryDetail(view, { client, authed }, route.kind, route.id);
+      await renderLibraryDetail(staging, { client, authed }, route.kind, route.id);
       break;
     case "configRuntimes":
-      await renderRuntimes(view, { client, authed });
+      await renderRuntimes(staging, { client, authed });
       break;
     case "configRuntime":
-      await renderRuntimeDetail(view, { client, authed }, route.id);
+      await renderRuntimeDetail(staging, { client, authed }, route.id);
       break;
     case "configBindings":
-      await renderBindings(view, { client, authed });
+      await renderBindings(staging, { client, authed });
       break;
     case "configProject":
-      await renderProjectConfig(view, { client, authed }, route.tab);
+      await renderProjectConfig(staging, { client, authed }, route.tab);
       break;
     case "inspector":
-      await renderInspector(view, { client, authed, stableKey: route.stableKey });
+      await renderInspector(staging, { client, authed, stableKey: route.stableKey });
+      break;
+    case "designSystem":
+      renderDesignSystem(staging);
+      break;
+    case "notFound":
+      renderNotFound(staging, route.hash);
       break;
     case "dashboard":
     default:
-      await renderOverview(view, { client, baseUrl, authed });
+      await renderOverview(staging, { client, baseUrl, authed });
       break;
   }
-}
-
-function apiUrlShown(): string {
-  const baseUrl = resolveApiUrl(apiBaseUrl());
-  return baseUrl === "" ? "same-origin" : baseUrl;
+  if (!renderGuard.isCurrent(my)) return;
+  // Le staging DEVIENT #view : les vues capturent la racine en closure
+  // pour leurs requêtes différées (handlers) — déplacer les enfants seuls
+  // casserait ces requêtes. Remplacer le nœud préserve les listeners.
+  const old = document.getElementById("view");
+  if (old === null) return;
+  staging.id = "view";
+  staging.tabIndex = -1;
+  old.replaceWith(staging);
+  syncNav(route, document);
+  syncAuthState(authed, document);
 }
 
 let conflictBannerTimer: ReturnType<typeof setTimeout> | null = null;
@@ -159,8 +144,8 @@ let conflictBannerTimer: ReturnType<typeof setTimeout> | null = null;
 function showConflictBanner(event: EventEnvelope): void {
   const banner = document.getElementById("conflict-banner");
   if (banner === null) return;
-  const resourcePath = typeof event.payload?.["resource_path"] === "string" ? event.payload["resource_path"] : "unknown resource";
-  banner.textContent = `Resource conflict: ${resourcePath}`;
+  const resourcePath = typeof event.payload?.["resource_path"] === "string" ? event.payload["resource_path"] : "ressource inconnue";
+  banner.textContent = `Conflit de ressource : ${resourcePath}`;
   banner.hidden = false;
   if (conflictBannerTimer !== null) clearTimeout(conflictBannerTimer);
   conflictBannerTimer = setTimeout(() => {
@@ -201,42 +186,98 @@ function syncRealtimeConnection(): void {
   );
 }
 
+/**
+ * Après un changement de vue, le nœud #view est remplacé : sans reprise de
+ * focus, il retombe sur <body> et l'utilisateur clavier/lecteur d'écran perd
+ * le point de reprise. On focalise le repère principal (même cible que le
+ * skip-link) — jamais un titre de contenu, pour ne pas déplacer le curseur
+ * de lecture dans la page. Réservé aux navigations explicites (hashchange) :
+ * le rendu initial et les re-rendus temps réel ne volent jamais le focus,
+ * pour préserver le premier Tab vers le skip-link (invariant UI-2/UI-13).
+ * Une nouvelle page démarre en haut : sans remise à zéro, le défilement de la
+ * vue précédente subsiste et le titre reste masqué (sous la barre collante).
+ */
+function focusView(): void {
+  window.scrollTo(0, 0);
+  document.getElementById("view")?.focus({ preventScroll: true });
+}
+
+function openDrawer(): void {
+  const sidebar = document.getElementById("app-sidebar");
+  const scrim = document.getElementById("app-scrim");
+  const openBtn = document.getElementById("nav-open");
+  if (sidebar === null || scrim === null) return;
+  sidebar.classList.add("open");
+  scrim.hidden = false;
+  openBtn?.setAttribute("aria-expanded", "true");
+  sidebar.querySelector<HTMLAnchorElement>("a.app-navlink")?.focus();
+}
+
+function closeDrawer(restoreFocus = true): void {
+  const sidebar = document.getElementById("app-sidebar");
+  const scrim = document.getElementById("app-scrim");
+  const openBtn = document.getElementById("nav-open") as HTMLButtonElement | null;
+  if (sidebar === null || scrim === null) return;
+  if (!sidebar.classList.contains("open")) return;
+  sidebar.classList.remove("open");
+  scrim.hidden = true;
+  openBtn?.setAttribute("aria-expanded", "false");
+  if (restoreFocus) openBtn?.focus();
+}
+
+export function isDrawerOpen(): boolean {
+  return document.getElementById("app-sidebar")?.classList.contains("open") ?? false;
+}
+
 function mountShell(): void {
   const app = document.getElementById("app");
   if (app === null) throw new Error("#app missing");
-  app.innerHTML = shellHtml(resolveApiUrl(apiBaseUrl()), parseRoute(location.hash));
+  app.innerHTML = shellHtml(parseRoute(location.hash), hasToken());
 
-  const input = document.getElementById("token-input") as HTMLInputElement;
-  document.getElementById("token-set")?.addEventListener("click", () => {
-    setToken(input.value);
-    input.value = "";
-    refreshTokenState();
-    syncRealtimeConnection();
-    void render();
+  document.getElementById("nav-open")?.addEventListener("click", () => openDrawer());
+  document.getElementById("nav-close")?.addEventListener("click", () => closeDrawer());
+  document.getElementById("app-scrim")?.addEventListener("click", () => closeDrawer());
+  app.querySelector(".ds-skip-link")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    document.getElementById("view")?.focus();
   });
-  input.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      setToken(input.value);
-      input.value = "";
-      refreshTokenState();
+  if (!shellListenersMounted) {
+    shellListenersMounted = true;
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || !isDrawerOpen()) return;
+      if ((event.target as HTMLElement | null)?.closest(".ds-overlay") !== null) return;
+      closeDrawer();
+    });
+    subscribe(() => {
       syncRealtimeConnection();
       void render();
-    }
+    });
+    window.addEventListener("hashchange", () => {
+      if (isDrawerOpen()) closeDrawer(false);
+      void render().then(() => focusView());
+    });
+  }
+  const input = document.getElementById("token-input") as HTMLInputElement | null;
+  const applyInputToken = (): void => {
+    if (input === null) return;
+    setToken(input.value);
+    input.value = "";
+    mountShell();
+  };
+  document.getElementById("token-set")?.addEventListener("click", applyInputToken);
+  input?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") applyInputToken();
   });
   document.getElementById("token-clear")?.addEventListener("click", () => {
     clearToken();
-    refreshTokenState();
     syncRealtimeConnection();
-    void render();
+    mountLogin();
   });
-  refreshTokenState();
-  subscribe(() => {
-    syncRealtimeConnection();
-    void render();
-  });
-  window.addEventListener("hashchange", () => {
-    void render();
-  });
+
+  syncRealtimeConnection();
+  // Rendu initial : focus laissé au navigateur (le premier Tab atteint le
+  // skip-link, invariant UI-2/UI-13). Seules les navigations explicites
+  // (hashchange) reprennent le focus sur #view, jamais les re-rendus.
   void render();
 }
 
@@ -245,6 +286,7 @@ function mountLogin(): void {
   if (app === null) throw new Error("#app missing");
   app.innerHTML = loginOverlayHtml();
   renderLogin(app, () => {
+    syncRealtimeConnection();
     mountShell();
   });
 }

@@ -1,8 +1,16 @@
-# Studi'OS Dashboard — V0 (DASH-0 → DASH-5, P12)
+# Studi'OS Dashboard — V0 (DASH-0 → DASH-5, P12) + refonte UI/UX terminée (UI-1 → UI-16)
 
 Human read-only client of the canonical Studi'OS HTTP API + SSE.
 No direct Postgres, no MCP-for-REST, no duplicated business logic,
 no local memory, no AI-provider dependency.
+
+Contract sources: the backend OpenAPI document (`dashboard/openapi.json`
++ generated `src/openapi-schema.ts`) for the API surface
+(`TECH/02_API_CONTRACT`), `TECH/04_AUTH_SYNC_CONTRACT` for the
+memory-only Bearer model (`src/auth.ts`), `TECH/03_EVENT_CONTRACT` for
+SSE (`src/sse.ts`, `src/realtime.ts`), `TECH/05_DATA_MODEL` for the
+shapes rendered by the views. Behavioural decisions live in
+`docs/decisions/` (`docs/DECISIONS.md` is generated — never edit it).
 
 ## Location
 
@@ -324,3 +332,39 @@ bar still accepts a machine token. Remaining gaps: CORS (same-origin/same-machin
 only), a global (non-per-project) SSE stream for project-independent screens like
 Machines, resumable multipart upload UI, decision accept/supersede (no server
 endpoint exists), and Activity/Worklogs views (nav entries stay disabled).
+
+## Design System (UI-1, DEC-0078) — refonte UI/UX
+
+Roadmap: `docs/StudiOS_Roadmap_Refonte_UI_UX.pdf` (baseline UI-0 acceptée).
+**Refonte UI/UX terminée** : UI-1 → UI-16 intégrées (clôture : DEC-0081). Les évolutions suivantes sont des features, correctifs ou maintenance.
+Thème clair unique (le sombre est supprimé comme référence), interface en
+français (termes backend/code inchangés), TypeScript vanilla sans framework.
+
+- Tokens: `src/ds/tokens.css` (`:root`, seule source de vérité visuelle).
+  Les variables historiques (`--bg`, `--panel`, …) sont des aliases vers
+  les tokens pour que les vues non migrées restent lisibles.
+- Primitives: `src/ds/components.css` (classes `ds-*`) + `src/ds/ds.ts`
+  (HTML échappé + comportements `addEventListener` : onglets clavier,
+  modale/tiroir avec retour focus + Échap, toasts `aria-live`).
+  Accessibilité intégrée: `:focus-visible`, skip-link, `aria-live`/`aria-busy`,
+  tablist conforme, `prefers-reduced-motion`, contrastes AA, cibles ≥ 36 px.
+- Démo interne: `#/design-system` (`src/views/designSystem.ts`) — hash
+  direct uniquement, **aucune entrée de navigation**, aucun appel API,
+  retirable en supprimant une route + une vue.
+- CSP inchangée (aucun `style=`/`on*=` inline) — voir section ci-dessus.
+
+## AppShell (UI-2, DEC-0079)
+
+`src/shell.ts` + `src/shell.css` : sidebar bleu nuit (groupes Principal /
+Connaissances / Infrastructure / Outils, Paramètres + compte en bas),
+topbar minimale (menu mobile + pastille auth réelle — ni recherche
+globale ni notifications : aucun backend), zone de contenu aérée.
+Le shell est monté une fois ; `render()` (`src/main.ts`) ne remplace que
+`#view` + `aria-current`. Hashs inconnus → page « introuvable » explicite
+(`src/views/notFound.ts`), plus de repli silencieux vers l'Accueil.
+
+**Anti-race** : `src/renderGuard.ts` — chaque rendu peint dans un nœud
+détaché, seul le jeton courant est attaché. Une ancienne route ne repeint
+jamais la courante (régression E2E `shell.spec.ts`, unit.
+`renderGuard.test.ts`). Responsive : drawer < 900 px (Échap, focus
+restauré), landmarks + skip-link vers `#view`.

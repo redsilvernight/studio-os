@@ -40,6 +40,8 @@ def _clean_client_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     must never leak into this suite's precedence tests."""
     monkeypatch.delenv("STUDIO_CLIENT_API_BASE_URL", raising=False)
     monkeypatch.delenv("STUDIO_CLIENT_MACHINE_TOKEN", raising=False)
+    for name in ("GIT_WATCHES", "GIT_WATCH_REPO_PATH", "GIT_WATCH_PROJECT_ID"):
+        monkeypatch.delenv(f"STUDIO_CLIENT_{name}", raising=False)
     monkeypatch.delenv("STUDIO_CLIENT_KNOWLEDGE_VAULT_PATH", raising=False)
     monkeypatch.delenv("STUDIO_CLIENT_KNOWLEDGE_GRAPH_DIR", raising=False)
     monkeypatch.delenv("STUDIO_CLIENT_KNOWLEDGE_SOURCE_ROOT", raising=False)

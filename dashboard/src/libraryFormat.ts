@@ -18,7 +18,6 @@ export type ProvenanceSource = components["schemas"]["ProvenanceSource"];
 export type BindingRelation = components["schemas"]["BindingRelation"];
 export type CapabilityRequirement = components["schemas"]["CapabilityRequirement"];
 export type RuntimeCapabilities = components["schemas"]["RuntimeCapabilities"];
-export type RuntimeStatus = components["schemas"]["RuntimeStatus"];
 export type RuntimeTarget = components["schemas"]["RuntimeTarget"];
 export type Provenance = components["schemas"]["Provenance"];
 export type DependencyPin = components["schemas"]["DependencyPin"];
@@ -68,22 +67,12 @@ export function libraryKindHref(kind: LibraryKind, resourceId?: string): string 
 
 const SCOPE_LABELS: Record<LibraryScope, string> = {
   studio: "Studio",
-  project: "Project",
-  user: "User",
+  project: "Projet",
+  user: "Utilisateur",
 };
 
 export function scopeLabel(scope: LibraryScope): string {
   return SCOPE_LABELS[scope] ?? String(scope);
-}
-
-const STATUS_LABELS: Record<LibraryStatus, string> = {
-  draft: "Draft",
-  active: "Active",
-  deprecated: "Deprecated",
-};
-
-export function statusLabel(status: LibraryStatus): string {
-  return STATUS_LABELS[status] ?? String(status);
 }
 
 export function statusTone(status: LibraryStatus): "ok" | "warn" | "bad" {
@@ -138,15 +127,6 @@ const RELATION_LABELS: Record<BindingRelation, string> = {
 
 export function relationLabel(relation: BindingRelation): string {
   return RELATION_LABELS[relation] ?? String(relation);
-}
-
-const RUNTIME_STATUS_LABELS: Record<RuntimeStatus, string> = {
-  active: "active",
-  revoked: "revoked",
-};
-
-export function runtimeStatusLabel(status: RuntimeStatus): string {
-  return RUNTIME_STATUS_LABELS[status] ?? String(status);
 }
 
 export interface Entry {

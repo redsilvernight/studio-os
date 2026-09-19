@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { StudioClient } from "./api";
-import { createDecision, createProject, createTask, decodeJwtSubject, isUuid } from "./creationsApi";
+import { createProject, createTask, decodeJwtSubject, isUuid } from "./creationsApi";
 
 type Fake = Record<"POST", ReturnType<typeof vi.fn>>;
 const fakeClient = (impl: Fake): StudioClient => impl as unknown as StudioClient;
@@ -28,26 +28,6 @@ describe("createTask", () => {
     expect(POST).toHaveBeenCalledWith("/api/v1/tasks", {
       params: { header: { "Idempotency-Key": "key-2" } },
       body: { project_id: "p1", title: "T", description: null },
-    });
-  });
-});
-
-describe("createDecision", () => {
-  it("posts to /decisions with the required proposer", async () => {
-    const POST = vi.fn().mockResolvedValue(created({ readable_id: "DEC-0042" }));
-    const input = {
-      project_id: "p1",
-      task_id: null,
-      title: "T",
-      body: "B",
-      proposed_by_type: "user",
-      proposed_by_id: "11111111-2222-4333-8444-555555555555",
-    };
-    const decision = await createDecision(fakeClient({ POST }), input, "key-3");
-    expect(decision.readable_id).toBe("DEC-0042");
-    expect(POST).toHaveBeenCalledWith("/api/v1/decisions", {
-      params: { header: { "Idempotency-Key": "key-3" } },
-      body: input,
     });
   });
 });

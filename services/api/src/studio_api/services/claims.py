@@ -36,6 +36,12 @@ def _conflicts(a_path: str, a_type: str, b_path: str, b_type: str) -> bool:
     return False
 
 
+def paths_conflict(a_path: str, a_type: str, b_path: str, b_type: str) -> bool:
+    """Public face of the claim overlap rule, for read-only consumers (e.g.
+    project context selection) that must apply exactly the same semantics."""
+    return _conflicts(a_path, a_type, b_path, b_type)
+
+
 async def list_claims(
     session: AsyncSession, project_id: uuid.UUID | None = None
 ) -> list[ResourceClaimModel]:

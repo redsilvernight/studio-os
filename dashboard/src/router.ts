@@ -10,6 +10,8 @@ export type Route =
   | { name: "project"; id: string; tab: ProjectTab }
   | { name: "tasks" }
   | { name: "task"; id: string }
+  | { name: "agents" }
+  | { name: "agent"; id: string }
   | { name: "machines" }
   | { name: "decisions" }
   | { name: "transfers" }
@@ -19,7 +21,9 @@ export type Route =
   | { name: "configRuntime"; id: string }
   | { name: "configBindings" }
   | { name: "configProject"; tab: ProjectConfigTab }
-  | { name: "inspector"; stableKey: string | null };
+  | { name: "inspector"; stableKey: string | null }
+  | { name: "designSystem" }
+  | { name: "notFound"; hash: string };
 
 function decode(value: string): string {
   try {
@@ -29,16 +33,29 @@ function decode(value: string): string {
   }
 }
 
+/** Hash inconnu → route 404 explicite (UI-2 : plus de repli silencieux). */
+function notFound(hash: string): Route {
+  return { name: "notFound", hash };
+}
+
 export function parseRoute(hash: string): Route {
   const parts = hash.replace(/^#\/?/, "").split("/").filter((p) => p !== "");
   if (parts.length === 0) return { name: "dashboard" };
   if (parts[0] === "projects" && parts.length === 1) return { name: "projects" };
   if (parts[0] === "projects" && parts[1] !== undefined) {
-    const tab: ProjectTab = parts[2] === "tasks" || parts[2] === "claims" ? parts[2] : "overview";
+    const tab: ProjectTab =
+      parts[2] === "tasks" || parts[2] === "claims" || parts[2] === "activity" || parts[2] === "decisions"
+        ? parts[2]
+        : "overview";
     return { name: "project", id: parts[1], tab };
   }
   if (parts[0] === "tasks" && parts.length === 1) return { name: "tasks" };
   if (parts[0] === "tasks" && parts[1] !== undefined) return { name: "task", id: parts[1] };
+  if (parts[0] === "agents" && parts.length === 1) return { name: "agents" };
+  if (parts[0] === "agents" && parts.length === 2 && parts[1] !== undefined) {
+    return { name: "agent", id: decode(parts[1]) };
+  }
+  if (parts[0] === "agents") return notFound(hash);
   if (parts[0] === "machines" && parts.length === 1) return { name: "machines" };
   if (parts[0] === "decisions" && parts.length === 1) return { name: "decisions" };
   if (parts[0] === "transfers" && parts.length === 1) return { name: "transfers" };
@@ -51,7 +68,7 @@ export function parseRoute(hash: string): Route {
         return { name: "libraryDetail", kind, id: decode(parts[2]) };
       }
     }
-    return { name: "dashboard" };
+    return notFound(hash);
   }
   if (parts[0] === "configuration") {
     if (parts.length === 1) return { name: "configRuntimes" };
@@ -65,14 +82,15 @@ export function parseRoute(hash: string): Route {
         parts[2] === "locks" || parts[2] === "overrides" ? parts[2] : "resources";
       return { name: "configProject", tab };
     }
-    return { name: "dashboard" };
+    return notFound(hash);
   }
   if (parts[0] === "inspector") {
     if (parts.length === 1) return { name: "inspector", stableKey: null };
     if (parts.length === 2 && parts[1] !== undefined) {
       return { name: "inspector", stableKey: decode(parts[1]) };
     }
-    return { name: "dashboard" };
+    return notFound(hash);
   }
-  return { name: "dashboard" };
+  if (parts[0] === "design-system" && parts.length === 1) return { name: "designSystem" };
+  return notFound(hash);
 }

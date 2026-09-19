@@ -6,9 +6,6 @@
  * the server stays the only writer, the dashboard never fabricates a result.
  * - `POST /projects` (admin/developer) — `ProjectCreate`
  * - `POST /tasks` (writer) — `TaskCreate`, server picks the readable id
- * - `POST /decisions` (writer) — `DecisionCreate`; the contract requires a
- *   proposer (`proposed_by_type` + `proposed_by_id`), so the human provides it
- *   (prefilled from the dashboard JWT's `sub` when the token is a JWT).
  */
 import type { StudioClient } from "./api";
 import { ApiError, parseErrorBody } from "./api";
@@ -19,8 +16,6 @@ export type Project = components["schemas"]["Project"];
 export type ProjectCreate = components["schemas"]["ProjectCreate"];
 export type Task = components["schemas"]["Task"];
 export type TaskCreate = components["schemas"]["TaskCreate"];
-export type Decision = components["schemas"]["Decision"];
-export type DecisionCreate = components["schemas"]["DecisionCreate"];
 
 async function unwrap<T>(promise: Promise<{ data?: T; error?: unknown; response: Response }>): Promise<T> {
   const result = await promise;
@@ -51,19 +46,6 @@ export function createTask(
 ): Promise<Task> {
   return unwrap(
     client.POST("/api/v1/tasks", {
-      params: { header: { "Idempotency-Key": key } },
-      body: input,
-    }),
-  );
-}
-
-export function createDecision(
-  client: StudioClient,
-  input: DecisionCreate,
-  key: string = newIdempotencyKey(),
-): Promise<Decision> {
-  return unwrap(
-    client.POST("/api/v1/decisions", {
       params: { header: { "Idempotency-Key": key } },
       body: input,
     }),

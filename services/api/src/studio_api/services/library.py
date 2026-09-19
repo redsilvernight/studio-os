@@ -143,6 +143,15 @@ async def _version_row(
     return (await session.execute(stmt)).scalar_one_or_none()
 
 
+async def get_version(
+    session: AsyncSession, resource_id: UUID, version: int
+) -> LibraryResourceVersionModel | None:
+    """Public single-version read for consumers that already hold a resolved
+    `(resource_id, version)` (e.g. project context selection) and must not
+    load every version of the resource."""
+    return await _version_row(session, resource_id, version)
+
+
 def _invalid_binding(reason: str) -> HTTPException:
     """422 for a structurally invalid Library Binding (P5/DEC-0067).
 

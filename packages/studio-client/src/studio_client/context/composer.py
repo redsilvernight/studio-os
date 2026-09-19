@@ -166,7 +166,7 @@ class ContextPackageComposer:
 
         if opts.include_git:
             git = await read_git_snapshot(
-                self._config.git_watch_repo_path, commits_limit=opts.git_commits_limit
+                self._config.git_repo_for_project(project_id), commits_limit=opts.git_commits_limit
             )
             if git is not None:
                 ref = SourceRef(

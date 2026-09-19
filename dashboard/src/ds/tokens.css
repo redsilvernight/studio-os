@@ -1,0 +1,138 @@
+/**
+ * StudiOS Design System — tokens (UI-1, DEC-0078).
+ *
+ * Thème clair unique : fond légèrement bleuté, surfaces blanches,
+ * bordures très discrètes, ombres extrêmement légères.
+ * Aucun mécanisme light/dark (réintroduction éventuelle ultérieure
+ * sur cette même base de tokens).
+ *
+ * Sémantique couleur (jamais seul vecteur d'information : chaque état
+ * s'accompagne d'un libellé et/ou d'une icône textuelle) :
+ * bleu = action, vert = succès/opérationnel, orange = attente,
+ * rouge = erreur/destructif, violet = IA.
+ *
+ * Contrastés visés WCAG AA sur fond blanc / fond de page :
+ * texte #1a2733 (~14:1), texte secondaire #4d6076 (~7:1),
+ * action #1d64d8 (~5.9:1), succès #177245 (~5.9:1),
+ * avertissement texte #8a5200 (~5.9:1), erreur #b3261e (~7:1),
+ * IA #5b3bbd (~7:1).
+ */
+:root {
+  /* Surfaces */
+  --ds-bg: #f2f6fb;
+  --ds-surface: #ffffff;
+  --ds-surface-soft: #e9f0f8;
+  --ds-surface-sunken: #e3ebf4;
+
+  /* Bordures */
+  --ds-border: #dde6f0;
+  --ds-border-strong: #c4d2e2;
+
+  /* Textes */
+  --ds-text: #1a2733;
+  --ds-text-muted: #4d6076;
+  /* Atténué mais conforme AA (≥ 4.5:1) sur fond blanc comme sur fond de
+     page : placeholders et métadonnées restent lisibles (UI-14, mesuré
+     5.20:1 sur blanc / 4.79:1 sur #f2f6fb, avant #6b7f93 à 4.13/3.81). */
+  --ds-text-faint: #5a6f84;
+
+  /* Action principale */
+  --ds-action: #1d64d8;
+  --ds-action-hover: #1853b4;
+  --ds-action-active: #143f8a;
+  --ds-action-ink: #ffffff;
+  --ds-action-soft: #e3edfd;
+
+  /* États sémantiques */
+  --ds-success: #177245;
+  --ds-success-soft: #e2f3e9;
+  --ds-success-border: #b7ddc6;
+  --ds-warning: #8a5200;
+  --ds-warning-soft: #fdf0d7;
+  --ds-warning-border: #ecd194;
+  --ds-danger: #b3261e;
+  --ds-danger-soft: #fbe7e5;
+  --ds-danger-border: #f0b9b4;
+  --ds-ai: #5b3bbd;
+  --ds-ai-soft: #ece6fb;
+  --ds-ai-border: #c9b8f0;
+  --ds-neutral-soft: #eef2f7;
+
+  /* Typographie */
+  --ds-font-sans: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --ds-font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --ds-text-xs: 12px;
+  --ds-text-sm: 13px;
+  --ds-text-base: 14px;
+  --ds-text-md: 15px;
+  --ds-text-lg: 17px;
+  --ds-text-xl: 21px;
+  --ds-text-2xl: 26px;
+  --ds-text-3xl: 30px;
+  --ds-leading: 1.55;
+
+  /* Espacements (échelle 4 px, respiration volontaire) */
+  --ds-space-1: 4px;
+  --ds-space-2: 8px;
+  --ds-space-3: 12px;
+  --ds-space-4: 16px;
+  --ds-space-6: 24px;
+  --ds-space-8: 32px;
+  --ds-space-12: 48px;
+
+  /* Rayons */
+  --ds-radius-sm: 6px;
+  --ds-radius-md: 8px;
+  --ds-radius-lg: 12px;
+  --ds-radius-pill: 999px;
+
+  /* Ombres (extrêmement légères) */
+  --ds-shadow-sm: 0 1px 2px rgb(26 39 51 / 0.06);
+  --ds-shadow-md: 0 2px 8px rgb(26 39 51 / 0.08);
+  --ds-shadow-lg: 0 8px 28px rgb(26 39 51 / 0.12);
+
+  /* Breakpoints */
+  --ds-bp-sm: 640px;
+  --ds-bp-md: 900px;
+  --ds-bp-lg: 1280px;
+
+  /* Largeurs de contenu (Visual Polish V2) : la zone principale est centrée
+     dans la colonne ; chaque page choisit sa mesure. Large = surfaces de
+     travail (Accueil, Projets, Tâches), défaut = pages mixtes, lecture =
+     texte long. */
+  --ds-content-wide: 1320px;
+  --ds-content-default: 1120px;
+  --ds-content-reading: 880px;
+
+  /* Z-index */
+  --ds-z-skip: 300;
+  --ds-z-toast: 200;
+  --ds-z-modal: 150;
+  --ds-z-drawer: 140;
+  --ds-z-tooltip: 160;
+
+  /* Dimensions interactives (cibles ≥ 36 px, confort 40 px) */
+  --ds-target: 40px;
+  --ds-target-sm: 36px;
+
+  /* Sidebar bleu nuit (chrome applicatif, UI-2). Texte #e8eef7 sur
+     #101f3c ≈ 13:1 ; texte atténué #a9bcd6 ≈ 7:1. */
+  --ds-navy: #101f3c;
+  --ds-navy-deep: #0b1730;
+  --ds-navy-text: #e8eef7;
+  --ds-navy-muted: #a9bcd6;
+  --ds-navy-active: #ffffff;
+
+  /* Aliases historiques : les vues non migrées (UI-2+) restent lisibles
+     sur le thème clair pendant la transition. */
+  --bg: var(--ds-bg);
+  --panel: var(--ds-surface);
+  --line: var(--ds-border);
+  --text: var(--ds-text);
+  --dim: var(--ds-text-muted);
+  --accent: var(--ds-action);
+  --ok: var(--ds-success);
+  --bad: var(--ds-danger);
+  --warn: var(--ds-warning);
+  --mono: var(--ds-font-mono);
+}

@@ -46,6 +46,7 @@ READ_ONLY_TOOLS = {
     "studio_get_builds",
     "studio_resolve_agent",
     "studio_discover_definitions",
+    "studio_prepare_context",
 }
 
 WRITE_TOOLS = {
@@ -80,7 +81,7 @@ def _by_name(tools: list[Tool]) -> dict[str, Tool]:
 
 
 def test_all_tools_have_external_descriptions(tools: list[Tool]) -> None:
-    assert len(tools) == 34
+    assert len(tools) == 35
     for tool in tools:
         assert tool.description, f"{tool.name} has no description"
         assert len(tool.description) >= 40, f"{tool.name} description is stub-like"

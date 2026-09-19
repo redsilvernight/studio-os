@@ -1,0 +1,91 @@
+/**
+ * UI-6 — Agents IA : surface calme, cartes sobres, beaucoup d'air.
+ * Aucun style inline ailleurs : tout passe ici. La liste ne remplit
+ * jamais artificiellement l'écran : une colonne étroite, espacée.
+ */
+
+.agents {
+  display: grid;
+  gap: var(--ds-space-6);
+  max-width: 860px;
+  padding-bottom: var(--ds-space-12);
+}
+
+/* Barre d'outils : recherche locale seule, aucun panneau de filtres. */
+.agents-toolbar {
+  display: grid;
+  gap: var(--ds-space-2);
+}
+
+.agents-toolbar .ds-search {
+  max-width: 520px;
+}
+
+/* Liste aérée : une carte par agent, jamais de grille dense. */
+.agents-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--ds-space-5);
+}
+
+.agent-card {
+  display: grid;
+  gap: var(--ds-space-3);
+  align-content: start;
+}
+
+.agent-card-top {
+  display: flex;
+  gap: var(--ds-space-3);
+  align-items: flex-start;
+}
+
+.agent-card-top .grow {
+  min-width: 0;
+}
+
+.agent-card-title {
+  margin: 0;
+  font-size: var(--ds-text-lg);
+  overflow-wrap: anywhere;
+}
+
+.agent-card-title a {
+  color: inherit;
+}
+
+.agent-signal {
+  display: grid;
+  gap: var(--ds-space-1);
+}
+
+.agent-work {
+  margin: 0;
+}
+
+.agent-work a {
+  overflow-wrap: anywhere;
+}
+
+/* Les résumés de travail sont des phrases potentiellement longues :
+ * le `nowrap` DS de .ds-list-title déborderait à 375px. Surcharge
+ * scopée (aucune modification du DS ni du CSS global). Voir
+ * PROPOSITION DS À RÉCONCILIER dans le rapport UI-6. */
+.agents .ds-list-title {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .agent-card-top {
+    gap: var(--ds-space-2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agents * {
+    transition: none;
+  }
+}

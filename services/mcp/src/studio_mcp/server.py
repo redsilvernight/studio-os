@@ -20,6 +20,7 @@ from studio_mcp.tools.claims import (
     studio_get_resource_claims,
     studio_release_resource,
 )
+from studio_mcp.tools.context import studio_prepare_context
 from studio_mcp.tools.decisions import studio_add_decision, studio_get_decisions
 from studio_mcp.tools.events import studio_emit_event, studio_get_recent_changes
 from studio_mcp.tools.projects import studio_get_project_state, studio_get_projects
@@ -66,6 +67,27 @@ def create_server() -> MCPServer:
         description=(
             "Get a project's active tasks and active resource claims by project_id "
             "(UUID string) — read-only. The bootstrap read before starting work on a project."
+        ),
+        annotations=_READ_ONLY,
+    )
+    server.add_tool(
+        studio_prepare_context,
+        name="studio_prepare_context",
+        description=(
+            "Recommended first call to prime an agent on a project: returns, in ONE bounded "
+            "read-only response, the project, the requested task (optional task_id), related "
+            "active tasks, decisions, rules, skills and the active claims that matter for the "
+            "stated objective. Required: project_id (UUID string) and objective (free text, "
+            "1..1000 characters). Optional: task_id (UUID string, must belong to the project, "
+            "otherwise not_found), files (up to 20 paths; claims held by other machines that "
+            "overlap them are reported), limit (items per kind, 1..20, default 5) and max_chars "
+            "(budget for free text, 1000..50000, default 12000). Selection is deterministic and "
+            "explained: every item carries why (a structural link, or exact word overlap with "
+            "the objective listed in matched_terms) — no semantic search is involved. The "
+            "response states what was returned and what else exists but was left out "
+            "(additional_available, omitted_for_budget); use the dedicated read tools for those. "
+            "Long texts are cut and flagged truncated. Same visibility as the individual read "
+            "tools: another user's private library definitions are never included."
         ),
         annotations=_READ_ONLY,
     )
