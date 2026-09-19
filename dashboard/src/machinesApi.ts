@@ -207,7 +207,7 @@ export interface ActivityLabel {
 /**
  * Libellé français d'activité. Jamais "En ligne"/"Hors ligne" pour du
  * déduit : ces mots promettraient une connectivité que le backend ne
- * garantit pas (pas de GET /machines, pas de last_seen_at canonique).
+ * garantit pas (pas de last_seen_at canonique).
  */
 export function activityLabelFr(status: MachineStatus, source: "canonical" | "derived"): ActivityLabel {
   if (source === "canonical") {

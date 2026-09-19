@@ -9,9 +9,33 @@ from studio_contracts.auth import Machine, MachineCreate, MachineCreated, Role
 from studio_api.db.models.user import UserModel
 from studio_api.deps import CurrentMachine, DbSession, require_roles
 from studio_api.openapi_meta import RESP_401_UNAUTHORIZED, RESP_403_FORBIDDEN, RESP_404_NOT_FOUND
+from studio_api.services import heartbeats as heartbeats_service
 from studio_api.services import provisioning as provisioning_service
+from studio_api.settings import get_settings
 
 router = APIRouter(prefix="/api/v1/machines", tags=["machines"])
+
+
+@router.get(
+    "",
+    response_model=list[Machine],
+    description=(
+        "List machines whose credential is not revoked, oldest first. Any "
+        "authenticated machine may read. `status` is derived server-side "
+        "from `last_seen_at` (last heartbeat) and is never stored; a machine "
+        "that never sent a heartbeat has `last_seen_at: null` and status "
+        "`offline`. Credentials and their hashes are never exposed."
+    ),
+    responses={**RESP_401_UNAUTHORIZED},
+)
+async def list_machines(session: DbSession, machine: CurrentMachine) -> list[Machine]:
+    settings = get_settings()
+    return [
+        Machine.model_validate(row).model_copy(
+            update={"status": heartbeats_service.derive_status(row, settings)}
+        )
+        for row in await provisioning_service.list_active_machines(session)
+    ]
 
 
 @router.post(

@@ -29,6 +29,14 @@ Base: `/api/v1`
 - GET /projects/{project_id}/state
 
 ### Machines et Users (provisioning, DEC-0011/DEC-0012)
+- GET /machines (DEC-0082, additif) — liste des machines dont le credential
+  n'est pas revoque, de la plus ancienne a la plus recente. Toute machine
+  authentifiee peut lire (aucun role requis, comme `GET /agents`). Reponse =
+  `list[Machine]` (`id`, `owner_user_id`, `display_name`, `last_seen_at`,
+  `status`, `version`) : `status` est derive cote serveur de `last_seen_at`
+  (dernier heartbeat, memes seuils que `POST /heartbeats`), jamais stocke ;
+  une machine sans heartbeat a `last_seen_at: null` et `status: offline`.
+  Ni credential ni hash n'apparaissent jamais.
 - POST /machines (role `admin` — reponse = `Machine` + `credential` en clair,
   une seule fois ; pas de `Idempotency-Key`, cf. risque de fuite du credential
   dans la table d'idempotence)

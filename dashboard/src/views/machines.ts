@@ -6,11 +6,11 @@
  * utilisateur, ni un modèle, ni un runtime (voir rapport UI-9).
  *
  * Sources réelles (audit UI-9) :
- * - AUCUN `GET /machines` ni `GET /machines/{id}` sur l'API courante
- *   (seuls `POST /machines` et `POST /machines/{id}/revoke`, admin, hors
- *   provisioning) : la sonde canonique dégrade vers `null` et la page
- *   construit une présence DÉDUITE depuis `GET /agents`, `GET /sessions`,
- *   `GET /events?since=24h` et `GET /runtimes` (best-effort).
+ * - `GET /machines` (DEC-0082) donne la liste canonique et `last_seen_at`
+ *   (heartbeat). Face à un backend antérieur (404/405/501) la sonde
+ *   dégrade vers `null` et la page construit une présence DÉDUITE depuis
+ *   `GET /agents`, `GET /sessions`, `GET /events?since=24h` et
+ *   `GET /runtimes` (best-effort). Pas de `GET /machines/{id}`.
  * - `display_name` canonique indisponible en liste : titre humain quand il
  *   existe, sinon "Machine sans nom enregistré" + identifiant court —
  *   jamais "Machine 1/2" fabriqué.

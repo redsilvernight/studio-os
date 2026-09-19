@@ -38,6 +38,15 @@ async def list_machines(
     return [(machine, owner) for machine, owner in result.all()]
 
 
+async def list_active_machines(session: AsyncSession) -> list[MachineModel]:
+    result = await session.execute(
+        select(MachineModel)
+        .where(MachineModel.credential_revoked_at.is_(None))
+        .order_by(MachineModel.created_at)
+    )
+    return list(result.scalars().all())
+
+
 async def get_machine_by_token(
     session: AsyncSession, token: str
 ) -> tuple[MachineModel, UserModel] | None:

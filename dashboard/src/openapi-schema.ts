@@ -1075,7 +1075,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List Machines
+         * @description List machines whose credential is not revoked, oldest first. Any authenticated machine may read. `status` is derived server-side from `last_seen_at` (last heartbeat) and is never stored; a machine that never sent a heartbeat has `last_seen_at: null` and status `offline`. Credentials and their hashes are never exposed.
+         */
+        get: operations["list_machines_api_v1_machines_get"];
         put?: never;
         /**
          * Create Machine
@@ -8519,6 +8523,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_machines_api_v1_machines_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Machine"][];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
                 };
             };
         };

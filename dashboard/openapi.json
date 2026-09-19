@@ -6272,6 +6272,45 @@
    }
   },
   "/api/v1/machines": {
+   "get": {
+    "tags": [
+     "machines"
+    ],
+    "summary": "List Machines",
+    "description": "List machines whose credential is not revoked, oldest first. Any authenticated machine may read. `status` is derived server-side from `last_seen_at` (last heartbeat) and is never stored; a machine that never sent a heartbeat has `last_seen_at: null` and status `offline`. Credentials and their hashes are never exposed.",
+    "operationId": "list_machines_api_v1_machines_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/Machine"
+         },
+         "type": "array",
+         "title": "Response List Machines Api V1 Machines Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ]
+   },
    "post": {
     "tags": [
      "machines"

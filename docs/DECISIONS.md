@@ -103,3 +103,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0079 | Refonte UI-2 : AppShell (sidebar bleu nuit, topbar minimale) + garde anti-race du rendu | active | [decisions/DEC-0079-refonte-ui-2-appshell.md](decisions/DEC-0079-refonte-ui-2-appshell.md) |
 | DEC-0080 | MCP studio_prepare_context : façade de lecture bornée et déterministe sur les services existants | active | [decisions/DEC-0080-mcp-prepare-context-facade.md](decisions/DEC-0080-mcp-prepare-context-facade.md) |
 | DEC-0081 | Refonte UI-16 : polish final et clôture de la refonte UI/UX (UI-1 → UI-16) | active | [decisions/DEC-0081-refonte-ui-16-cloture.md](decisions/DEC-0081-refonte-ui-16-cloture.md) |
+| DEC-0082 | GET /machines : liste des machines actives, statut derive du heartbeat | active | [decisions/DEC-0082-get-machines-liste-alimentee-par-heartbeat.md](decisions/DEC-0082-get-machines-liste-alimentee-par-heartbeat.md) |
