@@ -60,7 +60,7 @@ async function render(): Promise<void> {
   const baseUrl = resolveApiUrl(apiBaseUrl());
   const client = createApiClient(baseUrl);
   const authed = hasToken();
-  const staging = document.createElement("div");
+  const staging = document.createElement("main");
   switch (route.name) {
     case "projects":
       await renderProjects(staging, { client, authed });

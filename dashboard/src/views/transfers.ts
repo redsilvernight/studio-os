@@ -680,6 +680,8 @@ function bindUploadForm(root: HTMLElement, ctx: TransfersContext): void {
         closeDsDialog(root, "transfer-upload");
         dsNotify(`Transfert ${done.transfer_code} envoyé.`, "success");
         await renderTransfers(root, ctx);
+        // La liste est repeinte : refocaliser l'envoi, jamais <body>.
+        root.querySelector<HTMLElement>("[data-transfer-upload-open], #transfer-upload-open")?.focus();
       } catch (error) {
         setUploadError(root, transferErrorMessage(error));
         if (progress !== null) progress.innerHTML = "";

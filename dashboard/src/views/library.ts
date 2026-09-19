@@ -723,7 +723,10 @@ export async function renderLibrary(root: HTMLElement, ctx: LibraryContext, kind
         .then((created) => {
           closeDsDialog(root, dialogId);
           dsNotify(`« ${created.stable_key} » créé en brouillon.`, "success");
-          void refresh();
+          // Le rechargement remplace le déclencheur : le refocaliser après.
+          void refresh().then(() => {
+            root.querySelector<HTMLElement>("#library-new")?.focus();
+          });
         })
         .catch((error: unknown) => {
           setCreateError(describeError(error));
@@ -963,9 +966,7 @@ function bindDetail(
   kindSlug: LibraryKindSlug,
   resource: LibraryResource,
 ): void {
-  const refresh = (): void => {
-    void renderLibraryDetail(root, ctx, kindSlug, resource.id);
-  };
+  const refresh = (): Promise<void> => renderLibraryDetail(root, ctx, kindSlug, resource.id);
   const activateForm = root.querySelector<HTMLFormElement>("[data-activate]");
   activateForm?.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -1042,7 +1043,10 @@ function bindDetail(
       .then((created) => {
         closeDsDialog(root, versionDialogId);
         dsNotify(`Version v${created.version} créée en brouillon.`, "success");
-        refresh();
+        // Le rechargement remplace le déclencheur : le refocaliser après.
+        void refresh().then(() => {
+          root.querySelector<HTMLElement>("#library-version-new")?.focus();
+        });
       })
       .catch((error: unknown) => {
         if (msg !== null) {

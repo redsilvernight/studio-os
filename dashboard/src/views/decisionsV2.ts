@@ -534,6 +534,8 @@ function bindDecisionActions(
       if (newPanel !== null) {
         newPanel.innerHTML = decisionsHtml(decisions, ctx.authed, ctx.projectId);
         bindDecisionActions(root, newPanel, ctx, proposerId);
+        // Le panneau est repeint : refocaliser l'action de création.
+        newPanel.querySelector<HTMLElement>("#create-decision-btn")?.focus();
       }
     } catch (error) {
       // Nouvelle tentative indépendante après un échec définitif : clé neuve,

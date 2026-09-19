@@ -65,6 +65,13 @@ describe("shellHtml (UI-2)", () => {
     expect(html).toContain("Se déconnecter");
   });
 
+  it("names the nav landmark, not the complementary aside (UI-14)", () => {
+    const html = authedShell({ name: "dashboard" });
+    expect(html).toContain('<nav class="app-nav" aria-label="Navigation principale">');
+    expect(html).not.toMatch(/<aside[^>]*aria-label/);
+    expect(html).toContain('<main id="view" tabindex="-1">');
+  });
+
   it("keeps the internal demo route out of the navigation", () => {
     expect(authedShell({ name: "designSystem" })).not.toContain("#/design-system");
     expect(authedShell({ name: "dashboard" })).not.toContain("design-system");
