@@ -529,7 +529,7 @@ export async function renderRuntimeDetail(root: HTMLElement, ctx: ConfigurationC
     root.innerHTML =
       `<div class="settings">${settingsHeader("Paramètres", SETTINGS_DESCRIPTION, [{ label: "Actualiser", id: "settings-runtime-reload" }])}${head}` +
       `<div class="state error" role="alert">Impossible de charger ce runtime : ${esc(describeError(runtime.error))}</div>` +
-      `<p><a href="#/configuration/runtimes">Retour aux runtimes</a></p></div>`;
+      `<p><a href="#/configuration/runtimes">← Retour aux runtimes</a></p></div>`;
     root.querySelector("#settings-runtime-reload")?.addEventListener("click", () => {
       void renderRuntimeDetail(root, ctx, runtimeId);
     });
