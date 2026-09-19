@@ -7,15 +7,20 @@
 .tasks {
   display: grid;
   gap: var(--ds-space-6);
-  max-width: 1020px;
   padding-bottom: var(--ds-space-12);
 }
 
+/* Barre d'outils : un groupe logique (vue, filtre, statut) sur une surface. */
 .tasks-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: end;
   gap: var(--ds-space-3) var(--ds-space-4);
+  padding: var(--ds-space-3) var(--ds-space-4);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  box-shadow: var(--ds-shadow-sm);
 }
 
 .tasks-view-toggle {
@@ -44,25 +49,98 @@
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/* Ligne de travail : contenu (titre + statut, projet, extrait) d'abord,
+   action secondaire de déplacement dans une zone discrète à droite. */
+/* Spécificité 2 classes : components.css (chargé après) fixe .ds-list-item en flex. */
+.ds-list-item.task-row {
   display: grid;
-  gap: var(--ds-space-3);
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--ds-space-2) var(--ds-space-6);
+  align-items: center;
 }
 
-.task-row {
-  display: flex;
-  gap: var(--ds-space-3);
-  align-items: flex-start;
-}
-
-.task-row .grow {
-  flex: 1;
+.task-main {
+  display: grid;
+  gap: 2px;
   min-width: 0;
-  display: grid;
-  gap: var(--ds-space-1);
+}
+
+.task-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ds-space-3);
+  min-width: 0;
+}
+
+.task-head .ds-list-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.task-head .ds-badge {
+  flex: none;
+  margin-top: 2px;
 }
 
 .task-row .ds-list-sub {
   overflow-wrap: anywhere;
+}
+
+.task-project {
+  font-weight: 600;
+  color: var(--ds-text);
+}
+
+.task-excerpt {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Zone d'actions secondaires (liste) : libellé discret, contrôles compacts,
+   toujours visibles (clavier, tactile, lecteur d'écran) — jamais au survol. */
+.task-row .task-move {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  border-top: 0;
+  padding-top: 0;
+}
+
+.task-row .task-move > label {
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.task-row .task-move-row {
+  flex-wrap: nowrap;
+}
+
+.task-row .task-move-row .ds-select {
+  flex: none;
+  width: 8.5rem;
+  min-width: 0;
+  min-height: var(--ds-target-sm);
+  padding: var(--ds-space-1) var(--ds-space-2);
+  font-size: var(--ds-text-sm);
+}
+
+.task-row .task-move .ds-btn {
+  background: transparent;
+  border-color: var(--ds-border-strong);
+  color: var(--ds-text-muted);
+}
+
+.task-row .task-move .ds-btn:hover:not(:disabled) {
+  background: var(--ds-action-soft);
+  color: var(--ds-action);
 }
 
 .tasks-board {
@@ -72,9 +150,9 @@
 .task-col {
   min-width: 0;
   border: 1px solid var(--ds-border);
-  border-radius: var(--ds-radius, 8px);
+  border-radius: var(--ds-radius-lg);
   padding: var(--ds-space-3);
-  background: var(--ds-surface, transparent);
+  background: color-mix(in srgb, var(--ds-surface-soft) 55%, var(--ds-bg));
 }
 
 .task-col-title {
@@ -96,6 +174,7 @@
 .task-card {
   display: grid;
   gap: var(--ds-space-2);
+  padding: var(--ds-space-4);
 }
 
 .task-card-title {
@@ -253,8 +332,21 @@
   .tasks-toolbar {
     display: grid;
   }
+}
 
-  .task-row {
-    flex-wrap: wrap;
+@media (max-width: 760px) {
+  .ds-list-item.task-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .task-row .task-move {
+    padding-top: var(--ds-space-2);
+    border-top: 1px solid var(--ds-border);
+  }
+  .task-row .task-move-row {
+    flex: 1;
+  }
+  .task-row .task-move-row .ds-select {
+    flex: 1;
+    width: auto;
   }
 }

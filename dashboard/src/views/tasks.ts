@@ -193,19 +193,27 @@ function taskContextLine(task: Task, options: TasksRenderOptions): string {
   return parts.map((part) => esc(part)).join(" · ");
 }
 
+/** Liste : titre + statut, puis projet · prise, puis extrait (secondaires). */
+function taskListRowHtml(task: Task, options: TasksRenderOptions): string {
+  const meta: string[] = [];
+  if (options.showProject) {
+    const name = options.projectNames?.[task.project_id] ?? null;
+    meta.push(`<span class="task-project">${esc(name === null || name === "" ? "Projet inconnu" : name)}</span>`);
+  }
+  meta.push(esc(taskClaimHint(task)));
+  const excerpt = taskDescriptionExcerpt(task);
+  return `<li class="ds-list-item task-row"><div class="grow task-main">` +
+    `<div class="task-head"><div class="ds-list-title"><a href="#/tasks/${esc(task.id)}">${esc(task.title)}</a></div>` +
+    `${dsBadge(taskStatusLabel(task.status), taskStatusTone(task.status))}</div>` +
+    `<div class="ds-list-sub task-meta">${meta.join(" · ")}</div>` +
+    `${excerpt === "" ? "" : `<div class="ds-list-sub task-excerpt">${esc(excerpt)}</div>`}` +
+    `</div>${taskMoveControlHtml(task, options.authed)}</li>`;
+}
+
 export function tasksListHtml(tasks: Task[], options: TasksRenderOptions): string {
   if (tasks.length === 0) return "";
-  return `<ul class="ds-list tasks-list">` +
-    tasks
-      .map(
-        (task) =>
-          `<li class="ds-list-item task-row"><div class="grow">` +
-          `<div class="ds-list-title"><a href="#/tasks/${esc(task.id)}">${esc(task.title)}</a></div>` +
-          `<div class="ds-list-sub">${taskContextLine(task, options)}</div>` +
-          `${taskMoveControlHtml(task, options.authed)}` +
-          `</div>${dsBadge(taskStatusLabel(task.status), taskStatusTone(task.status))}</li>`,
-      )
-      .join("") +
+  return `<ul class="ds-list ds-list--card tasks-list">` +
+    tasks.map((task) => taskListRowHtml(task, options)).join("") +
     `</ul>`;
 }
 
