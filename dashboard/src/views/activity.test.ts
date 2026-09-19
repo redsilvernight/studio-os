@@ -235,10 +235,10 @@ describe("countTimelineEvents", () => {
 });
 
 describe("activityLoadingHtml", () => {
-  it("squelette DS annoncé occupé", () => {
+  it("squelette DS annoncé une fois, barres décoratives masquées", () => {
     const html = activityLoadingHtml();
     expect(html).toContain("ds-skeleton");
-    expect(html).toContain('aria-busy="true"');
+    expect(html).toContain('role="status"');
   });
 });
 

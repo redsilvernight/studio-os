@@ -69,6 +69,7 @@ import {
   dsSkeleton,
   dsStatus,
   closeDsDialog,
+  focusDsErrorBox,
   openDsDialog,
   type DsStatusState,
 } from "../ds/ds";
@@ -530,7 +531,9 @@ function refreshList(root: HTMLElement, ctx: TransfersContext, data: TransfersPa
 
 function setUploadError(root: HTMLElement, message: string): void {
   const node = root.querySelector("[data-upload-error]");
-  if (node !== null) node.textContent = message;
+  if (node === null) return;
+  node.textContent = message;
+  if (message !== "" && node instanceof HTMLElement) focusDsErrorBox(node);
 }
 
 function bindToolbar(root: HTMLElement, ctx: TransfersContext, data: TransfersPageData): void {

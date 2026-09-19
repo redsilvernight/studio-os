@@ -39,7 +39,7 @@ describe("buildRuntimeCreate", () => {
   it("requires at least one anchor", () => {
     expect(buildRuntimeCreate(reader({}))).toEqual({
       ok: false,
-      error: "at least one of machine, harness, provider or model is required",
+      error: "au moins un ancrage est requis : machine, harness, provider ou model",
     });
   });
 
@@ -72,7 +72,7 @@ describe("buildRuntimeUpdate", () => {
   });
 
   it("rejects a missing expected_version", () => {
-    expect(buildRuntimeUpdate(reader({}))).toEqual({ ok: false, error: "expected_version must be ≥ 1" });
+    expect(buildRuntimeUpdate(reader({}))).toEqual({ ok: false, error: "la version attendue (expected_version) doit être ≥ 1" });
   });
 });
 
@@ -110,21 +110,21 @@ describe("buildBindingCreate", () => {
   it("refuses the ephemeral session level", () => {
     expect(buildBindingCreate(reader({ ...base, level: "session" }))).toEqual({
       ok: false,
-      error: "level must be one of user, project_override, project_default, studio_default",
+      error: "le niveau doit être user, project_override, project_default ou studio_default",
     });
   });
 
   it("requires a project for project levels", () => {
     expect(buildBindingCreate(reader({ ...base, level: "project_override", project_id: "" }))).toEqual({
       ok: false,
-      error: "project_override requires a project ID",
+      error: "project_override exige un ID de projet",
     });
   });
 
   it("requires an anchor when no registry id is given", () => {
     expect(buildBindingCreate(reader({ ...base, runtime_id: "" }))).toEqual({
       ok: false,
-      error: "provide a runtime registry id, or at least one inline anchor (machine/harness/provider/model)",
+      error: "fournissez un ID de registre runtime, ou au moins un ancrage direct (machine/harness/provider/model)",
     });
   });
 });

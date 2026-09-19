@@ -131,7 +131,7 @@ describe("taskDetailHtml nominal", () => {
     expect(text).not.toContain("2026-09-1");
   });
 
-  it("compteur de réservations best-effort : lien vers l'onglet Claims", () => {
+  it("compteur de réservations best-effort : lien vers l'onglet Réservations", () => {
     expect(html).toContain("Réservations de ressources liées : 2");
     expect(html).toContain(`#/projects/${P1}/claims`);
   });

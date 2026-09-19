@@ -12,6 +12,7 @@
 import type { StudioClient } from "../api";
 import { createClaim, listClaims, releaseClaim, renewClaim, type ResourceClaim } from "../claimsApi";
 import { describeError, esc, fmtTime, idCell, section, statusBlock } from "../ui";
+import { focusDsErrorBox } from "../ds/ds";
 
 export interface ClaimsContext {
   client: StudioClient;
@@ -20,9 +21,9 @@ export interface ClaimsContext {
 }
 
 function claimLiveliness(claim: ResourceClaim, now: number): string {
-  if (claim.status === "released") return "released";
-  if (claim.status === "expired") return "expired";
-  return new Date(claim.expires_at).getTime() <= now ? "expired (stored: active)" : "active";
+  if (claim.status === "released") return "libérée";
+  if (claim.status === "expired") return "expirée";
+  return new Date(claim.expires_at).getTime() <= now ? "expirée" : "active";
 }
 
 function rowsHtml(claims: ResourceClaim[], authed: boolean): string {
@@ -32,26 +33,26 @@ function rowsHtml(claims: ResourceClaim[], authed: boolean): string {
       (c) =>
         `<tr><td><code class="mono">${esc(c.resource_path)}</code></td><td>${esc(c.resource_type)}</td>` +
         `<td>${idCell(c.claimed_by_machine_id)}</td><td>${idCell(c.task_id)}</td>` +
-        `<td>${esc(claimLiveliness(c, now))}</td><td>TTL ${c.ttl_seconds}s · exp ${fmtTime(c.expires_at)}</td>` +
-        `<td class="actions"><button type="button" data-renew="${esc(c.id)}" ${authed ? "" : "disabled"}>Renew</button>` +
-        `<button type="button" data-release="${esc(c.id)}" ${authed ? "" : "disabled"}>Release</button></td></tr>`,
+        `<td>${esc(claimLiveliness(c, now))}</td><td>TTL ${c.ttl_seconds} s · expire ${fmtTime(c.expires_at)}</td>` +
+        `<td class="actions"><button type="button" class="ds-btn ds-btn--sm" data-renew="${esc(c.id)}" aria-label="Renouveler la réservation ${esc(c.resource_path)}" ${authed ? "" : "disabled"}>Renouveler</button>` +
+        `<button type="button" class="ds-btn ds-btn--sm" data-release="${esc(c.id)}" aria-label="Libérer la réservation ${esc(c.resource_path)}" ${authed ? "" : "disabled"}>Libérer</button></td></tr>`,
     )
     .join("");
 }
 
 function createFormHtml(authed: boolean): string {
-  return `<form data-create class="inline-form"><h3>New claim</h3>
-    <label>Path <input name="resource_path" required placeholder="godot/scenes/level1.tscn" ${authed ? "" : "disabled"} /></label>
-    <label>Type <select name="resource_type" ${authed ? "" : "disabled"}><option value="file">file</option><option value="folder">folder</option></select></label>
-    <label>TTL (s) <input name="ttl_seconds" type="number" min="1" value="3600" required ${authed ? "" : "disabled"} /></label>
-    <label>Task ID (optional) <input name="task_id" placeholder="uuid" ${authed ? "" : "disabled"} /></label>
-    <button type="submit" ${authed ? "" : "disabled"}>Create</button>
-    <span class="meta">soft-lock: overlaps still return 201 · Idempotency-Key generated per attempt</span>
-    <div data-create-msg class="meta"></div></form>`;
+  return `<form data-create class="inline-form"><h3>Nouvelle réservation</h3>
+    <label>Chemin <input name="resource_path" required placeholder="godot/scenes/level1.tscn" ${authed ? "" : "disabled"} /></label>
+    <label>Type <select name="resource_type" ${authed ? "" : "disabled"}><option value="file">Fichier</option><option value="folder">Dossier</option></select></label>
+    <label>TTL (secondes) <input name="ttl_seconds" type="number" min="1" value="3600" required ${authed ? "" : "disabled"} /></label>
+    <label>ID de tâche (optionnel) <input name="task_id" placeholder="uuid" ${authed ? "" : "disabled"} /></label>
+    <button type="submit" ${authed ? "" : "disabled"}>Créer</button>
+    <span class="meta">Verrou souple : un chevauchement reste accepté (201) · clé d'idempotence générée par tentative</span>
+    <div data-create-msg class="meta" role="status"></div></form>`;
 }
 
 export async function renderClaimsInto(root: HTMLElement, ctx: ClaimsContext): Promise<void> {
-  root.innerHTML = section("Claims", "GET /claims?project_id", statusBlock("loading"));
+  root.innerHTML = section("Réservations", "GET /claims?project_id", statusBlock("loading"));
   const reload = async (): Promise<void> => {
     await renderClaimsInto(root, ctx);
   };
@@ -59,22 +60,24 @@ export async function renderClaimsInto(root: HTMLElement, ctx: ClaimsContext): P
     const claims = await listClaims(ctx.client, ctx.projectId);
     const table =
       claims.length === 0
-        ? statusBlock("empty", "No claims for this project.")
-        : `<table><thead><tr><th>Path</th><th>Type</th><th>Machine</th><th>Task</th><th>Liveliness</th><th>TTL</th><th>Actions</th></tr></thead><tbody>${rowsHtml(claims, ctx.authed)}</tbody></table>`;
+        ? statusBlock("empty", "Aucune réservation pour ce projet.")
+        : `<table><caption class="ds-sr-only">Réservations du projet</caption><thead><tr><th scope="col">Chemin</th><th scope="col">Type</th><th scope="col">Machine</th><th scope="col">Tâche</th><th scope="col">État</th><th scope="col">TTL</th><th scope="col">Actions</th></tr></thead><tbody>${rowsHtml(claims, ctx.authed)}</tbody></table>`;
     root.innerHTML = section(
-      "Claims",
-      `GET /claims?project_id · ${claims.length} shown · renew/release = holder-or-admin`,
-      `${ctx.authed ? "" : `<div class="state empty">Read-only: set a token to create, renew or release.</div>`}${table}${createFormHtml(ctx.authed)}<div data-msg class="meta"></div>`,
+      "Réservations",
+      `GET /claims?project_id · ${claims.length} affichée(s) · renouveler/libérer = détenteur ou admin`,
+      `${ctx.authed ? "" : `<div class="state empty">Lecture seule : définissez un jeton pour créer, renouveler ou libérer.</div>`}${table}${createFormHtml(ctx.authed)}<div data-msg class="meta" role="status"></div>`,
     );
     bind(root, ctx, reload);
   } catch (error) {
-    root.innerHTML = section("Claims", "GET /claims?project_id", statusBlock("error", describeError(error)));
+    root.innerHTML = section("Réservations", "GET /claims?project_id", statusBlock("error", describeError(error)));
   }
 }
 
 function setMsg(root: HTMLElement, text: string): void {
   const node = root.querySelector("[data-msg]");
-  if (node !== null) node.textContent = text;
+  if (node === null) return;
+  node.textContent = text;
+  if (text !== "" && node instanceof HTMLElement) focusDsErrorBox(node);
 }
 
 function bind(root: HTMLElement, ctx: ClaimsContext, reload: () => Promise<void>): void {
@@ -91,7 +94,7 @@ function bind(root: HTMLElement, ctx: ClaimsContext, reload: () => Promise<void>
   });
   root.querySelectorAll<HTMLButtonElement>("[data-release]").forEach((button) => {
     button.addEventListener("click", () => {
-      if (!window.confirm("Release this resource claim? Other machines will no longer see it as held.")) return;
+      if (!window.confirm("Libérer cette réservation ? Les autres machines ne la verront plus comme détenue.")) return;
       button.disabled = true;
       releaseClaim(ctx.client, button.dataset["release"] ?? "")
         .then(() => reload())
@@ -118,11 +121,14 @@ function bind(root: HTMLElement, ctx: ClaimsContext, reload: () => Promise<void>
       ttl_seconds: Number.isFinite(ttl) ? Math.floor(ttl) : 3600,
     })
       .then((created) => {
-        if (msg !== null) msg.textContent = `Created ${created.id} (201 — soft-lock: check overlaps via events in DASH-3).`;
+        if (msg !== null) msg.textContent = `Réservation ${created.id} créée (201 — verrou souple : vérifiez les chevauchements via les événements).`;
         void reload();
       })
       .catch((error: unknown) => {
-        if (msg !== null) msg.textContent = describeError(error);
+        if (msg !== null) {
+          msg.textContent = describeError(error);
+          if (msg instanceof HTMLElement) focusDsErrorBox(msg);
+        }
         if (submit !== null) submit.disabled = false;
       });
   });

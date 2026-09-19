@@ -84,6 +84,7 @@ import {
   dsPageHeader,
   dsSkeleton,
   dsStatus,
+  focusDsErrorBox,
   openDsDialog,
 } from "../ds/ds";
 import { newIdempotencyKey } from "../claimsApi";
@@ -302,10 +303,10 @@ export function locksTableHtml(locks: LibraryProjectLock[]): string {
       (lock) =>
         `<tr><td data-lock-id="${esc(lock.id)}"><code class="mono" title="${esc(lock.project_id)}">${esc(shortId(lock.project_id))}</code></td><td>v${lock.locked_version}</td>` +
         `<td>${lock.created_by_user_id ? `<code class="mono" title="${esc(lock.created_by_user_id)}">${esc(shortId(lock.created_by_user_id))}</code>` : '<span class="ds-list-sub">—</span>'}</td><td>${fmtTime(lock.created_at)}</td>` +
-        `<td class="actions"><button class="ds-btn ds-btn--sm" type="button" data-release-lock="${esc(lock.id)}">Libérer</button></td></tr>`,
+        `<td class="actions"><button class="ds-btn ds-btn--sm" type="button" data-release-lock="${esc(lock.id)}" aria-label="Libérer le verrou du projet ${esc(shortId(lock.project_id))}">Libérer</button></td></tr>`,
     )
     .join("");
-  return `<div class="ds-table-wrap"><table class="ds-table"><caption>Verrous projet — une version figée par projet</caption><thead><tr><th>Projet</th><th>Version figée</th><th>Créé par</th><th>Créé le</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return `<div class="ds-table-wrap"><table class="ds-table"><caption>Verrous projet — une version figée par projet</caption><thead><tr><th scope="col">Projet</th><th scope="col">Version figée</th><th scope="col">Créé par</th><th scope="col">Créé le</th><th scope="col"><span class="ds-sr-only">Actions</span></th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 export function dependenciesTableHtml(dependencies: LibraryVersion["dependencies"]): string {
@@ -317,16 +318,16 @@ export function dependenciesTableHtml(dependencies: LibraryVersion["dependencies
       return `<tr><td>${esc(kindFr(pin.kind).singular)}</td><td><code class="mono">${esc(pin.stable_key)}</code></td><td>v${pin.version}</td><td>${relation}</td></tr>`;
     })
     .join("");
-  return `<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Type</th><th>Clé stable</th><th>Version</th><th>Relation</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return `<div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">Dépendances déclarées</caption><thead><tr><th scope="col">Type</th><th scope="col">Clé stable</th><th scope="col">Version</th><th scope="col">Relation</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 function entriesTableHtml(entries: { label: string; value: string }[]): string {
   if (entries.length === 0) return `<p class="ds-list-sub">Aucune exigence déclarée.</p>`;
   const rows = entries.map((entry) => `<tr><td>${esc(entry.label)}</td><td><code class="mono">${esc(entry.value)}</code></td></tr>`).join("");
-  return `<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Dimension</th><th>Valeur</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return `<div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">Exigences déclarées</caption><thead><tr><th scope="col">Dimension</th><th scope="col">Valeur</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
-function ioTableHtml(declarations: WorkflowIODeclaration[]): string {
+function ioTableHtml(declarations: WorkflowIODeclaration[], caption: string): string {
   if (declarations.length === 0) return `<p class="ds-list-sub">Aucune entrée déclarée.</p>`;
   const rows = declarations
     .map(
@@ -336,7 +337,7 @@ function ioTableHtml(declarations: WorkflowIODeclaration[]): string {
         `<td>${declaration.source !== null ? esc(declaration.source.participantId === null ? `entrée ${declaration.source.name}` : `${declaration.source.participantId}.${declaration.source.name}`) : '<span class="ds-list-sub">—</span>'}</td></tr>`,
     )
     .join("");
-  return `<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Nom</th><th>Description</th><th>Requise</th><th>Type</th><th>Source</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return `<div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">${esc(caption)}</caption><thead><tr><th scope="col">Nom</th><th scope="col">Description</th><th scope="col">Requise</th><th scope="col">Type</th><th scope="col">Source</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 /** Rendu de lecture d'un contenu versionné, par kind (cohérence sans uniformisation abusive). */
@@ -388,9 +389,9 @@ export function versionContentHtml(kind: LibraryKind, version: LibraryVersion): 
   const summary = workflow.summary !== null ? `<p class="library-prose">${esc(workflow.summary)}</p>` : "";
   return (
     `${summary}` +
-    `<h4>Participants</h4><div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Participant</th><th>Définition d'agent</th><th>Dépend de</th><th>Description</th></tr></thead><tbody>${participants}</tbody></table></div>` +
+    `<h4>Participants</h4><div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">Participants du flux</caption><thead><tr><th scope="col">Participant</th><th scope="col">Définition d'agent</th><th scope="col">Dépend de</th><th scope="col">Description</th></tr></thead><tbody>${participants}</tbody></table></div>` +
     `<h4>Enchaînement (ordre déclaré)</h4>${edgeList}<p class="ds-list-sub">Dépendances déclaratives uniquement — Studi'OS n'exécute jamais ce flux ici.</p>` +
-    `<h4>Entrées du flux</h4>${ioTableHtml(workflow.inputs)}<h4>Sorties du flux</h4>${ioTableHtml(workflow.outputs)}`
+    `<h4>Entrées du flux</h4>${ioTableHtml(workflow.inputs, "Entrées du flux")}<h4>Sorties du flux</h4>${ioTableHtml(workflow.outputs, "Sorties du flux")}`
   );
 }
 
@@ -662,6 +663,7 @@ export async function renderLibrary(root: HTMLElement, ctx: LibraryContext, kind
     const node = root.querySelector("[data-create] [data-msg]");
     if (node === null) return;
     node.textContent = message;
+    if (message !== "" && node instanceof HTMLElement) focusDsErrorBox(node);
   };
 
   const bind = (): void => {
@@ -840,7 +842,7 @@ export function libraryDetailHtml(
     .map((version) => {
       const isActive = version.version === resource.active_version;
       return (
-        `<details class="library-version"${isActive ? " open" : ""}><summary>v${version.version} · ${esc(version.title)}${isActive ? " · active" : ""}</summary>` +
+        `<details class="library-version"${isActive ? " open" : ""}><summary>v${version.version} · ${esc(version.title)}${isActive ? " · version activée" : ""}</summary>` +
         `<div class="library-version-body"><p class="ds-list-sub">${fmtTime(version.created_at)}${version.created_by_user_id ? ` · par ${esc(shortId(version.created_by_user_id))}` : ""}</p>` +
         (version.description ? `<p>${esc(version.description)}</p>` : "") +
         versionContentHtml(resource.kind, version) +
@@ -970,7 +972,10 @@ function bindDetail(
     const version = Number(formReader(activateForm).text("version"));
     const msg = activateForm.querySelector("[data-msg]");
     if (!Number.isInteger(version) || version < 1) {
-      if (msg !== null) msg.textContent = "Indiquez une version ≥ 1.";
+      if (msg !== null) {
+        msg.textContent = "Indiquez une version ≥ 1.";
+        if (msg instanceof HTMLElement) focusDsErrorBox(msg);
+      }
       return;
     }
     const submit = activateForm.querySelector<HTMLButtonElement>("button[type=submit]");
@@ -981,7 +986,10 @@ function bindDetail(
         refresh();
       })
       .catch((error: unknown) => {
-        if (msg !== null) msg.textContent = describeError(error);
+        if (msg !== null) {
+          msg.textContent = describeError(error);
+          if (msg instanceof HTMLElement) focusDsErrorBox(msg);
+        }
         if (submit !== null) submit.disabled = false;
       });
   });
@@ -998,7 +1006,10 @@ function bindDetail(
         refresh();
       })
       .catch((error: unknown) => {
-        if (msg !== null) msg.textContent = describeError(error);
+        if (msg !== null) {
+          msg.textContent = describeError(error);
+          if (msg instanceof HTMLElement) focusDsErrorBox(msg);
+        }
         if (submit !== null) submit.disabled = false;
       });
   });
@@ -1017,7 +1028,10 @@ function bindDetail(
     const submit = versionForm.querySelector<HTMLButtonElement>("button[type=submit]");
     const built = buildVersionPayload(versionForm, resource.kind);
     if ("error" in built) {
-      if (msg !== null) msg.textContent = built.error;
+      if (msg !== null) {
+        msg.textContent = built.error;
+        if (msg instanceof HTMLElement) focusDsErrorBox(msg);
+      }
       return;
     }
     if (submit !== null) {
@@ -1031,7 +1045,10 @@ function bindDetail(
         refresh();
       })
       .catch((error: unknown) => {
-        if (msg !== null) msg.textContent = describeError(error);
+        if (msg !== null) {
+          msg.textContent = describeError(error);
+          if (msg instanceof HTMLElement) focusDsErrorBox(msg);
+        }
         if (submit !== null) {
           submit.disabled = false;
           submit.textContent = "Créer la version";
@@ -1046,7 +1063,10 @@ function bindDetail(
     const version = Number(read.text("lock_version"));
     const msg = lockForm.querySelector("[data-msg]");
     if (projectId === "" || !Number.isInteger(version) || version < 1) {
-      if (msg !== null) msg.textContent = "L'ID projet et une version ≥ 1 sont obligatoires.";
+      if (msg !== null) {
+        msg.textContent = "L'ID projet et une version ≥ 1 sont obligatoires.";
+        if (msg instanceof HTMLElement) focusDsErrorBox(msg);
+      }
       return;
     }
     const submit = lockForm.querySelector<HTMLButtonElement>("button[type=submit]");
@@ -1058,7 +1078,10 @@ function bindDetail(
         refresh();
       })
       .catch((error: unknown) => {
-        if (msg !== null) msg.textContent = describeError(error);
+        if (msg !== null) {
+          msg.textContent = describeError(error);
+          if (msg instanceof HTMLElement) focusDsErrorBox(msg);
+        }
         if (submit !== null) submit.disabled = false;
       });
   });

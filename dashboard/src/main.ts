@@ -144,8 +144,8 @@ let conflictBannerTimer: ReturnType<typeof setTimeout> | null = null;
 function showConflictBanner(event: EventEnvelope): void {
   const banner = document.getElementById("conflict-banner");
   if (banner === null) return;
-  const resourcePath = typeof event.payload?.["resource_path"] === "string" ? event.payload["resource_path"] : "unknown resource";
-  banner.textContent = `Resource conflict: ${resourcePath}`;
+  const resourcePath = typeof event.payload?.["resource_path"] === "string" ? event.payload["resource_path"] : "ressource inconnue";
+  banner.textContent = `Conflit de ressource : ${resourcePath}`;
   banner.hidden = false;
   if (conflictBannerTimer !== null) clearTimeout(conflictBannerTimer);
   conflictBannerTimer = setTimeout(() => {
@@ -184,6 +184,18 @@ function syncRealtimeConnection(): void {
       },
     },
   );
+}
+
+/**
+ * Après un changement de vue, le nœud #view est remplacé : sans reprise de
+ * focus, il retombe sur <body> et l'utilisateur clavier/lecteur d'écran perd
+ * le point de reprise. On focalise le repère principal (même cible que le
+ * skip-link) — jamais un titre de contenu, pour ne pas déplacer le curseur
+ * de lecture dans la page. Réservé aux navigations explicites (hashchange,
+ * connexion) : les re-rendus temps réel ne volent jamais le focus.
+ */
+function focusView(): void {
+  document.getElementById("view")?.focus();
 }
 
 function openDrawer(): void {
@@ -238,7 +250,7 @@ function mountShell(): void {
     });
     window.addEventListener("hashchange", () => {
       if (isDrawerOpen()) closeDrawer(false);
-      void render();
+      void render().then(() => focusView());
     });
   }
   const input = document.getElementById("token-input") as HTMLInputElement | null;
@@ -259,7 +271,7 @@ function mountShell(): void {
   });
 
   syncRealtimeConnection();
-  void render();
+  void render().then(() => focusView());
 }
 
 function mountLogin(): void {

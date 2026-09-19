@@ -492,8 +492,8 @@ describe("Empty / Loading / Error structural states", () => {
 
   it("loading skeleton announces itself to assistive tech", () => {
     const html = dsSkeleton(4);
-    expect(html).toContain('aria-busy="true"');
-    expect(html).toContain('aria-label="Chargement en cours"');
+    expect(html).toContain('role="status"');
+    expect(html).toContain("Chargement en cours");
     expect(html).toContain("ds-sr-only");
   });
 

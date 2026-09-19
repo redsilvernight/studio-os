@@ -47,7 +47,6 @@ import {
 } from "../machinesApi";
 import { listRuntimes, type RuntimeRegistration } from "../runtimesApi";
 import {
-  closeDsDialog,
   dsBadge,
   dsDrawerHtml,
   dsEmptyState,
@@ -447,9 +446,6 @@ function bindMachines(root: HTMLElement, ctx: MachinesContext, data: MachinesPag
   });
   bindToolbar(root, data);
   bindDetails(root, data);
-  root.querySelector("#machine-drawer")?.addEventListener("keydown", (event) => {
-    if (event instanceof KeyboardEvent && event.key === "Escape") closeDsDialog(root, "machine-drawer");
-  });
 }
 
 async function fetchEvents(client: StudioClient): Promise<EventEnvelope[]> {

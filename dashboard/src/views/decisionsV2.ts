@@ -30,6 +30,7 @@ import {
   dsTabsHtml,
   dsModalHtml,
   dsField,
+  focusDsErrorBox,
   initDsTabs,
   openDsDialog,
   closeDsDialog,
@@ -186,7 +187,7 @@ export function reviewItemHtml(item: ReviewQueueItem, authed: boolean): string {
   const techDetails = `
     <details class="review-tech"><summary>Informations techniques</summary><dl>
       <div><dt>Identifiant</dt><dd><code class="mono">${esc(item.id)}</code></dd></div>
-      <div><dt>Kind</dt><dd>${esc(item.kind)}</dd></div>
+      <div><dt>Type</dt><dd>${esc(item.kind)}</dd></div>
       <div><dt>Projet</dt><dd>${item.project_id ? `<code class="mono">${esc(item.project_id)}</code>` : "—"}</dd></div>
       ${item.task_id ? `<div><dt>Tâche</dt><dd><code class="mono">${esc(item.task_id)}</code></dd></div>` : ""}
       ${item.kind === "ai_work_review" ? `<div><dt>Agent</dt><dd><code class="mono">${esc(item.agent_id)}</code></dd></div>` : ""}
@@ -370,7 +371,7 @@ export function createDecisionFormHtml(
     `<button class="ds-btn ds-btn--primary" type="submit" ${authed ? "" : "disabled"}>Créer la décision</button>` +
     `<button class="ds-btn" type="button" data-ds-close>Annuler</button>` +
     `</div>` +
-    `<div data-create-msg class="ds-list-sub" role="status" aria-live="polite"></div>` +
+    `<div data-create-msg class="ds-list-sub" role="alert"></div>` +
     `</form>`;
 }
 
@@ -378,9 +379,9 @@ export function createDecisionFormHtml(
 
 export function decisionsTabsHtml(activeTab: "review" | "decisions"): string {
   return dsTabsHtml("decisions-main", [
-    { id: "review", label: "À examiner", panel: '<div id="review-panel" role="tabpanel"></div>' },
-    { id: "decisions", label: "Décisions", panel: '<div id="decisions-panel" role="tabpanel"></div>' },
-  ], activeTab);
+    { id: "review", label: "À examiner", panel: '<div id="review-panel"></div>' },
+    { id: "decisions", label: "Décisions", panel: '<div id="decisions-panel"></div>' },
+  ], activeTab, "Décisions");
 }
 
 export async function renderDecisionsV2(root: HTMLElement, ctx: DecisionsContext): Promise<void> {
@@ -499,7 +500,10 @@ function bindDecisionActions(
 
     const proposedById = String(data.get("proposed_by_id") ?? "").trim();
     if (!isUuid(proposedById)) {
-      if (msg !== null) msg.textContent = "L'ID du proposant doit être un UUID valide.";
+      if (msg !== null) {
+        msg.textContent = "L'ID du proposant doit être un UUID valide.";
+        if (msg instanceof HTMLElement) focusDsErrorBox(msg);
+      }
       return;
     }
 
@@ -536,7 +540,10 @@ function bindDecisionActions(
       // jamais réutilisée pour un corps potentiellement modifié.
       const keyInput = form.querySelector<HTMLInputElement>('input[name="idempotency_key"]');
       if (keyInput !== null) keyInput.value = generateIdempotencyKey();
-      if (msg !== null) msg.textContent = describeError(error);
+      if (msg !== null) {
+        msg.textContent = describeError(error);
+        if (msg instanceof HTMLElement) focusDsErrorBox(msg);
+      }
       if (submitBtn !== null) submitBtn.disabled = false;
     }
   });

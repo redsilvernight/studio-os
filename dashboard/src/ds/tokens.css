@@ -31,7 +31,10 @@
   /* Textes */
   --ds-text: #1a2733;
   --ds-text-muted: #4d6076;
-  --ds-text-faint: #6b7f93;
+  /* Atténué mais conforme AA (≥ 4.5:1) sur fond blanc comme sur fond de
+     page : placeholders et métadonnées restent lisibles (UI-14, mesuré
+     5.20:1 sur blanc / 4.79:1 sur #f2f6fb, avant #6b7f93 à 4.13/3.81). */
+  --ds-text-faint: #5a6f84;
 
   /* Action principale */
   --ds-action: #1d64d8;

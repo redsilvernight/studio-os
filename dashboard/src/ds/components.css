@@ -438,7 +438,7 @@ summary:focus-visible,
   width: 64%;
 }
 
-/* Modale et tiroir : focus piégé léger (retour au déclencheur, Échap). */
+/* Modale et tiroir : focus piégé (Tab cyclé, retour au déclencheur, Échap). */
 .ds-overlay {
   position: fixed;
   inset: 0;

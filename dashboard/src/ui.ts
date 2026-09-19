@@ -49,7 +49,7 @@ export function describeError(error: unknown): string {
     if (error.errorCode !== null) parts.push(error.errorCode);
     parts.push(error.message);
     if (error.errorCode === "version_conflict" && error.serverVersion !== null) {
-      parts.push(`server is at version ${error.serverVersion} — re-read, then re-apply`);
+      parts.push(`le serveur est à la version ${error.serverVersion} — rechargez, puis réappliquez`);
     }
     return parts.join(" · ");
   }

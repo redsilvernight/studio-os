@@ -25,6 +25,7 @@ import {
   dsBadge,
   dsEmptyState,
   dsField,
+  focusDsErrorBox,
   dsModalHtml,
   dsNotify,
   dsPageHeader,
@@ -437,6 +438,7 @@ export async function renderTasksInto(root: HTMLElement, ctx: TasksContext): Pro
     } else {
       node.removeAttribute("hidden");
       node.textContent = message;
+      if (node instanceof HTMLElement) focusDsErrorBox(node);
     }
   };
 

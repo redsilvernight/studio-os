@@ -20,6 +20,7 @@ import {
   dsBadge,
   dsEmptyState,
   dsField,
+  focusDsErrorBox,
   dsModalHtml,
   dsNotify,
   dsPageHeader,
@@ -147,6 +148,7 @@ function setCreateError(root: HTMLElement, message: string): void {
   } else {
     node.removeAttribute("hidden");
     node.textContent = message;
+    if (node instanceof HTMLElement) focusDsErrorBox(node);
   }
 }
 

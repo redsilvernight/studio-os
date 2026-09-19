@@ -62,9 +62,10 @@ import {
   capabilityFieldsHtml,
 } from "./configForms";
 import { formReader } from "./libraryForms";
+import { statusLabelFr } from "./library";
 import { uiState } from "../store";
 import { describeError, esc, fmtTime, shortId, statusBlock } from "../ui";
-import { dsBadge, dsEmptyState, dsNotify, dsPageHeader, dsSkeleton, type DsTone } from "../ds/ds";
+import { dsBadge, dsEmptyState, dsNotify, dsPageHeader, dsSkeleton, focusDsErrorBox, type DsTone } from "../ds/ds";
 // Styles colocalisés : la page reste autonome sans toucher au CSS global.
 import "./configuration.css";
 
@@ -281,6 +282,13 @@ function runtimesNoMatchHtml(): string {
   return dsEmptyState("Aucun runtime ne correspond", "Modifiez la recherche ou les filtres pour retrouver vos runtimes déjà chargés.");
 }
 
+/** Message de formulaire : annoncé (role=status du bloc) puis focalisé en cas d'erreur. */
+function setFormMsg(msg: Element | null, text: string): void {
+  if (msg === null) return;
+  msg.textContent = text;
+  if (text !== "" && msg instanceof HTMLElement) focusDsErrorBox(msg);
+}
+
 export function createRuntimeFormHtml(): string {
   return (
     `<details class="editor settings-editor"><summary>Déclarer un runtime</summary><form class="stack-form" data-runtime-create>` +
@@ -351,7 +359,7 @@ function bindRuntimes(root: HTMLElement, ctx: ConfigurationContext, runtimes: Ru
     const submit = form.querySelector<HTMLButtonElement>("button[type=submit]");
     const built = buildRuntimeCreate(formReader(form));
     if (!built.ok) {
-      if (msg !== null) msg.textContent = built.error;
+      setFormMsg(msg, built.error);
       return;
     }
     if (submit !== null) submit.disabled = true;
@@ -361,7 +369,7 @@ function bindRuntimes(root: HTMLElement, ctx: ConfigurationContext, runtimes: Ru
         void renderRuntimes(root, ctx);
       })
       .catch((error: unknown) => {
-        if (msg !== null) msg.textContent = describeError(error);
+        setFormMsg(msg, describeError(error));
         if (submit !== null) submit.disabled = false;
       });
   });
@@ -550,7 +558,7 @@ function bindRuntimeDetail(root: HTMLElement, ctx: ConfigurationContext, runtime
     const submit = updateForm.querySelector<HTMLButtonElement>("button[type=submit]");
     const built = buildRuntimeUpdate(formReader(updateForm));
     if (!built.ok) {
-      if (msg !== null) msg.textContent = built.error;
+      setFormMsg(msg, built.error);
       return;
     }
     if (submit !== null) submit.disabled = true;
@@ -559,7 +567,7 @@ function bindRuntimeDetail(root: HTMLElement, ctx: ConfigurationContext, runtime
         void renderRuntimeDetail(root, ctx, runtime.id);
       })
       .catch((error: unknown) => {
-        if (msg !== null) msg.textContent = describeError(error);
+        setFormMsg(msg, describeError(error));
         if (submit !== null) submit.disabled = false;
       });
   });
@@ -575,7 +583,7 @@ function bindRuntimeDetail(root: HTMLElement, ctx: ConfigurationContext, runtime
         void renderRuntimeDetail(root, ctx, runtime.id);
       })
       .catch((error: unknown) => {
-        if (msg !== null) msg.textContent = describeError(error);
+        setFormMsg(msg, describeError(error));
         if (submit !== null) submit.disabled = false;
       });
   });
@@ -702,7 +710,7 @@ export function runtimeBindingsTableHtml(bindings: RuntimeBinding[]): string {
         `<td>${nonEmpty(binding.project_id) ? esc(shortId(binding.project_id)) : '<span class="meta">—</span>'}</td><td>${fmtTime(binding.created_at)}</td></tr>`,
     )
     .join("");
-  return `<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Type</th><th>Clé logique</th><th>Niveau</th><th>Projet</th><th>Créé le</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return `<div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">Liaisons référençant ce runtime</caption><thead><tr><th scope="col">Type</th><th scope="col">Clé logique</th><th scope="col">Niveau</th><th scope="col">Projet</th><th scope="col">Créé le</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 export function bindingsTableHtml(bindings: RuntimeBinding[], emptyMessage: string): string {
@@ -714,7 +722,7 @@ export function bindingsTableHtml(bindings: RuntimeBinding[], emptyMessage: stri
         `<td>${esc(bindingScopeLabel(binding.level))}</td><td>${runtimeTargetSummary(binding.target)}</td></tr>`,
     )
     .join("");
-  return `<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Type</th><th>Clé logique</th><th>Niveau</th><th>Runtime visé</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return `<div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">Liaisons runtime</caption><thead><tr><th scope="col">Type</th><th scope="col">Clé logique</th><th scope="col">Niveau</th><th scope="col">Runtime visé</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 function bindingsEmptyHtml(): string {
@@ -819,7 +827,7 @@ function bindBindings(
     const submit = form.querySelector<HTMLButtonElement>("button[type=submit]");
     const built = buildBindingCreate(formReader(form));
     if (!built.ok) {
-      if (msg !== null) msg.textContent = built.error;
+      setFormMsg(msg, built.error);
       return;
     }
     if (submit !== null) submit.disabled = true;
@@ -829,7 +837,7 @@ function bindBindings(
         void renderBindings(root, ctx);
       })
       .catch((error: unknown) => {
-        if (msg !== null) msg.textContent = describeError(error);
+        setFormMsg(msg, describeError(error));
         if (submit !== null) submit.disabled = false;
       });
   });
@@ -984,7 +992,7 @@ function bindProjectTab(root: HTMLElement, ctx: ConfigurationContext, tab: "reso
         void renderProjectConfig(root, ctx, "locks");
       })
       .catch((error: unknown) => {
-        if (msg !== null) msg.textContent = describeError(error);
+        setFormMsg(msg, describeError(error));
         if (submit !== null) submit.disabled = false;
       });
   });
@@ -1013,13 +1021,13 @@ async function projectResourcesHtml(ctx: ConfigurationContext, projectId: string
       (resource) =>
         `<tr><td><a href="${esc(libraryKindHref(resource.kind, resource.id))}"><code class="mono">${esc(resource.stable_key)}</code></a></td>` +
         `<td>${esc(kindMeta(resource.kind).singular)}</td><td>${esc(scopeLabel(resource.scope))}</td>` +
-        `<td>${resource.active_version === 0 ? '<span class="meta">aucune</span>' : `v${resource.active_version}`}</td><td>${esc(resource.status)}</td></tr>`,
+        `<td>${resource.active_version === 0 ? '<span class="meta">aucune</span>' : `v${resource.active_version}`}</td><td>${esc(statusLabelFr(resource.status))}</td></tr>`,
     )
     .join("");
   const table =
     resources.length === 0
       ? statusBlock("empty", "Aucune ressource de bibliothèque propre à ce projet.")
-      : `<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Clé stable</th><th>Type</th><th>Portée</th><th>Active</th><th>Statut</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      : `<div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">Ressources de bibliothèque du projet</caption><thead><tr><th scope="col">Clé stable</th><th scope="col">Type</th><th scope="col">Portée</th><th scope="col">Active</th><th scope="col">Statut</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   return `<h3>Ressources</h3><p class="meta">GET /library?project_id=… — définitions propres au projet. Les ressources Studio/Utilisateur ne sont pas des appartenances de projet.</p>${table}`;
 }
 
@@ -1030,13 +1038,13 @@ async function projectLocksHtml(ctx: ConfigurationContext, projectId: string): P
       (lock) =>
         `<tr><td><code class="mono">${esc(lock.resource_id)}</code></td><td>v${lock.locked_version}</td>` +
         `<td>${esc(shortId(lock.created_by_user_id))}</td><td>${fmtTime(lock.created_at)}</td>` +
-        `<td class="actions"><button type="button" class="ds-btn ds-btn--sm ds-btn--danger" data-release-lock="${esc(lock.id)}">Libérer</button></td></tr>`,
+        `<td class="actions"><button type="button" class="ds-btn ds-btn--sm ds-btn--danger" data-release-lock="${esc(lock.id)}" aria-label="Libérer le verrou ${esc(shortId(lock.resource_id))}">Libérer</button></td></tr>`,
     )
     .join("");
   const table =
     locks.length === 0
       ? statusBlock("empty", "Aucun verrou pour ce projet.")
-      : `<div class="ds-table-wrap"><table class="ds-table"><thead><tr><th>Ressource</th><th>Version verrouillée</th><th>Créé par</th><th>Créé le</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      : `<div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">Verrous du projet</caption><thead><tr><th scope="col">Ressource</th><th scope="col">Version verrouillée</th><th scope="col">Créé par</th><th scope="col">Créé le</th><th scope="col"><span class="ds-sr-only">Actions</span></th></tr></thead><tbody>${rows}</tbody></table></div>`;
   return (
     `<h3>Verrous</h3><p class="meta">RESOURCE | VERSION VERROUILLÉE — le verrou épingle une version pour ce projet ; la version effective n'est décidée que par le serveur (voir Inspecteur).</p>${table}` +
     `<form class="inline-form" data-lock>` +
