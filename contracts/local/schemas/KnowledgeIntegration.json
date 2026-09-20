@@ -1,0 +1,47 @@
+{
+  "$defs": {
+    "ComponentState": {
+      "description": "Shared state vocabulary of every optional local component (Knowledge,\nCode Graph, harness, watchers). `ready` is the only fully-served state;\n`stale` serves possibly outdated data explicitly; everything else refuses\nor degrades visibly — never silently.",
+      "enum": [
+        "disabled",
+        "not_installed",
+        "unavailable",
+        "starting",
+        "indexing",
+        "ready",
+        "stale",
+        "permission_denied",
+        "incompatible",
+        "stopping",
+        "recovering",
+        "error"
+      ],
+      "title": "ComponentState",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "An optional tool layered on the same Markdown files (for example a note\neditor). Never required: Knowledge works without any integration.",
+  "properties": {
+    "integration_id": {
+      "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+      "title": "Integration Id",
+      "type": "string"
+    },
+    "required": {
+      "const": false,
+      "default": false,
+      "title": "Required",
+      "type": "boolean"
+    },
+    "state": {
+      "$ref": "#/$defs/ComponentState"
+    }
+  },
+  "required": [
+    "integration_id",
+    "state"
+  ],
+  "title": "KnowledgeIntegration",
+  "type": "object"
+}

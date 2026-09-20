@@ -1,0 +1,59 @@
+{
+  "$defs": {
+    "ComponentId": {
+      "enum": [
+        "desktop",
+        "bridge",
+        "daemon",
+        "workspace",
+        "knowledge",
+        "code_graph",
+        "harness",
+        "secret_store",
+        "watcher"
+      ],
+      "title": "ComponentId",
+      "type": "string"
+    },
+    "ComponentState": {
+      "description": "Shared state vocabulary of every optional local component (Knowledge,\nCode Graph, harness, watchers). `ready` is the only fully-served state;\n`stale` serves possibly outdated data explicitly; everything else refuses\nor degrades visibly — never silently.",
+      "enum": [
+        "disabled",
+        "not_installed",
+        "unavailable",
+        "starting",
+        "indexing",
+        "ready",
+        "stale",
+        "permission_denied",
+        "incompatible",
+        "stopping",
+        "recovering",
+        "error"
+      ],
+      "title": "ComponentState",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "capability": {
+      "pattern": "^[a-z][a-z0-9_]{0,31}(\\.[a-z][a-z0-9_]{0,31}){0,3}$",
+      "title": "Capability",
+      "type": "string"
+    },
+    "component": {
+      "$ref": "#/$defs/ComponentId"
+    },
+    "state": {
+      "$ref": "#/$defs/ComponentState"
+    }
+  },
+  "required": [
+    "capability",
+    "component",
+    "state"
+  ],
+  "title": "DegradedFeature",
+  "type": "object"
+}

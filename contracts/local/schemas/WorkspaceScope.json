@@ -1,0 +1,15 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace_id"
+  ],
+  "title": "WorkspaceScope",
+  "type": "object"
+}

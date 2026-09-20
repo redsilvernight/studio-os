@@ -1,0 +1,56 @@
+{
+  "data": {
+    "peer": {
+      "capabilities": [
+        "code_graph.graph",
+        "code_graph.index",
+        "code_graph.read",
+        "daemon.control",
+        "harness.apply",
+        "harness.plan",
+        "harness.read",
+        "identity.view",
+        "knowledge.graph",
+        "knowledge.index",
+        "knowledge.read",
+        "publication.plan",
+        "publication.publish",
+        "workspace.config"
+      ],
+      "component_version": "0.1.0",
+      "optional_capabilities": [
+        "code_graph.graph",
+        "code_graph.index",
+        "code_graph.read",
+        "harness.apply",
+        "harness.plan",
+        "harness.read",
+        "knowledge.graph",
+        "knowledge.index",
+        "knowledge.read",
+        "publication.plan",
+        "publication.publish"
+      ],
+      "optional_components": [],
+      "protocol": {
+        "maximum": {
+          "major": 1,
+          "minor": 0
+        },
+        "minimum": {
+          "major": 1,
+          "minor": 0
+        }
+      },
+      "protocol_id": "studio.local",
+      "required_capabilities": [
+        "daemon.control",
+        "identity.view",
+        "workspace.config"
+      ],
+      "role": "desktop",
+      "server_origin": null
+    }
+  },
+  "model": "HandshakeRequest"
+}

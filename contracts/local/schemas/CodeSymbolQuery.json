@@ -1,0 +1,67 @@
+{
+  "$defs": {
+    "NodeKind": {
+      "enum": [
+        "document",
+        "heading",
+        "tag",
+        "file",
+        "package",
+        "module",
+        "class",
+        "function"
+      ],
+      "title": "NodeKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "cursor": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cursor"
+    },
+    "kinds": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/NodeKind"
+      },
+      "maxItems": 8,
+      "title": "Kinds",
+      "type": "array"
+    },
+    "limit": {
+      "default": 20,
+      "maximum": 100,
+      "minimum": 1,
+      "title": "Limit",
+      "type": "integer"
+    },
+    "name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace_id",
+    "name"
+  ],
+  "title": "CodeSymbolQuery",
+  "type": "object"
+}

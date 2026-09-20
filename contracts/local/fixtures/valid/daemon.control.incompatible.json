@@ -1,0 +1,22 @@
+{
+  "data": {
+    "action": "attach",
+    "error": {
+      "code": "protocol_incompatible",
+      "component": "daemon",
+      "correlation_id": null,
+      "details": {},
+      "message": "The running daemon speaks an incompatible protocol.",
+      "retryable": false
+    },
+    "outcome": "incompatible",
+    "status": {
+      "instance": null,
+      "last_crash": null,
+      "negotiated": null,
+      "outbox": null,
+      "state": "incompatible"
+    }
+  },
+  "model": "DaemonControlResult"
+}

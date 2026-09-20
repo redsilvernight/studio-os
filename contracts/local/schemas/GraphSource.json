@@ -1,0 +1,72 @@
+{
+  "$defs": {
+    "GraphSourceKind": {
+      "enum": [
+        "knowledge",
+        "code",
+        "projection"
+      ],
+      "title": "GraphSourceKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Identifies which provider run produced a graph. Knowledge and code\nsources stay separate; only a `projection` source may relate them, and only\nthrough explicitly declared relations.",
+  "properties": {
+    "generated_at": {
+      "format": "date-time",
+      "title": "Generated At",
+      "type": "string"
+    },
+    "index_fingerprint": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Index Fingerprint"
+    },
+    "kind": {
+      "$ref": "#/$defs/GraphSourceKind"
+    },
+    "member_sources": {
+      "default": [],
+      "items": {
+        "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+        "type": "string"
+      },
+      "maxItems": 2,
+      "title": "Member Sources",
+      "type": "array"
+    },
+    "provider_id": {
+      "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+      "title": "Provider Id",
+      "type": "string"
+    },
+    "source_id": {
+      "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+      "title": "Source Id",
+      "type": "string"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "source_id",
+    "kind",
+    "provider_id",
+    "workspace_id",
+    "generated_at"
+  ],
+  "title": "GraphSource",
+  "type": "object"
+}

@@ -1,0 +1,106 @@
+{
+  "$defs": {
+    "GraphDirection": {
+      "enum": [
+        "out",
+        "in",
+        "both"
+      ],
+      "title": "GraphDirection",
+      "type": "string"
+    },
+    "GraphNodeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "node_id": {
+          "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+          "title": "Node Id",
+          "type": "string"
+        },
+        "source_id": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Source Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "node_id"
+      ],
+      "title": "GraphNodeRef",
+      "type": "object"
+    },
+    "RelationKind": {
+      "enum": [
+        "links_to",
+        "tagged_with",
+        "embeds",
+        "contains",
+        "imports",
+        "calls",
+        "defines",
+        "inherits",
+        "references",
+        "documents"
+      ],
+      "title": "RelationKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "cursor": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cursor"
+    },
+    "depth": {
+      "const": 1,
+      "default": 1,
+      "title": "Depth",
+      "type": "integer"
+    },
+    "direction": {
+      "$ref": "#/$defs/GraphDirection",
+      "default": "both"
+    },
+    "limit": {
+      "default": 50,
+      "maximum": 500,
+      "minimum": 1,
+      "title": "Limit",
+      "type": "integer"
+    },
+    "node": {
+      "$ref": "#/$defs/GraphNodeRef"
+    },
+    "relations": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/RelationKind"
+      },
+      "maxItems": 10,
+      "title": "Relations",
+      "type": "array"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace_id",
+    "node"
+  ],
+  "title": "GraphExpandRequest",
+  "type": "object"
+}

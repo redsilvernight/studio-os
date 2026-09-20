@@ -1,0 +1,39 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "debounce_ms": {
+      "default": 500,
+      "maximum": 60000,
+      "minimum": 50,
+      "title": "Debounce Ms",
+      "type": "integer"
+    },
+    "follow_symlinks": {
+      "const": false,
+      "default": false,
+      "title": "Follow Symlinks",
+      "type": "boolean"
+    },
+    "ignore_globs": {
+      "default": [
+        ".git/**",
+        "node_modules/**"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Ignore Globs",
+      "type": "array"
+    },
+    "max_events_per_second": {
+      "default": 200,
+      "maximum": 10000,
+      "minimum": 1,
+      "title": "Max Events Per Second",
+      "type": "integer"
+    }
+  },
+  "title": "WatcherConfig",
+  "type": "object"
+}

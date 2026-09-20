@@ -1,0 +1,53 @@
+{
+  "additionalProperties": false,
+  "description": "The identity a piece of queued local work was created under. An outbox\nentry replays only under an identical binding.",
+  "properties": {
+    "machine_id": {
+      "format": "uuid",
+      "title": "Machine Id",
+      "type": "string"
+    },
+    "profile_id": {
+      "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+      "title": "Profile Id",
+      "type": "string"
+    },
+    "project_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Project Id"
+    },
+    "server_origin": {
+      "title": "Server Origin",
+      "type": "string"
+    },
+    "workspace_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Workspace Id"
+    }
+  },
+  "required": [
+    "server_origin",
+    "profile_id",
+    "machine_id"
+  ],
+  "title": "IdentityBinding",
+  "type": "object"
+}

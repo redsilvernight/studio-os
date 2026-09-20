@@ -1,0 +1,29 @@
+{
+  "$defs": {
+    "KnowledgeReindexMode": {
+      "enum": [
+        "incremental",
+        "full_rebuild"
+      ],
+      "title": "KnowledgeReindexMode",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "mode": {
+      "$ref": "#/$defs/KnowledgeReindexMode",
+      "default": "incremental"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace_id"
+  ],
+  "title": "KnowledgeReindexRequest",
+  "type": "object"
+}

@@ -1,0 +1,148 @@
+{
+  "$defs": {
+    "IdentityBinding": {
+      "additionalProperties": false,
+      "description": "The identity a piece of queued local work was created under. An outbox\nentry replays only under an identical binding.",
+      "properties": {
+        "machine_id": {
+          "format": "uuid",
+          "title": "Machine Id",
+          "type": "string"
+        },
+        "profile_id": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Profile Id",
+          "type": "string"
+        },
+        "project_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Project Id"
+        },
+        "server_origin": {
+          "title": "Server Origin",
+          "type": "string"
+        },
+        "workspace_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Workspace Id"
+        }
+      },
+      "required": [
+        "server_origin",
+        "profile_id",
+        "machine_id"
+      ],
+      "title": "IdentityBinding",
+      "type": "object"
+    },
+    "LocalErrorCode": {
+      "description": "Closed, deliberately small taxonomy. Codes describe what the caller can\nbranch on; the human message and bounded details carry the rest.",
+      "enum": [
+        "invalid_request",
+        "unknown_command",
+        "payload_too_large",
+        "protocol_incompatible",
+        "capability_missing",
+        "not_supported",
+        "cancelled",
+        "timeout",
+        "internal_error",
+        "daemon_unavailable",
+        "daemon_already_running",
+        "daemon_crashed",
+        "identity_mismatch",
+        "wrong_profile",
+        "secret_absent",
+        "secret_inaccessible",
+        "secret_revoked",
+        "keyring_unavailable",
+        "workspace_config_missing",
+        "workspace_config_invalid",
+        "workspace_moved",
+        "workspace_inaccessible",
+        "project_unavailable",
+        "feature_disabled",
+        "provider_not_installed",
+        "provider_incompatible",
+        "permission_denied",
+        "index_absent",
+        "index_corrupt",
+        "language_unsupported",
+        "plan_expired"
+      ],
+      "title": "LocalErrorCode",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "What the daemon exposes about its queue. `binding` is the identity the\nqueued entries were created under; replay is refused when it does not match\nthe active identity.",
+  "properties": {
+    "binding": {
+      "$ref": "#/$defs/IdentityBinding"
+    },
+    "blocked_reason": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LocalErrorCode"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "oldest_pending_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Oldest Pending At"
+    },
+    "partition_key": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Partition Key",
+      "type": "string"
+    },
+    "pending_count": {
+      "minimum": 0,
+      "title": "Pending Count",
+      "type": "integer"
+    },
+    "replay_blocked": {
+      "default": false,
+      "title": "Replay Blocked",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "binding",
+    "partition_key",
+    "pending_count"
+  ],
+  "title": "OutboxSummary",
+  "type": "object"
+}

@@ -1,0 +1,442 @@
+{
+  "$defs": {
+    "CompatibilityOutcome": {
+      "enum": [
+        "compatible",
+        "compatible_degraded",
+        "daemon_too_old",
+        "desktop_too_old",
+        "capability_missing",
+        "protocol_incompatible"
+      ],
+      "title": "CompatibilityOutcome",
+      "type": "string"
+    },
+    "ComponentId": {
+      "enum": [
+        "desktop",
+        "bridge",
+        "daemon",
+        "workspace",
+        "knowledge",
+        "code_graph",
+        "harness",
+        "secret_store",
+        "watcher"
+      ],
+      "title": "ComponentId",
+      "type": "string"
+    },
+    "ComponentState": {
+      "description": "Shared state vocabulary of every optional local component (Knowledge,\nCode Graph, harness, watchers). `ready` is the only fully-served state;\n`stale` serves possibly outdated data explicitly; everything else refuses\nor degrades visibly — never silently.",
+      "enum": [
+        "disabled",
+        "not_installed",
+        "unavailable",
+        "starting",
+        "indexing",
+        "ready",
+        "stale",
+        "permission_denied",
+        "incompatible",
+        "stopping",
+        "recovering",
+        "error"
+      ],
+      "title": "ComponentState",
+      "type": "string"
+    },
+    "DegradedFeature": {
+      "additionalProperties": false,
+      "properties": {
+        "capability": {
+          "pattern": "^[a-z][a-z0-9_]{0,31}(\\.[a-z][a-z0-9_]{0,31}){0,3}$",
+          "title": "Capability",
+          "type": "string"
+        },
+        "component": {
+          "$ref": "#/$defs/ComponentId"
+        },
+        "state": {
+          "$ref": "#/$defs/ComponentState"
+        }
+      },
+      "required": [
+        "capability",
+        "component",
+        "state"
+      ],
+      "title": "DegradedFeature",
+      "type": "object"
+    },
+    "LocalError": {
+      "additionalProperties": false,
+      "description": "The one structured error shape of the local stack. Never carries a\nsecret, a stack trace or an absolute local path: `message` and `details`\nare validated, bounded and safe to display or log.",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/LocalErrorCode"
+        },
+        "component": {
+          "$ref": "#/$defs/ComponentId"
+        },
+        "correlation_id": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.:-]{1,64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Correlation Id"
+        },
+        "details": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Details",
+          "type": "object"
+        },
+        "message": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        },
+        "retryable": {
+          "title": "Retryable",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "component",
+        "retryable"
+      ],
+      "title": "LocalError",
+      "type": "object"
+    },
+    "LocalErrorCode": {
+      "description": "Closed, deliberately small taxonomy. Codes describe what the caller can\nbranch on; the human message and bounded details carry the rest.",
+      "enum": [
+        "invalid_request",
+        "unknown_command",
+        "payload_too_large",
+        "protocol_incompatible",
+        "capability_missing",
+        "not_supported",
+        "cancelled",
+        "timeout",
+        "internal_error",
+        "daemon_unavailable",
+        "daemon_already_running",
+        "daemon_crashed",
+        "identity_mismatch",
+        "wrong_profile",
+        "secret_absent",
+        "secret_inaccessible",
+        "secret_revoked",
+        "keyring_unavailable",
+        "workspace_config_missing",
+        "workspace_config_invalid",
+        "workspace_moved",
+        "workspace_inaccessible",
+        "project_unavailable",
+        "feature_disabled",
+        "provider_not_installed",
+        "provider_incompatible",
+        "permission_denied",
+        "index_absent",
+        "index_corrupt",
+        "language_unsupported",
+        "plan_expired"
+      ],
+      "title": "LocalErrorCode",
+      "type": "string"
+    },
+    "OptionalComponentStatus": {
+      "additionalProperties": false,
+      "description": "An optional component as the daemon sees it at handshake time. Its\nabsence never breaks compatibility; it degrades exactly the capabilities\nthat depend on it.",
+      "properties": {
+        "component": {
+          "$ref": "#/$defs/ComponentId"
+        },
+        "provider_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Id"
+        },
+        "provides": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]{0,31}(\\.[a-z][a-z0-9_]{0,31}){0,3}$",
+            "type": "string"
+          },
+          "title": "Provides",
+          "type": "array"
+        },
+        "state": {
+          "$ref": "#/$defs/ComponentState"
+        }
+      },
+      "required": [
+        "component",
+        "state"
+      ],
+      "title": "OptionalComponentStatus",
+      "type": "object"
+    },
+    "PeerInfo": {
+      "additionalProperties": false,
+      "description": "One side of the handshake. `component_version` is informational and\nnever enters a compatibility decision: only the protocol range and the\ncapability sets do.",
+      "properties": {
+        "capabilities": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]{0,31}(\\.[a-z][a-z0-9_]{0,31}){0,3}$",
+            "type": "string"
+          },
+          "maxItems": 128,
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "component_version": {
+          "maxLength": 64,
+          "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$",
+          "title": "Component Version",
+          "type": "string"
+        },
+        "optional_capabilities": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]{0,31}(\\.[a-z][a-z0-9_]{0,31}){0,3}$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Optional Capabilities",
+          "type": "array"
+        },
+        "optional_components": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/OptionalComponentStatus"
+          },
+          "title": "Optional Components",
+          "type": "array"
+        },
+        "protocol": {
+          "$ref": "#/$defs/ProtocolRange"
+        },
+        "protocol_id": {
+          "default": "studio.local",
+          "maxLength": 32,
+          "title": "Protocol Id",
+          "type": "string"
+        },
+        "required_capabilities": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]{0,31}(\\.[a-z][a-z0-9_]{0,31}){0,3}$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Required Capabilities",
+          "type": "array"
+        },
+        "role": {
+          "$ref": "#/$defs/PeerRole"
+        },
+        "server_origin": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Server Origin"
+        }
+      },
+      "required": [
+        "role",
+        "protocol",
+        "component_version"
+      ],
+      "title": "PeerInfo",
+      "type": "object"
+    },
+    "PeerRole": {
+      "enum": [
+        "desktop",
+        "daemon"
+      ],
+      "title": "PeerRole",
+      "type": "string"
+    },
+    "ProtocolRange": {
+      "additionalProperties": false,
+      "properties": {
+        "maximum": {
+          "$ref": "#/$defs/ProtocolVersion"
+        },
+        "minimum": {
+          "$ref": "#/$defs/ProtocolVersion"
+        }
+      },
+      "required": [
+        "minimum",
+        "maximum"
+      ],
+      "title": "ProtocolRange",
+      "type": "object"
+    },
+    "ProtocolVersion": {
+      "additionalProperties": false,
+      "properties": {
+        "major": {
+          "maximum": 999,
+          "minimum": 1,
+          "title": "Major",
+          "type": "integer"
+        },
+        "minor": {
+          "maximum": 999,
+          "minimum": 0,
+          "title": "Minor",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "major",
+        "minor"
+      ],
+      "title": "ProtocolVersion",
+      "type": "object"
+    },
+    "Remediation": {
+      "enum": [
+        "none",
+        "update_daemon",
+        "update_desktop",
+        "install_optional_component",
+        "enable_feature",
+        "report_problem"
+      ],
+      "title": "Remediation",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Outcome of the negotiation. Failure is terminal and fail-closed: no\ncapability is granted and there is no fallback protocol — the caller shows\n`remediation`, it does not retry with a lower level.",
+  "properties": {
+    "daemon": {
+      "$ref": "#/$defs/PeerInfo"
+    },
+    "degraded": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/DegradedFeature"
+      },
+      "title": "Degraded",
+      "type": "array"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LocalError"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "granted_capabilities": {
+      "default": [],
+      "items": {
+        "pattern": "^[a-z][a-z0-9_]{0,31}(\\.[a-z][a-z0-9_]{0,31}){0,3}$",
+        "type": "string"
+      },
+      "title": "Granted Capabilities",
+      "type": "array"
+    },
+    "missing_optional": {
+      "default": [],
+      "items": {
+        "pattern": "^[a-z][a-z0-9_]{0,31}(\\.[a-z][a-z0-9_]{0,31}){0,3}$",
+        "type": "string"
+      },
+      "title": "Missing Optional",
+      "type": "array"
+    },
+    "missing_required": {
+      "default": [],
+      "items": {
+        "pattern": "^[a-z][a-z0-9_]{0,31}(\\.[a-z][a-z0-9_]{0,31}){0,3}$",
+        "type": "string"
+      },
+      "title": "Missing Required",
+      "type": "array"
+    },
+    "negotiated": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ProtocolVersion"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "outcome": {
+      "$ref": "#/$defs/CompatibilityOutcome"
+    },
+    "remediation": {
+      "$ref": "#/$defs/Remediation",
+      "default": "none"
+    },
+    "silent_fallback": {
+      "const": false,
+      "default": false,
+      "title": "Silent Fallback",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "outcome",
+    "daemon"
+  ],
+  "title": "HandshakeResponse",
+  "type": "object"
+}

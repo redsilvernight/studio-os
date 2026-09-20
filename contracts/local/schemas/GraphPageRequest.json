@@ -1,0 +1,60 @@
+{
+  "$defs": {
+    "NodeKind": {
+      "enum": [
+        "document",
+        "heading",
+        "tag",
+        "file",
+        "package",
+        "module",
+        "class",
+        "function"
+      ],
+      "title": "NodeKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "cursor": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cursor"
+    },
+    "limit": {
+      "default": 100,
+      "maximum": 500,
+      "minimum": 1,
+      "title": "Limit",
+      "type": "integer"
+    },
+    "node_kinds": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/NodeKind"
+      },
+      "maxItems": 8,
+      "title": "Node Kinds",
+      "type": "array"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace_id"
+  ],
+  "title": "GraphPageRequest",
+  "type": "object"
+}

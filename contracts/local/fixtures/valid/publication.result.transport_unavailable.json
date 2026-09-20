@@ -1,0 +1,16 @@
+{
+  "data": {
+    "error": {
+      "code": "not_supported",
+      "component": "bridge",
+      "correlation_id": null,
+      "details": {},
+      "message": "Publication transport is not available yet.",
+      "retryable": false
+    },
+    "outcome": "transport_unavailable",
+    "plan_id": "pub-0001",
+    "published_at": null
+  },
+  "model": "PublicationResult"
+}

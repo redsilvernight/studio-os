@@ -1,0 +1,89 @@
+{
+  "$defs": {
+    "GraphNodeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "node_id": {
+          "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+          "title": "Node Id",
+          "type": "string"
+        },
+        "source_id": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Source Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "node_id"
+      ],
+      "title": "GraphNodeRef",
+      "type": "object"
+    },
+    "KnowledgeDocumentRef": {
+      "additionalProperties": false,
+      "properties": {
+        "content_hash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Content Hash",
+          "type": "string"
+        },
+        "modified_at": {
+          "format": "date-time",
+          "title": "Modified At",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "uri": {
+          "title": "Uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "uri",
+        "title",
+        "content_hash",
+        "modified_at"
+      ],
+      "title": "KnowledgeDocumentRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "document": {
+      "$ref": "#/$defs/KnowledgeDocumentRef"
+    },
+    "markdown": {
+      "maxLength": 262144,
+      "title": "Markdown",
+      "type": "string"
+    },
+    "outgoing_links": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/GraphNodeRef"
+      },
+      "maxItems": 200,
+      "title": "Outgoing Links",
+      "type": "array"
+    },
+    "truncated": {
+      "default": false,
+      "title": "Truncated",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "document",
+    "markdown"
+  ],
+  "title": "KnowledgeDocument",
+  "type": "object"
+}

@@ -1,0 +1,21 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "confirmed": {
+      "const": true,
+      "title": "Confirmed",
+      "type": "boolean"
+    },
+    "rollback_id": {
+      "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+      "title": "Rollback Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "rollback_id",
+    "confirmed"
+  ],
+  "title": "HarnessRollbackRequest",
+  "type": "object"
+}

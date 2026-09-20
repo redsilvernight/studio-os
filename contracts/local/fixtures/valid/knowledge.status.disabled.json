@@ -1,0 +1,25 @@
+{
+  "data": {
+    "canonical_source": "markdown_files",
+    "error": {
+      "code": "feature_disabled",
+      "component": "knowledge",
+      "correlation_id": null,
+      "details": {},
+      "message": "Knowledge is disabled.",
+      "retryable": false
+    },
+    "index": null,
+    "integrations": [
+      {
+        "integration_id": "note-editor",
+        "required": false,
+        "state": "not_installed"
+      }
+    ],
+    "provider": null,
+    "state": "disabled",
+    "workspace_id": "11111111-1111-4111-8111-111111111111"
+  },
+  "model": "KnowledgeStatus"
+}

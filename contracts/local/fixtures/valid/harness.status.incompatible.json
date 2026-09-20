@@ -1,0 +1,20 @@
+{
+  "data": {
+    "adapter_id": "harness-alpha-adapter",
+    "capabilities": [],
+    "detected_version": "0.3.0",
+    "display_name": "Harness Alpha",
+    "error": {
+      "code": "provider_incompatible",
+      "component": "harness",
+      "correlation_id": null,
+      "details": {},
+      "message": "Harness version unsupported.",
+      "retryable": false
+    },
+    "harness_id": "harness-alpha",
+    "managed_files": [],
+    "state": "incompatible"
+  },
+  "model": "HarnessStatus"
+}

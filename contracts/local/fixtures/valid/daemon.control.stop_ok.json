@@ -1,0 +1,15 @@
+{
+  "data": {
+    "action": "stop",
+    "error": null,
+    "outcome": "ok",
+    "status": {
+      "instance": null,
+      "last_crash": null,
+      "negotiated": null,
+      "outbox": null,
+      "state": "stopped"
+    }
+  },
+  "model": "DaemonControlResult"
+}

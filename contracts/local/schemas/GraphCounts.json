@@ -1,0 +1,47 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "edges": {
+      "minimum": 0,
+      "title": "Edges",
+      "type": "integer"
+    },
+    "nodes": {
+      "minimum": 0,
+      "title": "Nodes",
+      "type": "integer"
+    },
+    "total_edges": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Total Edges"
+    },
+    "total_nodes": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Total Nodes"
+    }
+  },
+  "required": [
+    "nodes",
+    "edges"
+  ],
+  "title": "GraphCounts",
+  "type": "object"
+}

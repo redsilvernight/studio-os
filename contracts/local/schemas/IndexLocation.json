@@ -1,0 +1,22 @@
+{
+  "additionalProperties": false,
+  "description": "Where a derived index is stored, always inside the daemon's own cache\ndirectory and addressed by workspace and provider — never by an arbitrary\npath.",
+  "properties": {
+    "directory_name": {
+      "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+      "title": "Directory Name",
+      "type": "string"
+    },
+    "scope": {
+      "const": "workspace_cache",
+      "default": "workspace_cache",
+      "title": "Scope",
+      "type": "string"
+    }
+  },
+  "required": [
+    "directory_name"
+  ],
+  "title": "IndexLocation",
+  "type": "object"
+}

@@ -1,0 +1,13 @@
+{
+  "data": {
+    "applied": [
+      "chg-1",
+      "chg-2"
+    ],
+    "error": null,
+    "plan_id": "plan-0001",
+    "rollback_id": "rb-0001",
+    "state": "configured"
+  },
+  "model": "HarnessApplyResult"
+}

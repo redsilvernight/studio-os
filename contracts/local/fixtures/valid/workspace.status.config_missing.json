@@ -1,0 +1,18 @@
+{
+  "data": {
+    "action": "create_config",
+    "candidate_root": null,
+    "config": null,
+    "error": {
+      "code": "workspace_config_missing",
+      "component": "workspace",
+      "correlation_id": null,
+      "details": {},
+      "message": "Workspace is config_missing.",
+      "retryable": false
+    },
+    "health": "config_missing",
+    "workspace_id": "11111111-1111-4111-8111-111111111111"
+  },
+  "model": "WorkspaceStatus"
+}

@@ -1,0 +1,88 @@
+{
+  "data": {
+    "daemon": {
+      "capabilities": [
+        "code_graph.graph",
+        "code_graph.index",
+        "code_graph.read",
+        "daemon.control",
+        "harness.apply",
+        "harness.plan",
+        "harness.read",
+        "identity.view",
+        "knowledge.graph",
+        "knowledge.index",
+        "knowledge.read",
+        "publication.plan",
+        "publication.publish"
+      ],
+      "component_version": "0.1.0",
+      "optional_capabilities": [],
+      "optional_components": [
+        {
+          "component": "knowledge",
+          "provider_id": "markdown-files",
+          "provides": [
+            "knowledge.graph",
+            "knowledge.index",
+            "knowledge.read"
+          ],
+          "state": "ready"
+        },
+        {
+          "component": "code_graph",
+          "provider_id": "graphify",
+          "provides": [
+            "code_graph.graph",
+            "code_graph.index",
+            "code_graph.read"
+          ],
+          "state": "ready"
+        },
+        {
+          "component": "harness",
+          "provider_id": "harness-alpha",
+          "provides": [
+            "harness.apply",
+            "harness.plan",
+            "harness.read"
+          ],
+          "state": "ready"
+        }
+      ],
+      "protocol": {
+        "maximum": {
+          "major": 1,
+          "minor": 0
+        },
+        "minimum": {
+          "major": 1,
+          "minor": 0
+        }
+      },
+      "protocol_id": "studio.local",
+      "required_capabilities": [],
+      "role": "daemon",
+      "server_origin": null
+    },
+    "degraded": [],
+    "error": {
+      "code": "capability_missing",
+      "component": "daemon",
+      "correlation_id": "corr-0001",
+      "details": {},
+      "message": "A capability required by one peer is not offered by the other.",
+      "retryable": false
+    },
+    "granted_capabilities": [],
+    "missing_optional": [],
+    "missing_required": [
+      "workspace.config"
+    ],
+    "negotiated": null,
+    "outcome": "capability_missing",
+    "remediation": "update_daemon",
+    "silent_fallback": false
+  },
+  "model": "HandshakeResponse"
+}

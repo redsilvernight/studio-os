@@ -1,0 +1,401 @@
+{
+  "$defs": {
+    "Confidence": {
+      "enum": [
+        "extracted",
+        "inferred",
+        "declared"
+      ],
+      "title": "Confidence",
+      "type": "string"
+    },
+    "GraphCounts": {
+      "additionalProperties": false,
+      "properties": {
+        "edges": {
+          "minimum": 0,
+          "title": "Edges",
+          "type": "integer"
+        },
+        "nodes": {
+          "minimum": 0,
+          "title": "Nodes",
+          "type": "integer"
+        },
+        "total_edges": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Edges"
+        },
+        "total_nodes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Nodes"
+        }
+      },
+      "required": [
+        "nodes",
+        "edges"
+      ],
+      "title": "GraphCounts",
+      "type": "object"
+    },
+    "GraphEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "edge_id": {
+          "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+          "title": "Edge Id",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/RelationKind"
+        },
+        "metadata": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Metadata",
+          "type": "object"
+        },
+        "provenance": {
+          "$ref": "#/$defs/GraphProvenance"
+        },
+        "source": {
+          "$ref": "#/$defs/GraphNodeRef"
+        },
+        "target": {
+          "$ref": "#/$defs/GraphNodeRef"
+        }
+      },
+      "required": [
+        "edge_id",
+        "kind",
+        "source",
+        "target",
+        "provenance"
+      ],
+      "title": "GraphEdge",
+      "type": "object"
+    },
+    "GraphNode": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/NodeKind"
+        },
+        "label": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "metadata": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Metadata",
+          "type": "object"
+        },
+        "node_id": {
+          "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+          "title": "Node Id",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/GraphProvenance"
+        },
+        "uri": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uri"
+        }
+      },
+      "required": [
+        "node_id",
+        "kind",
+        "label",
+        "provenance"
+      ],
+      "title": "GraphNode",
+      "type": "object"
+    },
+    "GraphNodeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "node_id": {
+          "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+          "title": "Node Id",
+          "type": "string"
+        },
+        "source_id": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Source Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "node_id"
+      ],
+      "title": "GraphNodeRef",
+      "type": "object"
+    },
+    "GraphProvenance": {
+      "additionalProperties": false,
+      "description": "Required on every node and edge: where the fact comes from and how\nsure the extractor is. Facts without provenance are not representable.",
+      "properties": {
+        "confidence": {
+          "$ref": "#/$defs/Confidence"
+        },
+        "evidence": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evidence"
+        },
+        "extractor": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Extractor",
+          "type": "string"
+        },
+        "source_id": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Source Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "extractor",
+        "confidence"
+      ],
+      "title": "GraphProvenance",
+      "type": "object"
+    },
+    "GraphSource": {
+      "additionalProperties": false,
+      "description": "Identifies which provider run produced a graph. Knowledge and code\nsources stay separate; only a `projection` source may relate them, and only\nthrough explicitly declared relations.",
+      "properties": {
+        "generated_at": {
+          "format": "date-time",
+          "title": "Generated At",
+          "type": "string"
+        },
+        "index_fingerprint": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Index Fingerprint"
+        },
+        "kind": {
+          "$ref": "#/$defs/GraphSourceKind"
+        },
+        "member_sources": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+            "type": "string"
+          },
+          "maxItems": 2,
+          "title": "Member Sources",
+          "type": "array"
+        },
+        "provider_id": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Provider Id",
+          "type": "string"
+        },
+        "source_id": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "workspace_id": {
+          "format": "uuid",
+          "title": "Workspace Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "kind",
+        "provider_id",
+        "workspace_id",
+        "generated_at"
+      ],
+      "title": "GraphSource",
+      "type": "object"
+    },
+    "GraphSourceKind": {
+      "enum": [
+        "knowledge",
+        "code",
+        "projection"
+      ],
+      "title": "GraphSourceKind",
+      "type": "string"
+    },
+    "NodeKind": {
+      "enum": [
+        "document",
+        "heading",
+        "tag",
+        "file",
+        "package",
+        "module",
+        "class",
+        "function"
+      ],
+      "title": "NodeKind",
+      "type": "string"
+    },
+    "RelationKind": {
+      "enum": [
+        "links_to",
+        "tagged_with",
+        "embeds",
+        "contains",
+        "imports",
+        "calls",
+        "defines",
+        "inherits",
+        "references",
+        "documents"
+      ],
+      "title": "RelationKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "One bounded slice of one source's graph. Edges may point outside the\npage only at nodes listed in `frontier` (loaded lazily on expansion): a\ndangling reference anywhere else is a defect, not an implicit relation.",
+  "properties": {
+    "counts": {
+      "$ref": "#/$defs/GraphCounts"
+    },
+    "edges": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/GraphEdge"
+      },
+      "maxItems": 1000,
+      "title": "Edges",
+      "type": "array"
+    },
+    "frontier": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/GraphNodeRef"
+      },
+      "maxItems": 500,
+      "title": "Frontier",
+      "type": "array"
+    },
+    "next_cursor": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Next Cursor"
+    },
+    "nodes": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/GraphNode"
+      },
+      "maxItems": 500,
+      "title": "Nodes",
+      "type": "array"
+    },
+    "source": {
+      "$ref": "#/$defs/GraphSource"
+    },
+    "truncated": {
+      "default": false,
+      "title": "Truncated",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "source",
+    "counts"
+  ],
+  "title": "GraphPage",
+  "type": "object"
+}

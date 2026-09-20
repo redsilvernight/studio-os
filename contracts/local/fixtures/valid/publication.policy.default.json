@@ -1,0 +1,19 @@
+{
+  "data": {
+    "automatic_upload": false,
+    "classes": {
+      "code_graph": "local_only",
+      "filesystem_details": "local_only",
+      "harness_config": "local_only",
+      "indexes": "local_only",
+      "paths": "local_only",
+      "secrets": "local_only",
+      "sensitive_diagnostics": "local_only",
+      "vault_content": "local_only",
+      "workspace_config": "local_only"
+    },
+    "requires_explicit_confirmation": true,
+    "requires_visible_preview": true
+  },
+  "model": "PublicationPolicy"
+}

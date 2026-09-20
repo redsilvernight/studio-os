@@ -1,0 +1,332 @@
+{
+  "commands": [
+    {
+      "cancellable": true,
+      "capability": "code_graph.read",
+      "command": "code_graph.find_symbols",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "CodeSymbolQuery",
+      "response": "CodeSymbolResult",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "code_graph.graph",
+      "command": "code_graph.graph_expand",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "GraphExpandRequest",
+      "response": "GraphPage",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "code_graph.graph",
+      "command": "code_graph.graph_page",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "GraphPageRequest",
+      "response": "GraphPage",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": true,
+      "capability": "code_graph.index",
+      "command": "code_graph.reindex",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": true,
+      "request": "CodeReindexRequest",
+      "response": "CodeReindexResult",
+      "timeout_ms": 300000
+    },
+    {
+      "cancellable": false,
+      "capability": "code_graph.read",
+      "command": "code_graph.status",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "WorkspaceScope",
+      "response": "CodeGraphStatus",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "daemon.control",
+      "command": "daemon.attach",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": true,
+      "request": "DaemonControlRequest",
+      "response": "DaemonControlResult",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "daemon.control",
+      "command": "daemon.restart",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": true,
+      "request": "DaemonControlRequest",
+      "response": "DaemonControlResult",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "daemon.control",
+      "command": "daemon.start",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": true,
+      "request": "DaemonControlRequest",
+      "response": "DaemonControlResult",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "daemon.control",
+      "command": "daemon.status",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "DaemonControlRequest",
+      "response": "DaemonControlResult",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "daemon.control",
+      "command": "daemon.stop",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": true,
+      "request": "DaemonControlRequest",
+      "response": "DaemonControlResult",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "harness.apply",
+      "command": "harness.apply",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": true,
+      "request": "HarnessApplyRequest",
+      "response": "HarnessApplyResult",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "harness.read",
+      "command": "harness.detect",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "WorkspaceScope",
+      "response": "HarnessDetectResult",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "harness.plan",
+      "command": "harness.preview",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "HarnessPreviewRequest",
+      "response": "HarnessPlan",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "harness.apply",
+      "command": "harness.rollback",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": true,
+      "request": "HarnessRollbackRequest",
+      "response": "HarnessRollbackResult",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "harness.read",
+      "command": "harness.status",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "HarnessStatusRequest",
+      "response": "HarnessStatus",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "identity.view",
+      "command": "identity.get_view",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "EmptyPayload",
+      "response": "IdentityView",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "knowledge.read",
+      "command": "knowledge.get_document",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "KnowledgeGetDocumentRequest",
+      "response": "KnowledgeDocument",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "knowledge.graph",
+      "command": "knowledge.graph_expand",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "GraphExpandRequest",
+      "response": "GraphPage",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "knowledge.graph",
+      "command": "knowledge.graph_page",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "GraphPageRequest",
+      "response": "GraphPage",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": true,
+      "capability": "knowledge.index",
+      "command": "knowledge.reindex",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": true,
+      "request": "KnowledgeReindexRequest",
+      "response": "KnowledgeReindexResult",
+      "timeout_ms": 300000
+    },
+    {
+      "cancellable": true,
+      "capability": "knowledge.read",
+      "command": "knowledge.search",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "KnowledgeSearchRequest",
+      "response": "KnowledgeSearchResult",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "knowledge.read",
+      "command": "knowledge.status",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "WorkspaceScope",
+      "response": "KnowledgeStatus",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "publication.plan",
+      "command": "publication.preview",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "PublicationPreviewRequest",
+      "response": "PublicationPlan",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "publication.publish",
+      "command": "publication.publish",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": true,
+      "request": "PublicationPublishRequest",
+      "response": "PublicationResult",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": null,
+      "command": "runtime.handshake",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "HandshakeRequest",
+      "response": "HandshakeResponse",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "workspace.config",
+      "command": "workspace.get_config",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "WorkspaceGetConfigRequest",
+      "response": "LocalWorkspaceConfig",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "workspace.config",
+      "command": "workspace.save_config",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": true,
+      "request": "WorkspaceSaveConfigRequest",
+      "response": "LocalWorkspaceConfig",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "workspace.config",
+      "command": "workspace.validate",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "WorkspaceValidateRequest",
+      "response": "WorkspaceStatus",
+      "timeout_ms": 30000
+    }
+  ],
+  "events": [
+    {
+      "event": "component.state_changed",
+      "payload": "ComponentStateChanged"
+    },
+    {
+      "event": "daemon.state_changed",
+      "payload": "DaemonStatus"
+    },
+    {
+      "event": "identity.changed",
+      "payload": "IdentityView"
+    },
+    {
+      "event": "workspace.changed",
+      "payload": "WorkspaceStatus"
+    }
+  ],
+  "protocol": "studio.local/v1",
+  "schema_version": 1
+}

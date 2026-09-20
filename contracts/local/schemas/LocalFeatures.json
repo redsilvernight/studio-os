@@ -1,0 +1,28 @@
+{
+  "additionalProperties": false,
+  "description": "Every optional local capability is off until the workspace turns it on.",
+  "properties": {
+    "code_graph": {
+      "default": false,
+      "title": "Code Graph",
+      "type": "boolean"
+    },
+    "harness": {
+      "default": false,
+      "title": "Harness",
+      "type": "boolean"
+    },
+    "knowledge": {
+      "default": false,
+      "title": "Knowledge",
+      "type": "boolean"
+    },
+    "watchers": {
+      "default": false,
+      "title": "Watchers",
+      "type": "boolean"
+    }
+  },
+  "title": "LocalFeatures",
+  "type": "object"
+}
