@@ -379,7 +379,7 @@ d'execution, aucun scheduler, aucun appel LLM cote serveur : Studi'OS
 decrit le graphe, le harness le parcourt. Toute orchestration serveur
 future exige une nouvelle DEC.
 
-## Roadmap (Roadmaps P1, DEC-0084/DEC-0085, migration Alembic `0013` prevue, P2)
+## Roadmap (Roadmaps P1, DEC-0084/DEC-0085 ; persiste en P2/P3, DEC-0086, migration Alembic `0013` reversible)
 Nouveau domaine additif ; **aucune colonne `roadmap_id` sur `tasks`**. Tables :
 - `roadmaps` : `id`, `project_id` (FK Project), `title`, `objective`, `context`,
   `status` (`draft|proposed|active|completed|archived`), `metadata` (JSONB

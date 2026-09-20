@@ -142,3 +142,28 @@ n'entre dans le core.
   indépendamment de la base.
 - `ProjectInitializationPlan` est un contrat additif nouveau ; aucune rupture
   des contrats P1 ni des contrats existants.
+
+## Convergence (intégration, post-P3)
+
+Renumérotation : collision avec DEC-0086 (P2/P3, fondation logique) résolue —
+cette décision devient **DEC-0087**, contenu inchangé.
+
+1. **Port** : `services.roadmaps` expose les 7 fonctions au niveau module
+   (adaptateurs fins `preview/apply_hydration`, `link_task_by_step_key`,
+   `update_step_progress`, sans logique dupliquée). Signatures alignées sur le
+   runtime réel : `update_step_progress` garde `expected_version` et répond la
+   `Roadmap` (concurrence jamais négociable) ; `get_roadmap` lève 404.
+   `studio_update_roadmap_step` prend désormais `expected_version` et relit
+   l'étape dans la `Roadmap` répondue.
+2. **F1 partiel** : `StudioServicesInitializationTarget.create_task` utilise la
+   variante sans commit `add_task` (P2/P3). `create_project` et les autres
+   sections committent encore via leur service ; transaction unique complète =
+   reste un item de convergence (P6+).
+3. **Verdict réel** : `binding_problem` appelle `resolve_runtime` avec la cible
+   déclarée en `session_overrides` ; incompatible → `BINDING_INCOMPATIBLE`
+   (bloquant, refuse l'apply avant écriture).
+4. **Routes HTTP** : `POST /projects/initialization/preview` (plan nu, sans
+   écriture) et `POST /projects/initialization/apply`
+   (`ProjectInitializationRequest`, `Idempotency-Key`), même service que le MCP
+   (DEC-0046), enregistrées dans `main.py` avec tag `initialization`.
+5. **P6** : inchangé — le champ `roadmap` de `PrepareContext` reste à la lane P6.

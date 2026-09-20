@@ -80,9 +80,10 @@ de scope projet (les tables `events`/`ai_work_logs` exigent un `project_id`
 non null) ; les scopes Studio/User restent audites par les lignes de version
 (`created_by_user_id`, `created_at`) et l'AIWorkLog explicite de l'agent.
 
-## Note Roadmaps P1 (DEC-0084/DEC-0085)
-Les types `roadmap.*` sont additifs et prevus pour l'emission serveur
-(implementation P2/P8), `actor_type`/`actor_id` = identite du `Principal`
+## Note Roadmaps P1 (DEC-0084/DEC-0085) — emis par P2/P3 (DEC-0086)
+Les types `roadmap.*` sont additifs et emis cote serveur depuis P2/P3
+(`stage_event` + `finish` : l'evenement est insere dans la meme transaction que
+l'etat, puis diffuse apres commit), `actor_type`/`actor_id` = identite du `Principal`
 (`agent` si un `agent_id` rattache a la machine est declare). Cles `payload`
 documentees (ignorables) : `roadmap_id`, `revision_no`, `status`,
 `transition`, `scope` (`roadmap|revision`, sur `approved`/`changes_requested`/`rejected`) ; `roadmap.hydrated` -> `counts` (`create`/`reuse`/`skip`). Aucun couplage au Git Watcher : la progression se lit dans les

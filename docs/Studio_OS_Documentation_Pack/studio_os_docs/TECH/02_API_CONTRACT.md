@@ -268,10 +268,9 @@ n'utilisant que leurs propres agents n'observent aucun changement.
   emission serveur a ce jour (question ouverte n°9,
   `docs/ROADMAP_STEP8_BREAKDOWN.md`). Toute machine authentifiee peut lire.
 
-### Roadmaps (Roadmaps P1, additif, DEC-0084/DEC-0085)
-Contrat fige par P1 (`packages/studio-contracts/.../roadmaps.py`) ; **aucune de
-ces routes n'existe encore** (implementation P2/P3). Chemins sous `/api/v1`,
-indicatifs jusqu'a P3 (toute rupture passe par reconciliation).
+### Roadmaps (Roadmaps P1, additif, DEC-0084/DEC-0085 ; implemente P2/P3, DEC-0086)
+Contrat fige par P1 (`packages/studio-contracts/.../roadmaps.py`) ; routes
+**implementees** par P2/P3 (canoniques, memes services que le MCP, DEC-0046).
 - `GET /projects/{project_id}/roadmaps` (`?status=`) -> `list[RoadmapSummary]`
 - `POST /roadmaps` (`RoadmapCreate`, `Idempotency-Key`) -> `Roadmap` `draft` vide
 - `POST /roadmaps/import` (`RoadmapImport`, `Idempotency-Key`) -> `Roadmap`
