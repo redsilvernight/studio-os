@@ -47,6 +47,9 @@ READ_ONLY_TOOLS = {
     "studio_resolve_agent",
     "studio_discover_definitions",
     "studio_prepare_context",
+    "studio_get_roadmap",
+    "studio_preview_roadmap_hydration",
+    "studio_preview_project_initialization",
 }
 
 WRITE_TOOLS = {
@@ -66,6 +69,10 @@ WRITE_TOOLS = {
     "studio_publish_definition",
     "studio_configure_runtime",
     "studio_register_runtime",
+    "studio_propose_roadmap",
+    "studio_apply_roadmap_hydration",
+    "studio_update_roadmap_step",
+    "studio_apply_project_initialization",
 }
 
 
@@ -81,7 +88,7 @@ def _by_name(tools: list[Tool]) -> dict[str, Tool]:
 
 
 def test_all_tools_have_external_descriptions(tools: list[Tool]) -> None:
-    assert len(tools) == 35
+    assert len(tools) == 42
     for tool in tools:
         assert tool.description, f"{tool.name} has no description"
         assert len(tool.description) >= 40, f"{tool.name} description is stub-like"
@@ -123,6 +130,9 @@ def test_idempotency_and_event_id_discoverable(tools: list[Tool]) -> None:
         "studio_publish_definition",
         "studio_configure_runtime",
         "studio_register_runtime",
+        "studio_propose_roadmap",
+        "studio_apply_roadmap_hydration",
+        "studio_apply_project_initialization",
     ):
         schema = by_name[name].input_schema
         assert "idempotency_key" in schema["properties"], name

@@ -23,8 +23,19 @@ from studio_mcp.tools.claims import (
 from studio_mcp.tools.context import studio_prepare_context
 from studio_mcp.tools.decisions import studio_add_decision, studio_get_decisions
 from studio_mcp.tools.events import studio_emit_event, studio_get_recent_changes
+from studio_mcp.tools.initialization import (
+    studio_apply_project_initialization,
+    studio_preview_project_initialization,
+)
 from studio_mcp.tools.projects import studio_get_project_state, studio_get_projects
 from studio_mcp.tools.review_queue import studio_get_review_queue
+from studio_mcp.tools.roadmaps import (
+    studio_apply_roadmap_hydration,
+    studio_get_roadmap,
+    studio_preview_roadmap_hydration,
+    studio_propose_roadmap,
+    studio_update_roadmap_step,
+)
 from studio_mcp.tools.sessions import studio_end_session, studio_get_sessions, studio_start_session
 from studio_mcp.tools.tasks import (
     studio_claim_task,
@@ -303,6 +314,94 @@ def create_server() -> MCPServer:
             "Read-only."
         ),
         annotations=_READ_ONLY,
+    )
+    server.add_tool(
+        studio_get_roadmap,
+        name="studio_get_roadmap",
+        description=(
+            "Read a project's roadmap synthesis and current position: roadmap "
+            "summaries (id, title, status, progress, current step) and, for the active "
+            "roadmap, the current step plus the next available steps — read-only. Required "
+            "project_id (UUID string); optional status filter, limit (1..100, default 20) and "
+            "max_chars budget for free text. A project with no roadmap returns an empty list "
+            "and a null active position: that is a normal state, never an error. Any "
+            "authenticated caller may read."
+        ),
+        annotations=_READ_ONLY,
+    )
+    server.add_tool(
+        studio_propose_roadmap,
+        name="studio_propose_roadmap",
+        description=(
+            "Propose a structured roadmap plan for a project (project_id UUID string and a "
+            "document in the neutral plan format: title, optional objective/context, phases of "
+            "steps with optional dependencies and planned tasks). Requires a writer role. "
+            "submit=true (default) freezes it as proposed for human validation; submit=false "
+            "keeps it a draft. This never creates Tasks and never activates the roadmap — "
+            "approval and activation stay human. Pass idempotency_key when retrying a call "
+            "that may have already succeeded: replaying the same key and arguments returns the "
+            "original roadmap instead of a duplicate."
+        ),
+    )
+    server.add_tool(
+        studio_preview_roadmap_hydration,
+        name="studio_preview_roadmap_hydration",
+        description=(
+            "Preview the Tasks a roadmap hydration would create, reuse or skip for a "
+            "roadmap_id (UUID string) — read-only, writes nothing. Optional step_keys restricts "
+            "the preview to specific step keys; limit bounds the returned items. Works on any "
+            "non-archived roadmap; a non-active roadmap answers applicable=false with a reason."
+        ),
+        annotations=_READ_ONLY,
+    )
+    server.add_tool(
+        studio_apply_roadmap_hydration,
+        name="studio_apply_roadmap_hydration",
+        description=(
+            "Apply roadmap hydration for a roadmap_id (UUID string): create the missing Tasks, "
+            "reuse the already linked ones and skip done/skipped steps. Requires a writer role "
+            "and an active roadmap. expected_version must match the version read at preview; a "
+            "stale version fails with version_conflict. Pass idempotency_key when retrying a "
+            "call that may have already succeeded: replaying the same key returns the original "
+            "result, and replaying with another key still reuses existing links, so no Task is "
+            "ever duplicated. An existing Task is never modified or deleted."
+        ),
+    )
+    server.add_tool(
+        studio_update_roadmap_step,
+        name="studio_update_roadmap_step",
+        description=(
+            "Push bounded step progress on a roadmap (roadmap_id and step_key). Requires a "
+            "writer role. Optional state_override (done or skipped), clear_state_override, "
+            "state_override_reason, notes and criteria_checked (indices into the step's "
+            "acceptance criteria). Progress-type updates are applied directly, even when the "
+            "caller is an agent, because they never change the plan's structure or content."
+        ),
+    )
+    server.add_tool(
+        studio_preview_project_initialization,
+        name="studio_preview_project_initialization",
+        description=(
+            "Validate a project-initialization plan and show exactly what would be created, "
+            "reused or skipped — read-only, no side effect. The plan describes the project "
+            "(slug, name), an optional roadmap, a task plan, Library resources to pin and "
+            "generic runtime bindings. A missing roadmap, an empty section and a missing "
+            "optional Library resource are all valid: they are reported, never treated as "
+            "errors."
+        ),
+        annotations=_READ_ONLY,
+    )
+    server.add_tool(
+        studio_apply_project_initialization,
+        name="studio_apply_project_initialization",
+        description=(
+            "Apply a project-initialization plan. Requires a writer role; creating a new "
+            "project additionally requires admin or developer (an agent-only caller fails with "
+            "forbidden unless the project already exists). Any blocking problem refuses before "
+            "writing anything. Replaying is safe: the same idempotency_key returns the original "
+            "summary, and a replay without a key still reuses the existing project, tasks, "
+            "roadmap and bindings instead of creating a duplicate."
+        ),
     )
     server.add_tool(
         studio_get_timeline,

@@ -1,0 +1,96 @@
+[
+  {
+    "format": "studio.initialization/v1",
+    "mode": "draft",
+    "project": {
+      "slug": "solo-project",
+      "name": "Projet seul",
+      "description": "Initialisation minimale : un projet, rien d'autre."
+    }
+  },
+  {
+    "format": "studio.initialization/v1",
+    "mode": "draft",
+    "project": {
+      "slug": "project-with-tasks",
+      "name": "Projet + Tasks",
+      "description": "Projet sans roadmap, avec un plan de tasks autonomes."
+    },
+    "tasks": [
+      {
+        "key": "bootstrap",
+        "title": "Amorcer le dépôt",
+        "description": "Créer le dépôt et la structure initiale."
+      },
+      {
+        "key": "ci",
+        "title": "Brancher la CI",
+        "roadmap_step_key": null
+      }
+    ]
+  },
+  {
+    "format": "studio.initialization/v1",
+    "mode": "proposed",
+    "project": {
+      "slug": "full-project",
+      "name": "Projet complet",
+      "description": "Roadmap optionnelle + tasks + ressources + bindings."
+    },
+    "roadmap": {
+      "format": "studio.roadmap/v1",
+      "title": "Plan de lancement",
+      "objective": "Livrer la première version.",
+      "phases": [
+        {
+          "key": "P0",
+          "title": "Fondations",
+          "steps": [
+            {
+              "key": "P0.1",
+              "title": "Poser le socle",
+              "acceptance_criteria": ["Le build passe"],
+              "tasks": [
+                {
+                  "hydration_key": "socle",
+                  "title": "Implémenter le socle"
+                }
+              ]
+            },
+            {
+              "key": "P0.2",
+              "title": "Stabiliser",
+              "depends_on": ["P0.1"]
+            }
+          ]
+        }
+      ]
+    },
+    "tasks": [
+      {
+        "key": "kickoff",
+        "title": "Organiser le kickoff",
+        "roadmap_step_key": "P0.1"
+      }
+    ],
+    "resources": [
+      {
+        "kind": "skill",
+        "stable_key": "roadmap-planning",
+        "scope": "studio",
+        "required": true
+      }
+    ],
+    "bindings": [
+      {
+        "level": "project_default",
+        "target_kind": "agent_definition",
+        "target_stable_key": "default-agent",
+        "target": {
+          "harness_ref": "local",
+          "model_ref": "default"
+        }
+      }
+    ]
+  }
+]
