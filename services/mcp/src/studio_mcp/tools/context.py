@@ -20,7 +20,10 @@ async def studio_prepare_context(
     limit: int = context_service.DEFAULT_LIMIT,
     max_chars: int = context_service.DEFAULT_MAX_CHARS,
 ) -> PreparedContext | McpError:
-    """Prepare a compact, bounded project context for the stated objective."""
+    """Prepare a compact, bounded project context for the stated objective:
+    the task, related tasks, decisions, rules, skills and claims that matter,
+    and — when the project has an active roadmap — its current step, blockers,
+    linked tasks and acceptance criteria (never the whole roadmap)."""
 
     async def _handler(session: AsyncSession, principal: Principal) -> PreparedContext | McpError:
         parsed_project = parse_uuid(project_id, "project_id")

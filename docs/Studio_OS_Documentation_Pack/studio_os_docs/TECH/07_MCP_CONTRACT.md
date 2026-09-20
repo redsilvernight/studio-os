@@ -286,9 +286,11 @@ optionnels `task_id` (doit appartenir au projet, sinon `not_found`),
 Sortie `PreparedContext | McpError` (enveloppée sous `result`) :
 `project`, `query_terms`, `task`, `related_tasks`, `decisions`, `rules`,
 `skills`, `active_work.claims`, `returned`, `additional_available`,
-`omitted_for_budget`, `limits`. Chaque élément porte `why`
-(`requested`, `linked_to_task`, `task_claim`, `path_conflict`,
-`project_scope` ou `lexical` + `matched_terms`).
+`omitted_for_budget`, `limits`, et — additifs, absents sans objet (P6,
+DEC-0088, section ci-dessous) — `roadmap`, `roadmap_overview`, `unavailable`
+(`limits.roadmap_scan_capped` n'apparaît que si vrai). Chaque élément porte
+`why` (`requested`, `linked_to_task`, `task_claim`, `path_conflict`,
+`project_scope`, `lexical` ou `active_roadmap` + `matched_terms`).
 
 Garanties : au plus `limit` éléments par catégorie ; texte libre coupé à
 1500 caractères par élément puis au budget `max_chars` (`truncated`,
@@ -300,6 +302,27 @@ outils de lecture composés (Library `user` d'autrui invisible, tâche d'un
 autre projet = `not_found`). Non couvert : sessions, AIWorkLog, événements,
 builds, transferts, mémoire/graphe/Git locaux. Ce n'est pas le Context
 Package (DEC-0057, composé localement par le Bloc B).
+
+Section Roadmap (P6, DEC-0088) — champs additifs, **absents** (jamais `null`)
+sans objet, donc un projet sans roadmap répond comme avant :
+- `roadmap` : présent seulement avec une roadmap `active`. C'est un
+  sur-ensemble de `RoadmapContext` (`studio.roadmap/v1`, P1 ; ne pas le
+  valider en `extra="forbid"` contre le contrat de base) étendu de `status`, `objective`,
+  `truncated`, `why` (`active_roadmap`) et `task_step` (étape de la tâche
+  demandée si ce n'est pas l'étape courante) ; `current_step` ajoute
+  `objective`, `criteria_total`/`criteria_checked`, les critères restant à
+  satisfaire et `linked_tasks` (référence `in_context` si la Task est déjà
+  dans le paquet). Jamais la roadmap entière : étape courante, ≤ 5 étapes
+  `available` suivantes, blockers (≤ 10), Tasks liées.
+- `roadmap_overview` : autres roadmaps non archivées (`draft`, `proposed`,
+  `completed`) par référence — `counts`, `draft_pending`, `others` (≤ `limit`).
+- `unavailable` : `["roadmap"]` si la source Roadmap est illisible ; le reste du
+  contexte est renvoyé normalement.
+Budget : tranche dédiée de 25 % de `max_chars` sur le même mécanisme, imputée
+aussi à `limits.chars_used` ; priorité étape courante > blockers > Tasks
+liées > critères > étapes suivantes > objectif de la roadmap ; omissions dans
+`omitted_for_budget` (`roadmap_*`), reliquat dans `additional_available`.
+Aucun champ fournisseur, modèle ou harnais.
 
 ## Context Package (8.3b, DEC-0057)
 
@@ -317,8 +340,9 @@ l'API, DEC-0046), pas un outil par endpoint : lire le plan et la position
 courante ; proposer un plan (`RoadmapImport` avec `submit`) ; previsualiser puis
 appliquer l'hydratation ; mettre a jour l'avancement d'une etape
 (`StepProgressUpdate`). Aucun outil MCP n'active, n'approuve ni ne rejette une
-roadmap. `studio_prepare_context` recevra un champ optionnel additif `roadmap`
-(`RoadmapContext`, borne, absent sans roadmap `active`). Budgets et erreurs
+roadmap. `studio_prepare_context` reçoit (P6, DEC-0088, voir « Contexte projet
+borné ») un champ optionnel additif `roadmap` (`RoadmapContext`, borné, absent
+sans roadmap `active`). Budgets et erreurs
 structurees comme les autres outils (DEC-0048, sans version par payload).
 
 ## Roadmaps et initialisation via MCP (P4/P5, DEC-0087) — implementes
