@@ -271,7 +271,8 @@ n'utilisant que leurs propres agents n'observent aucun changement.
 ### Roadmaps (Roadmaps P1, additif, DEC-0084/DEC-0085 ; implemente P2/P3, DEC-0086)
 Contrat fige par P1 (`packages/studio-contracts/.../roadmaps.py`) ; routes
 **implementees** par P2/P3 (canoniques, memes services que le MCP, DEC-0046).
-- `GET /projects/{project_id}/roadmaps` (`?status=`) -> `list[RoadmapSummary]`
+- `GET /projects/{project_id}/roadmaps` (`?status=`, `?limit=` 1..100 defaut 50,
+  `?offset=`) -> `list[RoadmapSummary]`
 - `POST /roadmaps` (`RoadmapCreate`, `Idempotency-Key`) -> `Roadmap` `draft` vide
 - `POST /roadmaps/import` (`RoadmapImport`, `Idempotency-Key`) -> `Roadmap`
   `draft` (ou `proposed` si `submit`), jamais de Task creee
@@ -287,31 +288,36 @@ Contrat fige par P1 (`packages/studio-contracts/.../roadmaps.py`) ; routes
   `roadmap.approved|changes_requested|rejected`, `payload.scope` =
   `roadmap|revision`
 - Ecritures permises par statut (`ALLOWED_WRITES`, sinon `409 invalid_state`) :
-  `draft` = contenu, avancement, liens ; `active` = idem + hydratation + propositions ;
-  `proposed` (gele pour relecture), `completed`, `archived` = lecture seule
-  (`request_changes` / `reopen` d'abord). Sur `active`, une ecriture de contenu
-  `is_agent_write` (role `agent`, `agent_id` declare ou `origin=ai_proposal` ; `origin=manual`
-  ne declasse jamais) devient une proposition ; l'avancement (`StepProgressUpdate` :
-  override, notes, `criteria_checked`) reste direct
+  `draft` = contenu, avancement, liens ; `active` = idem + hydratation
+  (les propositions arrivent en P8) ; `proposed` (gele pour relecture),
+  `completed`, `archived` = lecture seule (`request_changes` / `reopen`
+  d'abord). Sur `active`, une ecriture de contenu `is_agent_write` (role
+  `agent`, `agent_id` declare ou `origin=ai_proposal` ; `origin=manual`
+  ne declasse jamais) est refusee `409 invalid_state` jusqu'en P8 ;
+  l'avancement (`StepProgressUpdate` : override, notes, `criteria_checked`)
+  reste direct
 - `PATCH` : champ omis ou `null` = inchange ; chaine vide efface un texte optionnel ; `{}` efface
   `metadata`
 - `GET /roadmaps/{id}/export` (`?format=json|pdf`) -> `RoadmapDocument`
-  (`studio.roadmap/v1`) ; le PDF n'est jamais une source de verite
+  (`studio.roadmap/v1`) ; `format=pdf` repond `501 not_implemented` (le PDF reste
+  une preoccupation cliente : impression navigateur, jamais une source de verite)
 - Phases/etapes : `POST /roadmaps/{id}/phases`, `PATCH .../phases/{key}`,
-  `POST .../phases/reorder`, `POST .../phases/{phase_key}/steps`,
-  `PATCH .../steps/{key}` (contenu), `PATCH .../steps/{key}/progress`
-  (avancement borne), `POST .../phases/{phase_key}/steps/reorder`
+  `DELETE .../phases/{phase_key}` (brouillon, sans liens), `POST .../phases/reorder`,
+  `POST .../phases/{phase_key}/steps`, `PATCH .../steps/{key}` (contenu),
+  `DELETE .../steps/{step_key}` (brouillon, sans liens),
+  `PATCH .../steps/{key}/progress` (avancement borne),
+  `POST .../phases/{phase_key}/steps/reorder`
   (`Reorder` : permutation complete des cles, atomique)
 - Dependances : `POST .../dependencies` et `POST .../dependencies/remove`
   (`DependencyChange`) ; cycle -> `409 dependency_cycle` + `path`
 - Liens Task : `POST .../steps/{key}/links` (`LinkTask`),
   `DELETE .../steps/{key}/links/{task_id}` ; meme projet sinon
   `422 task_project_mismatch` ; aucun `task.roadmap_id`
-- Propositions : `POST .../proposals` (`ProposalCreate`),
-  `GET .../revisions`, `GET .../proposals/{revision_no}/diff` (`RoadmapDiff`,
-  calcule a la lecture par cle), `POST .../proposals/{revision_no}/review`
-  (`ProposalReview`, `admin`/`developer`) ; base perimee ->
-  `409 base_revision_stale`
+- Propositions (**non implementees, P8**, contrats P1 figes) : `POST .../proposals`
+  (`ProposalCreate`), `GET .../revisions`,
+  `GET .../proposals/{revision_no}/diff` (`RoadmapDiff`, calcule a la lecture
+  par cle), `POST .../proposals/{revision_no}/review` (`ProposalReview`,
+  `admin`/`developer`) ; base perimee -> `409 base_revision_stale`
 - Hydratation : `POST .../hydration/preview` (aucune ecriture, tout statut non
   archive) et `POST .../hydration/apply` (`HydrationRequest`,
   `Idempotency-Key`, `HydrationApplyRequest` : `expected_version` requis, roadmap `active`)
