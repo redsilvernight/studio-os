@@ -268,6 +268,82 @@ n'utilisant que leurs propres agents n'observent aucun changement.
   emission serveur a ce jour (question ouverte n°9,
   `docs/ROADMAP_STEP8_BREAKDOWN.md`). Toute machine authentifiee peut lire.
 
+### Roadmaps (Roadmaps P1, additif, DEC-0084/DEC-0085)
+Contrat fige par P1 (`packages/studio-contracts/.../roadmaps.py`) ; **aucune de
+ces routes n'existe encore** (implementation P2/P3). Chemins sous `/api/v1`,
+indicatifs jusqu'a P3 (toute rupture passe par reconciliation).
+- `GET /projects/{project_id}/roadmaps` (`?status=`) -> `list[RoadmapSummary]`
+- `POST /roadmaps` (`RoadmapCreate`, `Idempotency-Key`) -> `Roadmap` `draft` vide
+- `POST /roadmaps/import` (`RoadmapImport`, `Idempotency-Key`) -> `Roadmap`
+  `draft` (ou `proposed` si `submit`), jamais de Task creee
+- `GET /roadmaps/{id}` -> `Roadmap` ; `PATCH /roadmaps/{id}` (`RoadmapUpdate`,
+  `If-Match-Version`)
+- `POST /roadmaps/{id}/transitions` (`TransitionRequest`) -> `Roadmap` ; table
+  fermee `ROADMAP_TRANSITIONS`, autorite `transition_requires_provision`
+  (`draft->proposed` et `draft->archived` : writer ; le reste `admin`/`developer`) ;
+  `comment` obligatoire pour `request_changes`, `reject` et `reopen`
+  (`TRANSITIONS_REQUIRING_COMMENT`, valide par le contrat) ; `approve` d'une
+  roadmap `proposed` = premiere validation, distinct de `ProposalReview`
+  (revision proposee sur une roadmap approuvee) — les deux emettent
+  `roadmap.approved|changes_requested|rejected`, `payload.scope` =
+  `roadmap|revision`
+- Ecritures permises par statut (`ALLOWED_WRITES`, sinon `409 invalid_state`) :
+  `draft` = contenu, avancement, liens ; `active` = idem + hydratation + propositions ;
+  `proposed` (gele pour relecture), `completed`, `archived` = lecture seule
+  (`request_changes` / `reopen` d'abord). Sur `active`, une ecriture de contenu
+  `is_agent_write` (role `agent`, `agent_id` declare ou `origin=ai_proposal` ; `origin=manual`
+  ne declasse jamais) devient une proposition ; l'avancement (`StepProgressUpdate` :
+  override, notes, `criteria_checked`) reste direct
+- `PATCH` : champ omis ou `null` = inchange ; chaine vide efface un texte optionnel ; `{}` efface
+  `metadata`
+- `GET /roadmaps/{id}/export` (`?format=json|pdf`) -> `RoadmapDocument`
+  (`studio.roadmap/v1`) ; le PDF n'est jamais une source de verite
+- Phases/etapes : `POST /roadmaps/{id}/phases`, `PATCH .../phases/{key}`,
+  `POST .../phases/reorder`, `POST .../phases/{phase_key}/steps`,
+  `PATCH .../steps/{key}` (contenu), `PATCH .../steps/{key}/progress`
+  (avancement borne), `POST .../phases/{phase_key}/steps/reorder`
+  (`Reorder` : permutation complete des cles, atomique)
+- Dependances : `POST .../dependencies` et `POST .../dependencies/remove`
+  (`DependencyChange`) ; cycle -> `409 dependency_cycle` + `path`
+- Liens Task : `POST .../steps/{key}/links` (`LinkTask`),
+  `DELETE .../steps/{key}/links/{task_id}` ; meme projet sinon
+  `422 task_project_mismatch` ; aucun `task.roadmap_id`
+- Propositions : `POST .../proposals` (`ProposalCreate`),
+  `GET .../revisions`, `GET .../proposals/{revision_no}/diff` (`RoadmapDiff`,
+  calcule a la lecture par cle), `POST .../proposals/{revision_no}/review`
+  (`ProposalReview`, `admin`/`developer`) ; base perimee ->
+  `409 base_revision_stale`
+- Hydratation : `POST .../hydration/preview` (aucune ecriture, tout statut non
+  archive) et `POST .../hydration/apply` (`HydrationRequest`,
+  `Idempotency-Key`, `HydrationApplyRequest` : `expected_version` requis, roadmap `active`)
+  -> `HydrationResult` (`create`/`reuse`/`skip` ; preview d'une roadmap non active :
+  `applicable=false` + `not_applicable_reason`) ; rejeu avec une autre cle retrouve les liens
+  via `hydration_key`, jamais de doublon ; une Task existante n'est jamais modifiee ni
+  supprimee, un item de plan retire laisse son lien en place
+- Lecture : toute machine authentifiee (y compris `readonly`, sans ACL projet,
+  DEC-0063) ; ecriture : `readonly` -> `403 forbidden`.
+- Erreurs (`{"detail": {"error_code": ...}}`, vocabulaire ferme
+  `RoadmapErrorCode`) : `404 not_found|reference_not_found` ; `409
+  version_conflict|base_revision_stale|active_roadmap_exists|invalid_state|
+  dependency_cycle|step_has_links|duplicate_key|
+  idempotency_key_payload_mismatch|actor_not_owned` ; `422
+  invalid_roadmap` (document soumis ; `reason` : `duplicate_phase_key`, `duplicate_step_key`,
+  `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`,
+  `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`,
+  `invalid_reorder`)`|task_project_mismatch|limit_exceeded`. Une erreur de
+  forme (schema) reste le `422` natif du framework. `dependency_cycle` apparait deux fois
+  volontairement : `422 invalid_roadmap` + `reason` pour un document soumis, `409` +
+  `path` pour l'edition d'un graphe persiste ; de meme `limit_exceeded` = `reason` (totaux
+  du document) ou code `422` (bornes par requete, ex. `MAX_LINKS_PER_STEP`).
+- `RoadmapDocument` : `extra=forbid`, `format=studio.roadmap/v1` ; un champ additif
+  est optionnel et livre avec `studio_contracts` (un lecteur plus ancien refuse
+  explicitement plutot que tronquer) ; `exported_at`/`revision_no` = estampilles
+  informatives ignorees a l'import.
+- Bornes (constantes `MAX_*`) : titre 200, objectif 2000, contexte 4000,
+  instructions 8000, notes 4000, 20 criteres de 500, 30 phases, 50 etapes par
+  phase, 300 etapes, 20 dependances et 20 taches prevues par etape, 500 taches
+  prevues au total, metadonnees plates (20 cles, scalaires JSON, chaines 500).
+
 ### Heartbeats
 - POST /heartbeats
 

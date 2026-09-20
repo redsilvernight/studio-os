@@ -309,3 +309,13 @@ DEC-0042, derriere un manifeste versionne `schema_version: 1`, borne et
 ephemere. Aucun outil MCP du VPS ne compose ni ne proxyfie le paquet ;
 aucune memoire privee ne transite. Exposition MCP differee (DEC-0057,
 variante c2), conditionnee a un besoin reel.
+
+## Roadmaps via MCP (P1, DEC-0084/DEC-0085) — inventaire cible, non implemente
+Outils par intention d'agent (implementation P4/P6, sur les memes services que
+l'API, DEC-0046), pas un outil par endpoint : lire le plan et la position
+courante ; proposer un plan (`RoadmapImport` avec `submit`) ; previsualiser puis
+appliquer l'hydratation ; mettre a jour l'avancement d'une etape
+(`StepProgressUpdate`). Aucun outil MCP n'active, n'approuve ni ne rejette une
+roadmap. `studio_prepare_context` recevra un champ optionnel additif `roadmap`
+(`RoadmapContext`, borne, absent sans roadmap `active`). Budgets et erreurs
+structurees comme les autres outils (DEC-0048, sans version par payload).

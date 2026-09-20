@@ -1,0 +1,372 @@
+[
+  {
+    "format": "studio.roadmap/v1",
+    "title": "Sprint de démo",
+    "objective": "Livrer une démo jouable.",
+    "context": null,
+    "metadata": {},
+    "phases": [
+      {
+        "key": "P1",
+        "title": "Prototype",
+        "objective": null,
+        "steps": [
+          {
+            "key": "P1.1",
+            "title": "Boucle de jeu",
+            "objective": null,
+            "context": null,
+            "instructions": null,
+            "acceptance_criteria": [
+              "Une partie complète est jouable"
+            ],
+            "notes": null,
+            "metadata": {},
+            "depends_on": [],
+            "tasks": [
+              {
+                "hydration_key": "loop",
+                "title": "Implémenter la boucle de jeu",
+                "description": null
+              }
+            ]
+          },
+          {
+            "key": "P1.2",
+            "title": "Sons",
+            "objective": null,
+            "context": null,
+            "instructions": null,
+            "acceptance_criteria": [],
+            "notes": null,
+            "metadata": {},
+            "depends_on": [
+              "P1.1"
+            ],
+            "tasks": []
+          }
+        ]
+      }
+    ],
+    "exported_at": null,
+    "revision_no": null
+  },
+  {
+    "format": "studio.roadmap/v1",
+    "title": "Roadmaps structurées, initialisation de projet et hydratation des tâches",
+    "objective": "Premier jeu de données : la roadmap Roadmaps & Project Initialization elle-même.",
+    "context": null,
+    "metadata": {
+      "source": "docs/StudiOS_Roadmap_Roadmaps_Project_Initialization.pdf"
+    },
+    "phases": [
+      {
+        "key": "P0",
+        "title": "Architecture Gate & audit de l'existant",
+        "objective": null,
+        "steps": [
+          {
+            "key": "P0.main",
+            "title": "Architecture Gate & audit de l'existant",
+            "objective": null,
+            "context": null,
+            "instructions": null,
+            "acceptance_criteria": [],
+            "notes": null,
+            "metadata": {},
+            "depends_on": [],
+            "tasks": [
+              {
+                "hydration_key": "p0-task",
+                "title": "[Roadmaps P0] Architecture Gate & audit de l'existant",
+                "description": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "key": "P1",
+        "title": "Contrats communs et schéma Roadmap",
+        "objective": null,
+        "steps": [
+          {
+            "key": "P1.main",
+            "title": "Contrats communs et schéma Roadmap",
+            "objective": null,
+            "context": null,
+            "instructions": null,
+            "acceptance_criteria": [],
+            "notes": null,
+            "metadata": {},
+            "depends_on": [
+              "P0.main"
+            ],
+            "tasks": [
+              {
+                "hydration_key": "p1-task",
+                "title": "[Roadmaps P1] Contrats communs et schéma Roadmap",
+                "description": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "key": "P2",
+        "title": "Domaine Roadmap & persistance",
+        "objective": null,
+        "steps": [
+          {
+            "key": "P2.main",
+            "title": "Domaine Roadmap & persistance",
+            "objective": null,
+            "context": null,
+            "instructions": null,
+            "acceptance_criteria": [],
+            "notes": null,
+            "metadata": {},
+            "depends_on": [
+              "P1.main"
+            ],
+            "tasks": [
+              {
+                "hydration_key": "p2-task",
+                "title": "[Roadmaps P2] Domaine Roadmap & persistance",
+                "description": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "key": "P3",
+        "title": "API HTTP canonique",
+        "objective": null,
+        "steps": [
+          {
+            "key": "P3.main",
+            "title": "API HTTP canonique",
+            "objective": null,
+            "context": null,
+            "instructions": null,
+            "acceptance_criteria": [],
+            "notes": null,
+            "metadata": {},
+            "depends_on": [
+              "P2.main"
+            ],
+            "tasks": [
+              {
+                "hydration_key": "p3-task",
+                "title": "[Roadmaps P3] API HTTP canonique",
+                "description": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "key": "P4",
+        "title": "Surface MCP Roadmap",
+        "objective": null,
+        "steps": [
+          {
+            "key": "P4.main",
+            "title": "Surface MCP Roadmap",
+            "objective": null,
+            "context": null,
+            "instructions": null,
+            "acceptance_criteria": [],
+            "notes": null,
+            "metadata": {},
+            "depends_on": [
+              "P1.main"
+            ],
+            "tasks": [
+              {
+                "hydration_key": "p4-task",
+                "title": "[Roadmaps P4] Surface MCP Roadmap",
+                "description": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "key": "P5",
+        "title": "Project Initialization",
+        "objective": null,
+        "steps": [
+          {
+            "key": "P5.main",
+            "title": "Project Initialization",
+            "objective": null,
+            "context": null,
+            "instructions": null,
+            "acceptance_criteria": [],
+            "notes": null,
+            "metadata": {},
+            "depends_on": [
+              "P1.main"
+            ],
+            "tasks": [
+              {
+                "hydration_key": "p5-task",
+                "title": "[Roadmaps P5] Project Initialization",
+                "description": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "key": "P6",
+        "title": "Intégration à studio_prepare_context",
+        "objective": null,
+        "steps": [
+          {
+            "key": "P6.main",
+            "title": "Intégration à studio_prepare_context",
+            "objective": null,
+            "context": null,
+            "instructions": null,
+            "acceptance_criteria": [],
+            "notes": null,
+            "metadata": {},
+            "depends_on": [
+              "P4.main"
+            ],
+            "tasks": [
+              {
+                "hydration_key": "p6-task",
+                "title": "[Roadmaps P6] Intégration à studio_prepare_context",
+                "description": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "key": "P7",
+        "title": "Dashboard Roadmap",
+        "objective": null,
+        "steps": [
+          {
+            "key": "P7.main",
+            "title": "Dashboard Roadmap",
+            "objective": null,
+            "context": null,
+            "instructions": null,
+            "acceptance_criteria": [],
+            "notes": null,
+            "metadata": {},
+            "depends_on": [
+              "P1.main"
+            ],
+            "tasks": [
+              {
+                "hydration_key": "p7-task",
+                "title": "[Roadmaps P7] Dashboard Roadmap",
+                "description": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "key": "P8",
+        "title": "Review, validation humaine & événements",
+        "objective": null,
+        "steps": [
+          {
+            "key": "P8.main",
+            "title": "Review, validation humaine & événements",
+            "objective": null,
+            "context": null,
+            "instructions": null,
+            "acceptance_criteria": [],
+            "notes": null,
+            "metadata": {},
+            "depends_on": [
+              "P2.main",
+              "P3.main",
+              "P5.main",
+              "P7.main"
+            ],
+            "tasks": [
+              {
+                "hydration_key": "p8-task",
+                "title": "[Roadmaps P8] Review, validation humaine & événements",
+                "description": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "key": "P9",
+        "title": "Import, export PDF et portabilité",
+        "objective": null,
+        "steps": [
+          {
+            "key": "P9.main",
+            "title": "Import, export PDF et portabilité",
+            "objective": null,
+            "context": null,
+            "instructions": null,
+            "acceptance_criteria": [],
+            "notes": null,
+            "metadata": {},
+            "depends_on": [
+              "P1.main"
+            ],
+            "tasks": [
+              {
+                "hydration_key": "p9-task",
+                "title": "[Roadmaps P9] Import, export PDF et portabilité",
+                "description": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "key": "P10",
+        "title": "Réconciliation, E2E et clôture",
+        "objective": null,
+        "steps": [
+          {
+            "key": "P10.main",
+            "title": "Réconciliation, E2E et clôture",
+            "objective": null,
+            "context": null,
+            "instructions": null,
+            "acceptance_criteria": [],
+            "notes": null,
+            "metadata": {},
+            "depends_on": [
+              "P2.main",
+              "P3.main",
+              "P4.main",
+              "P5.main",
+              "P6.main",
+              "P7.main",
+              "P8.main",
+              "P9.main"
+            ],
+            "tasks": [
+              {
+                "hydration_key": "p10-task",
+                "title": "[Roadmaps P10] Réconciliation, E2E et clôture",
+                "description": null
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "exported_at": null,
+    "revision_no": null
+  }
+]

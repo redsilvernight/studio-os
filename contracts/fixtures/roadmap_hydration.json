@@ -1,0 +1,78 @@
+[
+  {
+    "roadmap_id": "f273ff89-48cd-5d73-b743-b4ac3dd04720",
+    "roadmap_version": 3,
+    "applied": false,
+    "applicable": true,
+    "not_applicable_reason": null,
+    "items": [
+      {
+        "step_key": "P1.1",
+        "hydration_key": "loop",
+        "action": "reuse",
+        "title": "Implémenter la boucle",
+        "task_id": "60c540e7-c847-5501-9c18-09c3a45d602e",
+        "reason": null
+      },
+      {
+        "step_key": "P1.2",
+        "hydration_key": "sfx",
+        "action": "create",
+        "title": "Effets sonores",
+        "task_id": null,
+        "reason": null
+      },
+      {
+        "step_key": "P2.1",
+        "hydration_key": "mp",
+        "action": "skip",
+        "title": "Multijoueur",
+        "task_id": null,
+        "reason": "step_skipped"
+      }
+    ],
+    "counts": {
+      "create": 1,
+      "reuse": 1,
+      "skip": 1
+    }
+  },
+  {
+    "roadmap_id": "f273ff89-48cd-5d73-b743-b4ac3dd04720",
+    "roadmap_version": 3,
+    "applied": true,
+    "applicable": true,
+    "not_applicable_reason": null,
+    "items": [
+      {
+        "step_key": "P1.1",
+        "hydration_key": "loop",
+        "action": "reuse",
+        "title": "Implémenter la boucle",
+        "task_id": "60c540e7-c847-5501-9c18-09c3a45d602e",
+        "reason": null
+      },
+      {
+        "step_key": "P1.2",
+        "hydration_key": "sfx",
+        "action": "create",
+        "title": "Effets sonores",
+        "task_id": "0891eee3-e22e-5b30-a99a-e9d950dc1df1",
+        "reason": null
+      },
+      {
+        "step_key": "P2.1",
+        "hydration_key": "mp",
+        "action": "skip",
+        "title": "Multijoueur",
+        "task_id": null,
+        "reason": "step_skipped"
+      }
+    ],
+    "counts": {
+      "create": 1,
+      "reuse": 1,
+      "skip": 1
+    }
+  }
+]

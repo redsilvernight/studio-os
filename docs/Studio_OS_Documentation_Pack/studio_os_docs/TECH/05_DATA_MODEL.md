@@ -378,3 +378,28 @@ avant les gates 404/409, echec = rollback complet. Aucun run, aucun etat
 d'execution, aucun scheduler, aucun appel LLM cote serveur : Studi'OS
 decrit le graphe, le harness le parcourt. Toute orchestration serveur
 future exige une nouvelle DEC.
+
+## Roadmap (Roadmaps P1, DEC-0084/DEC-0085, migration Alembic `0013` prevue, P2)
+Nouveau domaine additif ; **aucune colonne `roadmap_id` sur `tasks`**. Tables :
+- `roadmaps` : `id`, `project_id` (FK Project), `title`, `objective`, `context`,
+  `status` (`draft|proposed|active|completed|archived`), `metadata` (JSONB
+  borne), `revision_no`, `approved_revision_no`, provenance (`origin`,
+  `actor_type`, `actor_id`, `agent_id` FK Agent nullable, `machine_id`),
+  + champs communs mutables. Index unique partiel : au plus une roadmap
+  `active` par projet.
+- `roadmap_phases` / `roadmap_steps` : `id`, `roadmap_id`, (`phase_id`), `key`
+  (unique par roadmap), `position`, champs de `PhaseContent`/`StepContent`,
+  `state_override` (`done|skipped|null`) + `state_override_reason`,
+  `criteria_checked` (indices, remis a zero si `acceptance_criteria` change),
+  provenance, champs communs mutables. L'etat d'etape et la progression sont
+  **derives** (`derive_step_state`, `compute_progress`), jamais persistes.
+- `roadmap_step_dependencies` : `(step_id, depends_on_step_id)`, meme roadmap,
+  DAG (`find_dependency_cycle`).
+- `roadmap_step_task_links` : `(step_id, task_id)` unique, `hydration_key`
+  (unique par etape quand non nul), `origin`, provenance ; Task du meme projet.
+- `roadmap_revisions` : append-only, `revision_no`, `kind`
+  (`proposal|snapshot|review`), `status` (propositions), `base_revision_no`,
+  `content` (JSONB, `RoadmapDocument`), provenance, `reviewed_by_user_id`,
+  `reviewed_at`, `review_comment`.
+Aucun champ `provider`/`model`/`harness` : joignable uniquement via `agent_id`.
+Pas de suppression physique hors brouillon ; archivage.

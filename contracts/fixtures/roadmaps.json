@@ -1,0 +1,248 @@
+[
+  {
+    "created_at": "2026-09-20T10:00:00Z",
+    "updated_at": "2026-09-20T12:30:00Z",
+    "version": 3,
+    "id": "f273ff89-48cd-5d73-b743-b4ac3dd04720",
+    "project_id": "d628296e-a6bd-5712-8cd1-b32bbab5d645",
+    "title": "Sprint de démo",
+    "objective": "Livrer une démo jouable.",
+    "status": "active",
+    "revision_no": 2,
+    "approved_revision_no": 2,
+    "progress": {
+      "done": 1,
+      "total": 3,
+      "skipped": 1,
+      "ratio": 0.3333333333333333
+    },
+    "current_step_key": "P1.2",
+    "provenance": {
+      "origin": "ai_proposal",
+      "actor_type": "agent",
+      "actor_id": "64b838cd-3e13-5d78-9882-eda8d8b69c49",
+      "agent_id": "64b838cd-3e13-5d78-9882-eda8d8b69c49",
+      "machine_id": "c5ab5965-a2c7-54f4-9859-319ffd288c49",
+      "at": "2026-09-20T10:00:00Z"
+    },
+    "context": null,
+    "metadata": {},
+    "phases": [
+      {
+        "created_at": "2026-09-20T10:00:00Z",
+        "updated_at": "2026-09-20T12:30:00Z",
+        "version": 1,
+        "id": "e4dda8f1-e0b9-5b47-9487-e7824de8305f",
+        "roadmap_id": "f273ff89-48cd-5d73-b743-b4ac3dd04720",
+        "key": "P1",
+        "position": 0,
+        "title": "Prototype",
+        "objective": null,
+        "progress": {
+          "done": 1,
+          "total": 2,
+          "skipped": 0,
+          "ratio": 0.5
+        },
+        "steps": [
+          {
+            "created_at": "2026-09-20T10:00:00Z",
+            "updated_at": "2026-09-20T12:30:00Z",
+            "version": 1,
+            "id": "1d251b2d-dde6-5bce-b3e1-e5878fa5a327",
+            "roadmap_id": "f273ff89-48cd-5d73-b743-b4ac3dd04720",
+            "phase_id": "e4dda8f1-e0b9-5b47-9487-e7824de8305f",
+            "key": "P1.1",
+            "position": 0,
+            "title": "Boucle de jeu",
+            "objective": null,
+            "context": null,
+            "instructions": null,
+            "acceptance_criteria": [],
+            "criteria_checked": [],
+            "notes": null,
+            "metadata": {},
+            "depends_on": [],
+            "tasks": [],
+            "linked_tasks": [
+              {
+                "task_id": "60c540e7-c847-5501-9c18-09c3a45d602e",
+                "hydration_key": "loop",
+                "origin": "ai_proposal"
+              }
+            ],
+            "state_override": null,
+            "state_override_reason": null,
+            "state": "done",
+            "available": false,
+            "waiting_on": [],
+            "task_progress": {
+              "completed": 1,
+              "total": 1
+            },
+            "provenance": {
+              "origin": "ai_proposal",
+              "actor_type": "agent",
+              "actor_id": "64b838cd-3e13-5d78-9882-eda8d8b69c49",
+              "agent_id": "64b838cd-3e13-5d78-9882-eda8d8b69c49",
+              "machine_id": "c5ab5965-a2c7-54f4-9859-319ffd288c49",
+              "at": "2026-09-20T10:00:00Z"
+            }
+          },
+          {
+            "created_at": "2026-09-20T10:00:00Z",
+            "updated_at": "2026-09-20T12:30:00Z",
+            "version": 1,
+            "id": "13eef328-3260-5f77-b56f-e6068a954f55",
+            "roadmap_id": "f273ff89-48cd-5d73-b743-b4ac3dd04720",
+            "phase_id": "e4dda8f1-e0b9-5b47-9487-e7824de8305f",
+            "key": "P1.2",
+            "position": 1,
+            "title": "Sons",
+            "objective": null,
+            "context": null,
+            "instructions": null,
+            "acceptance_criteria": [
+              "Critère vérifiable"
+            ],
+            "criteria_checked": [],
+            "notes": null,
+            "metadata": {},
+            "depends_on": [
+              "P1.1"
+            ],
+            "tasks": [],
+            "linked_tasks": [
+              {
+                "task_id": "0891eee3-e22e-5b30-a99a-e9d950dc1df1",
+                "hydration_key": "sfx",
+                "origin": "ai_proposal"
+              },
+              {
+                "task_id": "aa55f677-9e08-5174-b6f8-519f64c1308f",
+                "hydration_key": "music",
+                "origin": "ai_proposal"
+              }
+            ],
+            "state_override": null,
+            "state_override_reason": null,
+            "state": "in_progress",
+            "available": true,
+            "waiting_on": [],
+            "task_progress": {
+              "completed": 0,
+              "total": 2
+            },
+            "provenance": {
+              "origin": "ai_proposal",
+              "actor_type": "agent",
+              "actor_id": "64b838cd-3e13-5d78-9882-eda8d8b69c49",
+              "agent_id": "64b838cd-3e13-5d78-9882-eda8d8b69c49",
+              "machine_id": "c5ab5965-a2c7-54f4-9859-319ffd288c49",
+              "at": "2026-09-20T10:00:00Z"
+            }
+          }
+        ]
+      },
+      {
+        "created_at": "2026-09-20T10:00:00Z",
+        "updated_at": "2026-09-20T12:30:00Z",
+        "version": 1,
+        "id": "bb2b4b87-35a8-58c9-98a5-76788c0b9811",
+        "roadmap_id": "f273ff89-48cd-5d73-b743-b4ac3dd04720",
+        "key": "P2",
+        "position": 1,
+        "title": "Finition",
+        "objective": null,
+        "progress": {
+          "done": 0,
+          "total": 1,
+          "skipped": 1,
+          "ratio": 0.0
+        },
+        "steps": [
+          {
+            "created_at": "2026-09-20T10:00:00Z",
+            "updated_at": "2026-09-20T12:30:00Z",
+            "version": 1,
+            "id": "0548fe08-a26e-574d-9d70-a2aaf17aad15",
+            "roadmap_id": "f273ff89-48cd-5d73-b743-b4ac3dd04720",
+            "phase_id": "bb2b4b87-35a8-58c9-98a5-76788c0b9811",
+            "key": "P2.1",
+            "position": 0,
+            "title": "Multijoueur",
+            "objective": null,
+            "context": null,
+            "instructions": null,
+            "acceptance_criteria": [],
+            "criteria_checked": [],
+            "notes": null,
+            "metadata": {},
+            "depends_on": [],
+            "tasks": [],
+            "linked_tasks": [],
+            "state_override": "skipped",
+            "state_override_reason": "Hors périmètre v1",
+            "state": "skipped",
+            "available": false,
+            "waiting_on": [],
+            "task_progress": {
+              "completed": 0,
+              "total": 0
+            },
+            "provenance": {
+              "origin": "ai_proposal",
+              "actor_type": "agent",
+              "actor_id": "64b838cd-3e13-5d78-9882-eda8d8b69c49",
+              "agent_id": "64b838cd-3e13-5d78-9882-eda8d8b69c49",
+              "machine_id": "c5ab5965-a2c7-54f4-9859-319ffd288c49",
+              "at": "2026-09-20T10:00:00Z"
+            }
+          },
+          {
+            "created_at": "2026-09-20T10:00:00Z",
+            "updated_at": "2026-09-20T12:30:00Z",
+            "version": 1,
+            "id": "3f48830f-a37d-56f6-94f8-072d94897dc4",
+            "roadmap_id": "f273ff89-48cd-5d73-b743-b4ac3dd04720",
+            "phase_id": "bb2b4b87-35a8-58c9-98a5-76788c0b9811",
+            "key": "P2.2",
+            "position": 1,
+            "title": "Polish",
+            "objective": null,
+            "context": null,
+            "instructions": null,
+            "acceptance_criteria": [],
+            "criteria_checked": [],
+            "notes": null,
+            "metadata": {},
+            "depends_on": [
+              "P1.2"
+            ],
+            "tasks": [],
+            "linked_tasks": [],
+            "state_override": null,
+            "state_override_reason": null,
+            "state": "not_started",
+            "available": false,
+            "waiting_on": [
+              "P1.2"
+            ],
+            "task_progress": {
+              "completed": 0,
+              "total": 0
+            },
+            "provenance": {
+              "origin": "ai_proposal",
+              "actor_type": "agent",
+              "actor_id": "64b838cd-3e13-5d78-9882-eda8d8b69c49",
+              "agent_id": "64b838cd-3e13-5d78-9882-eda8d8b69c49",
+              "machine_id": "c5ab5965-a2c7-54f4-9859-319ffd288c49",
+              "at": "2026-09-20T10:00:00Z"
+            }
+          }
+        ]
+      }
+    ]
+  }
+]

@@ -6,6 +6,7 @@ from studio_contracts.claims import ResourceClaim
 from studio_contracts.decisions import Decision
 from studio_contracts.events import EventEnvelope
 from studio_contracts.projects import Project
+from studio_contracts.roadmaps import HydrationResult, Roadmap, RoadmapDocument
 from studio_contracts.tasks import Task
 from studio_contracts.transfers import Transfer
 
@@ -19,6 +20,9 @@ FIXTURE_MODELS: dict[str, type[BaseModel]] = {
     "ai_work": AIWorkLog,
     "transfers": Transfer,
     "events": EventEnvelope,
+    "roadmaps": Roadmap,
+    "roadmap_documents": RoadmapDocument,
+    "roadmap_hydration": HydrationResult,
 }
 
 

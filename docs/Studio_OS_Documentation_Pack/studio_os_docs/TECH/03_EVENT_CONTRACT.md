@@ -48,6 +48,8 @@ transfer.created, transfer.uploading, transfer.ready, transfer.downloaded, trans
 
 library.version.created, library.version.activated, library.resource.deprecated, library.lock.set, library.lock.released
 
+roadmap.created, roadmap.updated, roadmap.proposed, roadmap.approved, roadmap.changes_requested, roadmap.rejected, roadmap.activated, roadmap.completed, roadmap.archived, roadmap.hydrated
+
 marketing.candidate.created, marketing.post.published
 
 ## Emission serveur GitHub/Producer (etape 9.1, DEC-0059)
@@ -77,3 +79,11 @@ Les types `library.*` sont emis cote serveur uniquement pour les ressources
 de scope projet (les tables `events`/`ai_work_logs` exigent un `project_id`
 non null) ; les scopes Studio/User restent audites par les lignes de version
 (`created_by_user_id`, `created_at`) et l'AIWorkLog explicite de l'agent.
+
+## Note Roadmaps P1 (DEC-0084/DEC-0085)
+Les types `roadmap.*` sont additifs et prevus pour l'emission serveur
+(implementation P2/P8), `actor_type`/`actor_id` = identite du `Principal`
+(`agent` si un `agent_id` rattache a la machine est declare). Cles `payload`
+documentees (ignorables) : `roadmap_id`, `revision_no`, `status`,
+`transition`, `scope` (`roadmap|revision`, sur `approved`/`changes_requested`/`rejected`) ; `roadmap.hydrated` -> `counts` (`create`/`reuse`/`skip`). Aucun couplage au Git Watcher : la progression se lit dans les
+Tasks, jamais dans `task.created`/`project.created` (declares mais non emis).

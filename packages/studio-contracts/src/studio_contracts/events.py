@@ -38,6 +38,17 @@ class EventType(StrEnum):
     LIBRARY_LOCK_SET = "library.lock.set"
     LIBRARY_LOCK_RELEASED = "library.lock.released"
 
+    ROADMAP_CREATED = "roadmap.created"
+    ROADMAP_UPDATED = "roadmap.updated"
+    ROADMAP_PROPOSED = "roadmap.proposed"
+    ROADMAP_APPROVED = "roadmap.approved"
+    ROADMAP_CHANGES_REQUESTED = "roadmap.changes_requested"
+    ROADMAP_REJECTED = "roadmap.rejected"
+    ROADMAP_ACTIVATED = "roadmap.activated"
+    ROADMAP_COMPLETED = "roadmap.completed"
+    ROADMAP_ARCHIVED = "roadmap.archived"
+    ROADMAP_HYDRATED = "roadmap.hydrated"
+
     AGENT_STARTED = "agent.started"
     AGENT_STOPPED = "agent.stopped"
 
