@@ -786,25 +786,25 @@ test.describe("UI-15 en-têtes et hiérarchie", () => {
     expectClean(watch);
   });
 
-  test("Workspace tabs à 375 : 5 onglets, ARIA, flèches, deep links", async ({ page }) => {
+  test("Workspace tabs à 375 : 6 onglets, ARIA, flèches, deep links", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 375, height: 800 });
     await login(page, `#/projects/${P1}`, false);
     const tablist = page.locator('[data-ws-tabs][role="tablist"]');
     await expect(tablist).toBeVisible();
     const tabs = tablist.locator('[role="tab"]');
-    await expect(tabs).toHaveCount(5);
+    await expect(tabs).toHaveCount(6);
     await expectNoGlobalOverflow(page, "workspace tabs @375");
     // Roving tabindex + flèches (invariant UI-14).
     await tabs.nth(0).focus();
     await page.keyboard.press("ArrowRight");
     await expect(tabs.nth(1)).toBeFocused();
     await page.keyboard.press("End");
-    await expect(tabs.nth(4)).toBeFocused();
+    await expect(tabs.nth(5)).toBeFocused();
     await page.keyboard.press("Home");
     await expect(tabs.nth(0)).toBeFocused();
     // Activation = deep link réel.
-    await tabs.nth(2).focus();
+    await tabs.nth(3).focus();
     await page.keyboard.press("Enter");
     expect(page.url()).toContain(`/projects/${P1}/claims`);
     await expect(page.locator("#view h1").first()).toContainText("Jeu Phare", { timeout: 10_000 });
