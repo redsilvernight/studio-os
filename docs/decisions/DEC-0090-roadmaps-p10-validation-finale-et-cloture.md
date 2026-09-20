@@ -70,7 +70,9 @@ d'un apply `proposed` devient `roadmap.created`, un `roadmap.updated` par lien, 
 Chaque service commit seul : une panne entre les liens et la soumission laisse un
 `draft`, que le rejeu du même plan soumet (le submit est un no-op hors `draft`). Test :
 `test_replay_completes_the_submission_an_interrupted_apply_left_as_draft`. Le finding UoW
-reste ouvert.
+reste ouvert. Effet à connaître : la roadmap est retrouvée par **titre** ; en `mode=proposed`,
+un brouillon humain de même titre est donc soumis (gelé pour relecture) — réversible par
+`approve`/`request_changes`/`reject`, et l'aperçu l'annonce comme `roadmap_already_exists`.
 
 ## Défaut de déploiement corrigé
 

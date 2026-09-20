@@ -411,7 +411,9 @@ absente = etat valide. Le serveur ne decide rien : il valide et applique.
   Observable : la sequence d'evenements est `roadmap.created`, un `roadmap.updated` par lien
   cree, puis `roadmap.proposed` (dernier) ; `roadmap.version` = 1 + liens crees + 1 apres
   l'apply. Chaque service commit seul (finding UoW) : une panne entre les liens et la
-  soumission laisse une roadmap `draft`, que le rejeu du meme plan soumet (no-op hors `draft`).
+  soumission laisse une roadmap `draft`, que le rejeu du meme plan soumet (no-op hors `draft`) ;
+  la roadmap etant retrouvee par titre, un brouillon humain de meme titre est lui aussi
+  soumis en `mode=proposed` (reversible par la relecture).
 - Details, port `InitializationTarget` et convergence P3/P5 : DEC-0087
   (adaptateurs `preview/apply_hydration` et `link_task_by_step_key` exposes par
   `services.roadmaps`, `update_step_progress` avec `expected_version`,
