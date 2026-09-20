@@ -336,6 +336,18 @@ Contrat fige par P1 (`packages/studio-contracts/.../roadmaps.py`) ; routes
   base_revision_stale` + `server_revision_no`. Les numeros de revision sont uniques
   par roadmap, toutes sortes confondues (`snapshot`/`proposal`/`review`) : un
   `revision_no` ne designe jamais deux lignes.
+- Frontiere de review et provenance (P10, DEC-0090) : la frontiere de securite est le
+  **role** (`admin`/`developer` relisent ; `agent`/`readonly` jamais). Il n'existe **pas**
+  de regle de separation proposant/relecteur : `origin`/`agent_id` sont declares, garde-fou
+  de workflow et non frontiere de securite (DEC-0085) — un jeton `developer` peut relire
+  une proposition deposee sous une identite d'agent de sa propre machine ; la tracabilite
+  reste entiere. Une proposition approuvee conserve la provenance de son auteur (`origin`,
+  `actor_type`, `actor_id`, `agent_id`, `machine_id`, `at`, `base_revision_no`, `summary`)
+  et gagne `reviewed_by_user_id`, `reviewed_at`, `review_comment` ; son `status`
+  (`approved|changes_requested|rejected`) est l'action de review ; la revision
+  resultante est la proposition elle-meme (`revision_no` = `approved_revision_no`).
+  Une etape *creee* par l'approbation garde la provenance de la proposition ; une etape
+  *modifiee* garde son createur (l'edition est attribuee par la revision).
 - Hydratation : `POST .../hydration/preview` (aucune ecriture, tout statut non
   archive) et `POST .../hydration/apply` (`HydrationRequest`,
   `Idempotency-Key`, `HydrationApplyRequest` : `expected_version` requis, roadmap `active`)
@@ -392,6 +404,10 @@ absente = etat valide. Le serveur ne decide rien : il valide et applique.
 - Permissions : `ensure_can_write` ; creation du projet = `ensure_can_provision`
   (`admin`/`developer`). Idempotence : `Idempotency-Key` + reutilisation par
   slug/titre/clef.
+- Ordre d'application du `mode=proposed` (P10) : la roadmap est creee `draft`, les Tasks
+  sont liees a leurs etapes, puis la roadmap est soumise (`submit`) — une roadmap
+  `proposed` est gelee et refuse tout *nouveau* lien. Un lien deja present reste un no-op
+  meme sur une roadmap gelee : le rejeu d'un plan `proposed` ne echoue jamais sur ses liens.
 - Details, port `InitializationTarget` et convergence P3/P5 : DEC-0087
   (adaptateurs `preview/apply_hydration` et `link_task_by_step_key` exposes par
   `services.roadmaps`, `update_step_progress` avec `expected_version`,

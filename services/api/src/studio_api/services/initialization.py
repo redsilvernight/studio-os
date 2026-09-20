@@ -108,6 +108,8 @@ class InitializationTarget(Protocol):
         self, project_id: UUID, roadmap_id: UUID, step_key: str, task_id: UUID
     ) -> None: ...
 
+    async def submit_roadmap(self, roadmap_id: UUID, provenance: WriteProvenance) -> None: ...
+
     async def resolve_resource(
         self, ref: InitializationResourceRef, project_id: UUID | None
     ) -> ResolvedResource | None: ...
@@ -432,13 +434,14 @@ async def apply_initialization(
         project_id = await target.create_project(plan.project)
 
     roadmap_id = recon.roadmap_id
+    submit_after_links = False
     if plan.roadmap is not None and roadmap_id is None:
+        # A `proposed` roadmap is frozen for review and refuses new Task links, so
+        # it is created as a draft, linked, then submitted (DEC-0084 §5/§6).
         roadmap_id = await target.import_roadmap(
-            project_id,
-            plan.roadmap,
-            submit=plan.mode.value == "proposed",
-            provenance=write_provenance,
+            project_id, plan.roadmap, submit=False, provenance=write_provenance
         )
+        submit_after_links = plan.mode.value == "proposed"
 
     task_ids: dict[str, UUID] = dict(recon.reused_task_ids)
     for task in plan.tasks:
@@ -452,6 +455,8 @@ async def apply_initialization(
                 await target.link_task_to_step(
                     project_id, roadmap_id, task.roadmap_step_key, task_ids[task.key]
                 )
+        if submit_after_links:
+            await target.submit_roadmap(roadmap_id, write_provenance)
 
     for ref in plan.resources:
         if not _planned_create(recon, InitializationSection.RESOURCES, ref.stable_key):
@@ -564,8 +569,22 @@ class StudioServicesInitializationTarget:
     async def link_task_to_step(
         self, project_id: UUID, roadmap_id: UUID, step_key: str, task_id: UUID
     ) -> None:
+        # An existing link is a no-op even when the roadmap is frozen for review
+        # (`proposed`), so replaying a proposed-mode plan never fails on its own links.
+        roadmap = await self._roadmaps().get_roadmap(self._session, roadmap_id)
+        for phase in roadmap.phases:
+            for step in phase.steps:
+                if step.key == step_key and any(
+                    linked.task_id == task_id for linked in step.linked_tasks
+                ):
+                    return
         await self._roadmaps().link_task_by_step_key(
             self._session, self._principal, roadmap_id, step_key, task_id
+        )
+
+    async def submit_roadmap(self, roadmap_id: UUID, provenance: WriteProvenance) -> None:
+        await self._roadmaps().submit_roadmap(
+            self._session, self._principal, roadmap_id, provenance
         )
 
     async def resolve_resource(

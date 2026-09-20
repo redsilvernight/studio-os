@@ -709,6 +709,29 @@ async def link_task_by_step_key(
     )
 
 
+async def submit_roadmap(
+    session: AsyncSession,
+    principal: Principal,
+    roadmap_id: uuid.UUID,
+    provenance: WriteProvenance,
+) -> None:
+    """`draft -> proposed` through the canonical `submit` transition; any other
+    status is left untouched (a replay never re-submits or reopens a roadmap)."""
+    current = await get_roadmap(session, roadmap_id)
+    if current.status is not RoadmapStatus.DRAFT:
+        return
+    await transition_roadmap(
+        session,
+        principal,
+        roadmap_id,
+        TransitionRequest(
+            transition=RoadmapTransition.SUBMIT,
+            expected_version=current.version,
+            provenance=provenance,
+        ),
+    )
+
+
 async def update_step_progress(
     session: AsyncSession,
     principal: Principal,

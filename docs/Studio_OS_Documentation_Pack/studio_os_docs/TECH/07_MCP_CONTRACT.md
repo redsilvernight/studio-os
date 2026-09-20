@@ -326,6 +326,9 @@ Aucun champ fournisseur, modèle ou harnais.
 La section ne lit que la révision **approuvée** : une proposition P8
 (`pending`, `superseded`, `changes_requested`, `rejected`, périmée) n'est jamais
 le contenu actif ; une approbation apparaît à l'appel suivant (DEC-0089).
+Choix assumé (P10, DEC-0090) : la section n'annonce **pas** non plus qu'une proposition
+est en attente — ni P6 ni P8 ne l'exigent et rien n'empêche un agent de travailler ; il la
+lit, bornée, dans `studio_get_roadmap.pending_proposals`.
 
 ## Context Package (8.3b, DEC-0057)
 
@@ -385,5 +388,9 @@ nouveau contrat neutre `studio.initialization/v1`.
   un probleme est bloquant ; resume `created/reused/skipped` identique au
   preview ; replays idempotents.
 Aucun de ces outils n'active, n'approuve, ne rejette ni n'archive une roadmap.
+HTTP reste la surface canonique (DEC-0046) : la route `POST .../proposals/{n}/review`
+n'a volontairement **aucun** équivalent MCP — le MCP est un sous-ensemble intentionnel,
+verrouillé par `tests/mcp/test_uc2b_tools_metadata.py`. En `mode=proposed`, l'apply crée
+la roadmap `draft`, lie les Tasks, puis la soumet (P10, voir TECH/02).
 Convergence P3/P5 : les outils appellent `studio_api.services.roadmaps` via
 `RoadmapServicePort` (adaptateurs sans logique dupliquee ; voir DEC-0087).

@@ -38,6 +38,7 @@ from studio_contracts.roadmaps import (
     RoadmapStatus,
     RoadmapSummary,
     StepProgressUpdate,
+    WriteProvenance,
 )
 
 from studio_api.services.authz import Principal
@@ -89,6 +90,14 @@ class RoadmapServicePort(Protocol):
         roadmap_id: UUID,
         step_key: str,
         task_id: UUID,
+    ) -> None: ...
+
+    async def submit_roadmap(
+        self,
+        session: AsyncSession,
+        principal: Principal,
+        roadmap_id: UUID,
+        provenance: WriteProvenance,
     ) -> None: ...
 
     async def create_proposal(
