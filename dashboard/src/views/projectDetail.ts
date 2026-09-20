@@ -11,6 +11,7 @@
  * back/forward navigateur fonctionne (rendu piloté par le hash, sans état JS).
  */
 import type { StudioClient } from "../api";
+import type { RoadmapDataSource } from "../roadmapTypes";
 import { ApiError, parseErrorBody } from "../api";
 import type { components } from "../openapi-schema";
 import { dsBadge, dsEmptyState, dsSectionHeader, dsSkeleton } from "../ds/ds";
@@ -20,21 +21,24 @@ import { renderActivityInto } from "./activity";
 import { renderClaimsInto } from "./claims";
 import { renderDecisionsV2 as renderDecisions } from "./decisionsV2";
 import { renderTasksInto } from "./tasks";
+import { renderRoadmapInto } from "./roadmap";
 
 type Project = components["schemas"]["Project"];
 type ProjectState = components["schemas"]["ProjectState"];
 type Task = components["schemas"]["Task"];
 type ResourceClaim = components["schemas"]["ResourceClaim"];
 
-export type ProjectTab = "overview" | "tasks" | "claims" | "activity" | "decisions";
+export type ProjectTab = "overview" | "roadmap" | "tasks" | "claims" | "activity" | "decisions";
 
 export interface ProjectDetailContext {
   client: StudioClient;
   authed: boolean;
+  roadmapDataSource?: RoadmapDataSource;
 }
 
 export const PROJECT_TABS: ReadonlyArray<{ id: ProjectTab; label: string; suffix: string }> = [
   { id: "overview", label: "Vue d'ensemble", suffix: "" },
+  { id: "roadmap", label: "Roadmap", suffix: "/roadmap" },
   { id: "tasks", label: "Tâches", suffix: "/tasks" },
   { id: "claims", label: "Réservations", suffix: "/claims" },
   { id: "activity", label: "Activité", suffix: "/activity" },
@@ -226,6 +230,18 @@ export async function renderProjectDetail(
         headingLevel: 2,
       });
     }
+    return;
+  }
+  if (tab === "roadmap") {
+    if (ctx.roadmapDataSource === undefined) {
+      panel.innerHTML = `<div class="ds-notice ds-notice--danger" role="alert"><strong>Roadmap indisponible.</strong> La source de données n'est pas configurée.</div>`;
+      return;
+    }
+    await renderRoadmapInto(panel, {
+      dataSource: ctx.roadmapDataSource,
+      projectId: project.id,
+      projectName: project.name,
+    });
     return;
   }
   if (tab === "claims") {
