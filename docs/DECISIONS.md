@@ -106,3 +106,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0082 | GET /machines : liste des machines actives, statut derive du heartbeat | active | [decisions/DEC-0082-get-machines-liste-alimentee-par-heartbeat.md](decisions/DEC-0082-get-machines-liste-alimentee-par-heartbeat.md) |
 | DEC-0084 | Roadmaps P0 : Roadmap = nouveau domaine, cycle de vie, versionnement, provenance, matrice | active | [decisions/DEC-0084-roadmaps-p0-architecture-gate.md](decisions/DEC-0084-roadmaps-p0-architecture-gate.md) |
 | DEC-0085 | Roadmaps P1 : contrats communs gelés, format neutre studio.roadmap/v1, règles pures partagées | active | [decisions/DEC-0085-roadmaps-p1-contrats-communs.md](decisions/DEC-0085-roadmaps-p1-contrats-communs.md) |
+| DEC-0086 | Roadmaps P2/P3 : domaine, persistance (migration 0013) et API HTTP canonique | active | [decisions/DEC-0086-roadmaps-p2-p3-domaine-et-api-http.md](decisions/DEC-0086-roadmaps-p2-p3-domaine-et-api-http.md) |

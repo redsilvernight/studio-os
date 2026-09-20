@@ -85,14 +85,8 @@ async def resolve_event_identity(
     return event_in.model_copy(update={"machine_id": machine.id})
 
 
-async def create_event(session: AsyncSession, event_in: EventCreate) -> EventModel:
-    """Idempotent on `event_id`: a replay (offline queue retry, at-least-once
-    delivery) returns the already-stored row instead of inserting a duplicate."""
-    existing = await session.get(EventModel, event_in.event_id)
-    if existing is not None:
-        return existing
-
-    event = EventModel(
+def _new_event_row(event_in: EventCreate) -> EventModel:
+    return EventModel(
         id=event_in.event_id,
         event_type=event_in.event_type.value,
         project_id=event_in.project_id,
@@ -105,10 +99,10 @@ async def create_event(session: AsyncSession, event_in: EventCreate) -> EventMod
         payload=event_in.payload,
         schema_version=event_in.schema_version,
     )
-    session.add(event)
-    await session.commit()
-    await session.refresh(event)
 
+
+def publish_event(event: EventModel) -> None:
+    """Realtime fan-out of a *committed* event (`seq` is assigned by then)."""
     event_stream.publish(
         event_stream.StreamEvent(
             seq=event.seq,
@@ -116,6 +110,34 @@ async def create_event(session: AsyncSession, event_in: EventCreate) -> EventMod
             envelope=EventEnvelope.model_validate(event),
         )
     )
+
+
+async def stage_event(session: AsyncSession, event_in: EventCreate) -> EventModel:
+    """Insert the event in the caller's transaction (flush only, no commit) so a
+    unit of work and its audit trail become durable atomically. The caller
+    commits, refreshes the row and calls `publish_event`. Server-internal use;
+    idempotent on `event_id` like `create_event`."""
+    existing = await session.get(EventModel, event_in.event_id)
+    if existing is not None:
+        return existing
+    event = _new_event_row(event_in)
+    session.add(event)
+    await session.flush()
+    return event
+
+
+async def create_event(session: AsyncSession, event_in: EventCreate) -> EventModel:
+    """Idempotent on `event_id`: a replay (offline queue retry, at-least-once
+    delivery) returns the already-stored row instead of inserting a duplicate."""
+    existing = await session.get(EventModel, event_in.event_id)
+    if existing is not None:
+        return existing
+
+    event = _new_event_row(event_in)
+    session.add(event)
+    await session.commit()
+    await session.refresh(event)
+    publish_event(event)
     return event
 
 
