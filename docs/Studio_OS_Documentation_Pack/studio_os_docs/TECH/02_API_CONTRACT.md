@@ -330,6 +330,8 @@ Contrat fige par P1 (`packages/studio-contracts/.../roadmaps.py`) ; routes
   la proposition atomiquement en appariant les etapes par `key` (ids, liens et
   dependances des etapes conservees preserves) et repond la `Roadmap` resultante ;
   `request_changes`/`reject` exigent un commentaire et ne touchent pas la roadmap ;
+  la route de review n'accepte pas `Idempotency-Key` : un rejeu apres decision
+  repond `409 invalid_state` (la proposition n'est plus `pending`) ;
   base perimee (`base_revision_no` != `approved_revision_no`) -> `409
   base_revision_stale` + `server_revision_no`. Les numeros de revision sont uniques
   par roadmap, toutes sortes confondues (`snapshot`/`proposal`/`review`) : un
