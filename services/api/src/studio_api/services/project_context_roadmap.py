@@ -27,9 +27,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Literal, Protocol
 
-from fastapi import HTTPException
-from pydantic import BaseModel, ValidationError
-from sqlalchemy.exc import SQLAlchemyError
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.roadmaps import (
     ContextStep,
@@ -50,7 +48,7 @@ from studio_api.services.context_why import Why
 
 TITLE_CAP = 200
 OBJECTIVE_CAP = 600
-CRITERION_CAP = 500  # the contract's own maximum: a criterion is never cut mid-sentence
+CRITERION_CAP = 500  # the contract's own maximum: only an exhausted budget can cut one
 MAX_UPCOMING_STEPS = 5  # `RoadmapContext.upcoming_steps` bound
 MAX_BLOCKING = 10
 MAX_CRITERIA = 10
@@ -72,6 +70,10 @@ class TextBudget(Protocol):
     def take(self, text: str, cap: int) -> tuple[str, bool] | None: ...
 
     def take_whole(self, text: str) -> bool: ...
+
+    def mark(self) -> int: ...
+
+    def rollback(self, mark: int) -> None: ...
 
 
 class RoadmapTaskRef(BaseModel):
@@ -181,7 +183,7 @@ def _step_task_ids(step: Step) -> list[uuid.UUID]:
     return [linked.task_id for linked in _linked(step)]
 
 
-def _base_step(step: Step, limit: int) -> RoadmapStepItem:
+def _base_step(step: Step) -> RoadmapStepItem:
     """The anchor of a step: identity, state, availability — title not counted."""
     title, truncated = _title(step.title)
     checked = {
@@ -193,7 +195,6 @@ def _base_step(step: Step, limit: int) -> RoadmapStepItem:
         state=step.state,
         available=step.available,
         waiting_on=list(step.waiting_on),
-        linked_task_ids=_step_task_ids(step)[:limit],
         truncated=truncated,
         criteria_total=len(step.acceptance_criteria),
         criteria_checked=len(checked),
@@ -228,6 +229,7 @@ async def _add_linked_tasks(
     _bump(additional, "roadmap_linked_tasks", max(0, len(linked) - limit))
     for entry in linked[:limit]:
         if entry.task_id in known:
+            item.linked_task_ids.append(entry.task_id)
             item.linked_tasks.append(
                 RoadmapTaskRef(id=entry.task_id, in_context=known[entry.task_id])
             )
@@ -237,6 +239,7 @@ async def _add_linked_tasks(
         if task is None or task.project_id != project_id:
             _bump(omitted, "roadmap_linked_tasks")
             continue
+        item.linked_task_ids.append(task.id)  # verified: same project, exists
         taken = budget.take(task.title, TITLE_CAP)
         if taken is None:
             _bump(omitted, "roadmap_linked_tasks")
@@ -287,7 +290,6 @@ def _upcoming(
                 state=step.state,
                 available=step.available,
                 waiting_on=list(step.waiting_on),
-                linked_task_ids=_step_task_ids(step)[:limit],
             )
         )
     return picked
@@ -328,8 +330,8 @@ async def _build_item(
         progress=roadmap.progress,
         status=roadmap.status,
         current_phase_key=current_phase.key if current_phase is not None else None,
-        current_step=_base_step(current_step, limit) if current_step is not None else None,
-        task_step=_base_step(task_step, limit) if task_step is not None else None,
+        current_step=_base_step(current_step) if current_step is not None else None,
+        task_step=_base_step(task_step) if task_step is not None else None,
         draft_pending=draft_pending,
         truncated=title_cut,
         why=Why(reason="active_roadmap"),
@@ -415,12 +417,20 @@ async def select_roadmap(
     unreadable source is flagged `unavailable`. The reads run in a savepoint so
     a database failure cannot poison the rest of the facade."""
     selection = RoadmapSelection()
+    mark = budget.mark()
     try:
         async with session.begin_nested():
-            summaries = await roadmaps_service.list_roadmaps(
-                session, project_id, limit=MAX_ROADMAPS_SCANNED
+            # By status, so archived roadmaps never crowd out an older active one
+            # and only the roadmaps that matter are read.
+            summaries = list(
+                await roadmaps_service.list_roadmaps(session, project_id, RoadmapStatus.ACTIVE, 1)
             )
-            selection.scan_capped = len(summaries) == MAX_ROADMAPS_SCANNED
+            for other in _OVERVIEW_RANK:
+                rows = await roadmaps_service.list_roadmaps(
+                    session, project_id, other, MAX_ROADMAPS_SCANNED
+                )
+                selection.scan_capped = selection.scan_capped or len(rows) == MAX_ROADMAPS_SCANNED
+                summaries.extend(rows)
             selection.overview = _overview(summaries, limit, selection)
             active = next((s for s in summaries if s.status is RoadmapStatus.ACTIVE), None)
             if active is not None:
@@ -441,6 +451,7 @@ async def select_roadmap(
                     budget,
                     selection,
                 )
-    except (SQLAlchemyError, HTTPException, ValidationError):
+    except Exception:  # noqa: BLE001 - the Roadmap is optional: whatever fails, the rest answers
+        budget.rollback(mark)  # nothing of a failed section was returned, so nothing is charged
         return RoadmapSelection(unavailable=True)
     return selection

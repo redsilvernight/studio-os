@@ -381,6 +381,7 @@ async def test_a_dangling_or_missing_task_is_partial_data_not_a_failure(
     monkeypatch.setattr(roadmap_section.tasks_service, "get_task", gone)
     payload = await _prepare(auth_ctx, project, "plan")
     assert payload["roadmap"]["current_step"]["linked_tasks"] == []
+    assert payload["roadmap"]["current_step"]["linked_task_ids"] == []  # only verified ids
     assert payload["omitted_for_budget"]["roadmap_linked_tasks"] == 1
 
 
@@ -517,6 +518,38 @@ async def test_an_unreadable_roadmap_source_is_reported_not_fatal(
     assert [d["title"] for d in payload["decisions"]] == ["Plan decision"]
 
 
+async def test_any_failure_of_the_section_is_reported_and_refunds_its_budget(
+    db_session: AsyncSession,
+    machine: Machine,
+    auth_ctx: FakeContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    principal = await _principal(db_session, machine)
+    project = await _project(db_session)
+    roadmap = await _import(db_session, principal, project, CHAIN)
+    task = await _task(db_session, principal, project, "Linked work")
+    await roadmaps.link_task_by_step_key(db_session, principal, roadmap.id, "a", task.id)
+    await _decision(db_session, principal, project, "Plan decision", "still visible")
+    baseline = await _prepare(auth_ctx, project, "plan decision")
+
+    async def explode(_session: AsyncSession, _task_id: uuid.UUID) -> None:
+        raise ValueError("corrupt row")  # raised after the objective was already charged
+
+    monkeypatch.setattr(roadmap_section.tasks_service, "get_task", explode)
+    payload = await _prepare(auth_ctx, project, "plan decision")
+    assert payload["unavailable"] == ["roadmap"] and "roadmap" not in payload
+    assert not any(key.startswith("roadmap") for key in payload["omitted_for_budget"])
+    # what the failed section had charged is refunded, not lost to the other sources
+    assert payload["limits"]["chars_used"] == baseline["limits"]["chars_used"] - len(
+        baseline["roadmap"]["current_step"]["objective"] or ""
+    ) - len(baseline["roadmap"]["objective"] or "") - sum(
+        len(c) for c in baseline["roadmap"]["current_step"]["acceptance_criteria"]
+    ) - sum(len(s["title"]) for s in baseline["roadmap"]["upcoming_steps"]) - len(
+        "Linked work"
+    ) - sum(len(k) for k in baseline["roadmap"]["blocking"])
+    assert [d["title"] for d in payload["decisions"]] == ["Plan decision"]
+
+
 # --- interaction with the other sources -------------------------------------------
 
 
@@ -621,6 +654,12 @@ class _Unlimited:
 
     def take_whole(self, text: str) -> bool:
         return True
+
+    def mark(self) -> int:
+        return 0
+
+    def rollback(self, mark: int) -> None:
+        return None
 
 
 # --- the Roadmaps chantier itself --------------------------------------------------

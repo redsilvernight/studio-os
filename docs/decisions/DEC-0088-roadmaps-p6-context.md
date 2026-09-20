@@ -95,9 +95,14 @@ section reste toujours lisible. Ce qui ne rentre pas est compté :
 - La roadmap est **optionnelle** : absente, draft, proposed, completed,
   partielle (sans étape, sans objectif, sans critère) ou volumineuse ne fait
   jamais échouer l'outil.
-- La lecture s'exécute dans un **savepoint** ; toute `SQLAlchemyError`,
-  `HTTPException` ou `ValidationError` devient `unavailable: ["roadmap"]` et les
-  sources suivantes (décisions, rules, skills) répondent normalement.
+- La lecture s'exécute dans un **savepoint** ; toute exception devient
+  `unavailable: ["roadmap"]`, le budget déjà imputé à la section est **remboursé**
+  et les sources suivantes (décisions, rules, skills) répondent normalement.
+- Les roadmaps sont lues **par statut** (`active` ≤ 1, puis proposed/draft/completed
+  ≤ 50 chacun) : une roadmap archivée ne peut pas en masquer une active.
+- `linked_task_ids` ne contient que des ids **vérifiés** (Task existante du même
+  projet), jamais ceux d'un lien orphelin ou étranger ; il est vide pour les
+  étapes suivantes (leurs Tasks ne sont pas résolues).
 - Lecture via `studio_api.services.roadmaps` et `tasks` uniquement (mêmes règles
   d'accès que les surfaces normales) ; une Task d'un autre projet n'est jamais
   révélée. Rien de local (Vault, Graphify, Git) ne devient serveur : la section

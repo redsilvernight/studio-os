@@ -271,6 +271,14 @@ class _Budget:
         self.used += len(text)
         return True
 
+    def mark(self) -> int:
+        return self.used
+
+    def rollback(self, mark: int) -> None:
+        """Refund everything spent since `mark` (a section that failed)."""
+        self.remaining += self.used - mark
+        self.used = mark
+
     def slice(self, ceiling: int) -> _BudgetSlice:
         return _BudgetSlice(self, ceiling)
 
@@ -297,6 +305,12 @@ class _BudgetSlice(_Budget):
         self._parent.remaining -= len(text)
         self._parent.used += len(text)
         return True
+
+    def rollback(self, mark: int) -> None:
+        refund = self.used - mark
+        super().rollback(mark)
+        self._parent.remaining += refund
+        self._parent.used -= refund
 
 
 def _task_item(task: TaskModel, principal: Principal, why: Why, budget: _Budget) -> TaskItem | None:
