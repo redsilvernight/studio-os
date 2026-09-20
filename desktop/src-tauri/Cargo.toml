@@ -1,0 +1,27 @@
+[package]
+name = "studio-desktop"
+version = "0.1.0"
+description = "Studi'OS Desktop - thin Tauri 2 shell around the shared Dashboard build (P2 foundation)"
+edition = "2021"
+rust-version = "1.77"
+publish = false
+
+[lib]
+name = "studio_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+url = "2"
+webbrowser = "1"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = "s"
+strip = true

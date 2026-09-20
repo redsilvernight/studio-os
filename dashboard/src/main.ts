@@ -31,6 +31,7 @@ import { renderMachines } from "./views/machines";
 import { renderDecisionsV2 as renderDecisions } from "./views/decisionsV2";
 import { renderTransfers } from "./views/transfers";
 import { renderLibrary, renderLibraryDetail } from "./views/library";
+import { renderApplication } from "./views/application";
 import { renderBindings, renderProjectConfig, renderRuntimeDetail, renderRuntimes } from "./views/configuration";
 import { renderInspector } from "./views/inspector";
 import { renderDesignSystem } from "./views/designSystem";
@@ -124,6 +125,9 @@ async function render(): Promise<void> {
       break;
     case "configBindings":
       await renderBindings(staging, { client, authed });
+      break;
+    case "configApplication":
+      await renderApplication(staging);
       break;
     case "configProject":
       await renderProjectConfig(staging, { client, authed }, route.tab);

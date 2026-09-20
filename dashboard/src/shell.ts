@@ -99,7 +99,7 @@ export function shellHtml(route: Route, authed: boolean): string {
   const groups = shellNavGroups(route)
     .map((group, index) => navGroupHtml(group, index))
     .join("");
-  const configActive = route.name === "configRuntimes" || route.name === "configRuntime" || route.name === "configBindings" || route.name === "configProject";
+  const configActive = route.name === "configRuntimes" || route.name === "configRuntime" || route.name === "configBindings" || route.name === "configProject" || route.name === "configApplication";
   const accountBlock = authed
     ? `<div class="app-account"><span class="app-account-state">Connecté · jeton masqué</span><button class="app-logout" type="button" id="token-clear">${icon("logout")}<span>Se déconnecter</span></button></div>`
     : `<div class="app-account"><span class="app-account-state">Non connecté</span><div class="app-tokenrow"><label class="ds-sr-only" for="token-input">Jeton machine</label><input id="token-input" type="password" autocomplete="off" spellcheck="false" placeholder="Jeton machine (mémoire seule)" /><button class="app-tokenbtn" type="button" id="token-set">Connecter</button></div><p class="app-tokenhint">Mémoire seule · jamais stocké</p></div>`;
@@ -133,7 +133,7 @@ export function syncNav(route: Route, root: ParentNode): void {
   for (const group of shellNavGroups(route)) {
     for (const item of group.items) targets.set(item.href, item.active);
   }
-  const configActive = route.name === "configRuntimes" || route.name === "configRuntime" || route.name === "configBindings" || route.name === "configProject";
+  const configActive = route.name === "configRuntimes" || route.name === "configRuntime" || route.name === "configBindings" || route.name === "configProject" || route.name === "configApplication";
   targets.set("#/configuration/runtimes", configActive);
   for (const link of links) {
     const active = targets.get(link.getAttribute("href") ?? "") ?? false;

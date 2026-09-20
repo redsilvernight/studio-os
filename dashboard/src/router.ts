@@ -21,6 +21,7 @@ export type Route =
   | { name: "configRuntime"; id: string }
   | { name: "configBindings" }
   | { name: "configProject"; tab: ProjectConfigTab }
+  | { name: "configApplication" }
   | { name: "inspector"; stableKey: string | null }
   | { name: "designSystem" }
   | { name: "notFound"; hash: string };
@@ -81,6 +82,7 @@ export function parseRoute(hash: string): Route {
       return { name: "configRuntime", id: decode(parts[2]) };
     }
     if (parts[1] === "bindings" && parts.length === 2) return { name: "configBindings" };
+    if (parts[1] === "application" && parts.length === 2) return { name: "configApplication" };
     if (parts[1] === "project" && parts.length <= 3) {
       const tab: ProjectConfigTab =
         parts[2] === "locks" || parts[2] === "overrides" ? parts[2] : "resources";

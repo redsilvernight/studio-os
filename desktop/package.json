@@ -1,0 +1,23 @@
+{
+  "name": "studio-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Studi'OS Desktop (P2 foundation) - thin Tauri 2 shell around the shared Dashboard build.",
+  "type": "module",
+  "engines": { "node": ">=22.18" },
+  "scripts": {
+    "prereqs": "node scripts/check-prereqs.mjs",
+    "config": "node scripts/make-config.mjs",
+    "build:sidecar": "node scripts/build-sidecar.mjs",
+    "build": "node scripts/build.mjs",
+    "build:with-sidecar": "node scripts/build.mjs --sidecar",
+    "dev": "node scripts/dev.mjs",
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "test:e2e": "node scripts/e2e.mjs",
+    "gate": "node scripts/build.mjs --sidecar && node scripts/e2e.mjs"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "playwright-core": "^1.63.0"
+  }
+}

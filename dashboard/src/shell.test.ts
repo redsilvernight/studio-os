@@ -49,6 +49,7 @@ describe("shellNavGroups (UI-2)", () => {
       .flatMap((group) => group.items)
       .filter((item) => item.active);
     expect(active).toHaveLength(0);
+    expect(shellHtml({ name: "configApplication" }, true)).toContain('href="#/configuration/runtimes" aria-current="page"');
     expect(shellHtml({ name: "configBindings" }, true)).toContain('href="#/configuration/runtimes" aria-current="page"');
   });
 });
