@@ -242,6 +242,87 @@ async def test_archived_roadmap_is_ignored_and_pending_drafts_are_counted(
     assert [r["title"] for r in payload["roadmap_overview"]["others"]] == ["Next"]
 
 
+async def test_only_the_active_roadmap_is_selected_among_roadmaps_of_every_status(
+    db_session: AsyncSession, machine: Machine, auth_ctx: FakeContext
+) -> None:
+    principal = await _principal(db_session, machine)
+    project = await _project(db_session)
+    other = await _project(db_session)
+    await _import(db_session, principal, other, _doc(("P", [_step("z")]), title="Elsewhere"))
+
+    finished = await _import(
+        db_session, principal, project, _doc(("P", [_step("only")]), title="Finished")
+    )
+    await _done(db_session, principal, finished.id, "only")
+    await _transition(
+        db_session,
+        principal,
+        await roadmaps.get_roadmap(db_session, finished.id),
+        RoadmapTransition.COMPLETE,
+    )
+    await _import(
+        db_session,
+        principal,
+        project,
+        _doc(("P", [_step("o")]), title="Old"),
+        to=RoadmapStatus.ARCHIVED,
+    )
+    await _import(
+        db_session,
+        principal,
+        project,
+        _doc(("P", [_step("p")]), title="Pitched"),
+        to=RoadmapStatus.PROPOSED,
+    )
+    await _import(
+        db_session,
+        principal,
+        project,
+        _doc(("P", [_step("n")]), title="Next"),
+        to=RoadmapStatus.DRAFT,
+    )
+    current = await _import(db_session, principal, project, CHAIN)
+
+    payload = await _prepare(auth_ctx, project, "work on the plan")
+
+    assert payload["roadmap"]["roadmap_id"] == str(current.id)
+    assert (payload["roadmap"]["title"], payload["roadmap"]["status"]) == ("Plan", "active")
+    assert payload["roadmap"]["draft_pending"] == 2
+    overview = payload["roadmap_overview"]
+    assert overview["counts"] == {"active": 1, "completed": 1, "draft": 1, "proposed": 1}
+    assert overview["draft_pending"] == 2
+    others = {(r["title"], r["status"]) for r in overview["others"]}
+    assert others == {("Finished", "completed"), ("Pitched", "proposed"), ("Next", "draft")}
+    assert str(current.id) not in {r["id"] for r in overview["others"]}
+    assert "Old" not in _all_strings(payload["roadmap_overview"])
+    assert "Elsewhere" not in _all_strings(payload)
+
+
+async def test_without_an_active_roadmap_no_other_status_is_promoted_to_the_context(
+    db_session: AsyncSession, machine: Machine, auth_ctx: FakeContext
+) -> None:
+    principal = await _principal(db_session, machine)
+    project = await _project(db_session)
+    finished = await _import(db_session, principal, project, _doc(("P", [_step("only")])))
+    await _done(db_session, principal, finished.id, "only")
+    await _transition(
+        db_session,
+        principal,
+        await roadmaps.get_roadmap(db_session, finished.id),
+        RoadmapTransition.COMPLETE,
+    )
+    await _import(db_session, principal, project, CHAIN, to=RoadmapStatus.PROPOSED)
+    await _import(db_session, principal, project, CHAIN, to=RoadmapStatus.DRAFT)
+
+    payload = await _prepare(auth_ctx, project, "work on the plan")
+
+    assert "roadmap" not in payload and "unavailable" not in payload
+    overview = payload["roadmap_overview"]
+    assert overview["counts"] == {"completed": 1, "draft": 1, "proposed": 1}
+    assert overview["draft_pending"] == 2
+    assert sorted(r["status"] for r in overview["others"]) == ["completed", "draft", "proposed"]
+
+
 async def test_roadmap_of_another_project_never_leaks(
     db_session: AsyncSession, machine: Machine, auth_ctx: FakeContext
 ) -> None:
