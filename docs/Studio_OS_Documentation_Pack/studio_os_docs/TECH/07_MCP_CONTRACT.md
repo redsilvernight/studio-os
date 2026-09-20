@@ -323,6 +323,9 @@ aussi à `limits.chars_used` ; priorité étape courante > blockers > Tasks
 liées > critères > étapes suivantes > objectif de la roadmap ; omissions dans
 `omitted_for_budget` (`roadmap_*`), reliquat dans `additional_available`.
 Aucun champ fournisseur, modèle ou harnais.
+La section ne lit que la révision **approuvée** : une proposition P8
+(`pending`, `superseded`, `changes_requested`, `rejected`, périmée) n'est jamais
+le contenu actif ; une approbation apparaît à l'appel suivant (DEC-0089).
 
 ## Context Package (8.3b, DEC-0057)
 
@@ -334,7 +337,7 @@ ephemere. Aucun outil MCP du VPS ne compose ni ne proxyfie le paquet ;
 aucune memoire privee ne transite. Exposition MCP differee (DEC-0057,
 variante c2), conditionnee a un besoin reel.
 
-## Roadmaps via MCP (P1, DEC-0084/DEC-0085) — inventaire cible, partiellement implemente en P4 (voir ci-dessous)
+## Roadmaps via MCP (P1, DEC-0084/DEC-0085) — inventaire, implemente en P4/P6/P8 (voir ci-dessous)
 Outils par intention d'agent (implementation P4/P6, sur les memes services que
 l'API, DEC-0046), pas un outil par endpoint : lire le plan et la position
 courante ; proposer un plan (`RoadmapImport` avec `submit`) ; previsualiser puis

@@ -76,8 +76,8 @@ réconciliation (skill `contract-change`).
    (409/422, graphe persisté / bornes par requête).
 7. **Bornes** fixées en constantes (`MAX_*`) : elles bornent aussi le budget de
    contexte (P6) et la taille d'une révision.
-8. **Périmètre différé** : `ReviewQueueKind.roadmap_proposal` (P8, lane
-   propriétaire de la Review) ; déplacement d'une étape entre phases (v1 :
+8. **Périmètre différé** : `ReviewQueueKind.roadmap_proposal` (livré par P8,
+   DEC-0089, lane propriétaire de la Review) ; déplacement d'une étape entre phases (v1 :
    supprimer + ajouter, ou proposition) ; export PDF (P9).
 9. **Garde P11** : le champ de contexte est `upcoming_steps` (et non
    `next_step*`, jeton interdit par `test_no_server_side_workflow_execution_concepts_exist`).

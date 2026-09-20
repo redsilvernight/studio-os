@@ -107,8 +107,8 @@ n'entre dans le core.
    `BINDING_INCOMPATIBLE` ; l'adaptateur par défaut ne vérifie aujourd'hui que
    l'existence de la cible et délègue le verdict au service de résolution.
 4. **Routes HTTP d'initialisation** (preview/apply) : surface canonique à
-   ajouter, non implémentée ici pour ne pas toucher le routeur partagé.
-5. **P6** : le champ `roadmap` de `PrepareContext` reste à la lane P6.
+   ajouter, non implémentée dans ce premier lot (implémentée ensuite : voir les routes `POST /projects/initialization/*` ci-dessous).
+5. **P6** : le champ `roadmap` de `PrepareContext` est livré par P6 (DEC-0088).
 
 ### Limites assumées
 
@@ -158,7 +158,7 @@ cette décision devient **DEC-0087**, contenu inchangé.
 2. **F1 partiel** : `StudioServicesInitializationTarget.create_task` utilise la
    variante sans commit `add_task` (P2/P3). `create_project` et les autres
    sections committent encore via leur service ; transaction unique complète =
-   reste un item de convergence (P6+).
+   reste un chantier séparé « Project Initialization Unit-of-Work » (finding post-Roadmaps ; cf. DEC-0088 §6).
 3. **Verdict réel** : `binding_problem` appelle `resolve_runtime` avec la cible
    déclarée en `session_overrides` ; incompatible → `BINDING_INCOMPATIBLE`
    (bloquant, refuse l'apply avant écriture).
@@ -166,4 +166,4 @@ cette décision devient **DEC-0087**, contenu inchangé.
    écriture) et `POST /projects/initialization/apply`
    (`ProjectInitializationRequest`, `Idempotency-Key`), même service que le MCP
    (DEC-0046), enregistrées dans `main.py` avec tag `initialization`.
-5. **P6** : inchangé — le champ `roadmap` de `PrepareContext` reste à la lane P6.
+5. **P6** : le champ `roadmap` de `PrepareContext` est livré par P6 (DEC-0088).

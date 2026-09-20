@@ -75,8 +75,8 @@ propositions (P8).
    ordre du plan (`hydration_key`), puis liens manuels.
 4. **Écriture de contenu d'un agent sur une roadmap `active`** (DEC-0084 §6 :
    « devient une proposition ») : la création/relecture des propositions relève de
-   P8 ; **jusqu'à P8 l'écriture est refusée `409 invalid_state`** (message
-   « proposal ») — jamais appliquée, jamais perdue silencieusement. L'avancement
+   P8 (livré, DEC-0089) ; **l'écriture directe reste refusée `409 invalid_state`**
+   (message pointant vers `POST .../proposals`) — jamais appliquée, jamais perdue silencieusement. L'avancement
    (`StepProgressUpdate`), les liens et l'hydratation restent directs.
 5. **Transitions** : `activate` d'une roadmap déjà `active` = succès sans effet
    (avant contrôle de version) ; `approve` émet `roadmap.approved` (`scope=roadmap`)
@@ -106,6 +106,6 @@ comportement.
 ## Conséquences
 
 - P4 (MCP), P6 (contexte), P7 (Dashboard) et P9 (export) disposent de l'API et de
-  `services/roadmaps.py` ; l'écart « proposition » (point 4) est à lever par P8.
-- `TECH/02` porte toujours la mention « aucune de ces routes n'existe encore » : à
-  aligner par la lane d'intégration (P10) sur cette décision.
+  `services/roadmaps.py` ; l'écart « proposition » (point 4) a été levé par P8 (DEC-0089).
+- `TECH/02` a été aligné sur les routes réellement implémentées (P8 : propositions,
+  révisions, review).
