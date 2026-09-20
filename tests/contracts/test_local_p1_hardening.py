@@ -53,6 +53,13 @@ def _daemon_with_knowledge(state: ComponentState) -> PeerInfo:
     return daemon.model_copy(update={"optional_components": components})
 
 
+def _moved_roots() -> WorkspaceRoots:
+    return WorkspaceRoots(
+        workspace_root="D:/Work/demo-game",
+        repo_roots=[RepoRoot(name="game", path="D:/Work/demo-game/game")],
+    )
+
+
 def _fixture(name: str) -> Any:
     return {item.name: item.model for item in fixtures.build_fixtures()}[name]
 
@@ -223,11 +230,62 @@ class TestPathConfinement:
                 after_hash="a" * 64,
             )
 
-    def test_root_change_carries_a_confirmation_handle(self) -> None:
+    def test_stable_config_needs_no_root_confirmation(self) -> None:
+        config = fixtures.workspace_config()
+        request = WorkspaceSaveConfigRequest(config=config, current_roots=config.roots)
+        assert not request.changes_roots
+        assert request.root_confirmation_id is None
+
+    def test_root_transition_without_confirmation_is_refused(self) -> None:
+        config = fixtures.workspace_config()
+        other = _moved_roots()
+        with pytest.raises(ValidationError, match="root_confirmation_id"):
+            WorkspaceSaveConfigRequest(
+                config=config.model_copy(update={"roots": other}), current_roots=config.roots
+            )
+
+    def test_root_transition_with_confirmation_is_accepted(self) -> None:
+        config = fixtures.workspace_config()
+        other = _moved_roots()
         request = WorkspaceSaveConfigRequest(
-            config=fixtures.workspace_config(), root_confirmation_id="rc-1"
+            config=config.model_copy(update={"roots": other}),
+            current_roots=config.roots,
+            root_confirmation_id="rc-1",
         )
-        assert request.root_confirmation_id == "rc-1"
+        assert request.changes_roots
+
+    def test_adding_a_repo_root_is_a_transition(self) -> None:
+        config = fixtures.workspace_config()
+        extended = WorkspaceRoots(
+            workspace_root=config.roots.workspace_root,
+            repo_roots=[*config.roots.repo_roots, RepoRoot(name="tools", path="C:/Work/tools")],
+        )
+        with pytest.raises(ValidationError, match="root_confirmation_id"):
+            WorkspaceSaveConfigRequest(
+                config=config.model_copy(update={"roots": extended}), current_roots=config.roots
+            )
+
+    def test_initial_authorization_needs_confirmation(self) -> None:
+        config = fixtures.workspace_config()
+        with pytest.raises(ValidationError, match="root_confirmation_id"):
+            WorkspaceSaveConfigRequest(config=config, current_roots=None)
+        request = WorkspaceSaveConfigRequest(
+            config=config, current_roots=None, root_confirmation_id="rc-1"
+        )
+        assert request.changes_roots
+
+    def test_confirmation_without_transition_is_refused(self) -> None:
+        config = fixtures.workspace_config()
+        with pytest.raises(ValidationError, match="root_confirmation_id"):
+            WorkspaceSaveConfigRequest(
+                config=config, current_roots=config.roots, root_confirmation_id="rc-1"
+            )
+
+    def test_current_roots_cannot_be_omitted(self) -> None:
+        with pytest.raises(ValidationError, match="current_roots"):
+            WorkspaceSaveConfigRequest.model_validate(
+                {"config": fixtures.workspace_config().model_dump(mode="json")}
+            )
 
     def test_migration_policy_invariants_cannot_be_disabled(self) -> None:
         for field in ("keeps_backup", "refuses_newer"):

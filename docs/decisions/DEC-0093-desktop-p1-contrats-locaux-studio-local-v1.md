@@ -63,9 +63,11 @@ vendor. No server contract changes; nothing in P2+ is implemented.
 - Any future breaking change of a `studio.local` model needs a protocol bump.
 - The server JWT still maps to the dashboard machine; a distinct human/machine
   identity on the server side is deferred to a later, explicit contract change.
-- Confinement of workspace roots relies on the implementation: the contract
-  requires a daemon-issued `root_confirmation_id` (native folder selection) for
-  any root change, and P2+ must issue and verify it.
+- Confinement of workspace roots relies on the implementation: any root
+  transition (`current_roots` -> `config.roots`, including the first
+  authorization) must carry a daemon-issued `root_confirmation_id` (native folder
+  selection), enforced by the request contract; a stable config keeps none. P2+
+  must issue the id and check `current_roots` against the stored config.
 - Publishing shared summaries needs a server contract that P1 does not create.
 
 ## Alternatives rejected

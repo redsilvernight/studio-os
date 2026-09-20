@@ -117,6 +117,7 @@ from studio_contracts.local.workspace import (
     WorkspaceAction,
     WorkspaceHealth,
     WorkspaceRoots,
+    WorkspaceSaveConfigRequest,
     WorkspaceStatus,
 )
 
@@ -899,6 +900,23 @@ def build_fixtures() -> list[LocalFixture]:
             "watchers": None,
         }
     )
+    stored = workspace_config()
+    moved_roots = WorkspaceRoots(
+        workspace_root="D:/Work/demo-game",
+        repo_roots=[RepoRoot(name="game", path="D:/Work/demo-game/game")],
+    )
+    fixtures["workspace.save.unchanged"] = WorkspaceSaveConfigRequest(
+        config=stored, current_roots=stored.roots, expected_updated_at=stored.updated_at
+    )
+    fixtures["workspace.save.root_transition"] = WorkspaceSaveConfigRequest(
+        config=stored.model_copy(update={"roots": moved_roots}),
+        current_roots=stored.roots,
+        expected_updated_at=stored.updated_at,
+        root_confirmation_id="rc-demo-1",
+    )
+    fixtures["workspace.save.initial"] = WorkspaceSaveConfigRequest(
+        config=stored, current_roots=None, root_confirmation_id="rc-demo-2"
+    )
     fixtures["workspace.status.valid"] = _workspace_status(
         WorkspaceHealth.VALID, WorkspaceAction.NONE, None, with_config=True
     )
@@ -1251,10 +1269,34 @@ def build_invalid_fixtures() -> list[InvalidFixture]:
     def relative_root(data: dict[str, Any]) -> None:
         data["roots"]["workspace_root"] = "demo-game"
 
+    def drop_confirmation(data: dict[str, Any]) -> None:
+        data["root_confirmation_id"] = None
+
+    def stray_confirmation(data: dict[str, Any]) -> None:
+        data["root_confirmation_id"] = "rc-stray"
+
     def revoked_without_error(data: dict[str, Any]) -> None:
         data["secrets"][0]["error"] = None
 
     return [
+        InvalidFixture(
+            "workspace.save.transition_unconfirmed",
+            "WorkspaceSaveConfigRequest",
+            _with("workspace.save.root_transition", drop_confirmation),
+            "a root transition without confirmation is refused",
+        ),
+        InvalidFixture(
+            "workspace.save.initial_unconfirmed",
+            "WorkspaceSaveConfigRequest",
+            _with("workspace.save.initial", drop_confirmation),
+            "the first authorization of roots needs confirmation too",
+        ),
+        InvalidFixture(
+            "workspace.save.confirmation_without_transition",
+            "WorkspaceSaveConfigRequest",
+            _with("workspace.save.unchanged", stray_confirmation),
+            "a stable config carries no confirmation id",
+        ),
         InvalidFixture(
             "workspace.config.secret_field",
             "LocalWorkspaceConfig",

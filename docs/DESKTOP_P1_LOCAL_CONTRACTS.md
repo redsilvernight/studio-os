@@ -78,9 +78,15 @@ un test échoue si l'export diverge des builders Python.
   chemins absolus sont refusés dans les messages et `details` d'erreur ; `RelativePath` refuse `:`, noms de périphériques Windows, segments
   terminés par un point ou une espace, caractères bidi/invisibles ; les cibles de
   harness protégées (`.git`, `.ssh`, `.env*`, …) sont refusées.
-- Un changement de racine via `workspace.save_config` exige un
-  `root_confirmation_id` émis par le daemon après sélection native confirmée. Le
-  contrat porte le champ ; l'émission et le contrôle sont à l'implémentation P2+.
+- Confirmation de racine au niveau de la transition : `workspace.save_config`
+  porte `current_roots` (racines stockées vues par l'appelant, `null` si aucune
+  config). Toute différence avec `config.roots` (racine de workspace ou de dépôt,
+  première autorisation comprise) est une transition `old -> new` qui échoue sans
+  `root_confirmation_id`, émis par le daemon après sélection native confirmée.
+  Sans transition, l'identifiant est refusé : une config stable n'en conserve
+  jamais, et `LocalWorkspaceConfig` n'a aucun champ de confirmation. Le contrat
+  impose la forme ; le daemon (P2+) émet l'identifiant et vérifie que
+  `current_roots` correspond à la config stockée.
 - `LocalError.message` refuse chemins absolus et secrets ; les identifiants
   opaques refusent les formes de credential ; `SecretKind` ne contient que le
   credential machine.
@@ -96,7 +102,7 @@ de `contracts/local/` doit être relue dans le diff.
 
 ## Fixtures
 
-77 fixtures valides et 19 invalides nommées, couvrant : runtime
+80 fixtures valides et 22 invalides nommées, couvrant : runtime
 compatible/incompatible, daemon running/unavailable/crash-recovery, workspace
 valide/absent-déplacé, Knowledge disabled/indexing/ready, Code Graph
 absent/indexing/ready, Graphify incompatible, graphes vide / Knowledge / Code /
@@ -113,12 +119,13 @@ UUID fixes) et ne contiennent aucune valeur secrète.
   versionné, hors périmètre P1.
 - Enregistrement, rotation et révocation de machine (R4) et cible d'API serveur
   négociée au-delà de `PeerInfo.server_origin` (informatif) sont différés.
-- Résidus connus, à couvrir par l'implémentation : `root_confirmation_id` reste
-  optionnel au niveau contrat (le daemon le rend obligatoire) ; les cibles de
-  harness sensibles hors liste protégée (`.github/workflows`, `.gitmodules`,
-  `package.json`…) restent couvertes par la confirmation et le hash du plan ; la
-  détection de secrets et de chemins par forme est best-effort ; un consommateur
-  rejoue `negotiate()` au lieu de faire confiance à une `HandshakeResponse`.
+- Résidus connus, à couvrir par l'implémentation : le daemon doit émettre et
+  contrôler `root_confirmation_id` et comparer `current_roots` à la config
+  stockée ; les cibles de harness sensibles hors liste protégée
+  (`.github/workflows`, `.gitmodules`, `package.json`…) restent couvertes par la
+  confirmation et le hash du plan ; la détection de secrets et de chemins par
+  forme est best-effort ; un consommateur rejoue `negotiate()` au lieu de faire
+  confiance à une `HandshakeResponse`.
 - Les contrats décrivent le comportement attendu ; aucun n'a été éprouvé contre un
   vrai daemon, Tauri, keyring, Graphify ou harness.
 

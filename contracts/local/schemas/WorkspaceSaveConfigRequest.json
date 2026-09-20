@@ -427,10 +427,20 @@
     }
   },
   "additionalProperties": false,
-  "description": "Changing `roots` requires `root_confirmation_id`, an identifier the daemon\nissues only after a native folder selection confirmed by the user; the\ndaemon refuses a root change that carries none.",
+  "description": "`current_roots` is the caller's view of the stored roots, `None` when no\nconfig is stored yet. Any difference between `current_roots` and\n`config.roots` is a root transition and needs `root_confirmation_id`, an\nidentifier the daemon issues only after a native folder selection confirmed\nby the user. Without a transition the id must be absent, so a stored config\nnever keeps one. The daemon checks `current_roots` against the stored config\nand refuses a mismatch.",
   "properties": {
     "config": {
       "$ref": "#/$defs/LocalWorkspaceConfig"
+    },
+    "current_roots": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WorkspaceRoots"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "expected_updated_at": {
       "anyOf": [
@@ -460,7 +470,8 @@
     }
   },
   "required": [
-    "config"
+    "config",
+    "current_roots"
   ],
   "title": "WorkspaceSaveConfigRequest",
   "type": "object"

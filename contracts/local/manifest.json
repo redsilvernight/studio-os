@@ -1,6 +1,21 @@
 {
   "invalid_fixtures": [
     {
+      "model": "WorkspaceSaveConfigRequest",
+      "name": "workspace.save.transition_unconfirmed",
+      "reason": "a root transition without confirmation is refused"
+    },
+    {
+      "model": "WorkspaceSaveConfigRequest",
+      "name": "workspace.save.initial_unconfirmed",
+      "reason": "the first authorization of roots needs confirmation too"
+    },
+    {
+      "model": "WorkspaceSaveConfigRequest",
+      "name": "workspace.save.confirmation_without_transition",
+      "reason": "a stable config carries no confirmation id"
+    },
+    {
       "model": "LocalWorkspaceConfig",
       "name": "workspace.config.secret_field",
       "reason": "unknown field: configuration never carries secret values"
@@ -473,6 +488,18 @@
     {
       "model": "LocalWorkspaceConfig",
       "name": "workspace.config.minimal"
+    },
+    {
+      "model": "WorkspaceSaveConfigRequest",
+      "name": "workspace.save.initial"
+    },
+    {
+      "model": "WorkspaceSaveConfigRequest",
+      "name": "workspace.save.root_transition"
+    },
+    {
+      "model": "WorkspaceSaveConfigRequest",
+      "name": "workspace.save.unchanged"
     },
     {
       "model": "WorkspaceStatus",

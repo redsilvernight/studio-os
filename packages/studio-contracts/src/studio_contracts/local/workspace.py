@@ -219,13 +219,30 @@ class WorkspaceGetConfigRequest(LocalContractModel):
 
 
 class WorkspaceSaveConfigRequest(LocalContractModel):
-    """Changing `roots` requires `root_confirmation_id`, an identifier the daemon
-    issues only after a native folder selection confirmed by the user; the
-    daemon refuses a root change that carries none."""
+    """`current_roots` is the caller's view of the stored roots, `None` when no
+    config is stored yet. Any difference between `current_roots` and
+    `config.roots` is a root transition and needs `root_confirmation_id`, an
+    identifier the daemon issues only after a native folder selection confirmed
+    by the user. Without a transition the id must be absent, so a stored config
+    never keeps one. The daemon checks `current_roots` against the stored config
+    and refuses a mismatch."""
 
     config: LocalWorkspaceConfig
+    current_roots: WorkspaceRoots | None
     expected_updated_at: UtcDatetime | None = None
     root_confirmation_id: OpaqueId | None = None
+
+    @property
+    def changes_roots(self) -> bool:
+        return self.current_roots != self.config.roots
+
+    @model_validator(mode="after")
+    def _root_transition_is_confirmed(self) -> Self:
+        if self.changes_roots and self.root_confirmation_id is None:
+            raise ValueError("changing the authorized roots requires root_confirmation_id")
+        if not self.changes_roots and self.root_confirmation_id is not None:
+            raise ValueError("root_confirmation_id is only valid on a root transition")
+        return self
 
 
 class WorkspaceMigrationPolicy(LocalContractModel):
