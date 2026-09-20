@@ -22,10 +22,10 @@ from __future__ import annotations
 import re
 import uuid
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from fastapi import HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, SerializerFunctionWrapHandler, model_serializer
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.library import LibraryKind, RuleContent, SkillContent
 
@@ -38,6 +38,13 @@ from studio_api.services import library as library_service
 from studio_api.services import projects as projects_service
 from studio_api.services import tasks as tasks_service
 from studio_api.services.authz import Principal
+from studio_api.services.context_why import Reason, Why
+from studio_api.services.project_context_roadmap import (
+    RoadmapItem,
+    RoadmapOverview,
+    TaskLocation,
+    select_roadmap,
+)
 
 DEFAULT_LIMIT = 5
 MAX_LIMIT = 20
@@ -54,6 +61,7 @@ MAX_PATH_CHARS = 500
 LIBRARY_SCAN_CAP = 200
 MIN_TERM_LENGTH = 3
 MAX_MATCHED_TERMS_SHOWN = 5
+ROADMAP_BUDGET_SHARE = 0.25
 
 _TOKEN_RE = re.compile(r"[^\W_]+")
 _STOPWORDS = frozenset(
@@ -71,18 +79,6 @@ _STOPWORDS = frozenset(
         "aux du de la le un en et ou ne pas"
     ).split()
 )
-
-Reason = Literal[
-    "requested", "linked_to_task", "task_claim", "path_conflict", "project_scope", "lexical"
-]
-
-
-class Why(BaseModel):
-    """Why an item was selected — the only two relations Studi'OS knows how to
-    establish: a structural link, or an exact-token overlap with the objective."""
-
-    reason: Reason
-    matched_terms: list[str] = []
 
 
 class ProjectRef(BaseModel):
@@ -149,6 +145,15 @@ class ContextLimits(BaseModel):
     chars_used: int
     item_text_cap: int
     library_scan_capped: bool = False
+    roadmap_scan_capped: bool = False
+
+    @model_serializer(mode="wrap")
+    def _drop_unset_roadmap_cap(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        """Absent, not `false`, until the Roadmap scan actually hit its ceiling."""
+        data: dict[str, Any] = handler(self)
+        if not data.get("roadmap_scan_capped"):
+            data.pop("roadmap_scan_capped", None)
+        return data
 
 
 class PreparedContext(BaseModel):
@@ -160,10 +165,25 @@ class PreparedContext(BaseModel):
     rules: list[LibraryItem] = []
     skills: list[LibraryItem] = []
     active_work: ActiveWork = ActiveWork()
+    roadmap: RoadmapItem | None = None
+    roadmap_overview: RoadmapOverview | None = None
+    unavailable: list[str] = []
     returned: dict[str, int]
     additional_available: dict[str, int]
     omitted_for_budget: dict[str, int] = {}
     limits: ContextLimits
+
+    @model_serializer(mode="wrap")
+    def _drop_absent_roadmap(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        """A project without an `active` roadmap serialises exactly as before
+        the Roadmap section existed: the additive fields are absent, not null."""
+        data: dict[str, Any] = handler(self)
+        for name in ("roadmap", "roadmap_overview"):
+            if data.get(name) is None:
+                data.pop(name, None)
+        if not data.get("unavailable"):
+            data.pop("unavailable", None)
+        return data
 
 
 def _invalid(message: str) -> HTTPException:
@@ -241,6 +261,42 @@ class _Budget:
         self.remaining -= len(capped)
         self.used += len(capped)
         return capped, truncated
+
+    def take_whole(self, text: str) -> bool:
+        """Spend `len(text)` only if all of it fits — for identifiers, which are
+        never cut."""
+        if len(text) > self.remaining:
+            return False
+        self.remaining -= len(text)
+        self.used += len(text)
+        return True
+
+    def slice(self, ceiling: int) -> _BudgetSlice:
+        return _BudgetSlice(self, ceiling)
+
+
+class _BudgetSlice(_Budget):
+    """A ceiling over the shared budget: every character spent is charged to
+    both, so `chars_used` stays the true total while one section cannot take
+    more than its share of what is left."""
+
+    def __init__(self, parent: _Budget, ceiling: int) -> None:
+        super().__init__(min(ceiling, parent.remaining))
+        self._parent = parent
+
+    def take(self, text: str, cap: int = ITEM_TEXT_CAP) -> tuple[str, bool] | None:
+        taken = super().take(text, cap)
+        if taken is not None:
+            self._parent.remaining -= len(taken[0])
+            self._parent.used += len(taken[0])
+        return taken
+
+    def take_whole(self, text: str) -> bool:
+        if not super().take_whole(text):
+            return False
+        self._parent.remaining -= len(text)
+        self._parent.used += len(text)
+        return True
 
 
 def _task_item(task: TaskModel, principal: Principal, why: Why, budget: _Budget) -> TaskItem | None:
@@ -557,6 +613,21 @@ async def prepare_project_context(
     claims, claims_total = await _select_claims(
         session, principal, project_id, task_id, paths, limit
     )
+    # Before decisions/rules/skills — which would otherwise drain the budget —
+    # but under its own ceiling, so the Roadmap can neither starve nor swamp them.
+    known_tasks: dict[uuid.UUID, TaskLocation] = {t.id: "related_tasks" for t in related}
+    if task is not None:
+        known_tasks[task.id] = "task"
+    roadmap = await select_roadmap(
+        session,
+        project_id,
+        task_id,
+        known_tasks,
+        limit,
+        budget.slice(int(max_chars * ROADMAP_BUDGET_SHARE)),
+    )
+    for name, count in roadmap.omitted.items():
+        omitted[name] = omitted.get(name, 0) + count
     decisions, decisions_total = await _select_decisions(
         session, project_id, task_id, terms, limit, budget, omitted
     )
@@ -582,6 +653,10 @@ async def prepare_project_context(
         "skills": skills_total - len(skills),
         "claims": claims_total - len(claims),
     }
+    if roadmap.item is not None:
+        returned["roadmap"] = 1
+    for name, count in roadmap.additional.items():
+        additional[name] = count
     return PreparedContext(
         project=project_ref,
         query_terms=terms,
@@ -591,6 +666,9 @@ async def prepare_project_context(
         rules=rules,
         skills=skills,
         active_work=ActiveWork(claims=claims),
+        roadmap=roadmap.item,
+        roadmap_overview=roadmap.overview,
+        unavailable=["roadmap"] if roadmap.unavailable else [],
         returned=returned,
         additional_available=additional,
         omitted_for_budget=dict(sorted(omitted.items())),
@@ -600,5 +678,6 @@ async def prepare_project_context(
             chars_used=budget.used,
             item_text_cap=ITEM_TEXT_CAP,
             library_scan_capped=rules_capped or skills_capped,
+            roadmap_scan_capped=roadmap.scan_capped,
         ),
     )
