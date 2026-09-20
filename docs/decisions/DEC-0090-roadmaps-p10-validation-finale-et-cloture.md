@@ -1,7 +1,7 @@
 ---
 id: DEC-0090
 title: 'Roadmaps P10 : validation E2E finale, frontière de review par le rôle, provenance conservée et correction de l''ordre d''initialisation proposed'
-status: proposed
+status: active
 date: '2026-09-20'
 superseded_by: null
 source: docs/DECISIONS.md
