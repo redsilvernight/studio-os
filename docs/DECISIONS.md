@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-89 decision(s). Detail complet dans chaque ADR lie.
+91 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -111,3 +111,5 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0088 | Roadmaps P6 : section Roadmap de studio_prepare_context, budgetée, optionnelle et neutre | active | [decisions/DEC-0088-roadmaps-p6-context.md](decisions/DEC-0088-roadmaps-p6-context.md) |
 | DEC-0089 | Roadmaps P8 : propositions de revision, relecture humaine (approve/request-changes/reject) et file de review | active | [decisions/DEC-0089-roadmaps-p8-propositions-revisions-review.md](decisions/DEC-0089-roadmaps-p8-propositions-revisions-review.md) |
 | DEC-0090 | Roadmaps P10 : validation E2E finale, frontière de review par le rôle, provenance conservée et correction de l'ordre d'initialisation proposed | active | [decisions/DEC-0090-roadmaps-p10-validation-finale-et-cloture.md](decisions/DEC-0090-roadmaps-p10-validation-finale-et-cloture.md) |
+| DEC-0091 | Desktop P0 : Tauri 2 comme shell mince, frontières Desktop/bridge/daemon/serveur | active | [decisions/DEC-0091-desktop-p0-tauri-shell-frontieres.md](decisions/DEC-0091-desktop-p0-tauri-shell-frontieres.md) |
+| DEC-0092 | Desktop P0 : CodeGraphProvider neutre, Graphify optionnel installé séparément | active | [decisions/DEC-0092-desktop-p0-codegraph-provider-graphify.md](decisions/DEC-0092-desktop-p0-codegraph-provider-graphify.md) |
