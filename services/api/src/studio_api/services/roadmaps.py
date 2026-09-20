@@ -18,6 +18,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.events import EventType
 from studio_contracts.roadmaps import (
+    HydrationApplyRequest,
+    HydrationRequest,
+    HydrationResult,
+    LinkTask,
     Roadmap,
     RoadmapCreate,
     RoadmapDocument,
@@ -27,6 +31,7 @@ from studio_contracts.roadmaps import (
     RoadmapSummary,
     RoadmapTransition,
     RoadmapUpdate,
+    StepProgressUpdate,
     TransitionRequest,
     WriteKind,
     roadmap_document_errors,
@@ -42,6 +47,7 @@ from studio_api.db.models.roadmap import (
     RoadmapStepDependencyModel,
     RoadmapStepModel,
 )
+from studio_api.services import roadmap_hydration as hydration_service
 from studio_api.services.authz import Principal, ensure_can_provision, ensure_can_write
 from studio_api.services.roadmap_support import (
     PendingEvent,
@@ -438,3 +444,58 @@ async def transition_roadmap(
                 )
             )
     return await finish(session, principal, roadmap, prov, pending)
+
+
+# --- RoadmapServicePort adapters (Roadmaps P4/P5, DEC-0087) -------------------
+# The MCP surface and project initialization call the domain through the typed
+# port `studio_api.services.roadmap_port`. Hydration and step linking live in
+# their own modules; these module-level functions expose them here with the
+# port's names. No business logic: pure delegation to the canonical services.
+
+
+async def preview_hydration(
+    session: AsyncSession, roadmap_id: uuid.UUID, payload: HydrationRequest
+) -> HydrationResult:
+    """Read-only hydration preview; see `roadmap_hydration.preview_hydration`."""
+    return await hydration_service.preview_hydration(session, roadmap_id, payload)
+
+
+async def apply_hydration(
+    session: AsyncSession,
+    principal: Principal,
+    roadmap_id: uuid.UUID,
+    payload: HydrationApplyRequest,
+) -> HydrationResult:
+    """Idempotent hydration apply; see `roadmap_hydration.apply_hydration`."""
+    return await hydration_service.apply_hydration(session, principal, roadmap_id, payload)
+
+
+async def link_task_by_step_key(
+    session: AsyncSession,
+    principal: Principal,
+    roadmap_id: uuid.UUID,
+    step_key: str,
+    task_id: uuid.UUID,
+) -> None:
+    """Link one Task to a step by key; re-linking is a no-op in `link_task`."""
+    from studio_api.services import roadmap_structure as structure_service
+
+    await structure_service.link_task(
+        session, principal, roadmap_id, step_key, LinkTask(task_id=task_id)
+    )
+
+
+async def update_step_progress(
+    session: AsyncSession,
+    principal: Principal,
+    roadmap_id: uuid.UUID,
+    step_key: str,
+    payload: StepProgressUpdate,
+    expected_version: int,
+) -> Roadmap:
+    """Bounded progress write; see `roadmap_structure.update_step_progress`."""
+    from studio_api.services import roadmap_structure as structure_service
+
+    return await structure_service.update_step_progress(
+        session, principal, roadmap_id, step_key, payload, expected_version
+    )

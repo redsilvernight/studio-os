@@ -1,5 +1,5 @@
 ---
-id: DEC-0086
+id: DEC-0087
 title: 'Roadmaps P4/P5 : surface MCP par intentions, initialisation de projet neutre à roadmap optionnelle'
 status: active
 date: '2026-09-20'
@@ -7,7 +7,7 @@ superseded_by: null
 source: docs/DECISIONS.md
 ---
 
-# DEC-0086 — Roadmaps P4/P5 : MCP et initialisation de projet
+# DEC-0087 — Roadmaps P4/P5 : MCP et initialisation de projet
 
 Réalise P4 (surface MCP) et P5 (initialisation de projet) de la roadmap
 Roadmaps, sur les contrats gelés par P1 (DEC-0085, `studio.roadmap/v1`).

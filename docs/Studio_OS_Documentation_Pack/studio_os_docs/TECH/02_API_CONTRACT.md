@@ -344,6 +344,37 @@ indicatifs jusqu'a P3 (toute rupture passe par reconciliation).
   phase, 300 etapes, 20 dependances et 20 taches prevues par etape, 500 taches
   prevues au total, metadonnees plates (20 cles, scalaires JSON, chaines 500).
 
+### Project initialization (Roadmaps P5, additif, DEC-0087) — contrat fige, routes implementees
+Contrat `studio.initialization/v1` (`ProjectInitializationPlan` +
+`ProjectInitializationRequest` dans `packages/studio-contracts/.../initialization.py`).
+Plan neutre : `project` (slug, name, description), `roadmap` **optionnelle**
+(`RoadmapDocument`), `tasks` (clefs locales, `roadmap_step_key` optionnel),
+`resources` (refs Library `kind`/`stable_key`/`scope`/`version`, `required`),
+`bindings` (niveau runtime persistant + cible Library + `RuntimeTarget`, jamais
+`session`). Aucun champ fournisseur/modele/harness ; `extra=forbid` ; roadmap
+absente = etat valide. Le serveur ne decide rien : il valide et applique.
+- Routes HTTP canoniques **implementees** (convergence P3/P5, meme service que
+  le MCP, DEC-0046) : `POST /projects/initialization/preview`
+  (`ProjectInitializationPlan`) -> `InitializationPreview` (aucune ecriture) ;
+  `POST /projects/initialization/apply` (`ProjectInitializationRequest`,
+  `Idempotency-Key`) -> `InitializationResult` (provenance derivee du
+  `Principal`, `origin` agent si role `agent` ou `agent_id` declare).
+- Resultat : `actions` (`section`, `key`, `create|reuse|skip`, `reason`) +
+  `summary` (`created/reused/skipped`) + `problems` + provenance derivee du
+  `Principal`.
+- Erreurs : `422 invalid_initialization` avec `problems` (liste structuree,
+  `blocking=true`) — tout probleme bloquant refuse l'apply avant ecriture ;
+  ressources optionnelles absentes -> `problems` non bloquants + `skip`.
+  `409 actor_not_owned` (`agent_id` declare non rattache a la machine).
+- Permissions : `ensure_can_write` ; creation du projet = `ensure_can_provision`
+  (`admin`/`developer`). Idempotence : `Idempotency-Key` + reutilisation par
+  slug/titre/clef.
+- Details, port `InitializationTarget` et convergence P3/P5 : DEC-0087
+  (adaptateurs `preview/apply_hydration` et `link_task_by_step_key` exposes par
+  `services.roadmaps`, `update_step_progress` avec `expected_version`,
+  variante F1 `add_task` utilisee par l'initialisation, verdict reel
+  `BINDING_INCOMPATIBLE` via `resolve_runtime`).
+
 ### Heartbeats
 - POST /heartbeats
 

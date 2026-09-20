@@ -1,4 +1,4 @@
-"""Project-initialization MCP tools (Roadmaps P5, DEC-0084/DEC-0086).
+"""Project-initialization MCP tools (Roadmaps P5, DEC-0084/DEC-0087).
 
 Two tools, one intention pair: show what a structured plan would do, then
 apply it. The server never invents the plan — the agent supplies it — and the

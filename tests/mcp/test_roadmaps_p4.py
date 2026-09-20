@@ -2,7 +2,7 @@
 
 Skipped until the P3 lane lands `studio_api.services.roadmaps`; the module
 import is guarded so the rest of the suite is unaffected before convergence.
-The tests pin the exact service interface the MCP tools expect (DEC-0086):
+The tests pin the exact service interface the MCP tools expect (DEC-0087):
 `list_roadmaps`, `get_roadmap`, `import_roadmap`, `preview_hydration`,
 `apply_hydration`, `update_step_progress`.
 """

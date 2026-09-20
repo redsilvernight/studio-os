@@ -1,4 +1,4 @@
-"""Project initialization service (Roadmaps P5, DEC-0084/DEC-0086).
+"""Project initialization service (Roadmaps P5, DEC-0084/DEC-0087).
 
 Studio OS never decides for the agent: this module takes a structured
 `ProjectInitializationPlan` and *reconciles* it with the current state —
@@ -495,12 +495,12 @@ class StudioServicesInitializationTarget:
     """Default adapter: reuses existing Studio OS services. `studio_api.services
     .roadmaps` (P3) is imported lazily so this lane builds and tests before P3
     lands; every call site documents the exact interface P3 must provide
-    (reconciliation notes in DEC-0086).
+    (reconciliation notes in DEC-0087).
 
-    Section writes commit through their own service (F1/DEC-0084 §1: the
-    additive no-commit variants are not available yet); apply remains
-    replay-safe because every creation is keyed and reused. Wiring the no-commit
-    variants into one transaction is a convergence item."""
+    Task creation uses the additive F1 no-commit variant (`add_task`,
+    DEC-0084 §1); the remaining section writes still commit through their own
+    service. Apply remains replay-safe because every creation is keyed and
+    reused; wiring every section into one transaction is a convergence item."""
 
     def __init__(self, session: AsyncSession, principal: Principal) -> None:
         self._session = session
@@ -554,7 +554,7 @@ class StudioServicesInitializationTarget:
         return {task.title: task.id for task in tasks}
 
     async def create_task(self, project_id: UUID, task: InitializationTask) -> UUID:
-        created = await tasks_service.create_task(
+        created = await tasks_service.add_task(
             self._session,
             self._principal,
             TaskCreate(project_id=project_id, title=task.title, description=task.description),
@@ -621,9 +621,21 @@ class StudioServicesInitializationTarget:
             )
         except HTTPException:
             return InitializationProblemCode.BINDING_TARGET_NOT_FOUND
-        # Runtime/machine compatibility is delegated to the resolution service
-        # at convergence; a target that cannot be checked is reported missing
-        # rather than silently accepted.
+        try:
+            verdict = await runtime_bindings_service.resolve_runtime(
+                self._session,
+                self._principal,
+                binding.target_kind,
+                binding.target_stable_key,
+                project_id=project_id,
+                session_overrides={
+                    (binding.target_kind, binding.target_stable_key): binding.target
+                },
+            )
+        except HTTPException:
+            return InitializationProblemCode.BINDING_TARGET_NOT_FOUND
+        if not verdict.compatible:
+            return InitializationProblemCode.BINDING_INCOMPATIBLE
         return None
 
     async def existing_binding_id(

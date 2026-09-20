@@ -1,4 +1,4 @@
-"""Roadmap MCP tools (Roadmaps P4, DEC-0084/DEC-0086).
+"""Roadmap MCP tools (Roadmaps P4, DEC-0084/DEC-0087).
 
 Five intention-sized tools — not one per HTTP route (DEC-0046): read the plan
 and the current position, propose a structured plan, preview then apply Task
@@ -8,7 +8,7 @@ cannot reach them from this surface.
 
 Every tool is a thin layer over the same P3 service functions the HTTP routes
 use. The concrete interface expected from `studio_api.services.roadmaps` is
-documented in DEC-0086; it is imported lazily so this surface builds and is
+documented in DEC-0087; it is imported lazily so this surface builds and is
 tested against the frozen P1 contracts before P3 lands.
 
 Absence of a Roadmap is a normal project state: `studio_get_roadmap` answers
@@ -61,7 +61,7 @@ MAX_UPCOMING_STEPS = 5
 def _roadmaps() -> RoadmapServicePort:
     """The P3 Roadmap service, imported lazily (see module docstring). The
     import is coerced to the typed port so this call site is checked against
-    the frozen interface (DEC-0086)."""
+    the frozen interface (DEC-0087)."""
     from importlib import import_module
 
     return cast(RoadmapServicePort, import_module("studio_api.services.roadmaps"))
@@ -197,8 +197,7 @@ async def studio_get_roadmap(
         active = None
         if active_summary is not None:
             detail = await _roadmaps().get_roadmap(session, active_summary.id)
-            if detail is not None:
-                active = _current_position(detail, bounded_chars)
+            active = _current_position(detail, bounded_chars)
         drafts = sum(
             1 for s in summaries if s.status in (RoadmapStatus.DRAFT, RoadmapStatus.PROPOSED)
         )
@@ -331,6 +330,7 @@ async def studio_apply_roadmap_hydration(
 async def studio_update_roadmap_step(
     roadmap_id: str,
     step_key: str,
+    expected_version: int,
     ctx: Context,
     state_override: str | None = None,
     clear_state_override: bool = False,
@@ -341,7 +341,8 @@ async def studio_update_roadmap_step(
 ) -> dict[str, Any]:
     """Push bounded step progress (manual override, notes, checked criteria)
     on a roadmap. Progress-type writes are applied directly, even for an agent:
-    they never change the plan's structure."""
+    they never change the plan's structure. `expected_version` is the step
+    version read beforehand — a stale version is refused, never overwritten."""
 
     async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed = parse_uuid(roadmap_id, "roadmap_id")
@@ -371,9 +372,20 @@ async def studio_update_roadmap_step(
             criteria_checked=criteria_checked,
             provenance=WriteProvenance(agent_id=parsed_agent),
         )
-        step = await _roadmaps().update_step_progress(
-            session, principal, parsed, step_key, progress
+        roadmap = await _roadmaps().update_step_progress(
+            session, principal, parsed, step_key, progress, expected_version
         )
-        return _compact_step(step, DEFAULT_MAX_CHARS)
+        updated = next(
+            (
+                candidate
+                for phase in roadmap.phases
+                for candidate in phase.steps
+                if candidate.key == step_key
+            ),
+            None,
+        )
+        if updated is None:
+            return {"error_code": "not_found", "message": f"unknown step: {step_key!r}"}
+        return _compact_step(updated, DEFAULT_MAX_CHARS)
 
     return await run_tool(ctx, _handler)

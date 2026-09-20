@@ -59,9 +59,10 @@ token (pas d'attaquant reseau).
 
 ## Etat reel (roadmap etape 5, DEC-0023, UC-3/DEC-0047, P8/DEC-0072)
 
-Le serveur VPS enregistre 35 outils (`services/mcp/src/studio_mcp/` : 29
+Le serveur VPS enregistre 42 outils (`services/mcp/src/studio_mcp/` : 29
 historiques + 5 AI Library P8, section ci-dessous, + `studio_prepare_context`,
-DEC-0080, section « Contexte projet borné »).
+DEC-0080, section « Contexte projet borné », + 7 outils Roadmaps P4/P5,
+DEC-0087, section « Roadmaps et initialisation via MCP »).
 Les 3 outils locaux read-only specifies ci-dessous (UC-3, exposition via
 MCP local par poste, DEC-0047) sont en place mais conditionnels au
 fichier de configuration du poste : `studio_memory_search`,
@@ -310,7 +311,7 @@ ephemere. Aucun outil MCP du VPS ne compose ni ne proxyfie le paquet ;
 aucune memoire privee ne transite. Exposition MCP differee (DEC-0057,
 variante c2), conditionnee a un besoin reel.
 
-## Roadmaps via MCP (P1, DEC-0084/DEC-0085) — inventaire cible, non implemente
+## Roadmaps via MCP (P1, DEC-0084/DEC-0085) — inventaire cible, partiellement implemente en P4 (voir ci-dessous)
 Outils par intention d'agent (implementation P4/P6, sur les memes services que
 l'API, DEC-0046), pas un outil par endpoint : lire le plan et la position
 courante ; proposer un plan (`RoadmapImport` avec `submit`) ; previsualiser puis
@@ -319,3 +320,37 @@ appliquer l'hydratation ; mettre a jour l'avancement d'une etape
 roadmap. `studio_prepare_context` recevra un champ optionnel additif `roadmap`
 (`RoadmapContext`, borne, absent sans roadmap `active`). Budgets et erreurs
 structurees comme les autres outils (DEC-0048, sans version par payload).
+
+## Roadmaps et initialisation via MCP (P4/P5, DEC-0087) — implementes
+Surface MCP implementee (35 -> 42 outils), sur les memes services que l'API
+(DEC-0046). Tout est derive des contrats P1 (`studio.roadmap/v1`) plus le
+nouveau contrat neutre `studio.initialization/v1`.
+- `studio_get_roadmap(project_id, status?, limit, max_chars)` — lecture :
+  synthese des roadmaps + phase/etape courante (premiere etape `available`),
+  prochaines etapes `available`, dependances bloquantes. Absence de roadmap =
+  liste vide + position nulle (etat normal). Textes tronques (`truncated`),
+  items bornes (`omitted_for_budget`).
+- `studio_propose_roadmap(project_id, document, submit?, idempotency_key?,
+  agent_id?)` — ecriture : cree un `draft`, ou le soumet `proposed` si
+  `submit`. Ne cree jamais de Task, n'active jamais.
+- `studio_preview_roadmap_hydration(roadmap_id, step_keys?, limit)` — lecture :
+  Tasks `create|reuse|skip` a venir, aucune ecriture ; `applicable=false` hors
+  roadmap `active`.
+- `studio_apply_roadmap_hydration(roadmap_id, expected_version, step_keys?,
+  idempotency_key?)` — ecriture : exige une roadmap `active` et la version lue
+  au preview ; rejeu d'une autre clef => `reuse` par `hydration_key`, jamais de
+  doublon.
+- `studio_update_roadmap_step(roadmap_id, step_key, expected_version, ...)` —
+  ecriture bornee (`state_override`, `clear_state_override`, notes,
+  `criteria_checked`), appliquee directement meme pour un agent (ne change pas
+  la structure) ; `expected_version` = version de l'etape lue au prealable
+  (concurrence, comme les routes).
+- `studio_preview_project_initialization(plan)` / `studio_apply_project_
+  initialization(plan, idempotency_key?, agent_id?)` — lecture/ecriture sur
+  `ProjectInitializationPlan` : projet, roadmap **optionnelle**, tasks,
+  ressources Library, bindings runtime. `apply` refuse avant toute ecriture si
+  un probleme est bloquant ; resume `created/reused/skipped` identique au
+  preview ; replays idempotents.
+Aucun de ces outils n'active, n'approuve, ne rejette ni n'archive une roadmap.
+Convergence P3/P5 : les outils appellent `studio_api.services.roadmaps` via
+`RoadmapServicePort` (adaptateurs sans logique dupliquee ; voir DEC-0087).

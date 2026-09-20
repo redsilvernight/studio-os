@@ -1,4 +1,4 @@
-"""Project initialization contracts (Roadmaps P5, DEC-0084/DEC-0086).
+"""Project initialization contracts (Roadmaps P5, DEC-0084/DEC-0087).
 
 A *project initialization* is a single, neutral, agent-authored plan that one
 human <-> agent alignment produces: the project itself, an **optional**

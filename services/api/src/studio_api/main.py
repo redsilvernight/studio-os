@@ -17,6 +17,7 @@ from studio_api.routers import (
     github,
     health,
     heartbeats,
+    initialization,
     library,
     machines,
     metrics,
@@ -152,6 +153,12 @@ OPENAPI_TAG_DESCRIPTIONS: dict[str, str] = {
         "export of the neutral `studio.roadmap/v1` document. No provider, model or "
         "harness concept and no server-side LLM."
     ),
+    "initialization": (
+        "Project initialization from a neutral `studio.initialization/v1` plan "
+        "(Roadmaps P5): preview what would be created/reused/skipped with no "
+        "side effect, then apply idempotently. The roadmap inside the plan is "
+        "optional; blocking problems refuse the apply before any write."
+    ),
 }
 
 
@@ -205,6 +212,7 @@ def create_app() -> FastAPI:
     app.include_router(machines.router)
     app.include_router(users.router)
     app.include_router(roadmaps.router)
+    app.include_router(initialization.router)
 
     return app
 
