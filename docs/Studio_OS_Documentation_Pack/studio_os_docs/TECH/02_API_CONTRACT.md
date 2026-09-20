@@ -407,7 +407,11 @@ absente = etat valide. Le serveur ne decide rien : il valide et applique.
 - Ordre d'application du `mode=proposed` (P10) : la roadmap est creee `draft`, les Tasks
   sont liees a leurs etapes, puis la roadmap est soumise (`submit`) — une roadmap
   `proposed` est gelee et refuse tout *nouveau* lien. Un lien deja present reste un no-op
-  meme sur une roadmap gelee : le rejeu d'un plan `proposed` ne echoue jamais sur ses liens.
+  meme sur une roadmap gelee : le rejeu d'un plan `proposed` n'echoue pas sur ses liens.
+  Observable : la sequence d'evenements est `roadmap.created`, un `roadmap.updated` par lien
+  cree, puis `roadmap.proposed` (dernier) ; `roadmap.version` = 1 + liens crees + 1 apres
+  l'apply. Chaque service commit seul (finding UoW) : une panne entre les liens et la
+  soumission laisse une roadmap `draft`, que le rejeu du meme plan soumet (no-op hors `draft`).
 - Details, port `InitializationTarget` et convergence P3/P5 : DEC-0087
   (adaptateurs `preview/apply_hydration` et `link_task_by_step_key` exposes par
   `services.roadmaps`, `update_step_progress` avec `expected_version`,

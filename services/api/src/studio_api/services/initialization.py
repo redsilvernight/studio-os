@@ -434,14 +434,15 @@ async def apply_initialization(
         project_id = await target.create_project(plan.project)
 
     roadmap_id = recon.roadmap_id
-    submit_after_links = False
     if plan.roadmap is not None and roadmap_id is None:
         # A `proposed` roadmap is frozen for review and refuses new Task links, so
         # it is created as a draft, linked, then submitted (DEC-0084 §5/§6).
         roadmap_id = await target.import_roadmap(
             project_id, plan.roadmap, submit=False, provenance=write_provenance
         )
-        submit_after_links = plan.mode.value == "proposed"
+    # `submit_roadmap` is a no-op outside `draft`, so a replay that finds the draft left
+    # by an interrupted apply completes the submission instead of leaving it unsubmitted.
+    submit_after_links = plan.mode.value == "proposed" and roadmap_id is not None
 
     task_ids: dict[str, UUID] = dict(recon.reused_task_ids)
     for task in plan.tasks:

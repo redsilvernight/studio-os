@@ -64,6 +64,29 @@ reproduisait pas la règle. Correctif minimal : importer en `draft`, lier, puis 
 `test_agent_initialization_is_a_proposal_a_human_validates`, unitaires
 (`tests/services/test_initialization_service.py`, fake désormais fidèle à la règle).
 
+Conséquences observables (relevées par `contract-guardian`) : la séquence d'événements
+d'un apply `proposed` devient `roadmap.created`, un `roadmap.updated` par lien, puis
+`roadmap.proposed` (dernier, payload inchangé) ; `roadmap.version` vaut 1 + liens + 1.
+Chaque service commit seul : une panne entre les liens et la soumission laisse un
+`draft`, que le rejeu du même plan soumet (le submit est un no-op hors `draft`). Test :
+`test_replay_completes_the_submission_an_interrupted_apply_left_as_draft`. Le finding UoW
+reste ouvert.
+
+## Défaut de déploiement corrigé
+
+L'image Docker du Dashboard ne se construisait pas : `dashboard/src/roadmapFixtures.ts`
+(P7/P9) importe `../../contracts/fixtures/*.json`, hors du contexte `dashboard/` copié par
+`docker/dashboard.Dockerfile` (`TS2307` à `npm run build`). Découvert au test de déploiement
+local ; le Dockerfile copie désormais `contracts/fixtures` à ce chemin relatif.
+
+Test de déploiement local (`docker/docker-compose.yml`, projet Compose isolé, images
+construites depuis le code final, base vierge, migrations Alembic `head`, ports loopback ;
+détruit après coup, la pile locale existante n'a pas été touchée) : santé API, Dashboard
+servi, 26 chemins Roadmap/initialisation publiés, 42 outils MCP dont les 7 outils Roadmap
+(aucun n'approuve), `studio_prepare_context` (section Roadmap, étape courante `S1`),
+`studio_get_roadmap`, initialisation `draft` et `proposed` avec Task liée, rejeu sans
+doublon. Le VPS public n'a pas été déployé.
+
 ## Export
 
 Inchangé : le PDF utilisateur est la vue d'impression A4 du navigateur (`window.print()`) ;

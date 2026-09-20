@@ -336,6 +336,23 @@ async def test_replaying_a_proposed_plan_never_relinks_a_frozen_roadmap() -> Non
     assert len(target.imported_roadmaps) == 1
 
 
+async def test_replay_completes_the_submission_an_interrupted_apply_left_as_draft() -> None:
+    target = FakeTarget()
+    plan = _plan(
+        mode="proposed",
+        roadmap=_roadmap_document(),
+        tasks=[{"key": "k", "title": "Kickoff", "roadmap_step_key": "P0.1"}],
+    )
+    await apply_initialization(target, plan, _principal())
+    for roadmap_id in target.statuses:  # simulate a crash between the links and the submit
+        target.statuses[roadmap_id] = "draft"
+    target.events.clear()
+    second = await apply_initialization(target, plan, _principal())
+    assert second.summary.created == 0
+    assert target.events == ["submit"]  # already linked, only the submission is completed
+    assert set(target.statuses.values()) == {"proposed"}
+
+
 async def test_binding_incompatibility_blocks_apply() -> None:
     target = FakeTarget()
     target.add_resource("agent_definition", "a", "studio")

@@ -22,5 +22,6 @@ P6 + P8. Aucun n'est corrigé ici. Source de vérité des décisions :
 | 15 | Provenance d'édition | La provenance d'une phase/étape/lien est celle de sa création ; « qui a modifié cette étape » se lit dans la révision approuvée (pas sur l'étape). | Exposer un `updated_by` par étape si l'UI en a besoin. |
 | 16 | E2E Dashboard sur pile réelle | Les specs Playwright utilisent l'API simulée (`page.route`) ; aucune spec navigateur ne tourne contre la pile Docker. | Une spec de fumée contre `docker compose` après le déploiement. |
 | 17 | Identité d'agent de P10 | Sans enregistrement MCP (finding 1), P10 réutilise l'agent de la convergence (`ef0a6e1d…`) au lieu d'une identité dédiée. | Voir finding 1. |
+| 18 | Concurrence d'initialisation | Deux `apply` d'initialisation simultanés du même plan ne sont pas testés (rejeu séquentiel seulement) ; la machine du relecteur n'est portée que par l'événement, pas par la révision. | Test de course sur connexions distinctes + éventuel `reviewed_by_machine_id` (avec le chantier UoW). |
 | 13 | E2E « 5 onglets » | L'onglet Roadmap (P7) porte le workspace projet à 6 onglets ; 4 tests Playwright UI-4/14/15 assertaient encore 5 (échecs déjà présents sur le master issu du merge P7/P9) : attentes mises à jour à 6 dans la convergence. | Ajouter l'onglet suivant = mettre à jour ces trois specs. |
 

@@ -590,6 +590,9 @@ async def test_provenance_survives_the_human_approval(
     assert approval.actor_id == developer.user_id
     proposal_event = [e for e in events if e.event_type == "roadmap.proposed"][-1]
     assert proposal_event.machine_id == agent.machine.id
+    assert proposal_event.actor_id == worker.id  # the declared agent, not the machine owner
+    assert proposal_event.payload["base_revision_no"] == base
+    assert approval.payload["base_revision_no"] == base and approval.payload["comment"] == "ok"
     # history keeps both: the baseline revision and the approved proposal
     kinds = (
         await db_session.execute(
