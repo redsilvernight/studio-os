@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime, timedelta
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.ai_work import AIWorkStatus
 from studio_contracts.decisions import DecisionStatus
@@ -15,8 +16,11 @@ from studio_contracts.review_queue import (
     ReviewQueueDecisionItem,
     ReviewQueueItem,
     ReviewQueuePRItem,
+    ReviewQueueRoadmapProposalItem,
 )
+from studio_contracts.roadmaps import RevisionKind, RevisionStatus, RoadmapStatus
 
+from studio_api.db.models.roadmap import RoadmapModel, RoadmapRevisionModel
 from studio_api.services import ai_work as ai_work_service
 from studio_api.services import decisions as decisions_service
 from studio_api.services import events as events_service
@@ -137,6 +141,63 @@ async def get_review_queue(
                 head_branch=str(event.payload.get("head_branch") or ""),
                 base_branch=str(event.payload.get("base_branch") or ""),
                 requested_at=event.server_timestamp,
+            )
+        )
+
+    roadmap_filter = [RoadmapModel.project_id == project_id] if project_id is not None else []
+    proposed_roadmaps = (
+        (
+            await session.execute(
+                select(RoadmapModel).where(
+                    RoadmapModel.status == RoadmapStatus.PROPOSED.value, *roadmap_filter
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for roadmap in proposed_roadmaps:
+        items.append(
+            ReviewQueueRoadmapProposalItem(
+                id=roadmap.id,
+                project_id=roadmap.project_id,
+                roadmap_id=roadmap.id,
+                title=roadmap.title,
+                scope="roadmap",
+                status=roadmap.status,
+                revision_no=roadmap.revision_no,
+                actor_type=roadmap.actor_type,
+                agent_id=roadmap.agent_id,
+                requested_at=roadmap.updated_at,
+            )
+        )
+
+    pending_revisions = (
+        await session.execute(
+            select(RoadmapRevisionModel, RoadmapModel)
+            .join(RoadmapModel, RoadmapRevisionModel.roadmap_id == RoadmapModel.id)
+            .where(
+                RoadmapRevisionModel.kind == RevisionKind.PROPOSAL.value,
+                RoadmapRevisionModel.status == RevisionStatus.PENDING.value,
+                *roadmap_filter,
+            )
+        )
+    ).all()
+    for revision, roadmap in pending_revisions:
+        items.append(
+            ReviewQueueRoadmapProposalItem(
+                id=revision.id,
+                project_id=roadmap.project_id,
+                roadmap_id=roadmap.id,
+                title=roadmap.title,
+                scope="revision",
+                status=roadmap.status,
+                revision_no=revision.revision_no,
+                base_revision_no=revision.base_revision_no,
+                summary=revision.summary,
+                actor_type=revision.actor_type,
+                agent_id=revision.agent_id,
+                requested_at=revision.created_at,
             )
         )
 

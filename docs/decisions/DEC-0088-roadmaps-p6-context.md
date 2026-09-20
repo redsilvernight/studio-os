@@ -1,7 +1,7 @@
 ---
 id: DEC-0088
 title: 'Roadmaps P6 : section Roadmap de studio_prepare_context, budgetée, optionnelle et neutre'
-status: proposed
+status: active
 date: '2026-09-20'
 superseded_by: null
 source: docs/DECISIONS.md
@@ -9,8 +9,10 @@ source: docs/DECISIONS.md
 
 # DEC-0088 — Roadmaps P6 : section Roadmap de `studio_prepare_context`
 
-Enregistrée côté serveur sous `DEC-0086` (`proposed`, compteur serveur distinct
-de la numérotation des fichiers) : à réconcilier à l'acceptation. Étend DEC-0080
+Enregistrée côté serveur sous `Decision.readable_id` `DEC-0086` (`proposed`) :
+ce compteur serveur n'est **pas synchronisé** avec les fiches du dépôt, qui
+restent l'historique architectural canonique (voir DEC-0089 §Numérotation).
+Étend DEC-0080
 (façade de lecture bornée) et réalise DEC-0084 §8 « Contexte (P6) ». Aucun
 contrat partagé, aucune migration, aucun endpoint HTTP, aucun `EventType`,
 aucune écriture.

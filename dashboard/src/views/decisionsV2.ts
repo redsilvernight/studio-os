@@ -60,6 +60,7 @@ export const REVIEW_KIND_LABEL: Record<ReviewQueueItem["kind"], string> = {
   resource_conflict: "Conflit de réservation",
   build_failure: "Échec de build",
   pr_ready: "PR ouverte",
+  roadmap_proposal: "Proposition de roadmap",
 };
 
 export const REVIEW_KIND_TONE: Record<ReviewQueueItem["kind"], "neutral" | "info" | "warning" | "danger" | "ai"> = {
@@ -68,6 +69,7 @@ export const REVIEW_KIND_TONE: Record<ReviewQueueItem["kind"], "neutral" | "info
   resource_conflict: "warning",
   build_failure: "danger",
   pr_ready: "info",
+  roadmap_proposal: "warning",
 };
 
 export const DECISION_STATUS_LABEL: Record<string, string> = {
@@ -101,6 +103,10 @@ export function reviewQueueItemDetail(item: ReviewQueueItem): string {
       return `${item.workflow_name} sur ${item.branch}`;
     case "pr_ready":
       return `PR #${item.pr_number} ${item.head_branch} → ${item.base_branch}`;
+    case "roadmap_proposal":
+      return item.scope === "revision"
+        ? `révision ${item.revision_no} de « ${item.title} »`
+        : `« ${item.title} » soumise pour validation`;
   }
 }
 
@@ -175,6 +181,9 @@ export function reviewItemHtml(item: ReviewQueueItem, authed: boolean): string {
         `<button class="ds-btn ds-btn--sm" type="button" data-review-changes="${esc(item.id)}" disabled>Demander des modifications</button>` +
         `</div>`;
     }
+  } else if (item.kind === "roadmap_proposal") {
+    actionsHtml = `<div class="review-actions" role="group" aria-label="Actions pour cette proposition de roadmap">` +
+      `<a class="ds-btn ds-btn--sm ds-btn--primary" href="#/projects/${esc(item.project_id)}/roadmap">Examiner dans Roadmap</a></div>`;
   } else {
     actionsHtml = `<span class="review-no-action ds-list-sub" aria-label="Aucune action disponible">Aucune action disponible dans cette interface</span>`;
   }

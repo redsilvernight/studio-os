@@ -83,6 +83,30 @@ describe("Roadmap workspace", () => {
     await vi.waitFor(() => expect(root.textContent).toContain("Active"));
   });
 
+  it("présente une proposition de révision IA (auteur, base, diff) et exige un commentaire pour la refuser", async () => {
+    const root = await render(roadmapFixtureProjectIds.active);
+    expect(root.querySelector(".roadmap-proposal-review")).not.toBeNull();
+    expect(root.textContent).toContain("Proposition à examiner");
+    expect(root.textContent).toContain("Clarifier la première étape");
+    expect(root.textContent).toContain("version de base");
+    expect(root.textContent).toContain("Modifications proposées");
+    expect(root.querySelectorAll("[data-proposal-review]")).toHaveLength(3);
+
+    (root.querySelector('[data-proposal-review="request_changes"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(root.textContent).toContain("Commentaire requis"));
+    expect(root.querySelector(".roadmap-proposal-review")).not.toBeNull();
+
+    (root.querySelector("[data-proposal-comment]") as HTMLTextAreaElement).value = "À revoir";
+    (root.querySelector('[data-proposal-review="request_changes"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(root.querySelector(".roadmap-proposal-review")).toBeNull());
+  });
+
+  it("approuve une proposition de révision et aligne la version approuvée", async () => {
+    const root = await render(roadmapFixtureProjectIds.active);
+    (root.querySelector('[data-proposal-review="approve"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(root.querySelector(".roadmap-proposal-review")).toBeNull());
+  });
+
   it("permet la création manuelle locale depuis un projet sans roadmap", async () => {
     const root = await render(roadmapFixtureProjectIds.noRoadmap);
     (root.querySelector("[data-create-roadmap]") as HTMLButtonElement).click();

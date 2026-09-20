@@ -28,8 +28,13 @@ from studio_contracts.roadmaps import (
     HydrationApplyRequest,
     HydrationRequest,
     HydrationResult,
+    ProposalCreate,
+    RevisionKind,
+    RevisionStatus,
     Roadmap,
     RoadmapImport,
+    RoadmapRevision,
+    RoadmapRevisionSummary,
     RoadmapStatus,
     RoadmapSummary,
     StepProgressUpdate,
@@ -85,3 +90,19 @@ class RoadmapServicePort(Protocol):
         step_key: str,
         task_id: UUID,
     ) -> None: ...
+
+    async def create_proposal(
+        self,
+        session: AsyncSession,
+        principal: Principal,
+        roadmap_id: UUID,
+        payload: ProposalCreate,
+    ) -> RoadmapRevision: ...
+
+    async def list_revisions(
+        self,
+        session: AsyncSession,
+        roadmap_id: UUID,
+        kind: RevisionKind | None = None,
+        revision_status: RevisionStatus | None = None,
+    ) -> list[RoadmapRevisionSummary]: ...

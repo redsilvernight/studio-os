@@ -7297,6 +7297,529 @@
     }
    }
   },
+  "/api/v1/roadmaps/{roadmap_id}/revisions": {
+   "get": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "List Revisions",
+    "description": "Revision history of a roadmap, newest first, without the (possibly large) neutral document. Optional `kind` (`proposal|snapshot|review`) and `status` (`pending|approved|changes_requested|rejected|superseded`) filters. Any authenticated machine may read.",
+    "operationId": "list_revisions_api_v1_roadmaps__roadmap_id__revisions_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "roadmap_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Roadmap Id"
+      }
+     },
+     {
+      "name": "kind",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "$ref": "#/components/schemas/RevisionKind"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Kind"
+      }
+     },
+     {
+      "name": "status",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "$ref": "#/components/schemas/RevisionStatus"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/RoadmapRevisionSummary"
+         },
+         "title": "Response List Revisions Api V1 Roadmaps  Roadmap Id  Revisions Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Errors use the platform envelope `{\"detail\": {\"error_code\": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "reference_not_found",
+          "message": "step P1.1"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/roadmaps/{roadmap_id}/revisions/{revision_no}": {
+   "get": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "Get Revision",
+    "description": "One revision, including its neutral `studio.roadmap/v1` document. Any authenticated machine may read.",
+    "operationId": "get_revision_api_v1_roadmaps__roadmap_id__revisions__revision_no__get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "roadmap_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Roadmap Id"
+      }
+     },
+     {
+      "name": "revision_no",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Revision No"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RoadmapRevision"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Errors use the platform envelope `{\"detail\": {\"error_code\": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "reference_not_found",
+          "message": "step P1.1"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/roadmaps/{roadmap_id}/proposals": {
+   "post": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "Create Proposal",
+    "description": "Propose a change to an `active` roadmap: records a pending `proposal` revision (`base_revision_no` is the revision the author read). The roadmap content is NOT modified \u2014 a proposal only becomes a mutation once a reviewer approves it. Requires a writer role; a superseded pending proposal is left as history. Accepts `Idempotency-Key`.",
+    "operationId": "create_proposal_api_v1_roadmaps__roadmap_id__proposals_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "roadmap_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Roadmap Id"
+      }
+     },
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ProposalCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RoadmapRevision"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Errors use the platform envelope `{\"detail\": {\"error_code\": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "reference_not_found",
+          "message": "step P1.1"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "`version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "`invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_roadmap",
+          "reason": "duplicate_step_key",
+          "field": "steps.P1.1"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/roadmaps/{roadmap_id}/proposals/{revision_no}/diff": {
+   "get": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "Proposal Diff",
+    "description": "Human-readable diff between the proposal's base revision and the proposal, matched by phase/step `key`. Computed at read time, never stored. Any authenticated machine may read.",
+    "operationId": "proposal_diff_api_v1_roadmaps__roadmap_id__proposals__revision_no__diff_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "roadmap_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Roadmap Id"
+      }
+     },
+     {
+      "name": "revision_no",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Revision No"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RoadmapDiff"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Errors use the platform envelope `{\"detail\": {\"error_code\": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "reference_not_found",
+          "message": "step P1.1"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/roadmaps/{roadmap_id}/proposals/{revision_no}/review": {
+   "post": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "Review Proposal",
+    "description": "Review a pending proposal (`admin`/`developer` only \u2014 an agent can never approve its own proposal). `approve` applies the proposal atomically by matching steps on `key` and answers the resulting roadmap; a roadmap whose approved revision moved since the proposal's base is `409 base_revision_stale` and the author must re-propose. `request_changes` and `reject` only record the review (`comment` required) and leave the roadmap untouched. `expected_version` is the roadmap version read before review.",
+    "operationId": "review_proposal_api_v1_roadmaps__roadmap_id__proposals__revision_no__review_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "roadmap_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Roadmap Id"
+      }
+     },
+     {
+      "name": "revision_no",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Revision No"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ProposalReview"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Roadmap"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Errors use the platform envelope `{\"detail\": {\"error_code\": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "reference_not_found",
+          "message": "step P1.1"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "`base_revision_stale` (the roadmap's approved revision moved since the proposal's base; carries `server_revision_no` \u2014 the author must re-propose), `version_conflict` (stale `expected_version`), `invalid_state` (the revision is not a pending proposal), `actor_not_owned`.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "base_revision_stale",
+          "server_revision_no": 2
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "`invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_roadmap",
+          "reason": "duplicate_step_key",
+          "field": "steps.P1.1"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/roadmaps/{roadmap_id}/phases": {
    "post": {
     "tags": [
@@ -8063,7 +8586,7 @@
      "roadmaps"
     ],
     "summary": "Update Step",
-    "description": "Edit a step's content. `If-Match-Version` = the step's version. On an `active` roadmap, a content change by an agent (role `agent`, declared `agent_id` or `origin=ai_proposal`) is refused with `409 invalid_state` (proposals are a later lot); a human change is applied and snapshotted. Editing `tasks` never touches existing Tasks or links; editing `acceptance_criteria` clears `criteria_checked`.",
+    "description": "Edit a step's content. `If-Match-Version` = the step's version. On an `active` roadmap, a content change by an agent (role `agent`, declared `agent_id` or `origin=ai_proposal`) is refused with `409 invalid_state` and must go through `POST /roadmaps/{roadmap_id}/proposals` instead, so it becomes a pending revision a human reviews; a human change is applied and snapshotted. Editing `tasks` never touches existing Tasks or links; editing `acceptance_criteria` clears `criteria_checked`.",
     "operationId": "update_step_api_v1_roadmaps__roadmap_id__steps__step_key__patch",
     "security": [
      {
@@ -10278,6 +10801,59 @@
     ],
     "title": "DependencyPin",
     "description": "A version-pinned reference to another library resource version.\n\n`relation` names the Library Binding type. When omitted it\nis inferred server-side from the unique matrix mapping for the\n`(source kind, target kind)` couple; an explicitly wrong relation for an\notherwise allowed couple is rejected with `422 invalid_binding`."
+   },
+   "DiffChange": {
+    "type": "string",
+    "enum": [
+     "added",
+     "removed",
+     "changed"
+    ],
+    "title": "DiffChange"
+   },
+   "DiffEntry": {
+    "properties": {
+     "scope": {
+      "type": "string",
+      "enum": [
+       "roadmap",
+       "phase",
+       "step",
+       "dependency",
+       "task_plan"
+      ],
+      "title": "Scope"
+     },
+     "key": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Key"
+     },
+     "change": {
+      "$ref": "#/components/schemas/DiffChange"
+     },
+     "fields": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Fields"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "scope",
+     "change"
+    ],
+    "title": "DiffEntry",
+    "description": "One line of the human-readable diff, computed at read time by matching\nphases/steps on `key`; never stored."
    },
    "DownloadUrlResponse": {
     "properties": {
@@ -12725,6 +13301,70 @@
     "title": "ProjectState",
     "description": "GET /projects/{id}/state \u2014 the aggregate view a client bootstraps from."
    },
+   "ProposalCreate": {
+    "properties": {
+     "base_revision_no": {
+      "type": "integer",
+      "title": "Base Revision No"
+     },
+     "document": {
+      "$ref": "#/components/schemas/RoadmapDocument"
+     },
+     "summary": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 2000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Summary"
+     },
+     "provenance": {
+      "$ref": "#/components/schemas/WriteProvenance"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "base_revision_no",
+     "document"
+    ],
+    "title": "ProposalCreate",
+    "description": "A structured change to an approved roadmap. `base_revision_no` is the\nrevision the author read; if it is no longer current when reviewed, the\napproval fails `409 base_revision_stale`."
+   },
+   "ProposalReview": {
+    "properties": {
+     "decision": {
+      "$ref": "#/components/schemas/ReviewDecision"
+     },
+     "expected_version": {
+      "type": "integer",
+      "title": "Expected Version"
+     },
+     "comment": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 2000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Comment"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "decision",
+     "expected_version"
+    ],
+    "title": "ProposalReview"
+   },
    "ProvenanceSource": {
     "type": "string",
     "enum": [
@@ -13266,6 +13906,15 @@
     ],
     "title": "ResourceType"
    },
+   "ReviewDecision": {
+    "type": "string",
+    "enum": [
+     "approve",
+     "request_changes",
+     "reject"
+    ],
+    "title": "ReviewDecision"
+   },
    "ReviewQueue": {
     "properties": {
      "items": {
@@ -13285,6 +13934,9 @@
         },
         {
          "$ref": "#/components/schemas/ReviewQueuePRItem"
+        },
+        {
+         "$ref": "#/components/schemas/ReviewQueueRoadmapProposalItem"
         }
        ],
        "discriminator": {
@@ -13294,7 +13946,8 @@
          "build_failure": "#/components/schemas/ReviewQueueBuildItem",
          "decision_proposal": "#/components/schemas/ReviewQueueDecisionItem",
          "pr_ready": "#/components/schemas/ReviewQueuePRItem",
-         "resource_conflict": "#/components/schemas/ReviewQueueConflictItem"
+         "resource_conflict": "#/components/schemas/ReviewQueueConflictItem",
+         "roadmap_proposal": "#/components/schemas/ReviewQueueRoadmapProposalItem"
         }
        }
       },
@@ -13637,6 +14290,148 @@
     "title": "ReviewQueuePRItem",
     "description": "`id` is the `git.pr.opened` event's `event_id` \u2014 a best-effort,\ntime-windowed signal (a PR opened long ago with no `git.pr.merged` ages\nout of the window), not a resolvable state."
    },
+   "ReviewQueueRoadmapProposalItem": {
+    "properties": {
+     "kind": {
+      "type": "string",
+      "const": "roadmap_proposal",
+      "title": "Kind",
+      "default": "roadmap_proposal"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "roadmap_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Roadmap Id"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "scope": {
+      "type": "string",
+      "enum": [
+       "roadmap",
+       "revision"
+      ],
+      "title": "Scope"
+     },
+     "status": {
+      "type": "string",
+      "title": "Status"
+     },
+     "revision_no": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Revision No"
+     },
+     "base_revision_no": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Base Revision No"
+     },
+     "summary": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Summary"
+     },
+     "actor_type": {
+      "type": "string",
+      "title": "Actor Type"
+     },
+     "agent_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Agent Id"
+     },
+     "requested_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Requested At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "project_id",
+     "roadmap_id",
+     "title",
+     "scope",
+     "status",
+     "actor_type",
+     "requested_at"
+    ],
+    "title": "ReviewQueueRoadmapProposalItem",
+    "description": "A roadmap change waiting on a human reviewer: either a whole roadmap\nsubmitted for its first validation (`scope=roadmap`, the roadmap is\n`proposed`) or a pending revision proposal against an already approved\nroadmap (`scope=revision`). Both are resolved on the Roadmap surface\n(`POST .../transitions` and `POST .../proposals/{n}/review`), not from this\nqueue: it stays a read-only view. `id` is the roadmap id for `roadmap` scope\nand the revision id for `revision`."
+   },
+   "RevisionKind": {
+    "type": "string",
+    "enum": [
+     "proposal",
+     "snapshot",
+     "review"
+    ],
+    "title": "RevisionKind"
+   },
+   "RevisionStatus": {
+    "type": "string",
+    "enum": [
+     "pending",
+     "approved",
+     "changes_requested",
+     "rejected",
+     "superseded"
+    ],
+    "title": "RevisionStatus",
+    "description": "Proposal revisions only; `snapshot`/`review` rows carry no status."
+   },
    "Roadmap": {
     "properties": {
      "created_at": {
@@ -13851,6 +14646,39 @@
     "title": "RoadmapCreate",
     "description": "Empty draft skeleton. A full plan goes through `RoadmapImport`."
    },
+   "RoadmapDiff": {
+    "properties": {
+     "base_revision_no": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Base Revision No"
+     },
+     "proposal_revision_no": {
+      "type": "integer",
+      "title": "Proposal Revision No"
+     },
+     "entries": {
+      "items": {
+       "$ref": "#/components/schemas/DiffEntry"
+      },
+      "type": "array",
+      "title": "Entries"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "base_revision_no",
+     "proposal_revision_no"
+    ],
+    "title": "RoadmapDiff"
+   },
    "RoadmapDocument": {
     "properties": {
      "format": {
@@ -13989,6 +14817,219 @@
     ],
     "title": "RoadmapOrigin",
     "description": "How content entered Studio OS. Self-declared by the writer: a workflow\nguard, not a security boundary; the boundary is the role."
+   },
+   "RoadmapRevision": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "roadmap_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Roadmap Id"
+     },
+     "revision_no": {
+      "type": "integer",
+      "title": "Revision No"
+     },
+     "kind": {
+      "$ref": "#/components/schemas/RevisionKind"
+     },
+     "status": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/RevisionStatus"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "base_revision_no": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Base Revision No"
+     },
+     "summary": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Summary"
+     },
+     "content": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/RoadmapDocument"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "provenance": {
+      "$ref": "#/components/schemas/studio_contracts__roadmaps__Provenance"
+     },
+     "reviewed_by_user_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reviewed By User Id"
+     },
+     "reviewed_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reviewed At"
+     },
+     "review_comment": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Review Comment"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "roadmap_id",
+     "revision_no",
+     "kind",
+     "provenance"
+    ],
+    "title": "RoadmapRevision"
+   },
+   "RoadmapRevisionSummary": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "roadmap_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Roadmap Id"
+     },
+     "revision_no": {
+      "type": "integer",
+      "title": "Revision No"
+     },
+     "kind": {
+      "$ref": "#/components/schemas/RevisionKind"
+     },
+     "status": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/RevisionStatus"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "base_revision_no": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Base Revision No"
+     },
+     "summary": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Summary"
+     },
+     "provenance": {
+      "$ref": "#/components/schemas/studio_contracts__roadmaps__Provenance"
+     },
+     "reviewed_by_user_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reviewed By User Id"
+     },
+     "reviewed_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reviewed At"
+     },
+     "review_comment": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Review Comment"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "roadmap_id",
+     "revision_no",
+     "kind",
+     "provenance"
+    ],
+    "title": "RoadmapRevisionSummary",
+    "description": "Revision history row without the (possibly large) neutral document:\nwhat a list of revisions returns. The full `RoadmapRevision` (with\n`content`) is what a single-revision read returns."
    },
    "RoadmapStatus": {
     "type": "string",

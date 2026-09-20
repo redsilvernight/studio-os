@@ -22,11 +22,19 @@ from studio_contracts.roadmaps import (
     HydrationRequest,
     HydrationResult,
     LinkTask,
+    ProposalCreate,
+    ProposalReview,
+    ReviewDecision,
+    RevisionKind,
+    RevisionStatus,
     Roadmap,
     RoadmapCreate,
+    RoadmapDiff,
     RoadmapDocument,
     RoadmapErrorCode,
     RoadmapImport,
+    RoadmapRevision,
+    RoadmapRevisionSummary,
     RoadmapStatus,
     RoadmapSummary,
     RoadmapTransition,
@@ -34,6 +42,7 @@ from studio_contracts.roadmaps import (
     StepProgressUpdate,
     TransitionRequest,
     WriteKind,
+    WriteProvenance,
     roadmap_document_errors,
     transition_requires_provision,
     transition_target,
@@ -56,25 +65,27 @@ from studio_api.services.roadmap_support import (
     build_document,
     build_summary,
     check_version,
+    compute_diff,
     content_changed,
     finish,
+    finish_result,
     guard_write,
     invalid_roadmap,
     invalid_state,
     load_tree,
     lock_roadmap,
+    next_revision_no,
     not_found,
     read_roadmap,
+    reconcile_document,
     record_snapshot,
     reference_not_found,
     resolve_provenance,
+    revision_summary_view,
+    revision_view,
     roadmap_error,
+    text_or_none,
 )
-
-
-def text_or_none(value: str | None) -> str | None:
-    """PATCH semantics of P1: an empty string clears an optional text field."""
-    return value or None
 
 
 async def _require_project(session: AsyncSession, project_id: uuid.UUID) -> ProjectModel:
@@ -287,14 +298,15 @@ async def _submit(
     session: AsyncSession, roadmap: RoadmapModel, prov: ResolvedProvenance
 ) -> PendingEvent:
     """`draft -> proposed`: the content is frozen as a `proposal` revision."""
-    roadmap.revision_no += 1
+    revision_no = await next_revision_no(session, roadmap)
+    roadmap.revision_no = revision_no
     document = build_document(await load_tree(session, roadmap))
     add_revision(
         session,
         roadmap,
         prov,
         kind="proposal",
-        revision_no=roadmap.revision_no,
+        revision_no=revision_no,
         document=document,
         status_value="pending",
         base_revision_no=roadmap.approved_revision_no,
@@ -444,6 +456,218 @@ async def transition_roadmap(
                 )
             )
     return await finish(session, principal, roadmap, prov, pending)
+
+
+# --- revisions and proposals (Roadmaps P8, DEC-0084 §6/DEC-0085) ---------------
+async def _revision_row(
+    session: AsyncSession, roadmap_id: uuid.UUID, revision_no: int
+) -> RoadmapRevisionModel | None:
+    result = await session.execute(
+        select(RoadmapRevisionModel)
+        .where(
+            RoadmapRevisionModel.roadmap_id == roadmap_id,
+            RoadmapRevisionModel.revision_no == revision_no,
+        )
+        .order_by(RoadmapRevisionModel.kind)
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def _proposal_row(
+    session: AsyncSession, roadmap_id: uuid.UUID, revision_no: int
+) -> RoadmapRevisionModel | None:
+    result = await session.execute(
+        select(RoadmapRevisionModel).where(
+            RoadmapRevisionModel.roadmap_id == roadmap_id,
+            RoadmapRevisionModel.revision_no == revision_no,
+            RoadmapRevisionModel.kind == RevisionKind.PROPOSAL.value,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+def _revision_provenance(revision: RoadmapRevisionModel) -> ResolvedProvenance:
+    return ResolvedProvenance(
+        revision.origin,
+        revision.actor_type,
+        revision.actor_id,
+        revision.agent_id,
+        revision.machine_id,
+    )
+
+
+async def list_revisions(
+    session: AsyncSession,
+    roadmap_id: uuid.UUID,
+    kind: RevisionKind | None = None,
+    revision_status: RevisionStatus | None = None,
+) -> list[RoadmapRevisionSummary]:
+    """Revision history, newest first; content is omitted (see `get_revision`)."""
+    if await session.get(RoadmapModel, roadmap_id) is None:
+        raise not_found()
+    stmt = (
+        select(RoadmapRevisionModel)
+        .where(RoadmapRevisionModel.roadmap_id == roadmap_id)
+        .order_by(RoadmapRevisionModel.revision_no.desc())
+    )
+    if kind is not None:
+        stmt = stmt.where(RoadmapRevisionModel.kind == kind.value)
+    if revision_status is not None:
+        stmt = stmt.where(RoadmapRevisionModel.status == revision_status.value)
+    rows = (await session.execute(stmt)).scalars().all()
+    return [revision_summary_view(row) for row in rows]
+
+
+async def get_revision(
+    session: AsyncSession, roadmap_id: uuid.UUID, revision_no: int
+) -> RoadmapRevision:
+    if await session.get(RoadmapModel, roadmap_id) is None:
+        raise not_found()
+    row = await _revision_row(session, roadmap_id, revision_no)
+    if row is None:
+        raise reference_not_found("revision")
+    return revision_view(row)
+
+
+async def create_proposal(
+    session: AsyncSession, principal: Principal, roadmap_id: uuid.UUID, payload: ProposalCreate
+) -> RoadmapRevision:
+    """Record a pending `proposal` revision against an `active` roadmap. The
+    roadmap content is untouched (a proposal is not a mutation until approved);
+    a previous pending proposal is superseded. Any writer may propose; only a
+    reviewer may approve (see `review_proposal`)."""
+    roadmap = await lock_roadmap(session, roadmap_id)
+    guard_write(principal, roadmap, WriteKind.PROPOSAL, payload.provenance)
+    prov = await resolve_provenance(session, principal, payload.provenance)
+    errors = roadmap_document_errors(payload.document)
+    if errors:
+        raise invalid_roadmap(errors[0]["reason"], errors[0]["field"])
+    pending = (
+        (
+            await session.execute(
+                select(RoadmapRevisionModel).where(
+                    RoadmapRevisionModel.roadmap_id == roadmap.id,
+                    RoadmapRevisionModel.kind == RevisionKind.PROPOSAL.value,
+                    RoadmapRevisionModel.status == RevisionStatus.PENDING.value,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for previous in pending:
+        previous.status = RevisionStatus.SUPERSEDED.value
+    revision = add_revision(
+        session,
+        roadmap,
+        prov,
+        kind=RevisionKind.PROPOSAL.value,
+        revision_no=await next_revision_no(session, roadmap),
+        document=payload.document,
+        status_value=RevisionStatus.PENDING.value,
+        base_revision_no=payload.base_revision_no,
+        summary=payload.summary,
+    )
+    event = PendingEvent(
+        EventType.ROADMAP_PROPOSED,
+        {
+            "roadmap_id": str(roadmap.id),
+            "revision_no": revision.revision_no,
+            "base_revision_no": payload.base_revision_no,
+            "status": roadmap.status,
+            "scope": "revision",
+        },
+    )
+    await finish_result(session, principal, roadmap, prov, [event])
+    await session.refresh(revision)
+    return revision_view(revision)
+
+
+async def proposal_diff(
+    session: AsyncSession, roadmap_id: uuid.UUID, revision_no: int
+) -> RoadmapDiff:
+    """Diff between the proposal's base revision and the proposal, by `key`
+    (P8.3). Computed at read time; never stored."""
+    if await session.get(RoadmapModel, roadmap_id) is None:
+        raise not_found()
+    revision = await _proposal_row(session, roadmap_id, revision_no)
+    if revision is None:
+        raise reference_not_found("revision")
+    base_document: RoadmapDocument | None = None
+    if revision.base_revision_no is not None:
+        base_row = await _revision_row(session, roadmap_id, revision.base_revision_no)
+        if base_row is not None and base_row.content is not None:
+            base_document = RoadmapDocument.model_validate(base_row.content)
+    return RoadmapDiff(
+        base_revision_no=revision.base_revision_no,
+        proposal_revision_no=revision.revision_no,
+        entries=compute_diff(base_document, RoadmapDocument.model_validate(revision.content)),
+    )
+
+
+async def review_proposal(
+    session: AsyncSession,
+    principal: Principal,
+    roadmap_id: uuid.UUID,
+    revision_no: int,
+    payload: ProposalReview,
+) -> Roadmap:
+    """Approve / request changes / reject a pending proposal (`admin`/`developer`
+    only). Approval applies the proposal atomically by matching steps on `key`;
+    a base revision that moved meanwhile is `409 base_revision_stale` and the
+    agent must re-propose (P8.6). The other decisions only record the review."""
+    roadmap = await lock_roadmap(session, roadmap_id)
+    ensure_can_write(principal, "roadmap")
+    ensure_can_provision(principal, "roadmap")
+    revision = await _proposal_row(session, roadmap_id, revision_no)
+    if revision is None:
+        raise reference_not_found("revision")
+    current = RoadmapStatus(roadmap.status)
+    if current is not RoadmapStatus.ACTIVE:
+        raise invalid_state(current, "a proposal can only be reviewed while the roadmap is active")
+    if revision.status != RevisionStatus.PENDING.value:
+        raise invalid_state(current, f"proposal {revision_no} is {revision.status}, not pending")
+    check_version(roadmap.version, payload.expected_version)
+    prov = await resolve_provenance(session, principal, WriteProvenance())
+    if payload.decision is ReviewDecision.APPROVE:
+        if revision.base_revision_no != roadmap.approved_revision_no:
+            raise roadmap_error(
+                status.HTTP_409_CONFLICT,
+                RoadmapErrorCode.BASE_REVISION_STALE,
+                server_revision_no=roadmap.approved_revision_no,
+            )
+        tree = await load_tree(session, roadmap)
+        await reconcile_document(
+            session,
+            tree,
+            RoadmapDocument.model_validate(revision.content),
+            _revision_provenance(revision),
+        )
+        roadmap.version += 1
+        roadmap.revision_no = revision.revision_no
+        roadmap.approved_revision_no = revision.revision_no
+        revision.status = RevisionStatus.APPROVED.value
+        event_type = EventType.ROADMAP_APPROVED
+    elif payload.decision is ReviewDecision.REQUEST_CHANGES:
+        revision.status = RevisionStatus.CHANGES_REQUESTED.value
+        event_type = EventType.ROADMAP_CHANGES_REQUESTED
+    else:
+        revision.status = RevisionStatus.REJECTED.value
+        event_type = EventType.ROADMAP_REJECTED
+    revision.reviewed_by_user_id = principal.user.id
+    revision.reviewed_at = datetime.now(UTC)
+    revision.review_comment = payload.comment
+    body: dict[str, object] = {
+        "roadmap_id": str(roadmap.id),
+        "revision_no": revision.revision_no,
+        "base_revision_no": revision.base_revision_no,
+        "status": roadmap.status,
+        "scope": "revision",
+    }
+    if payload.comment:
+        body["comment"] = payload.comment
+    return await finish(session, principal, roadmap, prov, [PendingEvent(event_type, body)])
 
 
 # --- RoadmapServicePort adapters (Roadmaps P4/P5, DEC-0087) -------------------

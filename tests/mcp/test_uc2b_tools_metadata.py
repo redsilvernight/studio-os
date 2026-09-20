@@ -162,6 +162,21 @@ def test_event_identity_rules_without_internal_docs(tools: list[Tool]) -> None:
         assert fragment in description
 
 
+def test_roadmap_proposal_surface_stays_minimal_and_human_gated(tools: list[Tool]) -> None:
+    by_name = _by_name(tools)
+    schema = by_name["studio_propose_roadmap"].input_schema
+    assert "roadmap_id" in schema["properties"]
+    assert "base_revision_no" in schema["properties"]
+    assert "roadmap_id" not in schema.get("required", [])
+    # an agent can propose but never approve/review/reject from MCP
+    assert [
+        name
+        for name in by_name
+        if "roadmap" in name
+        and (any(word in name for word in ("approve", "reject")) or "_review" in name)
+    ] == []
+
+
 def test_http_fallback_pointers_where_transport_is_partial(tools: list[Tool]) -> None:
     by_name = _by_name(tools)
     assert "POST /api/v1/agents" in (by_name["studio_log_ai_work"].description or "")

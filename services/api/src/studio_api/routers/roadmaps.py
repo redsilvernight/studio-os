@@ -21,11 +21,18 @@ from studio_contracts.roadmaps import (
     LinkTask,
     PhaseCreate,
     PhaseUpdate,
+    ProposalCreate,
+    ProposalReview,
     Reorder,
+    RevisionKind,
+    RevisionStatus,
     Roadmap,
     RoadmapCreate,
+    RoadmapDiff,
     RoadmapDocument,
     RoadmapImport,
+    RoadmapRevision,
+    RoadmapRevisionSummary,
     RoadmapStatus,
     RoadmapSummary,
     RoadmapUpdate,
@@ -104,12 +111,31 @@ RESP_422 = _resp(
     reason="duplicate_step_key",
     field="steps.P1.1",
 )
+RESP_409_REVIEW = merge_status(
+    409,
+    _resp(
+        409,
+        "`base_revision_stale` (the roadmap's approved revision moved since the proposal's "
+        "base; carries `server_revision_no` — the author must re-propose), `version_conflict` "
+        "(stale `expected_version`), `invalid_state` (the revision is not a pending proposal), "
+        "`actor_not_owned`.",
+        "base_revision_stale",
+        server_revision_no=2,
+    ),
+)
 _READ: ErrorResponses = {**RESP_401_UNAUTHORIZED, **RESP_404}
 _WRITE: ErrorResponses = {
     **RESP_401_UNAUTHORIZED,
     **RESP_403_FORBIDDEN,
     **RESP_404,
     **RESP_409_WRITE,
+    **RESP_422,
+}
+_REVIEW: ErrorResponses = {
+    **RESP_401_UNAUTHORIZED,
+    **RESP_403_FORBIDDEN,
+    **RESP_404,
+    **RESP_409_REVIEW,
     **RESP_422,
 }
 
@@ -281,6 +307,116 @@ async def export_roadmap(
     return await roadmaps_service.export_roadmap(session, roadmap_id)
 
 
+# --- revisions and proposals ---
+@router.get(
+    "/roadmaps/{roadmap_id}/revisions",
+    response_model=list[RoadmapRevisionSummary],
+    description=(
+        "Revision history of a roadmap, newest first, without the (possibly large) neutral "
+        "document. Optional `kind` (`proposal|snapshot|review`) and `status` "
+        "(`pending|approved|changes_requested|rejected|superseded`) filters. Any authenticated "
+        "machine may read."
+    ),
+    responses=_READ,
+)
+async def list_revisions(
+    roadmap_id: UUID,
+    session: DbSession,
+    machine: CurrentMachine,
+    kind: RevisionKind | None = Query(default=None),
+    revision_status: RevisionStatus | None = Query(default=None, alias="status"),
+) -> list[RoadmapRevisionSummary]:
+    return await roadmaps_service.list_revisions(session, roadmap_id, kind, revision_status)
+
+
+@router.get(
+    "/roadmaps/{roadmap_id}/revisions/{revision_no}",
+    response_model=RoadmapRevision,
+    description=(
+        "One revision, including its neutral `studio.roadmap/v1` document. Any authenticated "
+        "machine may read."
+    ),
+    responses=_READ,
+)
+async def get_revision(
+    roadmap_id: UUID, revision_no: int, session: DbSession, machine: CurrentMachine
+) -> RoadmapRevision:
+    return await roadmaps_service.get_revision(session, roadmap_id, revision_no)
+
+
+@router.post(
+    "/roadmaps/{roadmap_id}/proposals",
+    response_model=RoadmapRevision,
+    status_code=status.HTTP_201_CREATED,
+    description=(
+        "Propose a change to an `active` roadmap: records a pending `proposal` revision "
+        "(`base_revision_no` is the revision the author read). The roadmap content is NOT "
+        "modified — a proposal only becomes a mutation once a reviewer approves it. Requires a "
+        "writer role; a superseded pending proposal is left as history. Accepts "
+        "`Idempotency-Key`."
+    ),
+    responses=_WRITE,
+)
+async def create_proposal(
+    roadmap_id: UUID,
+    payload: ProposalCreate,
+    request: Request,
+    session: DbSession,
+    principal: CurrentPrincipal,
+    idempotency_key: str | None = IdempotencyKey,
+) -> RoadmapRevision:
+    return await idempotency_service.run_idempotent(
+        session,
+        request,
+        idempotency_key,
+        f"POST /roadmaps/{roadmap_id}/proposals",
+        RoadmapRevision,
+        lambda: roadmaps_service.create_proposal(session, principal, roadmap_id, payload),
+        status.HTTP_201_CREATED,
+    )
+
+
+@router.get(
+    "/roadmaps/{roadmap_id}/proposals/{revision_no}/diff",
+    response_model=RoadmapDiff,
+    description=(
+        "Human-readable diff between the proposal's base revision and the proposal, matched by "
+        "phase/step `key`. Computed at read time, never stored. Any authenticated machine may "
+        "read."
+    ),
+    responses=_READ,
+)
+async def proposal_diff(
+    roadmap_id: UUID, revision_no: int, session: DbSession, machine: CurrentMachine
+) -> RoadmapDiff:
+    return await roadmaps_service.proposal_diff(session, roadmap_id, revision_no)
+
+
+@router.post(
+    "/roadmaps/{roadmap_id}/proposals/{revision_no}/review",
+    response_model=Roadmap,
+    description=(
+        "Review a pending proposal (`admin`/`developer` only — an agent can never approve its "
+        "own proposal). `approve` applies the proposal atomically by matching steps on `key` "
+        "and answers the resulting roadmap; a roadmap whose approved revision moved since the "
+        "proposal's base is `409 base_revision_stale` and the author must re-propose. "
+        "`request_changes` and `reject` only record the review (`comment` required) and leave "
+        "the roadmap untouched. `expected_version` is the roadmap version read before review."
+    ),
+    responses=_REVIEW,
+)
+async def review_proposal(
+    roadmap_id: UUID,
+    revision_no: int,
+    payload: ProposalReview,
+    session: DbSession,
+    principal: CurrentPrincipal,
+) -> Roadmap:
+    return await roadmaps_service.review_proposal(
+        session, principal, roadmap_id, revision_no, payload
+    )
+
+
 # --- phases ---
 @router.post(
     "/roadmaps/{roadmap_id}/phases",
@@ -424,9 +560,11 @@ async def create_step(
     description=(
         "Edit a step's content. `If-Match-Version` = the step's version. On an `active` "
         "roadmap, a content change by an agent (role `agent`, declared `agent_id` or "
-        "`origin=ai_proposal`) is refused with `409 invalid_state` (proposals are a later "
-        "lot); a human change is applied and snapshotted. Editing `tasks` never touches "
-        "existing Tasks or links; editing `acceptance_criteria` clears `criteria_checked`."
+        "`origin=ai_proposal`) is refused with `409 invalid_state` and must go through "
+        "`POST /roadmaps/{roadmap_id}/proposals` instead, so it becomes a pending revision a "
+        "human reviews; a human change is applied and snapshotted. Editing `tasks` never "
+        "touches existing Tasks or links; editing `acceptance_criteria` clears "
+        "`criteria_checked`."
     ),
     responses=_WRITE,
 )

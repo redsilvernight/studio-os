@@ -168,6 +168,52 @@ async function openRoadmap(page: Page, projectId: string): Promise<void> {
     if (entry !== undefined) served.set(entry[0], transitioned);
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(transitioned) });
   });
+  // P8: pending revision proposal on the active roadmap, with its diff.
+  let pendingRevision = projectId === roadmapFixtureProjectIds.active;
+  const revision = {
+    id: "rev-1",
+    roadmap_id: "r-active",
+    revision_no: 3,
+    kind: "proposal",
+    status: "pending",
+    base_revision_no: 1,
+    summary: "Clarifier les sons",
+    provenance: {
+      origin: "ai_proposal",
+      actor_type: "agent",
+      actor_id: "agent-1",
+      agent_id: "agent-1",
+      machine_id: null,
+      at: "2026-09-20T11:00:00Z",
+    },
+    reviewed_by_user_id: null,
+    reviewed_at: null,
+    review_comment: null,
+  };
+  const diff = {
+    base_revision_no: 1,
+    proposal_revision_no: 3,
+    entries: [{ scope: "step", key: "P1.2", change: "changed", fields: ["title"] }],
+  };
+  await page.route(new RegExp("/api/v1/roadmaps/[^/]+/revisions"), (route) => {
+    const roadmapId = route.request().url().split("/").slice(-2, -1)[0] ?? "";
+    const body = pendingRevision && roadmapId === "r-active" ? [revision] : [];
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+  });
+  await page.route(new RegExp("/api/v1/roadmaps/[^/]+/proposals/[^/]+/diff"), (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(diff) }),
+  );
+  await page.route(new RegExp("/api/v1/roadmaps/[^/]+/proposals/[^/]+/review"), async (route) => {
+    pendingRevision = false;
+    const current = served.get(projectId);
+    const updated: ApiRoadmap = {
+      ...(current ?? makeRoadmap(projectId, "r-active", "active")),
+      revision_no: 3,
+      approved_revision_no: 3,
+    };
+    served.set(projectId, updated);
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(updated) });
+  });
   await go(page, `#/projects/${projectId}/roadmap`);
   await expect(page.locator("#workspace-panel")).toBeVisible();
 }
@@ -200,6 +246,19 @@ test.describe("Roadmap workspace", () => {
     await expect(page.getByText("Tâches prévues")).toBeVisible();
     await page.getByRole("button", { name: "Approuver" }).click();
     await expect(page.locator("span.ds-badge", { hasText: "Active" })).toBeVisible();
+    await expect(page.getByText("Décision enregistrée.")).toBeVisible();
+  });
+
+  test("proposition de révision IA : diff, commentaire obligatoire, décision", async ({ page }) => {
+    await openRoadmap(page, roadmapFixtureProjectIds.active);
+    await expect(page.locator(".roadmap-proposal-review")).toBeVisible();
+    await expect(page.getByText("Clarifier les sons")).toBeVisible();
+    await expect(page.getByText("Modifications proposées")).toBeVisible();
+    await page.getByRole("button", { name: "Demander des changements" }).click();
+    await expect(page.getByText("Commentaire requis")).toBeVisible();
+    await page.locator("[data-proposal-comment]").fill("Pas encore prêt");
+    await page.getByRole("button", { name: "Demander des changements" }).click();
+    await expect(page.locator(".roadmap-proposal-review")).toHaveCount(0);
     await expect(page.getByText("Décision enregistrée.")).toBeVisible();
   });
 

@@ -165,6 +165,90 @@ describe("createApiRoadmapDataSource.replaceDocument", () => {
   });
 });
 
+const REVISION = {
+  id: "rev3",
+  roadmap_id: "r1",
+  revision_no: 3,
+  kind: "proposal",
+  status: "pending",
+  base_revision_no: 1,
+  summary: "Clarifier",
+  provenance: {
+    origin: "ai_proposal",
+    actor_type: "agent",
+    actor_id: "a1",
+    agent_id: "a1",
+    machine_id: "m1",
+    at: "2026-01-01T00:00:00+00:00",
+  },
+  reviewed_by_user_id: null,
+  reviewed_at: null,
+  review_comment: null,
+};
+
+const DIFF = {
+  base_revision_no: 1,
+  proposal_revision_no: 3,
+  entries: [{ scope: "step", key: "P0.1", change: "changed", fields: ["title"] }],
+};
+
+describe("createApiRoadmapDataSource.loadPendingProposal", () => {
+  it("answers null without an active roadmap", async () => {
+    const GET = vi.fn().mockResolvedValue(ok([{ ...SUMMARY, status: "draft" }]));
+    const source = createApiRoadmapDataSource(fakeClient({ ...emptyFake(), GET }));
+    await expect(source.loadPendingProposal("p1")).resolves.toBeNull();
+    expect(GET).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads the pending revision and its diff by key", async () => {
+    const GET = vi
+      .fn()
+      .mockResolvedValueOnce(ok([SUMMARY]))
+      .mockResolvedValueOnce(ok([REVISION]))
+      .mockResolvedValueOnce(ok(DETAIL))
+      .mockResolvedValueOnce(ok(DIFF));
+    const source = createApiRoadmapDataSource(fakeClient({ ...emptyFake(), GET }));
+    const proposal = await source.loadPendingProposal("p1");
+    expect(proposal?.revision.revision_no).toBe(3);
+    expect(proposal?.roadmapVersion).toBe(7);
+    expect(proposal?.diff.entries[0]).toMatchObject({ key: "P0.1", change: "changed" });
+    expect(GET).toHaveBeenCalledWith("/api/v1/roadmaps/{roadmap_id}/revisions", {
+      params: { path: { roadmap_id: "r1" }, query: { kind: "proposal", status: "pending" } },
+    });
+    expect(GET).toHaveBeenCalledWith(
+      "/api/v1/roadmaps/{roadmap_id}/proposals/{revision_no}/diff",
+      { params: { path: { roadmap_id: "r1", revision_no: 3 } } },
+    );
+  });
+});
+
+describe("createApiRoadmapDataSource.reviewProposalRevision", () => {
+  it("reviews with the roadmap version just read", async () => {
+    const GET = vi.fn().mockResolvedValueOnce(ok([SUMMARY])).mockResolvedValueOnce(ok(DETAIL));
+    const POST = vi
+      .fn()
+      .mockResolvedValue(ok({ ...DETAIL, revision_no: 3, approved_revision_no: 3 }));
+    const source = createApiRoadmapDataSource(fakeClient({ ...emptyFake(), GET, POST }));
+    const roadmap = await source.reviewProposalRevision("p1", 3, "approve");
+    expect(roadmap?.approved_revision_no).toBe(3);
+    expect(POST).toHaveBeenCalledWith(
+      "/api/v1/roadmaps/{roadmap_id}/proposals/{revision_no}/review",
+      expect.objectContaining({
+        params: { path: { roadmap_id: "r1", revision_no: 3 } },
+        body: expect.objectContaining({ decision: "approve", expected_version: 7 }),
+      }),
+    );
+  });
+
+  it("passes the comment through and answers null without an active roadmap", async () => {
+    const GET = vi.fn().mockResolvedValue(ok([{ ...SUMMARY, status: "draft" }]));
+    const POST = vi.fn();
+    const source = createApiRoadmapDataSource(fakeClient({ ...emptyFake(), GET, POST }));
+    await expect(source.reviewProposalRevision("p1", 3, "reject", "Hors périmètre")).resolves.toBeNull();
+    expect(POST).not.toHaveBeenCalled();
+  });
+});
+
 describe("createApiRoadmapDataSource.reviewProposal", () => {
   it("answers null when nothing is proposed", async () => {
     const GET = vi.fn().mockResolvedValue(ok([SUMMARY]));
