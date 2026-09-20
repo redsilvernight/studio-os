@@ -1,7 +1,7 @@
 ---
 id: DEC-0093
 title: 'Desktop P1 : contrats locaux studio.local/v1, bridge à allowlist fermée, fixtures partagées'
-status: proposed
+status: active
 date: '2026-09-20'
 superseded_by: null
 source: docs/decisions/DEC-0093-desktop-p1-contrats-locaux-studio-local-v1.md
@@ -9,10 +9,10 @@ source: docs/decisions/DEC-0093-desktop-p1-contrats-locaux-studio-local-v1.md
 
 # DEC-0093 — Desktop P1: local contracts `studio.local/v1`
 
-Status: **proposed** (awaiting human validation; not accepted)
+Status: **accepted** (human validation 2026-09-20)
 Date: 2026-09-20
 Task: `[Desktop P1] Contrats locaux & architecture client`
-Server decision UUID: `799cc332-8431-4438-9dbc-1d2045e6974d` (readable ID `DEC-0093`, status `proposed`)
+Server decision UUID: `799cc332-8431-4438-9dbc-1d2045e6974d` (readable ID `DEC-0093`, status `accepted`)
 
 ## Context
 
@@ -69,6 +69,21 @@ vendor. No server contract changes; nothing in P2+ is implemented.
   selection), enforced by the request contract; a stable config keeps none. P2+
   must issue the id and check `current_roots` against the stored config.
 - Publishing shared summaries needs a server contract that P1 does not create.
+
+## Human validation (2026-09-20)
+
+- Accepted on substance; `studio.local/v1` is the common contract baseline for
+  P2-P10. Compatible additive evolutions follow the versioning rules; no lane
+  redefines the protocol or the P1 contracts unilaterally.
+- Publication transport deferred: local data stays `LOCAL_ONLY`,
+  `SharedStatusSummary` is the only explicitly shareable surface, never
+  published automatically.
+- Server-side human identity deferred; P1 guarantees the Human/Machine
+  separation and fail-closed behaviour without a new server contract.
+- `root_confirmation_id` is required on the root transition
+  (`current_roots` -> `config.roots`), not on every `LocalWorkspaceConfig`.
+- The server record body still reads PROPOSED (bodies are immutable); the
+  server status is `accepted` and this file is canonical.
 
 ## Alternatives rejected
 

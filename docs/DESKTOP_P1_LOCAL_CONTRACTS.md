@@ -1,7 +1,7 @@
 # Desktop P1 — Contrats locaux `studio.local/v1`
 
-Statut : P1 livré pour revue. Décision associée : `DEC-0093` (**proposed**, non
-acceptée). Prérequis : `DEC-0091`, `DEC-0092`
+Statut : P1 clos (validation humaine 2026-09-20). Décision associée : `DEC-0093`
+(**active**, acceptée). Prérequis : `DEC-0091`, `DEC-0092`
 (`docs/DESKTOP_P0_ARCHITECTURE_GATE.md`).
 
 P1 ne contient que des contrats, des fixtures et leurs tests. Aucune
@@ -129,10 +129,12 @@ UUID fixes) et ne contiennent aucune valeur secrète.
 - Les contrats décrivent le comportement attendu ; aucun n'a été éprouvé contre un
   vrai daemon, Tauri, keyring, Graphify ou harness.
 
-## Décisions humaines attendues
+## Décisions humaines (2026-09-20)
 
-1. Accepter ou amender `DEC-0093` (`proposed`).
-2. Valider le report du transport de publication et de l'identité humaine côté
-   serveur à une phase ultérieure.
-3. Confirmer que la version `studio.local/v1` peut servir de base figée aux
-   lanes P2–P10.
+1. `DEC-0093` acceptée.
+2. Report du transport de publication et de l'identité humaine côté serveur
+   validé.
+3. `studio.local/v1` est la baseline commune de P2–P10 ; aucune lane ne la
+   redéfinit unilatéralement (évolutions additives compatibles seulement).
+4. `root_confirmation_id` obligatoire sur la transition de racines, pas sur
+   toute config.
