@@ -24,6 +24,7 @@ from studio_api.routers import (
     projects,
     resolutions,
     review_queue,
+    roadmaps,
     runtime_bindings,
     runtimes,
     sessions,
@@ -142,6 +143,15 @@ OPENAPI_TAG_DESCRIPTIONS: dict[str, str] = {
         "runtime, compatibility verdict and structured provenance. Pure "
         "read — no fallback, no persistence."
     ),
+    "roadmaps": (
+        "Project roadmaps (Roadmap -> Phase -> Step): a plan, never work status — "
+        "Tasks stay the units of work and step state/progress are derived from "
+        "linked Tasks. Lifecycle draft/proposed/active/completed/archived through "
+        "one transitions endpoint, atomic reordering, dependencies (DAG), "
+        "Step<->Task links, idempotent Task hydration with preview, and import/"
+        "export of the neutral `studio.roadmap/v1` document. No provider, model or "
+        "harness concept and no server-side LLM."
+    ),
 }
 
 
@@ -194,6 +204,7 @@ def create_app() -> FastAPI:
     app.include_router(transfers.router)
     app.include_router(machines.router)
     app.include_router(users.router)
+    app.include_router(roadmaps.router)
 
     return app
 

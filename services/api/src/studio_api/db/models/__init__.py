@@ -16,6 +16,14 @@ from studio_api.db.models.library import (
 )
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.roadmap import (
+    RoadmapModel,
+    RoadmapPhaseModel,
+    RoadmapRevisionModel,
+    RoadmapStepDependencyModel,
+    RoadmapStepModel,
+    RoadmapStepTaskLinkModel,
+)
 from studio_api.db.models.runtime import RuntimeBindingModel, RuntimeModel
 from studio_api.db.models.task import TaskModel
 from studio_api.db.models.transfer import TransferModel
@@ -43,6 +51,12 @@ __all__ = [
     "LibraryProjectLockModel",
     "RuntimeBindingModel",
     "RuntimeModel",
+    "RoadmapModel",
+    "RoadmapPhaseModel",
+    "RoadmapStepModel",
+    "RoadmapStepDependencyModel",
+    "RoadmapStepTaskLinkModel",
+    "RoadmapRevisionModel",
     "TransferModel",
     "IdempotencyKeyModel",
 ]

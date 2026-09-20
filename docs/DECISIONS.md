@@ -104,3 +104,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0080 | MCP studio_prepare_context : façade de lecture bornée et déterministe sur les services existants | active | [decisions/DEC-0080-mcp-prepare-context-facade.md](decisions/DEC-0080-mcp-prepare-context-facade.md) |
 | DEC-0081 | Refonte UI-16 : polish final et clôture de la refonte UI/UX (UI-1 → UI-16) | active | [decisions/DEC-0081-refonte-ui-16-cloture.md](decisions/DEC-0081-refonte-ui-16-cloture.md) |
 | DEC-0082 | GET /machines : liste des machines actives, statut derive du heartbeat | active | [decisions/DEC-0082-get-machines-liste-alimentee-par-heartbeat.md](decisions/DEC-0082-get-machines-liste-alimentee-par-heartbeat.md) |
+| DEC-0086 | Roadmaps P2/P3 : domaine, persistance (migration 0013) et API HTTP canonique | active | [decisions/DEC-0086-roadmaps-p2-p3-domaine-et-api-http.md](decisions/DEC-0086-roadmaps-p2-p3-domaine-et-api-http.md) |

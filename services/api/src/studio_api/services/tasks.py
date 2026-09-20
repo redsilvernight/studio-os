@@ -25,14 +25,23 @@ async def get_task(session: AsyncSession, task_id: uuid.UUID) -> TaskModel | Non
     return await session.get(TaskModel, task_id)
 
 
-async def create_task(
-    session: AsyncSession, principal: Principal, task_in: TaskCreate
-) -> TaskModel:
+async def add_task(session: AsyncSession, principal: Principal, task_in: TaskCreate) -> TaskModel:
+    """`create_task` without the commit (DEC-0084 F1): stages the row and
+    flushes so its id exists, leaving the transaction to the caller — used by
+    units of work (Roadmap hydration) that must create several Tasks atomically."""
     ensure_can_write(principal, "task")
     task = TaskModel(
         project_id=task_in.project_id, title=task_in.title, description=task_in.description
     )
     session.add(task)
+    await session.flush()
+    return task
+
+
+async def create_task(
+    session: AsyncSession, principal: Principal, task_in: TaskCreate
+) -> TaskModel:
+    task = await add_task(session, principal, task_in)
     await session.commit()
     await session.refresh(task)
     return task
