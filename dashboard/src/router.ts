@@ -44,7 +44,11 @@ export function parseRoute(hash: string): Route {
   if (parts[0] === "projects" && parts.length === 1) return { name: "projects" };
   if (parts[0] === "projects" && parts[1] !== undefined) {
     const tab: ProjectTab =
-      parts[2] === "tasks" || parts[2] === "claims" || parts[2] === "activity" || parts[2] === "decisions"
+      parts[2] === "roadmap" ||
+      parts[2] === "tasks" ||
+      parts[2] === "claims" ||
+      parts[2] === "activity" ||
+      parts[2] === "decisions"
         ? parts[2]
         : "overview";
     return { name: "project", id: parts[1], tab };

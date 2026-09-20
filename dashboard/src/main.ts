@@ -19,6 +19,7 @@ import { apiBaseUrl, createApiClient } from "./api";
 import { resolveApiUrl } from "./config";
 import { clearToken, getToken, hasToken, setToken } from "./auth";
 import { subscribe, uiState } from "./store";
+import { createFixtureRoadmapDataSource } from "./roadmapData";
 import { renderOverview } from "./views/overview";
 import { renderProjects } from "./views/projects";
 import { renderProjectDetail } from "./views/projectDetail";
@@ -46,10 +47,13 @@ import "./views/overview.css";
 import "./views/projects.css";
 import "./views/library.css";
 import "./views/workspace.css";
+import "./views/roadmap.css";
 import "./views/decisions.css";
 import "./styles.css";
 
 type EventEnvelope = components["schemas"]["EventEnvelope"];
+
+const roadmapDataSource = createFixtureRoadmapDataSource();
 
 const renderGuard = createRenderGuard();
 let shellListenersMounted = false;
@@ -66,7 +70,7 @@ async function render(): Promise<void> {
       await renderProjects(staging, { client, authed });
       break;
     case "project":
-      await renderProjectDetail(staging, { client, authed }, route.id, route.tab);
+      await renderProjectDetail(staging, { client, authed, roadmapDataSource }, route.id, route.tab);
       break;
     case "tasks":
       await renderTasksInto(staging, {

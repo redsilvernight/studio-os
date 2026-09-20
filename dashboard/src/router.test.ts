@@ -16,6 +16,7 @@ describe("parseRoute", () => {
     expect(parseRoute("#/projects/abc")).toEqual({ name: "project", id: "abc", tab: "overview" });
     expect(parseRoute("#/projects/abc/tasks")).toEqual({ name: "project", id: "abc", tab: "tasks" });
     expect(parseRoute("#/projects/abc/claims")).toEqual({ name: "project", id: "abc", tab: "claims" });
+    expect(parseRoute("#/projects/abc/roadmap")).toEqual({ name: "project", id: "abc", tab: "roadmap" });
   });
 
   it("parses the UI-4 workspace tabs and falls back to overview otherwise", () => {
