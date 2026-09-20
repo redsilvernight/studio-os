@@ -86,5 +86,8 @@ Les types `roadmap.*` sont additifs et emis cote serveur depuis P2/P3
 l'etat, puis diffuse apres commit), `actor_type`/`actor_id` = identite du `Principal`
 (`agent` si un `agent_id` rattache a la machine est declare). Cles `payload`
 documentees (ignorables) : `roadmap_id`, `revision_no`, `status`,
-`transition`, `scope` (`roadmap|revision`, sur `approved`/`changes_requested`/`rejected`) ; `roadmap.hydrated` -> `counts` (`create`/`reuse`/`skip`). Aucun couplage au Git Watcher : la progression se lit dans les
+`transition`, `scope` (`roadmap|revision`, sur `proposed` depuis P8 — proposition
+de revision — et sur `approved`/`changes_requested`/`rejected`), `base_revision_no`,
+`comment` (sur les decisions de relecture) ; `roadmap.hydrated` -> `counts`
+(`create`/`reuse`/`skip`). Aucun couplage au Git Watcher : la progression se lit dans les
 Tasks, jamais dans `task.created`/`project.created` (declares mais non emis).

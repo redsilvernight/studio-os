@@ -15,12 +15,16 @@ import {
 import type {
   Roadmap,
   RoadmapDataSource,
+  RoadmapDiff,
+  RoadmapDiffChange,
   RoadmapDocument,
+  RoadmapPendingProposal,
   RoadmapPhase,
+  RoadmapReviewDecision,
   RoadmapStatus,
   RoadmapStep,
 } from "../roadmapTypes";
-import { describeError, esc } from "../ui";
+import { describeError, esc, fmtTime, shortId } from "../ui";
 
 export type RoadmapMode = "plan" | "execution";
 
@@ -179,6 +183,67 @@ function proposalHtml(roadmap: Roadmap): string {
     `<button class="ds-btn ds-btn--danger" type="button" data-review="reject">Rejeter</button></div></section>`;
 }
 
+const DIFF_CHANGE_LABELS: Record<RoadmapDiffChange, string> = {
+  added: "Ajouté",
+  removed: "Retiré",
+  changed: "Modifié",
+};
+
+const DIFF_SCOPE_LABELS: Record<string, string> = {
+  roadmap: "Roadmap",
+  phase: "Phase",
+  step: "Étape",
+  dependency: "Dépendance",
+  task_plan: "Tâches prévues",
+};
+
+function diffTone(change: RoadmapDiffChange): "neutral" | "warning" | "success" {
+  if (change === "added") return "success";
+  if (change === "removed") return "warning";
+  return "neutral";
+}
+
+function diffHtml(diff: RoadmapDiff): string {
+  if (diff.entries.length === 0) {
+    return `<p class="ds-list-sub">Aucune modification détectée par rapport à la version de base.</p>`;
+  }
+  return `<ul class="roadmap-diff">${diff.entries
+    .map((entry) => {
+      const key = entry.key !== null ? ` <code class="mono">${esc(entry.key)}</code>` : "";
+      const fields = entry.fields.length > 0
+        ? ` <span class="roadmap-diff-fields">${entry.fields.map(esc).join(", ")}</span>`
+        : "";
+      return `<li class="roadmap-diff-entry roadmap-diff-entry--${entry.change}">${dsBadge(DIFF_CHANGE_LABELS[entry.change], diffTone(entry.change))}` +
+        `<span><strong>${esc(DIFF_SCOPE_LABELS[entry.scope] ?? entry.scope)}</strong>${key}${fields}</span></li>`;
+    })
+    .join("")}</ul>`;
+}
+
+export function revisionProposalHtml(proposal: RoadmapPendingProposal, roadmap: Roadmap): string {
+  const { revision, diff } = proposal;
+  const author = revision.provenance.actor_type === "agent"
+    ? `Agent ${esc(shortId(revision.provenance.agent_id ?? revision.provenance.actor_id))}`
+    : `Utilisateur ${esc(shortId(revision.provenance.actor_id))}`;
+  const base = revision.base_revision_no ?? "—";
+  return `<section class="roadmap-proposal-review" aria-labelledby="roadmap-proposal-review-title">` +
+    `<div class="roadmap-proposal-review-head"><div><p class="roadmap-eyebrow">Proposition à examiner</p>` +
+    `<h2 id="roadmap-proposal-review-title">${esc(revision.summary?.trim() || `Révision ${revision.revision_no}`)}</h2>` +
+    `<p class="roadmap-proposal-meta">${author} · ${esc(fmtTime(revision.provenance.at))} · version de base ${esc(base)} (courante ${roadmap.revision_no})</p></div>` +
+    dsBadge("En attente de validation", "warning") + `</div>` +
+    `<div class="roadmap-proposal-change"><strong>Modifications proposées</strong>${diffHtml(diff)}</div>` +
+    `<details class="roadmap-technical"><summary>Provenance</summary><dl>` +
+    `<div><dt>Origine</dt><dd>${esc(revision.provenance.origin)}</dd></div>` +
+    `<div><dt>Acteur</dt><dd>${esc(revision.provenance.actor_type)}</dd></div>` +
+    `<div><dt>Agent</dt><dd><code class="mono">${esc(revision.provenance.agent_id ?? "—")}</code></dd></div>` +
+    `<div><dt>Révision</dt><dd>${revision.revision_no}</dd></div>` +
+    `</dl></details>` +
+    dsField("proposal-comment", "Commentaire de relecture", `<textarea id="FIELD" data-proposal-comment maxlength="2000" placeholder="Obligatoire pour demander des changements ou rejeter."></textarea>`) +
+    `<div data-proposal-error></div>` +
+    `<div class="roadmap-actions"><button class="ds-btn ds-btn--primary" type="button" data-proposal-review="approve">Approuver</button>` +
+    `<button class="ds-btn" type="button" data-proposal-review="request_changes">Demander des changements</button>` +
+    `<button class="ds-btn ds-btn--danger" type="button" data-proposal-review="reject">Rejeter</button></div></section>`;
+}
+
 export function roadmapPrintHtml(roadmap: Roadmap): string {
   const roadmapProgress = percent(roadmap.progress?.ratio);
   const phases = roadmap.phases ?? [];
@@ -206,7 +271,13 @@ export function roadmapPrintHtml(roadmap: Roadmap): string {
     `<dl><div><dt>Statut</dt><dd>${esc(STATUS_LABELS[roadmap.status])}</dd></div><div><dt>Progression</dt><dd>${roadmapProgress} %</dd></div><div><dt>Phases</dt><dd>${phases.length}</dd></div></dl></header>${phaseSections || `<p>Aucune phase.</p>`}</section>`;
 }
 
-export function roadmapShellHtml(roadmap: Roadmap, mode: RoadmapMode, selectedKey: string | null, demo = false): string {
+export function roadmapShellHtml(
+  roadmap: Roadmap,
+  mode: RoadmapMode,
+  selectedKey: string | null,
+  demo = false,
+  proposal: RoadmapPendingProposal | null = null,
+): string {
   const progress = percent(roadmap.progress?.ratio);
   const plan = mode === "plan" ? roadmapPlanHtml(roadmap, selectedKey) : roadmapExecutionHtml(roadmap, selectedKey);
   const selected = allSteps(roadmap).find((step) => step.key === selectedKey) ?? null;
@@ -216,6 +287,7 @@ export function roadmapShellHtml(roadmap: Roadmap, mode: RoadmapMode, selectedKe
   return `<div class="roadmap-view">${roadmapPrintHtml(roadmap)}` +
     demoNote +
     proposalHtml(roadmap) +
+    (proposal !== null ? revisionProposalHtml(proposal, roadmap) : "") +
     `<header class="roadmap-header"><div><div class="roadmap-title-line"><h2>${esc(roadmap.title)}</h2>${dsBadge(STATUS_LABELS[roadmap.status], statusTone(roadmap.status))}</div>` +
     `<p>${esc(roadmap.objective?.trim() || "Plan du projet")}</p>${dsProgress(progress, 100, `${progress} % du plan terminé`)}</div>` +
     `<div class="roadmap-actions roadmap-no-print"><button class="ds-btn" type="button" data-edit-roadmap>Modifier</button><button class="ds-btn" type="button" data-import-json>Importer JSON</button><button class="ds-btn" type="button" data-export-json>Exporter JSON</button><button class="ds-btn ds-btn--primary" type="button" data-export-pdf>Exporter PDF</button></div></header>` +
@@ -312,6 +384,14 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
   }
   let mode: RoadmapMode = "plan";
   let selectedKey: string | null = roadmap?.current_step_key ?? (roadmap === null ? null : allSteps(roadmap)[0]?.key) ?? null;
+  let pendingProposal: RoadmapPendingProposal | null = null;
+  if (roadmap !== null) {
+    try {
+      pendingProposal = await ctx.dataSource.loadPendingProposal(ctx.projectId);
+    } catch {
+      pendingProposal = null;
+    }
+  }
 
   const paint = (): void => {
     if (roadmap === null) {
@@ -320,7 +400,13 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
       bind();
       return;
     }
-    root.innerHTML = roadmapShellHtml(roadmap, mode, selectedKey, ctx.dataSource.demo === true);
+    root.innerHTML = roadmapShellHtml(
+      roadmap,
+      mode,
+      selectedKey,
+      ctx.dataSource.demo === true,
+      roadmap.status === "active" ? pendingProposal : null,
+    );
     bind();
   };
 
@@ -362,6 +448,7 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
       try {
         const validated = parseRoadmapDocument(JSON.stringify(readEditor(form, draft)));
         roadmap = await ctx.dataSource.replaceDocument(ctx.projectId, validated);
+        pendingProposal = null;
         close();
         selectedKey = allSteps(roadmap)[0]?.key ?? null;
         paint();
@@ -393,6 +480,7 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
       try {
         const document = parseRoadmapDocument(await file.text());
         roadmap = await ctx.dataSource.replaceDocument(ctx.projectId, document);
+        pendingProposal = null;
         selectedKey = allSteps(roadmap)[0]?.key ?? null;
         paint();
         dsNotify("Roadmap importée.", "success");
@@ -412,6 +500,33 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
       roadmap = await ctx.dataSource.reviewProposal(ctx.projectId, decision, decision === "request_changes" ? "Modifications demandées depuis l'aperçu." : undefined);
       paint();
       dsNotify("Décision enregistrée.", "success");
+    }));
+    root.querySelectorAll<HTMLButtonElement>("[data-proposal-review]").forEach((button) => button.addEventListener("click", async () => {
+      if (roadmap === null || pendingProposal === null) return;
+      const raw = button.dataset.proposalReview;
+      if (raw !== "approve" && raw !== "request_changes" && raw !== "reject") return;
+      const decision: RoadmapReviewDecision = raw;
+      const comment = root.querySelector<HTMLTextAreaElement>("[data-proposal-comment]")?.value.trim() ?? "";
+      const errorBox = root.querySelector<HTMLElement>("[data-proposal-error]");
+      if (decision !== "approve" && comment === "") {
+        if (errorBox !== null) {
+          errorBox.innerHTML = `<div class="ds-notice ds-notice--danger" role="alert"><strong>Commentaire requis.</strong> Expliquez votre décision avant de la valider.</div>`;
+        }
+        return;
+      }
+      try {
+        const revisionNo = pendingProposal.revision.revision_no;
+        const updated = await ctx.dataSource.reviewProposalRevision(ctx.projectId, revisionNo, decision, comment === "" ? undefined : comment);
+        if (updated !== null) roadmap = updated;
+        pendingProposal = null;
+        selectedKey = roadmap.current_step_key ?? selectedKey;
+        paint();
+        dsNotify("Décision enregistrée.", "success");
+      } catch (error) {
+        if (errorBox !== null) {
+          errorBox.innerHTML = `<div class="ds-notice ds-notice--danger" role="alert"><strong>Décision refusée.</strong> ${esc(describeError(error))}</div>`;
+        }
+      }
     }));
   };
 

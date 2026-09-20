@@ -66,9 +66,9 @@ from studio_api.services.roadmap_support import (
     reference_not_found,
     resolve_provenance,
     roadmap_error,
+    text_or_none,
     updated_event,
 )
-from studio_api.services.roadmaps import text_or_none
 
 
 async def _open(

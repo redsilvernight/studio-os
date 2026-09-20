@@ -127,6 +127,52 @@ export interface Roadmap {
 
 export type RoadmapReviewDecision = "approve" | "request_changes" | "reject";
 
+export type RoadmapRevisionKind = "proposal" | "snapshot" | "review";
+export type RoadmapRevisionStatus =
+  | "pending"
+  | "approved"
+  | "changes_requested"
+  | "rejected"
+  | "superseded";
+
+export interface RoadmapRevision {
+  id: string;
+  roadmap_id: string;
+  revision_no: number;
+  kind: RoadmapRevisionKind;
+  status: RoadmapRevisionStatus | null;
+  base_revision_no: number | null;
+  summary: string | null;
+  provenance: RoadmapProvenance;
+  reviewed_by_user_id?: string | null;
+  reviewed_at?: string | null;
+  review_comment?: string | null;
+}
+
+export type RoadmapDiffChange = "added" | "removed" | "changed";
+export type RoadmapDiffScope = "roadmap" | "phase" | "step" | "dependency" | "task_plan";
+
+export interface RoadmapDiffEntry {
+  scope: RoadmapDiffScope;
+  key: string | null;
+  change: RoadmapDiffChange;
+  fields: string[];
+}
+
+export interface RoadmapDiff {
+  base_revision_no: number | null;
+  proposal_revision_no: number;
+  entries: RoadmapDiffEntry[];
+}
+
+/** A pending revision proposal against an active roadmap (Roadmaps P8). */
+export interface RoadmapPendingProposal {
+  roadmapId: string;
+  roadmapVersion: number;
+  revision: RoadmapRevision;
+  diff: RoadmapDiff;
+}
+
 export interface RoadmapDataSource {
   /** Session-local fixture sources set this; the canonical API source leaves it unset. */
   demo?: boolean;
@@ -134,6 +180,14 @@ export interface RoadmapDataSource {
   replaceDocument(projectId: string, document: RoadmapDocument): Promise<Roadmap>;
   reviewProposal(
     projectId: string,
+    decision: RoadmapReviewDecision,
+    comment?: string,
+  ): Promise<Roadmap | null>;
+  /** Pending revision proposal on the project's active roadmap, if any (P8). */
+  loadPendingProposal(projectId: string): Promise<RoadmapPendingProposal | null>;
+  reviewProposalRevision(
+    projectId: string,
+    revisionNo: number,
     decision: RoadmapReviewDecision,
     comment?: string,
   ): Promise<Roadmap | null>;

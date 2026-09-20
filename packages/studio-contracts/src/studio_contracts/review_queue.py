@@ -19,6 +19,7 @@ class ReviewQueueKind(StrEnum):
     RESOURCE_CONFLICT = "resource_conflict"
     BUILD_FAILURE = "build_failure"
     PR_READY = "pr_ready"
+    ROADMAP_PROPOSAL = "roadmap_proposal"
 
 
 class ReviewQueueAIWorkItem(ContractModel):
@@ -89,12 +90,38 @@ class ReviewQueuePRItem(ContractModel):
     requested_at: datetime
 
 
+class ReviewQueueRoadmapProposalItem(ContractModel):
+    """A roadmap change waiting on a human reviewer: either a whole roadmap
+    submitted for its first validation (`scope=roadmap`, the roadmap is
+    `proposed`) or a pending revision proposal against an already approved
+    roadmap (`scope=revision`). Both are resolved on the Roadmap surface
+    (`POST .../transitions` and `POST .../proposals/{n}/review`), not from this
+    queue: it stays a read-only view. `id` is the roadmap id for `roadmap` scope
+    and the revision id for `revision`."""
+
+    kind: Literal[ReviewQueueKind.ROADMAP_PROPOSAL] = ReviewQueueKind.ROADMAP_PROPOSAL
+    id: UUID
+    project_id: UUID
+    task_id: UUID | None = None
+    roadmap_id: UUID
+    title: str
+    scope: Literal["roadmap", "revision"]
+    status: str
+    revision_no: int | None = None
+    base_revision_no: int | None = None
+    summary: str | None = None
+    actor_type: str
+    agent_id: UUID | None = None
+    requested_at: datetime
+
+
 ReviewQueueItem = Annotated[
     ReviewQueueAIWorkItem
     | ReviewQueueDecisionItem
     | ReviewQueueConflictItem
     | ReviewQueueBuildItem
-    | ReviewQueuePRItem,
+    | ReviewQueuePRItem
+    | ReviewQueueRoadmapProposalItem,
     Field(discriminator="kind"),
 ]
 

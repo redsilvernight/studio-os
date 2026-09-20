@@ -1,15 +1,55 @@
-import { createRoadmapFixtureCases } from "./roadmapFixtures";
+import { createRoadmapFixtureCases, roadmapFixtureProjectIds } from "./roadmapFixtures";
 import { validateRoadmapDocument } from "./roadmapFormat";
 import type {
   Roadmap,
   RoadmapDataSource,
+  RoadmapDiffEntry,
   RoadmapDocument,
+  RoadmapPendingProposal,
   RoadmapPhase,
   RoadmapReviewDecision,
 } from "./roadmapTypes";
 
 function clone<T>(value: T): T {
   return structuredClone(value);
+}
+
+function seedPendingProposal(roadmap: Roadmap): RoadmapPendingProposal {
+  const firstStep = (roadmap.phases ?? []).flatMap((phase) => phase.steps ?? [])[0];
+  const revisionNo = (roadmap.revision_no ?? 1) + 1;
+  const entries: RoadmapDiffEntry[] = [];
+  if (firstStep !== undefined) {
+    entries.push({ scope: "step", key: firstStep.key, change: "changed", fields: ["title", "objective"] });
+  }
+  return {
+    roadmapId: roadmap.id,
+    roadmapVersion: roadmap.version ?? 1,
+    revision: {
+      id: `fixture-revision-${roadmap.id}`,
+      roadmap_id: roadmap.id,
+      revision_no: revisionNo,
+      kind: "proposal",
+      status: "pending",
+      base_revision_no: roadmap.approved_revision_no ?? roadmap.revision_no ?? 1,
+      summary: "Clarifier la première étape et son objectif",
+      provenance: {
+        origin: "ai_proposal",
+        actor_type: "agent",
+        actor_id: "fixture-agent",
+        agent_id: "fixture-agent",
+        machine_id: null,
+        at: "2026-01-01T00:00:00+00:00",
+      },
+      reviewed_by_user_id: null,
+      reviewed_at: null,
+      review_comment: null,
+    },
+    diff: {
+      base_revision_no: roadmap.approved_revision_no ?? null,
+      proposal_revision_no: revisionNo,
+      entries,
+    },
+  };
 }
 
 function documentToRoadmap(projectId: string, document: RoadmapDocument, previous?: Roadmap | null): Roadmap {
@@ -52,6 +92,11 @@ export function createFixtureRoadmapDataSource(): RoadmapDataSource {
   const initial = createRoadmapFixtureCases();
   const state = new Map<string, Roadmap | null>();
   for (const [projectId, roadmap] of initial) state.set(projectId, roadmap === null ? null : clone(roadmap));
+  const pending = new Map<string, RoadmapPendingProposal>();
+  const activeRoadmap = state.get(roadmapFixtureProjectIds.active) ?? null;
+  if (activeRoadmap !== null) {
+    pending.set(roadmapFixtureProjectIds.active, seedPendingProposal(activeRoadmap));
+  }
 
   return {
     demo: true,
@@ -89,6 +134,35 @@ export function createFixtureRoadmapDataSource(): RoadmapDataSource {
       }
       state.set(projectId, clone(updated));
       return clone(updated);
+    },
+
+    async loadPendingProposal(projectId: string): Promise<RoadmapPendingProposal | null> {
+      const proposal = pending.get(projectId);
+      return proposal === undefined ? null : clone(proposal);
+    },
+
+    async reviewProposalRevision(
+      projectId: string,
+      revisionNo: number,
+      decision: RoadmapReviewDecision,
+      comment?: string,
+    ): Promise<Roadmap | null> {
+      const proposal = pending.get(projectId);
+      const current = state.get(projectId) ?? null;
+      if (proposal === undefined || current === null || proposal.revision.revision_no !== revisionNo) {
+        return current === null ? null : clone(current);
+      }
+      if (decision !== "approve" && (comment === undefined || comment.trim() === "")) {
+        throw new Error("A comment is required when requesting changes or rejecting");
+      }
+      if (decision === "approve") {
+        const updated = clone(current);
+        updated.revision_no = proposal.revision.revision_no;
+        updated.approved_revision_no = proposal.revision.revision_no;
+        state.set(projectId, clone(updated));
+      }
+      pending.delete(projectId);
+      return clone(state.get(projectId) ?? null);
     },
   };
 }

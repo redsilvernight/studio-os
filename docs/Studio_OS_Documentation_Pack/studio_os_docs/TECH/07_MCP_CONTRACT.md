@@ -327,12 +327,18 @@ Surface MCP implementee (35 -> 42 outils), sur les memes services que l'API
 nouveau contrat neutre `studio.initialization/v1`.
 - `studio_get_roadmap(project_id, status?, limit, max_chars)` — lecture :
   synthese des roadmaps + phase/etape courante (premiere etape `available`),
-  prochaines etapes `available`, dependances bloquantes. Absence de roadmap =
+  prochaines etapes `available`, dependances bloquantes, et `pending_proposals`
+  (revisions `proposal` `pending` de la roadmap `active`, statut de la
+  proposition). Absence de roadmap =
   liste vide + position nulle (etat normal). Textes tronques (`truncated`),
   items bornes (`omitted_for_budget`).
 - `studio_propose_roadmap(project_id, document, submit?, idempotency_key?,
-  agent_id?)` — ecriture : cree un `draft`, ou le soumet `proposed` si
-  `submit`. Ne cree jamais de Task, n'active jamais.
+  agent_id?, roadmap_id?, base_revision_no?, summary?)` — ecriture : cree un
+  `draft`, ou le soumet `proposed` si `submit`. Pour modifier une roadmap
+  `active`, passer `roadmap_id` + `base_revision_no` (le `approved_revision_no`
+  lu) : la modification devient une revision `pending` a valider par un humain,
+  la roadmap n'est pas touchee. Ne cree jamais de Task, n'active jamais,
+  n'approuve jamais.
 - `studio_preview_roadmap_hydration(roadmap_id, step_keys?, limit)` — lecture :
   Tasks `create|reuse|skip` a venir, aucune ecriture ; `applicable=false` hors
   roadmap `active`.

@@ -305,6 +305,46 @@
   padding-top: var(--ds-space-3);
 }
 
+.roadmap-proposal-review {
+  display: grid;
+  gap: var(--ds-space-4);
+  padding: var(--ds-space-6);
+  border-color: var(--ds-warning-border);
+  background: var(--ds-warning-soft);
+}
+
+.roadmap-proposal-review-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ds-space-3);
+}
+
+.roadmap-proposal-meta {
+  margin: var(--ds-space-1) 0 0;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-sm);
+}
+
+.roadmap-diff {
+  display: grid;
+  gap: var(--ds-space-2);
+  margin: var(--ds-space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.roadmap-diff-entry {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ds-space-2);
+  font-size: var(--ds-text-sm);
+}
+
+.roadmap-diff-fields {
+  color: var(--ds-text-muted);
+}
+
 .roadmap-optional {
   display: grid;
   justify-items: center;

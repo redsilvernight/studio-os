@@ -733,6 +733,24 @@ class RoadmapRevision(ContractModel):
     review_comment: str | None = None
 
 
+class RoadmapRevisionSummary(ContractModel):
+    """Revision history row without the (possibly large) neutral document:
+    what a list of revisions returns. The full `RoadmapRevision` (with
+    `content`) is what a single-revision read returns."""
+
+    id: UUID
+    roadmap_id: UUID
+    revision_no: int
+    kind: RevisionKind
+    status: RevisionStatus | None = None
+    base_revision_no: int | None = None
+    summary: str | None = None
+    provenance: Provenance
+    reviewed_by_user_id: UUID | None = None
+    reviewed_at: datetime | None = None
+    review_comment: str | None = None
+
+
 class ProposalCreate(IdempotentCreate):
     """A structured change to an approved roadmap. `base_revision_no` is the
     revision the author read; if it is no longer current when reviewed, the
@@ -765,8 +783,8 @@ class DiffChange(StrEnum):
 
 
 class DiffEntry(ContractModel):
-    """One line of the human-readable diff (P8.3), computed at read time by
-    matching phases/steps on `key`; never stored."""
+    """One line of the human-readable diff, computed at read time by matching
+    phases/steps on `key`; never stored."""
 
     scope: Literal["roadmap", "phase", "step", "dependency", "task_plan"]
     key: str | None = None

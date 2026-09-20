@@ -31,11 +31,16 @@ from studio_contracts.roadmaps import (
     HydrationItem,
     HydrationRequest,
     HydrationResult,
+    ProposalCreate,
+    RevisionKind,
+    RevisionStatus,
     Roadmap,
     RoadmapDocument,
     RoadmapErrorCode,
     RoadmapImport,
     RoadmapOrigin,
+    RoadmapRevision,
+    RoadmapRevisionSummary,
     RoadmapStatus,
     RoadmapSummary,
     RoadmapValidationReason,
@@ -87,6 +92,32 @@ def _compact_summary(summary: RoadmapSummary, max_chars: int) -> dict[str, Any]:
         "approved_revision_no": summary.approved_revision_no,
         "current_step_key": summary.current_step_key,
         "progress": summary.progress.model_dump(mode="json"),
+        "truncated": truncated,
+    }
+
+
+def _compact_revision(
+    revision: RoadmapRevisionSummary | RoadmapRevision, max_chars: int
+) -> dict[str, Any]:
+    summary, truncated = _bounded(revision.summary, max_chars)
+    return {
+        "id": str(revision.id),
+        "roadmap_id": str(revision.roadmap_id),
+        "revision_no": revision.revision_no,
+        "kind": revision.kind.value,
+        "status": revision.status.value if revision.status is not None else None,
+        "base_revision_no": revision.base_revision_no,
+        "summary": summary,
+        "provenance": {
+            "origin": revision.provenance.origin.value,
+            "actor_type": revision.provenance.actor_type,
+            "agent_id": (
+                str(revision.provenance.agent_id)
+                if revision.provenance.agent_id is not None
+                else None
+            ),
+        },
+        "created_at": revision.provenance.at.isoformat(),
         "truncated": truncated,
     }
 
@@ -195,9 +226,19 @@ async def studio_get_roadmap(
             (summary for summary in summaries if summary.status is RoadmapStatus.ACTIVE), None
         )
         active = None
+        pending_proposals: list[dict[str, Any]] = []
         if active_summary is not None:
             detail = await _roadmaps().get_roadmap(session, active_summary.id)
             active = _current_position(detail, bounded_chars)
+            pending_proposals = [
+                _compact_revision(revision, bounded_chars)
+                for revision in await _roadmaps().list_revisions(
+                    session,
+                    active_summary.id,
+                    RevisionKind.PROPOSAL,
+                    RevisionStatus.PENDING,
+                )
+            ]
         drafts = sum(
             1 for s in summaries if s.status in (RoadmapStatus.DRAFT, RoadmapStatus.PROPOSED)
         )
@@ -206,6 +247,7 @@ async def studio_get_roadmap(
             "roadmaps": roadmaps,
             "active": active,
             "draft_pending": drafts,
+            "pending_proposals": pending_proposals,
             "omitted_for_budget": max(0, len(summaries) - bounded_limit),
         }
 
@@ -219,10 +261,20 @@ async def studio_propose_roadmap(
     submit: bool = True,
     idempotency_key: str | None = None,
     agent_id: str | None = None,
+    roadmap_id: str | None = None,
+    base_revision_no: int | None = None,
+    summary: str | None = None,
 ) -> dict[str, Any]:
     """Propose a structured roadmap plan (draft, or `proposed` for human
     validation when `submit` is true). Never creates Tasks and never activates
-    the roadmap."""
+    the roadmap.
+
+    To change an already `active` roadmap, pass `roadmap_id` and
+    `base_revision_no` (the `approved_revision_no` read beforehand): the change
+    is recorded as a *pending proposal revision* instead of being applied, and
+    a human reviews it. The roadmap content is untouched until approval; a base
+    that moved meanwhile makes the approval fail (`base_revision_stale`), so the
+    agent must re-read and re-propose."""
 
     async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed = parse_uuid(project_id, "project_id")
@@ -243,6 +295,45 @@ async def studio_propose_roadmap(
             parsed_agent = candidate
         ensure_can_write(principal, "roadmap")
         provenance = WriteProvenance(origin=RoadmapOrigin.AI_PROPOSAL, agent_id=parsed_agent)
+
+        if roadmap_id is not None:
+            parsed_roadmap = parse_uuid(roadmap_id, "roadmap_id")
+            if isinstance(parsed_roadmap, dict):
+                return parsed_roadmap
+            if base_revision_no is None:
+                return {
+                    "error_code": "invalid_argument",
+                    "message": "base_revision_no is required when roadmap_id is given",
+                }
+            proposal = ProposalCreate(
+                base_revision_no=base_revision_no,
+                document=document,
+                summary=summary,
+                provenance=provenance,
+            )
+
+            async def _propose() -> dict[str, Any]:
+                revision = await _roadmaps().create_proposal(
+                    session, principal, parsed_roadmap, proposal
+                )
+                return _compact_revision(revision, DEFAULT_MAX_CHARS)
+
+            request_hash = idempotency_service.hash_request(
+                json.dumps(
+                    {
+                        "roadmap_id": roadmap_id,
+                        "base_revision_no": base_revision_no,
+                        "summary": summary,
+                        "agent_id": agent_id,
+                        "document": document.model_dump(mode="json"),
+                    },
+                    sort_keys=True,
+                ).encode()
+            )
+            return await idempotency_service.run_idempotent_dict(
+                session, idempotency_key, "MCP studio_propose_roadmap", request_hash, _propose
+            )
+
         request = RoadmapImport(
             project_id=parsed, document=document, submit=submit, provenance=provenance
         )

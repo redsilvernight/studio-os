@@ -25,12 +25,13 @@ async def studio_get_review_queue(
     conflict_window_hours: int | None = None,
 ) -> dict[str, Any]:
     """Aggregated view of everything waiting on a human decision: AI work in
-    review_requested, decisions still proposed, recent resource.conflict
-    events (best-effort, time-windowed — no persisted conflict state exists),
-    failed builds (informational), and opened PRs with no merge yet
-    (best-effort, time-windowed). Also serves as the notifications surface:
-    there is no separate notifications tool. Clients must tolerate an
-    unknown kind."""
+    review_requested, decisions still proposed, roadmap proposals awaiting
+    validation (a whole roadmap submitted, or a pending revision on an active
+    roadmap), recent resource.conflict events (best-effort, time-windowed — no
+    persisted conflict state exists), failed builds (informational), and opened
+    PRs with no merge yet (best-effort, time-windowed). Also serves as the
+    notifications surface: there is no separate notifications tool. Clients
+    must tolerate an unknown kind."""
 
     async def _handler(session: AsyncSession, _principal: Principal) -> dict[str, Any]:
         parsed_project_id = None

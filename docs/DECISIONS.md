@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-86 decision(s). Detail complet dans chaque ADR lie.
+87 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -108,3 +108,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0085 | Roadmaps P1 : contrats communs gelés, format neutre studio.roadmap/v1, règles pures partagées | active | [decisions/DEC-0085-roadmaps-p1-contrats-communs.md](decisions/DEC-0085-roadmaps-p1-contrats-communs.md) |
 | DEC-0086 | Roadmaps P2/P3 : domaine, persistance (migration 0013) et API HTTP canonique | active | [decisions/DEC-0086-roadmaps-p2-p3-domaine-et-api-http.md](decisions/DEC-0086-roadmaps-p2-p3-domaine-et-api-http.md) |
 | DEC-0087 | Roadmaps P4/P5 : surface MCP par intentions, initialisation de projet neutre à roadmap optionnelle | active | [decisions/DEC-0087-roadmaps-p4-p5-mcp-initialization.md](decisions/DEC-0087-roadmaps-p4-p5-mcp-initialization.md) |
+| DEC-0088 | Roadmaps P8 : propositions de revision, relecture humaine (approve/request-changes/reject) et file de review | active | [decisions/DEC-0088-roadmaps-p8-propositions-revisions-review.md](decisions/DEC-0088-roadmaps-p8-propositions-revisions-review.md) |

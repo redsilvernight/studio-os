@@ -18,21 +18,27 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.auth import Role
 from studio_contracts.events import EventCreate, EventType
 from studio_contracts.roadmaps import (
+    DiffChange,
+    DiffEntry,
     LinkedTask,
     Phase,
     PhaseContent,
     Progress,
     Provenance,
+    RevisionKind,
+    RevisionStatus,
     Roadmap,
     RoadmapDocument,
     RoadmapErrorCode,
     RoadmapErrorDetail,
     RoadmapOrigin,
+    RoadmapRevision,
+    RoadmapRevisionSummary,
     RoadmapStatus,
     RoadmapSummary,
     RoadmapTransition,
@@ -129,6 +135,10 @@ def invalid_roadmap(reason: str, field_name: str) -> HTTPException:
     )
 
 
+def step_has_links() -> HTTPException:
+    return roadmap_error(status.HTTP_409_CONFLICT, RoadmapErrorCode.STEP_HAS_LINKS)
+
+
 def limit_exceeded(limit: str) -> HTTPException:
     return roadmap_error(
         status.HTTP_422_UNPROCESSABLE_CONTENT, RoadmapErrorCode.LIMIT_EXCEEDED, limit=limit
@@ -152,7 +162,7 @@ class ResolvedProvenance:
     actor_type: str
     actor_id: uuid.UUID
     agent_id: uuid.UUID | None
-    machine_id: uuid.UUID
+    machine_id: uuid.UUID | None
 
     def columns(self) -> dict[str, Any]:
         return {
@@ -194,6 +204,34 @@ def provenance_view(row: Any) -> Provenance:
     )
 
 
+def _revision_status(value: str | None) -> RevisionStatus | None:
+    return RevisionStatus(value) if value is not None else None
+
+
+def revision_summary_view(row: RoadmapRevisionModel) -> RoadmapRevisionSummary:
+    return RoadmapRevisionSummary(
+        id=row.id,
+        roadmap_id=row.roadmap_id,
+        revision_no=row.revision_no,
+        kind=RevisionKind(row.kind),
+        status=_revision_status(row.status),
+        base_revision_no=row.base_revision_no,
+        summary=row.summary,
+        provenance=provenance_view(row),
+        reviewed_by_user_id=row.reviewed_by_user_id,
+        reviewed_at=row.reviewed_at,
+        review_comment=row.review_comment,
+    )
+
+
+def revision_view(row: RoadmapRevisionModel) -> RoadmapRevision:
+    summary = revision_summary_view(row)
+    return RoadmapRevision(
+        **summary.model_dump(),
+        content=RoadmapDocument.model_validate(row.content) if row.content is not None else None,
+    )
+
+
 # --- locking and write guard ---
 async def lock_roadmap(session: AsyncSession, roadmap_id: uuid.UUID) -> RoadmapModel:
     """`SELECT ... FOR UPDATE`: every mutation serializes on its roadmap row, so
@@ -219,9 +257,10 @@ def guard_write(
 ) -> None:
     """`readonly` never writes; the status must accept this kind of write
     (`ALLOWED_WRITES`); an agent *content* write on an `active` roadmap is never
-    applied directly (DEC-0084 §6). Recording it as a pending proposal belongs
-    to the review lane (P8): until then it is refused explicitly, never silently
-    applied and never dropped."""
+    applied directly (DEC-0084 §6). It must go through the proposal endpoint
+    (`POST .../proposals`, `WriteKind.PROPOSAL`) so the change becomes a pending
+    revision a human reviews: refused explicitly here, never silently applied
+    and never dropped."""
     ensure_can_write(principal, "roadmap")
     current = RoadmapStatus(roadmap.status)
     if not write_allowed(current, kind):
@@ -233,8 +272,8 @@ def guard_write(
     ):
         raise invalid_state(
             current,
-            "content changes by an agent on an active roadmap require a proposal, "
-            "which is not available yet",
+            "content changes by an agent on an active roadmap require a proposal: "
+            f"POST /api/v1/roadmaps/{roadmap.id}/proposals",
         )
 
 
@@ -523,6 +562,22 @@ async def read_roadmap(session: AsyncSession, roadmap: RoadmapModel) -> Roadmap:
 
 
 # --- revisions and events ---
+async def next_revision_no(session: AsyncSession, roadmap: RoadmapModel) -> int:
+    """Single monotonic source of a roadmap's revision numbers, shared by every
+    kind (`snapshot`, `proposal`, `review`). A pending proposal does not move
+    `roadmap.revision_no` (it is not applied content), so the next number is
+    derived from the highest row already used: no two revisions ever share a
+    number, which keeps `GET .../revisions/{n}` and the diff base unambiguous."""
+    highest = (
+        await session.execute(
+            select(func.max(RoadmapRevisionModel.revision_no)).where(
+                RoadmapRevisionModel.roadmap_id == roadmap.id
+            )
+        )
+    ).scalar_one_or_none()
+    return max(highest or 0, roadmap.revision_no) + 1
+
+
 def add_revision(
     session: AsyncSession,
     roadmap: RoadmapModel,
@@ -533,6 +588,7 @@ def add_revision(
     document: RoadmapDocument,
     status_value: str | None = None,
     base_revision_no: int | None = None,
+    summary: str | None = None,
 ) -> RoadmapRevisionModel:
     revision = RoadmapRevisionModel(
         roadmap_id=roadmap.id,
@@ -540,6 +596,7 @@ def add_revision(
         kind=kind,
         status=status_value,
         base_revision_no=base_revision_no,
+        summary=summary,
         content=document.model_dump(mode="json"),
         **prov.columns(),
     )
@@ -553,17 +610,246 @@ async def record_snapshot(
     """One `snapshot` revision per applied change of an `active` roadmap
     (DEC-0084 §6): the neutral document of the resulting state, so any earlier
     state can be re-proposed."""
-    roadmap.revision_no += 1
-    roadmap.approved_revision_no = roadmap.revision_no
+    revision_no = await next_revision_no(session, roadmap)
+    roadmap.revision_no = revision_no
+    roadmap.approved_revision_no = revision_no
     document = build_document(await load_tree(session, roadmap))
     add_revision(
         session,
         roadmap,
         prov,
         kind="snapshot",
-        revision_no=roadmap.revision_no,
+        revision_no=revision_no,
         document=document,
     )
+
+
+# --- diff (P8.3) and proposal application ---
+def _steps_by_key(document: RoadmapDocument | None) -> dict[str, tuple[str, StepContent]]:
+    if document is None:
+        return {}
+    return {step.key: (phase.key, step) for phase in document.phases for step in phase.steps}
+
+
+def compute_diff(base: RoadmapDocument | None, proposal: RoadmapDocument) -> list[DiffEntry]:
+    """Human-readable diff (P8.3) computed at read time by matching phases and
+    steps on their `key`; deterministic, never stored. A `None` base (no
+    recorded base revision) treats every element as added."""
+    entries: list[DiffEntry] = []
+    if base is None:
+        entries.append(DiffEntry(scope="roadmap", change=DiffChange.ADDED))
+    else:
+        fields = [
+            name
+            for name, previous, current in (
+                ("title", base.title, proposal.title),
+                ("objective", base.objective, proposal.objective),
+                ("context", base.context, proposal.context),
+                ("metadata", base.metadata, proposal.metadata),
+            )
+            if previous != current
+        ]
+        if fields:
+            entries.append(DiffEntry(scope="roadmap", change=DiffChange.CHANGED, fields=fields))
+
+    base_phases = {phase.key: phase for phase in (base.phases if base else [])}
+    proposal_phases = {phase.key: phase for phase in proposal.phases}
+    for key in sorted(set(base_phases) | set(proposal_phases)):
+        previous = base_phases.get(key)
+        current = proposal_phases.get(key)
+        if previous is None:
+            entries.append(DiffEntry(scope="phase", key=key, change=DiffChange.ADDED))
+            continue
+        if current is None:
+            entries.append(DiffEntry(scope="phase", key=key, change=DiffChange.REMOVED))
+            continue
+        fields = [
+            name
+            for name, old, new in (
+                ("title", previous.title, current.title),
+                ("objective", previous.objective, current.objective),
+            )
+            if old != new
+        ]
+        if fields:
+            entries.append(
+                DiffEntry(scope="phase", key=key, change=DiffChange.CHANGED, fields=fields)
+            )
+
+    base_steps = _steps_by_key(base)
+    proposal_steps = _steps_by_key(proposal)
+    for key in sorted(set(base_steps) | set(proposal_steps)):
+        previous_entry = base_steps.get(key)
+        current_entry = proposal_steps.get(key)
+        if previous_entry is None:
+            entries.append(DiffEntry(scope="step", key=key, change=DiffChange.ADDED))
+            continue
+        if current_entry is None:
+            entries.append(DiffEntry(scope="step", key=key, change=DiffChange.REMOVED))
+            continue
+        previous_phase, old_step = previous_entry
+        current_phase, new_step = current_entry
+        fields = [
+            name
+            for name, old, new in (
+                ("title", old_step.title, new_step.title),
+                ("objective", old_step.objective, new_step.objective),
+                ("context", old_step.context, new_step.context),
+                ("instructions", old_step.instructions, new_step.instructions),
+                ("acceptance_criteria", old_step.acceptance_criteria, new_step.acceptance_criteria),
+                ("notes", old_step.notes, new_step.notes),
+                ("metadata", old_step.metadata, new_step.metadata),
+            )
+            if old != new
+        ]
+        if previous_phase != current_phase:
+            fields.insert(0, "phase")
+        if fields:
+            entries.append(
+                DiffEntry(scope="step", key=key, change=DiffChange.CHANGED, fields=fields)
+            )
+
+        added = sorted(set(new_step.depends_on) - set(old_step.depends_on))
+        removed = sorted(set(old_step.depends_on) - set(new_step.depends_on))
+        if added:
+            entries.append(
+                DiffEntry(scope="dependency", key=key, change=DiffChange.ADDED, fields=added)
+            )
+        if removed:
+            entries.append(
+                DiffEntry(scope="dependency", key=key, change=DiffChange.REMOVED, fields=removed)
+            )
+
+        old_plan = {item.hydration_key: item.title for item in old_step.tasks}
+        new_plan = {item.hydration_key: item.title for item in new_step.tasks}
+        planned = (
+            [f"+{item}" for item in sorted(set(new_plan) - set(old_plan))]
+            + [f"-{item}" for item in sorted(set(old_plan) - set(new_plan))]
+            + [
+                f"~{item}"
+                for item in sorted(set(old_plan) & set(new_plan))
+                if old_plan[item] != new_plan[item]
+            ]
+        )
+        if planned:
+            entries.append(
+                DiffEntry(scope="task_plan", key=key, change=DiffChange.CHANGED, fields=planned)
+            )
+    return entries
+
+
+async def reconcile_document(
+    session: AsyncSession,
+    tree: RoadmapTree,
+    document: RoadmapDocument,
+    prov: ResolvedProvenance,
+) -> None:
+    """Apply a reviewed proposal's neutral document to the persisted plan,
+    matching phases and steps by `key`: a kept step keeps its id, its links and
+    its dependency edges (rebuilt from the document); a step removed while it
+    still has links is `409 step_has_links` (DEC-0084 §6). The document was
+    validated by the caller (`roadmap_document_errors`)."""
+    roadmap = tree.roadmap
+    phases_by_key = {phase.key: phase for phase in tree.phases}
+    steps_by_key = {step.key: step for step in tree.steps}
+    document_phase_keys = {phase.key for phase in document.phases}
+    document_step_keys = {step.key for phase in document.phases for step in phase.steps}
+
+    for existing_step in tree.steps:
+        if existing_step.key not in document_step_keys and tree.links.get(existing_step.id):
+            raise step_has_links()
+
+    for position, phase_in in enumerate(document.phases):
+        phase = phases_by_key.get(phase_in.key)
+        if phase is None:
+            phase = RoadmapPhaseModel(
+                roadmap_id=roadmap.id,
+                key=phase_in.key,
+                position=position,
+                title=phase_in.title,
+                objective=text_or_none(phase_in.objective),
+                **prov.columns(),
+            )
+            session.add(phase)
+            phases_by_key[phase_in.key] = phase
+        else:
+            phase.position = position
+            phase.title = phase_in.title
+            phase.objective = text_or_none(phase_in.objective)
+            phase.version += 1
+    await session.flush()
+
+    plan_by_key: dict[str, RoadmapStepModel] = {}
+    for phase_in in document.phases:
+        phase = phases_by_key[phase_in.key]
+        for position, step_in in enumerate(phase_in.steps):
+            plan = [item.model_dump(mode="json") for item in step_in.tasks]
+            step_model = steps_by_key.get(step_in.key)
+            if step_model is None:
+                step_model = RoadmapStepModel(
+                    roadmap_id=roadmap.id,
+                    phase_id=phase.id,
+                    key=step_in.key,
+                    position=position,
+                    title=step_in.title,
+                    objective=text_or_none(step_in.objective),
+                    context=text_or_none(step_in.context),
+                    instructions=text_or_none(step_in.instructions),
+                    acceptance_criteria=list(step_in.acceptance_criteria),
+                    criteria_checked=[],
+                    notes=text_or_none(step_in.notes),
+                    step_metadata=dict(step_in.metadata),
+                    task_plan=plan,
+                    **prov.columns(),
+                )
+                session.add(step_model)
+                steps_by_key[step_in.key] = step_model
+            else:
+                if list(step_in.acceptance_criteria) != list(step_model.acceptance_criteria):
+                    step_model.criteria_checked = []
+                step_model.phase_id = phase.id
+                step_model.position = position
+                step_model.title = step_in.title
+                step_model.objective = text_or_none(step_in.objective)
+                step_model.context = text_or_none(step_in.context)
+                step_model.instructions = text_or_none(step_in.instructions)
+                step_model.acceptance_criteria = list(step_in.acceptance_criteria)
+                step_model.notes = text_or_none(step_in.notes)
+                step_model.step_metadata = dict(step_in.metadata)
+                step_model.task_plan = plan
+                step_model.version += 1
+            plan_by_key[step_in.key] = step_model
+    await session.flush()
+
+    for key, step_row in steps_by_key.items():
+        if key not in document_step_keys:
+            await session.delete(step_row)
+    for key, phase in phases_by_key.items():
+        if key not in document_phase_keys:
+            await session.delete(phase)
+    await session.flush()
+
+    await session.execute(
+        delete(RoadmapStepDependencyModel).where(
+            RoadmapStepDependencyModel.roadmap_id == roadmap.id
+        )
+    )
+    await session.flush()
+    for phase_in in document.phases:
+        for step_in in phase_in.steps:
+            for dependency in step_in.depends_on:
+                session.add(
+                    RoadmapStepDependencyModel(
+                        step_id=plan_by_key[step_in.key].id,
+                        depends_on_step_id=plan_by_key[dependency].id,
+                        roadmap_id=roadmap.id,
+                    )
+                )
+    await session.flush()
+
+
+def text_or_none(value: str | None) -> str | None:
+    return value or None
 
 
 @dataclass(frozen=True)

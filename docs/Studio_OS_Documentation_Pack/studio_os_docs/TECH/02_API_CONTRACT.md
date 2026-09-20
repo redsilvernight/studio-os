@@ -248,7 +248,10 @@ n'utilisant que leurs propres agents n'observent aucun changement.
    `ReviewQueue{items: [...], generated_at}`, chaque item discrimine par
    `kind` (`ai_work_review`/`decision_proposal`/`resource_conflict`, plus
    `build_failure`/`pr_ready` depuis l'etape 9.1/DEC-0059 — voir section
-   GitHub/Builds/Producer ci-dessous), triee
+   GitHub/Builds/Producer ci-dessous —, plus `roadmap_proposal` depuis
+   Roadmaps P8 : une roadmap `proposed` (`scope=roadmap`) ou une revision
+   `pending` sur une roadmap `active` (`scope=revision`) ; la file reste une
+   vue, les transitions vivent sur les routes Roadmap), triee
    par `requested_at` decroissant. Sert aussi de surface "notifications"
    (DEC-0051, sous-etape 8.5) — il n'existe pas d'endpoint notifications
    separe. Toute machine authentifiee peut lire. Les clients doivent
@@ -288,12 +291,14 @@ Contrat fige par P1 (`packages/studio-contracts/.../roadmaps.py`) ; routes
   `roadmap.approved|changes_requested|rejected`, `payload.scope` =
   `roadmap|revision`
 - Ecritures permises par statut (`ALLOWED_WRITES`, sinon `409 invalid_state`) :
-  `draft` = contenu, avancement, liens ; `active` = idem + hydratation
-  (les propositions arrivent en P8) ; `proposed` (gele pour relecture),
+  `draft` = contenu, avancement, liens ; `active` = idem + hydratation +
+  proposition de revision ; `proposed` (gele pour relecture),
   `completed`, `archived` = lecture seule (`request_changes` / `reopen`
   d'abord). Sur `active`, une ecriture de contenu `is_agent_write` (role
   `agent`, `agent_id` declare ou `origin=ai_proposal` ; `origin=manual`
-  ne declasse jamais) est refusee `409 invalid_state` jusqu'en P8 ;
+  ne declasse jamais) est refusee `409 invalid_state` et doit passer par
+  `POST .../proposals` (elle devient une revision `pending`, jamais appliquee
+  directement) ;
   l'avancement (`StepProgressUpdate` : override, notes, `criteria_checked`)
   reste direct
 - `PATCH` : champ omis ou `null` = inchange ; chaine vide efface un texte optionnel ; `{}` efface
@@ -313,11 +318,22 @@ Contrat fige par P1 (`packages/studio-contracts/.../roadmaps.py`) ; routes
 - Liens Task : `POST .../steps/{key}/links` (`LinkTask`),
   `DELETE .../steps/{key}/links/{task_id}` ; meme projet sinon
   `422 task_project_mismatch` ; aucun `task.roadmap_id`
-- Propositions (**non implementees, P8**, contrats P1 figes) : `POST .../proposals`
-  (`ProposalCreate`), `GET .../revisions`,
+- Propositions (**implementees, P8** ; contrats P1 figes) : `POST .../proposals`
+  (`ProposalCreate`, `Idempotency-Key`, `201`, roadmap `active` requise) enregistre
+  une revision `proposal` `pending` (`base_revision_no` = revision lue) **sans
+  modifier la roadmap** ; une proposition `pending` precedente devient `superseded` ;
+  `GET .../revisions` (filtres `kind`/`status`, `RoadmapRevisionSummary` sans contenu),
+  `GET .../revisions/{revision_no}` (`RoadmapRevision` complet),
   `GET .../proposals/{revision_no}/diff` (`RoadmapDiff`, calcule a la lecture
   par cle), `POST .../proposals/{revision_no}/review` (`ProposalReview`,
-  `admin`/`developer`) ; base perimee -> `409 base_revision_stale`
+  `admin`/`developer`, la roadmap doit toujours etre `active`) ; `approve` applique
+  la proposition atomiquement en appariant les etapes par `key` (ids, liens et
+  dependances des etapes conservees preserves) et repond la `Roadmap` resultante ;
+  `request_changes`/`reject` exigent un commentaire et ne touchent pas la roadmap ;
+  base perimee (`base_revision_no` != `approved_revision_no`) -> `409
+  base_revision_stale` + `server_revision_no`. Les numeros de revision sont uniques
+  par roadmap, toutes sortes confondues (`snapshot`/`proposal`/`review`) : un
+  `revision_no` ne designe jamais deux lignes.
 - Hydratation : `POST .../hydration/preview` (aucune ecriture, tout statut non
   archive) et `POST .../hydration/apply` (`HydrationRequest`,
   `Idempotency-Key`, `HydrationApplyRequest` : `expected_version` requis, roadmap `active`)

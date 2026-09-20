@@ -15,9 +15,12 @@ import { validateRoadmapDocument } from "./roadmapFormat";
 import type {
   Roadmap,
   RoadmapDataSource,
+  RoadmapDiff,
   RoadmapDocument,
+  RoadmapPendingProposal,
   RoadmapPhase,
   RoadmapReviewDecision,
+  RoadmapRevision,
   RoadmapStep,
 } from "./roadmapTypes";
 
@@ -25,6 +28,9 @@ type ApiRoadmap = components["schemas"]["Roadmap"];
 type ApiPhase = components["schemas"]["Phase"];
 type ApiStep = components["schemas"]["Step"];
 type ApiDocument = components["schemas"]["RoadmapDocument"];
+type ApiRevisionSummary = components["schemas"]["RoadmapRevisionSummary"];
+type ApiRevision = components["schemas"]["RoadmapRevision"];
+type ApiDiff = components["schemas"]["RoadmapDiff"];
 
 async function unwrap<T>(
   promise: Promise<{ data?: T; error?: unknown; response: Response }>,
@@ -113,6 +119,7 @@ export function toViewRoadmap(roadmap: ApiRoadmap): Roadmap {
     status: roadmap.status,
     revision_no: roadmap.revision_no,
     approved_revision_no: roadmap.approved_revision_no ?? null,
+    version: roadmap.version,
     context: roadmap.context ?? null,
     metadata: { ...(roadmap.metadata ?? {}) },
     progress: roadmap.progress
@@ -135,6 +142,42 @@ export function toViewRoadmap(roadmap: ApiRoadmap): Roadmap {
         }
       : undefined,
     phases: (roadmap.phases ?? []).map(toViewPhase),
+  };
+}
+
+export function toViewRevision(revision: ApiRevisionSummary | ApiRevision): RoadmapRevision {
+  return {
+    id: revision.id,
+    roadmap_id: revision.roadmap_id,
+    revision_no: revision.revision_no,
+    kind: revision.kind,
+    status: revision.status ?? null,
+    base_revision_no: revision.base_revision_no ?? null,
+    summary: revision.summary ?? null,
+    provenance: {
+      origin: revision.provenance.origin,
+      actor_type: revision.provenance.actor_type,
+      actor_id: revision.provenance.actor_id,
+      agent_id: revision.provenance.agent_id ?? null,
+      machine_id: revision.provenance.machine_id ?? null,
+      at: revision.provenance.at,
+    },
+    reviewed_by_user_id: revision.reviewed_by_user_id ?? null,
+    reviewed_at: revision.reviewed_at ?? null,
+    review_comment: revision.review_comment ?? null,
+  };
+}
+
+export function toViewDiff(diff: ApiDiff): RoadmapDiff {
+  return {
+    base_revision_no: diff.base_revision_no ?? null,
+    proposal_revision_no: diff.proposal_revision_no,
+    entries: (diff.entries ?? []).map((entry) => ({
+      scope: entry.scope,
+      key: entry.key ?? null,
+      change: entry.change,
+      fields: [...(entry.fields ?? [])],
+    })),
   };
 }
 
@@ -231,6 +274,73 @@ export function createApiRoadmapDataSource(client: StudioClient): RoadmapDataSou
         }),
       );
       return toViewRoadmap(transitioned);
+    },
+
+    async loadPendingProposal(projectId: string): Promise<RoadmapPendingProposal | null> {
+      const summaries = await unwrap(
+        client.GET("/api/v1/projects/{project_id}/roadmaps", {
+          params: { path: { project_id: projectId } },
+        }),
+      );
+      const active = summaries.find((summary) => summary.status === "active");
+      if (active === undefined) return null;
+      const revisions = await unwrap(
+        client.GET("/api/v1/roadmaps/{roadmap_id}/revisions", {
+          params: {
+            path: { roadmap_id: active.id },
+            query: { kind: "proposal", status: "pending" },
+          },
+        }),
+      );
+      const pending = revisions[0];
+      if (pending === undefined) return null;
+      const [current, diff] = await Promise.all([
+        unwrap(
+          client.GET("/api/v1/roadmaps/{roadmap_id}", {
+            params: { path: { roadmap_id: active.id } },
+          }),
+        ),
+        unwrap(
+          client.GET("/api/v1/roadmaps/{roadmap_id}/proposals/{revision_no}/diff", {
+            params: {
+              path: { roadmap_id: active.id, revision_no: pending.revision_no },
+            },
+          }),
+        ),
+      ]);
+      return {
+        roadmapId: active.id,
+        roadmapVersion: current.version,
+        revision: toViewRevision(pending),
+        diff: toViewDiff(diff),
+      };
+    },
+
+    async reviewProposalRevision(
+      projectId: string,
+      revisionNo: number,
+      decision: RoadmapReviewDecision,
+      comment?: string,
+    ): Promise<Roadmap | null> {
+      const summaries = await unwrap(
+        client.GET("/api/v1/projects/{project_id}/roadmaps", {
+          params: { path: { project_id: projectId } },
+        }),
+      );
+      const active = summaries.find((summary) => summary.status === "active");
+      if (active === undefined) return null;
+      const current = await detail(active.id);
+      const reviewed = await unwrap(
+        client.POST("/api/v1/roadmaps/{roadmap_id}/proposals/{revision_no}/review", {
+          params: { path: { roadmap_id: active.id, revision_no: revisionNo } },
+          body: {
+            decision,
+            expected_version: current.version ?? 0,
+            comment: comment ?? null,
+          },
+        }),
+      );
+      return toViewRoadmap(reviewed);
     },
   };
 }

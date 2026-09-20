@@ -41,6 +41,7 @@ const REVIEW_KIND_LABEL: Record<ReviewQueueItem["kind"], string> = {
   resource_conflict: "Conflit",
   build_failure: "Build",
   pr_ready: "PR",
+  roadmap_proposal: "Roadmap",
 };
 
 const TASK_STATUS_LABEL: Record<string, string> = {
@@ -64,6 +65,10 @@ export function reviewQueueItemDetail(item: ReviewQueueItem): string {
       return `${item.workflow_name} on ${item.branch}`;
     case "pr_ready":
       return `PR #${item.pr_number} ${item.head_branch} → ${item.base_branch}`;
+    case "roadmap_proposal":
+      return item.scope === "revision"
+        ? `révision ${item.revision_no} de « ${item.title} »`
+        : `« ${item.title} » soumise pour validation`;
   }
 }
 

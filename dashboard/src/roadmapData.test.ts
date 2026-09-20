@@ -40,6 +40,27 @@ describe("fixture/session-only roadmap data source", () => {
     await expect(source.replaceDocument("new-project", { ...document, format: "bad" } as never)).rejects.toThrow(/unsupported format/);
   });
 
+  it("seeds a pending revision proposal and reviews it", async () => {
+    const source = createFixtureRoadmapDataSource();
+    const proposal = await source.loadPendingProposal(roadmapFixtureProjectIds.active);
+    expect(proposal).not.toBeNull();
+    if (proposal === null) throw new Error("fixture missing");
+    expect(proposal.revision.kind).toBe("proposal");
+    expect(proposal.revision.status).toBe("pending");
+    expect(proposal.diff.entries.length).toBeGreaterThan(0);
+    await expect(
+      source.reviewProposalRevision(roadmapFixtureProjectIds.active, proposal.revision.revision_no, "request_changes"),
+    ).rejects.toThrow(/comment/);
+    const updated = await source.reviewProposalRevision(
+      roadmapFixtureProjectIds.active,
+      proposal.revision.revision_no,
+      "approve",
+    );
+    expect(updated?.revision_no).toBe(proposal.revision.revision_no);
+    expect(updated?.approved_revision_no).toBe(proposal.revision.revision_no);
+    await expect(source.loadPendingProposal(roadmapFixtureProjectIds.active)).resolves.toBeNull();
+  });
+
   it("reviews only proposals and requires comments for requested changes", async () => {
     const source = createFixtureRoadmapDataSource();
     await expect(source.reviewProposal(roadmapFixtureProjectIds.proposed, "approve")).resolves.toMatchObject({
