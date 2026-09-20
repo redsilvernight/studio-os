@@ -57,6 +57,15 @@ async def run_tool[T](
             return exc.to_dict()  # type: ignore[return-value]
         except HTTPException as exc:
             return _http_exception_to_dict(exc)  # type: ignore[return-value]
+        except ImportError as exc:
+            # A lazily imported service module that is not deployed yet (e.g.
+            # the Roadmap service before P3 converges) must answer a structured
+            # error, never a raw stack trace (.claude/rules/mcp-tools.md).
+            await session.rollback()
+            return {  # type: ignore[return-value]
+                "error_code": "service_unavailable",
+                "message": str(exc),
+            }
         except IntegrityError:
             # A caller-supplied id (task_id, project_id, ...) that
             # doesn't exist — the FK constraint is the only thing that caught
