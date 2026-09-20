@@ -403,3 +403,8 @@ Nouveau domaine additif ; **aucune colonne `roadmap_id` sur `tasks`**. Tables :
   `reviewed_at`, `review_comment`.
 Aucun champ `provider`/`model`/`harness` : joignable uniquement via `agent_id`.
 Pas de suppression physique hors brouillon ; archivage.
+Provenance d'une proposition approuvee (P10, DEC-0090) : la ligne `roadmap_revisions`
+de la proposition **est** la revision resultante (`revision_no` = `approved_revision_no`) ;
+sa provenance d'auteur n'est jamais reecrite par la relecture, qui ajoute seulement
+`status`, `reviewed_by_user_id`, `reviewed_at`, `review_comment`. La provenance d'une
+phase/etape/lien est celle de sa **creation** (une edition est attribuee par la revision).

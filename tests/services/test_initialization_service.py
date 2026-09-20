@@ -50,6 +50,8 @@ class FakeTarget:
         self.imported_roadmaps: list[bool] = []
         self.created_tasks: list[str] = []
         self.links: list[tuple[UUID, str, UUID]] = []
+        self.statuses: dict[UUID, str] = {}
+        self.events: list[str] = []
         self.attached_calls: list[UUID] = []
         self.binding_calls: list[str] = []
 
@@ -88,6 +90,7 @@ class FakeTarget:
     ) -> UUID:
         self.imported_roadmaps.append(submit)
         roadmap_id = uuid4()
+        self.statuses[roadmap_id] = "proposed" if submit else "draft"
         self.roadmaps.setdefault(project_id, {})[document.title] = roadmap_id
         return roadmap_id
 
@@ -103,7 +106,18 @@ class FakeTarget:
     async def link_task_to_step(
         self, project_id: UUID, roadmap_id: UUID, step_key: str, task_id: UUID
     ) -> None:
+        # Same rule as the real service: a roadmap frozen for review (`proposed`)
+        # refuses a *new* link, while an existing one is a no-op.
+        if any(link == (roadmap_id, step_key, task_id) for link in self.links):
+            return
+        assert self.statuses[roadmap_id] == "draft", "a proposed roadmap does not accept link"
+        self.events.append("link")
         self.links.append((roadmap_id, step_key, task_id))
+
+    async def submit_roadmap(self, roadmap_id: UUID, provenance: WriteProvenance) -> None:
+        if self.statuses[roadmap_id] == "draft":
+            self.events.append("submit")
+            self.statuses[roadmap_id] = "proposed"
 
     async def resolve_resource(
         self, ref: object, project_id: UUID | None
@@ -261,7 +275,10 @@ async def test_apply_full_plan_creates_every_section_and_links_tasks() -> None:
     )
     result = await apply_initialization(target, plan, _principal())
     assert result.applied and result.roadmap_status == "proposed"
-    assert target.imported_roadmaps == [True]
+    # created as a draft, linked, *then* submitted: a proposed roadmap refuses links
+    assert target.imported_roadmaps == [False]
+    assert target.events == ["link", "submit"]
+    assert set(target.statuses.values()) == {"proposed"}
     assert target.created_tasks == ["Kickoff"]
     assert len(target.links) == 1 and target.links[0][1] == "P0.1"
     assert len(target.attached_calls) == 1
@@ -303,6 +320,37 @@ async def test_replay_repairs_a_link_lost_by_a_partial_apply() -> None:
     second = await apply_initialization(target, plan, _principal())
     assert second.summary.created == 0
     assert len(target.links) == 1
+
+
+async def test_replaying_a_proposed_plan_never_relinks_a_frozen_roadmap() -> None:
+    target = FakeTarget()
+    plan = _plan(
+        mode="proposed",
+        roadmap=_roadmap_document(),
+        tasks=[{"key": "k", "title": "Kickoff", "roadmap_step_key": "P0.1"}],
+    )
+    await apply_initialization(target, plan, _principal())
+    second = await apply_initialization(target, plan, _principal())
+    assert second.summary.created == 0
+    assert target.events == ["link", "submit"]  # neither re-linked nor re-submitted
+    assert len(target.imported_roadmaps) == 1
+
+
+async def test_replay_completes_the_submission_an_interrupted_apply_left_as_draft() -> None:
+    target = FakeTarget()
+    plan = _plan(
+        mode="proposed",
+        roadmap=_roadmap_document(),
+        tasks=[{"key": "k", "title": "Kickoff", "roadmap_step_key": "P0.1"}],
+    )
+    await apply_initialization(target, plan, _principal())
+    for roadmap_id in target.statuses:  # simulate a crash between the links and the submit
+        target.statuses[roadmap_id] = "draft"
+    target.events.clear()
+    second = await apply_initialization(target, plan, _principal())
+    assert second.summary.created == 0
+    assert target.events == ["submit"]  # already linked, only the submission is completed
+    assert set(target.statuses.values()) == {"proposed"}
 
 
 async def test_binding_incompatibility_blocks_apply() -> None:
