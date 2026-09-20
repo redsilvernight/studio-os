@@ -206,12 +206,15 @@ export function roadmapPrintHtml(roadmap: Roadmap): string {
     `<dl><div><dt>Statut</dt><dd>${esc(STATUS_LABELS[roadmap.status])}</dd></div><div><dt>Progression</dt><dd>${roadmapProgress} %</dd></div><div><dt>Phases</dt><dd>${phases.length}</dd></div></dl></header>${phaseSections || `<p>Aucune phase.</p>`}</section>`;
 }
 
-export function roadmapShellHtml(roadmap: Roadmap, mode: RoadmapMode, selectedKey: string | null): string {
+export function roadmapShellHtml(roadmap: Roadmap, mode: RoadmapMode, selectedKey: string | null, demo = false): string {
   const progress = percent(roadmap.progress?.ratio);
   const plan = mode === "plan" ? roadmapPlanHtml(roadmap, selectedKey) : roadmapExecutionHtml(roadmap, selectedKey);
   const selected = allSteps(roadmap).find((step) => step.key === selectedKey) ?? null;
+  const demoNote = demo
+    ? `<div class="ds-notice ds-notice--info roadmap-fixture-note" role="note"><strong>Données de démonstration.</strong> Source locale de la session : les modifications restent ici, sans toucher l'API.</div>`
+    : "";
   return `<div class="roadmap-view">${roadmapPrintHtml(roadmap)}` +
-    `<div class="ds-notice ds-notice--info roadmap-fixture-note" role="note"><strong>Données de démonstration.</strong> Cette vue utilise les fixtures P1. Les modifications restent dans cette session jusqu'au branchement de l'API P3.</div>` +
+    demoNote +
     proposalHtml(roadmap) +
     `<header class="roadmap-header"><div><div class="roadmap-title-line"><h2>${esc(roadmap.title)}</h2>${dsBadge(STATUS_LABELS[roadmap.status], statusTone(roadmap.status))}</div>` +
     `<p>${esc(roadmap.objective?.trim() || "Plan du projet")}</p>${dsProgress(progress, 100, `${progress} % du plan terminé`)}</div>` +
@@ -242,7 +245,7 @@ function documentEditorHtml(document: RoadmapDocument): string {
     dsField("roadmap-objective", "Objectif", `<textarea id="FIELD" name="objective" maxlength="2000">${esc(document.objective ?? "")}</textarea>`) +
     dsField("roadmap-context", "Contexte", `<textarea id="FIELD" name="context" maxlength="4000">${esc(document.context ?? "")}</textarea>`) +
     `<div data-editor-phases>${phases}</div><button class="ds-btn" type="button" data-add-phase>Ajouter une phase</button>` +
-    `<div data-editor-error></div><div class="ds-dialog-actions"><button class="ds-btn" type="button" data-editor-cancel>Annuler</button><button class="ds-btn ds-btn--primary" type="submit">Enregistrer pour cette session</button></div></form></div>`;
+    `<div data-editor-error></div><div class="ds-dialog-actions"><button class="ds-btn" type="button" data-editor-cancel>Annuler</button><button class="ds-btn ds-btn--primary" type="submit">Enregistrer</button></div></form></div>`;
 }
 
 function readEditor(form: HTMLFormElement, baseline: RoadmapDocument): RoadmapDocument {
@@ -317,7 +320,7 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
       bind();
       return;
     }
-    root.innerHTML = roadmapShellHtml(roadmap, mode, selectedKey);
+    root.innerHTML = roadmapShellHtml(roadmap, mode, selectedKey, ctx.dataSource.demo === true);
     bind();
   };
 
@@ -362,7 +365,7 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
         close();
         selectedKey = allSteps(roadmap)[0]?.key ?? null;
         paint();
-        dsNotify("Roadmap enregistrée pour cette session.", "success");
+        dsNotify("Roadmap enregistrée.", "success");
       } catch (error) {
         if (errorBox !== null) errorBox.innerHTML = `<div class="ds-notice ds-notice--danger" role="alert"><strong>Plan invalide.</strong> ${esc(describeError(error))}</div>`;
       }
@@ -392,7 +395,7 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
         roadmap = await ctx.dataSource.replaceDocument(ctx.projectId, document);
         selectedKey = allSteps(roadmap)[0]?.key ?? null;
         paint();
-        dsNotify("Roadmap importée pour cette session.", "success");
+        dsNotify("Roadmap importée.", "success");
       } catch (error) {
         root.insertAdjacentHTML("afterbegin", `<div class="ds-notice ds-notice--danger" role="alert"><strong>Import impossible.</strong> ${esc(describeError(error))}</div>`);
       }
@@ -406,9 +409,9 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
       if (roadmap === null) return;
       const decision = button.dataset.review;
       if (decision !== "approve" && decision !== "request_changes" && decision !== "reject") return;
-      roadmap = await ctx.dataSource.reviewProposal(ctx.projectId, decision, decision === "request_changes" ? "Modifications demandées depuis l'aperçu fixture." : undefined);
+      roadmap = await ctx.dataSource.reviewProposal(ctx.projectId, decision, decision === "request_changes" ? "Modifications demandées depuis l'aperçu." : undefined);
       paint();
-      dsNotify("Décision appliquée à la fixture de cette session.", "success");
+      dsNotify("Décision enregistrée.", "success");
     }));
   };
 

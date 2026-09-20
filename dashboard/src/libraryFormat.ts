@@ -19,7 +19,7 @@ export type BindingRelation = components["schemas"]["BindingRelation"];
 export type CapabilityRequirement = components["schemas"]["CapabilityRequirement"];
 export type RuntimeCapabilities = components["schemas"]["RuntimeCapabilities"];
 export type RuntimeTarget = components["schemas"]["RuntimeTarget"];
-export type Provenance = components["schemas"]["Provenance"];
+export type Provenance = components["schemas"]["studio_contracts__resolution__Provenance"];
 export type DependencyPin = components["schemas"]["DependencyPin"];
 
 export type LibraryKindSlug =

@@ -1132,6 +1132,432 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/roadmaps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Roadmaps
+         * @description List a project's roadmaps (newest first), optionally by `status`. Any authenticated machine may read. A project may have several roadmaps but at most one `active`.
+         */
+        get: operations["list_roadmaps_api_v1_projects__project_id__roadmaps_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/roadmaps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Roadmap
+         * @description Create an empty `draft` roadmap in a project. Requires a writer role. Accepts `Idempotency-Key`. A whole plan goes through `POST /roadmaps/import`.
+         */
+        post: operations["create_roadmap_api_v1_roadmaps_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/roadmaps/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Roadmap
+         * @description Create a `draft` (or `proposed` with `submit=true`) roadmap from a neutral `studio.roadmap/v1` document, atomically and without creating any Task. The document is validated before any write (`422 invalid_roadmap`). Requires a writer role. Accepts `Idempotency-Key`.
+         */
+        post: operations["import_roadmap_api_v1_roadmaps_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/roadmaps/{roadmap_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Roadmap
+         * @description Roadmap detail: phases and steps in stable order with derived state, availability, progress and `current_step_key`. Any authenticated machine may read.
+         */
+        get: operations["get_roadmap_api_v1_roadmaps__roadmap_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Roadmap
+         * @description Edit the roadmap header (title, objective, context, metadata). Requires a writer role and the roadmap's `If-Match-Version`. Omitted or null = unchanged; an empty string clears an optional text field; `{}` clears `metadata`.
+         */
+        patch: operations["update_roadmap_api_v1_roadmaps__roadmap_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/roadmaps/{roadmap_id}/transitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Transition Roadmap
+         * @description Lifecycle change (closed table): `submit`, `approve`, `request_changes`, `reject`, `activate`, `complete`, `reopen`, `archive` — `archive` is the archival. `draft -> proposed` and `draft -> archived` need a writer role; every other transition needs `admin`/`developer` (the `agent` role can never activate, approve, reject, complete or archive an approved plan). `comment` is required for `request_changes`, `reject` and `reopen`. Activating an already active roadmap is a successful no-op. A project has at most one active roadmap.
+         */
+        post: operations["transition_roadmap_api_v1_roadmaps__roadmap_id__transitions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/roadmaps/{roadmap_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Roadmap
+         * @description Export the current plan as the neutral, versioned `studio.roadmap/v1` document (no id, status, provenance or Task link). `format=pdf` is delivered by the export lane and currently answers `501`.
+         */
+        get: operations["export_roadmap_api_v1_roadmaps__roadmap_id__export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/roadmaps/{roadmap_id}/phases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Phase
+         * @description Append a phase. Body carries `expected_roadmap_version`. Accepts `Idempotency-Key`. Answers the updated roadmap.
+         */
+        post: operations["create_phase_api_v1_roadmaps__roadmap_id__phases_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/roadmaps/{roadmap_id}/phases/reorder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reorder Phases
+         * @description Atomic reorder: `ordered_keys` must be a permutation of the current phase keys (`422 invalid_roadmap`/`invalid_reorder` otherwise). Checks and bumps the roadmap version.
+         */
+        post: operations["reorder_phases_api_v1_roadmaps__roadmap_id__phases_reorder_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/roadmaps/{roadmap_id}/phases/{phase_key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Phase
+         * @description Delete a phase and its steps from a `draft` roadmap only (else `409 invalid_state`; mark steps `skipped` instead). Refused with `409 step_has_links` if any step is linked to a Task. `If-Match-Version` = the roadmap's version.
+         */
+        delete: operations["delete_phase_api_v1_roadmaps__roadmap_id__phases__phase_key__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Phase
+         * @description Edit a phase's title/objective. `If-Match-Version` = the phase's version.
+         */
+        patch: operations["update_phase_api_v1_roadmaps__roadmap_id__phases__phase_key__patch"];
+        trace?: never;
+    };
+    "/api/v1/roadmaps/{roadmap_id}/phases/{phase_key}/steps/reorder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reorder Steps
+         * @description Atomic reorder of a phase's steps: `ordered_keys` must be a permutation of its current step keys. Moving a step across phases is not supported in v1.
+         */
+        post: operations["reorder_steps_api_v1_roadmaps__roadmap_id__phases__phase_key__steps_reorder_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/roadmaps/{roadmap_id}/phases/{phase_key}/steps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Step
+         * @description Append a step (content, dependencies by key, task plan) to a phase. Body carries `expected_roadmap_version`. Accepts `Idempotency-Key`. Never creates a Task.
+         */
+        post: operations["create_step_api_v1_roadmaps__roadmap_id__phases__phase_key__steps_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/roadmaps/{roadmap_id}/steps/{step_key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Step
+         * @description Delete a step from a `draft` roadmap only (else `409 invalid_state`). Refused with `409 step_has_links` if it is linked to a Task. Dependency edges to and from it are removed with it. `If-Match-Version` = the roadmap's version.
+         */
+        delete: operations["delete_step_api_v1_roadmaps__roadmap_id__steps__step_key__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Step
+         * @description Edit a step's content. `If-Match-Version` = the step's version. On an `active` roadmap, a content change by an agent (role `agent`, declared `agent_id` or `origin=ai_proposal`) is refused with `409 invalid_state` (proposals are a later lot); a human change is applied and snapshotted. Editing `tasks` never touches existing Tasks or links; editing `acceptance_criteria` clears `criteria_checked`.
+         */
+        patch: operations["update_step_api_v1_roadmaps__roadmap_id__steps__step_key__patch"];
+        trace?: never;
+    };
+    "/api/v1/roadmaps/{roadmap_id}/steps/{step_key}/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Step Progress
+         * @description Bounded progress update (`state_override` done/skipped, notes, checked criteria). Applied directly for any writer, including an agent; never a proposal. `If-Match-Version` = the step's version.
+         */
+        patch: operations["update_step_progress_api_v1_roadmaps__roadmap_id__steps__step_key__progress_patch"];
+        trace?: never;
+    };
+    "/api/v1/roadmaps/{roadmap_id}/dependencies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Dependency
+         * @description Add `step_key -> depends_on_key`. An existing edge is a successful no-op; a cycle is `409 dependency_cycle` with the offending `path`; a self-edge is `422 invalid_roadmap`.
+         */
+        post: operations["add_dependency_api_v1_roadmaps__roadmap_id__dependencies_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/roadmaps/{roadmap_id}/dependencies/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Remove Dependency
+         * @description Remove `step_key -> depends_on_key`. Removing an absent edge is a no-op.
+         */
+        post: operations["remove_dependency_api_v1_roadmaps__roadmap_id__dependencies_remove_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/roadmaps/{roadmap_id}/steps/{step_key}/links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Link Task
+         * @description Link an existing Task of the same project to a step (`422 task_project_mismatch` otherwise). Linking twice is a successful no-op. Accepts `Idempotency-Key`.
+         */
+        post: operations["link_task_api_v1_roadmaps__roadmap_id__steps__step_key__links_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/roadmaps/{roadmap_id}/steps/{step_key}/links/{task_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Unlink Task
+         * @description Remove the join between a step and a Task. The Task itself is never touched; removing an absent link is a successful no-op.
+         */
+        delete: operations["unlink_task_api_v1_roadmaps__roadmap_id__steps__step_key__links__task_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/roadmaps/{roadmap_id}/hydration/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Hydration
+         * @description What hydration would do, without writing: per plan item `create`, `reuse` (a Task is already linked under its `hydration_key`) or `skip` (step done/skipped). Any non-archived status; a non-`active` roadmap answers `applicable=false`.
+         */
+        post: operations["preview_hydration_api_v1_roadmaps__roadmap_id__hydration_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/roadmaps/{roadmap_id}/hydration/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply Hydration
+         * @description Create the missing Tasks of the plan and link them, in one transaction. Requires an `active` roadmap (`409 invalid_state`), a writer role, and the `expected_version` read at preview (`409 version_conflict`). Idempotent: `Idempotency-Key` replays the original response, and a retry under a fresh key finds its links via `hydration_key` (`reuse`), never a duplicate. An existing Task is never modified or deleted.
+         */
+        post: operations["apply_hydration_api_v1_roadmaps__roadmap_id__hydration_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/initialization/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview Initialization */
+        post: operations["preview_initialization_api_v1_projects_initialization_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/initialization/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply Initialization */
+        post: operations["apply_initialization_api_v1_projects_initialization_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1518,6 +1944,21 @@ export interface components {
          */
         DecisionStatus: "proposed" | "accepted" | "superseded";
         /**
+         * DependencyChange
+         * @description Add or remove `step_key -> depends_on_key`. Adding an existing edge or
+         *     removing an absent one is a successful no-op; a cycle is
+         *     `409 dependency_cycle` with the offending path.
+         */
+        DependencyChange: {
+            /** Step Key */
+            step_key: string;
+            /** Depends On Key */
+            depends_on_key: string;
+            /** Expected Roadmap Version */
+            expected_roadmap_version: number;
+            provenance?: components["schemas"]["WriteProvenance"];
+        };
+        /**
          * DependencyPin
          * @description A version-pinned reference to another library resource version.
          *
@@ -1662,7 +2103,7 @@ export interface components {
          *     or removed — readers should tolerate unknown types.
          * @enum {string}
          */
-        EventType: "project.created" | "task.created" | "task.started" | "task.updated" | "task.blocked" | "task.completed" | "session.started" | "session.ended" | "resource.claimed" | "resource.renewed" | "resource.released" | "resource.conflict" | "decision.proposed" | "decision.created" | "library.version.created" | "library.version.activated" | "library.resource.deprecated" | "library.lock.set" | "library.lock.released" | "agent.started" | "agent.stopped" | "ai_work.started" | "ai_work.completed" | "ai_work.failed" | "ai_work.review_requested" | "ai_work.approved" | "ai_work.changes_requested" | "git.commit" | "git.branch.changed" | "git.pr.opened" | "git.pr.merged" | "graph.updated" | "memory.proposed" | "memory.updated" | "godot.started" | "godot.stopped" | "recording.started" | "recording.finished" | "recording.marker.created" | "build.started" | "build.succeeded" | "build.failed" | "producer.job.requested" | "producer.job.completed" | "producer.job.failed" | "transfer.created" | "transfer.uploading" | "transfer.ready" | "transfer.downloaded" | "transfer.expired" | "transfer.deleted" | "marketing.candidate.created" | "marketing.post.published";
+        EventType: "project.created" | "task.created" | "task.started" | "task.updated" | "task.blocked" | "task.completed" | "session.started" | "session.ended" | "resource.claimed" | "resource.renewed" | "resource.released" | "resource.conflict" | "decision.proposed" | "decision.created" | "library.version.created" | "library.version.activated" | "library.resource.deprecated" | "library.lock.set" | "library.lock.released" | "roadmap.created" | "roadmap.updated" | "roadmap.proposed" | "roadmap.approved" | "roadmap.changes_requested" | "roadmap.rejected" | "roadmap.activated" | "roadmap.completed" | "roadmap.archived" | "roadmap.hydrated" | "agent.started" | "agent.stopped" | "ai_work.started" | "ai_work.completed" | "ai_work.failed" | "ai_work.review_requested" | "ai_work.approved" | "ai_work.changes_requested" | "git.commit" | "git.branch.changed" | "git.pr.opened" | "git.pr.merged" | "graph.updated" | "memory.proposed" | "memory.updated" | "godot.started" | "godot.stopped" | "recording.started" | "recording.finished" | "recording.marker.created" | "build.started" | "build.succeeded" | "build.failed" | "producer.job.requested" | "producer.job.completed" | "producer.job.failed" | "transfer.created" | "transfer.uploading" | "transfer.ready" | "transfer.downloaded" | "transfer.expired" | "transfer.deleted" | "marketing.candidate.created" | "marketing.post.published";
         /**
          * GitHubIntegration
          * @description Per-project GitHub wiring. At most one row per project in
@@ -1789,6 +2230,303 @@ export interface components {
              * Format: date-time
              */
             server_timestamp: string;
+        };
+        /**
+         * HydrationAction
+         * @description `create` a Task for an unlinked plan item; `reuse` the Task already
+         *     linked under the same `hydration_key`; `skip` a step that is `done` or
+         *     `skipped`. Hydration never modifies or deletes an existing Task.
+         * @enum {string}
+         */
+        HydrationAction: "create" | "reuse" | "skip";
+        /**
+         * HydrationApplyRequest
+         * @description Apply request (`Idempotency-Key`). Requires an `active` roadmap
+         *     (`409 invalid_state` otherwise) and the `expected_version` read at preview:
+         *     a roadmap changed since then is `409 version_conflict`.
+         */
+        HydrationApplyRequest: {
+            /** Step Keys */
+            step_keys?: string[] | null;
+            /** Expected Version */
+            expected_version: number;
+            provenance?: components["schemas"]["WriteProvenance"];
+        };
+        /** HydrationCounts */
+        HydrationCounts: {
+            /**
+             * Create
+             * @default 0
+             */
+            create: number;
+            /**
+             * Reuse
+             * @default 0
+             */
+            reuse: number;
+            /**
+             * Skip
+             * @default 0
+             */
+            skip: number;
+        };
+        /** HydrationItem */
+        HydrationItem: {
+            /** Step Key */
+            step_key: string;
+            /** Hydration Key */
+            hydration_key: string;
+            action: components["schemas"]["HydrationAction"];
+            /** Title */
+            title: string;
+            /** Task Id */
+            task_id?: string | null;
+            reason?: components["schemas"]["HydrationReason"] | null;
+        };
+        /**
+         * HydrationReason
+         * @enum {string}
+         */
+        HydrationReason: "step_done" | "step_skipped" | "roadmap_not_active";
+        /**
+         * HydrationRequest
+         * @description Preview request: `step_keys=None` means every hydratable step. Works on
+         *     any non-archived status so a plan can be inspected before validation; a
+         *     non-`active` roadmap answers `applicable=False`. Writes nothing.
+         */
+        HydrationRequest: {
+            /** Step Keys */
+            step_keys?: string[] | null;
+        };
+        /**
+         * HydrationResult
+         * @description Same shape for preview (`applied=False`, nothing written) and apply
+         *     (`applied=True`). On apply, `create` items carry the new `task_id`.
+         *     `applicable=False` (preview of a non-`active` roadmap) carries
+         *     `not_applicable_reason`; apply never returns it (it fails instead).
+         */
+        HydrationResult: {
+            /**
+             * Roadmap Id
+             * Format: uuid
+             */
+            roadmap_id: string;
+            /** Roadmap Version */
+            roadmap_version: number;
+            /** Applied */
+            applied: boolean;
+            /**
+             * Applicable
+             * @default true
+             */
+            applicable: boolean;
+            not_applicable_reason?: components["schemas"]["HydrationReason"] | null;
+            /** Items */
+            items?: components["schemas"]["HydrationItem"][];
+            counts?: components["schemas"]["HydrationCounts"];
+        };
+        /** InitializationAction */
+        InitializationAction: {
+            section: components["schemas"]["InitializationSection"];
+            /** Key */
+            key: string;
+            action: components["schemas"]["InitializationActionKind"];
+            reason?: components["schemas"]["InitializationReason"] | null;
+            /** Resource Id */
+            resource_id?: string | null;
+        };
+        /**
+         * InitializationActionKind
+         * @description Same vocabulary as roadmap hydration (`create`/`reuse`/`skip`), applied
+         *     to the whole plan: `create` allocates a new row, `reuse` finds an existing
+         *     one (replay-safe), `skip` deliberately does nothing (optional item absent,
+         *     or the section is empty).
+         * @enum {string}
+         */
+        InitializationActionKind: "create" | "reuse" | "skip";
+        /**
+         * InitializationBindingRef
+         * @description A generic runtime choice for one logical `(kind, stable_key)`
+         *     definition, without `project_id` (the project is created/applied in the
+         *     same operation, so the server fills it). `session` is never persistable
+         *     and is rejected here; it belongs to a single resolve call.
+         */
+        InitializationBindingRef: {
+            level: components["schemas"]["RuntimeLevel"];
+            target_kind: components["schemas"]["LibraryKind"];
+            /** Target Stable Key */
+            target_stable_key: string;
+            target: components["schemas"]["RuntimeTarget"];
+        };
+        /**
+         * InitializationMode
+         * @description The human gate the agent requests. The server never chooses it.
+         *
+         *     `draft` applies everything directly (a human-authored plan). `proposed`
+         *     submits the roadmap for human validation (`roadmap.status=proposed`)
+         *     instead of leaving it a free draft; standalone tasks are still created —
+         *     they are ordinary units of work, there is no "task proposal" concept.
+         * @enum {string}
+         */
+        InitializationMode: "draft" | "proposed";
+        /**
+         * InitializationPreview
+         * @description Read-only outcome: exactly what would happen, with no side effect. It
+         *     is valid and applicable even when the project does not exist yet.
+         */
+        InitializationPreview: {
+            /** Valid */
+            valid: boolean;
+            /** Applicable */
+            applicable: boolean;
+            /** Roadmap Present */
+            roadmap_present: boolean;
+            /** Roadmap Status */
+            roadmap_status?: ("draft" | "proposed") | null;
+            /** Actions */
+            actions?: components["schemas"]["InitializationAction"][];
+            summary?: components["schemas"]["InitializationSummary"];
+            /** Problems */
+            problems?: components["schemas"]["InitializationProblem"][];
+        };
+        /**
+         * InitializationProblem
+         * @description One structured problem. `blocking=True` (the default) means the plan is
+         *     not applicable as-is: preview answers `applicable=False` and apply refuses
+         *     before writing anything. `blocking=False` describes an intentionally
+         *     skipped optional item and is reported without failing the apply.
+         */
+        InitializationProblem: {
+            section: components["schemas"]["InitializationSection"];
+            code: components["schemas"]["InitializationProblemCode"];
+            /** Key */
+            key?: string | null;
+            /** Field */
+            field?: string | null;
+            /**
+             * Blocking
+             * @default true
+             */
+            blocking: boolean;
+            /** Message */
+            message?: string | null;
+        };
+        /**
+         * InitializationProblemCode
+         * @description Closed vocabulary. `*_NOT_FOUND`/`*_FORBIDDEN` come from probing the
+         *     server state and are non-oracle: a private Library resource the caller
+         *     cannot see is reported as not found, never as forbidden.
+         * @enum {string}
+         */
+        InitializationProblemCode: "duplicate_task_key" | "duplicate_resource_ref" | "duplicate_binding" | "unknown_roadmap_step" | "roadmap_step_without_roadmap" | "invalid_roadmap" | "resource_not_found" | "binding_target_not_found" | "binding_incompatible" | "limit_exceeded";
+        /**
+         * InitializationProjectSpec
+         * @description The project to reuse (by `slug`) or create. No metadata column exists
+         *     on Project so none is invented here.
+         */
+        InitializationProjectSpec: {
+            /** Slug */
+            slug: string;
+            /** Name */
+            name: string;
+            /** Description */
+            description?: string | null;
+        };
+        /**
+         * InitializationReason
+         * @enum {string}
+         */
+        InitializationReason: "project_already_exists" | "roadmap_already_exists" | "task_already_exists" | "resource_optional_missing" | "resource_required_missing" | "resource_already_attached" | "binding_already_set" | "binding_unavailable" | "no_roadmap" | "no_tasks" | "no_resources" | "no_bindings";
+        /**
+         * InitializationResourceRef
+         * @description A Library definition the project should pin (project lock). `version`
+         *     pins a version; omitted means the active one. `required=False` turns a
+         *     missing definition into a reported `skip` instead of a blocking problem —
+         *     that is how a plan degrades gracefully on a fresh studio.
+         */
+        InitializationResourceRef: {
+            kind: components["schemas"]["LibraryKind"];
+            /** Stable Key */
+            stable_key: string;
+            scope?: components["schemas"]["LibraryScope"] | null;
+            /** Version */
+            version?: number | null;
+            /**
+             * Required
+             * @default true
+             */
+            required: boolean;
+        };
+        /**
+         * InitializationResult
+         * @description Applied outcome. `project_id` is always set (reused or created) and
+         *     `roadmap_id` only when the plan carried one. The same summary semantics as
+         *     preview, so a replay that reuses everything reports `created=0`.
+         */
+        InitializationResult: {
+            /** Applied */
+            applied: boolean;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Roadmap Id */
+            roadmap_id?: string | null;
+            /** Roadmap Status */
+            roadmap_status?: ("draft" | "proposed") | null;
+            /** Actions */
+            actions?: components["schemas"]["InitializationAction"][];
+            summary?: components["schemas"]["InitializationSummary"];
+            /** Problems */
+            problems?: components["schemas"]["InitializationProblem"][];
+            provenance: components["schemas"]["studio_contracts__roadmaps__Provenance"];
+        };
+        /**
+         * InitializationSection
+         * @enum {string}
+         */
+        InitializationSection: "project" | "roadmap" | "tasks" | "resources" | "bindings";
+        /**
+         * InitializationSummary
+         * @description The `created/reused/skipped` roll-up that makes a preview and a replay
+         *     readable at a glance.
+         */
+        InitializationSummary: {
+            /**
+             * Created
+             * @default 0
+             */
+            created: number;
+            /**
+             * Reused
+             * @default 0
+             */
+            reused: number;
+            /**
+             * Skipped
+             * @default 0
+             */
+            skipped: number;
+        };
+        /**
+         * InitializationTask
+         * @description A standalone task the plan asks for. `key` is a plan-local stable
+         *     identifier (error reporting, duplicate detection), never persisted;
+         *     replay-safety comes from the task `title` within the project (an existing
+         *     task with the same title is `reused`, never duplicated). An optional
+         *     `roadmap_step_key` links the task to a step of the plan's roadmap (the
+         *     link is created through the roadmap link service, same project).
+         */
+        InitializationTask: {
+            /** Key */
+            key: string;
+            /** Title */
+            title: string;
+            /** Description */
+            description?: string | null;
+            /** Roadmap Step Key */
+            roadmap_step_key?: string | null;
         };
         /**
          * LibraryActivate
@@ -2009,6 +2747,32 @@ export interface components {
             dependencies: components["schemas"]["DependencyPin"][];
         };
         /**
+         * LinkTask
+         * @description Link an existing Task (same project, else `422 task_project_mismatch`)
+         *     to a step. Linking twice is a successful no-op. Unlinking never touches
+         *     the Task.
+         */
+        LinkTask: {
+            /**
+             * Task Id
+             * Format: uuid
+             */
+            task_id: string;
+            provenance?: components["schemas"]["WriteProvenance"];
+        };
+        /** LinkedTask */
+        LinkedTask: {
+            /**
+             * Task Id
+             * Format: uuid
+             */
+            task_id: string;
+            /** Hydration Key */
+            hydration_key?: string | null;
+            /** @default manual */
+            origin: components["schemas"]["RoadmapOrigin"];
+        };
+        /**
          * Machine
          * @description A machine owns its own revocable credential: an opaque token whose
          *     hash alone is stored server-side, so a leaked database never leaks
@@ -2096,6 +2860,73 @@ export interface components {
          * @enum {string}
          */
         MachineStatus: "online" | "idle" | "offline";
+        /** Phase */
+        Phase: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Roadmap Id
+             * Format: uuid
+             */
+            roadmap_id: string;
+            /** Key */
+            key: string;
+            /** Position */
+            position: number;
+            /** Title */
+            title: string;
+            /** Objective */
+            objective?: string | null;
+            progress: components["schemas"]["Progress"];
+            /** Steps */
+            steps?: components["schemas"]["Step"][];
+        };
+        /** PhaseContent */
+        PhaseContent: {
+            /** Key */
+            key: string;
+            /** Title */
+            title: string;
+            /** Objective */
+            objective?: string | null;
+            /** Steps */
+            steps?: components["schemas"]["StepContent"][];
+        };
+        /** PhaseCreate */
+        PhaseCreate: {
+            /** Key */
+            key: string;
+            /** Title */
+            title: string;
+            /** Objective */
+            objective?: string | null;
+            /** Expected Roadmap Version */
+            expected_roadmap_version: number;
+            provenance?: components["schemas"]["WriteProvenance"];
+        };
+        /** PhaseUpdate */
+        PhaseUpdate: {
+            /** Title */
+            title?: string | null;
+            /** Objective */
+            objective?: string | null;
+            provenance?: components["schemas"]["WriteProvenance"];
+        };
         /**
          * PreservedReference
          * @description A `composes_agent` / `references_workflow` dependency, preserved with
@@ -2122,7 +2953,7 @@ export interface components {
              */
             deprecated: boolean;
             relation: components["schemas"]["BindingRelation"];
-            provenance: components["schemas"]["Provenance"];
+            provenance: components["schemas"]["studio_contracts__resolution__Provenance"];
         };
         /**
          * ProducerJob
@@ -2187,6 +3018,22 @@ export interface components {
          * @enum {string}
          */
         ProducerJobStatus: "requested" | "running" | "completed" | "failed";
+        /**
+         * Progress
+         * @description `done / total` over non-skipped steps; `ratio` in [0, 1], `1.0` when
+         *     there is nothing left to do (`total == 0`). Derived at read time, never
+         *     persisted, so API, MCP and Dashboard cannot drift.
+         */
+        Progress: {
+            /** Done */
+            done: number;
+            /** Total */
+            total: number;
+            /** Skipped */
+            skipped: number;
+            /** Ratio */
+            ratio: number;
+        };
         /** Project */
         Project: {
             /**
@@ -2228,6 +3075,40 @@ export interface components {
             description?: string | null;
         };
         /**
+         * ProjectInitializationPlan
+         * @description The whole neutral plan. `roadmap` is optional by design: a project with
+         *     no roadmap is the common case and must never be blocked by its absence.
+         */
+        ProjectInitializationPlan: {
+            /**
+             * Format
+             * @default studio.initialization/v1
+             * @constant
+             */
+            format: "studio.initialization/v1";
+            /** @default draft */
+            mode: components["schemas"]["InitializationMode"];
+            project: components["schemas"]["InitializationProjectSpec"];
+            roadmap?: components["schemas"]["RoadmapDocument"] | null;
+            /** Tasks */
+            tasks?: components["schemas"]["InitializationTask"][];
+            /** Resources */
+            resources?: components["schemas"]["InitializationResourceRef"][];
+            /** Bindings */
+            bindings?: components["schemas"]["InitializationBindingRef"][];
+        };
+        /**
+         * ProjectInitializationRequest
+         * @description Apply payload: the plan plus the client-declared part of provenance.
+         *     The server derives the rest from the authenticated `Principal` (actor =
+         *     machine owner unless `agent_id` is set; an `agent_id` not attached to the
+         *     machine is `409 actor_not_owned`). Preview takes the bare plan.
+         */
+        ProjectInitializationRequest: {
+            plan: components["schemas"]["ProjectInitializationPlan"];
+            provenance?: components["schemas"]["WriteProvenance"];
+        };
+        /**
          * ProjectState
          * @description GET /projects/{id}/state — the aggregate view a client bootstraps from.
          */
@@ -2248,39 +3129,24 @@ export interface components {
             generated_at: string;
         };
         /**
-         * Provenance
-         * @description Complete provenance for one resolved element.
-         *
-         *     Answers: why this resource, why this version (lock vs active vs pin),
-         *     through which relation, which runtime level won and whether an override
-         *     decided. Every field is data, never a human sentence.
-         */
-        Provenance: {
-            source: components["schemas"]["ProvenanceSource"];
-            /** Resource Id */
-            resource_id?: string | null;
-            /** Stable Key */
-            stable_key?: string | null;
-            scope?: components["schemas"]["LibraryScope"] | null;
-            /** Version */
-            version?: number | null;
-            version_origin?: components["schemas"]["VersionOrigin"] | null;
-            /**
-             * Locked
-             * @default false
-             */
-            locked: boolean;
-            relation?: components["schemas"]["BindingRelation"] | null;
-            binding_level?: components["schemas"]["RuntimeLevel"] | null;
-            /** Via */
-            via?: string | null;
-        };
-        /**
          * ProvenanceSource
          * @description Where a resolved element came from (structured, never prose).
          * @enum {string}
          */
         ProvenanceSource: "active_pointer" | "project_lock" | "version_pin" | "runtime_binding" | "session_override";
+        /**
+         * Reorder
+         * @description Atomic reorder: the complete ordered list of sibling keys. It must be
+         *     a permutation of the current siblings (`422 invalid_roadmap`,
+         *     `invalid_reorder`); the roadmap version is checked and bumped.
+         */
+        Reorder: {
+            /** Ordered Keys */
+            ordered_keys: string[];
+            /** Expected Roadmap Version */
+            expected_roadmap_version: number;
+            provenance?: components["schemas"]["WriteProvenance"];
+        };
         /** ResolvedAgent */
         ResolvedAgent: {
             /**
@@ -2312,7 +3178,7 @@ export interface components {
             content: {
                 [key: string]: unknown;
             };
-            provenance: components["schemas"]["Provenance"];
+            provenance: components["schemas"]["studio_contracts__resolution__Provenance"];
         };
         /**
          * ResolvedAgentDefinition
@@ -2387,7 +3253,7 @@ export interface components {
              *     }
              */
             requirements: components["schemas"]["CapabilityRequirement"];
-            provenance: components["schemas"]["Provenance"];
+            provenance: components["schemas"]["studio_contracts__resolution__Provenance"];
         };
         /** ResolvedRule */
         ResolvedRule: {
@@ -2447,7 +3313,7 @@ export interface components {
              * @default []
              */
             unsatisfied: string[];
-            provenance?: components["schemas"]["Provenance"] | null;
+            provenance?: components["schemas"]["studio_contracts__resolution__Provenance"] | null;
         };
         /** ResolvedSkill */
         ResolvedSkill: {
@@ -2479,7 +3345,7 @@ export interface components {
             content: {
                 [key: string]: unknown;
             };
-            provenance: components["schemas"]["Provenance"];
+            provenance: components["schemas"]["studio_contracts__resolution__Provenance"];
         };
         /** ResourceClaim */
         ResourceClaim: {
@@ -2728,6 +3594,204 @@ export interface components {
              * Format: date-time
              */
             requested_at: string;
+        };
+        /**
+         * Roadmap
+         * @description Detail view: `phases` are in stable order; `current_step_key` is the
+         *     first `available` step in plan order (deterministic).
+         */
+        Roadmap: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Title */
+            title: string;
+            /** Objective */
+            objective?: string | null;
+            status: components["schemas"]["RoadmapStatus"];
+            /** Revision No */
+            revision_no: number;
+            /** Approved Revision No */
+            approved_revision_no?: number | null;
+            progress: components["schemas"]["Progress"];
+            /** Current Step Key */
+            current_step_key?: string | null;
+            provenance?: components["schemas"]["studio_contracts__roadmaps__Provenance"] | null;
+            /** Context */
+            context?: string | null;
+            /** Metadata */
+            metadata?: {
+                [key: string]: string | number | boolean | null;
+            };
+            /** Phases */
+            phases?: components["schemas"]["Phase"][];
+        };
+        /**
+         * RoadmapCreate
+         * @description Empty draft skeleton. A full plan goes through `RoadmapImport`.
+         */
+        RoadmapCreate: {
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Title */
+            title: string;
+            /** Objective */
+            objective?: string | null;
+            /** Context */
+            context?: string | null;
+            /** Metadata */
+            metadata?: {
+                [key: string]: string | number | boolean | null;
+            };
+            provenance?: components["schemas"]["WriteProvenance"];
+        };
+        /**
+         * RoadmapDocument
+         * @description The neutral, versioned, portable roadmap: what import accepts, export
+         *     returns and a proposal carries. List order *is* the stable order. It holds
+         *     the plan only — no ids, no Task links to existing Tasks, no status, no
+         *     secrets, no provenance — so it moves between projects and tools intact.
+         */
+        RoadmapDocument: {
+            /**
+             * Format
+             * @default studio.roadmap/v1
+             * @constant
+             */
+            format: "studio.roadmap/v1";
+            /** Title */
+            title: string;
+            /** Objective */
+            objective?: string | null;
+            /** Context */
+            context?: string | null;
+            /** Metadata */
+            metadata?: {
+                [key: string]: string | number | boolean | null;
+            };
+            /** Phases */
+            phases?: components["schemas"]["PhaseContent"][];
+            /** Exported At */
+            exported_at?: string | null;
+            /** Revision No */
+            revision_no?: number | null;
+        };
+        /**
+         * RoadmapImport
+         * @description Create a `draft` from a full document (import, AI proposal, project
+         *     initialization). `submit=True` also moves it to `proposed` in the same
+         *     atomic operation (the proposal flow). Never creates Tasks.
+         */
+        RoadmapImport: {
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            document: components["schemas"]["RoadmapDocument"];
+            /**
+             * Submit
+             * @default false
+             */
+            submit: boolean;
+            provenance?: components["schemas"]["WriteProvenance"];
+        };
+        /**
+         * RoadmapOrigin
+         * @description How content entered Studio OS. Self-declared by the writer: a workflow
+         *     guard, not a security boundary; the boundary is the role.
+         * @enum {string}
+         */
+        RoadmapOrigin: "manual" | "ai_proposal" | "import";
+        /**
+         * RoadmapStatus
+         * @enum {string}
+         */
+        RoadmapStatus: "draft" | "proposed" | "active" | "completed" | "archived";
+        /** RoadmapSummary */
+        RoadmapSummary: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Title */
+            title: string;
+            /** Objective */
+            objective?: string | null;
+            status: components["schemas"]["RoadmapStatus"];
+            /** Revision No */
+            revision_no: number;
+            /** Approved Revision No */
+            approved_revision_no?: number | null;
+            progress: components["schemas"]["Progress"];
+            /** Current Step Key */
+            current_step_key?: string | null;
+            provenance?: components["schemas"]["studio_contracts__roadmaps__Provenance"] | null;
+        };
+        /**
+         * RoadmapTransition
+         * @enum {string}
+         */
+        RoadmapTransition: "submit" | "approve" | "request_changes" | "reject" | "activate" | "complete" | "reopen" | "archive";
+        /**
+         * RoadmapUpdate
+         * @description Content edit of the roadmap header (`PATCH`, `If-Match-Version`). PATCH
+         *     semantics for every `*Update` model: an omitted or `null` field is left
+         *     unchanged; an empty string clears an optional text field and `{}` clears
+         *     `metadata`.
+         */
+        RoadmapUpdate: {
+            /** Title */
+            title?: string | null;
+            /** Objective */
+            objective?: string | null;
+            /** Context */
+            context?: string | null;
+            /** Metadata */
+            metadata?: {
+                [key: string]: string | number | boolean | null;
+            } | null;
+            provenance?: components["schemas"]["WriteProvenance"];
         };
         /**
          * Role
@@ -3064,6 +4128,179 @@ export interface components {
             target_stable_key: string;
             target: components["schemas"]["RuntimeTarget"];
         };
+        /** Step */
+        Step: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Roadmap Id
+             * Format: uuid
+             */
+            roadmap_id: string;
+            /**
+             * Phase Id
+             * Format: uuid
+             */
+            phase_id: string;
+            /** Key */
+            key: string;
+            /** Position */
+            position: number;
+            /** Title */
+            title: string;
+            /** Objective */
+            objective?: string | null;
+            /** Context */
+            context?: string | null;
+            /** Instructions */
+            instructions?: string | null;
+            /** Acceptance Criteria */
+            acceptance_criteria?: string[];
+            /** Criteria Checked */
+            criteria_checked?: number[];
+            /** Notes */
+            notes?: string | null;
+            /** Metadata */
+            metadata?: {
+                [key: string]: string | number | boolean | null;
+            };
+            /** Depends On */
+            depends_on?: string[];
+            /** Tasks */
+            tasks?: components["schemas"]["TaskPlanItem"][];
+            /** Linked Tasks */
+            linked_tasks?: components["schemas"]["LinkedTask"][];
+            state_override?: components["schemas"]["StepStateOverride"] | null;
+            /** State Override Reason */
+            state_override_reason?: string | null;
+            /** @default not_started */
+            state: components["schemas"]["StepState"];
+            /**
+             * Available
+             * @default false
+             */
+            available: boolean;
+            /** Waiting On */
+            waiting_on?: string[];
+            task_progress?: components["schemas"]["TaskProgress"];
+            provenance?: components["schemas"]["studio_contracts__roadmaps__Provenance"] | null;
+        };
+        /** StepContent */
+        StepContent: {
+            /** Key */
+            key: string;
+            /** Title */
+            title: string;
+            /** Objective */
+            objective?: string | null;
+            /** Context */
+            context?: string | null;
+            /** Instructions */
+            instructions?: string | null;
+            /** Acceptance Criteria */
+            acceptance_criteria?: string[];
+            /** Notes */
+            notes?: string | null;
+            /** Metadata */
+            metadata?: {
+                [key: string]: string | number | boolean | null;
+            };
+            /** Depends On */
+            depends_on?: string[];
+            /** Tasks */
+            tasks?: components["schemas"]["TaskPlanItem"][];
+        };
+        /**
+         * StepCreate
+         * @description Adds a step at the end of a phase; ordering afterwards goes through
+         *     `Reorder`. Moving a step across phases is not supported in v1 (remove and
+         *     add, or a proposal).
+         */
+        StepCreate: {
+            content: components["schemas"]["StepContent"];
+            /** Expected Roadmap Version */
+            expected_roadmap_version: number;
+            provenance?: components["schemas"]["WriteProvenance"];
+        };
+        /**
+         * StepProgressUpdate
+         * @description Bounded progress-type update, applied directly even when the writer
+         *     carries an agent provenance (P4.5): override, notes, checked criteria. It
+         *     never changes the plan's structure or content and creates no snapshot
+         *     revision. `criteria_checked` is the complete list of checked indices into
+         *     the step's `acceptance_criteria` (replaces the previous list).
+         */
+        StepProgressUpdate: {
+            state_override?: components["schemas"]["StepStateOverride"] | null;
+            /**
+             * Clear State Override
+             * @default false
+             */
+            clear_state_override: boolean;
+            /** State Override Reason */
+            state_override_reason?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Criteria Checked */
+            criteria_checked?: number[] | null;
+            provenance?: components["schemas"]["WriteProvenance"];
+        };
+        /**
+         * StepState
+         * @description Derived, never stored (except through `StepStateOverride`).
+         * @enum {string}
+         */
+        StepState: "not_started" | "in_progress" | "blocked" | "done" | "skipped";
+        /**
+         * StepStateOverride
+         * @description The only stored step state: a manual milestone (`done`, e.g. a step
+         *     with no Task) or an explicit exclusion (`skipped`).
+         * @enum {string}
+         */
+        StepStateOverride: "done" | "skipped";
+        /**
+         * StepUpdate
+         * @description Content edit (`PATCH`, `If-Match-Version` = step version). On an
+         *     `active` roadmap a *content* edit that `is_agent_write` becomes a pending
+         *     proposal instead of being applied. Editing `tasks` never modifies or
+         *     deletes existing Tasks or links: a removed plan item leaves its link (and
+         *     its `hydration_key`) in place, and re-adding it makes it `reuse` again.
+         *     Editing `acceptance_criteria` clears the step's `criteria_checked`.
+         */
+        StepUpdate: {
+            /** Title */
+            title?: string | null;
+            /** Objective */
+            objective?: string | null;
+            /** Context */
+            context?: string | null;
+            /** Instructions */
+            instructions?: string | null;
+            /** Acceptance Criteria */
+            acceptance_criteria?: string[] | null;
+            /** Metadata */
+            metadata?: {
+                [key: string]: string | number | boolean | null;
+            } | null;
+            /** Tasks */
+            tasks?: components["schemas"]["TaskPlanItem"][] | null;
+            provenance?: components["schemas"]["WriteProvenance"];
+        };
         /** Task */
         Task: {
             /**
@@ -3112,6 +4349,28 @@ export interface components {
             title: string;
             /** Description */
             description?: string | null;
+        };
+        /**
+         * TaskPlanItem
+         * @description A Task the step *would* create at hydration. `hydration_key` is unique
+         *     within its step and is what makes hydration replay-safe: a step already
+         *     linked to a Task with the same `hydration_key` is `reused`, never
+         *     duplicated, even under a fresh `Idempotency-Key`.
+         */
+        TaskPlanItem: {
+            /** Hydration Key */
+            hydration_key: string;
+            /** Title */
+            title: string;
+            /** Description */
+            description?: string | null;
+        };
+        /** TaskProgress */
+        TaskProgress: {
+            /** Completed */
+            completed: number;
+            /** Total */
+            total: number;
         };
         /**
          * TaskStatus
@@ -3275,6 +4534,22 @@ export interface components {
          * @enum {string}
          */
         TransferStatus: "created" | "uploading" | "ready" | "downloaded" | "expired" | "deleted";
+        /**
+         * TransitionRequest
+         * @description Lifecycle change of a *roadmap* (`ROADMAP_TRANSITIONS`). `approve` here
+         *     is the initial validation of a `proposed` roadmap; approving a revision
+         *     proposal of an approved roadmap is `ProposalReview`. Both emit
+         *     `roadmap.approved` / `roadmap.changes_requested` / `roadmap.rejected` with
+         *     `payload.scope` = `roadmap` or `revision`.
+         */
+        TransitionRequest: {
+            transition: components["schemas"]["RoadmapTransition"];
+            /** Expected Version */
+            expected_version: number;
+            /** Comment */
+            comment?: string | null;
+            provenance?: components["schemas"]["WriteProvenance"];
+        };
         /**
          * UploadCompleteRequest
          * @description Multipart parts/upload_id are tracked client-side and handed back
@@ -3493,6 +4768,75 @@ export interface components {
             machine_id: string;
             /** Agent Id */
             agent_id?: string | null;
+        };
+        /**
+         * WriteProvenance
+         * @description Client-declared part of provenance. The server derives the rest from
+         *     the authenticated `Principal` (actor = machine owner unless `agent_id` is
+         *     set; an `agent_id` not attached to the machine -> `409 actor_not_owned`).
+         *     Whether a write *is* an agent write is decided by `is_agent_write`, never
+         *     by `origin` alone: a declared `manual` origin cannot downgrade it.
+         */
+        WriteProvenance: {
+            /** @default manual */
+            origin: components["schemas"]["RoadmapOrigin"];
+            /** Agent Id */
+            agent_id?: string | null;
+        };
+        /**
+         * Provenance
+         * @description Complete provenance for one resolved element.
+         *
+         *     Answers: why this resource, why this version (lock vs active vs pin),
+         *     through which relation, which runtime level won and whether an override
+         *     decided. Every field is data, never a human sentence.
+         */
+        studio_contracts__resolution__Provenance: {
+            source: components["schemas"]["ProvenanceSource"];
+            /** Resource Id */
+            resource_id?: string | null;
+            /** Stable Key */
+            stable_key?: string | null;
+            scope?: components["schemas"]["LibraryScope"] | null;
+            /** Version */
+            version?: number | null;
+            version_origin?: components["schemas"]["VersionOrigin"] | null;
+            /**
+             * Locked
+             * @default false
+             */
+            locked: boolean;
+            relation?: components["schemas"]["BindingRelation"] | null;
+            binding_level?: components["schemas"]["RuntimeLevel"] | null;
+            /** Via */
+            via?: string | null;
+        };
+        /**
+         * Provenance
+         * @description Read-side provenance. No harness/provider/model: joinable through
+         *     `agent_id` -> `Agent` only.
+         */
+        studio_contracts__roadmaps__Provenance: {
+            origin: components["schemas"]["RoadmapOrigin"];
+            /**
+             * Actor Type
+             * @enum {string}
+             */
+            actor_type: "user" | "agent";
+            /**
+             * Actor Id
+             * Format: uuid
+             */
+            actor_id: string;
+            /** Agent Id */
+            agent_id?: string | null;
+            /** Machine Id */
+            machine_id?: string | null;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
         };
     };
     responses: never;
@@ -8764,6 +10108,2428 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_roadmaps_api_v1_projects__project_id__roadmaps_get: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["RoadmapStatus"] | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoadmapSummary"][];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Errors use the platform envelope `{"detail": {"error_code": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "reference_not_found",
+                     *         "message": "step P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_roadmap_api_v1_roadmaps_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoadmapCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Roadmap"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Errors use the platform envelope `{"detail": {"error_code": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "reference_not_found",
+                     *         "message": "step P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_roadmap",
+                     *         "reason": "duplicate_step_key",
+                     *         "field": "steps.P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    import_roadmap_api_v1_roadmaps_import_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoadmapImport"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Roadmap"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Errors use the platform envelope `{"detail": {"error_code": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "reference_not_found",
+                     *         "message": "step P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_roadmap",
+                     *         "reason": "duplicate_step_key",
+                     *         "field": "steps.P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    get_roadmap_api_v1_roadmaps__roadmap_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roadmap_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Roadmap"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Errors use the platform envelope `{"detail": {"error_code": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "reference_not_found",
+                     *         "message": "step P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_roadmap_api_v1_roadmaps__roadmap_id__patch: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version — re-read, merge, and retry. Updates never overwrite silently. */
+                "If-Match-Version": number;
+            };
+            path: {
+                roadmap_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoadmapUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Roadmap"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Errors use the platform envelope `{"detail": {"error_code": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "reference_not_found",
+                     *         "message": "step P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_roadmap",
+                     *         "reason": "duplicate_step_key",
+                     *         "field": "steps.P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    transition_roadmap_api_v1_roadmaps__roadmap_id__transitions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roadmap_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransitionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Roadmap"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Errors use the platform envelope `{"detail": {"error_code": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "reference_not_found",
+                     *         "message": "step P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_roadmap",
+                     *         "reason": "duplicate_step_key",
+                     *         "field": "steps.P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    export_roadmap_api_v1_roadmaps__roadmap_id__export_get: {
+        parameters: {
+            query?: {
+                format?: "json" | "pdf";
+            };
+            header?: never;
+            path: {
+                roadmap_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoadmapDocument"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Errors use the platform envelope `{"detail": {"error_code": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "reference_not_found",
+                     *         "message": "step P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description PDF export is not implemented by this surface yet. */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "not_implemented"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    create_phase_api_v1_roadmaps__roadmap_id__phases_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                roadmap_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhaseCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Roadmap"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Errors use the platform envelope `{"detail": {"error_code": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "reference_not_found",
+                     *         "message": "step P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_roadmap",
+                     *         "reason": "duplicate_step_key",
+                     *         "field": "steps.P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    reorder_phases_api_v1_roadmaps__roadmap_id__phases_reorder_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roadmap_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Reorder"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Roadmap"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Errors use the platform envelope `{"detail": {"error_code": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "reference_not_found",
+                     *         "message": "step P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_roadmap",
+                     *         "reason": "duplicate_step_key",
+                     *         "field": "steps.P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    delete_phase_api_v1_roadmaps__roadmap_id__phases__phase_key__delete: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version — re-read, merge, and retry. Updates never overwrite silently. */
+                "If-Match-Version": number;
+            };
+            path: {
+                roadmap_id: string;
+                phase_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Roadmap"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Errors use the platform envelope `{"detail": {"error_code": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "reference_not_found",
+                     *         "message": "step P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_roadmap",
+                     *         "reason": "duplicate_step_key",
+                     *         "field": "steps.P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    update_phase_api_v1_roadmaps__roadmap_id__phases__phase_key__patch: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version — re-read, merge, and retry. Updates never overwrite silently. */
+                "If-Match-Version": number;
+            };
+            path: {
+                roadmap_id: string;
+                phase_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhaseUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Roadmap"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Errors use the platform envelope `{"detail": {"error_code": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "reference_not_found",
+                     *         "message": "step P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_roadmap",
+                     *         "reason": "duplicate_step_key",
+                     *         "field": "steps.P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    reorder_steps_api_v1_roadmaps__roadmap_id__phases__phase_key__steps_reorder_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roadmap_id: string;
+                phase_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Reorder"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Roadmap"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Errors use the platform envelope `{"detail": {"error_code": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "reference_not_found",
+                     *         "message": "step P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_roadmap",
+                     *         "reason": "duplicate_step_key",
+                     *         "field": "steps.P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    create_step_api_v1_roadmaps__roadmap_id__phases__phase_key__steps_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                roadmap_id: string;
+                phase_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StepCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Roadmap"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Errors use the platform envelope `{"detail": {"error_code": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "reference_not_found",
+                     *         "message": "step P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_roadmap",
+                     *         "reason": "duplicate_step_key",
+                     *         "field": "steps.P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    delete_step_api_v1_roadmaps__roadmap_id__steps__step_key__delete: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version — re-read, merge, and retry. Updates never overwrite silently. */
+                "If-Match-Version": number;
+            };
+            path: {
+                roadmap_id: string;
+                step_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Roadmap"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Errors use the platform envelope `{"detail": {"error_code": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "reference_not_found",
+                     *         "message": "step P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_roadmap",
+                     *         "reason": "duplicate_step_key",
+                     *         "field": "steps.P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    update_step_api_v1_roadmaps__roadmap_id__steps__step_key__patch: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version — re-read, merge, and retry. Updates never overwrite silently. */
+                "If-Match-Version": number;
+            };
+            path: {
+                roadmap_id: string;
+                step_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StepUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Roadmap"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Errors use the platform envelope `{"detail": {"error_code": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "reference_not_found",
+                     *         "message": "step P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_roadmap",
+                     *         "reason": "duplicate_step_key",
+                     *         "field": "steps.P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    update_step_progress_api_v1_roadmaps__roadmap_id__steps__step_key__progress_patch: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version — re-read, merge, and retry. Updates never overwrite silently. */
+                "If-Match-Version": number;
+            };
+            path: {
+                roadmap_id: string;
+                step_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StepProgressUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Roadmap"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Errors use the platform envelope `{"detail": {"error_code": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "reference_not_found",
+                     *         "message": "step P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_roadmap",
+                     *         "reason": "duplicate_step_key",
+                     *         "field": "steps.P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    add_dependency_api_v1_roadmaps__roadmap_id__dependencies_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roadmap_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DependencyChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Roadmap"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Errors use the platform envelope `{"detail": {"error_code": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "reference_not_found",
+                     *         "message": "step P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_roadmap",
+                     *         "reason": "duplicate_step_key",
+                     *         "field": "steps.P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    remove_dependency_api_v1_roadmaps__roadmap_id__dependencies_remove_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roadmap_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DependencyChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Roadmap"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Errors use the platform envelope `{"detail": {"error_code": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "reference_not_found",
+                     *         "message": "step P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_roadmap",
+                     *         "reason": "duplicate_step_key",
+                     *         "field": "steps.P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    link_task_api_v1_roadmaps__roadmap_id__steps__step_key__links_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                roadmap_id: string;
+                step_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkTask"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Roadmap"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Errors use the platform envelope `{"detail": {"error_code": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "reference_not_found",
+                     *         "message": "step P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_roadmap",
+                     *         "reason": "duplicate_step_key",
+                     *         "field": "steps.P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    unlink_task_api_v1_roadmaps__roadmap_id__steps__step_key__links__task_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roadmap_id: string;
+                step_key: string;
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Roadmap"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Errors use the platform envelope `{"detail": {"error_code": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "reference_not_found",
+                     *         "message": "step P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_roadmap",
+                     *         "reason": "duplicate_step_key",
+                     *         "field": "steps.P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    preview_hydration_api_v1_roadmaps__roadmap_id__hydration_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roadmap_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HydrationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HydrationResult"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Errors use the platform envelope `{"detail": {"error_code": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "reference_not_found",
+                     *         "message": "step P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_hydration_api_v1_roadmaps__roadmap_id__hydration_apply_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                roadmap_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HydrationApplyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HydrationResult"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Errors use the platform envelope `{"detail": {"error_code": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "reference_not_found",
+                     *         "message": "step P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_roadmap",
+                     *         "reason": "duplicate_step_key",
+                     *         "field": "steps.P1.1"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    preview_initialization_api_v1_projects_initialization_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectInitializationPlan"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InitializationPreview"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_initialization_api_v1_projects_initialization_apply_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectInitializationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InitializationResult"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `actor_not_owned` (declared `agent_id` not attached to the caller's machine). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "actor_not_owned"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `invalid_initialization` (a blocking problem refuses the apply before any write; `problems` is the structured list). A schema-shape error is the framework's native 422. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_initialization"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
                 };
             };
         };

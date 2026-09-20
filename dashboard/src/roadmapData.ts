@@ -54,6 +54,7 @@ export function createFixtureRoadmapDataSource(): RoadmapDataSource {
   for (const [projectId, roadmap] of initial) state.set(projectId, roadmap === null ? null : clone(roadmap));
 
   return {
+    demo: true,
     async load(projectId: string): Promise<Roadmap | null> {
       const roadmap = state.get(projectId) ?? null;
       return roadmap === null ? null : clone(roadmap);

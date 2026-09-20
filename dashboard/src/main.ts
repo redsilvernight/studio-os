@@ -20,6 +20,7 @@ import { resolveApiUrl } from "./config";
 import { clearToken, getToken, hasToken, setToken } from "./auth";
 import { subscribe, uiState } from "./store";
 import { createFixtureRoadmapDataSource } from "./roadmapData";
+import { createApiRoadmapDataSource } from "./roadmapApi";
 import { renderOverview } from "./views/overview";
 import { renderProjects } from "./views/projects";
 import { renderProjectDetail } from "./views/projectDetail";
@@ -53,7 +54,7 @@ import "./styles.css";
 
 type EventEnvelope = components["schemas"]["EventEnvelope"];
 
-const roadmapDataSource = createFixtureRoadmapDataSource();
+const fixtureRoadmapDataSource = createFixtureRoadmapDataSource();
 
 const renderGuard = createRenderGuard();
 let shellListenersMounted = false;
@@ -70,7 +71,18 @@ async function render(): Promise<void> {
       await renderProjects(staging, { client, authed });
       break;
     case "project":
-      await renderProjectDetail(staging, { client, authed, roadmapDataSource }, route.id, route.tab);
+      // Authenticated sessions read the canonical P3 API; anonymous or
+      // development sessions keep the session-local fixture (tests, offline).
+      await renderProjectDetail(
+        staging,
+        {
+          client,
+          authed,
+          roadmapDataSource: authed ? createApiRoadmapDataSource(client) : fixtureRoadmapDataSource,
+        },
+        route.id,
+        route.tab,
+      );
       break;
     case "tasks":
       await renderTasksInto(staging, {

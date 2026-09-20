@@ -128,6 +128,8 @@ export interface Roadmap {
 export type RoadmapReviewDecision = "approve" | "request_changes" | "reject";
 
 export interface RoadmapDataSource {
+  /** Session-local fixture sources set this; the canonical API source leaves it unset. */
+  demo?: boolean;
   load(projectId: string): Promise<Roadmap | null>;
   replaceDocument(projectId: string, document: RoadmapDocument): Promise<Roadmap>;
   reviewProposal(

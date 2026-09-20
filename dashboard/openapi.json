@@ -6534,6 +6534,2776 @@
      }
     ]
    }
+  },
+  "/api/v1/projects/{project_id}/roadmaps": {
+   "get": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "List Roadmaps",
+    "description": "List a project's roadmaps (newest first), optionally by `status`. Any authenticated machine may read. A project may have several roadmaps but at most one `active`.",
+    "operationId": "list_roadmaps_api_v1_projects__project_id__roadmaps_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Project Id"
+      }
+     },
+     {
+      "name": "status",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "$ref": "#/components/schemas/RoadmapStatus"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 100,
+       "minimum": 1,
+       "default": 50,
+       "title": "Limit"
+      }
+     },
+     {
+      "name": "offset",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 0,
+       "default": 0,
+       "title": "Offset"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/RoadmapSummary"
+         },
+         "title": "Response List Roadmaps Api V1 Projects  Project Id  Roadmaps Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Errors use the platform envelope `{\"detail\": {\"error_code\": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "reference_not_found",
+          "message": "step P1.1"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/roadmaps": {
+   "post": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "Create Roadmap",
+    "description": "Create an empty `draft` roadmap in a project. Requires a writer role. Accepts `Idempotency-Key`. A whole plan goes through `POST /roadmaps/import`.",
+    "operationId": "create_roadmap_api_v1_roadmaps_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RoadmapCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Roadmap"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Errors use the platform envelope `{\"detail\": {\"error_code\": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "reference_not_found",
+          "message": "step P1.1"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "`version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "`invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_roadmap",
+          "reason": "duplicate_step_key",
+          "field": "steps.P1.1"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/roadmaps/import": {
+   "post": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "Import Roadmap",
+    "description": "Create a `draft` (or `proposed` with `submit=true`) roadmap from a neutral `studio.roadmap/v1` document, atomically and without creating any Task. The document is validated before any write (`422 invalid_roadmap`). Requires a writer role. Accepts `Idempotency-Key`.",
+    "operationId": "import_roadmap_api_v1_roadmaps_import_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RoadmapImport"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Roadmap"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Errors use the platform envelope `{\"detail\": {\"error_code\": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "reference_not_found",
+          "message": "step P1.1"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "`version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "`invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_roadmap",
+          "reason": "duplicate_step_key",
+          "field": "steps.P1.1"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/roadmaps/{roadmap_id}": {
+   "get": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "Get Roadmap",
+    "description": "Roadmap detail: phases and steps in stable order with derived state, availability, progress and `current_step_key`. Any authenticated machine may read.",
+    "operationId": "get_roadmap_api_v1_roadmaps__roadmap_id__get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "roadmap_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Roadmap Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Roadmap"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Errors use the platform envelope `{\"detail\": {\"error_code\": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "reference_not_found",
+          "message": "step P1.1"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "patch": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "Update Roadmap",
+    "description": "Edit the roadmap header (title, objective, context, metadata). Requires a writer role and the roadmap's `If-Match-Version`. Omitted or null = unchanged; an empty string clears an optional text field; `{}` clears `metadata`.",
+    "operationId": "update_roadmap_api_v1_roadmaps__roadmap_id__patch",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "roadmap_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Roadmap Id"
+      }
+     },
+     {
+      "name": "If-Match-Version",
+      "in": "header",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "description": "Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version \u2014 re-read, merge, and retry. Updates never overwrite silently.",
+       "title": "If-Match-Version"
+      },
+      "description": "Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version \u2014 re-read, merge, and retry. Updates never overwrite silently."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RoadmapUpdate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Roadmap"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Errors use the platform envelope `{\"detail\": {\"error_code\": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "reference_not_found",
+          "message": "step P1.1"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "`version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "`invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_roadmap",
+          "reason": "duplicate_step_key",
+          "field": "steps.P1.1"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/roadmaps/{roadmap_id}/transitions": {
+   "post": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "Transition Roadmap",
+    "description": "Lifecycle change (closed table): `submit`, `approve`, `request_changes`, `reject`, `activate`, `complete`, `reopen`, `archive` \u2014 `archive` is the archival. `draft -> proposed` and `draft -> archived` need a writer role; every other transition needs `admin`/`developer` (the `agent` role can never activate, approve, reject, complete or archive an approved plan). `comment` is required for `request_changes`, `reject` and `reopen`. Activating an already active roadmap is a successful no-op. A project has at most one active roadmap.",
+    "operationId": "transition_roadmap_api_v1_roadmaps__roadmap_id__transitions_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "roadmap_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Roadmap Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/TransitionRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Roadmap"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Errors use the platform envelope `{\"detail\": {\"error_code\": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "reference_not_found",
+          "message": "step P1.1"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "`version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "`invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_roadmap",
+          "reason": "duplicate_step_key",
+          "field": "steps.P1.1"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/roadmaps/{roadmap_id}/export": {
+   "get": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "Export Roadmap",
+    "description": "Export the current plan as the neutral, versioned `studio.roadmap/v1` document (no id, status, provenance or Task link). `format=pdf` is delivered by the export lane and currently answers `501`.",
+    "operationId": "export_roadmap_api_v1_roadmaps__roadmap_id__export_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "roadmap_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Roadmap Id"
+      }
+     },
+     {
+      "name": "format",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "enum": [
+        "json",
+        "pdf"
+       ],
+       "type": "string",
+       "default": "json",
+       "title": "Format"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RoadmapDocument"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Errors use the platform envelope `{\"detail\": {\"error_code\": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "reference_not_found",
+          "message": "step P1.1"
+         }
+        }
+       }
+      }
+     },
+     "501": {
+      "description": "PDF export is not implemented by this surface yet.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "not_implemented"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/roadmaps/{roadmap_id}/phases": {
+   "post": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "Create Phase",
+    "description": "Append a phase. Body carries `expected_roadmap_version`. Accepts `Idempotency-Key`. Answers the updated roadmap.",
+    "operationId": "create_phase_api_v1_roadmaps__roadmap_id__phases_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "roadmap_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Roadmap Id"
+      }
+     },
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PhaseCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Roadmap"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Errors use the platform envelope `{\"detail\": {\"error_code\": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "reference_not_found",
+          "message": "step P1.1"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "`version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "`invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_roadmap",
+          "reason": "duplicate_step_key",
+          "field": "steps.P1.1"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/roadmaps/{roadmap_id}/phases/reorder": {
+   "post": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "Reorder Phases",
+    "description": "Atomic reorder: `ordered_keys` must be a permutation of the current phase keys (`422 invalid_roadmap`/`invalid_reorder` otherwise). Checks and bumps the roadmap version.",
+    "operationId": "reorder_phases_api_v1_roadmaps__roadmap_id__phases_reorder_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "roadmap_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Roadmap Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/Reorder"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Roadmap"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Errors use the platform envelope `{\"detail\": {\"error_code\": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "reference_not_found",
+          "message": "step P1.1"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "`version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "`invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_roadmap",
+          "reason": "duplicate_step_key",
+          "field": "steps.P1.1"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/roadmaps/{roadmap_id}/phases/{phase_key}": {
+   "patch": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "Update Phase",
+    "description": "Edit a phase's title/objective. `If-Match-Version` = the phase's version.",
+    "operationId": "update_phase_api_v1_roadmaps__roadmap_id__phases__phase_key__patch",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "roadmap_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Roadmap Id"
+      }
+     },
+     {
+      "name": "phase_key",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Phase Key"
+      }
+     },
+     {
+      "name": "If-Match-Version",
+      "in": "header",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "description": "Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version \u2014 re-read, merge, and retry. Updates never overwrite silently.",
+       "title": "If-Match-Version"
+      },
+      "description": "Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version \u2014 re-read, merge, and retry. Updates never overwrite silently."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PhaseUpdate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Roadmap"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Errors use the platform envelope `{\"detail\": {\"error_code\": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "reference_not_found",
+          "message": "step P1.1"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "`version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "`invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_roadmap",
+          "reason": "duplicate_step_key",
+          "field": "steps.P1.1"
+         }
+        }
+       }
+      }
+     }
+    }
+   },
+   "delete": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "Delete Phase",
+    "description": "Delete a phase and its steps from a `draft` roadmap only (else `409 invalid_state`; mark steps `skipped` instead). Refused with `409 step_has_links` if any step is linked to a Task. `If-Match-Version` = the roadmap's version.",
+    "operationId": "delete_phase_api_v1_roadmaps__roadmap_id__phases__phase_key__delete",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "roadmap_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Roadmap Id"
+      }
+     },
+     {
+      "name": "phase_key",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Phase Key"
+      }
+     },
+     {
+      "name": "If-Match-Version",
+      "in": "header",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "description": "Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version \u2014 re-read, merge, and retry. Updates never overwrite silently.",
+       "title": "If-Match-Version"
+      },
+      "description": "Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version \u2014 re-read, merge, and retry. Updates never overwrite silently."
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Roadmap"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Errors use the platform envelope `{\"detail\": {\"error_code\": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "reference_not_found",
+          "message": "step P1.1"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "`version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "`invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_roadmap",
+          "reason": "duplicate_step_key",
+          "field": "steps.P1.1"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/roadmaps/{roadmap_id}/phases/{phase_key}/steps/reorder": {
+   "post": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "Reorder Steps",
+    "description": "Atomic reorder of a phase's steps: `ordered_keys` must be a permutation of its current step keys. Moving a step across phases is not supported in v1.",
+    "operationId": "reorder_steps_api_v1_roadmaps__roadmap_id__phases__phase_key__steps_reorder_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "roadmap_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Roadmap Id"
+      }
+     },
+     {
+      "name": "phase_key",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Phase Key"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/Reorder"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Roadmap"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Errors use the platform envelope `{\"detail\": {\"error_code\": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "reference_not_found",
+          "message": "step P1.1"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "`version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "`invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_roadmap",
+          "reason": "duplicate_step_key",
+          "field": "steps.P1.1"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/roadmaps/{roadmap_id}/phases/{phase_key}/steps": {
+   "post": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "Create Step",
+    "description": "Append a step (content, dependencies by key, task plan) to a phase. Body carries `expected_roadmap_version`. Accepts `Idempotency-Key`. Never creates a Task.",
+    "operationId": "create_step_api_v1_roadmaps__roadmap_id__phases__phase_key__steps_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "roadmap_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Roadmap Id"
+      }
+     },
+     {
+      "name": "phase_key",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Phase Key"
+      }
+     },
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/StepCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Roadmap"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Errors use the platform envelope `{\"detail\": {\"error_code\": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "reference_not_found",
+          "message": "step P1.1"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "`version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "`invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_roadmap",
+          "reason": "duplicate_step_key",
+          "field": "steps.P1.1"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/roadmaps/{roadmap_id}/steps/{step_key}": {
+   "patch": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "Update Step",
+    "description": "Edit a step's content. `If-Match-Version` = the step's version. On an `active` roadmap, a content change by an agent (role `agent`, declared `agent_id` or `origin=ai_proposal`) is refused with `409 invalid_state` (proposals are a later lot); a human change is applied and snapshotted. Editing `tasks` never touches existing Tasks or links; editing `acceptance_criteria` clears `criteria_checked`.",
+    "operationId": "update_step_api_v1_roadmaps__roadmap_id__steps__step_key__patch",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "roadmap_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Roadmap Id"
+      }
+     },
+     {
+      "name": "step_key",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Step Key"
+      }
+     },
+     {
+      "name": "If-Match-Version",
+      "in": "header",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "description": "Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version \u2014 re-read, merge, and retry. Updates never overwrite silently.",
+       "title": "If-Match-Version"
+      },
+      "description": "Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version \u2014 re-read, merge, and retry. Updates never overwrite silently."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/StepUpdate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Roadmap"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Errors use the platform envelope `{\"detail\": {\"error_code\": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "reference_not_found",
+          "message": "step P1.1"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "`version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "`invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_roadmap",
+          "reason": "duplicate_step_key",
+          "field": "steps.P1.1"
+         }
+        }
+       }
+      }
+     }
+    }
+   },
+   "delete": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "Delete Step",
+    "description": "Delete a step from a `draft` roadmap only (else `409 invalid_state`). Refused with `409 step_has_links` if it is linked to a Task. Dependency edges to and from it are removed with it. `If-Match-Version` = the roadmap's version.",
+    "operationId": "delete_step_api_v1_roadmaps__roadmap_id__steps__step_key__delete",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "roadmap_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Roadmap Id"
+      }
+     },
+     {
+      "name": "step_key",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Step Key"
+      }
+     },
+     {
+      "name": "If-Match-Version",
+      "in": "header",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "description": "Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version \u2014 re-read, merge, and retry. Updates never overwrite silently.",
+       "title": "If-Match-Version"
+      },
+      "description": "Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version \u2014 re-read, merge, and retry. Updates never overwrite silently."
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Roadmap"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Errors use the platform envelope `{\"detail\": {\"error_code\": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "reference_not_found",
+          "message": "step P1.1"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "`version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "`invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_roadmap",
+          "reason": "duplicate_step_key",
+          "field": "steps.P1.1"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/roadmaps/{roadmap_id}/steps/{step_key}/progress": {
+   "patch": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "Update Step Progress",
+    "description": "Bounded progress update (`state_override` done/skipped, notes, checked criteria). Applied directly for any writer, including an agent; never a proposal. `If-Match-Version` = the step's version.",
+    "operationId": "update_step_progress_api_v1_roadmaps__roadmap_id__steps__step_key__progress_patch",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "roadmap_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Roadmap Id"
+      }
+     },
+     {
+      "name": "step_key",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Step Key"
+      }
+     },
+     {
+      "name": "If-Match-Version",
+      "in": "header",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "description": "Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version \u2014 re-read, merge, and retry. Updates never overwrite silently.",
+       "title": "If-Match-Version"
+      },
+      "description": "Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version \u2014 re-read, merge, and retry. Updates never overwrite silently."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/StepProgressUpdate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Roadmap"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Errors use the platform envelope `{\"detail\": {\"error_code\": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "reference_not_found",
+          "message": "step P1.1"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "`version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "`invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_roadmap",
+          "reason": "duplicate_step_key",
+          "field": "steps.P1.1"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/roadmaps/{roadmap_id}/dependencies": {
+   "post": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "Add Dependency",
+    "description": "Add `step_key -> depends_on_key`. An existing edge is a successful no-op; a cycle is `409 dependency_cycle` with the offending `path`; a self-edge is `422 invalid_roadmap`.",
+    "operationId": "add_dependency_api_v1_roadmaps__roadmap_id__dependencies_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "roadmap_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Roadmap Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DependencyChange"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Roadmap"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Errors use the platform envelope `{\"detail\": {\"error_code\": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "reference_not_found",
+          "message": "step P1.1"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "`version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "`invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_roadmap",
+          "reason": "duplicate_step_key",
+          "field": "steps.P1.1"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/roadmaps/{roadmap_id}/dependencies/remove": {
+   "post": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "Remove Dependency",
+    "description": "Remove `step_key -> depends_on_key`. Removing an absent edge is a no-op.",
+    "operationId": "remove_dependency_api_v1_roadmaps__roadmap_id__dependencies_remove_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "roadmap_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Roadmap Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DependencyChange"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Roadmap"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Errors use the platform envelope `{\"detail\": {\"error_code\": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "reference_not_found",
+          "message": "step P1.1"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "`version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "`invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_roadmap",
+          "reason": "duplicate_step_key",
+          "field": "steps.P1.1"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/roadmaps/{roadmap_id}/steps/{step_key}/links": {
+   "post": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "Link Task",
+    "description": "Link an existing Task of the same project to a step (`422 task_project_mismatch` otherwise). Linking twice is a successful no-op. Accepts `Idempotency-Key`.",
+    "operationId": "link_task_api_v1_roadmaps__roadmap_id__steps__step_key__links_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "roadmap_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Roadmap Id"
+      }
+     },
+     {
+      "name": "step_key",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Step Key"
+      }
+     },
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/LinkTask"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Roadmap"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Errors use the platform envelope `{\"detail\": {\"error_code\": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "reference_not_found",
+          "message": "step P1.1"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "`version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "`invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_roadmap",
+          "reason": "duplicate_step_key",
+          "field": "steps.P1.1"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/roadmaps/{roadmap_id}/steps/{step_key}/links/{task_id}": {
+   "delete": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "Unlink Task",
+    "description": "Remove the join between a step and a Task. The Task itself is never touched; removing an absent link is a successful no-op.",
+    "operationId": "unlink_task_api_v1_roadmaps__roadmap_id__steps__step_key__links__task_id__delete",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "roadmap_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Roadmap Id"
+      }
+     },
+     {
+      "name": "step_key",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Step Key"
+      }
+     },
+     {
+      "name": "task_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Task Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Roadmap"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Errors use the platform envelope `{\"detail\": {\"error_code\": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "reference_not_found",
+          "message": "step P1.1"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "`version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "`invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_roadmap",
+          "reason": "duplicate_step_key",
+          "field": "steps.P1.1"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/roadmaps/{roadmap_id}/hydration/preview": {
+   "post": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "Preview Hydration",
+    "description": "What hydration would do, without writing: per plan item `create`, `reuse` (a Task is already linked under its `hydration_key`) or `skip` (step done/skipped). Any non-archived status; a non-`active` roadmap answers `applicable=false`.",
+    "operationId": "preview_hydration_api_v1_roadmaps__roadmap_id__hydration_preview_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "roadmap_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Roadmap Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/HydrationRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HydrationResult"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Errors use the platform envelope `{\"detail\": {\"error_code\": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "reference_not_found",
+          "message": "step P1.1"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/roadmaps/{roadmap_id}/hydration/apply": {
+   "post": {
+    "tags": [
+     "roadmaps"
+    ],
+    "summary": "Apply Hydration",
+    "description": "Create the missing Tasks of the plan and link them, in one transaction. Requires an `active` roadmap (`409 invalid_state`), a writer role, and the `expected_version` read at preview (`409 version_conflict`). Idempotent: `Idempotency-Key` replays the original response, and a retry under a fresh key finds its links via `hydration_key` (`reuse`), never a duplicate. An existing Task is never modified or deleted.",
+    "operationId": "apply_hydration_api_v1_roadmaps__roadmap_id__hydration_apply_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "roadmap_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Roadmap Id"
+      }
+     },
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/HydrationApplyRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HydrationResult"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Errors use the platform envelope `{\"detail\": {\"error_code\": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "reference_not_found",
+          "message": "step P1.1"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "`version_conflict` (stale `If-Match-Version` / `expected_*version`, carries `server_version`), `invalid_state` (the roadmap status does not accept this write, or the transition is not in the closed table; carries `status`), `active_roadmap_exists`, `dependency_cycle` (carries `path`), `step_has_links`, `duplicate_key` (carries `field`), `actor_not_owned` (declared `agent_id` not attached to the caller's machine) and, on replayable POSTs, `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "`invalid_roadmap` (submitted document or edit is semantically invalid; `reason` is one of `duplicate_phase_key`, `duplicate_step_key`, `duplicate_hydration_key`, `unknown_dependency`, `self_dependency`, `duplicate_dependency`, `dependency_cycle`, `limit_exceeded`, `invalid_reorder`; `field` names the offending path), `task_project_mismatch`, or `limit_exceeded` (per-request bound; `limit` names it). A schema-shape error is the framework's native 422.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_roadmap",
+          "reason": "duplicate_step_key",
+          "field": "steps.P1.1"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/projects/initialization/preview": {
+   "post": {
+    "tags": [
+     "initialization"
+    ],
+    "summary": "Preview Initialization",
+    "operationId": "preview_initialization_api_v1_projects_initialization_preview_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ProjectInitializationPlan"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/InitializationPreview"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ]
+   }
+  },
+  "/api/v1/projects/initialization/apply": {
+   "post": {
+    "tags": [
+     "initialization"
+    ],
+    "summary": "Apply Initialization",
+    "operationId": "apply_initialization_api_v1_projects_initialization_apply_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ProjectInitializationRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/InitializationResult"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "`invalid_initialization` (a blocking problem refuses the apply before any write; `problems` is the structured list). A schema-shape error is the framework's native 422.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_initialization"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "`actor_not_owned` (declared `agent_id` not attached to the caller's machine).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "actor_not_owned"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
   }
  },
  "components": {
@@ -7445,6 +10215,36 @@
     ],
     "title": "DecisionStatus"
    },
+   "DependencyChange": {
+    "properties": {
+     "step_key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+      "title": "Step Key"
+     },
+     "depends_on_key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+      "title": "Depends On Key"
+     },
+     "expected_roadmap_version": {
+      "type": "integer",
+      "title": "Expected Roadmap Version"
+     },
+     "provenance": {
+      "$ref": "#/components/schemas/WriteProvenance"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "step_key",
+     "depends_on_key",
+     "expected_roadmap_version"
+    ],
+    "title": "DependencyChange",
+    "description": "Add or remove `step_key -> depends_on_key`. Adding an existing edge or\nremoving an absent one is a successful no-op; a cycle is\n`409 dependency_cycle` with the offending path."
+   },
    "DependencyPin": {
     "properties": {
      "kind": {
@@ -7699,6 +10499,16 @@
      "library.resource.deprecated",
      "library.lock.set",
      "library.lock.released",
+     "roadmap.created",
+     "roadmap.updated",
+     "roadmap.proposed",
+     "roadmap.approved",
+     "roadmap.changes_requested",
+     "roadmap.rejected",
+     "roadmap.activated",
+     "roadmap.completed",
+     "roadmap.archived",
+     "roadmap.hydrated",
      "agent.started",
      "agent.stopped",
      "ai_work.started",
@@ -8010,6 +10820,680 @@
      "server_timestamp"
     ],
     "title": "HeartbeatResponse"
+   },
+   "HydrationAction": {
+    "type": "string",
+    "enum": [
+     "create",
+     "reuse",
+     "skip"
+    ],
+    "title": "HydrationAction",
+    "description": "`create` a Task for an unlinked plan item; `reuse` the Task already\nlinked under the same `hydration_key`; `skip` a step that is `done` or\n`skipped`. Hydration never modifies or deletes an existing Task."
+   },
+   "HydrationApplyRequest": {
+    "properties": {
+     "step_keys": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string",
+         "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+        },
+        "type": "array",
+        "maxItems": 300
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Step Keys"
+     },
+     "expected_version": {
+      "type": "integer",
+      "title": "Expected Version"
+     },
+     "provenance": {
+      "$ref": "#/components/schemas/WriteProvenance"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "expected_version"
+    ],
+    "title": "HydrationApplyRequest",
+    "description": "Apply request (`Idempotency-Key`). Requires an `active` roadmap\n(`409 invalid_state` otherwise) and the `expected_version` read at preview:\na roadmap changed since then is `409 version_conflict`."
+   },
+   "HydrationCounts": {
+    "properties": {
+     "create": {
+      "type": "integer",
+      "title": "Create",
+      "default": 0
+     },
+     "reuse": {
+      "type": "integer",
+      "title": "Reuse",
+      "default": 0
+     },
+     "skip": {
+      "type": "integer",
+      "title": "Skip",
+      "default": 0
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "HydrationCounts"
+   },
+   "HydrationItem": {
+    "properties": {
+     "step_key": {
+      "type": "string",
+      "title": "Step Key"
+     },
+     "hydration_key": {
+      "type": "string",
+      "title": "Hydration Key"
+     },
+     "action": {
+      "$ref": "#/components/schemas/HydrationAction"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "reason": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/HydrationReason"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "step_key",
+     "hydration_key",
+     "action",
+     "title"
+    ],
+    "title": "HydrationItem"
+   },
+   "HydrationReason": {
+    "type": "string",
+    "enum": [
+     "step_done",
+     "step_skipped",
+     "roadmap_not_active"
+    ],
+    "title": "HydrationReason"
+   },
+   "HydrationRequest": {
+    "properties": {
+     "step_keys": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string",
+         "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+        },
+        "type": "array",
+        "maxItems": 300
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Step Keys"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "HydrationRequest",
+    "description": "Preview request: `step_keys=None` means every hydratable step. Works on\nany non-archived status so a plan can be inspected before validation; a\nnon-`active` roadmap answers `applicable=False`. Writes nothing."
+   },
+   "HydrationResult": {
+    "properties": {
+     "roadmap_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Roadmap Id"
+     },
+     "roadmap_version": {
+      "type": "integer",
+      "title": "Roadmap Version"
+     },
+     "applied": {
+      "type": "boolean",
+      "title": "Applied"
+     },
+     "applicable": {
+      "type": "boolean",
+      "title": "Applicable",
+      "default": true
+     },
+     "not_applicable_reason": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/HydrationReason"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/HydrationItem"
+      },
+      "type": "array",
+      "title": "Items"
+     },
+     "counts": {
+      "$ref": "#/components/schemas/HydrationCounts"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "roadmap_id",
+     "roadmap_version",
+     "applied"
+    ],
+    "title": "HydrationResult",
+    "description": "Same shape for preview (`applied=False`, nothing written) and apply\n(`applied=True`). On apply, `create` items carry the new `task_id`.\n`applicable=False` (preview of a non-`active` roadmap) carries\n`not_applicable_reason`; apply never returns it (it fails instead)."
+   },
+   "InitializationAction": {
+    "properties": {
+     "section": {
+      "$ref": "#/components/schemas/InitializationSection"
+     },
+     "key": {
+      "type": "string",
+      "title": "Key"
+     },
+     "action": {
+      "$ref": "#/components/schemas/InitializationActionKind"
+     },
+     "reason": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/InitializationReason"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "resource_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Resource Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "section",
+     "key",
+     "action"
+    ],
+    "title": "InitializationAction"
+   },
+   "InitializationActionKind": {
+    "type": "string",
+    "enum": [
+     "create",
+     "reuse",
+     "skip"
+    ],
+    "title": "InitializationActionKind",
+    "description": "Same vocabulary as roadmap hydration (`create`/`reuse`/`skip`), applied\nto the whole plan: `create` allocates a new row, `reuse` finds an existing\none (replay-safe), `skip` deliberately does nothing (optional item absent,\nor the section is empty)."
+   },
+   "InitializationBindingRef": {
+    "properties": {
+     "level": {
+      "$ref": "#/components/schemas/RuntimeLevel"
+     },
+     "target_kind": {
+      "$ref": "#/components/schemas/LibraryKind"
+     },
+     "target_stable_key": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Target Stable Key"
+     },
+     "target": {
+      "$ref": "#/components/schemas/RuntimeTarget"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "level",
+     "target_kind",
+     "target_stable_key",
+     "target"
+    ],
+    "title": "InitializationBindingRef",
+    "description": "A generic runtime choice for one logical `(kind, stable_key)`\ndefinition, without `project_id` (the project is created/applied in the\nsame operation, so the server fills it). `session` is never persistable\nand is rejected here; it belongs to a single resolve call."
+   },
+   "InitializationMode": {
+    "type": "string",
+    "enum": [
+     "draft",
+     "proposed"
+    ],
+    "title": "InitializationMode",
+    "description": "The human gate the agent requests. The server never chooses it.\n\n`draft` applies everything directly (a human-authored plan). `proposed`\nsubmits the roadmap for human validation (`roadmap.status=proposed`)\ninstead of leaving it a free draft; standalone tasks are still created \u2014\nthey are ordinary units of work, there is no \"task proposal\" concept."
+   },
+   "InitializationPreview": {
+    "properties": {
+     "valid": {
+      "type": "boolean",
+      "title": "Valid"
+     },
+     "applicable": {
+      "type": "boolean",
+      "title": "Applicable"
+     },
+     "roadmap_present": {
+      "type": "boolean",
+      "title": "Roadmap Present"
+     },
+     "roadmap_status": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "draft",
+         "proposed"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Roadmap Status"
+     },
+     "actions": {
+      "items": {
+       "$ref": "#/components/schemas/InitializationAction"
+      },
+      "type": "array",
+      "title": "Actions"
+     },
+     "summary": {
+      "$ref": "#/components/schemas/InitializationSummary"
+     },
+     "problems": {
+      "items": {
+       "$ref": "#/components/schemas/InitializationProblem"
+      },
+      "type": "array",
+      "title": "Problems"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "valid",
+     "applicable",
+     "roadmap_present"
+    ],
+    "title": "InitializationPreview",
+    "description": "Read-only outcome: exactly what would happen, with no side effect. It\nis valid and applicable even when the project does not exist yet."
+   },
+   "InitializationProblem": {
+    "properties": {
+     "section": {
+      "$ref": "#/components/schemas/InitializationSection"
+     },
+     "code": {
+      "$ref": "#/components/schemas/InitializationProblemCode"
+     },
+     "key": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Key"
+     },
+     "field": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Field"
+     },
+     "blocking": {
+      "type": "boolean",
+      "title": "Blocking",
+      "default": true
+     },
+     "message": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Message"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "section",
+     "code"
+    ],
+    "title": "InitializationProblem",
+    "description": "One structured problem. `blocking=True` (the default) means the plan is\nnot applicable as-is: preview answers `applicable=False` and apply refuses\nbefore writing anything. `blocking=False` describes an intentionally\nskipped optional item and is reported without failing the apply."
+   },
+   "InitializationProblemCode": {
+    "type": "string",
+    "enum": [
+     "duplicate_task_key",
+     "duplicate_resource_ref",
+     "duplicate_binding",
+     "unknown_roadmap_step",
+     "roadmap_step_without_roadmap",
+     "invalid_roadmap",
+     "resource_not_found",
+     "binding_target_not_found",
+     "binding_incompatible",
+     "limit_exceeded"
+    ],
+    "title": "InitializationProblemCode",
+    "description": "Closed vocabulary. `*_NOT_FOUND`/`*_FORBIDDEN` come from probing the\nserver state and are non-oracle: a private Library resource the caller\ncannot see is reported as not found, never as forbidden."
+   },
+   "InitializationProjectSpec": {
+    "properties": {
+     "slug": {
+      "type": "string",
+      "maxLength": 80,
+      "minLength": 1,
+      "title": "Slug"
+     },
+     "name": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Name"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 4000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "slug",
+     "name"
+    ],
+    "title": "InitializationProjectSpec",
+    "description": "The project to reuse (by `slug`) or create. No metadata column exists\non Project so none is invented here."
+   },
+   "InitializationReason": {
+    "type": "string",
+    "enum": [
+     "project_already_exists",
+     "roadmap_already_exists",
+     "task_already_exists",
+     "resource_optional_missing",
+     "resource_required_missing",
+     "resource_already_attached",
+     "binding_already_set",
+     "binding_unavailable",
+     "no_roadmap",
+     "no_tasks",
+     "no_resources",
+     "no_bindings"
+    ],
+    "title": "InitializationReason"
+   },
+   "InitializationResourceRef": {
+    "properties": {
+     "kind": {
+      "$ref": "#/components/schemas/LibraryKind"
+     },
+     "stable_key": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Stable Key"
+     },
+     "scope": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/LibraryScope"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "version": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "minimum": 1.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Version"
+     },
+     "required": {
+      "type": "boolean",
+      "title": "Required",
+      "default": true
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "kind",
+     "stable_key"
+    ],
+    "title": "InitializationResourceRef",
+    "description": "A Library definition the project should pin (project lock). `version`\npins a version; omitted means the active one. `required=False` turns a\nmissing definition into a reported `skip` instead of a blocking problem \u2014\nthat is how a plan degrades gracefully on a fresh studio."
+   },
+   "InitializationResult": {
+    "properties": {
+     "applied": {
+      "type": "boolean",
+      "title": "Applied"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "roadmap_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Roadmap Id"
+     },
+     "roadmap_status": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "draft",
+         "proposed"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Roadmap Status"
+     },
+     "actions": {
+      "items": {
+       "$ref": "#/components/schemas/InitializationAction"
+      },
+      "type": "array",
+      "title": "Actions"
+     },
+     "summary": {
+      "$ref": "#/components/schemas/InitializationSummary"
+     },
+     "problems": {
+      "items": {
+       "$ref": "#/components/schemas/InitializationProblem"
+      },
+      "type": "array",
+      "title": "Problems"
+     },
+     "provenance": {
+      "$ref": "#/components/schemas/studio_contracts__roadmaps__Provenance"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "applied",
+     "project_id",
+     "provenance"
+    ],
+    "title": "InitializationResult",
+    "description": "Applied outcome. `project_id` is always set (reused or created) and\n`roadmap_id` only when the plan carried one. The same summary semantics as\npreview, so a replay that reuses everything reports `created=0`."
+   },
+   "InitializationSection": {
+    "type": "string",
+    "enum": [
+     "project",
+     "roadmap",
+     "tasks",
+     "resources",
+     "bindings"
+    ],
+    "title": "InitializationSection"
+   },
+   "InitializationSummary": {
+    "properties": {
+     "created": {
+      "type": "integer",
+      "title": "Created",
+      "default": 0
+     },
+     "reused": {
+      "type": "integer",
+      "title": "Reused",
+      "default": 0
+     },
+     "skipped": {
+      "type": "integer",
+      "title": "Skipped",
+      "default": 0
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "InitializationSummary",
+    "description": "The `created/reused/skipped` roll-up that makes a preview and a replay\nreadable at a glance."
+   },
+   "InitializationTask": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+      "title": "Key"
+     },
+     "title": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Title"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 4000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "roadmap_step_key": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Roadmap Step Key"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "key",
+     "title"
+    ],
+    "title": "InitializationTask",
+    "description": "A standalone task the plan asks for. `key` is a plan-local stable\nidentifier (error reporting, duplicate detection), never persisted;\nreplay-safety comes from the task `title` within the project (an existing\ntask with the same title is `reused`, never duplicated). An optional\n`roadmap_step_key` links the task to a step of the plan's roadmap (the\nlink is created through the roadmap link service, same project)."
    },
    "LibraryActivate": {
     "properties": {
@@ -8428,6 +11912,55 @@
     ],
     "title": "LibraryVersionCreate"
    },
+   "LinkTask": {
+    "properties": {
+     "task_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Task Id"
+     },
+     "provenance": {
+      "$ref": "#/components/schemas/WriteProvenance"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "task_id"
+    ],
+    "title": "LinkTask",
+    "description": "Link an existing Task (same project, else `422 task_project_mismatch`)\nto a step. Linking twice is a successful no-op. Unlinking never touches\nthe Task."
+   },
+   "LinkedTask": {
+    "properties": {
+     "task_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Task Id"
+     },
+     "hydration_key": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Hydration Key"
+     },
+     "origin": {
+      "$ref": "#/components/schemas/RoadmapOrigin",
+      "default": "manual"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "task_id"
+    ],
+    "title": "LinkedTask"
+   },
    "Machine": {
     "properties": {
      "created_at": {
@@ -8582,6 +12115,200 @@
     ],
     "title": "MachineStatus"
    },
+   "Phase": {
+    "properties": {
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "roadmap_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Roadmap Id"
+     },
+     "key": {
+      "type": "string",
+      "title": "Key"
+     },
+     "position": {
+      "type": "integer",
+      "title": "Position"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "objective": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Objective"
+     },
+     "progress": {
+      "$ref": "#/components/schemas/Progress"
+     },
+     "steps": {
+      "items": {
+       "$ref": "#/components/schemas/Step"
+      },
+      "type": "array",
+      "title": "Steps"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "created_at",
+     "updated_at",
+     "version",
+     "id",
+     "roadmap_id",
+     "key",
+     "position",
+     "title",
+     "progress"
+    ],
+    "title": "Phase"
+   },
+   "PhaseContent": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+      "title": "Key"
+     },
+     "title": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Title"
+     },
+     "objective": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 2000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Objective"
+     },
+     "steps": {
+      "items": {
+       "$ref": "#/components/schemas/StepContent"
+      },
+      "type": "array",
+      "maxItems": 50,
+      "title": "Steps"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "key",
+     "title"
+    ],
+    "title": "PhaseContent"
+   },
+   "PhaseCreate": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+      "title": "Key"
+     },
+     "title": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Title"
+     },
+     "objective": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 2000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Objective"
+     },
+     "expected_roadmap_version": {
+      "type": "integer",
+      "title": "Expected Roadmap Version"
+     },
+     "provenance": {
+      "$ref": "#/components/schemas/WriteProvenance"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "key",
+     "title",
+     "expected_roadmap_version"
+    ],
+    "title": "PhaseCreate"
+   },
+   "PhaseUpdate": {
+    "properties": {
+     "title": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 200,
+        "minLength": 1
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Title"
+     },
+     "objective": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 2000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Objective"
+     },
+     "provenance": {
+      "$ref": "#/components/schemas/WriteProvenance"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "PhaseUpdate"
+   },
    "PreservedReference": {
     "properties": {
      "resource_id": {
@@ -8615,7 +12342,7 @@
       "$ref": "#/components/schemas/BindingRelation"
      },
      "provenance": {
-      "$ref": "#/components/schemas/Provenance"
+      "$ref": "#/components/schemas/studio_contracts__resolution__Provenance"
      }
     },
     "additionalProperties": false,
@@ -8762,6 +12489,41 @@
     ],
     "title": "ProducerJobStatus"
    },
+   "Progress": {
+    "properties": {
+     "done": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Done"
+     },
+     "total": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Total"
+     },
+     "skipped": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Skipped"
+     },
+     "ratio": {
+      "type": "number",
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Ratio"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "done",
+     "total",
+     "skipped",
+     "ratio"
+    ],
+    "title": "Progress",
+    "description": "`done / total` over non-skipped steps; `ratio` in [0, 1], `1.0` when\nthere is nothing left to do (`total == 0`). Derived at read time, never\npersisted, so API, MCP and Dashboard cannot drift."
+   },
    "Project": {
     "properties": {
      "created_at": {
@@ -8850,6 +12612,81 @@
     ],
     "title": "ProjectCreate"
    },
+   "ProjectInitializationPlan": {
+    "properties": {
+     "format": {
+      "type": "string",
+      "const": "studio.initialization/v1",
+      "title": "Format",
+      "default": "studio.initialization/v1"
+     },
+     "mode": {
+      "$ref": "#/components/schemas/InitializationMode",
+      "default": "draft"
+     },
+     "project": {
+      "$ref": "#/components/schemas/InitializationProjectSpec"
+     },
+     "roadmap": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/RoadmapDocument"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "tasks": {
+      "items": {
+       "$ref": "#/components/schemas/InitializationTask"
+      },
+      "type": "array",
+      "maxItems": 500,
+      "title": "Tasks"
+     },
+     "resources": {
+      "items": {
+       "$ref": "#/components/schemas/InitializationResourceRef"
+      },
+      "type": "array",
+      "maxItems": 50,
+      "title": "Resources"
+     },
+     "bindings": {
+      "items": {
+       "$ref": "#/components/schemas/InitializationBindingRef"
+      },
+      "type": "array",
+      "maxItems": 50,
+      "title": "Bindings"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project"
+    ],
+    "title": "ProjectInitializationPlan",
+    "description": "The whole neutral plan. `roadmap` is optional by design: a project with\nno roadmap is the common case and must never be blocked by its absence."
+   },
+   "ProjectInitializationRequest": {
+    "properties": {
+     "plan": {
+      "$ref": "#/components/schemas/ProjectInitializationPlan"
+     },
+     "provenance": {
+      "$ref": "#/components/schemas/WriteProvenance"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "plan"
+    ],
+    "title": "ProjectInitializationRequest",
+    "description": "Apply payload: the plan plus the client-declared part of provenance.\nThe server derives the rest from the authenticated `Principal` (actor =\nmachine owner unless `agent_id` is set; an `agent_id` not attached to the\nmachine is `409 actor_not_owned`). Preview takes the bare plan."
+   },
    "ProjectState": {
     "properties": {
      "project_id": {
@@ -8888,110 +12725,6 @@
     "title": "ProjectState",
     "description": "GET /projects/{id}/state \u2014 the aggregate view a client bootstraps from."
    },
-   "Provenance": {
-    "properties": {
-     "source": {
-      "$ref": "#/components/schemas/ProvenanceSource"
-     },
-     "resource_id": {
-      "anyOf": [
-       {
-        "type": "string",
-        "format": "uuid"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Resource Id"
-     },
-     "stable_key": {
-      "anyOf": [
-       {
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Stable Key"
-     },
-     "scope": {
-      "anyOf": [
-       {
-        "$ref": "#/components/schemas/LibraryScope"
-       },
-       {
-        "type": "null"
-       }
-      ]
-     },
-     "version": {
-      "anyOf": [
-       {
-        "type": "integer"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Version"
-     },
-     "version_origin": {
-      "anyOf": [
-       {
-        "$ref": "#/components/schemas/VersionOrigin"
-       },
-       {
-        "type": "null"
-       }
-      ]
-     },
-     "locked": {
-      "type": "boolean",
-      "title": "Locked",
-      "default": false
-     },
-     "relation": {
-      "anyOf": [
-       {
-        "$ref": "#/components/schemas/BindingRelation"
-       },
-       {
-        "type": "null"
-       }
-      ]
-     },
-     "binding_level": {
-      "anyOf": [
-       {
-        "$ref": "#/components/schemas/RuntimeLevel"
-       },
-       {
-        "type": "null"
-       }
-      ]
-     },
-     "via": {
-      "anyOf": [
-       {
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Via"
-     }
-    },
-    "additionalProperties": false,
-    "type": "object",
-    "required": [
-     "source"
-    ],
-    "title": "Provenance",
-    "description": "Complete provenance for one resolved element.\n\nAnswers: why this resource, why this version (lock vs active vs pin),\nthrough which relation, which runtime level won and whether an override\ndecided. Every field is data, never a human sentence."
-   },
    "ProvenanceSource": {
     "type": "string",
     "enum": [
@@ -9003,6 +12736,35 @@
     ],
     "title": "ProvenanceSource",
     "description": "Where a resolved element came from (structured, never prose)."
+   },
+   "Reorder": {
+    "properties": {
+     "ordered_keys": {
+      "items": {
+       "type": "string",
+       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+      },
+      "type": "array",
+      "maxItems": 300,
+      "minItems": 1,
+      "title": "Ordered Keys"
+     },
+     "expected_roadmap_version": {
+      "type": "integer",
+      "title": "Expected Roadmap Version"
+     },
+     "provenance": {
+      "$ref": "#/components/schemas/WriteProvenance"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "ordered_keys",
+     "expected_roadmap_version"
+    ],
+    "title": "Reorder",
+    "description": "Atomic reorder: the complete ordered list of sibling keys. It must be\na permutation of the current siblings (`422 invalid_roadmap`,\n`invalid_reorder`); the roadmap version is checked and bumped."
    },
    "ResolvedAgent": {
     "properties": {
@@ -9045,7 +12807,7 @@
       "default": {}
      },
      "provenance": {
-      "$ref": "#/components/schemas/Provenance"
+      "$ref": "#/components/schemas/studio_contracts__resolution__Provenance"
      }
     },
     "additionalProperties": false,
@@ -9175,7 +12937,7 @@
       }
      },
      "provenance": {
-      "$ref": "#/components/schemas/Provenance"
+      "$ref": "#/components/schemas/studio_contracts__resolution__Provenance"
      }
     },
     "additionalProperties": false,
@@ -9278,7 +13040,7 @@
      "provenance": {
       "anyOf": [
        {
-        "$ref": "#/components/schemas/Provenance"
+        "$ref": "#/components/schemas/studio_contracts__resolution__Provenance"
        },
        {
         "type": "null"
@@ -9335,7 +13097,7 @@
       "default": {}
      },
      "provenance": {
-      "$ref": "#/components/schemas/Provenance"
+      "$ref": "#/components/schemas/studio_contracts__resolution__Provenance"
      }
     },
     "additionalProperties": false,
@@ -9874,6 +13636,561 @@
     ],
     "title": "ReviewQueuePRItem",
     "description": "`id` is the `git.pr.opened` event's `event_id` \u2014 a best-effort,\ntime-windowed signal (a PR opened long ago with no `git.pr.merged` ages\nout of the window), not a resolvable state."
+   },
+   "Roadmap": {
+    "properties": {
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "objective": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Objective"
+     },
+     "status": {
+      "$ref": "#/components/schemas/RoadmapStatus"
+     },
+     "revision_no": {
+      "type": "integer",
+      "title": "Revision No"
+     },
+     "approved_revision_no": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Approved Revision No"
+     },
+     "progress": {
+      "$ref": "#/components/schemas/Progress"
+     },
+     "current_step_key": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Current Step Key"
+     },
+     "provenance": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/studio_contracts__roadmaps__Provenance"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "context": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Context"
+     },
+     "metadata": {
+      "additionalProperties": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        },
+        {
+         "type": "number"
+        },
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "type": "object",
+      "title": "Metadata"
+     },
+     "phases": {
+      "items": {
+       "$ref": "#/components/schemas/Phase"
+      },
+      "type": "array",
+      "title": "Phases"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "created_at",
+     "updated_at",
+     "version",
+     "id",
+     "project_id",
+     "title",
+     "status",
+     "revision_no",
+     "progress"
+    ],
+    "title": "Roadmap",
+    "description": "Detail view: `phases` are in stable order; `current_step_key` is the\nfirst `available` step in plan order (deterministic)."
+   },
+   "RoadmapCreate": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "title": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Title"
+     },
+     "objective": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 2000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Objective"
+     },
+     "context": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 4000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Context"
+     },
+     "metadata": {
+      "additionalProperties": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        },
+        {
+         "type": "number"
+        },
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "type": "object",
+      "title": "Metadata"
+     },
+     "provenance": {
+      "$ref": "#/components/schemas/WriteProvenance"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id",
+     "title"
+    ],
+    "title": "RoadmapCreate",
+    "description": "Empty draft skeleton. A full plan goes through `RoadmapImport`."
+   },
+   "RoadmapDocument": {
+    "properties": {
+     "format": {
+      "type": "string",
+      "const": "studio.roadmap/v1",
+      "title": "Format",
+      "default": "studio.roadmap/v1"
+     },
+     "title": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Title"
+     },
+     "objective": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 2000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Objective"
+     },
+     "context": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 4000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Context"
+     },
+     "metadata": {
+      "additionalProperties": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        },
+        {
+         "type": "number"
+        },
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "type": "object",
+      "title": "Metadata"
+     },
+     "phases": {
+      "items": {
+       "$ref": "#/components/schemas/PhaseContent"
+      },
+      "type": "array",
+      "maxItems": 30,
+      "title": "Phases"
+     },
+     "exported_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Exported At"
+     },
+     "revision_no": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Revision No"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "title"
+    ],
+    "title": "RoadmapDocument",
+    "description": "The neutral, versioned, portable roadmap: what import accepts, export\nreturns and a proposal carries. List order *is* the stable order. It holds\nthe plan only \u2014 no ids, no Task links to existing Tasks, no status, no\nsecrets, no provenance \u2014 so it moves between projects and tools intact."
+   },
+   "RoadmapImport": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "document": {
+      "$ref": "#/components/schemas/RoadmapDocument"
+     },
+     "submit": {
+      "type": "boolean",
+      "title": "Submit",
+      "default": false
+     },
+     "provenance": {
+      "$ref": "#/components/schemas/WriteProvenance"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id",
+     "document"
+    ],
+    "title": "RoadmapImport",
+    "description": "Create a `draft` from a full document (import, AI proposal, project\ninitialization). `submit=True` also moves it to `proposed` in the same\natomic operation (the proposal flow). Never creates Tasks."
+   },
+   "RoadmapOrigin": {
+    "type": "string",
+    "enum": [
+     "manual",
+     "ai_proposal",
+     "import"
+    ],
+    "title": "RoadmapOrigin",
+    "description": "How content entered Studio OS. Self-declared by the writer: a workflow\nguard, not a security boundary; the boundary is the role."
+   },
+   "RoadmapStatus": {
+    "type": "string",
+    "enum": [
+     "draft",
+     "proposed",
+     "active",
+     "completed",
+     "archived"
+    ],
+    "title": "RoadmapStatus"
+   },
+   "RoadmapSummary": {
+    "properties": {
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "objective": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Objective"
+     },
+     "status": {
+      "$ref": "#/components/schemas/RoadmapStatus"
+     },
+     "revision_no": {
+      "type": "integer",
+      "title": "Revision No"
+     },
+     "approved_revision_no": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Approved Revision No"
+     },
+     "progress": {
+      "$ref": "#/components/schemas/Progress"
+     },
+     "current_step_key": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Current Step Key"
+     },
+     "provenance": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/studio_contracts__roadmaps__Provenance"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "created_at",
+     "updated_at",
+     "version",
+     "id",
+     "project_id",
+     "title",
+     "status",
+     "revision_no",
+     "progress"
+    ],
+    "title": "RoadmapSummary"
+   },
+   "RoadmapTransition": {
+    "type": "string",
+    "enum": [
+     "submit",
+     "approve",
+     "request_changes",
+     "reject",
+     "activate",
+     "complete",
+     "reopen",
+     "archive"
+    ],
+    "title": "RoadmapTransition"
+   },
+   "RoadmapUpdate": {
+    "properties": {
+     "title": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 200,
+        "minLength": 1
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Title"
+     },
+     "objective": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 2000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Objective"
+     },
+     "context": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 4000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Context"
+     },
+     "metadata": {
+      "anyOf": [
+       {
+        "additionalProperties": {
+         "anyOf": [
+          {
+           "type": "string"
+          },
+          {
+           "type": "integer"
+          },
+          {
+           "type": "number"
+          },
+          {
+           "type": "boolean"
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Metadata"
+     },
+     "provenance": {
+      "$ref": "#/components/schemas/WriteProvenance"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "RoadmapUpdate",
+    "description": "Content edit of the roadmap header (`PATCH`, `If-Match-Version`). PATCH\nsemantics for every `*Update` model: an omitted or `null` field is left\nunchanged; an empty string clears an optional text field and `{}` clears\n`metadata`."
    },
    "Role": {
     "type": "string",
@@ -10526,6 +14843,569 @@
     "title": "SessionRuntimeOverride",
     "description": "One ephemeral session-level runtime choice carried by a resolution\nrequest (P7). Same key shape as a stored binding\n(`target_kind`, `target_stable_key`) plus the concrete `target` \u2014 but\nnever persisted: the router forwards it as resolution context only\n(`session_overrides`), and the service validates it exactly like a\nstored choice (unknown machine 404, another user's machine 403)."
    },
+   "Step": {
+    "properties": {
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "roadmap_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Roadmap Id"
+     },
+     "phase_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Phase Id"
+     },
+     "key": {
+      "type": "string",
+      "title": "Key"
+     },
+     "position": {
+      "type": "integer",
+      "title": "Position"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "objective": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Objective"
+     },
+     "context": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Context"
+     },
+     "instructions": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Instructions"
+     },
+     "acceptance_criteria": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Acceptance Criteria"
+     },
+     "criteria_checked": {
+      "items": {
+       "type": "integer"
+      },
+      "type": "array",
+      "title": "Criteria Checked"
+     },
+     "notes": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Notes"
+     },
+     "metadata": {
+      "additionalProperties": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        },
+        {
+         "type": "number"
+        },
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "type": "object",
+      "title": "Metadata"
+     },
+     "depends_on": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Depends On"
+     },
+     "tasks": {
+      "items": {
+       "$ref": "#/components/schemas/TaskPlanItem"
+      },
+      "type": "array",
+      "title": "Tasks"
+     },
+     "linked_tasks": {
+      "items": {
+       "$ref": "#/components/schemas/LinkedTask"
+      },
+      "type": "array",
+      "title": "Linked Tasks"
+     },
+     "state_override": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/StepStateOverride"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "state_override_reason": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "State Override Reason"
+     },
+     "state": {
+      "$ref": "#/components/schemas/StepState",
+      "default": "not_started"
+     },
+     "available": {
+      "type": "boolean",
+      "title": "Available",
+      "default": false
+     },
+     "waiting_on": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Waiting On"
+     },
+     "task_progress": {
+      "$ref": "#/components/schemas/TaskProgress"
+     },
+     "provenance": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/studio_contracts__roadmaps__Provenance"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "created_at",
+     "updated_at",
+     "version",
+     "id",
+     "roadmap_id",
+     "phase_id",
+     "key",
+     "position",
+     "title"
+    ],
+    "title": "Step"
+   },
+   "StepContent": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+      "title": "Key"
+     },
+     "title": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Title"
+     },
+     "objective": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 2000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Objective"
+     },
+     "context": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 4000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Context"
+     },
+     "instructions": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 8000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Instructions"
+     },
+     "acceptance_criteria": {
+      "items": {
+       "type": "string",
+       "maxLength": 500,
+       "minLength": 1
+      },
+      "type": "array",
+      "maxItems": 20,
+      "title": "Acceptance Criteria"
+     },
+     "notes": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 4000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Notes"
+     },
+     "metadata": {
+      "additionalProperties": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        },
+        {
+         "type": "number"
+        },
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "type": "object",
+      "title": "Metadata"
+     },
+     "depends_on": {
+      "items": {
+       "type": "string",
+       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+      },
+      "type": "array",
+      "maxItems": 20,
+      "title": "Depends On"
+     },
+     "tasks": {
+      "items": {
+       "$ref": "#/components/schemas/TaskPlanItem"
+      },
+      "type": "array",
+      "maxItems": 20,
+      "title": "Tasks"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "key",
+     "title"
+    ],
+    "title": "StepContent"
+   },
+   "StepCreate": {
+    "properties": {
+     "content": {
+      "$ref": "#/components/schemas/StepContent"
+     },
+     "expected_roadmap_version": {
+      "type": "integer",
+      "title": "Expected Roadmap Version"
+     },
+     "provenance": {
+      "$ref": "#/components/schemas/WriteProvenance"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "content",
+     "expected_roadmap_version"
+    ],
+    "title": "StepCreate",
+    "description": "Adds a step at the end of a phase; ordering afterwards goes through\n`Reorder`. Moving a step across phases is not supported in v1 (remove and\nadd, or a proposal)."
+   },
+   "StepProgressUpdate": {
+    "properties": {
+     "state_override": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/StepStateOverride"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "clear_state_override": {
+      "type": "boolean",
+      "title": "Clear State Override",
+      "default": false
+     },
+     "state_override_reason": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 2000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "State Override Reason"
+     },
+     "notes": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 4000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Notes"
+     },
+     "criteria_checked": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "integer",
+         "exclusiveMaximum": 20.0,
+         "minimum": 0.0
+        },
+        "type": "array",
+        "maxItems": 20
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Criteria Checked"
+     },
+     "provenance": {
+      "$ref": "#/components/schemas/WriteProvenance"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "StepProgressUpdate",
+    "description": "Bounded progress-type update, applied directly even when the writer\ncarries an agent provenance (P4.5): override, notes, checked criteria. It\nnever changes the plan's structure or content and creates no snapshot\nrevision. `criteria_checked` is the complete list of checked indices into\nthe step's `acceptance_criteria` (replaces the previous list)."
+   },
+   "StepState": {
+    "type": "string",
+    "enum": [
+     "not_started",
+     "in_progress",
+     "blocked",
+     "done",
+     "skipped"
+    ],
+    "title": "StepState",
+    "description": "Derived, never stored (except through `StepStateOverride`)."
+   },
+   "StepStateOverride": {
+    "type": "string",
+    "enum": [
+     "done",
+     "skipped"
+    ],
+    "title": "StepStateOverride",
+    "description": "The only stored step state: a manual milestone (`done`, e.g. a step\nwith no Task) or an explicit exclusion (`skipped`)."
+   },
+   "StepUpdate": {
+    "properties": {
+     "title": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 200,
+        "minLength": 1
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Title"
+     },
+     "objective": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 2000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Objective"
+     },
+     "context": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 4000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Context"
+     },
+     "instructions": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 8000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Instructions"
+     },
+     "acceptance_criteria": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string",
+         "maxLength": 500,
+         "minLength": 1
+        },
+        "type": "array",
+        "maxItems": 20
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Acceptance Criteria"
+     },
+     "metadata": {
+      "anyOf": [
+       {
+        "additionalProperties": {
+         "anyOf": [
+          {
+           "type": "string"
+          },
+          {
+           "type": "integer"
+          },
+          {
+           "type": "number"
+          },
+          {
+           "type": "boolean"
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Metadata"
+     },
+     "tasks": {
+      "anyOf": [
+       {
+        "items": {
+         "$ref": "#/components/schemas/TaskPlanItem"
+        },
+        "type": "array",
+        "maxItems": 20
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Tasks"
+     },
+     "provenance": {
+      "$ref": "#/components/schemas/WriteProvenance"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "StepUpdate",
+    "description": "Content edit (`PATCH`, `If-Match-Version` = step version). On an\n`active` roadmap a *content* edit that `is_agent_write` becomes a pending\nproposal instead of being applied. Editing `tasks` never modifies or\ndeletes existing Tasks or links: a removed plan item leaves its link (and\nits `hydration_key`) in place, and re-adding it makes it `reuse` again.\nEditing `acceptance_criteria` clears the step's `criteria_checked`."
+   },
    "Task": {
     "properties": {
      "created_at": {
@@ -10649,6 +15529,62 @@
      "title"
     ],
     "title": "TaskCreate"
+   },
+   "TaskPlanItem": {
+    "properties": {
+     "hydration_key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+      "title": "Hydration Key"
+     },
+     "title": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Title"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 4000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "hydration_key",
+     "title"
+    ],
+    "title": "TaskPlanItem",
+    "description": "A Task the step *would* create at hydration. `hydration_key` is unique\nwithin its step and is what makes hydration replay-safe: a step already\nlinked to a Task with the same `hydration_key` is `reused`, never\nduplicated, even under a fresh `Idempotency-Key`."
+   },
+   "TaskProgress": {
+    "properties": {
+     "completed": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Completed"
+     },
+     "total": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Total"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "completed",
+     "total"
+    ],
+    "title": "TaskProgress"
    },
    "TaskStatus": {
     "type": "string",
@@ -11104,6 +16040,40 @@
     "title": "TransferStatus",
     "description": "Transfer lifecycle, from declaration (`created`) to removal (`deleted`)."
    },
+   "TransitionRequest": {
+    "properties": {
+     "transition": {
+      "$ref": "#/components/schemas/RoadmapTransition"
+     },
+     "expected_version": {
+      "type": "integer",
+      "title": "Expected Version"
+     },
+     "comment": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 2000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Comment"
+     },
+     "provenance": {
+      "$ref": "#/components/schemas/WriteProvenance"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "transition",
+     "expected_version"
+    ],
+    "title": "TransitionRequest",
+    "description": "Lifecycle change of a *roadmap* (`ROADMAP_TRANSITIONS`). `approve` here\nis the initial validation of a `proposed` roadmap; approving a revision\nproposal of an approved roadmap is `ProposalReview`. Both emit\n`roadmap.approved` / `roadmap.changes_requested` / `roadmap.rejected` with\n`payload.scope` = `roadmap` or `revision`."
+   },
    "UploadCompleteRequest": {
     "properties": {
      "size_bytes": {
@@ -11545,6 +16515,193 @@
      "machine_id"
     ],
     "title": "WorkSessionCreate"
+   },
+   "WriteProvenance": {
+    "properties": {
+     "origin": {
+      "$ref": "#/components/schemas/RoadmapOrigin",
+      "default": "manual"
+     },
+     "agent_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Agent Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "WriteProvenance",
+    "description": "Client-declared part of provenance. The server derives the rest from\nthe authenticated `Principal` (actor = machine owner unless `agent_id` is\nset; an `agent_id` not attached to the machine -> `409 actor_not_owned`).\nWhether a write *is* an agent write is decided by `is_agent_write`, never\nby `origin` alone: a declared `manual` origin cannot downgrade it."
+   },
+   "studio_contracts__resolution__Provenance": {
+    "properties": {
+     "source": {
+      "$ref": "#/components/schemas/ProvenanceSource"
+     },
+     "resource_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Resource Id"
+     },
+     "stable_key": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stable Key"
+     },
+     "scope": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/LibraryScope"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "version": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Version"
+     },
+     "version_origin": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/VersionOrigin"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "locked": {
+      "type": "boolean",
+      "title": "Locked",
+      "default": false
+     },
+     "relation": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/BindingRelation"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "binding_level": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/RuntimeLevel"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "via": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Via"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "source"
+    ],
+    "title": "Provenance",
+    "description": "Complete provenance for one resolved element.\n\nAnswers: why this resource, why this version (lock vs active vs pin),\nthrough which relation, which runtime level won and whether an override\ndecided. Every field is data, never a human sentence."
+   },
+   "studio_contracts__roadmaps__Provenance": {
+    "properties": {
+     "origin": {
+      "$ref": "#/components/schemas/RoadmapOrigin"
+     },
+     "actor_type": {
+      "type": "string",
+      "enum": [
+       "user",
+       "agent"
+      ],
+      "title": "Actor Type"
+     },
+     "actor_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Actor Id"
+     },
+     "agent_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Agent Id"
+     },
+     "machine_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Machine Id"
+     },
+     "at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "origin",
+     "actor_type",
+     "actor_id",
+     "at"
+    ],
+    "title": "Provenance",
+    "description": "Read-side provenance. No harness/provider/model: joinable through\n`agent_id` -> `Agent` only."
    }
   },
   "securitySchemes": {
@@ -11643,6 +16800,14 @@
   {
    "name": "resolutions",
    "description": "Canonical full resolution of an `AgentDefinition` to its `ResolvedAgentDefinition` (P5 engine via `resolve_full`): effective definition, rules, skills, model profile, winning runtime, compatibility verdict and structured provenance. Pure read \u2014 no fallback, no persistence."
+  },
+  {
+   "name": "roadmaps",
+   "description": "Project roadmaps (Roadmap -> Phase -> Step): a plan, never work status \u2014 Tasks stay the units of work and step state/progress are derived from linked Tasks. Lifecycle draft/proposed/active/completed/archived through one transitions endpoint, atomic reordering, dependencies (DAG), Step<->Task links, idempotent Task hydration with preview, and import/export of the neutral `studio.roadmap/v1` document. No provider, model or harness concept and no server-side LLM."
+  },
+  {
+   "name": "initialization",
+   "description": "Project initialization from a neutral `studio.initialization/v1` plan (Roadmaps P5): preview what would be created/reused/skipped with no side effect, then apply idempotently. The roadmap inside the plan is optional; blocking problems refuse the apply before any write."
   }
  ]
 }

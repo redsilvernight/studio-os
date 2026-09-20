@@ -120,7 +120,7 @@ class InitializationProblemCode(StrEnum):
 # --- plan ---------------------------------------------------------------------
 class InitializationProjectSpec(ContractModel):
     """The project to reuse (by `slug`) or create. No metadata column exists
-    on Project (DEC-0084 §1) so none is invented here."""
+    on Project so none is invented here."""
 
     slug: str = Field(min_length=1, max_length=80)
     name: str = Field(min_length=1, max_length=MAX_TITLE)
