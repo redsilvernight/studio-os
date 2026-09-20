@@ -38,7 +38,7 @@ import {
   dsAgentBadge,
 } from "../ds/ds";
 import { resolveReview, type ReviewResolution } from "../reviewApi";
-import { describeError, esc, fmtTime, shortId } from "../ui";
+import { describeError, esc, fmtTime, newUuid, shortId } from "../ui";
 import type { components } from "../openapi-schema";
 
 type Decision = components["schemas"]["Decision"];
@@ -145,7 +145,7 @@ async function createDecision(
 
 /** Génère une clé d'idempotence côté client (UUID v4 simple). */
 function generateIdempotencyKey(): string {
-  return crypto.randomUUID();
+  return newUuid();
 }
 
 /** ------------------- RENDU REVIEW QUEUE ------------------- */

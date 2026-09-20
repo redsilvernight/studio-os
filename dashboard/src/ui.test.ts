@@ -1,6 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "./api";
-import { describeError } from "./ui";
+import { describeError, newUuid } from "./ui";
+
+describe("newUuid", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("produit un UUID v4 même hors contexte sécurisé (HTTP, sans crypto.randomUUID)", () => {
+    vi.stubGlobal("crypto", { getRandomValues: globalThis.crypto.getRandomValues.bind(globalThis.crypto) });
+    const id = newUuid();
+    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(newUuid()).not.toBe(id);
+  });
+});
 
 function apiError(status: number, errorCode: string | null, message = `HTTP ${status}`, serverVersion: number | null = null): ApiError {
   return new ApiError({ status, errorCode, message, serverVersion });

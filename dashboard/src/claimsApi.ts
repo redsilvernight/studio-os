@@ -13,13 +13,14 @@
 import type { StudioClient } from "./api";
 import { ApiError, parseErrorBody } from "./api";
 import type { components } from "./openapi-schema";
+import { newUuid } from "./ui";
 
 export type ResourceClaim = components["schemas"]["ResourceClaim"];
 export type ResourceClaimCreate = components["schemas"]["ResourceClaimCreate"];
 
 /** One fresh key per logical creation attempt. */
 export function newIdempotencyKey(): string {
-  return crypto.randomUUID();
+  return newUuid();
 }
 
 async function unwrap<T>(promise: Promise<{ data?: T; error?: unknown; response: Response }>): Promise<T> {
