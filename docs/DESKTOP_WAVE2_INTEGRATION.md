@@ -135,7 +135,17 @@ décidée.
 ## Décisions
 
 Aucune décision architecturale nouvelle : Wave 2 exécute `DEC-0091` (shell
-Tauri mince autour du Dashboard autonome, pont local typé) et `DEC-0092`
-(`CodeGraphProvider`, Graphify séparé, redistribution différée). Les commandes
-`knowledge.*`/`code_graph.*` étaient déjà déclarées par les contrats P1 ; Wave 2
-les rend **servies** par le daemon, sans modifier le contrat.
+Tauri mince autour du Dashboard autonome, pont local typé), `DEC-0092`
+(`CodeGraphProvider`, Graphify séparé, redistribution différée) et `DEC-0093`
+(contrats locaux `studio.local/v1`, bridge à allowlist fermée, fixtures
+partagées). Les commandes `knowledge.*`/`code_graph.*` étaient déjà déclarées
+par les contrats P1 ; Wave 2 les rend **servies** par le daemon, sans modifier
+le contrat. Le changement de `contracts/local/` est purement additif (fixtures
++ entrées de manifest) : `schema_version`, protocole et allowlist inchangés,
+aucun bump requis (`contract-guardian` CONFORME).
+
+`LOCAL_CONTRACT_DIGEST` (Dashboard) est un marqueur de dérive, pas un gate de
+compatibilité : il est calculé sur `manifest.json + allowlist.json + schémas`,
+donc toute fixture additive le fait bouger. Il ne doit pas devenir un gate
+d'égalité côté Bloc B — la compatibilité se négocie par protocol range et
+capabilities (`DEC-0093`), jamais par version de paquet.
