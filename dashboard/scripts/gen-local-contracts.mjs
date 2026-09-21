@@ -34,6 +34,16 @@ const MODELS = [
   "DaemonHealthRequest",
   "EmptyPayload",
   "IdentityView",
+  "GraphPage",
+  "GraphPageRequest",
+  "GraphExpandRequest",
+  "WorkspaceScope",
+  "KnowledgeStatus",
+  "CodeGraphStatus",
+  "KnowledgeSearchRequest",
+  "KnowledgeSearchResult",
+  "CodeSymbolQuery",
+  "CodeSymbolResult",
 ];
 
 // Line endings are not content: a Windows checkout may hold CRLF where the

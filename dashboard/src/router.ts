@@ -23,6 +23,7 @@ export type Route =
   | { name: "configProject"; tab: ProjectConfigTab }
   | { name: "configApplication" }
   | { name: "workspaces" }
+  | { name: "graphs"; kind: "knowledge" | "code" | "project"; workspaceId?: string }
   | { name: "inspector"; stableKey: string | null }
   | { name: "designSystem" }
   | { name: "notFound"; hash: string };
@@ -99,6 +100,15 @@ export function parseRoute(hash: string): Route {
     return notFound(hash);
   }
   if (parts[0] === "workspaces" && parts.length === 1) return { name: "workspaces" };
+  if (parts[0] === "graphs" && parts.length >= 2 && parts.length <= 3) {
+    const kind = parts[1];
+    const workspaceId = parts[2];
+    if ((kind === "knowledge" || kind === "code" || kind === "project") &&
+      (workspaceId === undefined || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(workspaceId))) {
+      return { name: "graphs", kind, ...(workspaceId ? { workspaceId } : {}) };
+    }
+    return notFound(hash);
+  }
   if (parts[0] === "design-system" && parts.length === 1) return { name: "designSystem" };
   return notFound(hash);
 }

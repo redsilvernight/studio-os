@@ -33,6 +33,7 @@ import { renderTransfers } from "./views/transfers";
 import { renderLibrary, renderLibraryDetail } from "./views/library";
 import { renderApplication } from "./views/application";
 import { renderWorkspaces } from "./views/workspacesPage";
+import { renderGraphs } from "./views/graphs";
 import { renderBindings, renderProjectConfig, renderRuntimeDetail, renderRuntimes } from "./views/configuration";
 import { renderInspector } from "./views/inspector";
 import { renderDesignSystem } from "./views/designSystem";
@@ -134,6 +135,9 @@ async function render(): Promise<void> {
       break;
     case "workspaces":
       await renderWorkspaces(staging);
+      break;
+    case "graphs":
+      renderGraphs(staging, route.kind, { workspaceId: route.workspaceId });
       break;
     case "configProject":
       await renderProjectConfig(staging, { client, authed }, route.tab);
