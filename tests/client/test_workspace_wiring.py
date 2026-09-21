@@ -1,5 +1,3 @@
-"""Workspace configuration -> daemon -> `WorkspaceWatchSet` -> `GitWatcher`."""
-
 from __future__ import annotations
 
 import asyncio

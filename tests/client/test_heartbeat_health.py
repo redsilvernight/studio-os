@@ -1,5 +1,3 @@
-"""Wave 1b: a successful heartbeat must yield a valid, reportable health."""
-
 from __future__ import annotations
 
 import asyncio

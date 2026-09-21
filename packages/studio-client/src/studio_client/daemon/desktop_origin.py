@@ -71,9 +71,6 @@ def _configured_origin() -> str | None:
 def bind_env_token(
     origin: str, configured_origin: str | None, env: MutableMapping[str, str]
 ) -> None:
-    """An environment token must name the origin it belongs to: the explicit
-    binding, or else the origin the operator configured it alongside. Anything
-    else is removed so it can never authenticate against the Desktop origin."""
     if not env.get(TOKEN_ENV):
         return
     if env.get(TOKEN_ORIGIN_ENV):

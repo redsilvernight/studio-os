@@ -1,5 +1,3 @@
-"""A legacy (identity-less) outbox is never adopted: only explicit actions touch it."""
-
 from __future__ import annotations
 
 import json

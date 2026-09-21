@@ -1,5 +1,3 @@
-"""Wave 1b: the Desktop's effective `server_origin` reaches the sidecar, validated, fail-closed."""
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -199,7 +197,15 @@ def control(origin: str) -> DaemonControlRequest:
 def test_a_sidecar_on_the_desktop_origin_accepts_the_renderer_profile(tmp_path: Path) -> None:
     daemon = controller_for(ORIGIN_B, tmp_path)
     assert daemon._profile().server_origin == ORIGIN_B
-    assert daemon.control(control(ORIGIN_B)).outcome.value != "identity_mismatch"
+    try:
+        assert daemon.control(control(ORIGIN_B)).outcome.value != "identity_mismatch"
+    finally:
+        daemon.control(
+            DaemonControlRequest(
+                action=DaemonAction.STOP,
+                profile=ProfileRef(profile_id="main", server_origin=ORIGIN_B),
+            )
+        )
 
 
 def test_a_sidecar_on_origin_a_refuses_a_renderer_on_origin_b(tmp_path: Path) -> None:
