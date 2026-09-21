@@ -271,3 +271,58 @@ describe("createApiRoadmapDataSource.reviewProposal", () => {
     );
   });
 });
+
+describe("createApiRoadmapDataSource with a targeted roadmap", () => {
+  const PROPOSED = { ...SUMMARY, id: "r9", title: "Bootstrap", status: "proposed" };
+
+  it("loads the requested proposed roadmap instead of the active one", async () => {
+    const GET = vi
+      .fn()
+      .mockResolvedValueOnce(ok([SUMMARY, PROPOSED]))
+      .mockResolvedValueOnce(ok({ ...DETAIL, id: "r9", status: "proposed" }));
+    const source = createApiRoadmapDataSource(fakeClient({ ...emptyFake(), GET }));
+    const roadmap = await source.load("p1", "r9");
+    expect(roadmap?.id).toBe("r9");
+    expect(GET).toHaveBeenLastCalledWith("/api/v1/roadmaps/{roadmap_id}", {
+      params: { path: { roadmap_id: "r9" } },
+    });
+  });
+
+  it("ignores an id that is not a roadmap of the project", async () => {
+    const GET = vi.fn().mockResolvedValueOnce(ok([SUMMARY, PROPOSED])).mockResolvedValueOnce(ok(DETAIL));
+    const source = createApiRoadmapDataSource(fakeClient({ ...emptyFake(), GET }));
+    const roadmap = await source.load("p1", "foreign");
+    expect(roadmap?.id).toBe("r1");
+  });
+
+  it("lists every roadmap for the switcher", async () => {
+    const GET = vi.fn().mockResolvedValue(ok([SUMMARY, PROPOSED]));
+    const source = createApiRoadmapDataSource(fakeClient({ ...emptyFake(), GET }));
+    await expect(source.listRoadmaps?.("p1")).resolves.toEqual([
+      { id: "r1", title: "Plan", status: "active" },
+      { id: "r9", title: "Bootstrap", status: "proposed" },
+    ]);
+  });
+
+  it("reads a pending revision only on the displayed roadmap, never on another one", async () => {
+    const GET = vi.fn().mockResolvedValue(ok([SUMMARY, PROPOSED]));
+    const source = createApiRoadmapDataSource(fakeClient({ ...emptyFake(), GET }));
+    await expect(source.loadPendingProposal("p1", "r9")).resolves.toBeNull();
+    expect(GET).toHaveBeenCalledTimes(1);
+  });
+
+  it("reviews the displayed proposed roadmap, not the first proposed one", async () => {
+    const other = { ...PROPOSED, id: "r8" };
+    const GET = vi
+      .fn()
+      .mockResolvedValueOnce(ok([SUMMARY, other, PROPOSED]))
+      .mockResolvedValueOnce(ok({ ...DETAIL, id: "r9" }));
+    const POST = vi.fn().mockResolvedValue(ok({ ...DETAIL, id: "r9", status: "active" }));
+    const source = createApiRoadmapDataSource(fakeClient({ ...emptyFake(), GET, POST }));
+    await source.reviewProposal("p1", "approve", undefined, "r9");
+    expect(POST).toHaveBeenCalledWith(
+      "/api/v1/roadmaps/{roadmap_id}/transitions",
+      expect.objectContaining({ params: { path: { roadmap_id: "r9" } } }),
+    );
+  });
+});

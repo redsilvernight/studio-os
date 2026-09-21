@@ -2,7 +2,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createFixtureRoadmapDataSource } from "../roadmapData";
 import { roadmapFixtureProjectIds } from "../roadmapFixtures";
-import { roadmapExecutionHtml, roadmapPlanHtml, roadmapPrintHtml, roadmapShellHtml, roadmapStepDetailHtml, renderRoadmapInto } from "./roadmap";
+import { roadmapExecutionHtml, roadmapPlanHtml, roadmapPrintHtml, roadmapShellHtml, roadmapStepDetailHtml, roadmapSwitcherHtml, renderRoadmapInto } from "./roadmap";
+import type { RoadmapDataSource } from "../roadmapTypes";
 
 describe("Roadmap workspace", () => {
   beforeEach(() => {
@@ -149,5 +150,46 @@ describe("Roadmap workspace", () => {
     expect(html).toContain("Informations techniques");
     expect(html).not.toContain("provider");
     expect(html).not.toContain("harness");
+  });
+});
+
+describe("Roadmap switcher and targeted roadmap", () => {
+  beforeEach(() => {
+    document.body.innerHTML = `<div id="ds-toast-region"></div><main id="root"></main>`;
+  });
+
+  it("n'affiche pas de sélecteur pour une seule roadmap", async () => {
+    const source = createFixtureRoadmapDataSource();
+    const roadmap = await source.load(roadmapFixtureProjectIds.proposed);
+    expect(roadmap).not.toBeNull();
+    expect(roadmapSwitcherHtml(roadmap!, [{ id: roadmap!.id, title: roadmap!.title, status: roadmap!.status }])).toBe("");
+  });
+
+  it("ouvre la roadmap ciblée et la relit avec son propre id", async () => {
+    const fixture = createFixtureRoadmapDataSource();
+    const proposed = (await fixture.load(roadmapFixtureProjectIds.proposed))!;
+    const active = { ...(await fixture.load(roadmapFixtureProjectIds.active))!, project_id: proposed.project_id };
+    const load = vi.fn(async (_projectId: string, roadmapId?: string) => (roadmapId === proposed.id ? proposed : active));
+    const loadPendingProposal = vi.fn(async () => null);
+    const source: RoadmapDataSource = {
+      ...fixture,
+      load,
+      loadPendingProposal,
+      listRoadmaps: async () => [
+        { id: active.id, title: active.title, status: "active" },
+        { id: proposed.id, title: proposed.title, status: "proposed" },
+      ],
+    };
+    const root = document.getElementById("root") as HTMLElement;
+    await renderRoadmapInto(root, { dataSource: source, projectId: proposed.project_id, projectName: "P", roadmapId: proposed.id });
+    expect(load).toHaveBeenCalledWith(proposed.project_id, proposed.id);
+    expect(loadPendingProposal).toHaveBeenCalledWith(proposed.project_id, proposed.id);
+    expect(root.textContent).toContain("Modifications proposées");
+    const links = [...root.querySelectorAll<HTMLAnchorElement>(".roadmap-switch-link")];
+    expect(links.map((link) => link.getAttribute("href"))).toEqual([
+      `#/projects/${active.project_id}/roadmap/${active.id}`,
+      `#/projects/${proposed.project_id}/roadmap/${proposed.id}`,
+    ]);
+    expect(links[1]?.getAttribute("aria-current")).toBe("page");
   });
 });

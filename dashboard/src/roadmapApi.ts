@@ -17,6 +17,7 @@ import type {
   RoadmapDataSource,
   RoadmapDiff,
   RoadmapDocument,
+  RoadmapListItem,
   RoadmapPendingProposal,
   RoadmapPhase,
   RoadmapReviewDecision,
@@ -227,14 +228,27 @@ export function createApiRoadmapDataSource(client: StudioClient): RoadmapDataSou
   }
 
   return {
-    async load(projectId: string): Promise<Roadmap | null> {
+    async listRoadmaps(projectId: string): Promise<RoadmapListItem[]> {
+      const summaries = await unwrap(
+        client.GET("/api/v1/projects/{project_id}/roadmaps", {
+          params: { path: { project_id: projectId } },
+        }),
+      );
+      return summaries.map((summary) => ({ id: summary.id, title: summary.title, status: summary.status }));
+    },
+
+    async load(projectId: string, roadmapId?: string): Promise<Roadmap | null> {
       const summaries = await unwrap(
         client.GET("/api/v1/projects/{project_id}/roadmaps", {
           params: { path: { project_id: projectId } },
         }),
       );
       if (summaries.length === 0) return null;
-      const picked = summaries.find((summary) => summary.status === "active") ?? summaries[0];
+      // An unknown or foreign id falls back to the default pick instead of reading another project's roadmap.
+      const picked =
+        summaries.find((summary) => summary.id === roadmapId) ??
+        summaries.find((summary) => summary.status === "active") ??
+        summaries[0];
       if (picked === undefined) return null;
       return detail(picked.id);
     },
@@ -254,13 +268,16 @@ export function createApiRoadmapDataSource(client: StudioClient): RoadmapDataSou
       projectId: string,
       decision: RoadmapReviewDecision,
       comment?: string,
+      roadmapId?: string,
     ): Promise<Roadmap | null> {
       const summaries = await unwrap(
         client.GET("/api/v1/projects/{project_id}/roadmaps", {
           params: { path: { project_id: projectId } },
         }),
       );
-      const proposed = summaries.find((summary) => summary.status === "proposed");
+      const proposed = summaries.find(
+        (summary) => summary.status === "proposed" && (roadmapId === undefined || summary.id === roadmapId),
+      );
       if (proposed === undefined) return null;
       const current = await unwrap(
         client.GET("/api/v1/roadmaps/{roadmap_id}", {
@@ -276,13 +293,15 @@ export function createApiRoadmapDataSource(client: StudioClient): RoadmapDataSou
       return toViewRoadmap(transitioned);
     },
 
-    async loadPendingProposal(projectId: string): Promise<RoadmapPendingProposal | null> {
+    async loadPendingProposal(projectId: string, roadmapId?: string): Promise<RoadmapPendingProposal | null> {
       const summaries = await unwrap(
         client.GET("/api/v1/projects/{project_id}/roadmaps", {
           params: { path: { project_id: projectId } },
         }),
       );
-      const active = summaries.find((summary) => summary.status === "active");
+      const active = summaries.find(
+        (summary) => summary.status === "active" && (roadmapId === undefined || summary.id === roadmapId),
+      );
       if (active === undefined) return null;
       const revisions = await unwrap(
         client.GET("/api/v1/roadmaps/{roadmap_id}/revisions", {
@@ -321,13 +340,16 @@ export function createApiRoadmapDataSource(client: StudioClient): RoadmapDataSou
       revisionNo: number,
       decision: RoadmapReviewDecision,
       comment?: string,
+      roadmapId?: string,
     ): Promise<Roadmap | null> {
       const summaries = await unwrap(
         client.GET("/api/v1/projects/{project_id}/roadmaps", {
           params: { path: { project_id: projectId } },
         }),
       );
-      const active = summaries.find((summary) => summary.status === "active");
+      const active = summaries.find(
+        (summary) => summary.status === "active" && (roadmapId === undefined || summary.id === roadmapId),
+      );
       if (active === undefined) return null;
       const current = await detail(active.id);
       const reviewed = await unwrap(

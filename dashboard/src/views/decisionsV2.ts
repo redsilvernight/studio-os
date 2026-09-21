@@ -226,7 +226,7 @@ export function reviewItemHtml(item: ReviewQueueItem, authed: boolean, isAdmin: 
     }
   } else if (item.kind === "roadmap_proposal") {
     actionsHtml = `<div class="review-actions" role="group" aria-label="Actions pour cette proposition de roadmap">` +
-      `<a class="ds-btn ds-btn--sm ds-btn--primary" href="#/projects/${esc(item.project_id)}/roadmap">Examiner dans Roadmap</a></div>`;
+      `<a class="ds-btn ds-btn--sm ds-btn--primary" href="#/projects/${esc(item.project_id)}/roadmap/${esc(item.roadmap_id)}">Examiner dans Roadmap</a></div>`;
   } else if (item.kind === "decision_proposal") {
     if (authed) {
       const disabled = isAdmin ? "" : " disabled";

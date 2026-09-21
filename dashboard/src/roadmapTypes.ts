@@ -173,22 +173,33 @@ export interface RoadmapPendingProposal {
   diff: RoadmapDiff;
 }
 
+export interface RoadmapListItem {
+  id: string;
+  title: string;
+  status: RoadmapStatus;
+}
+
 export interface RoadmapDataSource {
   /** Session-local fixture sources set this; the canonical API source leaves it unset. */
   demo?: boolean;
-  load(projectId: string): Promise<Roadmap | null>;
+  /** `roadmapId` targets one roadmap of the project (e.g. a proposed one); omitted = the active one. */
+  load(projectId: string, roadmapId?: string): Promise<Roadmap | null>;
+  /** Every roadmap of the project, for the switcher; absent on single-roadmap sources. */
+  listRoadmaps?(projectId: string): Promise<RoadmapListItem[]>;
   replaceDocument(projectId: string, document: RoadmapDocument): Promise<Roadmap>;
   reviewProposal(
     projectId: string,
     decision: RoadmapReviewDecision,
     comment?: string,
+    roadmapId?: string,
   ): Promise<Roadmap | null>;
-  /** Pending revision proposal on the project's active roadmap, if any (P8). */
-  loadPendingProposal(projectId: string): Promise<RoadmapPendingProposal | null>;
+  /** Pending revision proposal on `roadmapId` (default: the active roadmap) when that roadmap is active (P8). */
+  loadPendingProposal(projectId: string, roadmapId?: string): Promise<RoadmapPendingProposal | null>;
   reviewProposalRevision(
     projectId: string,
     revisionNo: number,
     decision: RoadmapReviewDecision,
     comment?: string,
+    roadmapId?: string,
   ): Promise<Roadmap | null>;
 }

@@ -560,3 +560,25 @@
     print-color-adjust: exact;
   }
 }
+
+.roadmap-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-2, 8px) var(--ds-space-4, 16px);
+  margin-bottom: var(--ds-space-4, 16px);
+}
+
+.roadmap-switch-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2, 8px) var(--ds-space-4, 16px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.roadmap-switch-link[aria-current="page"] {
+  font-weight: 600;
+  text-decoration: none;
+}
