@@ -158,3 +158,26 @@ agent, ni de declarer un profil : ces informations sont des metadonnees
 d'observabilite optionnelles, sans effet sur l'autorisation ou les capacites.
 Un client totalement inconnu doit donc pouvoir integrer Studio OS en suivant
 ce guide seul.
+
+## 11. Workflow d'un agent (harness-agnostique)
+
+Le protocole minimal pour qu'un agent travaille, quel que soit son harness.
+La regle permanente tient en une page (`.agents/rules/studio-protocol.md`) ;
+les details vivent dans les skills (`.agents/skills/studio-*`), jamais recopies ici.
+
+1. Installer/connecter Studio OS (sections 1-2 : transport, machine-token).
+2. Generer la configuration du harness depuis la source canonique
+   (`.agents/definitions/`) : `studio-client adapters export --adapter
+   <claude-code|opencode|codex> --stable-key <agent> --from-canonical`.
+   Ne jamais maintenir ces fichiers a la main (`adapters check` en CI).
+3. Recevoir un objectif, puis appeler `studio_prepare_context` en premier —
+   jamais un scan large du depot. Suivre `why` / `matched_terms`, puis
+   `additional_available` / `omitted_for_budget` (progressive disclosure).
+4. Travailler : `claim` la tache et les chemins, `update` avec
+   `expected_version` (409 = relire, fusionner, rejouer), tracer avec AI work.
+5. Persister les decisions durables (`studio_add_decision`) au lieu de garder
+   leur justification uniquement dans la conversation.
+6. Cloturer avec la sequence `studio-handoff` (resume DONE/STATE/CHANGED/
+   TESTS/NEXT/BLOCKERS dans AI work, liberer claims, terminer la session).
+7. Un autre agent/harness reprend avec un seul `studio_prepare_context` :
+   tache + decisions + handoff/NEXT, sans historique de conversation.
