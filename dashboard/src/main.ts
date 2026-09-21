@@ -32,6 +32,7 @@ import { renderDecisionsV2 as renderDecisions } from "./views/decisionsV2";
 import { renderTransfers } from "./views/transfers";
 import { renderLibrary, renderLibraryDetail } from "./views/library";
 import { renderApplication } from "./views/application";
+import { renderWorkspaces } from "./views/workspacesPage";
 import { renderBindings, renderProjectConfig, renderRuntimeDetail, renderRuntimes } from "./views/configuration";
 import { renderInspector } from "./views/inspector";
 import { renderDesignSystem } from "./views/designSystem";
@@ -131,6 +132,9 @@ async function render(): Promise<void> {
     case "configApplication":
       await renderApplication(staging);
       break;
+    case "workspaces":
+      await renderWorkspaces(staging);
+      break;
     case "configProject":
       await renderProjectConfig(staging, { client, authed }, route.tab);
       break;
@@ -157,7 +161,7 @@ async function render(): Promise<void> {
   staging.id = "view";
   staging.tabIndex = -1;
   old.replaceWith(staging);
-  syncNav(route, document);
+  syncNav(route, document, getDesktopShell() !== null);
   syncAuthState(authed, document);
   paintShellStatus(document);
 }
@@ -255,7 +259,7 @@ export function isDrawerOpen(): boolean {
 function mountShell(): void {
   const app = document.getElementById("app");
   if (app === null) throw new Error("#app missing");
-  app.innerHTML = shellHtml(parseRoute(location.hash), hasToken());
+  app.innerHTML = shellHtml(parseRoute(location.hash), hasToken(), getDesktopShell() !== null);
   paintShellStatus(document);
 
   document.getElementById("nav-open")?.addEventListener("click", () => openDrawer());

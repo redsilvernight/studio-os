@@ -18,8 +18,7 @@ def _cleanup_transfer_storage() -> None:
 
 def test_redaction_removes_credentials_and_signed_query_values() -> None:
     value = (
-        "Authorization: Bearer machine-secret "
-        "https://storage.test/a?X-Amz-Signature=abc&token=def"
+        "Authorization: Bearer machine-secret https://storage.test/a?X-Amz-Signature=abc&token=def"
     )
 
     redacted = redact_text(value)

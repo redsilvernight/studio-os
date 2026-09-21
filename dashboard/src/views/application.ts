@@ -11,6 +11,7 @@ import { apiBaseUrl } from "../api";
 import { getDesktopShell, paintShellStatus, refreshDaemon, type DesktopShell } from "../desktopShell";
 import { getPlatform, type DesktopInfo, type Platform, type ServerOriginRefusal, type ServerOriginState } from "../platform";
 import {
+  conditionLabel,
   daemonLabel,
   daemonNeedsAttention,
   serverStateLabel,
@@ -84,6 +85,10 @@ function sidecarLabel(info: DesktopInfo): string {
       return "Lancé";
     case "exited":
       return "Arrêté";
+    case "recovering":
+      return "Reprise en cours";
+    case "abandoned":
+      return "Abandonné après plusieurs arrêts";
     case "unavailable":
       return "Indisponible";
     default:
@@ -137,12 +142,22 @@ function serverSectionHtml(section: DesktopSection, form: ApplicationFormState):
 
 function assistantSectionHtml(section: DesktopSection, info: DesktopInfo | null): string {
   const attention = daemonNeedsAttention(section.daemon);
+  const health = section.daemon.kind === "state" ? section.daemon.health : null;
+  const healthRows = health
+    ? row("Synchronisation (heartbeat)", `<span data-testid="health-heartbeat">${esc(conditionLabel(health.heartbeat))}</span>`) +
+      row("Rejeu de la file hors ligne", `<span data-testid="health-outbox">${esc(conditionLabel(health.outboxReplay))}</span>`) +
+      row(
+        "Surveillance Git",
+        `<span data-testid="health-watchers">${health.gitWatchers.total === 0 ? "Aucun dépôt surveillé" : `${health.gitWatchers.healthy} / ${health.gitWatchers.total} en bonne santé`}</span>`,
+      )
+    : "";
   return (
     `<section class="settings-domain" data-testid="daemon-section"><h2>Assistant local</h2>` +
     `<dl class="settings-refs">` +
     row("État", `<span data-testid="daemon-state" data-attention="${attention}">${esc(daemonLabel(section.daemon))}</span>`) +
     row("Compatibilité", `<span data-testid="compatibility">${esc(compatibilityLabel(section.compatibility))}</span>`) +
     (info ? row("Processus", esc(sidecarLabel(info))) : "") +
+    healthRows +
     `</dl>` +
     (attention
       ? `<p class="settings-intro">L'assistant local ne répond pas. Le tableau de bord reste utilisable ; les fonctions locales sont suspendues.</p>`

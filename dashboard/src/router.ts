@@ -22,6 +22,7 @@ export type Route =
   | { name: "configBindings" }
   | { name: "configProject"; tab: ProjectConfigTab }
   | { name: "configApplication" }
+  | { name: "workspaces" }
   | { name: "inspector"; stableKey: string | null }
   | { name: "designSystem" }
   | { name: "notFound"; hash: string };
@@ -97,6 +98,7 @@ export function parseRoute(hash: string): Route {
     }
     return notFound(hash);
   }
+  if (parts[0] === "workspaces" && parts.length === 1) return { name: "workspaces" };
   if (parts[0] === "design-system" && parts.length === 1) return { name: "designSystem" };
   return notFound(hash);
 }

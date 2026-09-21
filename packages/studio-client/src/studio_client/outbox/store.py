@@ -203,9 +203,8 @@ class OutboxStore:
         values = [
             row[0]
             for table in OutboxTable
-            if (row := self._conn.execute(
-                f"SELECT MIN(created_at) FROM {table.value}"
-            ).fetchone()) is not None
+            if (row := self._conn.execute(f"SELECT MIN(created_at) FROM {table.value}").fetchone())
+            is not None
             and row[0] is not None
         ]
         return datetime.fromisoformat(min(values)) if values else None

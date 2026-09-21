@@ -72,7 +72,7 @@ fn is_local_dev_host(url: &Url) -> bool {
 fn is_desktop_origin_host(url: &Url) -> bool {
     match url.host() {
         Some(Host::Domain(d)) => {
-            let d = d.to_ascii_lowercase();
+            let d = d.trim_end_matches('.').to_ascii_lowercase();
             d == "tauri.localhost" || d == "ipc.localhost" || d == "tauri"
         }
         _ => false,
@@ -244,6 +244,32 @@ mod tests {
     fn the_desktop_origin_is_never_a_server_origin() {
         for bad in ["http://tauri.localhost", "https://tauri.localhost", "http://ipc.localhost", "https://TAURI.localhost:1420"] {
             assert_eq!(validate(bad), Err(OriginError::DesktopOrigin), "{bad}");
+        }
+    }
+
+    #[test]
+    fn equivalent_spellings_of_the_desktop_origin_are_refused() {
+        for bad in [
+            "http://tauri.localhost.",
+            "https://tauri.localhost..:8443",
+            "http://TAURI.LOCALHOST.",
+            "http://ipc.localhost.",
+            "https://tauri\u{3002}localhost",
+            "https://tauri.local\u{FF48}ost",
+            "https://%74auri.localhost",
+        ] {
+            assert_eq!(validate(bad), Err(OriginError::DesktopOrigin), "{bad}");
+        }
+    }
+
+    #[test]
+    fn lookalike_hostnames_are_still_valid_servers() {
+        for good in [
+            "https://tauri.localhost.example.com",
+            "https://mytauri.localhost.dev",
+            "https://ipc.localhost.evil.test",
+        ] {
+            assert!(validate(good).is_ok(), "{good}");
         }
     }
 

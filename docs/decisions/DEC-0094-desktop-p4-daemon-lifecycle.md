@@ -1,7 +1,7 @@
 ---
 id: DEC-0094
 title: 'Desktop P4 : daemon unique supervisé, outbox liée à l’identité et health négocié'
-status: proposed
+status: active
 date: '2026-09-21'
 superseded_by: null
 source: docs/decisions/DEC-0094-desktop-p4-daemon-lifecycle.md
@@ -9,10 +9,10 @@ source: docs/decisions/DEC-0094-desktop-p4-daemon-lifecycle.md
 
 # DEC-0094 — Desktop P4: daemon lifecycle
 
-Status: **proposed**
+Status: **accepted** (human validation 2026-09-21)
 Date: 2026-09-21
 Task: `[Desktop P4] Daemon lifecycle & services locaux (lane B)`
-Server decision UUID: `5019e74a-7770-49ca-90e9-0d40c2a7155c`
+Server decision UUID: `5019e74a-7770-49ca-90e9-0d40c2a7155c` (accepted server-side with the existing UUID, no renumbering)
 
 ## Context
 

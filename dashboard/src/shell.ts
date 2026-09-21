@@ -12,6 +12,7 @@
  */
 import type { Route } from "./router";
 import { esc } from "./ui";
+import { workspaceNavEntry } from "./workspaces/workspaces";
 
 export interface ShellNavItem {
   href: string;
@@ -46,9 +47,10 @@ function icon(name: string): string {
 }
 
 /** Groupes de navigation : routes existantes uniquement. */
-export function shellNavGroups(route: Route): ShellNavGroup[] {
+/** `desktop` adds the « Dossiers » entry; the web navigation is unchanged. */
+export function shellNavGroups(route: Route, desktop = false): ShellNavGroup[] {
   const is = (...names: Route["name"][]): boolean => names.includes(route.name);
-  return [
+  const groups: ShellNavGroup[] = [
     {
       title: "Principal",
       items: [
@@ -79,6 +81,11 @@ export function shellNavGroups(route: Route): ShellNavGroup[] {
       ],
     },
   ];
+  if (desktop) {
+    const entry = workspaceNavEntry();
+    groups[0]?.items.splice(2, 0, { href: entry.hash, label: entry.label, icon: "folder", active: is("workspaces") });
+  }
+  return groups;
 }
 
 function navItemHtml(item: ShellNavItem): string {
@@ -95,8 +102,8 @@ function navGroupHtml(group: ShellNavGroup, index: number): string {
  * Coquille complète. `authed` pilote le bloc compte (jamais de contenu
  * inventé : état jeton + déconnexion = mécanisme existant relocalisé).
  */
-export function shellHtml(route: Route, authed: boolean): string {
-  const groups = shellNavGroups(route)
+export function shellHtml(route: Route, authed: boolean, desktop = false): string {
+  const groups = shellNavGroups(route, desktop)
     .map((group, index) => navGroupHtml(group, index))
     .join("");
   const configActive = route.name === "configRuntimes" || route.name === "configRuntime" || route.name === "configBindings" || route.name === "configProject" || route.name === "configApplication";
@@ -127,10 +134,10 @@ export function shellHtml(route: Route, authed: boolean): string {
 }
 
 /** État actif seul (évite de reconstruire le shell à chaque rendu). */
-export function syncNav(route: Route, root: ParentNode): void {
+export function syncNav(route: Route, root: ParentNode, desktop = false): void {
   const links = root.querySelectorAll<HTMLAnchorElement>(".app-sidebar a.app-navlink");
   const targets = new Map<string, boolean>();
-  for (const group of shellNavGroups(route)) {
+  for (const group of shellNavGroups(route, desktop)) {
     for (const item of group.items) targets.set(item.href, item.active);
   }
   const configActive = route.name === "configRuntimes" || route.name === "configRuntime" || route.name === "configBindings" || route.name === "configProject" || route.name === "configApplication";

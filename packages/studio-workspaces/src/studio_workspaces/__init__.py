@@ -1,6 +1,12 @@
 from studio_workspaces.daemon_config import WatchPlan, daemon_watch_plan
 from studio_workspaces.flows import FlowKind, FlowResult, run_flow
 from studio_workspaces.git_detection import GitRepoInfo, GitStatus, detect_git
+from studio_workspaces.native_picker import (
+    NativeFolderPicker,
+    NativePick,
+    NativePickStatus,
+    parse_native_pick,
+)
 from studio_workspaces.path_safety import (
     PathVerdict,
     check_p5_glob,
@@ -21,6 +27,9 @@ __all__ = [
     "GitStatus",
     "MarkerHit",
     "MockFolderPicker",
+    "NativeFolderPicker",
+    "NativePick",
+    "NativePickStatus",
     "PathVerdict",
     "RootConfirmationService",
     "SecretMaterialError",
@@ -34,6 +43,7 @@ __all__ = [
     "classify_local_path",
     "daemon_watch_plan",
     "detect_git",
+    "parse_native_pick",
     "run_flow",
     "scan_studio_dir",
 ]

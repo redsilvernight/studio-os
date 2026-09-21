@@ -4,6 +4,7 @@ import { clearToken, setToken } from "./auth";
 import { apiBaseUrl } from "./api";
 import { observedFetch } from "./apiEvents";
 import {
+  refreshDaemon,
   currentStatus,
   getDesktopShell,
   paintShellStatus,
@@ -12,7 +13,8 @@ import {
   setDesktopHooks,
 } from "./desktopShell";
 import type { BridgeAnswer } from "./platform/contracts";
-import { fakeDesktop, notSupported } from "./testSupport/fakeDesktop";
+import { INFO, fakeDaemon, fakeDesktop, notSupported } from "./testSupport/fakeDesktop";
+import { daemonLabel } from "./shellStatus";
 import { webPlatform } from "./platform/web";
 import { getServerOriginOverride } from "./runtimeConfig";
 
@@ -127,10 +129,112 @@ describe("prepareDesktop", () => {
     );
     await flush();
     expect(currentStatus()?.reason).toBe("daemon_unavailable");
-    expect(seen[0]).toEqual([
-      "daemon.status",
-      { action: "status", profile: { profile_id: "default", server_origin: "https://studio.example.com" } },
-    ]);
+    // The handshake always comes first; a refused handshake stops the reads.
+    expect((seen[0] as unknown[])[0]).toBe("runtime.handshake");
+    expect(seen).toHaveLength(1);
+  });
+
+  describe("P3 ↔ P4: handshake, status, health", () => {
+    const STUDIO = { configured: "https://studio.example.com", applied: "https://studio.example.com", restart_required: false };
+    const boot = async (
+      daemon: ReturnType<typeof fakeDaemon>,
+      info: Partial<{ sidecar: unknown }> = {},
+    ) => {
+      stubFetch(async () => new Response("ok", { status: 200 }));
+      await prepareDesktop(
+        fakeDesktop(
+          {
+            request: daemon.request,
+            desktopInfo: async () => ({ ...INFO, ...info }) as unknown as typeof INFO,
+          },
+          STUDIO,
+        ),
+      );
+      await flush();
+      return getDesktopShell()!;
+    };
+
+    it("negotiates before status, then reads health when daemon.health was granted", async () => {
+      const daemon = fakeDaemon({ git_watchers: [{ condition: "healthy" }, { condition: "offline" }] });
+      const shell = await boot(daemon);
+      expect(daemon.calls.slice(0, 3)).toEqual(["runtime.handshake", "daemon.status", "daemon.health"]);
+      expect(shell.daemon).toMatchObject({
+        kind: "state",
+        state: "running",
+        health: { heartbeat: "healthy", outboxReplay: "healthy", gitWatchers: { total: 2, healthy: 1 } },
+      });
+      expect(currentStatus()?.reason).toBe("connected");
+    });
+
+    it("an older daemon without daemon.health stays compatible: no health request, health absent", async () => {
+      const daemon = fakeDaemon({ offers: ["daemon.control", "identity.view"] });
+      const shell = await boot(daemon);
+      expect(daemon.calls).not.toContain("daemon.health");
+      expect(shell.daemon).toEqual({ kind: "state", state: "running" });
+      expect(currentStatus()?.reason).toBe("connected");
+    });
+
+    it("a daemon restart forgets the grant: the next refresh negotiates again", async () => {
+      const daemon = fakeDaemon();
+      const shell = await boot(daemon);
+      daemon.restart();
+      await refreshDaemon(shell);
+      expect(shell.daemon.kind).toBe("state");
+      expect(daemon.calls.filter((c) => c === "runtime.handshake")).toHaveLength(2);
+      expect(daemon.calls).not.toContain("capability_missing");
+    });
+
+    it.each([
+      ["starting", "daemon_recovering", "Assistant local en démarrage"],
+      ["recovering", "daemon_recovering", "Assistant local en reprise"],
+      ["unavailable", "daemon_unavailable", "Assistant local indisponible"],
+      ["crashed", "daemon_unavailable", "Assistant local indisponible"],
+      ["incompatible", "protocol_incompatible", "Version incompatible"],
+    ] as const)("presents the daemon state %s", async (state, reason, label) => {
+      const shell = await boot(fakeDaemon({ state }));
+      expect(shell.daemon).toMatchObject({ kind: "state", state });
+      expect(currentStatus()).toMatchObject({ reason, label });
+    });
+
+    it("a refused handshake is shown as an incompatible version", async () => {
+      const shell = await boot(fakeDaemon({ refuse: "daemon_too_old" }));
+      expect(shell.daemon).toEqual({ kind: "error", code: "protocol_incompatible" });
+      expect(currentStatus()?.reason).toBe("protocol_incompatible");
+    });
+
+    it("the supervisor giving up is an abandoned daemon, not a generic error", async () => {
+      const unavailable = { ok: false, error: { code: "daemon_crashed" } } as unknown as BridgeAnswer;
+      stubFetch(async () => new Response("ok", { status: 200 }));
+      await prepareDesktop(
+        fakeDesktop(
+          {
+            request: async () => unavailable,
+            desktopInfo: async () => ({ ...INFO, sidecar: { state: "abandoned", attempts: 3 } }) as never,
+          },
+          STUDIO,
+        ),
+      );
+      await flush();
+      expect(getDesktopShell()!.daemon).toEqual({ kind: "error", code: "daemon_abandoned" });
+      expect(currentStatus()?.reason).toBe("daemon_unavailable");
+      expect(daemonLabel(getDesktopShell()!.daemon)).toBe("Abandonné après plusieurs arrêts");
+    });
+
+    it("a supervised restart in progress is recovering, not an alarm", async () => {
+      const unavailable = { ok: false, error: { code: "daemon_crashed" } } as unknown as BridgeAnswer;
+      stubFetch(async () => new Response("ok", { status: 200 }));
+      await prepareDesktop(
+        fakeDesktop(
+          {
+            request: async () => unavailable,
+            desktopInfo: async () => ({ ...INFO, sidecar: { state: "recovering", attempts: 1 } }) as never,
+          },
+          STUDIO,
+        ),
+      );
+      await flush();
+      expect(currentStatus()).toMatchObject({ level: "info", reason: "daemon_recovering" });
+    });
   });
 
   it("without a server address: unreachable, no request at all, daemon not asked", async () => {

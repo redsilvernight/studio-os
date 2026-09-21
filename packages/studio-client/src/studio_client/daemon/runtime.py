@@ -29,6 +29,11 @@ from studio_contracts.local.identity import IdentityBinding, ProfileRef, partiti
 from studio_client.api_client import StudioApiClient
 from studio_client.config import ClientConfig, default_config_path
 from studio_client.daemon.heartbeat import HeartbeatDaemon, build_watchers
+from studio_client.daemon.workspace_watch import (
+    RepoObservation,
+    WorkspaceWatch,
+    WorkspaceWatchSet,
+)
 from studio_client.errors import AuthenticationError, ServerError, TransportError
 from studio_client.outbox import (
     OutboxIdentityError,
@@ -70,7 +75,8 @@ class InstanceLock:
                 import fcntl
 
                 fcntl.flock(  # type: ignore[attr-defined]
-                    handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB  # type: ignore[attr-defined]
+                    handle.fileno(),
+                    fcntl.LOCK_EX | fcntl.LOCK_NB,  # type: ignore[attr-defined]
                 )
         except OSError:
             handle.close()
@@ -140,9 +146,7 @@ class DaemonRuntime:
             machine_id=config.machine_id,
         )
         self.data_root = data_root or default_config_path().parent
-        self.outbox_path = partitioned_outbox_path(
-            self.binding, root=self.data_root / "outbox"
-        )
+        self.outbox_path = partitioned_outbox_path(self.binding, root=self.data_root / "outbox")
         self._legacy_outbox_path = default_outbox_path()
         self._lock = InstanceLock(
             self.data_root / "locks" / f"{instance_lock_key(self.profile)}.lock"
@@ -155,6 +159,8 @@ class DaemonRuntime:
         self._replayer: OutboxReplayer | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._watchers: list[PollingWatcher] = []
+        self._workspace_watches: WorkspaceWatchSet | None = None
+        self._workspace_inputs: list[WorkspaceWatch] = []
         self._stop_requested = False
 
     def request_stop(
@@ -165,9 +171,7 @@ class DaemonRuntime:
     ) -> bool:
         drained = True
         if drain_outbox and self._loop is not None and self._replayer is not None:
-            future = asyncio.run_coroutine_threadsafe(
-                self._replayer.replay_ready(), self._loop
-            )
+            future = asyncio.run_coroutine_threadsafe(self._replayer.replay_ready(), self._loop)
             try:
                 future.result(timeout=max(timeout_seconds, 0.1))
             except Exception:  # noqa: BLE001
@@ -179,7 +183,21 @@ class DaemonRuntime:
             self._heartbeat.request_stop()
         for watcher in self._watchers:
             watcher.request_stop()
+        if self._workspace_watches is not None:
+            self._workspace_watches.request_stop()
         return drained
+
+    async def reconcile_workspace_watchers(
+        self, workspaces: list[WorkspaceWatch] | None = None
+    ) -> list[RepoObservation]:
+        """Apply the P5 watch plans through the P4 watcher lifecycle. Before the
+        daemon runs, the plans are only remembered and applied at startup."""
+        if workspaces is not None:
+            self._workspace_inputs = list(workspaces)
+        watches = self._workspace_watches
+        if watches is None or self._stop_requested:
+            return []
+        return await watches.reconcile(self._workspace_inputs)
 
     async def run(self) -> None:
         if not self._lock.acquire():
@@ -197,9 +215,7 @@ class DaemonRuntime:
                     self.config.backoff_initial,
                     self.config.backoff_max,
                 )
-                replayer = OutboxReplayer(
-                    store, client, policy, active_binding=self.binding
-                )
+                replayer = OutboxReplayer(store, client, policy, active_binding=self.binding)
                 self._replayer = replayer
                 self._heartbeat = HeartbeatDaemon(
                     client,
@@ -208,6 +224,13 @@ class DaemonRuntime:
                     replayer=replayer,
                 )
                 self._watchers = build_watchers(self.config, store)
+                self._workspace_watches = WorkspaceWatchSet(
+                    machine_id=self.binding.machine_id,
+                    outbox=store,
+                    interval_seconds=self.config.git_watch_interval_seconds,
+                )
+                if not self._stop_requested:
+                    await self._workspace_watches.reconcile(self._workspace_inputs)
                 if self._stop_requested:
                     self.request_stop()
                 await asyncio.gather(
@@ -215,6 +238,9 @@ class DaemonRuntime:
                 )
         finally:
             self.request_stop()
+            if self._workspace_watches is not None:
+                await self._workspace_watches.stop()
+                self._workspace_watches = None
             if self._store is not None:
                 self._store.connection.close()
             self._store = None
@@ -260,6 +286,9 @@ class DaemonRuntime:
             )
             for index, _ in enumerate(self._watchers)
         ]
+        if self._workspace_watches is not None:
+            watcher_health.extend(self._workspace_watches.health())
+        watcher_health = watcher_health[:64]
         replay_condition = RuntimeServiceCondition.DISABLED
         replay_state = ComponentState.DISABLED
         replay_error: LocalError | None = None
@@ -336,9 +365,7 @@ class DaemonRuntime:
                 code = LocalErrorCode.INTERNAL_ERROR
                 retryable = False
             state = (
-                ComponentState.STALE
-                if heartbeat.last_success_at
-                else ComponentState.UNAVAILABLE
+                ComponentState.STALE if heartbeat.last_success_at else ComponentState.UNAVAILABLE
             )
             local_error = LocalError(
                 code=code,

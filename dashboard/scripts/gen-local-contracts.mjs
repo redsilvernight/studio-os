@@ -20,7 +20,7 @@ const root = resolve(here, "..", "..");
 const localDir = resolve(root, "contracts", "local");
 const outFile = resolve(here, "..", "src", "platform", "generated", "local-contracts.generated.ts");
 
-/** Models the Dashboard consumes in P2 (envelopes + the served read-only commands). */
+/** Models the Dashboard consumes (envelopes + the served read-only commands, incl. the additive P4 `daemon.health`). */
 const MODELS = [
   "BridgeRequest",
   "BridgeResponse",
@@ -30,11 +30,16 @@ const MODELS = [
   "DaemonControlRequest",
   "DaemonControlResult",
   "DaemonStatus",
+  "DaemonHealth",
+  "DaemonHealthRequest",
   "EmptyPayload",
   "IdentityView",
 ];
 
-const readJson = (p) => JSON.parse(readFileSync(p, "utf8"));
+// Line endings are not content: a Windows checkout may hold CRLF where the
+// repository stores LF, so every comparison and digest reads canonical text.
+const canonicalText = (p) => readFileSync(p, "utf8").replace(/\r\n/g, "\n");
+const readJson = (p) => JSON.parse(canonicalText(p));
 const manifest = readJson(resolve(localDir, "manifest.json"));
 const allowlist = readJson(resolve(localDir, "allowlist.json"));
 const schemas = Object.fromEntries(
@@ -42,9 +47,9 @@ const schemas = Object.fromEntries(
 );
 
 const hash = createHash("sha256");
-hash.update(readFileSync(resolve(localDir, "manifest.json")));
-hash.update(readFileSync(resolve(localDir, "allowlist.json")));
-for (const m of MODELS) hash.update(readFileSync(resolve(localDir, "schemas", `${m}.json`)));
+hash.update(canonicalText(resolve(localDir, "manifest.json")));
+hash.update(canonicalText(resolve(localDir, "allowlist.json")));
+for (const m of MODELS) hash.update(canonicalText(resolve(localDir, "schemas", `${m}.json`)));
 const digest = hash.digest("hex");
 
 // ---------------------------------------------------------------- TS types --
@@ -159,7 +164,7 @@ ${typeDecls.join("\n\n")}
 `;
 
 if (process.argv.includes("--check")) {
-  if (!existsSync(outFile) || readFileSync(outFile, "utf8") !== out) {
+  if (!existsSync(outFile) || canonicalText(outFile) !== out) {
     console.error(
       "local-contracts.generated.ts is out of date with contracts/local/. Run: npm run gen:local-contracts",
     );
@@ -167,6 +172,6 @@ if (process.argv.includes("--check")) {
   }
   console.log(`local contracts in sync (digest ${digest.slice(0, 12)})`);
 } else {
-  writeFileSync(outFile, out);
+  writeFileSync(outFile, out, { encoding: "utf8" });
   console.log(`wrote ${outFile} (digest ${digest.slice(0, 12)})`);
 }

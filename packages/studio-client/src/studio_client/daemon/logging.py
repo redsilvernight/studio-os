@@ -39,9 +39,7 @@ def configure_daemon_logging(data_root: Path) -> Path:
         backupCount=5,
         encoding="utf-8",
     )
-    handler.setFormatter(
-        RedactingFormatter("%(asctime)s %(levelname)s %(name)s %(message)s")
-    )
+    handler.setFormatter(RedactingFormatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
     logger = logging.getLogger("studio_client.daemon")
     logger.handlers.clear()
     logger.addHandler(handler)

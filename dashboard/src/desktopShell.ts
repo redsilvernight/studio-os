@@ -13,9 +13,13 @@ import { joinUrl } from "./config";
 import { createConnectionMonitor, type ConnectionMonitor, type ConnectionSnapshot } from "./connection";
 import type { DesktopInfo, Platform, ServerOriginState } from "./platform";
 import { setServerOriginOverride } from "./runtimeConfig";
+import type { HandshakeResponse } from "./platform/generated/local-contracts.generated";
 import {
+  DAEMON_ABANDONED,
+  DAEMON_RECOVERING,
   shellStatusHtml,
   summarizeDaemonAnswer,
+  summarizeHealth,
   summarizeShellStatus,
   type CompatibilityState,
   type DaemonSummary,
@@ -93,7 +97,40 @@ async function loadIdentity(target: DesktopShell): Promise<void> {
   setServerOriginOverride(target.origin?.applied ?? null);
 }
 
-/** Read the P1 `daemon.status` (read-only). Skipped without an effective server origin. */
+/**
+ * Negotiate the local protocol with the daemon. The daemon forgets granted
+ * capabilities when it restarts, so this runs before every read instead of
+ * being cached: a stale grant would turn into `capability_missing`.
+ */
+async function negotiate(target: DesktopShell): Promise<
+  { ok: true; granted: Set<string> } | { ok: false; summary: DaemonSummary }
+> {
+  const peer = target.info?.peer;
+  if (!peer) return { ok: false, summary: { kind: "unknown" } };
+  const answer = await target.platform.request("runtime.handshake", { peer });
+  if (!answer.ok) return { ok: false, summary: summarizeDaemonAnswer(answer) };
+  const reply = answer.response.payload as unknown as HandshakeResponse;
+  if (reply.outcome !== "compatible" && reply.outcome !== "compatible_degraded") {
+    // A refused handshake is a version/capability incompatibility, shown as such.
+    return { ok: false, summary: { kind: "error", code: "protocol_incompatible" } };
+  }
+  return { ok: true, granted: new Set(reply.granted_capabilities ?? []) };
+}
+
+/** The supervisor's own view, used when the daemon cannot answer. */
+function supervisorSummary(target: DesktopShell, code: string): DaemonSummary {
+  const sidecar = target.info?.sidecar.state;
+  if (sidecar === "abandoned") return { kind: "error", code: DAEMON_ABANDONED };
+  if (sidecar === "recovering") return { kind: "error", code: DAEMON_RECOVERING };
+  return { kind: "error", code };
+}
+
+/**
+ * Read the P1 `daemon.status` and, when the daemon offers it, the additive P4
+ * `daemon.health` (read-only). Skipped without an effective server origin.
+ * `daemon.health` is only asked for when negotiated: an older daemon answers
+ * `capability_missing` to it, which is a normal degraded state, not an error.
+ */
 export async function refreshDaemon(target: DesktopShell | null = shell): Promise<DaemonSummary> {
   if (!target || target.compatibility === "incompatible") return { kind: "unknown" };
   const serverOrigin = apiBaseUrl();
@@ -101,11 +138,32 @@ export async function refreshDaemon(target: DesktopShell | null = shell): Promis
     target.daemon = { kind: "unknown" };
     return target.daemon;
   }
-  const answer = await target.platform.request("daemon.status", {
-    action: "status",
-    profile: { profile_id: DEFAULT_PROFILE_ID, server_origin: serverOrigin },
-  });
-  target.daemon = summarizeDaemonAnswer(answer);
+  const profile = { profile_id: DEFAULT_PROFILE_ID, server_origin: serverOrigin };
+  try {
+    target.info = await target.platform.desktopInfo();
+  } catch {
+    // Keep the previous identity: the supervisor state is a best effort here.
+  }
+  const negotiated = await negotiate(target);
+  if (!negotiated.ok) {
+    target.daemon =
+      negotiated.summary.kind === "error" ? supervisorSummary(target, negotiated.summary.code) : negotiated.summary;
+    paintShellStatus();
+    return target.daemon;
+  }
+  const answer = await target.platform.request("daemon.status", { action: "status", profile });
+  const summary = summarizeDaemonAnswer(answer);
+  if (summary.kind === "error") {
+    target.daemon = supervisorSummary(target, summary.code);
+  } else if (summary.kind === "state" && negotiated.granted.has("daemon.health")) {
+    const health = await target.platform.request("daemon.health", { profile });
+    target.daemon = {
+      ...summary,
+      health: health.ok ? summarizeHealth(health.response.payload as never) : null,
+    };
+  } else {
+    target.daemon = summary;
+  }
   paintShellStatus();
   return target.daemon;
 }

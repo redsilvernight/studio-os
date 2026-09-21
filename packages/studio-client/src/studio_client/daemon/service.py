@@ -147,8 +147,7 @@ class DaemonController:
             )
         current = self._status()
         if request.expected_instance_id is not None and (
-            current.instance is None
-            or current.instance.instance_id != request.expected_instance_id
+            current.instance is None or current.instance.instance_id != request.expected_instance_id
         ):
             return self._result(
                 request,
@@ -543,9 +542,7 @@ class SharedBridgeService:
                     if not isinstance(line, str) or not isinstance(session_id, str):
                         return
                     with sessions_lock:
-                        session_service = sessions.setdefault(
-                            session_id, BridgeService(controller)
-                        )
+                        session_service = sessions.setdefault(session_id, BridgeService(controller))
                     answer = session_service.handle_line(line)
                     handler_self.wfile.write(
                         json.dumps(answer, separators=(",", ":")).encode() + b"\n"
@@ -611,6 +608,7 @@ class SharedBridgeService:
                         "The existing daemon control endpoint is unavailable.",
                     )
                 time.sleep(0.05)
+
 
 def serve_streams(
     service: BridgeService | SharedBridgeService,

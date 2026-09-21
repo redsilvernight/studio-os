@@ -13,6 +13,19 @@ pub const DESKTOP_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// ahead of time (negotiation is by capability, not by wishful thinking).
 pub const P2_CAPABILITIES: &[&str] = &["daemon.control", "identity.view"];
 
+/// Additive P4 capability (`daemon.health`). Offered but never required, so a
+/// P2-only daemon stays compatible (`compatible_degraded`) and the health read
+/// is simply absent instead of failing the handshake.
+pub const OPTIONAL_CAPABILITIES: &[&str] = &["daemon.health"];
+
+fn offered_capabilities() -> Vec<&'static str> {
+    P2_CAPABILITIES
+        .iter()
+        .chain(OPTIONAL_CAPABILITIES.iter())
+        .copied()
+        .collect()
+}
+
 #[derive(Debug, Serialize)]
 pub struct DesktopInfo {
     pub product: &'static str,
@@ -34,9 +47,9 @@ pub fn peer_info() -> Value {
         },
         "component_version": DESKTOP_VERSION,
         "server_origin": null,
-        "capabilities": P2_CAPABILITIES,
+        "capabilities": offered_capabilities(),
         "required_capabilities": P2_CAPABILITIES,
-        "optional_capabilities": [],
+        "optional_capabilities": OPTIONAL_CAPABILITIES,
         "optional_components": []
     })
 }
@@ -82,5 +95,19 @@ mod tests {
         for req in peer["required_capabilities"].as_array().unwrap() {
             assert!(peer["capabilities"].as_array().unwrap().contains(req));
         }
+    }
+
+    #[test]
+    fn health_is_optional_and_never_required() {
+        let peer = peer_info();
+        assert!(peer["capabilities"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("daemon.health")));
+        assert!(!peer["required_capabilities"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("daemon.health")));
+        assert_eq!(peer["optional_capabilities"], json!(["daemon.health"]));
     }
 }

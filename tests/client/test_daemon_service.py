@@ -66,9 +66,7 @@ def negotiate(service: BridgeService | SharedBridgeService, capabilities: list[s
             }
         }
     )
-    return service.handle_line(
-        request("runtime.handshake", payload.model_dump(mode="json"))
-    )
+    return service.handle_line(request("runtime.handshake", payload.model_dump(mode="json")))
 
 
 def test_handshake_advertises_health_capability(tmp_path) -> None:
@@ -86,9 +84,7 @@ def test_status_is_stopped_before_start(tmp_path) -> None:
     profile = ProfileRef(profile_id="main", server_origin="https://studio.example")
     control = DaemonControlRequest(action=DaemonAction.STATUS, profile=profile)
 
-    answer = service.handle_line(
-        request("daemon.status", control.model_dump(mode="json"))
-    )
+    answer = service.handle_line(request("daemon.status", control.model_dump(mode="json")))
 
     assert answer["payload"]["outcome"] == "ok"
     assert answer["payload"]["status"]["state"] == "stopped"
@@ -103,9 +99,7 @@ def test_profile_mismatch_is_fail_closed(tmp_path) -> None:
         profile=ProfileRef(profile_id="other", server_origin="https://studio.example"),
     )
 
-    answer = service.handle_line(
-        request("daemon.start", control.model_dump(mode="json"))
-    )
+    answer = service.handle_line(request("daemon.start", control.model_dump(mode="json")))
 
     assert answer["payload"]["outcome"] == "identity_mismatch"
     assert answer["payload"]["error"]["code"] == "identity_mismatch"
@@ -121,9 +115,7 @@ def test_stale_expected_instance_is_refused_before_control(tmp_path) -> None:
         expected_instance_id=uuid4(),
     )
 
-    answer = service.handle_line(
-        request("daemon.stop", control.model_dump(mode="json"))
-    )
+    answer = service.handle_line(request("daemon.stop", control.model_dump(mode="json")))
 
     assert answer["payload"]["outcome"] == "failed"
     assert answer["payload"]["error"]["code"] == "invalid_request"
@@ -152,9 +144,7 @@ def test_second_desktop_proxies_to_existing_control_endpoint(tmp_path) -> None:
 
     try:
         negotiate(attached, ["daemon.control"])
-        answer = attached.handle_line(
-            request("daemon.status", control.model_dump(mode="json"))
-        )
+        answer = attached.handle_line(request("daemon.status", control.model_dump(mode="json")))
     finally:
         attached.close(persist=False)
         owner.close(persist=False)
@@ -168,9 +158,7 @@ def test_health_is_refused_before_handshake(tmp_path) -> None:
         profile=ProfileRef(profile_id="main", server_origin="https://studio.example")
     )
 
-    answer = service.handle_line(
-        request("daemon.health", health.model_dump(mode="json"))
-    )
+    answer = service.handle_line(request("daemon.health", health.model_dump(mode="json")))
 
     assert answer["kind"] == "error"
     assert answer["error"]["code"] == "capability_missing"
@@ -183,9 +171,7 @@ def test_health_is_refused_when_handshake_did_not_grant_it(tmp_path) -> None:
         profile=ProfileRef(profile_id="main", server_origin="https://studio.example")
     )
 
-    answer = service.handle_line(
-        request("daemon.health", health.model_dump(mode="json"))
-    )
+    answer = service.handle_line(request("daemon.health", health.model_dump(mode="json")))
 
     assert answer["error"]["code"] == "capability_missing"
 
@@ -197,9 +183,7 @@ def test_health_is_available_after_capability_is_granted(tmp_path) -> None:
         profile=ProfileRef(profile_id="main", server_origin="https://studio.example")
     )
 
-    answer = service.handle_line(
-        request("daemon.health", health.model_dump(mode="json"))
-    )
+    answer = service.handle_line(request("daemon.health", health.model_dump(mode="json")))
 
     assert answer["kind"] == "response"
     assert answer["payload"]["status"]["state"] == "stopped"

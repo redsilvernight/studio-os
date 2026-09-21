@@ -3,7 +3,7 @@
  * Tauri: a web build and a Desktop build differ only by which adapter answers.
  */
 import type { BridgeCommand, BridgeAnswer } from "./contracts";
-import type { DaemonStatus, IdentityView } from "./generated/local-contracts.generated";
+import type { DaemonStatus, IdentityView, PeerInfo } from "./generated/local-contracts.generated";
 
 export type PlatformMode = "web" | "desktop";
 
@@ -13,10 +13,14 @@ export interface DesktopInfo {
   desktop_version: string;
   mode: "desktop";
   protocol: string;
+  /** The Desktop's P1 `PeerInfo`, sent verbatim in `runtime.handshake`. */
+  peer?: PeerInfo;
   sidecar:
     | { state: "not_started" }
     | { state: "running"; pid: number }
     | { state: "exited"; code: number | null }
+    | { state: "recovering"; attempts: number }
+    | { state: "abandoned"; attempts: number }
     | { state: "unavailable" };
 }
 

@@ -5,7 +5,7 @@ import { prepareDesktop, resetDesktopShellForTests } from "../desktopShell";
 import type { BridgeAnswer } from "../platform/contracts";
 import type { DesktopInfo } from "../platform";
 import { webPlatform } from "../platform/web";
-import { fakeDesktop, INFO } from "../testSupport/fakeDesktop";
+import { fakeDaemon, fakeDesktop, INFO } from "../testSupport/fakeDesktop";
 import { applicationPageHtml, originRefusalMessage, renderApplication } from "./application";
 
 const realFetch = globalThis.fetch;
@@ -218,6 +218,24 @@ describe("Settings › Application (Desktop)", () => {
     );
     expect(root.querySelector("[data-testid=daemon-state]")?.getAttribute("data-attention")).toBe("true");
     expect(root.querySelector("[data-testid=server-section]")).not.toBeNull();
+  });
+
+  it("shows the P4 health block when daemon.health was negotiated, and hides it otherwise", async () => {
+    const withHealth = fakeDaemon({ git_watchers: [{ condition: "healthy" }] });
+    const { root } = await mount(
+      fakeDesktop({ request: withHealth.request }, { configured: null, applied: "https://studio.example.com", restart_required: false }),
+    );
+    expect(root.querySelector("[data-testid=daemon-state]")?.textContent).toBe("En marche");
+    expect(root.querySelector("[data-testid=health-heartbeat]")?.textContent).toBe("Fonctionne");
+    expect(root.querySelector("[data-testid=health-watchers]")?.textContent).toBe("1 / 1 en bonne santé");
+    document.body.innerHTML = '<header class="app-topbar"><span id="token-state"></span></header>';
+    resetDesktopShellForTests();
+    const older = fakeDaemon({ offers: ["daemon.control", "identity.view"] });
+    const second = await mount(
+      fakeDesktop({ request: older.request }, { configured: null, applied: "https://studio.example.com", restart_required: false }),
+    );
+    expect(second.root.querySelector("[data-testid=daemon-state]")?.textContent).toBe("En marche");
+    expect(second.root.querySelector("[data-testid=health-heartbeat]")).toBeNull();
   });
 
   it("shows an incompatible protocol as such", async () => {

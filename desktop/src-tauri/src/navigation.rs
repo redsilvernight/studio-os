@@ -95,6 +95,8 @@ mod tests {
             "https://tauri.localhost/",
             "http://tauri.localhost:8080/",
             "http://sub.tauri.localhost/",
+            "http://tauri.localhost./",
+            "http://TAURI.LOCALHOST.:80/",
             "http://localhost:5173/",
             "http://127.0.0.1:8000/api",
         ] {
