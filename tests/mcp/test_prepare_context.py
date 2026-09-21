@@ -207,6 +207,7 @@ async def test_selects_relevant_context_and_explains_why(
         "decisions": 1,
         "rules": 1,
         "skills": 1,
+        "ai_work": 0,
         "claims": 0,
     }
 
@@ -327,6 +328,7 @@ async def test_superseded_decisions_and_deprecated_or_unactivated_rules_are_left
         "decisions": 0,
         "rules": 0,
         "skills": 0,
+        "ai_work": 0,
         "claims": 0,
     }
 
