@@ -39,7 +39,7 @@ add("Tauri CLI (desktop/node_modules)", existsSync(tauriCli()), existsSync(tauri
 add("Dashboard deps (dashboard/node_modules)", existsSync(viteCli()), existsSync(viteCli()) ? "installed" : "missing", "cd dashboard && npm ci");
 
 const uv = capture("uv", ["--version"]);
-add("uv (only for --sidecar)", uv.ok, uv.stdout || "not found", "Install uv (https://docs.astral.sh/uv/) — needed to freeze the daemon spike.", false);
+add("uv (only for --sidecar)", uv.ok, uv.stdout || "not found", "Install uv (https://docs.astral.sh/uv/) — needed to freeze the daemon service.", false);
 
 if (repoRoot.includes("'")) {
   add(

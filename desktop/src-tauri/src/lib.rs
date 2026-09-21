@@ -1,4 +1,4 @@
-//! Studi'OS Desktop shell (P2 foundation).
+//! Studi'OS Desktop shell.
 //!
 //! A thin Tauri 2 host for the shared Dashboard build. The only privileged
 //! surface is two app commands (see `command_names`): `desktop_info` and
@@ -80,12 +80,12 @@ fn handle_request(sidecar: &Sidecar, request: Value) -> Value {
             details,
         )
     };
-    if !allowlist::is_served_in_p2(&valid.command) {
+    if !allowlist::is_served_by_daemon(&valid.command) {
         let mut details = Map::new();
         details.insert("command".into(), Value::String(valid.command.clone()));
         return err(
             "not_supported",
-            "This command is part of the protocol but not served by the P2 spike.",
+            "This command is part of the protocol but not served by the daemon.",
             false,
             details,
         );
@@ -263,7 +263,7 @@ mod tests {
         )
         .unwrap();
         let mut req = req["data"].take();
-        req["command"] = Value::String("daemon.start".into());
+        req["command"] = Value::String("workspace.validate".into());
         let out = handle_request(&sc, req);
         assert_eq!(out["kind"], "error");
         assert_eq!(out["error"]["code"], "not_supported");

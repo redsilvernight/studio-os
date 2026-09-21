@@ -29,7 +29,7 @@ export function desktopCsp(apiUrl) {
 export function overlay({ apiUrl, sidecar }) {
   return {
     app: { security: { csp: desktopCsp(apiUrl) } },
-    ...(sidecar ? { bundle: { externalBin: ["binaries/studio-daemon-spike"] } } : {}),
+    ...(sidecar ? { bundle: { externalBin: ["binaries/studio-daemon"] } } : {}),
   };
 }
 

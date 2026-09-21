@@ -9,6 +9,7 @@
         "daemon.start",
         "daemon.stop",
         "daemon.restart",
+        "daemon.health",
         "identity.get_view",
         "workspace.validate",
         "workspace.get_config",

@@ -9,6 +9,8 @@ from pathlib import Path
 from uuid import UUID
 
 from studio_contracts.events import EventCreate
+from studio_contracts.local.daemon_control import ReplayVerdict, decide_outbox_replay
+from studio_contracts.local.identity import IdentityBinding, partition_key
 
 from studio_client.config import default_config_path
 from studio_client.outbox.models import (
@@ -95,6 +97,17 @@ def default_outbox_path() -> Path:
     return default_config_path().with_name("outbox.sqlite3")
 
 
+def partitioned_outbox_path(binding: IdentityBinding, *, root: Path | None = None) -> Path:
+    base = root or default_config_path().with_name("outbox")
+    return base / f"{partition_key(binding)}.sqlite3"
+
+
+class OutboxIdentityError(RuntimeError):
+    def __init__(self, mismatched: list[str]) -> None:
+        super().__init__("outbox identity mismatch")
+        self.mismatched = tuple(mismatched)
+
+
 def _migrate(conn: sqlite3.Connection) -> None:
     """`CREATE TABLE IF NOT EXISTS` in `_SCHEMA` never touches a table that
     already exists from an older version of this client (DEC-0037) — a
@@ -148,6 +161,54 @@ class OutboxStore:
     @property
     def connection(self) -> sqlite3.Connection:
         return self._conn
+
+    def identity_binding(self) -> IdentityBinding | None:
+        value = self.get_sync_state("daemon.identity_binding")
+        return IdentityBinding.model_validate(value) if value is not None else None
+
+    def bind_identity(self, active: IdentityBinding) -> None:
+        existing = self.identity_binding()
+        if existing is not None:
+            decision = decide_outbox_replay(existing, active)
+            if decision.verdict is not ReplayVerdict.ALLOW:
+                raise OutboxIdentityError(decision.mismatched)
+            return
+        if self.has_queued_work():
+            raise OutboxIdentityError(["binding_missing"])
+        with transaction(self._conn):
+            self.set_sync_state("daemon.identity_binding", active.model_dump(mode="json"))
+
+    def assert_identity(self, active: IdentityBinding) -> None:
+        existing = self.identity_binding()
+        if existing is None:
+            raise OutboxIdentityError(["binding_missing"])
+        decision = decide_outbox_replay(existing, active)
+        if decision.verdict is not ReplayVerdict.ALLOW:
+            raise OutboxIdentityError(decision.mismatched)
+
+    def has_queued_work(self) -> bool:
+        tables = [*(table.value for table in OutboxTable), "dead_letter", "multipart_uploads"]
+        return any(
+            self._conn.execute(f"SELECT 1 FROM {table} LIMIT 1").fetchone() is not None
+            for table in tables
+        )
+
+    def pending_count(self) -> int:
+        return sum(
+            int(self._conn.execute(f"SELECT COUNT(*) FROM {table.value}").fetchone()[0])
+            for table in OutboxTable
+        )
+
+    def oldest_pending_at(self) -> datetime | None:
+        values = [
+            row[0]
+            for table in OutboxTable
+            if (row := self._conn.execute(
+                f"SELECT MIN(created_at) FROM {table.value}"
+            ).fetchone()) is not None
+            and row[0] is not None
+        ]
+        return datetime.fromisoformat(min(values)) if values else None
 
     def enqueue_event(self, event: EventCreate) -> bool:
         """Returns True if a new row was inserted, False if

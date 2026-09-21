@@ -55,6 +55,7 @@ class ClientConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="STUDIO_CLIENT_", extra="ignore")
 
     api_base_url: str
+    profile_id: str = "default"
     machine_id: UUID | None = None
     connect_timeout: float = 10.0
     # >= idempotency.py's _PENDING_RECLAIM_SECONDS (30s) so a client never

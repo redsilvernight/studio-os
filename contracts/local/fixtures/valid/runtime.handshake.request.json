@@ -6,6 +6,7 @@
         "code_graph.index",
         "code_graph.read",
         "daemon.control",
+        "daemon.health",
         "harness.apply",
         "harness.plan",
         "harness.read",
@@ -28,6 +29,7 @@
         "knowledge.graph",
         "knowledge.index",
         "knowledge.read",
+        "daemon.health",
         "publication.plan",
         "publication.publish"
       ],

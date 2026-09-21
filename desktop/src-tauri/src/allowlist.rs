@@ -13,15 +13,22 @@ const ALLOWLIST_JSON: &str = include_str!("../../../contracts/local/allowlist.js
 
 pub const PROTOCOL: &str = "studio.local/v1";
 
-/// Commands the P2 sidecar spike answers. Every other allowlisted command is a
-/// valid P1 command that is deliberately not served yet (`not_supported`);
-/// the daemon that serves them is P4, the UI that calls them is P3+.
-pub const SERVED_IN_P2: &[&str] = &["runtime.handshake", "daemon.status", "identity.get_view"];
+/// Commands implemented by the P4 daemon. Workspace and knowledge operations
+/// remain owned by their later lanes and are not routed to this process.
+pub const SERVED_BY_DAEMON: &[&str] = &[
+    "runtime.handshake",
+    "daemon.status",
+    "daemon.attach",
+    "daemon.start",
+    "daemon.stop",
+    "daemon.restart",
+    "daemon.health",
+    "identity.get_view",
+];
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct CommandSpec {
     pub command: String,
-    pub mutating: bool,
     pub max_request_bytes: usize,
 }
 
@@ -56,8 +63,8 @@ pub fn all_commands() -> Vec<&'static str> {
     names
 }
 
-pub fn is_served_in_p2(command: &str) -> bool {
-    SERVED_IN_P2.contains(&command) && lookup(command).is_some_and(|spec| !spec.mutating)
+pub fn is_served_by_daemon(command: &str) -> bool {
+    SERVED_BY_DAEMON.contains(&command) && lookup(command).is_some()
 }
 
 #[cfg(test)]
@@ -66,9 +73,10 @@ mod tests {
 
     #[test]
     fn allowlist_matches_p1_export() {
-        assert_eq!(all_commands().len(), 28, "P1 exports 28 commands");
+        assert_eq!(all_commands().len(), 29, "studio.local/v1 exports 29 commands");
         assert!(lookup("runtime.handshake").is_some());
         assert!(lookup("daemon.status").is_some());
+        assert!(lookup("daemon.health").is_some());
     }
 
     #[test]
@@ -92,9 +100,8 @@ mod tests {
 
     #[test]
     fn served_commands_are_a_subset_of_the_allowlist() {
-        for name in SERVED_IN_P2 {
+        for name in SERVED_BY_DAEMON {
             assert!(lookup(name).is_some(), "{name} not in P1 allowlist");
-            assert!(!lookup(name).unwrap().mutating, "P2 serves read-only commands only");
         }
     }
 

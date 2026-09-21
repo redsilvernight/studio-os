@@ -6,13 +6,13 @@ import logging
 import random
 import signal
 from collections.abc import Awaitable, Callable, Sequence
+from datetime import UTC, datetime
 from uuid import UUID
 
 from studio_client.api_client import StudioApiClient
 from studio_client.config import ClientConfig
 from studio_client.errors import StudioApiError
-from studio_client.outbox import OutboxReplayer, OutboxStore, connect, default_outbox_path
-from studio_client.retry import RetryPolicy
+from studio_client.outbox import OutboxReplayer, OutboxStore, ReplayOutcome
 from studio_client.watchers import GitWatcher, GodotWatcher, PollingWatcher
 
 logger = logging.getLogger(__name__)
@@ -65,6 +65,10 @@ class HeartbeatDaemon:
         self._random = random_fn or random.random
         self._replayer = replayer
         self._stop_event = asyncio.Event()
+        self.last_attempt_at: datetime | None = None
+        self.last_success_at: datetime | None = None
+        self.last_error: StudioApiError | None = None
+        self.last_replay: ReplayOutcome | None = None
 
     @property
     def stopped(self) -> bool:
@@ -79,11 +83,15 @@ class HeartbeatDaemon:
 
     async def run(self) -> None:
         while not self._stop_event.is_set():
+            self.last_attempt_at = datetime.now(UTC)
             try:
                 await self._client.send_heartbeat(self._machine_id, self._agent_id)
-            except StudioApiError:
+            except StudioApiError as error:
+                self.last_error = error
                 logger.warning("heartbeat failed", exc_info=True)
             else:
+                self.last_success_at = datetime.now(UTC)
+                self.last_error = None
                 await self._replay_outbox()
             if self._stop_event.is_set():
                 break
@@ -93,7 +101,7 @@ class HeartbeatDaemon:
         if self._replayer is None:
             return
         try:
-            await self._replayer.replay_ready()
+            self.last_replay = await self._replayer.replay_ready()
         except StudioApiError:
             logger.warning("outbox replay failed", exc_info=True)
 
@@ -166,27 +174,16 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
     parser.add_argument("--agent-id", type=UUID, default=None)
     args = parser.parse_args(argv)
-    config = ClientConfig()  # type: ignore[call-arg]  # fields resolved from STUDIO_CLIENT_* env/TOML
+    config = ClientConfig()  # type: ignore[call-arg]
+    from studio_client.daemon.runtime import DaemonRuntime
 
-    async def _run() -> None:
-        async with StudioApiClient(config) as client:
-            store = OutboxStore(connect(default_outbox_path()))
-            retry_policy = RetryPolicy(
-                config.max_attempts, config.backoff_initial, config.backoff_max
-            )
-            replayer = OutboxReplayer(store, client, retry_policy)
-            daemon = HeartbeatDaemon(client, config, agent_id=args.agent_id, replayer=replayer)
-            watchers = build_watchers(config, store)
+    runtime = DaemonRuntime(config, agent_id=args.agent_id)
 
-            def _stop_all() -> None:
-                daemon.request_stop()
-                for watcher in watchers:
-                    watcher.request_stop()
+    def stop_runtime() -> None:
+        runtime.request_stop()
 
-            install_signal_handlers(_stop_all)
-            await asyncio.gather(daemon.run(), *(watcher.run() for watcher in watchers))
-
-    asyncio.run(_run())
+    install_signal_handlers(stop_runtime)
+    asyncio.run(runtime.run())
 
 
 if __name__ == "__main__":

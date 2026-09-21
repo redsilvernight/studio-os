@@ -1,0 +1,10 @@
+{
+  "data": {
+    "expected_instance_id": null,
+    "profile": {
+      "profile_id": "default",
+      "server_origin": "https://studio.example.test"
+    }
+  },
+  "model": "DaemonHealthRequest"
+}

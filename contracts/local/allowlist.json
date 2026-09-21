@@ -68,6 +68,17 @@
     },
     {
       "cancellable": false,
+      "capability": "daemon.health",
+      "command": "daemon.health",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "DaemonHealthRequest",
+      "response": "DaemonHealth",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
       "capability": "daemon.control",
       "command": "daemon.restart",
       "max_request_bytes": 65536,

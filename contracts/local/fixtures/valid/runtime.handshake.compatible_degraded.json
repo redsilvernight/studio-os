@@ -3,6 +3,7 @@
     "daemon": {
       "capabilities": [
         "daemon.control",
+        "daemon.health",
         "harness.apply",
         "harness.plan",
         "harness.read",
@@ -83,6 +84,7 @@
     "error": null,
     "granted_capabilities": [
       "daemon.control",
+      "daemon.health",
       "harness.apply",
       "harness.plan",
       "harness.read",

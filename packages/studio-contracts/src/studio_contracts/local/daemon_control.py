@@ -18,7 +18,7 @@ from studio_contracts.local.common import (
     Sha256Hex,
     UtcDatetime,
 )
-from studio_contracts.local.handshake import ProtocolVersion
+from studio_contracts.local.handshake import OptionalComponentStatus, ProtocolVersion
 from studio_contracts.local.identity import (
     IdentityBinding,
     ProfileRef,
@@ -72,6 +72,22 @@ class DaemonControlOutcome(StrEnum):
     INCOMPATIBLE = "incompatible"
     IDENTITY_MISMATCH = "identity_mismatch"
     FAILED = "failed"
+
+
+class RuntimeServiceId(StrEnum):
+    HEARTBEAT = "heartbeat"
+    GIT_WATCHER = "git_watcher"
+    OUTBOX_REPLAY = "outbox_replay"
+
+
+class RuntimeServiceCondition(StrEnum):
+    HEALTHY = "healthy"
+    STALE = "stale"
+    OFFLINE = "offline"
+    AUTH_ERROR = "auth_error"
+    SERVER_UNAVAILABLE = "server_unavailable"
+    DISABLED = "disabled"
+    ERROR = "error"
 
 
 _OUTCOME_ERROR: dict[DaemonControlOutcome, LocalErrorCode] = {
@@ -154,6 +170,60 @@ class DaemonStatus(LocalContractModel):
 
     def as_component_state(self) -> ComponentState:
         return DAEMON_STATE_AS_COMPONENT[self.state]
+
+
+class RuntimeServiceHealth(LocalContractModel):
+    service: RuntimeServiceId
+    instance_key: str | None = Field(default=None, min_length=1, max_length=64)
+    state: ComponentState
+    condition: RuntimeServiceCondition
+    last_attempt_at: UtcDatetime | None = None
+    last_success_at: UtcDatetime | None = None
+    error: LocalError | None = None
+
+    @model_validator(mode="after")
+    def _timestamps_and_error(self) -> Self:
+        if (
+            self.last_attempt_at is not None
+            and self.last_success_at is not None
+            and self.last_success_at > self.last_attempt_at
+        ):
+            raise ValueError("last_success_at cannot be later than last_attempt_at")
+        failing = {
+            RuntimeServiceCondition.AUTH_ERROR,
+            RuntimeServiceCondition.SERVER_UNAVAILABLE,
+            RuntimeServiceCondition.ERROR,
+        }
+        if (self.condition in failing) != (self.error is not None):
+            raise ValueError("a failing service condition carries one structured error")
+        return self
+
+
+class DaemonHealthRequest(LocalContractModel):
+    profile: ProfileRef
+    expected_instance_id: UUID | None = None
+
+
+class DaemonHealth(LocalContractModel):
+    observed_at: UtcDatetime
+    status: DaemonStatus
+    heartbeat: RuntimeServiceHealth
+    git_watchers: list[RuntimeServiceHealth] = Field(default=[], max_length=64)
+    outbox_replay: RuntimeServiceHealth
+    providers: list[OptionalComponentStatus] = Field(default=[], max_length=32)
+
+    @model_validator(mode="after")
+    def _service_shapes(self) -> Self:
+        if self.heartbeat.service is not RuntimeServiceId.HEARTBEAT:
+            raise ValueError("heartbeat health must identify the heartbeat service")
+        if self.outbox_replay.service is not RuntimeServiceId.OUTBOX_REPLAY:
+            raise ValueError("outbox health must identify the outbox replay service")
+        if any(item.service is not RuntimeServiceId.GIT_WATCHER for item in self.git_watchers):
+            raise ValueError("git_watchers may only contain Git watcher health")
+        keys = [item.instance_key for item in self.git_watchers]
+        if any(key is None for key in keys) or len(set(keys)) != len(keys):
+            raise ValueError("Git watcher health requires unique opaque instance keys")
+        return self
 
 
 class DaemonControlRequest(LocalContractModel):
