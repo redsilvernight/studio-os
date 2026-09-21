@@ -1,0 +1,25 @@
+[project]
+name = "studio-workspaces"
+version = "0.1.0"
+description = "Desktop P5 Workspace Manager: local workspace configs, root confirmation, path safety, git detection (no watching)"
+requires-python = ">=3.12"
+dependencies = ["studio-contracts"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/studio_workspaces"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_ignores = true
