@@ -40,6 +40,8 @@ Studio OS est la couche de coordination commune d'un studio de jeu video de deux
 - IMPLEMENTATION/02_BLOCK_A_PROMPT.md
 - IMPLEMENTATION/03_BLOCK_B_PROMPT.md
 - IMPLEMENTATION/04_INTEGRATION_CHECKLIST.md
+- Chantier Project AI Bootstrap : [../../AI_BOOTSTRAP_ROADMAP.md](../../AI_BOOTSTRAP_ROADMAP.md)
+  (audit : [../../AI_BOOTSTRAP_P0_AUDIT.md](../../AI_BOOTSTRAP_P0_AUDIT.md))
 
 ### Pour un consommateur externe (developpeur tiers)
 1. INTEGRATION/00_EXTERNAL_CONSUMER_GUIDE.md — parcours complet, de zero au
