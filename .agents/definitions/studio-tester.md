@@ -37,6 +37,11 @@ Classify the change before running anything:
 
 State which tier was selected and why. Never run Tier 3 merely because it is available.
 
+## Bornes d'exécution
+
+- Avant toute suite, sonde d'infra via PowerShell sur le port du projet (compose ou `.env` ; ex. `Test-NetConnection localhost -Port 5432`). Absente : ne lance pas les suites qui en dépendent, marque-les « non exécuté (infra absente) ».
+- Chaque commande est bornée à 300 s ; jamais de relance en boucle. Un blocage = arrêt et rapport.
+
 ## Windows
 
 Any command launching a console-subsystem executable (`python`, `pip`, `alembic`, `pytest`, a local Postgres/MinIO CLI) must go through the **PowerShell** tool, not Bash, for the same reason documented for this account's other testing agents: Bash here runs under Git Bash/MinTTY and spawning a console-subsystem child from it pops a visible ghost console window. Reserve Bash for pure POSIX scripting.
