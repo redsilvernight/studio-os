@@ -1,0 +1,42 @@
+{
+  "data": {
+    "canonical_source": "markdown_files",
+    "error": {
+      "code": "index_corrupt",
+      "component": "knowledge",
+      "correlation_id": null,
+      "details": {},
+      "message": "The knowledge index is corrupt and must be rebuilt.",
+      "retryable": false
+    },
+    "index": {
+      "built_at": null,
+      "derived": true,
+      "item_count": null,
+      "progress_percent": null,
+      "rebuildable": true,
+      "source_fingerprint": null,
+      "state": "corrupt"
+    },
+    "integrations": [
+      {
+        "integration_id": "note-editor",
+        "required": false,
+        "state": "not_installed"
+      }
+    ],
+    "provider": {
+      "capabilities": [
+        "knowledge.graph",
+        "knowledge.index",
+        "knowledge.read"
+      ],
+      "display_name": "Markdown files",
+      "provider_id": "markdown-files",
+      "provider_version": "1.0.0"
+    },
+    "state": "error",
+    "workspace_id": "11111111-1111-4111-8111-111111111111"
+  },
+  "model": "KnowledgeStatus"
+}

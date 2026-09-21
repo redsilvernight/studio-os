@@ -570,6 +570,135 @@ def knowledge_graph_page() -> GraphPage:
     return _page(source, nodes, edges, total_nodes=4)
 
 
+def _knowledge_node(
+    node_id: str,
+    kind: NodeKind,
+    label: str,
+    path: str | None,
+    extractor: str,
+    evidence_path: str | None = None,
+) -> GraphNode:
+    return GraphNode(
+        node_id=node_id,
+        kind=kind,
+        label=label,
+        uri=None if path is None else _knowledge_uri(path),
+        provenance=_provenance(
+            KNOWLEDGE_SOURCE_ID,
+            extractor,
+            evidence=None if evidence_path is None else _knowledge_uri(evidence_path),
+        ),
+    )
+
+
+def empty_knowledge_graph_page() -> GraphPage:
+    """A connected but empty vault: a source with no node and no edge."""
+    source = _source(KNOWLEDGE_SOURCE_ID, GraphSourceKind.KNOWLEDGE, KNOWLEDGE_PROVIDER_ID)
+    return _page(source, [], [], total_nodes=0)
+
+
+def knowledge_links_graph_page() -> GraphPage:
+    """Links and tags as the index demonstrates them, each with its extractor."""
+    nodes = [
+        _knowledge_node(
+            "doc-a", NodeKind.DOCUMENT, "Alpha", "notes/alpha.md", "markdown_documents"
+        ),
+        _knowledge_node("doc-b", NodeKind.DOCUMENT, "Beta", "notes/beta.md", "markdown_documents"),
+        _knowledge_node(
+            "head-a",
+            NodeKind.HEADING,
+            "Overview",
+            "notes/alpha.md",
+            "markdown_headings",
+            "notes/alpha.md",
+        ),
+        _knowledge_node(
+            "tag-a", NodeKind.TAG, "mechanics", None, "markdown_tags", "notes/alpha.md"
+        ),
+    ]
+
+    def edge(
+        edge_id: str, kind: RelationKind, source: str, target: str, extractor: str, evidence: str
+    ) -> GraphEdge:
+        return GraphEdge(
+            edge_id=edge_id,
+            kind=kind,
+            source=GraphNodeRef(source_id=KNOWLEDGE_SOURCE_ID, node_id=source),
+            target=GraphNodeRef(source_id=KNOWLEDGE_SOURCE_ID, node_id=target),
+            provenance=_provenance(
+                KNOWLEDGE_SOURCE_ID, extractor, evidence=_knowledge_uri(evidence)
+            ),
+        )
+
+    edges = [
+        edge("k1", RelationKind.CONTAINS, "doc-a", "head-a", "markdown_headings", "notes/alpha.md"),
+        edge("k2", RelationKind.LINKS_TO, "doc-a", "doc-b", "markdown_links", "notes/beta.md"),
+        edge("k3", RelationKind.TAGGED_WITH, "doc-a", "tag-a", "markdown_tags", "notes/alpha.md"),
+    ]
+    source = _source(KNOWLEDGE_SOURCE_ID, GraphSourceKind.KNOWLEDGE, KNOWLEDGE_PROVIDER_ID)
+    return _page(source, nodes, edges, total_nodes=4)
+
+
+def knowledge_partial_graph_page() -> GraphPage:
+    """A bounded slice: one loaded node, one edge whose far end sits on the
+    frontier, and a cursor for the next page."""
+    nodes = [
+        _knowledge_node("doc-a", NodeKind.DOCUMENT, "Alpha", "notes/alpha.md", "markdown_documents")
+    ]
+    edges = [
+        GraphEdge(
+            edge_id="k1",
+            kind=RelationKind.LINKS_TO,
+            source=GraphNodeRef(source_id=KNOWLEDGE_SOURCE_ID, node_id="doc-a"),
+            target=GraphNodeRef(source_id=KNOWLEDGE_SOURCE_ID, node_id="doc-b"),
+            provenance=_provenance(
+                KNOWLEDGE_SOURCE_ID, "markdown_links", evidence=_knowledge_uri("notes/beta.md")
+            ),
+        )
+    ]
+    source = _source(KNOWLEDGE_SOURCE_ID, GraphSourceKind.KNOWLEDGE, KNOWLEDGE_PROVIDER_ID)
+    return _page(
+        source,
+        nodes,
+        edges,
+        frontier=[GraphNodeRef(source_id=KNOWLEDGE_SOURCE_ID, node_id="doc-b")],
+        next_cursor="n:1",
+        truncated=True,
+        total_nodes=3,
+    )
+
+
+def knowledge_after_deletion_graph_page() -> GraphPage:
+    """After a document was deleted, its node and every edge pointing at it are
+    gone: the remaining graph is smaller, never a dangling reference."""
+    nodes = [
+        _knowledge_node(
+            "doc-a", NodeKind.DOCUMENT, "Alpha", "notes/alpha.md", "markdown_documents"
+        ),
+        _knowledge_node(
+            "head-a",
+            NodeKind.HEADING,
+            "Overview",
+            "notes/alpha.md",
+            "markdown_headings",
+            "notes/alpha.md",
+        ),
+    ]
+    edges = [
+        GraphEdge(
+            edge_id="k1",
+            kind=RelationKind.CONTAINS,
+            source=GraphNodeRef(source_id=KNOWLEDGE_SOURCE_ID, node_id="doc-a"),
+            target=GraphNodeRef(source_id=KNOWLEDGE_SOURCE_ID, node_id="head-a"),
+            provenance=_provenance(
+                KNOWLEDGE_SOURCE_ID, "markdown_headings", evidence=_knowledge_uri("notes/alpha.md")
+            ),
+        )
+    ]
+    source = _source(KNOWLEDGE_SOURCE_ID, GraphSourceKind.KNOWLEDGE, KNOWLEDGE_PROVIDER_ID)
+    return _page(source, nodes, edges, total_nodes=2)
+
+
 def _code_nodes_and_edges() -> tuple[list[GraphNode], list[GraphEdge]]:
     prov = _provenance(CODE_SOURCE_ID, "ast")
     nodes = [
@@ -1034,6 +1163,27 @@ def build_fixtures() -> list[LocalFixture]:
     fixtures["knowledge.status.ready"] = _knowledge_status(
         ComponentState.READY, index=_index(IndexState.READY, items=42)
     )
+    fixtures["knowledge.status.stale"] = _knowledge_status(
+        ComponentState.STALE, index=_index(IndexState.STALE, items=42)
+    )
+    fixtures["knowledge.status.unavailable"] = _knowledge_status(
+        ComponentState.UNAVAILABLE,
+        index=_index(IndexState.ABSENT),
+        err=error(
+            LocalErrorCode.INDEX_ABSENT,
+            ComponentId.KNOWLEDGE,
+            "The knowledge index has not been built yet.",
+        ),
+    )
+    fixtures["knowledge.status.error"] = _knowledge_status(
+        ComponentState.ERROR,
+        index=_index(IndexState.CORRUPT),
+        err=error(
+            LocalErrorCode.INDEX_CORRUPT,
+            ComponentId.KNOWLEDGE,
+            "The knowledge index is corrupt and must be rebuilt.",
+        ),
+    )
     fixtures["knowledge.status.permission_denied"] = _knowledge_status(
         ComponentState.PERMISSION_DENIED,
         err=error(
@@ -1114,6 +1264,10 @@ def build_fixtures() -> list[LocalFixture]:
     )
 
     fixtures["graph.knowledge.small"] = knowledge_graph_page()
+    fixtures["graph.knowledge.empty"] = empty_knowledge_graph_page()
+    fixtures["graph.knowledge.links"] = knowledge_links_graph_page()
+    fixtures["graph.knowledge.partial"] = knowledge_partial_graph_page()
+    fixtures["graph.knowledge.after_deletion"] = knowledge_after_deletion_graph_page()
     fixtures["graph.code.small"] = code_graph_page()
     fixtures["graph.code.partial"] = partial_code_graph_page()
     fixtures["graph.empty"] = empty_graph_page()

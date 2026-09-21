@@ -354,6 +354,22 @@
     },
     {
       "model": "GraphPage",
+      "name": "graph.knowledge.after_deletion"
+    },
+    {
+      "model": "GraphPage",
+      "name": "graph.knowledge.empty"
+    },
+    {
+      "model": "GraphPage",
+      "name": "graph.knowledge.links"
+    },
+    {
+      "model": "GraphPage",
+      "name": "graph.knowledge.partial"
+    },
+    {
+      "model": "GraphPage",
       "name": "graph.knowledge.small"
     },
     {
@@ -438,6 +454,10 @@
     },
     {
       "model": "KnowledgeStatus",
+      "name": "knowledge.status.error"
+    },
+    {
+      "model": "KnowledgeStatus",
       "name": "knowledge.status.indexing"
     },
     {
@@ -447,6 +467,14 @@
     {
       "model": "KnowledgeStatus",
       "name": "knowledge.status.ready"
+    },
+    {
+      "model": "KnowledgeStatus",
+      "name": "knowledge.status.stale"
+    },
+    {
+      "model": "KnowledgeStatus",
+      "name": "knowledge.status.unavailable"
     },
     {
       "model": "PublicationPlan",
