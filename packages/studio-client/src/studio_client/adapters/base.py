@@ -82,6 +82,32 @@ class AdapterResult:
     metadata: dict[str, object] = field(default_factory=dict)
 
 
+class CapabilitySupport(StrEnum):
+    """How one harness represents one canonical need (P3.5).
+
+    SUPPORTED: projected losslessly. DEGRADED: projected with an explicit
+    warning note (never a silent drop). UNSUPPORTED: the adapter refuses
+    with `AdapterError(UNSUPPORTED)` when the canonical definition actually
+    needs it — fail explicit, never pretend.
+    """
+
+    SUPPORTED = "supported"
+    DEGRADED = "degraded"
+    UNSUPPORTED = "unsupported"
+
+
+CAPABILITY_DIMENSIONS = (
+    "rules",
+    "skills",
+    "subagents",
+    "mcp",
+    "permissions",
+    "model_selection",
+    "shell_execution",
+)
+"""Closed capability vocabulary every adapter reports on (P3.5)."""
+
+
 class Adapter(Protocol):
     """Minimal local translation contract (P10).
 
@@ -95,6 +121,10 @@ class Adapter(Protocol):
 
     @property
     def managed_dir(self) -> str: ...
+
+    def capabilities(self) -> dict[str, CapabilitySupport]:
+        """This harness's support per `CAPABILITY_DIMENSIONS` (P3.5)."""
+        ...
 
     def translate(
         self,
@@ -146,6 +176,68 @@ def check_harness_compatible(adapter_id: str, resolved: ResolvedAgentDefinition)
             AdapterErrorCode.HARNESS_MISMATCH,
             f"resolved harness {harness_ref!r} does not match adapter {adapter_id!r}",
             {"adapter_id": adapter_id, "harness_ref": harness_ref},
+        )
+
+
+_SHELL_DEGRADED_NOTES = {
+    "opencode": (
+        "shell is bash-only and cannot be technically restricted — prefer reporting "
+        "the exact command for the orchestrator over executing environment-mutating "
+        "steps, and keep shell use minimal"
+    ),
+    "codex": (
+        "the codex agent format carries no shell declaration — harness defaults "
+        "apply, keep shell use minimal and non-destructive"
+    ),
+}
+_DEFAULT_SHELL_DEGRADED_NOTE = (
+    "shell execution is degraded on this harness — keep shell use minimal "
+    "and non-destructive"
+)
+
+
+def capability_notes(
+    adapter_id: str,
+    capabilities: dict[str, CapabilitySupport],
+    *,
+    edit_policy: str | None,
+) -> list[AdapterWarning]:
+    """Standard degraded-capability notes (P3.5): one fixed text per
+    dimension, driven by the adapter's own report — adapters add no
+    per-agent prose here."""
+    notes: list[AdapterWarning] = []
+    if capabilities.get("shell_execution") == CapabilitySupport.DEGRADED:
+        notes.append(
+            AdapterWarning(
+                "capability_degraded_shell",
+                f"{adapter_id}: "
+                + _SHELL_DEGRADED_NOTES.get(adapter_id, _DEFAULT_SHELL_DEGRADED_NOTE),
+            )
+        )
+    if edit_policy == "deny" and capabilities.get("permissions") == CapabilitySupport.DEGRADED:
+        notes.append(
+            AdapterWarning(
+                "capability_degraded_permissions",
+                f"{adapter_id}: read-only policy enforced by instruction and harness "
+                "default-deny, not by a technical allowlist — do not work around it",
+            )
+        )
+    return notes
+
+
+def ensure_supported(
+    adapter_id: str,
+    capabilities: dict[str, CapabilitySupport],
+    *,
+    edit_policy: str | None,
+) -> None:
+    """Fail explicit (P3.5): a canonical read-only demand on a harness that
+    cannot represent permissions at all is an error, never a silent drop."""
+    if edit_policy == "deny" and capabilities.get("permissions") == CapabilitySupport.UNSUPPORTED:
+        raise AdapterError(
+            AdapterErrorCode.UNSUPPORTED,
+            f"{adapter_id} cannot represent the canonical read-only policy",
+            {"adapter_id": adapter_id, "edit_policy": edit_policy},
         )
 
 
@@ -253,6 +345,15 @@ def render_shared_body(
     intended = agent.content.get("intended_use")
     if isinstance(intended, str) and intended.strip():
         lines += [f"Intended use: {intended.strip()}", ""]
+
+    instructions = agent.content.get("instructions")
+    if isinstance(instructions, str) and instructions.strip():
+        lines += [instructions.strip(), ""]
+    triggers = agent.content.get("triggers")
+    if isinstance(triggers, list) and any(isinstance(t, str) and t.strip() for t in triggers):
+        lines += ["## Triggers", ""]
+        lines += [f"- {t.strip()}" for t in triggers if isinstance(t, str) and t.strip()]
+        lines += [""]
 
     if resolved.rules:
         lines += ["## Rules", ""]

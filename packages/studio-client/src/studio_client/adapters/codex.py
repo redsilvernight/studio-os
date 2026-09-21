@@ -10,7 +10,6 @@ from studio_client.adapters.base import (
     AdapterError,
     AdapterErrorCode,
     AdapterResult,
-    AdapterWarning,
     CapabilitySupport,
     agent_summary,
     capability_notes,
@@ -18,29 +17,45 @@ from studio_client.adapters.base import (
     ensure_supported,
     render_shared_body,
     sanitize_agent_filename,
-    yaml_quoted,
 )
 
-ADAPTER_ID = "opencode"
-MANAGED_DIR = ".opencode/agents"
+ADAPTER_ID = "codex"
+MANAGED_DIR = ".codex/agents"
 
 
-class OpenCodeAdapter:
-    """Local projection of a canonical definition to OpenCode (P10).
+def _toml_string(value: str) -> str:
+    """Double-quoted TOML basic string, single-quoted only when safe —
+    deterministic: same value always renders the same way."""
+    if '"' not in value and "\\" not in value and "\n" not in value and "'" in value:
+        return value
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
 
-    Target format observed in-repo (`.opencode/agents/*.md`,
-    non-normative): `description`/`mode` frontmatter plus a Markdown
-    body. Consumes exactly the same canonical input as
-    `ClaudeCodeAdapter` — never a Claude intermediate. Reads only:
-    no runtime selection, no provider/model branching, no network."""
+
+def _toml_single(value: str) -> str:
+    if "'" not in value and "\n" not in value:
+        return f"'{value}'"
+    return _toml_string(value)
+
+
+class CodexAdapter:
+    """Local projection of a canonical definition to Codex (P3).
+
+    Target format observed in-repo (`.codex/agents/*.toml`,
+    non-normative): `name`/`description`/`model`/`model_reasoning_effort`
+    keys plus a `developer_instructions` literal block. Reads the
+    canonical input only — never selects a runtime, never branches on a
+    provider or model value, never touches the network. Reasoning effort
+    comes from the resolved model-profile requirements (open string),
+    never from a pinned model."""
 
     adapter_id = ADAPTER_ID
     managed_dir = MANAGED_DIR
 
     def capabilities(self) -> dict[str, CapabilitySupport]:
-        """OpenCode projection surface (P3.5): subagents, model pin and
-        default-deny editing project fine; shell execution and fine-grained
-        permissions stay degraded (bash-only, technically unrestrictable)."""
+        """Codex projection surface (P3.5): the TOML format carries no
+        permission or shell declaration, so those stay degraded (harness
+        defaults + instruction); everything else projects losslessly."""
         caps = dict.fromkeys(CAPABILITY_DIMENSIONS, CapabilitySupport.SUPPORTED)
         caps["permissions"] = CapabilitySupport.DEGRADED
         caps["shell_execution"] = CapabilitySupport.DEGRADED
@@ -69,44 +84,24 @@ class OpenCodeAdapter:
         if len(description) > 300:
             description = description[:297] + "..."
         model_ref = resolved.runtime.target.model_ref if resolved.runtime is not None else None
+        effort = resolved.requirements.reasoning
 
-        fields = [
-            ("description", yaml_quoted(description or stem)),
-            ("mode", "subagent"),
-            ("model", yaml_quoted(model_ref) if model_ref is not None else None),
+        lines = [
+            f"name = {_toml_string(stem)}",
+            f"description = {_toml_string(description or stem)}",
         ]
-        lines = ["---"]
-        for key, value in fields:
-            if value is not None:
-                lines.append(f"{key}: {value}")
-        if edit_policy_str in ("deny", "ask"):
-            lines += ["permission:", f"  edit: {edit_policy_str}"]
-        lines.append("---")
-        frontmatter = "\n".join(lines)
+        if model_ref is not None:
+            lines.append(f"model = {_toml_single(model_ref)}")
+        if effort:
+            lines.append(f"model_reasoning_effort = {_toml_single(effort)}")
         body, warnings = render_shared_body(resolved, adapter_id=self.adapter_id, context=context)
-        content = f"{frontmatter}\n\n{body}"
-        if edit_policy_str in ("deny", "ask"):
-            policy_note = (
-                "canonical read-only policy projected as harness "
-                f"`edit: {edit_policy_str}`"
-            )
-        else:
-            policy_note = "no canonical edit policy; harness defaults apply"
+        lines += ["developer_instructions = '''", body, "'''", ""]
+        content = "\n".join(lines) + "\n"
         warnings = [
             *warnings,
-            AdapterWarning("permissions_defaulted", policy_note + " (bash unrestrictable)"),
             *capability_notes(self.adapter_id, self.capabilities(), edit_policy=edit_policy_str),
         ]
-        profile = resolved.model_profile
-        if profile is not None and profile.requirements.tools_required:
-            warnings = [
-                *warnings,
-                AdapterWarning(
-                    "tools_not_projected",
-                    "capability `tools_required` stays descriptive; no harness allowlist invented",
-                ),
-            ]
-        artifact = AdapterArtifact(path=f"{MANAGED_DIR}/{stem}.md", content=content)
+        artifact = AdapterArtifact(path=f"{MANAGED_DIR}/{stem}.toml", content=content)
         metadata: dict[str, object] = {
             "stable_key": resolved.agent.stable_key,
             "agent_version": resolved.agent.version,

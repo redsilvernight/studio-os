@@ -494,7 +494,7 @@ def _adapters_list(args: argparse.Namespace, config: ClientConfig) -> None:
             print(f"{adapter_id}\t{get_adapter(adapter_id).managed_dir}")
 
 
-def _adapters_export(args: argparse.Namespace, config: ClientConfig) -> None:
+def _adapters_export(args: argparse.Namespace, config: ClientConfig | None) -> None:
     """Resolve one AgentDefinition over P7 HTTP, then project it locally
     with `studio_client.adapters` (P10/DEC-0074).
 
@@ -502,7 +502,7 @@ def _adapters_export(args: argparse.Namespace, config: ClientConfig) -> None:
     they materialize under the directory, confined to the adapter's
     managed dir. The adapter id is an open string — the dispatch stays
     in this local layer, never in the core."""
-    from studio_client.adapters import AdapterError, get_adapter, materialize
+    from studio_client.adapters import AdapterError, get_adapter
 
     try:
         adapter = get_adapter(args.adapter)
@@ -510,10 +510,23 @@ def _adapters_export(args: argparse.Namespace, config: ClientConfig) -> None:
         print(f"error: {exc.message} ({exc.code.value})", file=sys.stderr)
         raise SystemExit(1) from None
 
+    if args.from_canonical:
+        from studio_client.canonical import build_offline_resolved
+
+        try:
+            resolved = build_offline_resolved(args.repo_root, args.stable_key)
+            result = adapter.translate(resolved)
+        except (AdapterError, ValueError, OSError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            raise SystemExit(1) from None
+        _print_export_result(adapter, result, args)
+        return
+
     project_id = _parse_uuid(args.project_id, field="project_id") if args.project_id else None
     if args.with_context and project_id is None:
         print("error: --with-context requires --project-id", file=sys.stderr)
         raise SystemExit(1)
+    assert config is not None  # HTTP mode always loads configuration in main().
 
     async def action(client: StudioApiClient) -> Any:
         resolved = await client.resolve_agent(args.stable_key, project_id=project_id)
@@ -537,6 +550,13 @@ def _adapters_export(args: argparse.Namespace, config: ClientConfig) -> None:
     except AdapterError as exc:
         print(f"error: {exc.message} ({exc.code.value})", file=sys.stderr)
         raise SystemExit(1) from None
+    _print_export_result(adapter, result, args)
+
+
+def _print_export_result(adapter: Any, result: Any, args: argparse.Namespace) -> None:
+    """Shared dry-run / materialize tail for both export modes (P7 HTTP and
+    `--from-canonical`)."""
+    from studio_client.adapters import AdapterError, materialize
 
     if args.out_dir:
         try:
@@ -575,6 +595,131 @@ def _adapters_export(args: argparse.Namespace, config: ClientConfig) -> None:
         print(artifact.content)
     for warning in result.warnings:
         print(f"warning {warning.code}: {warning.detail}")
+
+
+def _adapters_check(args: argparse.Namespace, config: ClientConfig | None) -> None:
+    """Anti-drift gate (P3.7): managed harness files must equal a fresh
+    offline export of the canonical definitions. Never merges — reports
+    every mismatch and exits non-zero."""
+    from studio_client.adapters import AdapterError, get_adapter, list_adapters
+    from studio_client.canonical import (
+        build_offline_resolved,
+        canonical_agent_keys,
+        canonical_rule_keys,
+        load_rule_meta,
+        render_agents_rules_block,
+        render_claude_rule,
+    )
+
+    _ = config
+    root = Path(args.repo_root)
+    adapter_ids = [args.adapter] if args.adapter else list_adapters()
+    keys = [args.stable_key] if args.stable_key else canonical_agent_keys(root)
+    failures: list[dict[str, str]] = []
+    checked = 0
+    for adapter_id in adapter_ids:
+        try:
+            adapter = get_adapter(adapter_id)
+        except AdapterError as exc:
+            failures.append({"adapter": adapter_id, "key": "*", "error": exc.message})
+            continue
+        for key in keys:
+            checked += 1
+            try:
+                resolved = build_offline_resolved(root, key)
+                result = adapter.translate(resolved)
+            except (AdapterError, ValueError, OSError) as exc:
+                failures.append({"adapter": adapter_id, "key": key, "error": str(exc)})
+                continue
+            for artifact in result.artifacts:
+                current = root / artifact.path
+                on_disk = (
+                    current.read_text(encoding="utf-8").replace("\r\n", "\n")
+                    if current.is_file()
+                    else None
+                )
+                if on_disk != artifact.content:
+                    failures.append(
+                        {
+                            "adapter": adapter_id,
+                            "key": key,
+                            "error": f"drifted or missing: {artifact.path}",
+                        }
+                    )
+    if args.adapter is None and args.stable_key is None:
+        # Rule projections and the AGENTS.md block are managed too (P3.7).
+        for key in canonical_rule_keys(root):
+            checked += 1
+            applies_to, body = load_rule_meta(root, key)
+            current = root / ".claude" / "rules" / f"{key}.md"
+            on_disk = (
+                current.read_text(encoding="utf-8").replace("\r\n", "\n")
+                if current.is_file()
+                else None
+            )
+            if on_disk != render_claude_rule(key, applies_to, body):
+                failures.append(
+                    {"adapter": "rules", "key": key, "error": f"drifted: {current}"}
+                )
+        checked += 1
+        agents_text = (root / "AGENTS.md").read_text(encoding="utf-8").replace("\r\n", "\n")
+        expected = render_agents_rules_block(root)
+        if expected.rstrip("\n") not in agents_text:
+            failures.append({"adapter": "rules", "key": "*", "error": "AGENTS.md block drifted"})
+    if args.json:
+        print(json.dumps({"checked": checked, "failures": failures}, indent=2))
+    else:
+        for failure in failures:
+            print(f"drift: {failure['adapter']}/{failure['key']}: {failure['error']}")
+        print(f"checked {checked}, failures {len(failures)}")
+    if failures:
+        raise SystemExit(1)
+
+
+def _rules_sync(args: argparse.Namespace, config: ClientConfig | None) -> None:
+    """Regenerate rule projections (P3): `.claude/rules/*.md` plus the
+    AGENTS.md rules block, both from `.agents/rules/`. Never merges."""
+    import re
+
+    from studio_client.canonical import (
+        canonical_rule_keys,
+        load_rule_meta,
+        render_agents_rules_block,
+        render_claude_rule,
+    )
+
+    _ = config
+    root = Path(args.repo_root)
+    written: list[str] = []
+    for key in canonical_rule_keys(root):
+        applies_to, body = load_rule_meta(root, key)
+        target = root / ".claude" / "rules" / f"{key}.md"
+        if target.exists() and not args.overwrite:
+            print(f"skip {target} (exists, pass --overwrite)")
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(render_claude_rule(key, applies_to, body), encoding="utf-8")
+        written.append(str(target))
+
+    agents_md = root / "AGENTS.md"
+    text = agents_md.read_text(encoding="utf-8")
+    pattern = re.compile(
+        r"<!-- BEGIN (SYNCED CLAUDE RULES|GENERATED RULES from \.agents/rules) -->"
+        r".*?<!-- END (SYNCED CLAUDE RULES|GENERATED RULES) -->",
+        re.S,
+    )
+    replacement = render_agents_rules_block(root).rstrip("\n")
+    updated, count = pattern.subn(replacement, text, count=1)
+    if count != 1:
+        print("error: AGENTS.md rules block markers not found", file=sys.stderr)
+        raise SystemExit(1) from None
+    agents_md.write_text(updated, encoding="utf-8")
+    written.append(str(agents_md))
+    if args.json:
+        print(json.dumps({"written": written}))
+    else:
+        for path in written:
+            print(f"Wrote {path}.")
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -841,8 +986,42 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Attach a generic P9 Context Package (requires --project-id).",
     )
     adapters_export.add_argument("--library-limit", type=int, default=100)
+    adapters_export.add_argument(
+        "--from-canonical",
+        action="store_true",
+        help="Build from `.agents/definitions/` files (authoring source, no server).",
+    )
+    adapters_export.add_argument(
+        "--repo-root",
+        default=".",
+        help="Repository root for --from-canonical and check (default: cwd).",
+    )
     _add_json_flag(adapters_export)
     adapters_export.set_defaults(func=_adapters_export)
+
+    adapters_check = adapters_sub.add_parser(
+        "check",
+        help="Fail when managed harness files drift from the canonical definitions.",
+    )
+    adapters_check.add_argument("--adapter", help="Check one adapter id (default: all).")
+    adapters_check.add_argument("--stable-key", help="Check one agent key (default: all).")
+    adapters_check.add_argument("--repo-root", default=".", help="Repository root.")
+    _add_json_flag(adapters_check)
+    adapters_check.set_defaults(func=_adapters_check)
+
+    rules_parser = subparsers.add_parser(
+        "rules", help="Project rule projections from `.agents/rules/` (P3)."
+    )
+    rules_sub = rules_parser.add_subparsers(dest="rules_command", required=True)
+    rules_sync = rules_sub.add_parser(
+        "sync", help="Regenerate `.claude/rules/` and the AGENTS.md rules block."
+    )
+    rules_sync.add_argument("--repo-root", default=".", help="Repository root.")
+    rules_sync.add_argument(
+        "--overwrite", action="store_true", help="Replace existing projection files."
+    )
+    _add_json_flag(rules_sync)
+    rules_sync.set_defaults(func=_rules_sync)
 
     return parser
 
@@ -854,8 +1033,15 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     parser = _build_parser()
     args = parser.parse_args(argv)
-    config = _load_config()
-    args.func(args, config)
+    if getattr(args, "adapters_command", None) in ("check",) or (
+        getattr(args, "adapters_command", None) == "export"
+        and getattr(args, "from_canonical", False)
+    ) or getattr(args, "rules_command", None) in ("sync",):
+        # Offline canonical commands need no server configuration.
+        args.func(args, None)
+    else:
+        config = _load_config()
+        args.func(args, config)
 
 
 if __name__ == "__main__":

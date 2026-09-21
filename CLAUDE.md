@@ -82,15 +82,13 @@ transferts incertaine, utiliser `sync-debugger`.
 
 ## Règles, skills et tests
 
-Les règles détaillées sont déjà découpées et chargées par chemin depuis
-`.claude/rules/` : Python, contrats, base de données, MCP, offline et transferts.
-Ne pas les recopier ici.
-
-Skills projet disponibles dans `.claude/skills/` :
-
-- `graphify` pour l'analyse du dépôt et la mise à jour du graphe ;
-- `contract-change` pour les contrats partagés ;
-- `offline-sync-testing` pour offline, claims et transferts.
+La source canonique vit dans `.agents/` : règle permanente
+(`.agents/rules/studio-protocol.md`), skills (`studio-context`, `studio-task`,
+`studio-decision`, `studio-handoff`, `graphify`, `contract-change`,
+`offline-sync-testing`), définitions d'agents (`.agents/definitions/`).
+Les règles détaillées sont projetées depuis `.agents/rules/` vers
+`.claude/rules/` (ne pas les recopier ici) ; les configurations
+`.claude/agents/` sont générées (`studio adapters check` en CI).
 
 La politique globale de délégation locale vit dans `~/.claude/CLAUDE.md` et le
 skill `local-delegation`. Pour les critères d'acceptation, utiliser

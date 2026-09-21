@@ -121,5 +121,7 @@ jobs:
             mc alias set ci http://localhost:9000 studio studio-dev-secret &&
             mc mb --ignore-existing ci/studio-transfers
           "
+      - name: adapters check (canonical projections anti-drift)
+        run: uv run --package studio-client studio-client adapters check --repo-root .
       - name: pytest
         run: uv run pytest -q
