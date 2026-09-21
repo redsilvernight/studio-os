@@ -25,6 +25,18 @@ class GitState:
     prints the literal string "HEAD", which is not a real branch name."""
 
 
+@dataclass(frozen=True)
+class GitChange:
+    repo_path: Path
+    previous_commit: str | None
+    previous_branch: str | None
+    commit_sha: str
+    branch: str | None
+
+
+GitChangeListener = Callable[[GitChange], Awaitable[None]]
+
+
 GitReader = Callable[[], Awaitable[GitState | None]]
 """Returns None when `repo_path` is not (currently) a readable Git
 repository — a poll skips silently rather than treating a missing/not-yet-
@@ -83,8 +95,10 @@ class GitWatcher(PollingWatcher):
         reader: GitReader | None = None,
         event_id_factory: Callable[[], UUID] = uuid4,
         now: Callable[[], datetime] | None = None,
+        on_change: GitChangeListener | None = None,
     ) -> None:
         super().__init__(interval_seconds=interval_seconds, sleep=sleep)
+        self._on_change = on_change
         self._repo_path = repo_path
         self._project_id = project_id
         self._machine_id = machine_id
@@ -124,6 +138,24 @@ class GitWatcher(PollingWatcher):
             for event in events:
                 self._outbox.enqueue_event(event)
             self._save_state_unlocked(state)
+        await self._notify(previous, state)
+
+    async def _notify(self, previous: dict[str, object], state: GitState) -> None:
+        if self._on_change is None:
+            return
+        previous_commit = previous.get("commit_sha")
+        previous_branch = previous.get("branch")
+        change = GitChange(
+            repo_path=self._repo_path,
+            previous_commit=previous_commit if isinstance(previous_commit, str) else None,
+            previous_branch=previous_branch if isinstance(previous_branch, str) else None,
+            commit_sha=state.commit_sha,
+            branch=state.branch,
+        )
+        try:
+            await self._on_change(change)
+        except Exception:
+            logger.warning("git change listener failed", exc_info=True)
 
     def _build_event(self, event_type: EventType, payload: dict[str, object]) -> EventCreate:
         return EventCreate(

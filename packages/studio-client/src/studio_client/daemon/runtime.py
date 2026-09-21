@@ -47,7 +47,7 @@ from studio_client.outbox import (
 )
 from studio_client.outbox.legacy import LegacyOutboxError, inspect_legacy_outbox
 from studio_client.retry import RetryPolicy
-from studio_client.watchers import PollingWatcher
+from studio_client.watchers import GitChangeListener, PollingWatcher
 
 _LOGGER = logging.getLogger("studio_client.daemon.runtime")
 
@@ -139,7 +139,9 @@ class DaemonRuntime:
         ownership: DaemonOwnership = DaemonOwnership.EXTERNAL,
         workspace_source: WorkspaceSource | None = None,
         workspace_sync_seconds: float = DEFAULT_WORKSPACE_SYNC_SECONDS,
+        git_change_listener: GitChangeListener | None = None,
     ) -> None:
+        self._git_change_listener = git_change_listener
         if config.machine_id is None:
             raise ValueError("ClientConfig.machine_id must be set to run the daemon")
         self.config = config
@@ -278,6 +280,7 @@ class DaemonRuntime:
                     outbox=store,
                     interval_seconds=self.config.git_watch_interval_seconds,
                     reserved=[watch.repo_path for watch in self.config.git_watches],
+                    change_listener=self._git_change_listener,
                 )
                 if not self._stop_requested:
                     if self._workspace_source is not None:

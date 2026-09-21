@@ -31,7 +31,7 @@ from studio_contracts.local.daemon_control import (
 )
 
 from studio_client.outbox import OutboxStore
-from studio_client.watchers import GitWatcher, PollingWatcher
+from studio_client.watchers import GitChangeListener, GitWatcher, PollingWatcher
 
 _LOGGER = logging.getLogger("studio_client.daemon.workspace_watch")
 
@@ -125,7 +125,9 @@ class WorkspaceWatchSet:
         watcher_factory: WatcherFactory | None = None,
         probe: Callable[[Path], RepoStatus] = probe_repo,
         reserved: Collection[Path] = (),
+        change_listener: GitChangeListener | None = None,
     ) -> None:
+        self._change_listener = change_listener
         self._machine_id = machine_id
         self._outbox = outbox
         self._interval_seconds = interval_seconds
@@ -143,6 +145,7 @@ class WorkspaceWatchSet:
             machine_id=self._machine_id,
             outbox=self._outbox,
             interval_seconds=self._interval_seconds,
+            on_change=self._change_listener,
         )
 
     @property
