@@ -69,6 +69,13 @@ public de bootstrap, pas de secret d'environnement dedie.
 ### Decisions
 - GET /decisions
 - POST /decisions
+- POST /decisions/{id}/accept (additif, DEC-0094) — `proposed -> accepted`,
+  role admin uniquement. Transition d'etat, pas une creation : pas
+  d'`Idempotency-Key` ; une relecture apres succes repond
+  `409 invalid_decision_transition`.
+- POST /decisions/{id}/supersede (additif, DEC-0094) — `proposed|accepted ->
+  superseded` (terminal, aucune transition n'en sort). Role admin
+  uniquement, memes regles de non-idempotence que `accept`.
 
 ### Agents and AI work
 - GET /agents
@@ -240,10 +247,10 @@ n'utilisant que leurs propres agents n'observent aucun changement.
 ### Review Queue (sous-etape 8.4, additif, DEC-0049)
 - GET /review-queue — vue agregee, lecture seule, de tout ce qui attend une
   action humaine : `AIWorkLog` en `review_requested` (resoudre via
-  `PATCH /ai-work/{id}`), `Decision` en `proposed` (informatif — aucun
-  endpoint de transition n'existe pour les decisions), et evenements
-  `resource.conflict` recents (best-effort, borne dans le temps : aucun
-  etat de conflit persiste n'existe). Query params : `project_id` (UUID,
+  `PATCH /ai-work/{id}`), `Decision` en `proposed` (actionable depuis
+  DEC-0094 : `POST /decisions/{id}/accept` ou `.../supersede`, role admin),
+  et evenements `resource.conflict` recents (best-effort, borne dans le
+  temps : aucun etat de conflit persiste n'existe). Query params : `project_id` (UUID,
   optionnel), `conflict_window_hours` (defaut 24, max 168). Reponse
    `ReviewQueue{items: [...], generated_at}`, chaque item discrimine par
    `kind` (`ai_work_review`/`decision_proposal`/`resource_conflict`, plus

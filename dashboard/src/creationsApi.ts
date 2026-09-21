@@ -87,6 +87,31 @@ export function decodeJwtSubject(token: string | null): string | null {
   }
 }
 
+/**
+ * Reads the `role` claim out of a dashboard JWT without verifying the
+ * signature — same non-authoritative caveat as `decodeJwtSubject`: a UI
+ * hint only (which buttons to show), never an authorization decision. The
+ * server re-checks the role on every write. Returns null for an opaque
+ * machine token or a token with no `role` claim.
+ */
+export function decodeJwtRole(token: string | null): string | null {
+  if (token === null || token === "") return null;
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  const payload = base64UrlDecode(parts[1] ?? "");
+  if (payload === null) return null;
+  try {
+    const parsed: unknown = JSON.parse(payload);
+    if (parsed !== null && typeof parsed === "object" && "role" in parsed) {
+      const role = (parsed as { role?: unknown }).role;
+      return typeof role === "string" && role !== "" ? role : null;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function isUuid(value: string): boolean {

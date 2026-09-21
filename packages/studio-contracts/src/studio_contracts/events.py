@@ -31,6 +31,8 @@ class EventType(StrEnum):
 
     DECISION_PROPOSED = "decision.proposed"
     DECISION_CREATED = "decision.created"
+    DECISION_ACCEPTED = "decision.accepted"
+    DECISION_SUPERSEDED = "decision.superseded"
 
     LIBRARY_VERSION_CREATED = "library.version.created"
     LIBRARY_VERSION_ACTIVATED = "library.version.activated"

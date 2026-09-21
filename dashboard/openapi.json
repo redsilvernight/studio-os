@@ -1669,6 +1669,196 @@
     }
    }
   },
+  "/api/v1/decisions/{decision_id}/accept": {
+   "post": {
+    "tags": [
+     "decisions"
+    ],
+    "summary": "Accept Decision",
+    "description": "Accept a proposed Decision (`proposed` -> `accepted`). Admin role only. This is a state transition, not a creation: no `Idempotency-Key` \u2014 retrying after success answers `409 invalid_decision_transition`, never a duplicate transition.",
+    "operationId": "accept_decision_api_v1_decisions__decision_id__accept_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "decision_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Decision Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Decision"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Invalid Decision transition: `accept` only leaves `proposed`, `supersede` only leaves `proposed` or `accepted`, and `superseded` is terminal \u2014 no transition is ever allowed out of it. Two admins racing to resolve the same Decision never both succeed: the loser gets this same conflict.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_decision_transition"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/decisions/{decision_id}/supersede": {
+   "post": {
+    "tags": [
+     "decisions"
+    ],
+    "summary": "Supersede Decision",
+    "description": "Supersede a Decision (`proposed` or `accepted` -> `superseded`, terminal \u2014 no transition is ever allowed out of it). Admin role only. This is a state transition, not a creation: no `Idempotency-Key` \u2014 retrying after success answers `409 invalid_decision_transition`, never a duplicate transition.",
+    "operationId": "supersede_decision_api_v1_decisions__decision_id__supersede_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "decision_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Decision Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Decision"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Invalid Decision transition: `accept` only leaves `proposed`, `supersede` only leaves `proposed` or `accepted`, and `superseded` is terminal \u2014 no transition is ever allowed out of it. Two admins racing to resolve the same Decision never both succeed: the loser gets this same conflict.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_decision_transition"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/library": {
    "get": {
     "tags": [
@@ -11070,6 +11260,8 @@
      "resource.conflict",
      "decision.proposed",
      "decision.created",
+     "decision.accepted",
+     "decision.superseded",
      "library.version.created",
      "library.version.activated",
      "library.resource.deprecated",

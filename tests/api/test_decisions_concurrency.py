@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from studio_api.db.models.decision import DecisionModel
+from studio_api.db.models.event import EventModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.user import UserModel
@@ -119,4 +120,81 @@ async def test_concurrent_decisions_get_unique_readable_ids(
             await cleanup_session.execute(delete(ProjectModel).where(ProjectModel.id == project.id))
             await cleanup_session.execute(delete(MachineModel).where(MachineModel.id == machine.id))
             await cleanup_session.execute(delete(UserModel).where(UserModel.id == user.id))
+            await cleanup_session.commit()
+
+
+async def test_concurrent_accept_of_the_same_decision_succeeds_exactly_once(
+    real_engine: AsyncEngine, real_client: AsyncClient
+) -> None:
+    """DEC-0094: two admins racing to resolve the same Decision must never
+    both succeed — the row-level `SELECT ... FOR UPDATE` lock
+    (`decisions_service._lock_decision`) serializes the transitions, so
+    exactly one `202`/`200` and the rest `409 invalid_decision_transition`."""
+    session_factory = async_sessionmaker(real_engine, expire_on_commit=False)
+    async with session_factory() as setup_session:
+        proposer = await provisioning_service.create_user(
+            setup_session, "Proposer", f"{uuid.uuid4()}@example.test", "developer"
+        )
+        proposer_machine, proposer_token = await provisioning_service.create_machine(
+            setup_session, proposer.id, "decision-race-proposer"
+        )
+        admin = await provisioning_service.create_user(
+            setup_session, "Racing Admin", f"{uuid.uuid4()}@example.test", "admin"
+        )
+        _, admin_token = await provisioning_service.create_machine(
+            setup_session, admin.id, "decision-race-admin"
+        )
+        project = await projects_service.create_project(
+            setup_session, f"dec-accept-race-{uuid.uuid4().hex[:8]}", "Decision Accept Race", None
+        )
+
+    proposer_headers = {"Authorization": f"Bearer {proposer_token}"}
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    concurrency = 10
+
+    try:
+        created = await real_client.post(
+            "/api/v1/decisions",
+            headers=proposer_headers,
+            json={
+                "project_id": str(project.id),
+                "title": "Racing accept",
+                "body": "Body",
+                "proposed_by_type": "agent",
+                "proposed_by_id": str(proposer_machine.id),
+            },
+        )
+        assert created.status_code == 201
+        decision_id = created.json()["id"]
+
+        await _warm_pool(session_factory, concurrency)
+        responses = await asyncio.gather(
+            *(
+                real_client.post(f"/api/v1/decisions/{decision_id}/accept", headers=admin_headers)
+                for _ in range(concurrency)
+            )
+        )
+
+        successes = [r for r in responses if r.status_code == 200]
+        conflicts = [r for r in responses if r.status_code == 409]
+        assert len(successes) == 1, [r.status_code for r in responses]
+        assert len(conflicts) == concurrency - 1
+        assert all(
+            r.json()["detail"]["error_code"] == "invalid_decision_transition" for r in conflicts
+        )
+    finally:
+        async with session_factory() as cleanup_session:
+            await cleanup_session.execute(
+                delete(EventModel).where(EventModel.project_id == project.id)
+            )
+            await cleanup_session.execute(
+                delete(DecisionModel).where(DecisionModel.project_id == project.id)
+            )
+            await cleanup_session.execute(delete(ProjectModel).where(ProjectModel.id == project.id))
+            await cleanup_session.execute(
+                delete(MachineModel).where(MachineModel.owner_user_id.in_([proposer.id, admin.id]))
+            )
+            await cleanup_session.execute(
+                delete(UserModel).where(UserModel.id.in_([proposer.id, admin.id]))
+            )
             await cleanup_session.commit()

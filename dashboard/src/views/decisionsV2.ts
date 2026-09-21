@@ -20,7 +20,7 @@
 import type { StudioClient } from "../api";
 import { ApiError, parseErrorBody } from "../api";
 import { getToken } from "../auth";
-import { decodeJwtSubject, isUuid } from "../creationsApi";
+import { decodeJwtRole, decodeJwtSubject, isUuid } from "../creationsApi";
 import {
   dsBadge,
   dsEmptyState,
@@ -149,6 +149,49 @@ async function createDecision(
   throw new ApiError(parseErrorBody(result.response.status, result.error));
 }
 
+/** Accepte une décision proposée (transition, admin uniquement — DEC-0094). */
+async function acceptDecision(client: StudioClient, decisionId: string): Promise<Decision> {
+  const result = await client.POST("/api/v1/decisions/{decision_id}/accept", {
+    params: { path: { decision_id: decisionId } },
+  });
+  if (result.response.ok && result.data !== undefined) return result.data;
+  throw new ApiError(parseErrorBody(result.response.status, result.error));
+}
+
+/** Supersede une décision (transition, admin uniquement — DEC-0094). */
+async function supersedeDecision(client: StudioClient, decisionId: string): Promise<Decision> {
+  const result = await client.POST("/api/v1/decisions/{decision_id}/supersede", {
+    params: { path: { decision_id: decisionId } },
+  });
+  if (result.response.ok && result.data !== undefined) return result.data;
+  throw new ApiError(parseErrorBody(result.response.status, result.error));
+}
+
+/** Statuts depuis lesquels chaque transition est autorisée (miroir du service). */
+const ACCEPTABLE_FROM = new Set(["proposed"]);
+const SUPERSEDABLE_FROM = new Set(["proposed", "accepted"]);
+
+function decisionActionsHtml(decision: Decision, isAdmin: boolean): string {
+  const canAccept = ACCEPTABLE_FROM.has(decision.status);
+  const canSupersede = SUPERSEDABLE_FROM.has(decision.status);
+  if (!canAccept && !canSupersede) return "";
+  const disabled = isAdmin ? "" : " disabled";
+  const hint = isAdmin
+    ? ""
+    : `<span class="ds-list-sub" role="note">Réservé au rôle admin.</span>`;
+  return (
+    `<div class="decision-actions" role="group" aria-label="Actions pour cette décision">` +
+    (canAccept
+      ? `<button class="ds-btn ds-btn--sm ds-btn--primary" type="button" data-decision-accept="${esc(decision.id)}"${disabled}>Accepter</button>`
+      : "") +
+    (canSupersede
+      ? `<button class="ds-btn ds-btn--sm" type="button" data-decision-supersede="${esc(decision.id)}"${disabled}>Remplacer</button>`
+      : "") +
+    hint +
+    `</div>`
+  );
+}
+
 /** Génère une clé d'idempotence côté client (UUID v4 simple). */
 function generateIdempotencyKey(): string {
   return newUuid();
@@ -156,7 +199,7 @@ function generateIdempotencyKey(): string {
 
 /** ------------------- RENDU REVIEW QUEUE ------------------- */
 
-export function reviewItemHtml(item: ReviewQueueItem, authed: boolean): string {
+export function reviewItemHtml(item: ReviewQueueItem, authed: boolean, isAdmin: boolean): string {
   const kindLabel = REVIEW_KIND_LABEL[item.kind];
   const kindTone = REVIEW_KIND_TONE[item.kind];
   const detail = reviewQueueItemDetail(item);
@@ -184,6 +227,20 @@ export function reviewItemHtml(item: ReviewQueueItem, authed: boolean): string {
   } else if (item.kind === "roadmap_proposal") {
     actionsHtml = `<div class="review-actions" role="group" aria-label="Actions pour cette proposition de roadmap">` +
       `<a class="ds-btn ds-btn--sm ds-btn--primary" href="#/projects/${esc(item.project_id)}/roadmap">Examiner dans Roadmap</a></div>`;
+  } else if (item.kind === "decision_proposal") {
+    if (authed) {
+      const disabled = isAdmin ? "" : " disabled";
+      actionsHtml = `<div class="review-actions" role="group" aria-label="Actions pour cette décision">` +
+        `<button class="ds-btn ds-btn--sm ds-btn--primary" type="button" data-decision-accept="${esc(item.id)}"${disabled}>Accepter</button>` +
+        `<button class="ds-btn ds-btn--sm" type="button" data-decision-supersede="${esc(item.id)}"${disabled}>Remplacer</button>` +
+        (isAdmin ? "" : `<span class="ds-list-sub" role="note">Réservé au rôle admin.</span>`) +
+        `</div>`;
+    } else {
+      actionsHtml = `<div class="review-actions" role="group" aria-label="Actions pour cette décision">` +
+        `<button class="ds-btn ds-btn--sm ds-btn--primary" type="button" data-decision-accept="${esc(item.id)}" disabled>Accepter</button>` +
+        `<button class="ds-btn ds-btn--sm" type="button" data-decision-supersede="${esc(item.id)}" disabled>Remplacer</button>` +
+        `</div>`;
+    }
   } else {
     actionsHtml = `<span class="review-no-action ds-list-sub" aria-label="Aucune action disponible">Aucune action disponible dans cette interface</span>`;
   }
@@ -228,6 +285,7 @@ export function reviewItemHtml(item: ReviewQueueItem, authed: boolean): string {
 export function reviewQueueHtml(
   reviewQueue: ReviewQueue | null,
   authed: boolean,
+  isAdmin: boolean,
   projectId?: string,
   reviewError?: string,
 ): string {
@@ -250,7 +308,7 @@ export function reviewQueueHtml(
       ) + `</section>`;
   }
 
-  const rows = items.map((item) => reviewItemHtml(item, authed)).join("");
+  const rows = items.map((item) => reviewItemHtml(item, authed, isAdmin)).join("");
   return `<section class="review-section" aria-labelledby="review-heading">${header}` +
     `<p class="ds-list-sub">${items.length} élément(s) à examiner.</p>` +
     `<ul class="ds-list review-list" role="list">${rows}</ul></section>`;
@@ -258,7 +316,7 @@ export function reviewQueueHtml(
 
 /** ------------------- RENDU DECISIONS ------------------- */
 
-export function decisionHtml(decision: Decision, authed: boolean): string {
+export function decisionHtml(decision: Decision, authed: boolean, isAdmin: boolean): string {
   const statusLabel = DECISION_STATUS_LABEL[decision.status] ?? decision.status;
   const statusTone = DECISION_STATUS_TONE[decision.status] ?? "neutral";
   const proposerLabel = PROPOSER_TYPE_LABEL[decision.proposed_by_type] ?? decision.proposed_by_type;
@@ -303,6 +361,7 @@ export function decisionHtml(decision: Decision, authed: boolean): string {
     `</div>` +
     `</div>` +
     `<div class="decision-item-body">${esc(decision.body)}</div>` +
+    (authed ? decisionActionsHtml(decision, isAdmin) : "") +
     `${techDetails}` +
     `</div>` +
     `</li>`;
@@ -311,6 +370,7 @@ export function decisionHtml(decision: Decision, authed: boolean): string {
 export function decisionsHtml(
   decisions: Decision[],
   authed: boolean,
+  isAdmin: boolean,
   projectId?: string,
   decisionsError?: string,
 ): string {
@@ -336,7 +396,7 @@ export function decisionsHtml(
       `</section>`;
   }
 
-  const rows = decisions.map((d) => decisionHtml(d, authed)).join("");
+  const rows = decisions.map((d) => decisionHtml(d, authed, isAdmin)).join("");
   const createBtn = authed
     ? `<button class="ds-btn ds-btn--primary" type="button" id="create-decision-btn">Créer une décision</button>`
     : "";
@@ -412,6 +472,7 @@ export async function renderDecisionsV2(root: HTMLElement, ctx: DecisionsContext
   const reviewError = reviewResult.status === "rejected" ? describeError(reviewResult.reason) : undefined;
   const decisions = decisionsResult.status === "fulfilled" ? decisionsResult.value : [];
   const decisionsError = decisionsResult.status === "rejected" ? describeError(decisionsResult.reason) : undefined;
+  const isAdmin = decodeJwtRole(getToken()) === "admin";
 
   // Rendu initial avec onglets
   root.innerHTML =
@@ -427,15 +488,15 @@ export async function renderDecisionsV2(root: HTMLElement, ctx: DecisionsContext
 
   // Rendu Review Queue
   if (reviewPanel !== null) {
-    reviewPanel.innerHTML = reviewQueueHtml(reviewQueue, ctx.authed, projectId, reviewError);
-    bindReviewActions(root, reviewPanel, ctx);
+    reviewPanel.innerHTML = reviewQueueHtml(reviewQueue, ctx.authed, isAdmin, projectId, reviewError);
+    bindReviewActions(root, reviewPanel, ctx, isAdmin);
   }
 
   // Rendu Decisions
   if (decisionsPanel !== null) {
     const proposer = decodeJwtSubject(getToken()) ?? "";
-    decisionsPanel.innerHTML = decisionsHtml(decisions, ctx.authed, projectId, decisionsError);
-    bindDecisionActions(root, decisionsPanel, ctx, proposer);
+    decisionsPanel.innerHTML = decisionsHtml(decisions, ctx.authed, isAdmin, projectId, decisionsError);
+    bindDecisionActions(root, decisionsPanel, ctx, proposer, isAdmin);
   }
 
   // Créer la modale de création décision (cachée, injectée dans decisionModalHost)
@@ -450,7 +511,7 @@ export async function renderDecisionsV2(root: HTMLElement, ctx: DecisionsContext
   }
 }
 
-function bindReviewActions(root: HTMLElement, panel: HTMLElement, ctx: DecisionsContext): void {
+function bindReviewActions(root: HTMLElement, panel: HTMLElement, ctx: DecisionsContext, isAdmin: boolean): void {
   const buttons = panel.querySelectorAll<HTMLButtonElement>("[data-review-approve], [data-review-changes]");
   buttons.forEach((button) => {
     button.addEventListener("click", async () => {
@@ -469,9 +530,48 @@ function bindReviewActions(root: HTMLElement, panel: HTMLElement, ctx: Decisions
         const reviewQueue = await fetchReviewQueue(ctx.client, ctx.projectId);
         const newPanel = root.querySelector<HTMLElement>("#review-panel");
         if (newPanel !== null) {
-          newPanel.innerHTML = reviewQueueHtml(reviewQueue, ctx.authed, ctx.projectId);
-          bindReviewActions(root, newPanel, ctx);
+          newPanel.innerHTML = reviewQueueHtml(reviewQueue, ctx.authed, isAdmin, ctx.projectId);
+          bindReviewActions(root, newPanel, ctx, isAdmin);
         }
+      } catch (error) {
+        dsNotify(describeError(error), "danger");
+        button.textContent = label;
+        buttons.forEach((b) => (b.disabled = false));
+      }
+    });
+  });
+  bindDecisionTransitionButtons(root, panel, ctx, isAdmin);
+}
+
+/**
+ * Accept/supersede buttons appear both on Review Queue `decision_proposal`
+ * items and on the Decisions list itself (DEC-0094) — one handler, bound in
+ * both panels, that resolves the transition then refreshes both (a
+ * transition always changes whether the Decision still belongs in the
+ * queue, and always changes its status in the list).
+ */
+function bindDecisionTransitionButtons(
+  root: HTMLElement,
+  panel: HTMLElement,
+  ctx: DecisionsContext,
+  isAdmin: boolean,
+): void {
+  const buttons = panel.querySelectorAll<HTMLButtonElement>(
+    "[data-decision-accept], [data-decision-supersede]",
+  );
+  buttons.forEach((button) => {
+    button.addEventListener("click", async () => {
+      const id = button.dataset.decisionAccept ?? button.dataset.decisionSupersede ?? "";
+      const isAccept = button.dataset.decisionAccept !== undefined;
+      const label = isAccept ? "Accepter" : "Remplacer";
+
+      buttons.forEach((b) => (b.disabled = true));
+      button.textContent = `${label}…`;
+
+      try {
+        await (isAccept ? acceptDecision(ctx.client, id) : supersedeDecision(ctx.client, id));
+        dsNotify(`Décision ${isAccept ? "acceptée" : "remplacée"}.`, "success");
+        await refreshDecisionsAndReview(root, ctx, isAdmin);
       } catch (error) {
         dsNotify(describeError(error), "danger");
         button.textContent = label;
@@ -481,12 +581,37 @@ function bindReviewActions(root: HTMLElement, panel: HTMLElement, ctx: Decisions
   });
 }
 
+async function refreshDecisionsAndReview(
+  root: HTMLElement,
+  ctx: DecisionsContext,
+  isAdmin: boolean,
+): Promise<void> {
+  const [reviewQueue, decisions] = await Promise.all([
+    fetchReviewQueue(ctx.client, ctx.projectId),
+    fetchDecisions(ctx.client, ctx.projectId),
+  ]);
+  const reviewPanel = root.querySelector<HTMLElement>("#review-panel");
+  if (reviewPanel !== null) {
+    reviewPanel.innerHTML = reviewQueueHtml(reviewQueue, ctx.authed, isAdmin, ctx.projectId);
+    bindReviewActions(root, reviewPanel, ctx, isAdmin);
+  }
+  const decisionsPanel = root.querySelector<HTMLElement>("#decisions-panel");
+  if (decisionsPanel !== null) {
+    const proposer = decodeJwtSubject(getToken()) ?? "";
+    decisionsPanel.innerHTML = decisionsHtml(decisions, ctx.authed, isAdmin, ctx.projectId);
+    bindDecisionActions(root, decisionsPanel, ctx, proposer, isAdmin);
+  }
+}
+
 function bindDecisionActions(
   root: HTMLElement,
   panel: HTMLElement,
   ctx: DecisionsContext,
   proposerId: string,
+  isAdmin: boolean,
 ): void {
+  bindDecisionTransitionButtons(root, panel, ctx, isAdmin);
+
   // Bouton "Créer une décision" → ouvre la modale
   const createBtn = panel.querySelector<HTMLButtonElement>("#create-decision-btn");
   createBtn?.addEventListener("click", () => {
@@ -537,8 +662,8 @@ function bindDecisionActions(
       const decisions = await fetchDecisions(ctx.client, ctx.projectId);
       const newPanel = root.querySelector<HTMLElement>("#decisions-panel");
       if (newPanel !== null) {
-        newPanel.innerHTML = decisionsHtml(decisions, ctx.authed, ctx.projectId);
-        bindDecisionActions(root, newPanel, ctx, proposerId);
+        newPanel.innerHTML = decisionsHtml(decisions, ctx.authed, isAdmin, ctx.projectId);
+        bindDecisionActions(root, newPanel, ctx, proposerId, isAdmin);
         // Le panneau est repeint : refocaliser l'action de création.
         newPanel.querySelector<HTMLElement>("#create-decision-btn")?.focus();
       }

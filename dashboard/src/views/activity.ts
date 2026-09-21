@@ -35,6 +35,8 @@ const EVENT_LABEL: Record<string, string> = {
   "resource.conflict": "Chevauchement de réservation",
   "decision.proposed": "Décision proposée",
   "decision.created": "Décision créée",
+  "decision.accepted": "Décision acceptée",
+  "decision.superseded": "Décision remplacée",
   "library.version.created": "Version de bibliothèque créée",
   "library.version.activated": "Version de bibliothèque activée",
   "library.resource.deprecated": "Ressource de bibliothèque dépréciée",

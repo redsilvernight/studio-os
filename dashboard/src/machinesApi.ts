@@ -38,6 +38,21 @@ export const MACHINE_PRESENCE_EVENT_TYPES = [
   "agent.stopped",
 ] as const;
 
+/**
+ * The dashboard's own technical identity (`get_or_create_dashboard_machine`,
+ * DASH-4): a machine row created so the API can reason about a human
+ * dashboard login in machine terms. It is not a user/runtime machine and
+ * should not clutter the Machines list — but it is a display-only
+ * exclusion (never a backend contract change): matched by `display_name`,
+ * case/whitespace insensitive, only when a name is actually present. It
+ * remains visible wherever `display_name`/`machineId` show up directly
+ * (technical details, Inspector).
+ */
+export function isDashboardIdentity(displayName: string | null | undefined): boolean {
+  if (displayName === null || displayName === undefined) return false;
+  return displayName.trim().toLowerCase() === "dashboard";
+}
+
 function ageMs(iso: string | null | undefined, now: number): number | null {
   if (iso === null || iso === undefined || iso === "") return null;
   const time = new Date(iso).getTime();
@@ -161,12 +176,14 @@ export function buildMachineRows(evidence: MachineEvidence): MachineRow[] {
     }
   }
 
-  return [...rows.values()].sort(
-    (a, b) =>
-      STATUS_RANK[a.status] - STATUS_RANK[b.status] ||
-      (new Date(b.lastActivityAt ?? 0).getTime() || 0) - (new Date(a.lastActivityAt ?? 0).getTime() || 0) ||
-      a.machineId.localeCompare(b.machineId),
-  );
+  return [...rows.values()]
+    .filter((row) => !isDashboardIdentity(row.displayName))
+    .sort(
+      (a, b) =>
+        STATUS_RANK[a.status] - STATUS_RANK[b.status] ||
+        (new Date(b.lastActivityAt ?? 0).getTime() || 0) - (new Date(a.lastActivityAt ?? 0).getTime() || 0) ||
+        a.machineId.localeCompare(b.machineId),
+    );
 }
 
 /** Active sessions only (`ended_at` unset) — what the view calls "active". */

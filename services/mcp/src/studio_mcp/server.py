@@ -21,7 +21,12 @@ from studio_mcp.tools.claims import (
     studio_release_resource,
 )
 from studio_mcp.tools.context import studio_prepare_context
-from studio_mcp.tools.decisions import studio_add_decision, studio_get_decisions
+from studio_mcp.tools.decisions import (
+    studio_accept_decision,
+    studio_add_decision,
+    studio_get_decisions,
+    studio_supersede_decision,
+)
 from studio_mcp.tools.events import studio_emit_event, studio_get_recent_changes
 from studio_mcp.tools.initialization import (
     studio_apply_project_initialization,
@@ -208,6 +213,23 @@ def create_server() -> MCPServer:
             "idempotency_key when retrying a call that may have already succeeded — "
             "replaying the same key+arguments returns the original decision instead of a "
             "duplicate (no second id is allocated)."
+        ),
+    )
+    server.add_tool(
+        studio_accept_decision,
+        name="studio_accept_decision",
+        description=(
+            "Accept a proposed Decision (proposed -> accepted). Admin role only. Not a "
+            "creation: no idempotency_key — retrying an already-accepted decision fails "
+            "with invalid_decision_transition."
+        ),
+    )
+    server.add_tool(
+        studio_supersede_decision,
+        name="studio_supersede_decision",
+        description=(
+            "Supersede a Decision (proposed or accepted -> superseded, terminal). Admin "
+            "role only. Not a creation: no idempotency_key."
         ),
     )
     server.add_tool(

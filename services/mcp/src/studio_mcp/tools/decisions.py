@@ -103,3 +103,34 @@ async def studio_add_decision(
         )
 
     return await run_tool(ctx, _handler)
+
+
+async def studio_accept_decision(decision_id: str, ctx: Context) -> dict[str, Any]:
+    """Accept a proposed Decision (`proposed` -> `accepted`). Admin role
+    only. Not a creation: no `idempotency_key` — retrying after success
+    fails the same way a second HTTP accept would
+    (`invalid_decision_transition`)."""
+
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
+        parsed = parse_uuid(decision_id, "decision_id")
+        if isinstance(parsed, dict):
+            return parsed
+        decision = await decisions_service.accept_decision(session, principal, parsed)
+        return _compact_decision(decision)
+
+    return await run_tool(ctx, _handler)
+
+
+async def studio_supersede_decision(decision_id: str, ctx: Context) -> dict[str, Any]:
+    """Supersede a Decision (`proposed` or `accepted` -> `superseded`,
+    terminal — no transition is ever allowed out of it). Admin role only.
+    Not a creation: no `idempotency_key`."""
+
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
+        parsed = parse_uuid(decision_id, "decision_id")
+        if isinstance(parsed, dict):
+            return parsed
+        decision = await decisions_service.supersede_decision(session, principal, parsed)
+        return _compact_decision(decision)
+
+    return await run_tool(ctx, _handler)

@@ -26,7 +26,7 @@ session.started, session.ended
 
 resource.claimed, resource.renewed, resource.released, resource.conflict
 
-decision.proposed, decision.created
+decision.proposed, decision.created, decision.accepted, decision.superseded (DEC-0094)
 
 agent.started, agent.stopped
 

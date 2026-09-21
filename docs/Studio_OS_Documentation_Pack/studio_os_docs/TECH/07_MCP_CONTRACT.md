@@ -14,6 +14,8 @@ studio_claim_resource
 studio_release_resource
 studio_get_decisions
 studio_add_decision
+studio_accept_decision
+studio_supersede_decision
 studio_get_recent_changes
 studio_get_sessions
 studio_get_teammate_activity

@@ -328,6 +328,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/decisions/{decision_id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept Decision
+         * @description Accept a proposed Decision (`proposed` -> `accepted`). Admin role only. This is a state transition, not a creation: no `Idempotency-Key` — retrying after success answers `409 invalid_decision_transition`, never a duplicate transition.
+         */
+        post: operations["accept_decision_api_v1_decisions__decision_id__accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/decisions/{decision_id}/supersede": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Supersede Decision
+         * @description Supersede a Decision (`proposed` or `accepted` -> `superseded`, terminal — no transition is ever allowed out of it). Admin role only. This is a state transition, not a creation: no `Idempotency-Key` — retrying after success answers `409 invalid_decision_transition`, never a duplicate transition.
+         */
+        post: operations["supersede_decision_api_v1_decisions__decision_id__supersede_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/library": {
         parameters: {
             query?: never;
@@ -2225,7 +2265,7 @@ export interface components {
          *     or removed — readers should tolerate unknown types.
          * @enum {string}
          */
-        EventType: "project.created" | "task.created" | "task.started" | "task.updated" | "task.blocked" | "task.completed" | "session.started" | "session.ended" | "resource.claimed" | "resource.renewed" | "resource.released" | "resource.conflict" | "decision.proposed" | "decision.created" | "library.version.created" | "library.version.activated" | "library.resource.deprecated" | "library.lock.set" | "library.lock.released" | "roadmap.created" | "roadmap.updated" | "roadmap.proposed" | "roadmap.approved" | "roadmap.changes_requested" | "roadmap.rejected" | "roadmap.activated" | "roadmap.completed" | "roadmap.archived" | "roadmap.hydrated" | "agent.started" | "agent.stopped" | "ai_work.started" | "ai_work.completed" | "ai_work.failed" | "ai_work.review_requested" | "ai_work.approved" | "ai_work.changes_requested" | "git.commit" | "git.branch.changed" | "git.pr.opened" | "git.pr.merged" | "graph.updated" | "memory.proposed" | "memory.updated" | "godot.started" | "godot.stopped" | "recording.started" | "recording.finished" | "recording.marker.created" | "build.started" | "build.succeeded" | "build.failed" | "producer.job.requested" | "producer.job.completed" | "producer.job.failed" | "transfer.created" | "transfer.uploading" | "transfer.ready" | "transfer.downloaded" | "transfer.expired" | "transfer.deleted" | "marketing.candidate.created" | "marketing.post.published";
+        EventType: "project.created" | "task.created" | "task.started" | "task.updated" | "task.blocked" | "task.completed" | "session.started" | "session.ended" | "resource.claimed" | "resource.renewed" | "resource.released" | "resource.conflict" | "decision.proposed" | "decision.created" | "decision.accepted" | "decision.superseded" | "library.version.created" | "library.version.activated" | "library.resource.deprecated" | "library.lock.set" | "library.lock.released" | "roadmap.created" | "roadmap.updated" | "roadmap.proposed" | "roadmap.approved" | "roadmap.changes_requested" | "roadmap.rejected" | "roadmap.activated" | "roadmap.completed" | "roadmap.archived" | "roadmap.hydrated" | "agent.started" | "agent.stopped" | "ai_work.started" | "ai_work.completed" | "ai_work.failed" | "ai_work.review_requested" | "ai_work.approved" | "ai_work.changes_requested" | "git.commit" | "git.branch.changed" | "git.pr.opened" | "git.pr.merged" | "graph.updated" | "memory.proposed" | "memory.updated" | "godot.started" | "godot.stopped" | "recording.started" | "recording.finished" | "recording.marker.created" | "build.started" | "build.succeeded" | "build.failed" | "producer.job.requested" | "producer.job.completed" | "producer.job.failed" | "transfer.created" | "transfer.uploading" | "transfer.ready" | "transfer.downloaded" | "transfer.expired" | "transfer.deleted" | "marketing.candidate.created" | "marketing.post.published";
         /**
          * GitHubIntegration
          * @description Per-project GitHub wiring. At most one row per project in
@@ -6499,6 +6539,192 @@ export interface operations {
                      * @example {
                      *       "detail": {
                      *         "error_code": "idempotency_key_payload_mismatch"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    accept_decision_api_v1_decisions__decision_id__accept_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                decision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Decision"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Invalid Decision transition: `accept` only leaves `proposed`, `supersede` only leaves `proposed` or `accepted`, and `superseded` is terminal — no transition is ever allowed out of it. Two admins racing to resolve the same Decision never both succeed: the loser gets this same conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_decision_transition"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    supersede_decision_api_v1_decisions__decision_id__supersede_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                decision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Decision"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Invalid Decision transition: `accept` only leaves `proposed`, `supersede` only leaves `proposed` or `accepted`, and `superseded` is terminal — no transition is ever allowed out of it. Two admins racing to resolve the same Decision never both succeed: the loser gets this same conflict. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_decision_transition"
                      *       }
                      *     }
                      */

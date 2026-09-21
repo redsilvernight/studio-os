@@ -174,7 +174,7 @@ describe("reviewQueueItemDetail", () => {
 
 describe("reviewItemHtml", () => {
   it("ai_work_review : badge IA, actions Approuver/Demander des modifications si authed", () => {
-    const html = reviewItemHtml(aiWorkItem().items[0]!, true);
+    const html = reviewItemHtml(aiWorkItem().items[0]!, true, true);
     expect(html).toContain("ds-badge--ai");
     expect(html).toContain("Travail IA");
     expect(html).toContain('data-review-approve="rw1"');
@@ -185,38 +185,53 @@ describe("reviewItemHtml", () => {
   });
 
   it("ai_work_review : actions désactivées sans auth", () => {
-    const html = reviewItemHtml(aiWorkItem().items[0]!, false);
+    const html = reviewItemHtml(aiWorkItem().items[0]!, false, false);
     expect(html).toContain("disabled");
   });
 
-  it("decision_proposal : aucun bouton d'action, message explicite", () => {
-    const html = reviewItemHtml(decisionProposalItem().items[0]!, true);
+  it("decision_proposal : actions Accepter/Remplacer pour un admin authed (DEC-0094)", () => {
+    const html = reviewItemHtml(decisionProposalItem().items[0]!, true, true);
     expect(html).toContain("Proposition de décision");
-    expect(html).toContain("Aucune action disponible dans cette interface");
-    expect(html).not.toContain("data-review-approve");
-    expect(html).not.toContain("data-review-changes");
+    expect(html).toContain('data-decision-accept="rw2"');
+    expect(html).toContain("Accepter");
+    expect(html).toContain('data-decision-supersede="rw2"');
+    expect(html).toContain("Remplacer");
+    expect(html).not.toContain("disabled");
+  });
+
+  it("decision_proposal : actions désactivées pour un non-admin authed", () => {
+    const html = reviewItemHtml(decisionProposalItem().items[0]!, true, false);
+    expect(html).toContain('data-decision-accept="rw2"');
+    expect(html).toContain("disabled");
+    expect(html).toContain("Réservé au rôle admin");
+  });
+
+  it("decision_proposal : actions désactivées sans auth", () => {
+    const html = reviewItemHtml(decisionProposalItem().items[0]!, false, false);
+    expect(html).toContain('data-decision-accept="rw2"');
+    expect(html).toContain("disabled");
   });
 
   it("resource_conflict : aucun bouton, message explicite", () => {
-    const html = reviewItemHtml(conflictItem().items[0]!, true);
+    const html = reviewItemHtml(conflictItem().items[0]!, true, true);
     expect(html).toContain("Conflit de réservation");
     expect(html).toContain("Aucune action disponible dans cette interface");
   });
 
   it("build_failure : aucun bouton, message explicite", () => {
-    const html = reviewItemHtml(buildItem().items[0]!, true);
+    const html = reviewItemHtml(buildItem().items[0]!, true, true);
     expect(html).toContain("Échec de build");
     expect(html).toContain("Aucune action disponible dans cette interface");
   });
 
   it("pr_ready : aucun bouton, message explicite", () => {
-    const html = reviewItemHtml(prItem().items[0]!, true);
+    const html = reviewItemHtml(prItem().items[0]!, true, true);
     expect(html).toContain("PR ouverte");
     expect(html).toContain("Aucune action disponible dans cette interface");
   });
 
   it("toutes les infos clés présentes : titre, projet, tâche, detail, date, infos techniques repliées", () => {
-    const html = reviewItemHtml(aiWorkItem().items[0]!, true);
+    const html = reviewItemHtml(aiWorkItem().items[0]!, true, true);
     expect(html).toContain("Relire la sortie agent");
     expect(html).toContain(P1.slice(0, 8));
     expect(html).toContain(T1.slice(0, 8));
@@ -236,27 +251,27 @@ describe("reviewItemHtml", () => {
 
 describe("reviewQueueHtml", () => {
   it("vide global : état positif FR, sans lien vers la page courante", () => {
-    const html = reviewQueueHtml({ items: [], generated_at: "" }, true);
+    const html = reviewQueueHtml({ items: [], generated_at: "" }, true, true);
     expect(html).toContain("Rien à examiner");
     expect(html).toContain("Aucun élément n'attend une décision humaine");
     expect(html).not.toContain('href="#/decisions"');
   });
 
   it("vide projet : propose la file globale", () => {
-    const html = reviewQueueHtml({ items: [], generated_at: "" }, true, P1);
+    const html = reviewQueueHtml({ items: [], generated_at: "" }, true, true, P1);
     expect(html).toContain("Voir la file globale");
     expect(html).toContain('href="#/decisions"');
   });
 
   it("erreur : notice danger sans jargon technique", () => {
-    const html = reviewQueueHtml(null, true, undefined, "HTTP 500 · coupure");
+    const html = reviewQueueHtml(null, true, true, undefined, "HTTP 500 · coupure");
     expect(html).toContain("ds-notice--danger");
     expect(html).toContain("File d'examen indisponible");
     expect(html).not.toContain("Error 500");
   });
 
   it("project-scopé : lien vers la file globale", () => {
-    const html = reviewQueueHtml(mixedQueue(), true, P1);
+    const html = reviewQueueHtml(mixedQueue(), true, true, P1);
     expect(html).toContain("À examiner");
     expect(html).toContain("Voir la file globale");
     expect(html).toContain('href="#/decisions"');
@@ -264,14 +279,14 @@ describe("reviewQueueHtml", () => {
   });
 
   it("global : aucun lien de sortie (la page est la file globale)", () => {
-    const html = reviewQueueHtml(mixedQueue(), true);
+    const html = reviewQueueHtml(mixedQueue(), true, true);
     expect(html).toContain("À examiner");
     expect(html).not.toContain("Voir la file globale");
     expect(html).not.toContain("Voir les décisions");
   });
 
   it("CSP : aucun style ni handler inline", () => {
-    const html = reviewQueueHtml(mixedQueue(), true);
+    const html = reviewQueueHtml(mixedQueue(), true, true);
     expect(html).not.toMatch(/\sstyle\s*=/i);
     expect(html).not.toMatch(/\son[a-z]+\s*=/i);
   });
@@ -279,26 +294,26 @@ describe("reviewQueueHtml", () => {
 
 describe("decisionHtml", () => {
   it("statut traduit + tonalité, pas de clé backend visible", () => {
-    const html = decisionHtml(decision("d1", "proposed"), true);
+    const html = decisionHtml(decision("d1", "proposed"), true, true);
     expect(html).toContain("Proposée");
     expect(html).toContain("ds-badge--info");
     expect(html).not.toContain("proposed");
   });
 
   it("accepted : tonalité success", () => {
-    const html = decisionHtml(decision("d2", "accepted"), true);
+    const html = decisionHtml(decision("d2", "accepted"), true, true);
     expect(html).toContain("Acceptée");
     expect(html).toContain("ds-badge--success");
   });
 
   it("superseded : tonalité warning", () => {
-    const html = decisionHtml(decision("d3", "superseded"), true);
+    const html = decisionHtml(decision("d3", "superseded"), true, true);
     expect(html).toContain("Remplacée");
     expect(html).toContain("ds-badge--warning");
   });
 
   it("proposé par agent : lien vers fiche agent + badge IA", () => {
-    const html = decisionHtml(decision(), true);
+    const html = decisionHtml(decision(), true, true);
     expect(html).toContain('href="#/agents/');
     expect(html).toContain("ds-badge--ai");
   });
@@ -306,13 +321,13 @@ describe("decisionHtml", () => {
   it("proposé par user : type + ID court", () => {
     const d = decision();
     d.proposed_by_type = "user";
-    const html = decisionHtml(d, true);
+    const html = decisionHtml(d, true, true);
     expect(html).toContain("Utilisateur");
     expect(html).toContain(A1.slice(0, 8));
   });
 
   it("contenu décision affiché, infos techniques repliées", () => {
-    const html = decisionHtml(decision(), true);
+    const html = decisionHtml(decision(), true, true);
     expect(html).toContain("Après analyse, nous choisissons Godot 4.3");
     expect(html).toContain("Informations techniques");
     expect(html).toContain("Identifiant");
@@ -321,22 +336,56 @@ describe("decisionHtml", () => {
   });
 
   it("liens projet et tâche quand présents", () => {
-    const html = decisionHtml(decision(), true);
+    const html = decisionHtml(decision(), true, true);
     expect(html).toContain(`href="#/projects/${P1}"`);
     expect(html).toContain(`href="#/tasks/${T1}"`);
   });
 
   it("sans projet ni tâche : tirets", () => {
     const d = decision("d1", "proposed", null, null);
-    const html = decisionHtml(d, true);
+    const html = decisionHtml(d, true, true);
     expect(html).toContain("Projet: —");
     expect(html).toContain("Tâche: —");
+  });
+
+  it("proposed, admin : Accepter et Remplacer disponibles (DEC-0094)", () => {
+    const html = decisionHtml(decision("d1", "proposed"), true, true);
+    expect(html).toContain('data-decision-accept="d1"');
+    expect(html).toContain("Accepter");
+    expect(html).toContain('data-decision-supersede="d1"');
+    expect(html).toContain("Remplacer");
+    expect(html).not.toContain("disabled");
+  });
+
+  it("proposed, non-admin : boutons présents mais désactivés", () => {
+    const html = decisionHtml(decision("d1", "proposed"), true, false);
+    expect(html).toContain('data-decision-accept="d1"');
+    expect(html).toContain("disabled");
+    expect(html).toContain("Réservé au rôle admin");
+  });
+
+  it("accepted, admin : seul Remplacer est disponible, pas Accepter", () => {
+    const html = decisionHtml(decision("d2", "accepted"), true, true);
+    expect(html).not.toContain("data-decision-accept");
+    expect(html).toContain('data-decision-supersede="d2"');
+  });
+
+  it("superseded : terminal, aucune action de transition", () => {
+    const html = decisionHtml(decision("d3", "superseded"), true, true);
+    expect(html).not.toContain("data-decision-accept");
+    expect(html).not.toContain("data-decision-supersede");
+  });
+
+  it("non authed : aucune action de transition affichée", () => {
+    const html = decisionHtml(decision("d1", "proposed"), false, false);
+    expect(html).not.toContain("data-decision-accept");
+    expect(html).not.toContain("data-decision-supersede");
   });
 });
 
 describe("decisionsHtml", () => {
   it("vide global : état contextualisé + bouton création si authed", () => {
-    const html = decisionsHtml([], true);
+    const html = decisionsHtml([], true, true);
     expect(html).toContain("Aucune décision globale");
     expect(html).toContain("Créer une décision");
     expect(html).not.toContain("undefined");
@@ -345,20 +394,20 @@ describe("decisionsHtml", () => {
   });
 
   it("vide project-scopé : message projet, pas de bouton création si pas authed", () => {
-    const html = decisionsHtml([], false, P1);
+    const html = decisionsHtml([], false, false, P1);
     expect(html).toContain("Voir les décisions globales");
     expect(html).toContain("liée à ce projet");
     expect(html).not.toContain("Créer une décision");
   });
 
   it("erreur : notice danger", () => {
-    const html = decisionsHtml([], true, undefined, "coupure");
+    const html = decisionsHtml([], true, true, undefined, "coupure");
     expect(html).toContain("ds-notice--danger");
     expect(html).toContain("Décisions indisponibles");
   });
 
   it("liste : toolbar avec bouton création, lignes complètes", () => {
-    const html = decisionsHtml([decision("d1"), decision("d2", "accepted")], true);
+    const html = decisionsHtml([decision("d1"), decision("d2", "accepted")], true, true);
     expect(html).toContain("Créer une décision");
     expect(html).toContain("Choisir le moteur de rendu");
     expect(html).toContain("DEC-0049");
@@ -366,7 +415,7 @@ describe("decisionsHtml", () => {
   });
 
   it("CSP : aucun style ni handler inline", () => {
-    const html = decisionsHtml([decision()], true);
+    const html = decisionsHtml([decision()], true, true);
     expect(html).not.toMatch(/\sstyle\s*=/i);
     expect(html).not.toMatch(/\son[a-z]+\s*=/i);
   });

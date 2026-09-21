@@ -10,6 +10,8 @@ from studio_api.openapi_meta import (
     IDEMPOTENCY_KEY_DESCRIPTION,
     RESP_401_UNAUTHORIZED,
     RESP_403_FORBIDDEN,
+    RESP_404_NOT_FOUND,
+    RESP_409_DECISION_TRANSITION,
     RESP_409_IDEMPOTENCY,
 )
 from studio_api.services import decisions as decisions_service
@@ -72,3 +74,50 @@ async def create_decision(
         _create,
         status.HTTP_201_CREATED,
     )
+
+
+@router.post(
+    "/{decision_id}/accept",
+    response_model=Decision,
+    description=(
+        "Accept a proposed Decision (`proposed` -> `accepted`). Admin role "
+        "only. This is a state transition, not a creation: no "
+        "`Idempotency-Key` — retrying after success answers "
+        "`409 invalid_decision_transition`, never a duplicate transition."
+    ),
+    responses={
+        **RESP_401_UNAUTHORIZED,
+        **RESP_403_FORBIDDEN,
+        **RESP_404_NOT_FOUND,
+        **RESP_409_DECISION_TRANSITION,
+    },
+)
+async def accept_decision(
+    decision_id: UUID, session: DbSession, principal: CurrentPrincipal
+) -> Decision:
+    decision = await decisions_service.accept_decision(session, principal, decision_id)
+    return Decision.model_validate(decision)
+
+
+@router.post(
+    "/{decision_id}/supersede",
+    response_model=Decision,
+    description=(
+        "Supersede a Decision (`proposed` or `accepted` -> `superseded`, "
+        "terminal — no transition is ever allowed out of it). Admin role "
+        "only. This is a state transition, not a creation: no "
+        "`Idempotency-Key` — retrying after success answers "
+        "`409 invalid_decision_transition`, never a duplicate transition."
+    ),
+    responses={
+        **RESP_401_UNAUTHORIZED,
+        **RESP_403_FORBIDDEN,
+        **RESP_404_NOT_FOUND,
+        **RESP_409_DECISION_TRANSITION,
+    },
+)
+async def supersede_decision(
+    decision_id: UUID, session: DbSession, principal: CurrentPrincipal
+) -> Decision:
+    decision = await decisions_service.supersede_decision(session, principal, decision_id)
+    return Decision.model_validate(decision)
