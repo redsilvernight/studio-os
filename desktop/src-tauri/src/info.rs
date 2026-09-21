@@ -18,10 +18,31 @@ pub const P2_CAPABILITIES: &[&str] = &["daemon.control", "identity.view"];
 /// is simply absent instead of failing the handshake.
 pub const OPTIONAL_CAPABILITIES: &[&str] = &["daemon.health"];
 
+/// Additive Wave 2 capabilities (P6 Knowledge, P7 Code Graph). Offered but
+/// never required: a daemon without local features answers `compatible_degraded`
+/// and the graph views simply report the source as unavailable.
+pub const LOCAL_FEATURE_CAPABILITIES: &[&str] = &[
+    "knowledge.read",
+    "knowledge.graph",
+    "knowledge.index",
+    "code_graph.read",
+    "code_graph.graph",
+    "code_graph.index",
+];
+
 fn offered_capabilities() -> Vec<&'static str> {
     P2_CAPABILITIES
         .iter()
         .chain(OPTIONAL_CAPABILITIES.iter())
+        .chain(LOCAL_FEATURE_CAPABILITIES.iter())
+        .copied()
+        .collect()
+}
+
+fn optional_capabilities() -> Vec<&'static str> {
+    OPTIONAL_CAPABILITIES
+        .iter()
+        .chain(LOCAL_FEATURE_CAPABILITIES.iter())
         .copied()
         .collect()
 }
@@ -49,7 +70,7 @@ pub fn peer_info() -> Value {
         "server_origin": null,
         "capabilities": offered_capabilities(),
         "required_capabilities": P2_CAPABILITIES,
-        "optional_capabilities": OPTIONAL_CAPABILITIES,
+        "optional_capabilities": optional_capabilities(),
         "optional_components": []
     })
 }
@@ -108,6 +129,28 @@ mod tests {
             .as_array()
             .unwrap()
             .contains(&json!("daemon.health")));
-        assert_eq!(peer["optional_capabilities"], json!(["daemon.health"]));
+        assert!(peer["optional_capabilities"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("daemon.health")));
+    }
+
+    #[test]
+    fn local_feature_capabilities_are_optional_and_never_required() {
+        let peer = peer_info();
+        for capability in LOCAL_FEATURE_CAPABILITIES {
+            assert!(peer["capabilities"]
+                .as_array()
+                .unwrap()
+                .contains(&json!(capability)));
+            assert!(!peer["required_capabilities"]
+                .as_array()
+                .unwrap()
+                .contains(&json!(capability)));
+            assert!(peer["optional_capabilities"]
+                .as_array()
+                .unwrap()
+                .contains(&json!(capability)));
+        }
     }
 }

@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
@@ -52,6 +52,7 @@ from studio_client.watchers import GitChangeListener, PollingWatcher
 _LOGGER = logging.getLogger("studio_client.daemon.runtime")
 
 WorkspaceSource = Callable[[ProfileRef], Sequence[WorkspaceWatchLike]]
+WorkspaceRefreshListener = Callable[[], Awaitable[None]]
 DEFAULT_WORKSPACE_SYNC_SECONDS = 15.0
 
 
@@ -140,8 +141,10 @@ class DaemonRuntime:
         workspace_source: WorkspaceSource | None = None,
         workspace_sync_seconds: float = DEFAULT_WORKSPACE_SYNC_SECONDS,
         git_change_listener: GitChangeListener | None = None,
+        workspace_refresh_listener: WorkspaceRefreshListener | None = None,
     ) -> None:
         self._git_change_listener = git_change_listener
+        self._workspace_refresh_listener = workspace_refresh_listener
         if config.machine_id is None:
             raise ValueError("ClientConfig.machine_id must be set to run the daemon")
         self.config = config
@@ -237,6 +240,11 @@ class DaemonRuntime:
         except Exception:  # noqa: BLE001
             _LOGGER.warning("workspace source unreadable; keeping current watchers", exc_info=True)
             return []
+        if self._workspace_refresh_listener is not None:
+            try:
+                await self._workspace_refresh_listener()
+            except Exception:  # noqa: BLE001
+                _LOGGER.warning("workspace refresh listener failed", exc_info=True)
         return await self.reconcile_workspace_watchers(list(workspaces))
 
     async def _workspace_sync_loop(self) -> None:

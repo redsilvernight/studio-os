@@ -13,8 +13,10 @@ const ALLOWLIST_JSON: &str = include_str!("../../../contracts/local/allowlist.js
 
 pub const PROTOCOL: &str = "studio.local/v1";
 
-/// Commands implemented by the P4 daemon. Workspace and knowledge operations
-/// remain owned by their later lanes and are not routed to this process.
+/// Commands implemented by the daemon. Workspace, harness and publication
+/// operations remain owned by their later lanes and are not routed to this
+/// process; Knowledge (P6) and Code Graph (P7) are served by the daemon behind
+/// the `CodeGraphProvider`/`VaultKnowledgeProvider` boundary.
 pub const SERVED_BY_DAEMON: &[&str] = &[
     "runtime.handshake",
     "daemon.status",
@@ -24,6 +26,17 @@ pub const SERVED_BY_DAEMON: &[&str] = &[
     "daemon.restart",
     "daemon.health",
     "identity.get_view",
+    "knowledge.status",
+    "knowledge.search",
+    "knowledge.get_document",
+    "knowledge.graph_page",
+    "knowledge.graph_expand",
+    "knowledge.reindex",
+    "code_graph.status",
+    "code_graph.find_symbols",
+    "code_graph.graph_page",
+    "code_graph.graph_expand",
+    "code_graph.reindex",
 ];
 
 #[derive(Debug, Clone, Deserialize)]

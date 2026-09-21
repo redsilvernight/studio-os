@@ -14,7 +14,7 @@ export const MAX_LOADED_EDGES = 10000;
 export const nodeKey = (ref: GraphNodeRef): string => JSON.stringify([ref.source_id, ref.node_id]);
 export const nodeRef = (node: GraphNode): GraphNodeRef => ({ source_id: node.provenance.source_id, node_id: node.node_id });
 
-const nodeKinds: Record<GraphSource["kind"], readonly NodeKind[]> = {
+export const nodeKindsBySource: Record<GraphSource["kind"], readonly NodeKind[]> = {
   knowledge: ["document", "heading", "tag"],
   code: ["file", "package", "module", "class", "function"],
   projection: [],
@@ -49,7 +49,7 @@ export function parseGraphPage(raw: unknown): GraphPage {
   if (source.kind === "projection" ? members.size !== 2 : members.size !== 0) invalid();
   if (page.truncated && !page.next_cursor && frontier.size === 0) invalid();
   for (const node of nodes) {
-    if (!nodeKinds[source.kind].includes(node.kind) || node.provenance.source_id !== source.source_id) invalid();
+    if (!nodeKindsBySource[source.kind].includes(node.kind) || node.provenance.source_id !== source.source_id) invalid();
     checkLocalReference(node.uri);
   }
   for (const item of [...nodes, ...edges]) {

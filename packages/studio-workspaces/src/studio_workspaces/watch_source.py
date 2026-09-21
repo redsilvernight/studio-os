@@ -6,6 +6,7 @@ from pathlib import Path
 from uuid import UUID
 
 from studio_contracts.local.identity import ProfileRef
+from studio_contracts.local.workspace import LocalWorkspaceConfig
 
 from studio_workspaces.daemon_config import WatchPlan, daemon_watch_plan
 from studio_workspaces.root_confirmation import RootConfirmationService
@@ -20,6 +21,7 @@ class WorkspaceWatchEntry:
 
 
 WatchSource = Callable[[ProfileRef], list[WorkspaceWatchEntry]]
+ConfigSource = Callable[[ProfileRef], list[LocalWorkspaceConfig]]
 
 
 def registry_watch_source(registry_dir: Path) -> WatchSource:
@@ -30,5 +32,17 @@ def registry_watch_source(registry_dir: Path) -> WatchSource:
             WorkspaceWatchEntry(config.workspace_id, config.project_id, daemon_watch_plan(config))
             for config in store.list_workspaces(profile)
         ]
+
+    return source
+
+
+def registry_config_source(registry_dir: Path) -> ConfigSource:
+    """The full stored configuration of each workspace of a profile, for the
+    daemon's local features. Reads only the machine-local registry — never the
+    server, never the repository."""
+    store = WorkspaceStore(registry_dir, RootConfirmationService())
+
+    def source(profile: ProfileRef) -> list[LocalWorkspaceConfig]:
+        return list(store.list_workspaces(profile))
 
     return source

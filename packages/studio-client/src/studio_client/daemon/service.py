@@ -23,6 +23,7 @@ from studio_contracts.local.bridge import (
     BridgeResponse,
     check_capability,
 )
+from studio_contracts.local.code_graph import CodeReindexRequest, CodeSymbolQuery
 from studio_contracts.local.common import (
     MAX_MESSAGE_BYTES,
     ComponentId,
@@ -42,6 +43,7 @@ from studio_contracts.local.daemon_control import (
     DaemonStatus,
     instance_lock_key,
 )
+from studio_contracts.local.graph import GraphExpandRequest, GraphPageRequest
 from studio_contracts.local.handshake import (
     HandshakeRequest,
     HandshakeResponse,
@@ -57,9 +59,20 @@ from studio_contracts.local.identity import (
     SecretStatus,
     SecretStore,
 )
+from studio_contracts.local.knowledge import (
+    KnowledgeGetDocumentRequest,
+    KnowledgeReindexRequest,
+    KnowledgeSearchRequest,
+)
+from studio_contracts.local.workspace import WorkspaceScope
 
 from studio_client.config import ClientConfig, default_config_path
 from studio_client.daemon.desktop_origin import DesktopOriginError, desktop_client_config
+from studio_client.daemon.local_features import (
+    FEATURE_CAPABILITIES,
+    LocalFeatureError,
+    LocalFeatureRegistry,
+)
 from studio_client.daemon.logging import configure_daemon_logging
 from studio_client.daemon.runtime import (
     AlreadyRunningError,
@@ -81,6 +94,32 @@ SERVED = frozenset(
         BridgeCommand.DAEMON_RESTART,
         BridgeCommand.DAEMON_HEALTH,
         BridgeCommand.IDENTITY_GET_VIEW,
+        BridgeCommand.KNOWLEDGE_STATUS,
+        BridgeCommand.KNOWLEDGE_SEARCH,
+        BridgeCommand.KNOWLEDGE_GET_DOCUMENT,
+        BridgeCommand.KNOWLEDGE_GRAPH_PAGE,
+        BridgeCommand.KNOWLEDGE_GRAPH_EXPAND,
+        BridgeCommand.KNOWLEDGE_REINDEX,
+        BridgeCommand.CODE_GRAPH_STATUS,
+        BridgeCommand.CODE_GRAPH_FIND_SYMBOLS,
+        BridgeCommand.CODE_GRAPH_GRAPH_PAGE,
+        BridgeCommand.CODE_GRAPH_GRAPH_EXPAND,
+        BridgeCommand.CODE_GRAPH_REINDEX,
+    }
+)
+_LOCAL_FEATURE_COMMANDS = frozenset(
+    {
+        BridgeCommand.KNOWLEDGE_STATUS,
+        BridgeCommand.KNOWLEDGE_SEARCH,
+        BridgeCommand.KNOWLEDGE_GET_DOCUMENT,
+        BridgeCommand.KNOWLEDGE_GRAPH_PAGE,
+        BridgeCommand.KNOWLEDGE_GRAPH_EXPAND,
+        BridgeCommand.KNOWLEDGE_REINDEX,
+        BridgeCommand.CODE_GRAPH_STATUS,
+        BridgeCommand.CODE_GRAPH_FIND_SYMBOLS,
+        BridgeCommand.CODE_GRAPH_GRAPH_PAGE,
+        BridgeCommand.CODE_GRAPH_GRAPH_EXPAND,
+        BridgeCommand.CODE_GRAPH_REINDEX,
     }
 )
 _LOGGER = logging.getLogger("studio_client.daemon.service")
@@ -101,10 +140,12 @@ class DaemonController:
         *,
         data_root: Path | None = None,
         workspace_source: WorkspaceSource | None = None,
+        local_features: LocalFeatureRegistry | None = None,
     ) -> None:
         self.config = config
         self.data_root = data_root or default_config_path().parent
         self._workspace_source = workspace_source
+        self.local_features = local_features
         self._runtime: DaemonRuntime | None = None
         self._thread: threading.Thread | None = None
         self._failure: BaseException | None = None
@@ -295,6 +336,11 @@ class DaemonController:
             server_origin=server_origin(self.config.api_base_url),
         )
 
+    async def _refresh_local_features(self) -> None:
+        features = self.local_features
+        if features is not None:
+            await features.refresh_async(self._profile())
+
     def _start_or_attach(self, request: DaemonControlRequest) -> DaemonControlResult:
         with self._lock:
             if self._thread is not None and self._thread.is_alive():
@@ -322,6 +368,12 @@ class DaemonController:
                 data_root=self.data_root,
                 ownership=DaemonOwnership.DESKTOP_STARTED,
                 workspace_source=self._workspace_source,
+                git_change_listener=(
+                    None if self.local_features is None else self.local_features.on_git_change
+                ),
+                workspace_refresh_listener=(
+                    None if self.local_features is None else self._refresh_local_features
+                ),
             )
             self._runtime = runtime
             self._failure = None
@@ -420,6 +472,13 @@ class BridgeService:
         capability_error = check_capability(request.command, self._granted_capabilities)
         if capability_error is not None:
             return self._local_error(request, capability_error)
+        if request.command in _LOCAL_FEATURE_COMMANDS and self.controller.local_features is None:
+            return self._error(
+                request,
+                request.correlation_id,
+                LocalErrorCode.NOT_SUPPORTED,
+                "This daemon does not host local knowledge or code graph features.",
+            )
         try:
             payload = self._answer(request)
         except (ValidationError, ValueError):
@@ -429,6 +488,8 @@ class BridgeService:
                 LocalErrorCode.INVALID_REQUEST,
                 "The request payload is invalid.",
             )
+        except LocalFeatureError as error:
+            return self._local_error(request, error.error)
         except OutboxIdentityError:
             return self._error(
                 request,
@@ -479,7 +540,16 @@ class BridgeService:
                             "maximum": {"major": 1, "minor": 0},
                         },
                         "component_version": DAEMON_VERSION,
-                        "capabilities": ["daemon.control", "daemon.health", "identity.view"],
+                        "capabilities": [
+                            "daemon.control",
+                            "daemon.health",
+                            "identity.view",
+                            *(
+                                FEATURE_CAPABILITIES
+                                if self.controller.local_features is not None
+                                else ()
+                            ),
+                        ],
                     }
                 ),
                 correlation_id=request.correlation_id,
@@ -488,7 +558,37 @@ class BridgeService:
             return self.controller.health(DaemonHealthRequest.model_validate(request.payload))
         if request.command is BridgeCommand.IDENTITY_GET_VIEW:
             return self.controller.identity_view()
+        if request.command in _LOCAL_FEATURE_COMMANDS:
+            return self._local_feature(request)
         return self.controller.control(DaemonControlRequest.model_validate(request.payload))
+
+    def _local_feature(self, request: BridgeRequest) -> LocalContractModel:
+        features = self.controller.local_features
+        assert features is not None
+        payload = request.payload
+        if request.command is BridgeCommand.KNOWLEDGE_STATUS:
+            return features.knowledge_status(WorkspaceScope.model_validate(payload))
+        if request.command is BridgeCommand.KNOWLEDGE_SEARCH:
+            return features.knowledge_search(KnowledgeSearchRequest.model_validate(payload))
+        if request.command is BridgeCommand.KNOWLEDGE_GET_DOCUMENT:
+            return features.knowledge_get_document(
+                KnowledgeGetDocumentRequest.model_validate(payload)
+            )
+        if request.command is BridgeCommand.KNOWLEDGE_GRAPH_PAGE:
+            return features.knowledge_graph_page(GraphPageRequest.model_validate(payload))
+        if request.command is BridgeCommand.KNOWLEDGE_GRAPH_EXPAND:
+            return features.knowledge_graph_expand(GraphExpandRequest.model_validate(payload))
+        if request.command is BridgeCommand.KNOWLEDGE_REINDEX:
+            return features.knowledge_reindex(KnowledgeReindexRequest.model_validate(payload))
+        if request.command is BridgeCommand.CODE_GRAPH_STATUS:
+            return features.code_graph_status(WorkspaceScope.model_validate(payload))
+        if request.command is BridgeCommand.CODE_GRAPH_FIND_SYMBOLS:
+            return features.code_graph_search_symbols(CodeSymbolQuery.model_validate(payload))
+        if request.command is BridgeCommand.CODE_GRAPH_GRAPH_PAGE:
+            return features.code_graph_graph_page(GraphPageRequest.model_validate(payload))
+        if request.command is BridgeCommand.CODE_GRAPH_GRAPH_EXPAND:
+            return features.code_graph_graph_expand(GraphExpandRequest.model_validate(payload))
+        return features.code_graph_reindex(CodeReindexRequest.model_validate(payload))
 
     @staticmethod
     def _error(
@@ -656,7 +756,10 @@ def serve_streams(
         destination.flush()
 
 
-def main(workspace_source: WorkspaceSource | None = None) -> int:
+def main(
+    workspace_source: WorkspaceSource | None = None,
+    local_features: LocalFeatureRegistry | None = None,
+) -> int:
     data_root = default_config_path().parent
     configure_daemon_logging(data_root)
     try:
@@ -665,7 +768,14 @@ def main(workspace_source: WorkspaceSource | None = None) -> int:
         _LOGGER.error("refusing to start: the desktop server origin is invalid")
         return 2
     config = desktop_config or ClientConfig()  # type: ignore[call-arg]
-    controller = DaemonController(config, data_root=data_root, workspace_source=workspace_source)
+    controller = DaemonController(
+        config,
+        data_root=data_root,
+        workspace_source=workspace_source,
+        local_features=local_features,
+    )
+    if local_features is not None:
+        local_features.start(controller._profile())
     service = SharedBridgeService(controller)
     persist = os.environ.get("STUDIO_DAEMON_PERSIST") == "1"
     if service._owner and os.environ.get("STUDIO_DAEMON_AUTOSTART") == "1":
@@ -676,6 +786,8 @@ def main(workspace_source: WorkspaceSource | None = None) -> int:
         serve_streams(service, sys.stdin, sys.stdout)
     finally:
         service.close(persist=persist)
+        if local_features is not None:
+            local_features.stop()
     return 0
 
 
