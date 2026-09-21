@@ -17,6 +17,7 @@ class KnowledgeError(Exception):
     INVALID_FRONTMATTER = "invalid_frontmatter"
     GRAPH_MISSING = "graph_missing"
     GRAPH_INVALID = "graph_invalid"
+    INDEX_CORRUPT = "index_corrupt"
     REFRESH_UNSUPPORTED = "refresh_unsupported"
     WRITE_UNSUPPORTED = "write_unsupported"
 

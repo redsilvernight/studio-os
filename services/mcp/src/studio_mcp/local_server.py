@@ -3,11 +3,22 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from uuid import UUID
 
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from studio_client.config import ClientConfig
-from studio_client.knowledge import GraphifyGraphProvider, ScopePolicy, VaultMemoryProvider
+from studio_client.knowledge import (
+    GraphifyGraphProvider,
+    KnowledgeIndex,
+    KnowledgeMemoryProvider,
+    ScopePolicy,
+    VaultKnowledgeProvider,
+    VaultMemoryProvider,
+    knowledge_service_from_workspace,
+)
+from studio_contracts.local.knowledge import KnowledgeReindexRequest
+from studio_contracts.local.workspace import LocalWorkspaceConfig
 
 from studio_mcp.local_tools import make_graph_query, make_memory_read, make_memory_search
 
@@ -85,6 +96,68 @@ def create_local_server_from_config(config: ClientConfig) -> MCPServer:
         scope_allow=config.knowledge_scope_allow,
         graph_dir=config.knowledge_graph_dir,
         source_root=config.knowledge_source_root,
+    )
+
+
+def create_local_server_from_knowledge(
+    *,
+    workspace_id: UUID,
+    vault_root: Path,
+    cache_dir: Path,
+    scope_allow: tuple[str, ...] = (),
+    graph_dir: Path | None = None,
+    source_root: Path | None = None,
+    index_now: bool = False,
+) -> MCPServer:
+    """Local server whose memory tools read the *derived index* of a connected
+    vault instead of rescanning files on every call. Same tools, same read-only
+    scope semantics (DEC-0042): the index only ever answers within
+    `scope_allow`, and nothing leaves the machine. `index_now` performs one
+    bounded incremental reindex at build time; by default the caller owns the
+    index lifecycle (the daemon's watcher)."""
+    index = KnowledgeIndex(cache_dir / "knowledge-index", workspace_id=workspace_id)
+    provider = VaultKnowledgeProvider(workspace_id=workspace_id, vault_root=vault_root, index=index)
+    if index_now:
+        provider.reindex(KnowledgeReindexRequest(workspace_id=workspace_id))
+    memory = KnowledgeMemoryProvider(provider, scope=ScopePolicy(scope_allow))
+    server = MCPServer(name="studio-os-local")
+    server.add_tool(
+        make_memory_search(memory),
+        name="studio_memory_search",
+        description=MEMORY_SEARCH_DESCRIPTION,
+        annotations=_READ_ONLY,
+    )
+    server.add_tool(
+        make_memory_read(memory),
+        name="studio_memory_read",
+        description=MEMORY_READ_DESCRIPTION,
+        annotations=_READ_ONLY,
+    )
+    if graph_dir is not None:
+        graph = GraphifyGraphProvider(graph_dir, source_root=source_root)
+        server.add_tool(
+            make_graph_query(graph),
+            name="studio_graph_query",
+            description=GRAPH_QUERY_DESCRIPTION,
+            annotations=_READ_ONLY,
+        )
+    return server
+
+
+def create_local_server_from_workspace(
+    config: LocalWorkspaceConfig, *, cache_dir: Path, index_now: bool = False
+) -> MCPServer:
+    """Same as `create_local_server_from_knowledge`, but the vault, the provider
+    and the index come from the P5 workspace configuration — a workspace with
+    the knowledge feature off yields a server without memory tools."""
+    service = knowledge_service_from_workspace(config, cache_dir=cache_dir)
+    if service is None:
+        return MCPServer(name="studio-os-local")
+    return create_local_server_from_knowledge(
+        workspace_id=service.workspace_id,
+        vault_root=service.vault_root,
+        cache_dir=cache_dir,
+        index_now=index_now,
     )
 
 
