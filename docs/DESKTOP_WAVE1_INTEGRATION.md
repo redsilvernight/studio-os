@@ -133,6 +133,7 @@ identiques sur `origin/master` : dette héritée, hors périmètre.
 | Tests `tests/client` async exigent PostgreSQL même quand inutile | Dette de test |
 | `optional_capabilities` du fixture de poignée de main non trié (`fixtures.py`) | Mineur |
 | Deux erreurs mypy héritées de `origin/master` | Dette master |
+| Mineurs de la revue finale : `WorkspaceWatchSet.health()` lit `_running` sans verrou depuis le thread du pont (sûr sous GIL) ; `connect_read_only` non testé sur un data root UNC ; `summarizeDaemonAnswer` accepte des clés du prototype (`Object.hasOwn`) | Lot Wave 1b |
 
 ## 9. Décisions
 
