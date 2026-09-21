@@ -74,8 +74,12 @@ def _new_id() -> str:
     return f"daemon-{uuid.uuid4().hex[:16]}"
 
 
-def _local_error(code: LocalErrorCode, message: str, cid: str | None, component: ComponentId) -> LocalError:
-    return LocalError(code=code, message=message, component=component, retryable=False, correlation_id=cid)
+def _local_error(
+    code: LocalErrorCode, message: str, cid: str | None, component: ComponentId
+) -> LocalError:
+    return LocalError(
+        code=code, message=message, component=component, retryable=False, correlation_id=cid
+    )
 
 
 def _peer() -> PeerInfo:
@@ -123,18 +127,28 @@ def identity_view(cid: str) -> IdentityView:
     if not keyring_roundtrip():
         status = SecretStatus.KEYRING_UNAVAILABLE
         error = _local_error(
-            LocalErrorCode.KEYRING_UNAVAILABLE, "The OS keyring is not usable.", cid, ComponentId.SECRET_STORE
+            LocalErrorCode.KEYRING_UNAVAILABLE,
+            "The OS keyring is not usable.",
+            cid,
+            ComponentId.SECRET_STORE,
         )
     elif _real_secret_present():
         status, error = SecretStatus.PRESENT, None
     else:
         status = SecretStatus.ABSENT
         error = _local_error(
-            LocalErrorCode.SECRET_ABSENT, "No machine credential is stored.", cid, ComponentId.SECRET_STORE
+            LocalErrorCode.SECRET_ABSENT,
+            "No machine credential is stored.",
+            cid,
+            ComponentId.SECRET_STORE,
         )
     return IdentityView(
         profile=PROFILE,
-        secrets=[SecretReferenceStatus(reference=reference, status=status, checked_at=_now(), error=error)],
+        secrets=[
+            SecretReferenceStatus(
+                reference=reference, status=status, checked_at=_now(), error=error
+            )
+        ],
     )
 
 
@@ -153,38 +167,48 @@ def daemon_status(request: DaemonControlRequest) -> DaemonControlResult:
         instance=instance,
         negotiated={"major": 1, "minor": 0},
     )
-    return DaemonControlResult(action=request.action, outcome=DaemonControlOutcome.OK, status=status)
+    return DaemonControlResult(
+        action=request.action, outcome=DaemonControlOutcome.OK, status=status
+    )
 
 
 def answer(request: BridgeRequest) -> dict[str, Any]:
     cid = request.correlation_id
     command = request.command.value
     if command == "runtime.handshake":
-        payload = negotiate(HandshakeRequest.model_validate(request.payload), _peer(), correlation_id=cid)
+        payload = negotiate(
+            HandshakeRequest.model_validate(request.payload), _peer(), correlation_id=cid
+        )
     elif command == "daemon.status":
         payload = daemon_status(DaemonControlRequest.model_validate(request.payload))
     elif command == "identity.get_view":
         payload = identity_view(cid)
     else:
         raise LookupError(command)
-    return BridgeResponse(
+    message = BridgeResponse(
         message_id=_new_id(),
         correlation_id=cid,
         request_id=request.message_id,
         sent_at=_now(),
         command=request.command,
         payload=payload.model_dump(mode="json"),
-    ).model_dump(mode="json")
+    )
+    dumped: dict[str, Any] = message.model_dump(mode="json")
+    return dumped
 
 
-def error(code: LocalErrorCode, message: str, request: BridgeRequest | None, cid: str | None) -> dict[str, Any]:
-    return BridgeErrorMessage(
+def error(
+    code: LocalErrorCode, message: str, request: BridgeRequest | None, cid: str | None
+) -> dict[str, Any]:
+    envelope = BridgeErrorMessage(
         message_id=_new_id(),
         correlation_id=cid or "unknown",
         request_id=request.message_id if request else None,
         sent_at=_now(),
         error=_local_error(code, message, cid, ComponentId.DAEMON),
-    ).model_dump(mode="json")
+    )
+    dumped: dict[str, Any] = envelope.model_dump(mode="json")
+    return dumped
 
 
 def handle_line(line: str) -> dict[str, Any]:
@@ -197,13 +221,19 @@ def handle_line(line: str) -> dict[str, Any]:
     try:
         request = BridgeRequest.model_validate(raw)
     except ValidationError:
-        return error(LocalErrorCode.INVALID_REQUEST, "The request violates studio.local/v1.", None, cid)
+        return error(
+            LocalErrorCode.INVALID_REQUEST, "The request violates studio.local/v1.", None, cid
+        )
     if request.command.value not in SERVED:
-        return error(LocalErrorCode.NOT_SUPPORTED, "Command not served by the P2 spike.", request, cid)
+        return error(
+            LocalErrorCode.NOT_SUPPORTED, "Command not served by the P2 spike.", request, cid
+        )
     try:
         return answer(request)
     except ValidationError:
-        return error(LocalErrorCode.INVALID_REQUEST, "The payload violates its P1 model.", request, cid)
+        return error(
+            LocalErrorCode.INVALID_REQUEST, "The payload violates its P1 model.", request, cid
+        )
     except Exception:  # noqa: BLE001 - never leak internals over the bridge
         return error(LocalErrorCode.INTERNAL_ERROR, "The spike failed to answer.", request, cid)
 

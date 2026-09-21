@@ -49,6 +49,7 @@ pub fn lookup(command: &str) -> Option<&'static CommandSpec> {
     table().get(command)
 }
 
+#[cfg(test)]
 pub fn all_commands() -> Vec<&'static str> {
     let mut names: Vec<&str> = table().keys().map(String::as_str).collect();
     names.sort_unstable();
@@ -56,7 +57,7 @@ pub fn all_commands() -> Vec<&'static str> {
 }
 
 pub fn is_served_in_p2(command: &str) -> bool {
-    SERVED_IN_P2.contains(&command)
+    SERVED_IN_P2.contains(&command) && lookup(command).is_some_and(|spec| !spec.mutating)
 }
 
 #[cfg(test)]
