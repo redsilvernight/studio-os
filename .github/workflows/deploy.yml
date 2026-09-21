@@ -29,6 +29,7 @@ env:
   DEPLOY_DIR: ${{ vars.STUDIO_DEPLOY_DIR || 'C:\Users\redsi\studio-os-deploy' }}
   BRANCH: deploy/flo-laptop
   REPO: ${{ github.repository }}
+  COMPOSE_PROJECT_NAME: studio-os
 
 jobs:
   deploy:

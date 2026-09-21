@@ -27,6 +27,7 @@ param(
     [string]$DeployDir = 'C:\Users\redsi\studio-os-deploy',
     [string]$Branch = 'deploy/flo-laptop',
     [string]$Remote = 'origin',
+    [string]$ComposeProject = 'studio-os',
     [string]$StateDir = (Join-Path $env:LOCALAPPDATA 'studio-os-deploy'),
     [int]$HealthTimeoutSeconds = 180,
     [switch]$Force
@@ -47,9 +48,20 @@ function Write-Log([string]$Message) {
 }
 
 function Invoke-Git([string[]]$GitArgs) {
-    $out = & git -C $DeployDir @GitArgs 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        throw "git $($GitArgs -join ' ') failed ($LASTEXITCODE): $out"
+    # Native tools write normal progress to stderr; merging it into the output
+    # stream under $ErrorActionPreference='Stop' raises a NativeCommandError,
+    # so relax it just for the call and decide on the real exit code.
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $out = & git -C $DeployDir @GitArgs 2>&1
+        $code = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previous
+    }
+    if ($code -ne 0) {
+        throw "git $($GitArgs -join ' ') failed ($code): $($out -join [Environment]::NewLine)"
     }
     return $out
 }
@@ -90,15 +102,15 @@ try {
     Set-Location -LiteralPath (Join-Path $DeployDir 'docker')
 
     Write-Log 'building images (api, mcp, dashboard)'
-    & docker compose build api mcp dashboard
+    & docker compose -p $ComposeProject build api mcp dashboard
     if ($LASTEXITCODE -ne 0) { throw "docker compose build failed ($LASTEXITCODE)" }
 
     Write-Log 'applying database migrations'
-    & docker compose run --rm api alembic upgrade head
+    & docker compose -p $ComposeProject run --rm --no-deps api alembic upgrade head
     if ($LASTEXITCODE -ne 0) { throw "alembic upgrade failed ($LASTEXITCODE)" }
 
     Write-Log 'recreating application services'
-    & docker compose up -d --no-deps api mcp dashboard
+    & docker compose -p $ComposeProject up -d --no-deps api mcp dashboard
     if ($LASTEXITCODE -ne 0) { throw "docker compose up failed ($LASTEXITCODE)" }
 
     Write-Log "waiting for API health (max ${HealthTimeoutSeconds}s)"
@@ -128,8 +140,8 @@ catch {
         try {
             Invoke-Git @('reset', '--hard', $prev) | Out-Null
             Set-Location -LiteralPath (Join-Path $DeployDir 'docker')
-            & docker compose build api mcp dashboard
-            & docker compose up -d --no-deps api mcp dashboard
+            & docker compose -p $ComposeProject build api mcp dashboard
+            & docker compose -p $ComposeProject up -d --no-deps api mcp dashboard
             Write-Log "code rolled back to $prev (migrations were NOT reverted)"
         }
         catch {

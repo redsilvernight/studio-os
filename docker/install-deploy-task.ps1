@@ -16,6 +16,7 @@
 param(
     [string]$DeployDir = 'C:\Users\redsi\studio-os-deploy',
     [string]$Branch = 'deploy/flo-laptop',
+    [string]$ComposeProject = 'studio-os',
     [int]$IntervalMinutes = 5,
     [string]$TaskName = 'StudioOS-DeployPoll',
     [switch]$RunNow
@@ -27,7 +28,7 @@ $script = Join-Path $DeployDir 'docker\deploy-poll.ps1'
 if (-not (Test-Path -LiteralPath $script)) { throw "deploy-poll.ps1 not found at $script" }
 
 $argument = '-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass ' +
-    "-File `"$script`" -DeployDir `"$DeployDir`" -Branch `"$Branch`""
+    "-File `"$script`" -DeployDir `"$DeployDir`" -Branch `"$Branch`" -ComposeProject `"$ComposeProject`""
 
 $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $argument `
     -WorkingDirectory (Join-Path $DeployDir 'docker')
