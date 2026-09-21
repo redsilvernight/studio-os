@@ -16,7 +16,7 @@ dashboard/ (Vite, inchangé fonctionnellement)      desktop/ (nouveau, coquille 
 ```
 
 - Le Dashboard est **réutilisé tel quel** : `desktop/scripts/build.mjs` construit le Dashboard existant dans `desktop/.build/dashboard`, que Tauri embarque (`frontendDist`). Aucun fork, aucune logique métier copiée.
-- Mode web : `getPlatform()` renvoie l'adaptateur web quand `window.__TAURI__.core.invoke` est absent. Le build web n'importe ni Tauri, ni daemon, ni WebView2.
+- Mode web : `getPlatform()` renvoie l'adaptateur web quand `window.__TAURI__.core.invoke` est absent. Le build web n'importe ni Tauri, ni daemon, ni WebView2 : `desktop.ts` reste dans le bundle web mais ne contient que la détection de `__TAURI__`.
 - Mode Desktop : `desktop.ts` appelle exclusivement deux commandes applicatives Tauri : `desktop_info` et `bridge_request`.
 - Le shell Rust ne contient **aucune logique métier** : il valide l'enveloppe P1, applique l'allowlist, relaie au sidecar en stdio et remonte l'état du processus.
 
@@ -123,6 +123,8 @@ npm run dev                         # Vite + fenêtre Tauri
 npm run gate                        # build avec sidecar puis E2E réel (~2 min)
 ```
 
+Le PASS repose sur le worktree ; aucune build depuis un clone vierge n'a été rejouée. `gate_stack.py` utilise par défaut les identifiants Postgres de développement local (`STUDIO_GATE_PG_ADMIN_URL` pour les remplacer) ; ce n'est pas un secret réel.
+
 Limite : `RC.EXE` ne lit pas un chemin d'icône contenant une apostrophe (dépôt `Studi'os`). `build.rs` copie donc les icônes dans un dossier temporaire ; sur un chemin sans apostrophe le contournement est inerte.
 
 ## 10. Tests
@@ -155,7 +157,7 @@ Qualification : **automatisés** — toutes les lignes ci-dessus. **Manuel/inspe
 | Authentification | PASS | 401/200, jeton en mémoire | — | P3 |
 | SSE | PASS | flux ouvert, trame reçue | reconnexion non éprouvée hors Dashboard existant | — |
 | Origine/CORS | PASS | exacte, jamais `*`, autre origine refusée | config serveur de prod à décider | humain |
-| Navigation sûre | PASS | 7 cibles refusées (5 schémas + identifiants + about/blob), popups refusés, http externe hors WebView | remise système : test unitaire | — |
+| Navigation sûre | PASS | 7 cibles refusées (4 schémas + identifiants + about + blob), popups refusés, http externe hors WebView | remise système : test unitaire | — |
 | Capabilities Tauri | PASS | 2 permissions, table §5 | — | — |
 | Build Windows | PASS | `npm run gate` depuis le worktree | contournement RC.EXE (apostrophe) | P10 (installateur) |
 | Indépendance du Dashboard web | PASS | build web sans Tauri, `confinement.test.ts`, Playwright 172 | — | — |
