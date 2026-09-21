@@ -14,6 +14,7 @@ members = [
     "studio-contracts",
     "studio-mcp",
     "studio-os",
+    "studio-workspaces",
 ]
 
 [[package]]
@@ -1679,6 +1680,17 @@ dev = [
     { name = "ruff", specifier = ">=0.16.7" },
     { name = "types-pyyaml", specifier = ">=6.0" },
 ]
+
+[[package]]
+name = "studio-workspaces"
+version = "0.1.0"
+source = { editable = "packages/studio-workspaces" }
+dependencies = [
+    { name = "studio-contracts" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "studio-contracts", editable = "packages/studio-contracts" }]
 
 [[package]]
 name = "truststore"
