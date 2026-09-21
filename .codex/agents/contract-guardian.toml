@@ -844,7 +844,7 @@ following this process silently breaks whichever Bloc isn't in this conversation
 4. Update both Blocs' mocks/fixtures so the side not present in this conversation isn't left with a stale mock — see `IMPLEMENTATION/04_INTEGRATION_CHECKLIST.md`.
 5. If the change reflects a real architectural choice (not just a clarification), record a Decision (`DEC-XXXX`) per `AI/01_AI_OPERATING_REFERENCE.md` rather than letting it live only in a commit message.
 6. For anything non-trivial, dispatch the `contract-guardian` agent to double-check the additive/breaking classification before merging.
-7. Emit the relevant event / log the AIWorkLog entry for the change, per the AI task cycle in the root `AGENTS.md`.
+7. Emit the relevant event / log the AIWorkLog entry for the change, via `studio_log_ai_work` (see the `studio-handoff` skill).
 
 ## Don't
 

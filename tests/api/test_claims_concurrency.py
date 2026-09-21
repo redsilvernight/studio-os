@@ -67,8 +67,8 @@ async def real_client(real_engine: AsyncEngine) -> AsyncIterator[AsyncClient]:
 async def test_concurrent_claims_on_same_resource_never_block(
     real_engine: AsyncEngine, real_client: AsyncClient
 ) -> None:
-    """Non-negotiable project invariant (CLAUDE.md: 'Les Resource Claims
-    avertissent mais ne bloquent jamais Git') under genuine concurrency, not
+    """Non-negotiable project invariant (`.agents/rules/database.md`:
+    a ResourceClaim warns, it never blocks Git) under genuine concurrency, not
     just sequential calls sharing one session (`tests/api/test_claims.py`):
     N callers claiming the identical resource_path at the same real instant
     must all succeed as `active` claims. Conflict detection
