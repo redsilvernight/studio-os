@@ -107,7 +107,7 @@ Vérifié en réel depuis le Desktop empaqueté (origine `http://tauri.localhost
 - SSE : ouverture 200 `text/event-stream`, première trame reçue après émission d'un évènement (jeton machine).
 - CSP : appliquée, 0 violation sur le parcours Dashboard.
 - Erreur réseau : serveur arrêté → erreur visible, formulaire conservé, pas de page blanche.
-- **Décision humaine** : en production l'origine `http://tauri.localhost` doit être ajoutée à `STUDIO_CORS_ORIGINS` du serveur (configuration d'exploitation).
+- **Décision humaine (validée 2026-09-21)** : l'origine Desktop canonique est `http://tauri.localhost` ; elle peut être ajoutée explicitement à `STUDIO_CORS_ORIGINS` des déploiements qui autorisent Studi'OS Desktop. Jamais `*`, aucun élargissement générique (voir §13).
 
 ## 9. Build Windows reproductible
 
@@ -156,13 +156,13 @@ Qualification : **automatisés** — toutes les lignes ci-dessus. **Manuel/inspe
 | REST | PASS | 4 réponses 200 authentifiées | — | — |
 | Authentification | PASS | 401/200, jeton en mémoire | — | P3 |
 | SSE | PASS | flux ouvert, trame reçue | reconnexion non éprouvée hors Dashboard existant | — |
-| Origine/CORS | PASS | exacte, jamais `*`, autre origine refusée | config serveur de prod à décider | humain |
+| Origine/CORS | PASS | exacte, jamais `*`, autre origine refusée | ajout à `STUDIO_CORS_ORIGINS` par déploiement (§13) | exploitation |
 | Navigation sûre | PASS | 7 cibles refusées (4 schémas + identifiants + about + blob), popups refusés, http externe hors WebView | remise système : test unitaire | — |
 | Capabilities Tauri | PASS | 2 permissions, table §5 | — | — |
 | Build Windows | PASS | `npm run gate` depuis le worktree | contournement RC.EXE (apostrophe) | P10 (installateur) |
 | Indépendance du Dashboard web | PASS | build web sans Tauri, `confinement.test.ts`, Playwright 172 | — | — |
 
-Critère : aucun bloqueur architectural ; le seul PARTIAL (daemon simulé) relève légitimement de P4/P10 avec faisabilité démontrée → **TAURI GATE : PARTIAL-ACCEPTED** selon les critères de la demande, à valider par l'humain.
+Critère : aucun bloqueur architectural ; le seul PARTIAL (daemon simulé) relève légitimement de P4/P10 avec faisabilité démontrée → **TAURI GATE : PARTIAL-ACCEPTED** selon les critères de la demande ; **validé par l'humain le 2026-09-21** (§13).
 
 ## 12. Limites et dette reportée
 
@@ -171,3 +171,13 @@ Critère : aucun bloqueur architectural ; le seul PARTIAL (daemon simulé) relè
 - **P5** : onboarding, workflow de confirmation de racine (`WorkspaceSaveConfigRequest.current_roots`, transition none → première racine incluse) — non implémenté ici.
 - **P10** : installateur/bundle, signature, mises à jour, `mypy` de `desktop/`.
 - Mineurs P1 (dialecte glob extglob/segments `.`, messages `\\srv\share`/`D:relative`, cibles sensibles hors liste) : non concernés — P2 ne sert que des commandes en lecture seule sans chemin ni glob ; non modifiés.
+
+## 13. Validation humaine du Gate P2 (2026-09-21)
+
+Gate P2 **validé**. Aucune nouvelle DEC : DEC-0091 reste la décision Tauri canonique.
+
+1. **Tauri 2 — Gate ACCEPTÉ.** Le PARTIAL « daemon simulé » n'est pas bloquant : la faisabilité sidecar/process/protocole est démontrée ; le daemon réel et sa supervision relèvent de P4, le packaging release de P10. Electron reste le seul fallback architectural documenté ; aucun travail Electron ne démarre.
+2. **CORS Desktop.** Origine canonique : `http://tauri.localhost`, ajoutable explicitement à `STUDIO_CORS_ORIGINS` des déploiements concernés. Jamais `*`, pas d'élargissement générique.
+3. **`server_origin` configurable à l'exécution** — UX/configuration : P3. Contraintes : valeur locale non secrète ; validation stricte ; HTTPS attendu en production ; HTTP `localhost`/`127.0.0.1` autorisable en développement ; le bridge ne devient jamais un proxy HTTP générique.
+
+P2 sert de baseline commune aux lanes suivantes (branche `desktop/integration`).
