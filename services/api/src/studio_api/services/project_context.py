@@ -392,6 +392,7 @@ async def _select_library(
     limit: int,
     budget: _Budget,
     omitted: dict[str, int],
+    applicable: frozenset[tuple[str, int]] = frozenset(),
 ) -> tuple[list[LibraryItem], int, bool]:
     """Effective definitions of one textual kind for this project.
 
@@ -399,7 +400,12 @@ async def _select_library(
     filtered — another user's private rows never appear), then each key is
     resolved by `library.resolve_definition` (shadowing User > Project > Studio,
     project locks, unusable versions rejected). Deprecated definitions are not
-    recommended as context and are left out of the counts."""
+    recommended as context and are left out of the counts.
+
+    `applicable` holds `(stable_key, version)` pairs from a resolved agent
+    definition (P3.3): they are kept even without lexical overlap and sort
+    first, flagged `agent_applies` — but they still compete for `limit` and
+    budget. Resolution says what applies; disclosure decides what ships."""
     keys: set[str] = set()
     capped = False
     for scope, scope_project in (("project", project_id), ("studio", None), ("user", None)):
@@ -440,7 +446,8 @@ async def _select_library(
             terms, f"{key} {version_row.title}", f"{version_row.description or ''} {text}"
         )
         scope_value = resolved.scope.value
-        if value == 0 and scope_value != "project":
+        applies = (key, resolved.version) in applicable
+        if value == 0 and scope_value != "project" and not applies:
             continue
         reason: Reason = "lexical" if value > 0 else "project_scope"
         item = LibraryItem(
@@ -452,9 +459,12 @@ async def _select_library(
             version_origin=resolved.version_origin.value,
             text=text,
             why=_why(reason, matched),
+            agent_applies=applies,
         )
-        ranked.append((-value, _SCOPE_RANK.get(scope_value, 9), key, item))
-    ranked.sort(key=lambda entry: entry[:3])
+        ranked.append(
+            (0 if applies else 1, -value, _SCOPE_RANK.get(scope_value, 9), key, item)
+        )
+    ranked.sort(key=lambda entry: entry[:4])
 
     picked: list[LibraryItem] = []
     for *_, item in ranked:
@@ -606,6 +616,26 @@ def _clean_files(files: list[str] | None) -> list[str]:
     return sorted(set(cleaned))
 
 
+async def _applicable_library(
+    session: AsyncSession,
+    principal: Principal,
+    project_id: uuid.UUID,
+    agent_stable_key: str,
+) -> frozenset[tuple[str, int]]:
+    """`(stable_key, version)` pairs the resolved agent definition applies
+    (P3.3). Resolution failures propagate — an unknown agent is a 404, never
+    a silent fallback to lexical-only selection (fail-closed)."""
+    from studio_api.services import resolution as resolution_service
+
+    resolved = await resolution_service.resolve_full(
+        session, principal, LibraryKind.AGENT_DEFINITION, agent_stable_key, project_id
+    )
+    return frozenset(
+        [(r.stable_key, r.version) for r in resolved.rules]
+        + [(s.stable_key, s.version) for s in resolved.skills]
+    )
+
+
 async def prepare_project_context(
     session: AsyncSession,
     principal: Principal,
@@ -615,13 +645,19 @@ async def prepare_project_context(
     files: list[str] | None = None,
     limit: int = DEFAULT_LIMIT,
     max_chars: int = DEFAULT_MAX_CHARS,
+    agent_stable_key: str | None = None,
 ) -> PreparedContext:
     """Select the shared context relevant to `objective` on one project.
 
     Read-only and open to every authenticated role, exactly like the
     `get`/`list` surfaces it composes. Identical shared state and identical
     arguments always produce an identical result (no clock other than claim
-    TTLs, no randomness)."""
+    TTLs, no randomness).
+
+    `agent_stable_key` names the agent working (P3.3): its resolved
+    rules/skills sort first and are flagged `agent_applies`, still bounded
+    by `limit` and budget — resolution says what applies, disclosure
+    decides what ships."""
     objective = objective.strip()
     if not objective or len(objective) > OBJECTIVE_MAX_CHARS:
         raise _invalid(f"objective must be 1..{OBJECTIVE_MAX_CHARS} characters")
@@ -638,6 +674,9 @@ async def prepare_project_context(
     terms = query_terms(objective)
     budget = _Budget(max_chars)
     omitted: dict[str, int] = {}
+    applicable: frozenset[tuple[str, int]] = frozenset()
+    if agent_stable_key is not None:
+        applicable = await _applicable_library(session, principal, project_id, agent_stable_key)
 
     # Cap (400) plus the smallest budget (1000) always leaves the requested
     # task at least MIN_TEXT_CHARS, so the anchor of the request is never refused.
@@ -685,10 +724,12 @@ async def prepare_project_context(
         session, project_id, task_id, terms, limit, budget, omitted
     )
     rules, rules_total, rules_capped = await _select_library(
-        session, principal, project_id, LibraryKind.RULE, terms, limit, budget, omitted
+        session, principal, project_id, LibraryKind.RULE, terms, limit, budget, omitted,
+        applicable,
     )
     skills, skills_total, skills_capped = await _select_library(
-        session, principal, project_id, LibraryKind.SKILL, terms, limit, budget, omitted
+        session, principal, project_id, LibraryKind.SKILL, terms, limit, budget, omitted,
+        applicable,
     )
 
     returned = {

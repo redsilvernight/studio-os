@@ -283,7 +283,10 @@ restent disponibles pour les besoins précis ou avancés.
 Entrée : `project_id` (UUID) et `objective` (1..1000 car.) requis ;
 optionnels `task_id` (doit appartenir au projet, sinon `not_found`),
 `files` (≤ 20 chemins), `limit` (1..20, défaut 5, éléments par catégorie),
-`max_chars` (1000..50000, défaut 12000, budget de texte libre).
+`max_chars` (1000..50000, défaut 12000, budget de texte libre),
+`agent_stable_key` (définition d'agent résolue via le Resolution Engine :
+ses rules/skills applicables trient en premier, `agent_applies: true`,
+toujours bornés par `limit`/budget — P3).
 
 Sortie `PreparedContext | McpError` (enveloppée sous `result`) :
 `project`, `query_terms`, `task`, `related_tasks`, `decisions`, `rules`,

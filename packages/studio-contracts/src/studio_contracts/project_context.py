@@ -125,6 +125,7 @@ class LibraryItem(BaseModel):
     text: str
     truncated: bool = False
     why: Why
+    agent_applies: bool = False
 
 
 class ClaimItem(BaseModel):
