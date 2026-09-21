@@ -151,7 +151,7 @@ def _dump(resolved: ResolvedAgentDefinition) -> str:
 
 
 def test_registry_knows_both_adapters() -> None:
-    assert set(list_adapters()) == {"claude-code", "opencode"}
+    assert set(list_adapters()) == {"claude-code", "opencode", "codex"}
 
 
 def test_unknown_adapter_is_structured_error() -> None:
@@ -162,7 +162,7 @@ def test_unknown_adapter_is_structured_error() -> None:
 
 
 def test_invalid_canonical_type_is_structured_error() -> None:
-    for adapter_id in ("claude-code", "opencode"):
+    for adapter_id in ("claude-code", "opencode", "codex"):
         with pytest.raises(AdapterError) as exc_info:
             get_adapter(adapter_id).translate({"not": "canonical"})  # type: ignore[arg-type]
         assert exc_info.value.code == AdapterErrorCode.INVALID_CANONICAL
@@ -280,12 +280,16 @@ def test_no_provider_model_branching(provider: str, model: str) -> None:
     assert resolved.runtime is not None
     resolved.runtime.target.provider_ref = provider
     resolved.runtime.target.model_ref = model
-    for adapter_id in ("claude-code", "opencode"):
+    for adapter_id in ("claude-code", "opencode", "codex"):
         result = get_adapter(adapter_id).translate(resolved)
         assert provider in result.artifacts[0].content
         assert model in result.artifacts[0].content
         assert result.artifacts[0].path.startswith(
-            ".claude/agents/" if adapter_id == "claude-code" else ".opencode/agents/"
+            {  # P3: third adapter joins the gate
+                "claude-code": ".claude/agents/",
+                "opencode": ".opencode/agents/",
+                "codex": ".codex/agents/",
+            }[adapter_id]
         )
 
 
@@ -306,7 +310,7 @@ def test_model_name_never_selects_adapter() -> None:
 def test_requirements_never_become_concrete_model() -> None:
     resolved = _resolved("none")
     resolved.runtime = None
-    for adapter_id in ("claude-code", "opencode"):
+    for adapter_id in ("claude-code", "opencode", "codex"):
         result = get_adapter(adapter_id).translate(resolved)
         head = result.artifacts[0].content.split("\n\n", 1)[0]
         assert "\nmodel:" not in head
@@ -343,7 +347,7 @@ def test_workflows_and_composed_agents_warn_not_expand() -> None:
             provenance=_prov("wf"),
         )
     )
-    for adapter_id in ("claude-code", "opencode"):
+    for adapter_id in ("claude-code", "opencode", "codex"):
         result = get_adapter(adapter_id).translate(resolved)
         codes = {w.code for w in result.warnings}
         assert "composed_agents_not_expanded" in codes
@@ -394,7 +398,7 @@ def test_translation_is_offline(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(socket.socket, "connect", _blocked)
     resolved = _resolved(None)
-    for adapter_id in ("claude-code", "opencode"):
+    for adapter_id in ("claude-code", "opencode", "codex"):
         assert get_adapter(adapter_id).translate(resolved).artifacts
 
 
@@ -512,7 +516,7 @@ def test_materialize_never_touches_unmanaged_files(tmp_path: Path) -> None:
 
 
 def test_no_secret_field_is_projected() -> None:
-    for adapter_id in ("claude-code", "opencode"):
+    for adapter_id in ("claude-code", "opencode", "codex"):
         content = get_adapter(adapter_id).translate(_resolved(None)).artifacts[0].content
         assert "runtime_metadata" not in content
         assert "api_key" not in content
@@ -539,7 +543,7 @@ def test_context_package_projects_generically() -> None:
         truncated=False,
     )
     package = ContextPackage(manifest=manifest, data={"task": {"id": "t"}})
-    for adapter_id in ("claude-code", "opencode"):
+    for adapter_id in ("claude-code", "opencode", "codex"):
         before = _dump(resolved := _resolved(None))
         result = get_adapter(adapter_id).translate(resolved, context=package)
         assert "## Context" in result.artifacts[0].content
