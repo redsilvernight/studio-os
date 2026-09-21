@@ -4,7 +4,7 @@
 
 export const LOCAL_PROTOCOL = "studio.local/v1" as const;
 export const LOCAL_SCHEMA_VERSION = 1 as const;
-export const LOCAL_CONTRACT_DIGEST = "349b5ff056099c94b0c81497230774c3816c4aefab0e0b068982e2ef42374069" as const;
+export const LOCAL_CONTRACT_DIGEST = "6dfd32d1ce22f2cdd8261b4ca18194ce404e600dfe3e0f6bb8de245ce5b0d3c6" as const;
 
 export interface LocalCommandSpec {
   readonly command: string;
@@ -353,6 +353,16 @@ export const LOCAL_SCHEMAS: Readonly<Record<string, unknown>> = {
   "DaemonHealthRequest": {"$defs":{"ProfileRef":{"additionalProperties":false,"description":"A local profile is one server origin on one machine. Two profiles never\nshare a secret, an outbox partition or a daemon instance.","properties":{"profile_id":{"pattern":"^[a-z][a-z0-9_.-]{0,63}$","title":"Profile Id","type":"string"},"server_origin":{"title":"Server Origin","type":"string"}},"required":["profile_id","server_origin"],"title":"ProfileRef","type":"object"}},"additionalProperties":false,"properties":{"expected_instance_id":{"anyOf":[{"format":"uuid","type":"string"},{"type":"null"}],"default":null,"title":"Expected Instance Id"},"profile":{"$ref":"#/$defs/ProfileRef"}},"required":["profile"],"title":"DaemonHealthRequest","type":"object"},
   "EmptyPayload": {"additionalProperties":false,"properties":{},"title":"EmptyPayload","type":"object"},
   "IdentityView": {"$defs":{"ComponentId":{"enum":["desktop","bridge","daemon","workspace","knowledge","code_graph","harness","secret_store","watcher"],"title":"ComponentId","type":"string"},"HumanIdentity":{"additionalProperties":false,"description":"The person using the Desktop. Authenticated by a short-lived session\nthat lives in the renderer/dashboard; its credential is never part of any\nlocal contract.","properties":{"display_name":{"maxLength":200,"minLength":1,"title":"Display Name","type":"string"},"profile":{"$ref":"#/$defs/ProfileRef"},"session_expires_at":{"anyOf":[{"format":"date-time","type":"string"},{"type":"null"}],"default":null,"title":"Session Expires At"},"user_id":{"format":"uuid","title":"User Id","type":"string"}},"required":["user_id","display_name","profile"],"title":"HumanIdentity","type":"object"},"LocalError":{"additionalProperties":false,"description":"The one structured error shape of the local stack. Never carries a\nsecret, a stack trace or an absolute local path: `message` and `details`\nare validated, bounded and safe to display or log.","properties":{"code":{"$ref":"#/$defs/LocalErrorCode"},"component":{"$ref":"#/$defs/ComponentId"},"correlation_id":{"anyOf":[{"pattern":"^[A-Za-z0-9_.:-]{1,64}$","type":"string"},{"type":"null"}],"default":null,"title":"Correlation Id"},"details":{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"type":"null"}]},"default":{},"title":"Details","type":"object"},"message":{"maxLength":500,"minLength":1,"title":"Message","type":"string"},"retryable":{"title":"Retryable","type":"boolean"}},"required":["code","message","component","retryable"],"title":"LocalError","type":"object"},"LocalErrorCode":{"description":"Closed, deliberately small taxonomy. Codes describe what the caller can\nbranch on; the human message and bounded details carry the rest.","enum":["invalid_request","unknown_command","payload_too_large","protocol_incompatible","capability_missing","not_supported","cancelled","timeout","internal_error","daemon_unavailable","daemon_already_running","daemon_crashed","identity_mismatch","wrong_profile","secret_absent","secret_inaccessible","secret_revoked","keyring_unavailable","workspace_config_missing","workspace_config_invalid","workspace_moved","workspace_inaccessible","project_unavailable","feature_disabled","provider_not_installed","provider_incompatible","permission_denied","index_absent","index_corrupt","language_unsupported","plan_expired"],"title":"LocalErrorCode","type":"string"},"MachineIdentity":{"additionalProperties":false,"description":"The registered machine the daemon acts as. Its credential is held by the\ndaemon through a SecretReference and never crosses the bridge.","properties":{"machine_id":{"format":"uuid","title":"Machine Id","type":"string"},"machine_name":{"maxLength":200,"minLength":1,"title":"Machine Name","type":"string"},"profile":{"$ref":"#/$defs/ProfileRef"},"registered_at":{"format":"date-time","title":"Registered At","type":"string"}},"required":["machine_id","machine_name","profile","registered_at"],"title":"MachineIdentity","type":"object"},"ProfileRef":{"additionalProperties":false,"description":"A local profile is one server origin on one machine. Two profiles never\nshare a secret, an outbox partition or a daemon instance.","properties":{"profile_id":{"pattern":"^[a-z][a-z0-9_.-]{0,63}$","title":"Profile Id","type":"string"},"server_origin":{"title":"Server Origin","type":"string"}},"required":["profile_id","server_origin"],"title":"ProfileRef","type":"object"},"SecretKind":{"enum":["machine_credential"],"title":"SecretKind","type":"string"},"SecretReference":{"additionalProperties":false,"description":"Names where a secret lives; carries no secret material. `ref_id` is an\nopaque local handle, `lookup_key` is the store-side entry name.","properties":{"kind":{"$ref":"#/$defs/SecretKind"},"lookup_key":{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","title":"Lookup Key","type":"string"},"profile":{"$ref":"#/$defs/ProfileRef"},"ref_id":{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","title":"Ref Id","type":"string"},"store":{"$ref":"#/$defs/SecretStore"}},"required":["ref_id","kind","store","lookup_key","profile"],"title":"SecretReference","type":"object"},"SecretReferenceStatus":{"additionalProperties":false,"properties":{"checked_at":{"format":"date-time","title":"Checked At","type":"string"},"error":{"anyOf":[{"$ref":"#/$defs/LocalError"},{"type":"null"}],"default":null},"reference":{"$ref":"#/$defs/SecretReference"},"status":{"$ref":"#/$defs/SecretStatus"}},"required":["reference","status","checked_at"],"title":"SecretReferenceStatus","type":"object"},"SecretStatus":{"enum":["present","absent","inaccessible","revoked","wrong_profile","keyring_unavailable"],"title":"SecretStatus","type":"string"},"SecretStore":{"enum":["os_keyring","process_environment"],"title":"SecretStore","type":"string"}},"additionalProperties":false,"description":"Everything the renderer may know about identity: who, on which machine,\nand whether the secrets behind them are usable — never the secrets.","properties":{"human":{"anyOf":[{"$ref":"#/$defs/HumanIdentity"},{"type":"null"}],"default":null},"machine":{"anyOf":[{"$ref":"#/$defs/MachineIdentity"},{"type":"null"}],"default":null},"profile":{"$ref":"#/$defs/ProfileRef"},"secrets":{"default":[],"items":{"$ref":"#/$defs/SecretReferenceStatus"},"title":"Secrets","type":"array"}},"required":["profile"],"title":"IdentityView","type":"object"},
+  "GraphPage": {"$defs":{"Confidence":{"enum":["extracted","inferred","declared"],"title":"Confidence","type":"string"},"GraphCounts":{"additionalProperties":false,"properties":{"edges":{"minimum":0,"title":"Edges","type":"integer"},"nodes":{"minimum":0,"title":"Nodes","type":"integer"},"total_edges":{"anyOf":[{"minimum":0,"type":"integer"},{"type":"null"}],"default":null,"title":"Total Edges"},"total_nodes":{"anyOf":[{"minimum":0,"type":"integer"},{"type":"null"}],"default":null,"title":"Total Nodes"}},"required":["nodes","edges"],"title":"GraphCounts","type":"object"},"GraphEdge":{"additionalProperties":false,"properties":{"edge_id":{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","title":"Edge Id","type":"string"},"kind":{"$ref":"#/$defs/RelationKind"},"metadata":{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"type":"null"}]},"default":{},"title":"Metadata","type":"object"},"provenance":{"$ref":"#/$defs/GraphProvenance"},"source":{"$ref":"#/$defs/GraphNodeRef"},"target":{"$ref":"#/$defs/GraphNodeRef"}},"required":["edge_id","kind","source","target","provenance"],"title":"GraphEdge","type":"object"},"GraphNode":{"additionalProperties":false,"properties":{"kind":{"$ref":"#/$defs/NodeKind"},"label":{"maxLength":200,"minLength":1,"title":"Label","type":"string"},"metadata":{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"type":"null"}]},"default":{},"title":"Metadata","type":"object"},"node_id":{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","title":"Node Id","type":"string"},"provenance":{"$ref":"#/$defs/GraphProvenance"},"uri":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Uri"}},"required":["node_id","kind","label","provenance"],"title":"GraphNode","type":"object"},"GraphNodeRef":{"additionalProperties":false,"properties":{"node_id":{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","title":"Node Id","type":"string"},"source_id":{"pattern":"^[a-z][a-z0-9_.-]{0,63}$","title":"Source Id","type":"string"}},"required":["source_id","node_id"],"title":"GraphNodeRef","type":"object"},"GraphProvenance":{"additionalProperties":false,"description":"Required on every node and edge: where the fact comes from and how\nsure the extractor is. Facts without provenance are not representable.","properties":{"confidence":{"$ref":"#/$defs/Confidence"},"evidence":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Evidence"},"extractor":{"pattern":"^[a-z][a-z0-9_.-]{0,63}$","title":"Extractor","type":"string"},"source_id":{"pattern":"^[a-z][a-z0-9_.-]{0,63}$","title":"Source Id","type":"string"}},"required":["source_id","extractor","confidence"],"title":"GraphProvenance","type":"object"},"GraphSource":{"additionalProperties":false,"description":"Identifies which provider run produced a graph. Knowledge and code\nsources stay separate; only a `projection` source may relate them, and only\nthrough explicitly declared relations.","properties":{"generated_at":{"format":"date-time","title":"Generated At","type":"string"},"index_fingerprint":{"anyOf":[{"pattern":"^[0-9a-f]{64}$","type":"string"},{"type":"null"}],"default":null,"title":"Index Fingerprint"},"kind":{"$ref":"#/$defs/GraphSourceKind"},"member_sources":{"default":[],"items":{"pattern":"^[a-z][a-z0-9_.-]{0,63}$","type":"string"},"maxItems":2,"title":"Member Sources","type":"array"},"provider_id":{"pattern":"^[a-z][a-z0-9_.-]{0,63}$","title":"Provider Id","type":"string"},"source_id":{"pattern":"^[a-z][a-z0-9_.-]{0,63}$","title":"Source Id","type":"string"},"workspace_id":{"format":"uuid","title":"Workspace Id","type":"string"}},"required":["source_id","kind","provider_id","workspace_id","generated_at"],"title":"GraphSource","type":"object"},"GraphSourceKind":{"enum":["knowledge","code","projection"],"title":"GraphSourceKind","type":"string"},"NodeKind":{"enum":["document","heading","tag","file","package","module","class","function"],"title":"NodeKind","type":"string"},"RelationKind":{"enum":["links_to","tagged_with","embeds","contains","imports","calls","defines","inherits","references","documents"],"title":"RelationKind","type":"string"}},"additionalProperties":false,"description":"One bounded slice of one source's graph. Edges may point outside the\npage only at nodes listed in `frontier` (loaded lazily on expansion): a\ndangling reference anywhere else is a defect, not an implicit relation.","properties":{"counts":{"$ref":"#/$defs/GraphCounts"},"edges":{"default":[],"items":{"$ref":"#/$defs/GraphEdge"},"maxItems":1000,"title":"Edges","type":"array"},"frontier":{"default":[],"items":{"$ref":"#/$defs/GraphNodeRef"},"maxItems":500,"title":"Frontier","type":"array"},"next_cursor":{"anyOf":[{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","type":"string"},{"type":"null"}],"default":null,"title":"Next Cursor"},"nodes":{"default":[],"items":{"$ref":"#/$defs/GraphNode"},"maxItems":500,"title":"Nodes","type":"array"},"source":{"$ref":"#/$defs/GraphSource"},"truncated":{"default":false,"title":"Truncated","type":"boolean"}},"required":["source","counts"],"title":"GraphPage","type":"object"},
+  "GraphPageRequest": {"$defs":{"NodeKind":{"enum":["document","heading","tag","file","package","module","class","function"],"title":"NodeKind","type":"string"}},"additionalProperties":false,"properties":{"cursor":{"anyOf":[{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","type":"string"},{"type":"null"}],"default":null,"title":"Cursor"},"limit":{"default":100,"maximum":500,"minimum":1,"title":"Limit","type":"integer"},"node_kinds":{"default":[],"items":{"$ref":"#/$defs/NodeKind"},"maxItems":8,"title":"Node Kinds","type":"array"},"workspace_id":{"format":"uuid","title":"Workspace Id","type":"string"}},"required":["workspace_id"],"title":"GraphPageRequest","type":"object"},
+  "GraphExpandRequest": {"$defs":{"GraphDirection":{"enum":["out","in","both"],"title":"GraphDirection","type":"string"},"GraphNodeRef":{"additionalProperties":false,"properties":{"node_id":{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","title":"Node Id","type":"string"},"source_id":{"pattern":"^[a-z][a-z0-9_.-]{0,63}$","title":"Source Id","type":"string"}},"required":["source_id","node_id"],"title":"GraphNodeRef","type":"object"},"RelationKind":{"enum":["links_to","tagged_with","embeds","contains","imports","calls","defines","inherits","references","documents"],"title":"RelationKind","type":"string"}},"additionalProperties":false,"properties":{"cursor":{"anyOf":[{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","type":"string"},{"type":"null"}],"default":null,"title":"Cursor"},"depth":{"const":1,"default":1,"title":"Depth","type":"integer"},"direction":{"$ref":"#/$defs/GraphDirection","default":"both"},"limit":{"default":50,"maximum":500,"minimum":1,"title":"Limit","type":"integer"},"node":{"$ref":"#/$defs/GraphNodeRef"},"relations":{"default":[],"items":{"$ref":"#/$defs/RelationKind"},"maxItems":10,"title":"Relations","type":"array"},"workspace_id":{"format":"uuid","title":"Workspace Id","type":"string"}},"required":["workspace_id","node"],"title":"GraphExpandRequest","type":"object"},
+  "WorkspaceScope": {"additionalProperties":false,"properties":{"workspace_id":{"format":"uuid","title":"Workspace Id","type":"string"}},"required":["workspace_id"],"title":"WorkspaceScope","type":"object"},
+  "KnowledgeStatus": {"$defs":{"ComponentId":{"enum":["desktop","bridge","daemon","workspace","knowledge","code_graph","harness","secret_store","watcher"],"title":"ComponentId","type":"string"},"ComponentState":{"description":"Shared state vocabulary of every optional local component (Knowledge,\nCode Graph, harness, watchers). `ready` is the only fully-served state;\n`stale` serves possibly outdated data explicitly; everything else refuses\nor degrades visibly — never silently.","enum":["disabled","not_installed","unavailable","starting","indexing","ready","stale","permission_denied","incompatible","stopping","recovering","error"],"title":"ComponentState","type":"string"},"IndexInfo":{"additionalProperties":false,"description":"Description of a derived index. An index is always rebuildable from its\ncanonical source; `derived` and `rebuildable` are constants of the model,\nnot settings.","properties":{"built_at":{"anyOf":[{"format":"date-time","type":"string"},{"type":"null"}],"default":null,"title":"Built At"},"derived":{"default":true,"title":"Derived","type":"boolean"},"item_count":{"anyOf":[{"minimum":0,"type":"integer"},{"type":"null"}],"default":null,"title":"Item Count"},"progress_percent":{"anyOf":[{"maximum":100,"minimum":0,"type":"integer"},{"type":"null"}],"default":null,"title":"Progress Percent"},"rebuildable":{"default":true,"title":"Rebuildable","type":"boolean"},"source_fingerprint":{"anyOf":[{"pattern":"^[0-9a-f]{64}$","type":"string"},{"type":"null"}],"default":null,"title":"Source Fingerprint"},"state":{"$ref":"#/$defs/IndexState"}},"required":["state"],"title":"IndexInfo","type":"object"},"IndexState":{"enum":["absent","indexing","ready","stale","corrupt"],"title":"IndexState","type":"string"},"KnowledgeIntegration":{"additionalProperties":false,"description":"An optional tool layered on the same Markdown files (for example a note\neditor). Never required: Knowledge works without any integration.","properties":{"integration_id":{"pattern":"^[a-z][a-z0-9_.-]{0,63}$","title":"Integration Id","type":"string"},"required":{"const":false,"default":false,"title":"Required","type":"boolean"},"state":{"$ref":"#/$defs/ComponentState"}},"required":["integration_id","state"],"title":"KnowledgeIntegration","type":"object"},"LocalError":{"additionalProperties":false,"description":"The one structured error shape of the local stack. Never carries a\nsecret, a stack trace or an absolute local path: `message` and `details`\nare validated, bounded and safe to display or log.","properties":{"code":{"$ref":"#/$defs/LocalErrorCode"},"component":{"$ref":"#/$defs/ComponentId"},"correlation_id":{"anyOf":[{"pattern":"^[A-Za-z0-9_.:-]{1,64}$","type":"string"},{"type":"null"}],"default":null,"title":"Correlation Id"},"details":{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"type":"null"}]},"default":{},"title":"Details","type":"object"},"message":{"maxLength":500,"minLength":1,"title":"Message","type":"string"},"retryable":{"title":"Retryable","type":"boolean"}},"required":["code","message","component","retryable"],"title":"LocalError","type":"object"},"LocalErrorCode":{"description":"Closed, deliberately small taxonomy. Codes describe what the caller can\nbranch on; the human message and bounded details carry the rest.","enum":["invalid_request","unknown_command","payload_too_large","protocol_incompatible","capability_missing","not_supported","cancelled","timeout","internal_error","daemon_unavailable","daemon_already_running","daemon_crashed","identity_mismatch","wrong_profile","secret_absent","secret_inaccessible","secret_revoked","keyring_unavailable","workspace_config_missing","workspace_config_invalid","workspace_moved","workspace_inaccessible","project_unavailable","feature_disabled","provider_not_installed","provider_incompatible","permission_denied","index_absent","index_corrupt","language_unsupported","plan_expired"],"title":"LocalErrorCode","type":"string"},"ProviderInfo":{"additionalProperties":false,"properties":{"capabilities":{"default":[],"items":{"pattern":"^[a-z][a-z0-9_]{0,31}(\\.[a-z][a-z0-9_]{0,31}){0,3}$","type":"string"},"maxItems":64,"title":"Capabilities","type":"array"},"display_name":{"maxLength":200,"minLength":1,"title":"Display Name","type":"string"},"provider_id":{"pattern":"^[a-z][a-z0-9_.-]{0,63}$","title":"Provider Id","type":"string"},"provider_version":{"anyOf":[{"maxLength":64,"pattern":"^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$","type":"string"},{"type":"null"}],"default":null,"title":"Provider Version"}},"required":["provider_id","display_name"],"title":"ProviderInfo","type":"object"}},"additionalProperties":false,"description":"Markdown files are the canonical content; everything else — search\nindex, link graph — is derived from them and can be rebuilt at any time.","properties":{"canonical_source":{"const":"markdown_files","default":"markdown_files","title":"Canonical Source","type":"string"},"error":{"anyOf":[{"$ref":"#/$defs/LocalError"},{"type":"null"}],"default":null},"index":{"anyOf":[{"$ref":"#/$defs/IndexInfo"},{"type":"null"}],"default":null},"integrations":{"default":[],"items":{"$ref":"#/$defs/KnowledgeIntegration"},"title":"Integrations","type":"array"},"provider":{"anyOf":[{"$ref":"#/$defs/ProviderInfo"},{"type":"null"}],"default":null},"state":{"$ref":"#/$defs/ComponentState"},"workspace_id":{"format":"uuid","title":"Workspace Id","type":"string"}},"required":["workspace_id","state"],"title":"KnowledgeStatus","type":"object"},
+  "CodeGraphStatus": {"$defs":{"ComponentId":{"enum":["desktop","bridge","daemon","workspace","knowledge","code_graph","harness","secret_store","watcher"],"title":"ComponentId","type":"string"},"ComponentState":{"description":"Shared state vocabulary of every optional local component (Knowledge,\nCode Graph, harness, watchers). `ready` is the only fully-served state;\n`stale` serves possibly outdated data explicitly; everything else refuses\nor degrades visibly — never silently.","enum":["disabled","not_installed","unavailable","starting","indexing","ready","stale","permission_denied","incompatible","stopping","recovering","error"],"title":"ComponentState","type":"string"},"IndexInfo":{"additionalProperties":false,"description":"Description of a derived index. An index is always rebuildable from its\ncanonical source; `derived` and `rebuildable` are constants of the model,\nnot settings.","properties":{"built_at":{"anyOf":[{"format":"date-time","type":"string"},{"type":"null"}],"default":null,"title":"Built At"},"derived":{"default":true,"title":"Derived","type":"boolean"},"item_count":{"anyOf":[{"minimum":0,"type":"integer"},{"type":"null"}],"default":null,"title":"Item Count"},"progress_percent":{"anyOf":[{"maximum":100,"minimum":0,"type":"integer"},{"type":"null"}],"default":null,"title":"Progress Percent"},"rebuildable":{"default":true,"title":"Rebuildable","type":"boolean"},"source_fingerprint":{"anyOf":[{"pattern":"^[0-9a-f]{64}$","type":"string"},{"type":"null"}],"default":null,"title":"Source Fingerprint"},"state":{"$ref":"#/$defs/IndexState"}},"required":["state"],"title":"IndexInfo","type":"object"},"IndexState":{"enum":["absent","indexing","ready","stale","corrupt"],"title":"IndexState","type":"string"},"LocalError":{"additionalProperties":false,"description":"The one structured error shape of the local stack. Never carries a\nsecret, a stack trace or an absolute local path: `message` and `details`\nare validated, bounded and safe to display or log.","properties":{"code":{"$ref":"#/$defs/LocalErrorCode"},"component":{"$ref":"#/$defs/ComponentId"},"correlation_id":{"anyOf":[{"pattern":"^[A-Za-z0-9_.:-]{1,64}$","type":"string"},{"type":"null"}],"default":null,"title":"Correlation Id"},"details":{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"type":"null"}]},"default":{},"title":"Details","type":"object"},"message":{"maxLength":500,"minLength":1,"title":"Message","type":"string"},"retryable":{"title":"Retryable","type":"boolean"}},"required":["code","message","component","retryable"],"title":"LocalError","type":"object"},"LocalErrorCode":{"description":"Closed, deliberately small taxonomy. Codes describe what the caller can\nbranch on; the human message and bounded details carry the rest.","enum":["invalid_request","unknown_command","payload_too_large","protocol_incompatible","capability_missing","not_supported","cancelled","timeout","internal_error","daemon_unavailable","daemon_already_running","daemon_crashed","identity_mismatch","wrong_profile","secret_absent","secret_inaccessible","secret_revoked","keyring_unavailable","workspace_config_missing","workspace_config_invalid","workspace_moved","workspace_inaccessible","project_unavailable","feature_disabled","provider_not_installed","provider_incompatible","permission_denied","index_absent","index_corrupt","language_unsupported","plan_expired"],"title":"LocalErrorCode","type":"string"},"ProviderInfo":{"additionalProperties":false,"properties":{"capabilities":{"default":[],"items":{"pattern":"^[a-z][a-z0-9_]{0,31}(\\.[a-z][a-z0-9_]{0,31}){0,3}$","type":"string"},"maxItems":64,"title":"Capabilities","type":"array"},"display_name":{"maxLength":200,"minLength":1,"title":"Display Name","type":"string"},"provider_id":{"pattern":"^[a-z][a-z0-9_.-]{0,63}$","title":"Provider Id","type":"string"},"provider_version":{"anyOf":[{"maxLength":64,"pattern":"^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$","type":"string"},{"type":"null"}],"default":null,"title":"Provider Version"}},"required":["provider_id","display_name"],"title":"ProviderInfo","type":"object"}},"additionalProperties":false,"description":"Status of the code-structure index behind the provider boundary. The\ncontract names no concrete engine: an engine is an optional adapter that is\ninstalled separately, and its absence or incompatibility is an ordinary\nstate, never a startup failure.","properties":{"error":{"anyOf":[{"$ref":"#/$defs/LocalError"},{"type":"null"}],"default":null},"index":{"anyOf":[{"$ref":"#/$defs/IndexInfo"},{"type":"null"}],"default":null},"languages":{"default":[],"items":{"pattern":"^[a-z][a-z0-9_.-]{0,63}$","type":"string"},"maxItems":32,"title":"Languages","type":"array"},"provider":{"anyOf":[{"$ref":"#/$defs/ProviderInfo"},{"type":"null"}],"default":null},"state":{"$ref":"#/$defs/ComponentState"},"unsupported_languages":{"default":[],"items":{"pattern":"^[a-z][a-z0-9_.-]{0,63}$","type":"string"},"maxItems":32,"title":"Unsupported Languages","type":"array"},"workspace_id":{"format":"uuid","title":"Workspace Id","type":"string"}},"required":["workspace_id","state"],"title":"CodeGraphStatus","type":"object"},
+  "KnowledgeSearchRequest": {"additionalProperties":false,"properties":{"cursor":{"anyOf":[{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","type":"string"},{"type":"null"}],"default":null,"title":"Cursor"},"limit":{"default":20,"maximum":100,"minimum":1,"title":"Limit","type":"integer"},"query":{"maxLength":200,"minLength":1,"title":"Query","type":"string"},"workspace_id":{"format":"uuid","title":"Workspace Id","type":"string"}},"required":["workspace_id","query"],"title":"KnowledgeSearchRequest","type":"object"},
+  "KnowledgeSearchResult": {"$defs":{"ComponentState":{"description":"Shared state vocabulary of every optional local component (Knowledge,\nCode Graph, harness, watchers). `ready` is the only fully-served state;\n`stale` serves possibly outdated data explicitly; everything else refuses\nor degrades visibly — never silently.","enum":["disabled","not_installed","unavailable","starting","indexing","ready","stale","permission_denied","incompatible","stopping","recovering","error"],"title":"ComponentState","type":"string"},"KnowledgeDocumentRef":{"additionalProperties":false,"properties":{"content_hash":{"pattern":"^[0-9a-f]{64}$","title":"Content Hash","type":"string"},"modified_at":{"format":"date-time","title":"Modified At","type":"string"},"title":{"maxLength":200,"minLength":1,"title":"Title","type":"string"},"uri":{"title":"Uri","type":"string"}},"required":["uri","title","content_hash","modified_at"],"title":"KnowledgeDocumentRef","type":"object"},"KnowledgeSearchHit":{"additionalProperties":false,"properties":{"document":{"$ref":"#/$defs/KnowledgeDocumentRef"},"score":{"maximum":1,"minimum":0,"title":"Score","type":"number"},"snippet":{"default":"","maxLength":300,"title":"Snippet","type":"string"}},"required":["document","score"],"title":"KnowledgeSearchHit","type":"object"}},"additionalProperties":false,"properties":{"complete":{"default":true,"title":"Complete","type":"boolean"},"hits":{"default":[],"items":{"$ref":"#/$defs/KnowledgeSearchHit"},"maxItems":100,"title":"Hits","type":"array"},"index_state":{"$ref":"#/$defs/ComponentState"},"next_cursor":{"anyOf":[{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","type":"string"},{"type":"null"}],"default":null,"title":"Next Cursor"}},"required":["index_state"],"title":"KnowledgeSearchResult","type":"object"},
+  "CodeSymbolQuery": {"$defs":{"NodeKind":{"enum":["document","heading","tag","file","package","module","class","function"],"title":"NodeKind","type":"string"}},"additionalProperties":false,"properties":{"cursor":{"anyOf":[{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","type":"string"},{"type":"null"}],"default":null,"title":"Cursor"},"kinds":{"default":[],"items":{"$ref":"#/$defs/NodeKind"},"maxItems":8,"title":"Kinds","type":"array"},"limit":{"default":20,"maximum":100,"minimum":1,"title":"Limit","type":"integer"},"name":{"maxLength":200,"minLength":1,"title":"Name","type":"string"},"workspace_id":{"format":"uuid","title":"Workspace Id","type":"string"}},"required":["workspace_id","name"],"title":"CodeSymbolQuery","type":"object"},
+  "CodeSymbolResult": {"$defs":{"CodeSymbolRef":{"additionalProperties":false,"properties":{"kind":{"$ref":"#/$defs/NodeKind"},"name":{"maxLength":200,"minLength":1,"title":"Name","type":"string"},"node_id":{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","title":"Node Id","type":"string"},"uri":{"title":"Uri","type":"string"}},"required":["node_id","kind","name","uri"],"title":"CodeSymbolRef","type":"object"},"IndexState":{"enum":["absent","indexing","ready","stale","corrupt"],"title":"IndexState","type":"string"},"NodeKind":{"enum":["document","heading","tag","file","package","module","class","function"],"title":"NodeKind","type":"string"}},"additionalProperties":false,"properties":{"complete":{"default":true,"title":"Complete","type":"boolean"},"index_state":{"$ref":"#/$defs/IndexState"},"next_cursor":{"anyOf":[{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","type":"string"},{"type":"null"}],"default":null,"title":"Next Cursor"},"symbols":{"default":[],"items":{"$ref":"#/$defs/CodeSymbolRef"},"maxItems":100,"title":"Symbols","type":"array"}},"required":["index_state"],"title":"CodeSymbolResult","type":"object"},
 };
 
 export type BridgeCommand = "runtime.handshake" | "daemon.status" | "daemon.attach" | "daemon.start" | "daemon.stop" | "daemon.restart" | "daemon.health" | "identity.get_view" | "workspace.validate" | "workspace.get_config" | "workspace.save_config" | "knowledge.status" | "knowledge.search" | "knowledge.get_document" | "knowledge.graph_page" | "knowledge.graph_expand" | "knowledge.reindex" | "code_graph.status" | "code_graph.find_symbols" | "code_graph.graph_page" | "code_graph.graph_expand" | "code_graph.reindex" | "harness.detect" | "harness.status" | "harness.preview" | "harness.apply" | "harness.rollback" | "publication.preview" | "publication.publish";
@@ -389,11 +399,45 @@ export interface BridgeResponse {
   sent_at: string;
 }
 
+export interface CodeGraphStatus {
+  error?: LocalError | null;
+  index?: IndexInfo | null;
+  languages?: string[];
+  provider?: ProviderInfo | null;
+  state: ComponentState;
+  unsupported_languages?: string[];
+  workspace_id: string;
+}
+
+export interface CodeSymbolQuery {
+  cursor?: string | null;
+  kinds?: NodeKind[];
+  limit?: number;
+  name: string;
+  workspace_id: string;
+}
+
+export interface CodeSymbolRef {
+  kind: NodeKind;
+  name: string;
+  node_id: string;
+  uri: string;
+}
+
+export interface CodeSymbolResult {
+  complete?: boolean;
+  index_state: IndexState;
+  next_cursor?: string | null;
+  symbols?: CodeSymbolRef[];
+}
+
 export type CompatibilityOutcome = "compatible" | "compatible_degraded" | "daemon_too_old" | "desktop_too_old" | "capability_missing" | "protocol_incompatible";
 
 export type ComponentId = "desktop" | "bridge" | "daemon" | "workspace" | "knowledge" | "code_graph" | "harness" | "secret_store" | "watcher";
 
 export type ComponentState = "disabled" | "not_installed" | "unavailable" | "starting" | "indexing" | "ready" | "stale" | "permission_denied" | "incompatible" | "stopping" | "recovering" | "error";
+
+export type Confidence = "extracted" | "inferred" | "declared";
 
 export interface CrashInfo {
   crashed_at: string;
@@ -468,6 +512,84 @@ export interface EmptyPayload {
 
 }
 
+export interface GraphCounts {
+  edges: number;
+  nodes: number;
+  total_edges?: number | null;
+  total_nodes?: number | null;
+}
+
+export type GraphDirection = "out" | "in" | "both";
+
+export interface GraphEdge {
+  edge_id: string;
+  kind: RelationKind;
+  metadata?: Record<string, string | number | number | boolean | null>;
+  provenance: GraphProvenance;
+  source: GraphNodeRef;
+  target: GraphNodeRef;
+}
+
+export interface GraphExpandRequest {
+  cursor?: string | null;
+  depth?: 1;
+  direction?: GraphDirection;
+  limit?: number;
+  node: GraphNodeRef;
+  relations?: RelationKind[];
+  workspace_id: string;
+}
+
+export interface GraphNode {
+  kind: NodeKind;
+  label: string;
+  metadata?: Record<string, string | number | number | boolean | null>;
+  node_id: string;
+  provenance: GraphProvenance;
+  uri?: string | null;
+}
+
+export interface GraphNodeRef {
+  node_id: string;
+  source_id: string;
+}
+
+export interface GraphPage {
+  counts: GraphCounts;
+  edges?: GraphEdge[];
+  frontier?: GraphNodeRef[];
+  next_cursor?: string | null;
+  nodes?: GraphNode[];
+  source: GraphSource;
+  truncated?: boolean;
+}
+
+export interface GraphPageRequest {
+  cursor?: string | null;
+  limit?: number;
+  node_kinds?: NodeKind[];
+  workspace_id: string;
+}
+
+export interface GraphProvenance {
+  confidence: Confidence;
+  evidence?: string | null;
+  extractor: string;
+  source_id: string;
+}
+
+export interface GraphSource {
+  generated_at: string;
+  index_fingerprint?: string | null;
+  kind: GraphSourceKind;
+  member_sources?: string[];
+  provider_id: string;
+  source_id: string;
+  workspace_id: string;
+}
+
+export type GraphSourceKind = "knowledge" | "code" | "projection";
+
 export interface HandshakeRequest {
   peer: PeerInfo;
 }
@@ -507,6 +629,61 @@ export interface IdentityView {
   secrets?: SecretReferenceStatus[];
 }
 
+export interface IndexInfo {
+  built_at?: string | null;
+  derived?: boolean;
+  item_count?: number | null;
+  progress_percent?: number | null;
+  rebuildable?: boolean;
+  source_fingerprint?: string | null;
+  state: IndexState;
+}
+
+export type IndexState = "absent" | "indexing" | "ready" | "stale" | "corrupt";
+
+export interface KnowledgeDocumentRef {
+  content_hash: string;
+  modified_at: string;
+  title: string;
+  uri: string;
+}
+
+export interface KnowledgeIntegration {
+  integration_id: string;
+  required?: false;
+  state: ComponentState;
+}
+
+export interface KnowledgeSearchHit {
+  document: KnowledgeDocumentRef;
+  score: number;
+  snippet?: string;
+}
+
+export interface KnowledgeSearchRequest {
+  cursor?: string | null;
+  limit?: number;
+  query: string;
+  workspace_id: string;
+}
+
+export interface KnowledgeSearchResult {
+  complete?: boolean;
+  hits?: KnowledgeSearchHit[];
+  index_state: ComponentState;
+  next_cursor?: string | null;
+}
+
+export interface KnowledgeStatus {
+  canonical_source?: "markdown_files";
+  error?: LocalError | null;
+  index?: IndexInfo | null;
+  integrations?: KnowledgeIntegration[];
+  provider?: ProviderInfo | null;
+  state: ComponentState;
+  workspace_id: string;
+}
+
 export interface LocalError {
   code: LocalErrorCode;
   component: ComponentId;
@@ -524,6 +701,8 @@ export interface MachineIdentity {
   profile: ProfileRef;
   registered_at: string;
 }
+
+export type NodeKind = "document" | "heading" | "tag" | "file" | "package" | "module" | "class" | "function";
 
 export interface OptionalComponentStatus {
   component: ComponentId;
@@ -570,6 +749,15 @@ export interface ProtocolVersion {
   minor: number;
 }
 
+export interface ProviderInfo {
+  capabilities?: string[];
+  display_name: string;
+  provider_id: string;
+  provider_version?: string | null;
+}
+
+export type RelationKind = "links_to" | "tagged_with" | "embeds" | "contains" | "imports" | "calls" | "defines" | "inherits" | "references" | "documents";
+
 export type Remediation = "none" | "update_daemon" | "update_desktop" | "install_optional_component" | "enable_feature" | "report_problem";
 
 export type RuntimeServiceCondition = "healthy" | "stale" | "offline" | "auth_error" | "server_unavailable" | "disabled" | "error";
@@ -606,3 +794,7 @@ export interface SecretReferenceStatus {
 export type SecretStatus = "present" | "absent" | "inaccessible" | "revoked" | "wrong_profile" | "keyring_unavailable";
 
 export type SecretStore = "os_keyring" | "process_environment";
+
+export interface WorkspaceScope {
+  workspace_id: string;
+}
