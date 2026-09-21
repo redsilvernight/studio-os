@@ -2,7 +2,16 @@ import { createDesktopPlatform, detectTauriInvoke } from "./desktop";
 import type { Platform } from "./types";
 import { webPlatform } from "./web";
 
-export type { DesktopInfo, Platform, PlatformMode } from "./types";
+export type {
+  DesktopInfo,
+  PickerOptions,
+  PickResult,
+  Platform,
+  PlatformMode,
+  ServerOriginRefusal,
+  ServerOriginState,
+  SetServerOriginResult,
+} from "./types";
 
 let cached: Platform | undefined;
 

@@ -1,9 +1,10 @@
 //! Studi'OS Desktop shell (P2 foundation).
 //!
 //! A thin Tauri 2 host for the shared Dashboard build. The only privileged
-//! surface is two app commands (see `command_names`): `desktop_info` and
-//! `bridge_request`. There is no shell, filesystem, process or HTTP-proxy
-//! primitive, and no plugin that provides one.
+//! surface is the closed list of typed app commands in `command_names`: the
+//! P2 identity/bridge pair and the P3 shell commands (runtime server origin,
+//! restart, semantic native pickers). There is no shell, filesystem, process
+//! or HTTP-proxy primitive, and no plugin that provides one.
 
 mod allowlist;
 mod bridge;
@@ -11,6 +12,9 @@ mod bridge;
 mod command_names;
 mod info;
 mod navigation;
+mod picker;
+mod server_origin;
+mod shell_commands;
 mod sidecar;
 
 use navigation::Decision;
@@ -124,13 +128,39 @@ fn handle_request(sidecar: &Sidecar, request: Value) -> Value {
     }
 }
 
+fn apply_server_origin_to_csp(config: &mut tauri::Config, origin: &str) {
+    let security = &mut config.app.security;
+    if let Some(tauri::utils::config::Csp::Policy(policy)) = &security.csp {
+        security.csp = Some(tauri::utils::config::Csp::Policy(server_origin::csp_with_connect_origin(policy, origin)));
+    }
+}
+
 pub fn run() {
     let sidecar = Sidecar::default();
     let exit_sidecar = sidecar.clone();
 
+    let mut context = tauri::generate_context!();
+    // The CSP is static per build: a user-configured server origin is allowed
+    // in `connect-src` (and nowhere else) before the webview is created.
+    let store = server_origin::SettingsStore::for_identifier(&context.config().identifier);
+    let applied_origin = store.as_ref().and_then(server_origin::SettingsStore::load);
+    if let Some(origin) = &applied_origin {
+        apply_server_origin_to_csp(context.config_mut(), origin);
+    }
+    let shell_state = shell_commands::ShellState::new(store, applied_origin);
+
     let app = tauri::Builder::default()
         .manage(sidecar)
-        .invoke_handler(tauri::generate_handler![desktop_info, bridge_request])
+        .manage(shell_state)
+        .invoke_handler(tauri::generate_handler![
+            desktop_info,
+            bridge_request,
+            shell_commands::get_server_origin,
+            shell_commands::set_server_origin,
+            shell_commands::restart_desktop,
+            shell_commands::choose_folder,
+            shell_commands::choose_file
+        ])
         .setup(|app| {
             let dev_origin = if tauri::is_dev() {
                 app.config().build.dev_url.clone()
@@ -164,7 +194,7 @@ pub fn run() {
                 .build()?;
             Ok(())
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building Studi'OS Desktop");
 
     app.run(move |_handle, event| {
@@ -184,8 +214,19 @@ mod tests {
     }
 
     #[test]
-    fn registered_commands_are_exactly_the_two_typed_ones() {
-        assert_eq!(command_names::APP_COMMANDS, &["desktop_info", "bridge_request"]);
+    fn registered_commands_are_exactly_the_typed_ones() {
+        assert_eq!(
+            command_names::APP_COMMANDS,
+            &[
+                "desktop_info",
+                "bridge_request",
+                "get_server_origin",
+                "set_server_origin",
+                "restart_desktop",
+                "choose_folder",
+                "choose_file",
+            ]
+        );
     }
 
     #[test]
