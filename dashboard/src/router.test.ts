@@ -19,6 +19,13 @@ describe("parseRoute", () => {
     expect(parseRoute("#/projects/abc/roadmap")).toEqual({ name: "project", id: "abc", tab: "roadmap" });
   });
 
+  it("parses a targeted roadmap and rejects deeper roadmap paths", () => {
+    expect(parseRoute("#/projects/abc/roadmap/r1")).toEqual({ name: "project", id: "abc", tab: "roadmap", roadmapId: "r1" });
+    expect(parseRoute("#/projects/abc/roadmap/r%201")).toEqual({ name: "project", id: "abc", tab: "roadmap", roadmapId: "r 1" });
+    expect(parseRoute("#/projects/abc/roadmap/r1/extra")).toEqual({ name: "notFound", hash: "#/projects/abc/roadmap/r1/extra" });
+    expect(parseRoute("#/projects/abc/tasks/r1")).toEqual({ name: "project", id: "abc", tab: "tasks" });
+  });
+
   it("parses the UI-4 workspace tabs and falls back to overview otherwise", () => {
     expect(parseRoute("#/projects/abc/activity")).toEqual({ name: "project", id: "abc", tab: "activity" });
     expect(parseRoute("#/projects/abc/decisions")).toEqual({ name: "project", id: "abc", tab: "decisions" });

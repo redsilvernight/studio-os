@@ -18,6 +18,7 @@ import type {
   RoadmapDiff,
   RoadmapDiffChange,
   RoadmapDocument,
+  RoadmapListItem,
   RoadmapPendingProposal,
   RoadmapPhase,
   RoadmapReviewDecision,
@@ -32,6 +33,8 @@ export interface RoadmapViewContext {
   dataSource: RoadmapDataSource;
   projectId: string;
   projectName: string;
+  /** Roadmap to open (e.g. a proposed one reached from Décisions); omitted = the active one. */
+  roadmapId?: string;
 }
 
 const STATUS_LABELS: Record<RoadmapStatus, string> = {
@@ -271,12 +274,24 @@ export function roadmapPrintHtml(roadmap: Roadmap): string {
     `<dl><div><dt>Statut</dt><dd>${esc(STATUS_LABELS[roadmap.status])}</dd></div><div><dt>Progression</dt><dd>${roadmapProgress} %</dd></div><div><dt>Phases</dt><dd>${phases.length}</dd></div></dl></header>${phaseSections || `<p>Aucune phase.</p>`}</section>`;
 }
 
+export function roadmapSwitcherHtml(roadmap: Roadmap, roadmaps: RoadmapListItem[]): string {
+  if (roadmaps.length < 2) return "";
+  const links = roadmaps
+    .map((item) => {
+      const current = item.id === roadmap.id ? ` aria-current="page"` : "";
+      return `<li><a class="roadmap-switch-link" href="#/projects/${esc(roadmap.project_id)}/roadmap/${esc(item.id)}"${current}>${esc(item.title)}</a> ${dsBadge(STATUS_LABELS[item.status], statusTone(item.status))}</li>`;
+    })
+    .join("");
+  return `<nav class="roadmap-switcher roadmap-no-print" aria-label="Roadmaps du projet"><p class="roadmap-eyebrow">Roadmaps du projet</p><ul class="roadmap-switch-list">${links}</ul></nav>`;
+}
+
 export function roadmapShellHtml(
   roadmap: Roadmap,
   mode: RoadmapMode,
   selectedKey: string | null,
   demo = false,
   proposal: RoadmapPendingProposal | null = null,
+  roadmaps: RoadmapListItem[] = [],
 ): string {
   const progress = percent(roadmap.progress?.ratio);
   const plan = mode === "plan" ? roadmapPlanHtml(roadmap, selectedKey) : roadmapExecutionHtml(roadmap, selectedKey);
@@ -286,6 +301,7 @@ export function roadmapShellHtml(
     : "";
   return `<div class="roadmap-view">${roadmapPrintHtml(roadmap)}` +
     demoNote +
+    roadmapSwitcherHtml(roadmap, roadmaps) +
     proposalHtml(roadmap) +
     (proposal !== null ? revisionProposalHtml(proposal, roadmap) : "") +
     `<header class="roadmap-header"><div><div class="roadmap-title-line"><h2>${esc(roadmap.title)}</h2>${dsBadge(STATUS_LABELS[roadmap.status], statusTone(roadmap.status))}</div>` +
@@ -377,7 +393,7 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
   root.innerHTML = dsSkeleton(5);
   let roadmap: Roadmap | null;
   try {
-    roadmap = await ctx.dataSource.load(ctx.projectId);
+    roadmap = await ctx.dataSource.load(ctx.projectId, ctx.roadmapId);
   } catch (error) {
     root.innerHTML = `<div class="ds-notice ds-notice--danger" role="alert"><strong>Roadmap indisponible.</strong> ${esc(describeError(error))}</div>`;
     return;
@@ -385,11 +401,17 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
   let mode: RoadmapMode = "plan";
   let selectedKey: string | null = roadmap?.current_step_key ?? (roadmap === null ? null : allSteps(roadmap)[0]?.key) ?? null;
   let pendingProposal: RoadmapPendingProposal | null = null;
+  let roadmaps: RoadmapListItem[] = [];
   if (roadmap !== null) {
     try {
-      pendingProposal = await ctx.dataSource.loadPendingProposal(ctx.projectId);
+      pendingProposal = await ctx.dataSource.loadPendingProposal(ctx.projectId, roadmap.id);
     } catch {
       pendingProposal = null;
+    }
+    try {
+      roadmaps = (await ctx.dataSource.listRoadmaps?.(ctx.projectId)) ?? [];
+    } catch {
+      roadmaps = [];
     }
   }
 
@@ -406,6 +428,7 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
       selectedKey,
       ctx.dataSource.demo === true,
       roadmap.status === "active" ? pendingProposal : null,
+      roadmaps,
     );
     bind();
   };
@@ -497,7 +520,7 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
       if (roadmap === null) return;
       const decision = button.dataset.review;
       if (decision !== "approve" && decision !== "request_changes" && decision !== "reject") return;
-      roadmap = await ctx.dataSource.reviewProposal(ctx.projectId, decision, decision === "request_changes" ? "Modifications demandées depuis l'aperçu." : undefined);
+      roadmap = await ctx.dataSource.reviewProposal(ctx.projectId, decision, decision === "request_changes" ? "Modifications demandées depuis l'aperçu." : undefined, roadmap.id);
       paint();
       dsNotify("Décision enregistrée.", "success");
     }));
@@ -516,7 +539,7 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
       }
       try {
         const revisionNo = pendingProposal.revision.revision_no;
-        const updated = await ctx.dataSource.reviewProposalRevision(ctx.projectId, revisionNo, decision, comment === "" ? undefined : comment);
+        const updated = await ctx.dataSource.reviewProposalRevision(ctx.projectId, revisionNo, decision, comment === "" ? undefined : comment, roadmap.id);
         if (updated !== null) roadmap = updated;
         pendingProposal = null;
         selectedKey = roadmap.current_step_key ?? selectedKey;

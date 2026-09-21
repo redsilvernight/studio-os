@@ -82,6 +82,7 @@ async function render(): Promise<void> {
         },
         route.id,
         route.tab,
+        route.roadmapId,
       );
       break;
     case "tasks":

@@ -107,6 +107,27 @@ function prItem(id = "rw5"): ReviewQueue {
   };
 }
 
+const R1 = "99999999-8888-4777-8666-555555555555";
+
+function roadmapProposalItem(scope: "roadmap" | "revision", roadmapId = R1): ReviewQueue {
+  return {
+    items: [{
+      kind: "roadmap_proposal",
+      id: "rp1",
+      project_id: P1,
+      task_id: null,
+      roadmap_id: roadmapId,
+      title: "Project AI Bootstrap",
+      scope,
+      status: "proposed",
+      revision_no: 1,
+      actor_type: "human",
+      requested_at: "2026-09-10T10:00:00Z",
+    }],
+    generated_at: "2026-09-10T10:00:00Z",
+  };
+}
+
 function mixedQueue(): ReviewQueue {
   return {
     items: [
@@ -483,5 +504,13 @@ describe("decisions.css responsive", () => {
 
   it("informations techniques : grid 2 colonnes lisible", () => {
     expect(css).toContain("grid-template-columns: max-content 1fr");
+  });
+});
+
+describe("roadmap proposal review link", () => {
+  it.each(["roadmap", "revision"] as const)("targets the proposed roadmap itself (scope %s)", (scope) => {
+    const html = reviewItemHtml(roadmapProposalItem(scope).items[0]!, true, false);
+    expect(html).toContain(`href="#/projects/${P1}/roadmap/${R1}"`);
+    expect(html).toContain("Examiner dans Roadmap");
   });
 });

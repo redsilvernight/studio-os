@@ -7,7 +7,7 @@ export type ProjectConfigTab = "resources" | "locks" | "overrides";
 export type Route =
   | { name: "dashboard" }
   | { name: "projects" }
-  | { name: "project"; id: string; tab: ProjectTab }
+  | { name: "project"; id: string; tab: ProjectTab; roadmapId?: string }
   | { name: "tasks" }
   | { name: "task"; id: string }
   | { name: "agents" }
@@ -51,7 +51,9 @@ export function parseRoute(hash: string): Route {
       parts[2] === "decisions"
         ? parts[2]
         : "overview";
-    return { name: "project", id: parts[1], tab };
+    const roadmapId = tab === "roadmap" && parts.length === 4 && parts[3] !== undefined ? decode(parts[3]) : undefined;
+    if (tab === "roadmap" && parts.length > 4) return notFound(hash);
+    return roadmapId === undefined ? { name: "project", id: parts[1], tab } : { name: "project", id: parts[1], tab, roadmapId };
   }
   if (parts[0] === "tasks" && parts.length === 1) return { name: "tasks" };
   if (parts[0] === "tasks" && parts[1] !== undefined) return { name: "task", id: parts[1] };

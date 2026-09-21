@@ -151,7 +151,7 @@ test.describe("Roadmaps P10 - Dashboard release gate", () => {
     await expect(page.getByText("Proposition de roadmap").first()).toBeVisible();
     await expect(page.getByText("révision 3 de « Plan P10 »")).toBeVisible();
     const link = page.getByRole("link", { name: "Examiner dans Roadmap" });
-    await expect(link).toHaveAttribute("href", `#/projects/${P1}/roadmap`);
+    await expect(link).toHaveAttribute("href", `#/projects/${P1}/roadmap/${ROADMAP_ID}`);
     await link.click();
     // ...and the reviewer lands on the pending proposal with its diff and the decision actions
     await expect(page.locator(".roadmap-proposal-review")).toBeVisible();

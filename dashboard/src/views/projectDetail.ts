@@ -192,6 +192,7 @@ export async function renderProjectDetail(
   ctx: ProjectDetailContext,
   projectId: string,
   tab: ProjectTab,
+  roadmapId?: string,
 ): Promise<void> {
   if (!ctx.authed) {
     root.innerHTML = dsEmptyState(
@@ -241,6 +242,7 @@ export async function renderProjectDetail(
       dataSource: ctx.roadmapDataSource,
       projectId: project.id,
       projectName: project.name,
+      roadmapId,
     });
     return;
   }
