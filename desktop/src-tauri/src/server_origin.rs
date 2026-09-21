@@ -115,6 +115,21 @@ pub fn validate(raw: &str) -> Result<String, OriginError> {
     Ok(url.origin().ascii_serialization())
 }
 
+/// The origin baked into this build (`STUDIO_DESKTOP_API_URL`), reduced to its
+/// origin and validated; anything unusable yields `None`.
+pub fn build_default_origin(raw: Option<&str>) -> Option<String> {
+    let url = Url::parse(raw?.trim()).ok()?;
+    validate(&url.origin().ascii_serialization()).ok()
+}
+
+/// The origin the renderer talks to: the applied user origin, else the build
+/// default. This is the only value handed to the sidecar.
+pub fn effective_origin(applied: Option<&str>, build_default: Option<&str>) -> Option<String> {
+    applied
+        .and_then(|origin| validate(origin).ok())
+        .or_else(|| build_default_origin(build_default))
+}
+
 /// Add `origin` to the `connect-src` directive of `csp` (created when absent).
 /// Idempotent; every other directive is returned untouched.
 pub fn csp_with_connect_origin(csp: &str, origin: &str) -> String {
@@ -199,6 +214,26 @@ fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_effective_origin_prefers_the_applied_origin_then_the_build_default() {
+        assert_eq!(
+            effective_origin(Some("https://b.example"), Some("https://a.example")).as_deref(),
+            Some("https://b.example")
+        );
+        assert_eq!(
+            effective_origin(None, Some("https://a.example/api/v1")).as_deref(),
+            Some("https://a.example")
+        );
+        assert_eq!(
+            effective_origin(Some("http://tauri.localhost"), Some("http://127.0.0.1:8000")).as_deref(),
+            Some("http://127.0.0.1:8000")
+        );
+        assert_eq!(effective_origin(None, None), None);
+        assert_eq!(effective_origin(None, Some("http://tauri.localhost")), None);
+        assert_eq!(effective_origin(None, Some("http://studio.example.com")), None);
+        assert_eq!(effective_origin(None, Some("file:///etc/passwd")), None);
+    }
 
     #[test]
     fn https_origins_are_accepted_and_normalised() {

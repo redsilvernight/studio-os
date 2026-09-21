@@ -136,9 +136,6 @@ fn apply_server_origin_to_csp(config: &mut tauri::Config, origin: &str) {
 }
 
 pub fn run() {
-    let sidecar = Sidecar::default();
-    let exit_sidecar = sidecar.clone();
-
     let mut context = tauri::generate_context!();
     // The CSP is static per build: a user-configured server origin is allowed
     // in `connect-src` (and nowhere else) before the webview is created.
@@ -147,6 +144,10 @@ pub fn run() {
     if let Some(origin) = &applied_origin {
         apply_server_origin_to_csp(context.config_mut(), origin);
     }
+    let effective_origin =
+        server_origin::effective_origin(applied_origin.as_deref(), option_env!("STUDIO_DESKTOP_API_URL"));
+    let sidecar = Sidecar::with_origin(effective_origin);
+    let exit_sidecar = sidecar.clone();
     let shell_state = shell_commands::ShellState::new(store, applied_origin);
 
     let app = tauri::Builder::default()

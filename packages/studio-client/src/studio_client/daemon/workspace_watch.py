@@ -14,7 +14,9 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
-from collections.abc import Callable, Sequence
+import os
+import threading
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -44,6 +46,17 @@ class WatchPlanLike(Protocol):
 
     @property
     def repo_paths(self) -> Sequence[str]: ...
+
+
+class WorkspaceWatchLike(Protocol):
+    @property
+    def workspace_id(self) -> UUID: ...
+
+    @property
+    def project_id(self) -> UUID: ...
+
+    @property
+    def plan(self) -> WatchPlanLike: ...
 
 
 @dataclass(frozen=True)
@@ -94,6 +107,10 @@ class _Running:
     workspace_id: UUID
 
 
+def path_identity(path: Path) -> str:
+    return os.path.normcase(os.path.abspath(path))
+
+
 def _instance_key(path: Path) -> str:
     return "ws-" + hashlib.sha256(str(path).encode("utf-8")).hexdigest()[:12]
 
@@ -107,12 +124,15 @@ class WorkspaceWatchSet:
         interval_seconds: float = 30.0,
         watcher_factory: WatcherFactory | None = None,
         probe: Callable[[Path], RepoStatus] = probe_repo,
+        reserved: Collection[Path] = (),
     ) -> None:
         self._machine_id = machine_id
         self._outbox = outbox
         self._interval_seconds = interval_seconds
         self._factory = watcher_factory or self._default_factory
         self._probe = probe
+        self._reserved = frozenset(path_identity(path) for path in reserved)
+        self._lock = threading.Lock()
         self._running: dict[Path, _Running] = {}
         self._observations: list[RepoObservation] = []
 
@@ -127,13 +147,14 @@ class WorkspaceWatchSet:
 
     @property
     def watched_paths(self) -> list[Path]:
-        return sorted(self._running)
+        with self._lock:
+            return sorted(self._running)
 
     @property
     def observations(self) -> list[RepoObservation]:
         return list(self._observations)
 
-    async def reconcile(self, workspaces: Sequence[WorkspaceWatch]) -> list[RepoObservation]:
+    async def reconcile(self, workspaces: Sequence[WorkspaceWatchLike]) -> list[RepoObservation]:
         """Make the running watchers match the plans; idempotent."""
         desired: dict[Path, tuple[UUID, UUID]] = {}
         observations: list[RepoObservation] = []
@@ -147,29 +168,36 @@ class WorkspaceWatchSet:
                 path = Path(raw)
                 status = await asyncio.to_thread(self._probe, path)
                 if status is RepoStatus.WATCHING:
-                    if path in desired:
+                    if path_identity(path) in self._reserved or any(
+                        path_identity(path) == path_identity(known) for known in desired
+                    ):
                         status = RepoStatus.ALREADY_WATCHED
                     elif len(desired) >= MAX_WORKSPACE_WATCHERS:
                         status = RepoStatus.LIMIT_REACHED
                     else:
                         desired[path] = (workspace.workspace_id, workspace.project_id)
                 observations.append(RepoObservation(workspace.workspace_id, raw, status))
-        for path in [known for known in self._running if known not in desired]:
+        with self._lock:
+            known_paths = list(self._running)
+        for path in [known for known in known_paths if known not in desired]:
             await self._stop_one(path)
         for path, (workspace_id, project_id) in desired.items():
-            current = self._running.get(path)
+            with self._lock:
+                current = self._running.get(path)
             if current is not None and not current.task.done():
                 continue
             if current is not None:
                 await self._stop_one(path)
             watcher = self._factory(path, project_id)
             task = asyncio.create_task(watcher.run(), name=f"git-watch-{_instance_key(path)}")
-            self._running[path] = _Running(watcher, task, workspace_id)
+            with self._lock:
+                self._running[path] = _Running(watcher, task, workspace_id)
         self._observations = observations
         return list(observations)
 
     async def _stop_one(self, path: Path) -> None:
-        running = self._running.pop(path, None)
+        with self._lock:
+            running = self._running.pop(path, None)
         if running is None:
             return
         running.watcher.request_stop()
@@ -179,17 +207,21 @@ class WorkspaceWatchSet:
                 _LOGGER.warning("workspace git watcher ended with an error", exc_info=result)
 
     def request_stop(self) -> None:
-        for running in self._running.values():
+        with self._lock:
+            runners = list(self._running.values())
+        for running in runners:
             running.watcher.request_stop()
 
     async def stop(self) -> None:
-        for path in list(self._running):
+        for path in self.watched_paths:
             await self._stop_one(path)
         self._observations = []
 
     def health(self) -> list[RuntimeServiceHealth]:
         entries: list[RuntimeServiceHealth] = []
-        for path, running in sorted(self._running.items()):
+        with self._lock:
+            snapshot = sorted(self._running.items())
+        for path, running in snapshot:
             alive = not running.task.done()
             entries.append(
                 RuntimeServiceHealth(

@@ -3,7 +3,8 @@
 //! Hard limits: the executable is a fixed basename resolved next to the app
 //! binary (never a path or argument coming from the renderer), it is started
 //! without arguments, and the only thing written to it is a bridge request that
-//! already passed the allowlist.
+//! already passed the allowlist. The one thing the Desktop tells it is the
+//! validated server origin, through a fixed environment variable.
 
 use serde::Serialize;
 use std::collections::VecDeque;
@@ -15,6 +16,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 pub const SIDECAR_BASENAME: &str = "studio-daemon";
+pub const SERVER_ORIGIN_ENV: &str = "STUDIO_DESKTOP_SERVER_ORIGIN";
 const EXCHANGE_TIMEOUT: Duration = Duration::from_secs(20);
 const MAX_LINE_BYTES: usize = 2 * 1024 * 1024;
 const RESTART_WINDOW: Duration = Duration::from_secs(60);
@@ -55,6 +57,7 @@ struct Inner {
     unavailable: bool,
     restarts: VecDeque<Instant>,
     abandoned: bool,
+    origin: Option<String>,
 }
 
 #[derive(Clone, Default)]
@@ -88,6 +91,10 @@ impl Inner {
         if persist_after_desktop_close() {
             cmd.env("STUDIO_DAEMON_PERSIST", "1");
         }
+        match &self.origin {
+            Some(origin) => cmd.env(SERVER_ORIGIN_ENV, origin),
+            None => cmd.env_remove(SERVER_ORIGIN_ENV),
+        };
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
@@ -197,6 +204,18 @@ impl Inner {
 }
 
 impl Sidecar {
+    /// `origin` must already be validated by `server_origin`; it is re-checked
+    /// here so no unvalidated value can ever reach the child environment.
+    pub fn with_origin(origin: Option<String>) -> Self {
+        let origin = origin.and_then(|raw| crate::server_origin::validate(&raw).ok());
+        Self(Arc::new(Mutex::new(Inner { origin, ..Inner::default() })))
+    }
+
+    #[cfg(test)]
+    pub fn origin(&self) -> Option<String> {
+        self.0.lock().ok().and_then(|g| g.origin.clone())
+    }
+
     pub fn state(&self) -> SidecarState {
         self.0.lock().map(|mut g| g.state()).unwrap_or(SidecarState::Unavailable)
     }
@@ -314,6 +333,26 @@ mod tests {
         let _ = inner.restart();
         assert!(!inner.abandoned);
         assert_eq!(inner.restarts.len(), 1);
+    }
+
+    #[test]
+    fn only_a_validated_origin_is_kept_for_the_child_environment() {
+        assert_eq!(Sidecar::with_origin(None).origin(), None);
+        assert_eq!(
+            Sidecar::with_origin(Some("https://Studio.Example.com:443".into())).origin().as_deref(),
+            Some("https://studio.example.com")
+        );
+        for bad in [
+            "http://tauri.localhost",
+            "https://user:pw@studio.example.com",
+            "https://studio.example.com/api",
+            "http://studio.example.com",
+            "javascript:alert(1)",
+            "https://a.example --flag",
+            "",
+        ] {
+            assert_eq!(Sidecar::with_origin(Some(bad.into())).origin(), None, "{bad}");
+        }
     }
 
     #[test]

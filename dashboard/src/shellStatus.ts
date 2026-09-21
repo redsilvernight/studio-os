@@ -102,13 +102,15 @@ const DAEMON_STATE_LABEL: Record<DaemonRunState, string> = {
   incompatible: "Version incompatible",
 };
 
+function isDaemonRunState(value: unknown): value is DaemonRunState {
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(DAEMON_STATE_LABEL, value);
+}
+
 export function summarizeDaemonAnswer(answer: BridgeAnswer): DaemonSummary {
   if (!answer.ok) return { kind: "error", code: answer.error.code };
   const payload = answer.response.payload as { status?: { state?: unknown } | null };
   const state = payload.status?.state;
-  if (typeof state === "string" && state in DAEMON_STATE_LABEL) {
-    return { kind: "state", state: state as DaemonRunState };
-  }
+  if (isDaemonRunState(state)) return { kind: "state", state };
   return { kind: "unknown" };
 }
 

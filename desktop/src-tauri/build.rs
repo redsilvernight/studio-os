@@ -23,6 +23,7 @@ fn windows_icon_override() -> Option<PathBuf> {
 }
 
 fn main() {
+    println!("cargo:rerun-if-env-changed=STUDIO_DESKTOP_API_URL");
     let mut windows = tauri_build::WindowsAttributes::new();
     if let Some(icon) = windows_icon_override() {
         windows = windows.window_icon_path(icon);

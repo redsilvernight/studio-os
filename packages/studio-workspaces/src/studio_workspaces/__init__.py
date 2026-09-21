@@ -17,6 +17,7 @@ from studio_workspaces.picker import FolderPicker, MockFolderPicker, SelectedFol
 from studio_workspaces.root_confirmation import RootConfirmationService
 from studio_workspaces.secret_guard import SecretMaterialError, assert_no_secrets, scan_studio_dir
 from studio_workspaces.store import DissociateResult, MarkerHit, WorkspaceStore, WorkspaceStoreError
+from studio_workspaces.watch_source import WatchSource, WorkspaceWatchEntry, registry_watch_source
 
 __all__ = [
     "DissociateResult",
@@ -35,8 +36,10 @@ __all__ = [
     "SecretMaterialError",
     "SelectedFolder",
     "WatchPlan",
+    "WatchSource",
     "WorkspaceStore",
     "WorkspaceStoreError",
+    "WorkspaceWatchEntry",
     "assert_no_secrets",
     "check_p5_glob",
     "check_readable",
@@ -44,6 +47,7 @@ __all__ = [
     "daemon_watch_plan",
     "detect_git",
     "parse_native_pick",
+    "registry_watch_source",
     "run_flow",
     "scan_studio_dir",
 ]

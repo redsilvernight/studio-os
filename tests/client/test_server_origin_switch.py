@@ -12,6 +12,7 @@ import pytest
 from studio_client.api_client import StudioApiClient
 from studio_client.config import ClientConfig
 from studio_client.daemon.runtime import DaemonRuntime
+from studio_client.errors import TransportError
 from studio_client.outbox import (
     OutboxIdentityError,
     OutboxReplayer,
@@ -164,3 +165,79 @@ async def test_an_environment_token_bound_to_a_is_never_presented_to_b(
         with pytest.raises(MissingMachineToken):
             await client.list_projects()
     assert seen == []
+
+
+async def test_an_offline_server_keeps_the_partition_pending_and_never_leaks_to_b(
+    tmp_path: Path,
+) -> None:
+    path_a, queued_id = queue_under(ORIGIN_A, tmp_path)
+    store = OutboxStore(connect(path_a))
+    offline = AsyncMock()
+    offline.post_event.side_effect = TransportError("server unreachable")
+    await OutboxReplayer(store, offline, POLICY, active_binding=binding(ORIGIN_A)).replay_ready()
+    assert store.pending_count() == 1
+
+    other = AsyncMock()
+    b_store = OutboxStore(connect(runtime(ORIGIN_B, tmp_path).outbox_path))
+    b_store.bind_identity(binding(ORIGIN_B))
+    await OutboxReplayer(b_store, other, POLICY, active_binding=binding(ORIGIN_B)).replay_ready()
+    other.post_event.assert_not_awaited()
+
+    back = AsyncMock()
+    back.post_event.return_value = None
+    reconnected = OutboxStore(connect(path_a))
+    await OutboxReplayer(reconnected, back, POLICY, active_binding=binding(ORIGIN_A)).replay_ready()
+    assert [call.args[0].event_id for call in back.post_event.await_args_list] == [queued_id]
+
+
+async def test_running_b_leaves_the_old_origin_outbox_untouched(tmp_path: Path) -> None:
+    path_a, _ = queue_under(ORIGIN_A, tmp_path)
+    before = path_a.read_bytes()
+    owner = runtime(ORIGIN_B, tmp_path)
+    store = OutboxStore(connect(owner.outbox_path))
+    store.bind_identity(owner.binding)
+    store.connection.close()
+    assert owner.outbox_path != path_a
+    assert path_a.read_bytes() == before
+
+
+async def test_a_daemon_already_active_for_the_profile_refuses_a_second_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import asyncio
+
+    import studio_client.daemon.runtime as runtime_module
+    from studio_client.daemon import AlreadyRunningError
+
+    class Idle:
+        async def __aenter__(self) -> Idle:
+            return self
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+    class Waiting:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            self.stop = asyncio.Event()
+            self.last_attempt_at = None
+            self.last_success_at = None
+            self.last_error = None
+            self.last_replay = None
+
+        def request_stop(self) -> None:
+            self.stop.set()
+
+        async def run(self) -> None:
+            await self.stop.wait()
+
+    monkeypatch.setattr(runtime_module, "StudioApiClient", lambda _config: Idle())
+    monkeypatch.setattr(runtime_module, "HeartbeatDaemon", Waiting)
+    first = runtime(ORIGIN_A, tmp_path)
+    task = asyncio.create_task(first.run())
+    await asyncio.sleep(0.1)
+    with pytest.raises(AlreadyRunningError):
+        await runtime(ORIGIN_A, tmp_path).run()
+    other_origin = runtime(ORIGIN_B, tmp_path)
+    assert other_origin.outbox_path != first.outbox_path
+    first.request_stop()
+    await asyncio.wait_for(task, timeout=5)

@@ -37,25 +37,19 @@ export type WorkspaceActionView =
   | "grant_access"
   | "detach_workspace";
 
-export interface GitView {
-  branch: string | null;
-  detached: boolean;
-  remote: string | null;
-}
-
-export interface WorkspaceStatusView {
+export interface WorkspaceViewModel {
   workspaceId: string;
   projectName: string;
   folderName: string;
   health: WorkspaceHealthView;
   action: WorkspaceActionView;
   candidateFolder: string | null;
-  git: GitView | null;
+  repoCount: number | null;
   features: ReadonlyArray<{ name: string; on: boolean }>;
   watchSummary: string | null;
 }
 
-const HEALTHS: ReadonlyArray<WorkspaceHealthView> = [
+export const WORKSPACE_HEALTHS: ReadonlyArray<WorkspaceHealthView> = [
   "valid",
   "config_missing",
   "config_invalid",
@@ -64,7 +58,7 @@ const HEALTHS: ReadonlyArray<WorkspaceHealthView> = [
   "project_unavailable",
 ];
 
-const ACTIONS: ReadonlyArray<WorkspaceActionView> = [
+export const WORKSPACE_ACTIONS: ReadonlyArray<WorkspaceActionView> = [
   "none",
   "create_config",
   "repair_config",
@@ -73,46 +67,63 @@ const ACTIONS: ReadonlyArray<WorkspaceActionView> = [
   "detach_workspace",
 ];
 
+const FEATURE_LABELS: ReadonlyArray<readonly [string, string]> = [
+  ["knowledge", "Connaissances"],
+  ["code_graph", "Graphe de code"],
+  ["harness", "Assistants"],
+  ["watchers", "Surveillance"],
+];
+
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isHealth(value: unknown): value is WorkspaceHealthView {
-  return typeof value === "string" && (HEALTHS as ReadonlyArray<string>).includes(value);
+  return typeof value === "string" && (WORKSPACE_HEALTHS as ReadonlyArray<string>).includes(value);
 }
 
 function isAction(value: unknown): value is WorkspaceActionView {
-  return typeof value === "string" && (ACTIONS as ReadonlyArray<string>).includes(value);
+  return typeof value === "string" && (WORKSPACE_ACTIONS as ReadonlyArray<string>).includes(value);
+}
+
+function lastSegment(path: string): string {
+  const parts = path.split(/[\\/]+/).filter((part) => part !== "");
+  return parts.length === 0 ? path : (parts[parts.length - 1] as string);
 }
 
 /**
- * Fail-closed : une réponse inattendue donne `null`, jamais un rendu partiel.
- * Les champs inconnus sont ignorés (aucune donnée sensible n'est affichée).
+ * ViewModel dérivé du `WorkspaceStatus` canonique du contrat P1 (snake_case,
+ * `contracts/local`). Ce n'est pas un second format de fil : seule la forme
+ * canonique est acceptée. Fail-closed : une réponse inattendue donne `null`,
+ * jamais un rendu partiel ; les champs inconnus (dont la configuration
+ * complète, les références de secrets et les chemins) ne sont jamais recopiés.
  */
-export function parseWorkspaceStatus(payload: unknown): WorkspaceStatusView | null {
+export function toWorkspaceViewModel(payload: unknown): WorkspaceViewModel | null {
   if (!isRecord(payload)) return null;
-  const { workspaceId, projectName, folderName, health, action } = payload;
+  const { workspace_id: workspaceId, health, action, config, candidate_root: candidate } = payload;
   if (typeof workspaceId !== "string" || workspaceId === "") return null;
-  if (typeof projectName !== "string" || typeof folderName !== "string") return null;
   if (!isHealth(health) || !isAction(action)) return null;
-  const candidate = payload.candidateFolder;
-  const gitRaw = payload.git;
-  let git: GitView | null = null;
-  if (isRecord(gitRaw)) {
-    const branch = typeof gitRaw.branch === "string" ? gitRaw.branch : null;
-    const remote = typeof gitRaw.remote === "string" ? gitRaw.remote : null;
-    git = { branch, detached: gitRaw.detached === true, remote };
-  }
-  const featuresRaw = payload.features;
-  const features: Array<{ name: string; on: boolean }> = [];
-  if (Array.isArray(featuresRaw)) {
-    for (const entry of featuresRaw) {
-      if (isRecord(entry) && typeof entry.name === "string") {
-        features.push({ name: entry.name, on: entry.on === true });
-      }
+  if (config !== null && config !== undefined && !isRecord(config)) return null;
+  let projectName = "Projet";
+  let folderName = "Dossier local";
+  let repoCount: number | null = null;
+  let features: Array<{ name: string; on: boolean }> = [];
+  let watchers = false;
+  if (isRecord(config)) {
+    if (typeof config.project_slug === "string" && config.project_slug !== "") {
+      projectName = config.project_slug;
     }
+    const roots = config.roots;
+    if (isRecord(roots)) {
+      if (typeof roots.workspace_root === "string" && roots.workspace_root !== "") {
+        folderName = lastSegment(roots.workspace_root);
+      }
+      if (Array.isArray(roots.repo_roots)) repoCount = roots.repo_roots.length;
+    }
+    const flags = isRecord(config.features) ? config.features : {};
+    features = FEATURE_LABELS.map(([key, name]) => ({ name, on: flags[key] === true }));
+    watchers = flags.watchers === true;
   }
-  const watch = payload.watchSummary;
   return {
     workspaceId,
     projectName,
@@ -120,9 +131,9 @@ export function parseWorkspaceStatus(payload: unknown): WorkspaceStatusView | nu
     health,
     action,
     candidateFolder: typeof candidate === "string" ? candidate : null,
-    git,
+    repoCount,
     features,
-    watchSummary: typeof watch === "string" ? watch : null,
+    watchSummary: watchers ? "La surveillance des dépôts est activée pour ce dossier." : null,
   };
 }
 
@@ -164,7 +175,7 @@ function healthChip(health: WorkspaceHealthView): string {
   return `<span class="ws-chip ws-chip--${esc(health)}">${esc(workspaceHealthLabel(health))}</span>`;
 }
 
-export function workspaceListHtml(items: ReadonlyArray<WorkspaceStatusView>): string {
+export function workspaceListHtml(items: ReadonlyArray<WorkspaceViewModel>): string {
   if (items.length === 0) {
     return (
       `<section class="ws-list"><p class="ws-empty">` +
@@ -184,16 +195,12 @@ export function workspaceListHtml(items: ReadonlyArray<WorkspaceStatusView>): st
   return `<section class="ws-list"><ul>${rows}</ul></section>`;
 }
 
-function gitSection(git: GitView | null): string {
-  if (git === null) {
-    return `<details class="ws-details"><summary>Dépôt</summary><p>Sans dépôt : ce dossier reste utilisable tel quel.</p></details>`;
+function reposSection(repoCount: number | null): string {
+  if (repoCount === null || repoCount === 0) {
+    return `<details class="ws-details"><summary>Dépôts</summary><p>Sans dépôt : ce dossier reste utilisable tel quel.</p></details>`;
   }
-  const branch = git.detached ? "révision détachée" : (git.branch ?? "branche inconnue");
-  const remote = git.remote === null ? "sans serveur distant" : "avec serveur distant";
-  return (
-    `<details class="ws-details"><summary>Dépôt</summary>` +
-    `<p>Suivi de la ${esc(branch)}, ${esc(remote)}.</p></details>`
-  );
+  const label = repoCount === 1 ? "1 dépôt suivi" : `${repoCount} dépôts suivis`;
+  return `<details class="ws-details"><summary>Dépôts</summary><p>${esc(label)}.</p></details>`;
 }
 
 function featuresSection(features: ReadonlyArray<{ name: string; on: boolean }>): string {
@@ -206,7 +213,7 @@ function featuresSection(features: ReadonlyArray<{ name: string; on: boolean }>)
   return `<details class="ws-details"><summary>Fonctions locales</summary><ul>${rows}</ul></details>`;
 }
 
-export function workspaceDetailHtml(view: WorkspaceStatusView): string {
+export function workspaceDetailHtml(view: WorkspaceViewModel): string {
   const next = workspaceActionLabel(view.action);
   const candidate =
     view.candidateFolder !== null
@@ -220,7 +227,7 @@ export function workspaceDetailHtml(view: WorkspaceStatusView): string {
     `<p class="ws-folder">${esc(view.folderName)}</p>` +
     (next === "" ? "" : `<p class="ws-next">${esc(next)}</p>`) +
     candidate +
-    gitSection(view.git) +
+    reposSection(view.repoCount) +
     featuresSection(view.features) +
     watch +
     `</article>`

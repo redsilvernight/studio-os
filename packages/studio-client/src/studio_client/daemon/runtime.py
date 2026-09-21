@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
@@ -31,7 +32,7 @@ from studio_client.config import ClientConfig, default_config_path
 from studio_client.daemon.heartbeat import HeartbeatDaemon, build_watchers
 from studio_client.daemon.workspace_watch import (
     RepoObservation,
-    WorkspaceWatch,
+    WorkspaceWatchLike,
     WorkspaceWatchSet,
 )
 from studio_client.errors import AuthenticationError, ServerError, TransportError
@@ -44,10 +45,14 @@ from studio_client.outbox import (
     default_outbox_path,
     partitioned_outbox_path,
 )
+from studio_client.outbox.legacy import LegacyOutboxError, inspect_legacy_outbox
 from studio_client.retry import RetryPolicy
 from studio_client.watchers import PollingWatcher
 
 _LOGGER = logging.getLogger("studio_client.daemon.runtime")
+
+WorkspaceSource = Callable[[ProfileRef], Sequence[WorkspaceWatchLike]]
+DEFAULT_WORKSPACE_SYNC_SECONDS = 15.0
 
 
 class AlreadyRunningError(RuntimeError):
@@ -132,6 +137,8 @@ class DaemonRuntime:
         agent_id: UUID | None = None,
         data_root: Path | None = None,
         ownership: DaemonOwnership = DaemonOwnership.EXTERNAL,
+        workspace_source: WorkspaceSource | None = None,
+        workspace_sync_seconds: float = DEFAULT_WORKSPACE_SYNC_SECONDS,
     ) -> None:
         if config.machine_id is None:
             raise ValueError("ClientConfig.machine_id must be set to run the daemon")
@@ -161,7 +168,10 @@ class DaemonRuntime:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._watchers: list[PollingWatcher] = []
         self._workspace_watches: WorkspaceWatchSet | None = None
-        self._workspace_inputs: list[WorkspaceWatch] = []
+        self._workspace_inputs: list[WorkspaceWatchLike] = []
+        self._workspace_source = workspace_source
+        self._workspace_sync_seconds = workspace_sync_seconds
+        self._stop_event: asyncio.Event | None = None
         self._stop_requested = False
 
     def request_stop(
@@ -195,6 +205,8 @@ class DaemonRuntime:
         return drained
 
     def _signal_stop(self) -> None:
+        if self._stop_event is not None:
+            self._stop_event.set()
         if self._heartbeat is not None:
             self._heartbeat.request_stop()
         for watcher in self._watchers:
@@ -203,7 +215,7 @@ class DaemonRuntime:
             self._workspace_watches.request_stop()
 
     async def reconcile_workspace_watchers(
-        self, workspaces: list[WorkspaceWatch] | None = None
+        self, workspaces: Sequence[WorkspaceWatchLike] | None = None
     ) -> list[RepoObservation]:
         """Apply the P5 watch plans through the P4 watcher lifecycle. Before the
         daemon runs, the plans are only remembered and applied at startup."""
@@ -214,11 +226,33 @@ class DaemonRuntime:
             return []
         return await watches.reconcile(self._workspace_inputs)
 
+    async def refresh_workspace_watchers(self) -> list[RepoObservation]:
+        source = self._workspace_source
+        if source is None:
+            return []
+        try:
+            workspaces = await asyncio.to_thread(source, self.profile)
+        except Exception:  # noqa: BLE001
+            _LOGGER.warning("workspace source unreadable; keeping current watchers", exc_info=True)
+            return []
+        return await self.reconcile_workspace_watchers(list(workspaces))
+
+    async def _workspace_sync_loop(self) -> None:
+        stop = self._stop_event
+        if stop is None or self._workspace_source is None:
+            return
+        while not self._stop_requested:
+            try:
+                await asyncio.wait_for(stop.wait(), timeout=self._workspace_sync_seconds)
+            except TimeoutError:
+                await self.refresh_workspace_watchers()
+
     async def run(self) -> None:
         if not self._lock.acquire():
             raise AlreadyRunningError("a daemon is already running for this profile")
         try:
             self._loop = asyncio.get_running_loop()
+            self._stop_event = asyncio.Event()
             self._guard_legacy_outbox()
             store = OutboxStore(connect(self.outbox_path))
             store.bind_identity(self.binding)
@@ -243,13 +277,19 @@ class DaemonRuntime:
                     machine_id=self.binding.machine_id,
                     outbox=store,
                     interval_seconds=self.config.git_watch_interval_seconds,
+                    reserved=[watch.repo_path for watch in self.config.git_watches],
                 )
                 if not self._stop_requested:
-                    await self._workspace_watches.reconcile(self._workspace_inputs)
+                    if self._workspace_source is not None:
+                        await self.refresh_workspace_watchers()
+                    else:
+                        await self._workspace_watches.reconcile(self._workspace_inputs)
                 if self._stop_requested:
                     self.request_stop()
                 await asyncio.gather(
-                    self._heartbeat.run(), *(watcher.run() for watcher in self._watchers)
+                    self._heartbeat.run(),
+                    self._workspace_sync_loop(),
+                    *(watcher.run() for watcher in self._watchers),
                 )
         finally:
             self.request_stop()
@@ -260,6 +300,7 @@ class DaemonRuntime:
                 self._store.connection.close()
             self._store = None
             self._replayer = None
+            self._stop_event = None
             self._loop = None
             self._lock.release()
 
@@ -344,12 +385,12 @@ class DaemonRuntime:
     def _guard_legacy_outbox(self) -> None:
         if self._legacy_outbox_path == self.outbox_path or not self._legacy_outbox_path.exists():
             return
-        legacy = OutboxStore(connect(self._legacy_outbox_path))
         try:
-            if legacy.has_queued_work():
-                raise OutboxIdentityError(["binding_missing"])
-        finally:
-            legacy.connection.close()
+            report = inspect_legacy_outbox(self._legacy_outbox_path)
+        except LegacyOutboxError as exc:
+            raise OutboxIdentityError(["binding_missing"]) from exc
+        if report.has_queued_work:
+            raise OutboxIdentityError(["binding_missing"])
 
     @staticmethod
     def _heartbeat_health(heartbeat: HeartbeatDaemon | None) -> RuntimeServiceHealth:

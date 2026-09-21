@@ -29,6 +29,7 @@ from studio_client.context import (
 from studio_client.errors import StudioApiError
 from studio_client.knowledge import GraphifyGraphProvider, ScopePolicy, VaultMemoryProvider
 from studio_client.outbox import OutboxStore, connect, default_outbox_path
+from studio_client.outbox.legacy import main as legacy_outbox_main
 from studio_client.recording import (
     ActiveRecordingStore,
     OutboxRecordingStore,
@@ -585,6 +586,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Store the machine token in the OS keyring (see `studio-client login --help`).",
     )
 
+    subparsers.add_parser(
+        "outbox",
+        help="Review a legacy, identity-less outbox (`studio-client outbox legacy --help`).",
+    )
+
     projects_parser = subparsers.add_parser("projects", help="Projects.")
     projects_sub = projects_parser.add_subparsers(dest="projects_command", required=True)
     projects_list = projects_sub.add_parser("list", help="List projects.")
@@ -851,6 +857,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     argv = list(argv if argv is not None else sys.argv[1:])
     if argv[:1] == ["login"]:
         raise SystemExit(login(argv[1:]))
+    if argv[:2] == ["outbox", "legacy"]:
+        raise SystemExit(legacy_outbox_main(argv[2:]))
 
     parser = _build_parser()
     args = parser.parse_args(argv)

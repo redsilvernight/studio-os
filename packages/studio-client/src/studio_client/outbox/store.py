@@ -135,9 +135,16 @@ def connect(path: Path) -> sqlite3.Connection:
 def connect_read_only(path: Path) -> sqlite3.Connection:
     """Short-lived reader, usable from any thread: the writer connection is bound
     to the thread that created it."""
-    conn = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
+    conn = sqlite3.connect(f"{read_only_uri(path.resolve())}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def read_only_uri(resolved: Path) -> str:
+    uri = resolved.as_uri()
+    if uri.startswith("file://") and not uri.startswith("file:///"):
+        return "file:////" + uri[len("file://") :]
+    return uri
 
 
 @contextmanager

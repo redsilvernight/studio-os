@@ -91,6 +91,7 @@ class HeartbeatDaemon:
                 logger.warning("heartbeat failed", exc_info=True)
             else:
                 self.last_success_at = datetime.now(UTC)
+                self.last_attempt_at = self.last_success_at
                 self.last_error = None
                 await self._replay_outbox()
             if self._stop_event.is_set():

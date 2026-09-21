@@ -59,8 +59,14 @@ from studio_contracts.local.identity import (
 )
 
 from studio_client.config import ClientConfig, default_config_path
+from studio_client.daemon.desktop_origin import DesktopOriginError, desktop_client_config
 from studio_client.daemon.logging import configure_daemon_logging
-from studio_client.daemon.runtime import AlreadyRunningError, DaemonRuntime, InstanceLock
+from studio_client.daemon.runtime import (
+    AlreadyRunningError,
+    DaemonRuntime,
+    InstanceLock,
+    WorkspaceSource,
+)
 from studio_client.outbox import OutboxIdentityError
 from studio_client.tokens import KeyringTokenStore
 
@@ -89,9 +95,16 @@ def _message_id() -> str:
 
 
 class DaemonController:
-    def __init__(self, config: ClientConfig, *, data_root: Path | None = None) -> None:
+    def __init__(
+        self,
+        config: ClientConfig,
+        *,
+        data_root: Path | None = None,
+        workspace_source: WorkspaceSource | None = None,
+    ) -> None:
         self.config = config
         self.data_root = data_root or default_config_path().parent
+        self._workspace_source = workspace_source
         self._runtime: DaemonRuntime | None = None
         self._thread: threading.Thread | None = None
         self._failure: BaseException | None = None
@@ -119,6 +132,25 @@ class DaemonController:
             return health_status
         if isinstance(failure, AlreadyRunningError):
             return DaemonStatus(state=DaemonRunState.UNAVAILABLE)
+        if isinstance(failure, OutboxIdentityError):
+            from studio_contracts.local.daemon_control import CrashInfo
+
+            return DaemonStatus(
+                state=DaemonRunState.CRASHED,
+                last_crash=CrashInfo(
+                    crashed_at=_now(),
+                    recoveries_attempted=0,
+                    error=LocalError(
+                        code=LocalErrorCode.IDENTITY_MISMATCH,
+                        message=(
+                            "A legacy outbox holds queued work without an identity. "
+                            "Review it with `studio-client outbox legacy status`."
+                        ),
+                        component=ComponentId.DAEMON,
+                        retryable=False,
+                    ),
+                ),
+            )
         if failure is not None:
             from studio_contracts.local.daemon_control import CrashInfo
 
@@ -289,6 +321,7 @@ class DaemonController:
                 self.config,
                 data_root=self.data_root,
                 ownership=DaemonOwnership.DESKTOP_STARTED,
+                workspace_source=self._workspace_source,
             )
             self._runtime = runtime
             self._failure = None
@@ -623,11 +656,16 @@ def serve_streams(
         destination.flush()
 
 
-def main() -> int:
-    config = ClientConfig()  # type: ignore[call-arg]
+def main(workspace_source: WorkspaceSource | None = None) -> int:
     data_root = default_config_path().parent
     configure_daemon_logging(data_root)
-    controller = DaemonController(config, data_root=data_root)
+    try:
+        desktop_config = desktop_client_config()
+    except DesktopOriginError:
+        _LOGGER.error("refusing to start: the desktop server origin is invalid")
+        return 2
+    config = desktop_config or ClientConfig()  # type: ignore[call-arg]
+    controller = DaemonController(config, data_root=data_root, workspace_source=workspace_source)
     service = SharedBridgeService(controller)
     persist = os.environ.get("STUDIO_DAEMON_PERSIST") == "1"
     if service._owner and os.environ.get("STUDIO_DAEMON_AUTOSTART") == "1":

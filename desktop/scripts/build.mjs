@@ -32,5 +32,7 @@ if (sidecar) {
 }
 
 console.log("\n▶ Tauri build (--no-bundle)");
-await runOrFail(node, [tauriCli(), "build", "--no-bundle", "--config", overlayPath]);
+await runOrFail(node, [tauriCli(), "build", "--no-bundle", "--config", overlayPath], {
+  env: { STUDIO_DESKTOP_API_URL: apiUrl },
+});
 console.log("\n✔ built: desktop/src-tauri/target/release/studio-desktop.exe");

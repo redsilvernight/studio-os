@@ -75,6 +75,9 @@ describe("daemon summary consumes the P1 states without inventing any", () => {
       expect(summarizeDaemonAnswer(ok(s))).toEqual({ kind: "state", state: s });
     }
     expect(summarizeDaemonAnswer(ok("hovering"))).toEqual({ kind: "unknown" });
+    for (const inherited of ["constructor", "toString", "__proto__", "hasOwnProperty", "valueOf"]) {
+      expect(summarizeDaemonAnswer(ok(inherited)), inherited).toEqual({ kind: "unknown" });
+    }
   });
 
   it("keeps the P1 error code of a failed answer", () => {

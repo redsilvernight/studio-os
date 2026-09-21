@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -225,3 +226,45 @@ def test_sync_state_roundtrip_and_overwrite(tmp_path: Path) -> None:
     with transaction(store.connection):
         store.set_sync_state("cursor", {"seq": 2})
     assert store.get_sync_state("cursor") == {"seq": 2}
+
+
+class _StubResolved:
+    def __init__(self, uri: str) -> None:
+        self._uri = uri
+
+    def as_uri(self) -> str:
+        return self._uri
+
+
+def test_read_only_uri_of_a_local_path_keeps_an_empty_authority(tmp_path: Path) -> None:
+    from studio_client.outbox.store import read_only_uri
+
+    uri = read_only_uri((tmp_path / "a b.db").resolve())
+    assert uri.startswith("file:///")
+    assert "%20" in uri
+
+
+def test_read_only_uri_of_a_unc_path_has_an_empty_authority() -> None:
+    from studio_client.outbox.store import read_only_uri
+
+    unc = _StubResolved("file://server/share/dir/a%20b.db")
+    assert read_only_uri(unc) == "file:////server/share/dir/a%20b.db"  # type: ignore[arg-type]
+    with pytest.raises(sqlite3.OperationalError, match="authority"):
+        sqlite3.connect("file://server/share/dir/a.db?mode=ro", uri=True)
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows UNC shares")
+def test_connect_read_only_opens_a_database_through_a_unc_share(tmp_path: Path) -> None:
+    from studio_client.outbox.store import connect_read_only
+
+    path = tmp_path / "unc.sqlite3"
+    connect(path).close()
+    drive = path.drive[0]
+    unc = Path("\\" * 2 + f"localhost{chr(92)}{drive}$" + str(path)[2:])
+    if not unc.exists():
+        pytest.skip("administrative share unavailable")
+    conn = connect_read_only(unc)
+    try:
+        assert conn.execute("SELECT COUNT(*) FROM pending_events").fetchone()[0] == 0
+    finally:
+        conn.close()
