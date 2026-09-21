@@ -70,9 +70,9 @@ aucun code P4.
 
 - `KnowledgeConfig`/`CodeGraphConfig` : portés tels quels dans la config,
   jamais interprétés ici. États `disabled` valides et testés.
-- Sélecteur natif : `MockFolderPicker` en place ; P3 affiche le dialogue
-  natif et transmet le dossier confirmé au daemon (`issue()`), sans commande
-  de pont (allowlist P1 inchangée).
+- Sélecteur natif : `NativeFolderPicker` (Wave 1) adapte le dialogue natif P3 ;
+  `MockFolderPicker` reste réservé aux tests. Le daemon ne sert pas encore
+  `workspace.*` : voir `DESKTOP_WAVE1_INTEGRATION.md` (dette).
 - `expected_updated_at` : concurrence optimiste côté sauvegarde ; le rechargement
   UI après 409 appartient à l'intégrateur.
 

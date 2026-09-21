@@ -4,8 +4,8 @@
  *
  * Ce module ne parle jamais à Tauri : il reçoit des données déjà validées par
  * `platform` (commandes `workspace.*` du pont P1) et rend du HTML.
- * Le montage dans la navigation globale appartient à P3 (voir
- * P3_INTEGRATION_PATCH.md) : ce module expose seulement une entrée à monter.
+ * Le montage dans la navigation globale est fait par `views/workspacesPage.ts` ;
+ * ce module expose seulement une entrée à monter.
  */
 
 import { esc } from "../ui";

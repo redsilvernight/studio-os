@@ -79,7 +79,7 @@ export function fakeDaemon(options: FakeDaemonOptions = {}) {
     }
     const needs = command === "daemon.health" ? "daemon.health" : "daemon.control";
     if (!granted.has(needs)) return fail("capability_missing");
-    if (command === "daemon.status") return ok(command, { state: options.state ?? "running" });
+    if (command === "daemon.status") return ok(command, { action: "status", outcome: "ok", status: { state: options.state ?? "running" } });
     if (command === "daemon.health") {
       const svc = (service: string, condition = "healthy") => ({ service, condition, state: "ready" });
       return ok(command, {

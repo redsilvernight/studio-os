@@ -271,7 +271,7 @@ async function main() {
     await sleep(500);
     const st = await invoke(page, "bridge_request", { request: bridgeRequest("daemon.status", { action: "status", profile }) });
     const status = st.value?.payload?.status;
-    check("daemon.sidecar_answers_status", st.ok && status?.state === "running" && Number.isInteger(status?.instance?.pid), `daemon.status -> ${status?.state}, sidecar pid ${status?.instance?.pid}`);
+    check("daemon.sidecar_answers_status", st.ok && status?.state === "running" && Number.isInteger(status?.instance?.pid), `daemon.status -> ${status?.state}, sidecar pid ${status?.instance?.pid}${status ? "" : ` raw=${JSON.stringify(st.value).slice(0, 400)}`}`);
     const idv = await invoke(page, "bridge_request", { request: bridgeRequest("identity.get_view", {}) });
     const idText = JSON.stringify(idv.value);
     const secretStatus = idv.value?.payload?.secrets?.[0]?.status;
@@ -305,13 +305,32 @@ async function main() {
     // ---- G. Process observation ----------------------------------------------
     const info2 = (await invoke(page, "desktop_info")).value;
     check("process.running_state_observed", info2.sidecar.state === "running" && Number.isInteger(info2.sidecar.pid), `desktop_info.sidecar ${JSON.stringify(info2.sidecar)}`);
+    const sidecarProcessesBefore = processCount("studio-daemon.exe");
     killTree(info2.sidecar.pid);
     await sleep(1500);
     const info3 = (await invoke(page, "desktop_info")).value;
     check("process.termination_detected", info3.sidecar.state === "exited", `after kill: ${JSON.stringify(info3.sidecar)}`);
+    const rehandshake = await invoke(page, "bridge_request", { request: bridgeRequest("runtime.handshake", { peer: info.peer }) });
+    check("process.recovered_sidecar_renegotiates", rehandshake.ok && rehandshake.value?.payload?.outcome === "compatible", `handshake on the restarted sidecar -> ${rehandshake.value?.payload?.outcome ?? JSON.stringify(rehandshake.value?.error?.code)}`);
     const after = await invoke(page, "bridge_request", { request: bridgeRequest("daemon.status", { action: "status", profile }) });
-    check("process.request_after_exit_recovers_once", after.ok && after.value?.payload?.status?.state === "stopped", `daemon.status after restart -> ${after.value?.payload?.status?.state}`);
-    check("process.single_sidecar_after_recovery", processCount("studio-daemon.exe") === 1, `studio-daemon.exe processes: ${processCount("studio-daemon.exe")}`);
+    check("process.request_after_exit_recovers_once", after.ok && after.value?.payload?.status?.state === "stopped", `daemon.status after restart -> ${after.value?.payload?.status?.state}${after.value?.payload?.status ? "" : ` raw=${JSON.stringify(after.value).slice(0, 400)}`}`);
+    check("process.single_sidecar_after_recovery", processCount("studio-daemon.exe") === sidecarProcessesBefore, `studio-daemon.exe processes (a onefile build is a bootloader plus its child): ${processCount("studio-daemon.exe")}, before the kill: ${sidecarProcessesBefore}`);
+
+    let abandoned = null;
+    let lastAnswer = null;
+    for (let round = 0; round < 6 && abandoned === null; round += 1) {
+      const current = (await invoke(page, "desktop_info")).value.sidecar;
+      if (current.state === "running") {
+        killTree(current.pid);
+        await sleep(1000);
+      }
+      lastAnswer = await invoke(page, "bridge_request", { request: bridgeRequest("runtime.handshake", { peer: info.peer }) });
+      const observed = (await invoke(page, "desktop_info")).value.sidecar;
+      if (observed.state === "abandoned") abandoned = observed;
+    }
+    check("process.restart_bounded_then_abandoned", abandoned !== null && abandoned.attempts === 3, `sidecar after repeated crashes: ${JSON.stringify(abandoned)}`);
+    check("process.abandoned_sidecar_is_refused_not_respawned", lastAnswer !== null && (!lastAnswer.ok || lastAnswer.value?.kind === "error"), `answer while abandoned: ${JSON.stringify(lastAnswer).slice(0, 200)}`);
+    check("process.no_sidecar_running_once_abandoned", processCount("studio-daemon.exe") === 0, `studio-daemon.exe processes: ${processCount("studio-daemon.exe")}`);
 
     // ---- H. Network error handling (server down) ------------------------------
     await stopStack(stack);

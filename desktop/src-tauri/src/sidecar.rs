@@ -283,6 +283,40 @@ mod tests {
     }
 
     #[test]
+    fn restarts_are_bounded_then_the_sidecar_is_abandoned() {
+        let mut inner = Inner {
+            started: true,
+            exit: Some(Some(1)),
+            ..Inner::default()
+        };
+        for _ in 0..MAX_RESTARTS {
+            inner.restarts.push_back(Instant::now());
+        }
+        assert_eq!(inner.state(), SidecarState::Recovering { attempts: MAX_RESTARTS });
+        assert!(matches!(inner.restart(), Err(ExchangeError::Crashed { code: Some(1) })));
+        assert_eq!(inner.state(), SidecarState::Abandoned { attempts: MAX_RESTARTS });
+        assert!(matches!(inner.restart(), Err(ExchangeError::Crashed { .. })));
+        assert_eq!(inner.restarts.len(), MAX_RESTARTS);
+    }
+
+    #[test]
+    fn restarts_older_than_the_window_do_not_count() {
+        let mut inner = Inner {
+            started: true,
+            ..Inner::default()
+        };
+        let stale = Instant::now()
+            .checked_sub(RESTART_WINDOW + Duration::from_secs(1))
+            .expect("monotonic clock far enough from its origin");
+        for _ in 0..MAX_RESTARTS {
+            inner.restarts.push_back(stale);
+        }
+        let _ = inner.restart();
+        assert!(!inner.abandoned);
+        assert_eq!(inner.restarts.len(), 1);
+    }
+
+    #[test]
     fn the_sidecar_name_is_fixed_and_path_free() {
         assert!(!SIDECAR_BASENAME.contains(['/', '\\', ' ', '.']));
     }

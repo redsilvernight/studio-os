@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import threading
+import time
 from pathlib import Path
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -138,3 +140,49 @@ async def test_runtime_assembles_existing_services_and_stops_cleanly(
     runtime.request_stop()
     await asyncio.wait_for(task, timeout=1)
     assert runtime.health().status.state.value == "stopped"
+
+
+def test_health_is_readable_from_a_thread_other_than_the_runtime_loop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+    class FakeHeartbeat:
+        def __init__(self, _client, _config, *, agent_id=None, replayer=None):
+            self.stop = asyncio.Event()
+            self.last_attempt_at = None
+            self.last_success_at = None
+            self.last_error = None
+            self.last_replay = None
+
+        def request_stop(self) -> None:
+            self.stop.set()
+
+        async def run(self) -> None:
+            await self.stop.wait()
+
+    monkeypatch.setattr(runtime_module, "StudioApiClient", lambda _config: FakeClient())
+    monkeypatch.setattr(runtime_module, "HeartbeatDaemon", FakeHeartbeat)
+    monkeypatch.setattr(runtime_module, "build_watchers", lambda _config, _store: [])
+
+    runtime = DaemonRuntime(config(), data_root=tmp_path)
+    runtime._legacy_outbox_path = tmp_path / "legacy.sqlite3"
+    loop_thread = threading.Thread(target=lambda: asyncio.run(runtime.run()), daemon=True)
+    loop_thread.start()
+    deadline = time.monotonic() + 5
+    while runtime.health().status.state.value != "running" and time.monotonic() < deadline:
+        time.sleep(0.02)
+    try:
+        health = runtime.health()
+        assert health.status.state.value == "running"
+        assert health.status.outbox is not None
+        assert health.status.outbox.pending_count == 0
+    finally:
+        runtime.request_stop()
+        loop_thread.join(timeout=5)
+    assert not loop_thread.is_alive()

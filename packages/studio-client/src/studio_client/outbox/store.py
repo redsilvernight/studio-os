@@ -132,6 +132,14 @@ def connect(path: Path) -> sqlite3.Connection:
     return conn
 
 
+def connect_read_only(path: Path) -> sqlite3.Connection:
+    """Short-lived reader, usable from any thread: the writer connection is bound
+    to the thread that created it."""
+    conn = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
 @contextmanager
 def transaction(conn: sqlite3.Connection) -> Iterator[None]:
     """Groups every statement run inside the block into one SQLite

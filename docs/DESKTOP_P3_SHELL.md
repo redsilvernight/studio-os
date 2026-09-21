@@ -37,7 +37,7 @@ L'état du daemon vient de `daemon.status` (P1, `DaemonRunState` + codes d'erreu
 
 ## 6. Tests
 
-- Vitest : 787 tests (dont ~95 P3 : origine runtime, observateur d'API, machine d'états, résumés, Desktop shell, Réglages › Application, connexion, absence d'API natives).
+- Vitest : 787 tests au moment de P3 (835 sur la baseline Wave 1 ; dont ~95 P3 : origine runtime, observateur d'API, machine d'états, résumés, Desktop shell, Réglages › Application, connexion, absence d'API natives).
 - Rust : `cargo test` 47 tests (validation d'origine, CSP, sélecteurs, ACL/commandes).
 - Playwright web : 172 tests, sans régression.
 - E2E Desktop réel (WebView2, sans Postgres) : `node desktop/scripts/build.mjs --api-url http://127.0.0.1:59999` puis `npm --prefix desktop run test:e2e:shell` — 25 contrôles (origine valide/invalides, CSP avant/après relance, relance explicite, pastille, Réglages, reprise serveur).
@@ -47,5 +47,5 @@ L'état du daemon vient de `daemon.status` (P1, `DaemonRunState` + codes d'erreu
 
 - Les dialogues natifs (`choose_folder`/`choose_file`) ne sont pas automatisables en E2E ; couverts par tests unitaires Rust/TS et par le refus ACL/typage.
 - P1 n'expose aucune commande de diagnostic/journaux : l'entrée « Ouvrir les journaux » est visible mais désactivée (« Non disponible dans cette version ») — P4.
-- `local-contracts.generated.ts` : le test de dérive échoue dans ce checkout Windows (octets du contrat hachés ↔ fins de ligne) ; digest identique, fichiers P1 non modifiés. À confirmer en CI Linux.
+- `local-contracts.generated.ts` : la dérive CRLF observée sous Windows est résolue en Wave 1 (`.gitattributes` + comparaison canonique LF), voir `DESKTOP_WAVE1_INTEGRATION.md`.
 - E2E `scripts/e2e.mjs` (P2, avec Postgres + sidecar) non rejoué dans ce lot.

@@ -143,3 +143,24 @@ async def test_a_machine_credential_for_a_is_never_presented_to_b(
         with pytest.raises(MissingMachineToken):
             await client.list_projects()
     assert seen == []
+
+
+async def test_an_environment_token_bound_to_a_is_never_presented_to_b(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("STUDIO_CLIENT_MACHINE_TOKEN", "env-token-of-a")
+    monkeypatch.setenv("STUDIO_CLIENT_MACHINE_TOKEN_ORIGIN", ORIGIN_A)
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json=[])
+
+    async with StudioApiClient(
+        client_config(ORIGIN_B),
+        token_store=MemoryTokenStore(),
+        transport=httpx.MockTransport(handler),
+    ) as client:
+        with pytest.raises(MissingMachineToken):
+            await client.list_projects()
+    assert seen == []

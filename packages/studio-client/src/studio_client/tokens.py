@@ -9,6 +9,7 @@ import keyring
 import keyring.errors
 
 _ENV_VAR = "STUDIO_CLIENT_MACHINE_TOKEN"
+_ENV_ORIGIN_VAR = "STUDIO_CLIENT_MACHINE_TOKEN_ORIGIN"
 _DEFAULT_KEYRING_SERVICE = "studio-os"
 
 
@@ -40,10 +41,15 @@ class TokenStore(Protocol):
 class EnvTokenStore:
     """Reads `STUDIO_CLIENT_MACHINE_TOKEN` (CI/tests/headless override,
     symmetric with `STUDIO_MCP_MACHINE_TOKEN` from DEC-0023). Read-only:
-    there is no file to persist to, so writes are a programming error."""
+    there is no file to persist to, so writes are a programming error.
+
+    `STUDIO_CLIENT_MACHINE_TOKEN_ORIGIN` binds the token to one server origin:
+    when set, the token is never returned for any other origin (fail closed)."""
 
     def get_token(self, origin: str) -> str | None:
-        del origin
+        bound = os.environ.get(_ENV_ORIGIN_VAR)
+        if bound and bound.rstrip("/").lower() != origin.rstrip("/").lower():
+            return None
         return os.environ.get(_ENV_VAR) or None
 
     def set_token(self, origin: str, token: str) -> None:

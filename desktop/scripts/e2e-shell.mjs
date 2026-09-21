@@ -180,14 +180,16 @@ async function main() {
     }, LIVE_ORIGIN);
     check("csp.new_origin_allowed_after_relaunch", reach === 200, `fetch ${LIVE_ORIGIN}/healthz -> ${reach}`);
 
-    // ---- 5. server reachable + no sidecar in this build => the P1 daemon_unavailable is shown
+    // ---- 5. server reachable: the shell reflects the real supervisor state (sidecar shipped or not)
+    const sidecarState = (await invoke(page, "desktop_info", {})).value?.sidecar?.state;
+    const sidecarShipped = sidecarState !== "unavailable";
     await page.fill("#login-email", "a@example.test");
     await page.fill("#login-password", "whatever");
     await page.click("#login-form button[type=submit]");
     await page.waitForSelector("#shell-status", { timeout: 20_000 });
-    await page.waitForFunction(() => /Assistant local indisponible/.test(document.querySelector("#shell-status")?.textContent ?? ""), null, { timeout: 20_000 }).catch(() => undefined);
+    if (!sidecarShipped) await page.waitForFunction(() => /Assistant local indisponible/.test(document.querySelector("#shell-status")?.textContent ?? ""), null, { timeout: 20_000 }).catch(() => undefined);
     const pill = await page.textContent("#shell-status");
-    check("status.daemon_unavailable_pill", /Assistant local indisponible/.test(pill ?? ""), `pill: ${pill?.trim()}`);
+    check("status.daemon_unavailable_pill", /Assistant local indisponible/.test(pill ?? "") === !sidecarShipped, `sidecar ${sidecarState}; pill: ${pill?.trim()}`);
 
     // ---- 6. Settings > Application, Desktop mode
     await page.evaluate(() => {
@@ -199,7 +201,7 @@ async function main() {
     const logsDisabled = await page.evaluate(() => document.querySelector("[data-testid=open-logs]")?.disabled === true);
     check("settings.logs_entry_disabled_not_faked", logsDisabled, "open-logs button disabled (P4 owns log collection)");
     const daemonText = await page.textContent("[data-testid=daemon-state]");
-    check("settings.daemon_state_from_p1", /indisponible/i.test(daemonText ?? ""), `daemon: ${daemonText}`);
+    check("settings.daemon_state_from_p1", sidecarShipped ? /^(Arr\S+|D\S+marrage|En marche)$/u.test((daemonText ?? "").trim().normalize("NFC")) : /indisponible/i.test(daemonText ?? ""), `sidecar ${sidecarState}; daemon: ${daemonText}`);
     const serverState = await page.textContent("[data-testid=server-section]");
     check("settings.server_reachable", /Joignable/.test(serverState ?? ""), "server section says Joignable");
     const compat = await page.textContent("[data-testid=compatibility]");

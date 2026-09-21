@@ -40,6 +40,7 @@ from studio_client.outbox import (
     OutboxReplayer,
     OutboxStore,
     connect,
+    connect_read_only,
     default_outbox_path,
     partitioned_outbox_path,
 )
@@ -179,13 +180,27 @@ class DaemonRuntime:
                 drained = False
                 _LOGGER.warning("outbox drain did not complete before daemon shutdown")
         self._stop_requested = True
+        loop = self._loop
+        try:
+            on_loop = asyncio.get_running_loop() is loop
+        except RuntimeError:
+            on_loop = False
+        if loop is not None and not on_loop:
+            try:
+                loop.call_soon_threadsafe(self._signal_stop)
+                return drained
+            except RuntimeError:
+                pass
+        self._signal_stop()
+        return drained
+
+    def _signal_stop(self) -> None:
         if self._heartbeat is not None:
             self._heartbeat.request_stop()
         for watcher in self._watchers:
             watcher.request_stop()
         if self._workspace_watches is not None:
             self._workspace_watches.request_stop()
-        return drained
 
     async def reconcile_workspace_watchers(
         self, workspaces: list[WorkspaceWatch] | None = None
@@ -256,11 +271,17 @@ class DaemonRuntime:
         outbox_summary: OutboxSummary | None = None
         if store is not None and self._started_at is not None:
             started_at = self._started_at
+            reader = OutboxStore(connect_read_only(self.outbox_path))
+            try:
+                pending_count = reader.pending_count()
+                oldest_pending_at = reader.oldest_pending_at()
+            finally:
+                reader.connection.close()
             outbox_summary = OutboxSummary(
                 binding=self.binding,
                 partition_key=partition_key(self.binding),
-                pending_count=store.pending_count(),
-                oldest_pending_at=store.oldest_pending_at(),
+                pending_count=pending_count,
+                oldest_pending_at=oldest_pending_at,
             )
             status = DaemonStatus(
                 state=DaemonRunState.RUNNING,

@@ -68,7 +68,7 @@ describe("summarizeShellStatus", () => {
 
 describe("daemon summary consumes the P1 states without inventing any", () => {
   const ok = (state: string): BridgeAnswer =>
-    ({ ok: true, command: "daemon.status", response: { payload: { state } } }) as unknown as BridgeAnswer;
+    ({ ok: true, command: "daemon.status", response: { payload: { action: "status", outcome: "ok", status: { state } } } }) as unknown as BridgeAnswer;
 
   it("keeps a P1 DaemonRunState and rejects anything else", () => {
     for (const s of ["stopped", "starting", "running", "stopping", "recovering", "crashed", "unavailable", "incompatible"]) {

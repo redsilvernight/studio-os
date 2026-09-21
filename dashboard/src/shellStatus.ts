@@ -104,8 +104,8 @@ const DAEMON_STATE_LABEL: Record<DaemonRunState, string> = {
 
 export function summarizeDaemonAnswer(answer: BridgeAnswer): DaemonSummary {
   if (!answer.ok) return { kind: "error", code: answer.error.code };
-  const payload = answer.response.payload as { state?: unknown };
-  const state = payload.state;
+  const payload = answer.response.payload as { status?: { state?: unknown } | null };
+  const state = payload.status?.state;
   if (typeof state === "string" && state in DAEMON_STATE_LABEL) {
     return { kind: "state", state: state as DaemonRunState };
   }
