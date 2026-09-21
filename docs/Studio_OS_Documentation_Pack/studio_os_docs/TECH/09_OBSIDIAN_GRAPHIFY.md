@@ -173,12 +173,17 @@ uv run python -m scripts.graphify_ledger --cost-json <graphify-out>\cost.json --
   pas bloquant pour un controle local ; a resynchroniser separement quand
   la base est disponible.
 
-### Hooks Claude/Codex
+### Hooks et chargement de Graphify
 
-Les deux hooks `PreToolUse` (`.claude/settings.json`, `.codex/hooks.json`)
-doivent appeler `pwsh -NoProfile -File scripts/graphify-studio.ps1
-hook-guard <search|read>` / `hook-check` — jamais `graphify.exe`
-directement : le lanceur du depot definit `GRAPHIFY_OUT` avant d'invoquer
-`hook-guard`/`hook-check`, sans quoi ce dernier ne trouve pas le graphe
-centralise et reste silencieux (aucune erreur visible, juste aucune
-orientation donnee a l'agent).
+Graphify est charge **a la demande** (skill Graphify + lanceur
+`scripts/graphify-studio.ps1`), jamais injecte automatiquement dans le
+contexte de l'agent. Claude Code n'a plus de hook `PreToolUse` Graphify : le
+rappel `hook-guard` injecte a chaque appel Bash/Grep/Read/Glob etait purement
+documentaire (aucune protection) et a ete retire.
+
+Seul garde-fou reste : `.codex/hooks.json` (Codex, `PreToolUse` sur Bash)
+echoue si un `graphify-out/` local accidentel apparait a la racine du depot.
+Tout appel Graphify passe par `pwsh -NoProfile -File
+scripts/graphify-studio.ps1 <commande>` — jamais `graphify.exe` directement :
+le lanceur definit `GRAPHIFY_OUT` (sortie centralisee) et refuse de tourner
+si un `graphify-out/` local existe.
