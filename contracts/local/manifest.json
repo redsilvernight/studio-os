@@ -130,6 +130,8 @@
     "CrashInfo",
     "DaemonControlRequest",
     "DaemonControlResult",
+    "DaemonHealth",
+    "DaemonHealthRequest",
     "DaemonInstanceRef",
     "DaemonStatus",
     "DegradedFeature",
@@ -189,6 +191,7 @@
     "PublicationResult",
     "ReplayDecision",
     "RepoRoot",
+    "RuntimeServiceHealth",
     "SecretReference",
     "SecretReferenceStatus",
     "SharedStatusSummary",
@@ -300,6 +303,14 @@
     {
       "model": "DaemonControlResult",
       "name": "daemon.control.unavailable"
+    },
+    {
+      "model": "DaemonHealthRequest",
+      "name": "daemon.health.request"
+    },
+    {
+      "model": "DaemonHealth",
+      "name": "daemon.health.running"
     },
     {
       "model": "ReplayDecision",

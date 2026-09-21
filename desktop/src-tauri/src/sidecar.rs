@@ -1,9 +1,4 @@
-//! P2 daemon-gate spike: launch, talk to and observe ONE fixed local sidecar.
-//!
-//! This is deliberately not the P4 supervisor. It proves that Tauri can find a
-//! packaged executable, exchange `studio.local/v1` messages over stdio, see
-//! the process end, and do so without any generic shell. It has no restart,
-//! no ownership/lock handling, no attach and no lifecycle commands.
+//! P4 supervisor for the fixed Studio OS daemon sidecar.
 //!
 //! Hard limits: the executable is a fixed basename resolved next to the app
 //! binary (never a path or argument coming from the renderer), it is started
@@ -11,16 +6,19 @@
 //! already passed the allowlist.
 
 use serde::Serialize;
-use std::io::{BufRead, BufReader, Write};
+use std::collections::VecDeque;
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::PathBuf;
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-pub const SIDECAR_BASENAME: &str = "studio-daemon-spike";
+pub const SIDECAR_BASENAME: &str = "studio-daemon";
 const EXCHANGE_TIMEOUT: Duration = Duration::from_secs(20);
 const MAX_LINE_BYTES: usize = 2 * 1024 * 1024;
+const RESTART_WINDOW: Duration = Duration::from_secs(60);
+const MAX_RESTARTS: usize = 3;
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(tag = "state", rename_all = "snake_case")]
@@ -29,6 +27,8 @@ pub enum SidecarState {
     NotStarted,
     Running { pid: u32 },
     Exited { code: Option<i32> },
+    Recovering { attempts: usize },
+    Abandoned { attempts: usize },
     /// Binary absent or not launchable. Never a silent success.
     Unavailable,
 }
@@ -53,6 +53,8 @@ struct Inner {
     started: bool,
     exit: Option<Option<i32>>,
     unavailable: bool,
+    restarts: VecDeque<Instant>,
+    abandoned: bool,
 }
 
 #[derive(Clone, Default)]
@@ -68,6 +70,12 @@ fn sidecar_path() -> Option<PathBuf> {
     Some(exe.parent()?.join(name))
 }
 
+fn persist_after_desktop_close() -> bool {
+    std::env::var("STUDIO_DESKTOP_KEEP_DAEMON")
+        .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
+}
+
 impl Inner {
     fn spawn(&mut self) -> Result<(), ExchangeError> {
         self.started = true;
@@ -77,6 +85,9 @@ impl Inner {
         };
         let mut cmd = Command::new(path);
         cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null());
+        if persist_after_desktop_close() {
+            cmd.env("STUDIO_DAEMON_PERSIST", "1");
+        }
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
@@ -93,10 +104,22 @@ impl Inner {
         let stdout = child.stdout.take().ok_or(ExchangeError::Io)?;
         let (tx, rx) = mpsc::channel::<String>();
         std::thread::spawn(move || {
-            for line in BufReader::new(stdout).lines() {
-                match line {
-                    Ok(l) if l.len() <= MAX_LINE_BYTES => {
-                        if tx.send(l).is_err() {
+            let mut reader = BufReader::new(stdout);
+            loop {
+                let mut bytes = Vec::with_capacity(4096);
+                let read = reader
+                    .by_ref()
+                    .take((MAX_LINE_BYTES + 1) as u64)
+                    .read_until(b'\n', &mut bytes);
+                match read {
+                    Ok(0) => break,
+                    Ok(_) if bytes.len() <= MAX_LINE_BYTES && bytes.ends_with(b"\n") => {
+                        bytes.pop();
+                        if bytes.ends_with(b"\r") {
+                            bytes.pop();
+                        }
+                        let Ok(line) = String::from_utf8(bytes) else { break };
+                        if tx.send(line).is_err() {
                             break;
                         }
                     }
@@ -125,13 +148,43 @@ impl Inner {
         if let Some(child) = self.child.as_ref() {
             return SidecarState::Running { pid: child.id() };
         }
-        if let Some(code) = self.exit {
-            return SidecarState::Exited { code };
-        }
         if self.unavailable {
             return SidecarState::Unavailable;
         }
+        if self.abandoned {
+            return SidecarState::Abandoned {
+                attempts: self.restarts.len(),
+            };
+        }
+        if let Some(code) = self.exit {
+            if !self.restarts.is_empty() {
+                return SidecarState::Recovering {
+                    attempts: self.restarts.len(),
+                };
+            }
+            return SidecarState::Exited { code };
+        }
         SidecarState::NotStarted
+    }
+
+    fn restart(&mut self) -> Result<(), ExchangeError> {
+        let now = Instant::now();
+        while self
+            .restarts
+            .front()
+            .is_some_and(|attempt| now.duration_since(*attempt) > RESTART_WINDOW)
+        {
+            self.restarts.pop_front();
+        }
+        if self.restarts.len() >= MAX_RESTARTS {
+            self.abandoned = true;
+            return Err(ExchangeError::Crashed {
+                code: self.exit.flatten(),
+            });
+        }
+        self.restarts.push_back(now);
+        self.exit = None;
+        self.spawn()
     }
 
     fn kill(&mut self) {
@@ -158,8 +211,7 @@ impl Sidecar {
         } else if g.unavailable {
             return Err(ExchangeError::Unavailable);
         } else if g.child.is_none() {
-            // Ended earlier: report it, do not silently respawn (P4 concern).
-            return Err(ExchangeError::Crashed { code: g.exit.flatten() });
+            g.restart()?;
         }
         let io = g.io.as_mut().ok_or(ExchangeError::Io)?;
         let written = io
@@ -199,6 +251,10 @@ impl Sidecar {
     pub fn shutdown(&self) {
         if let Ok(mut g) = self.0.lock() {
             g.io = None; // closes stdin: a well-behaved sidecar exits on EOF
+            if persist_after_desktop_close() {
+                g.child = None;
+                return;
+            }
             for _ in 0..20 {
                 g.observe();
                 if g.child.is_none() {

@@ -32,6 +32,8 @@ from studio_contracts.local.daemon_control import (
     DaemonAction,
     DaemonControlRequest,
     DaemonControlResult,
+    DaemonHealth,
+    DaemonHealthRequest,
     DaemonStatus,
 )
 from studio_contracts.local.graph import GraphExpandRequest, GraphPage, GraphPageRequest
@@ -108,6 +110,7 @@ class BridgeCommand(StrEnum):
     DAEMON_START = "daemon.start"
     DAEMON_STOP = "daemon.stop"
     DAEMON_RESTART = "daemon.restart"
+    DAEMON_HEALTH = "daemon.health"
     IDENTITY_GET_VIEW = "identity.get_view"
     WORKSPACE_VALIDATE = "workspace.validate"
     WORKSPACE_GET_CONFIG = "workspace.get_config"
@@ -195,6 +198,12 @@ BRIDGE_COMMANDS: dict[BridgeCommand, CommandSpec] = dict(
             DaemonControlResult,
             "daemon.control",
             mutating=True,
+        ),
+        _spec(
+            BridgeCommand.DAEMON_HEALTH,
+            DaemonHealthRequest,
+            DaemonHealth,
+            "daemon.health",
         ),
         _spec(BridgeCommand.IDENTITY_GET_VIEW, EmptyPayload, IdentityView, "identity.view"),
         _spec(

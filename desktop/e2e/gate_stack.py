@@ -133,6 +133,7 @@ def main() -> int:
             API_DIR,
         )
         machine_token = machine_out.split("never shown again):")[1].split()[0]
+        machine_id = machine_out.split("machine created:")[1].split()[0]
         _run(
             [*admin, "project", "create", "--slug", PROJECT_SLUG, "--name", "Desktop gate"],
             env,
@@ -166,6 +167,7 @@ def main() -> int:
                     "project": PROJECT_SLUG,
                     "admin_id": admin_id,
                     "machine_token": machine_token,
+                    "machine_id": machine_id,
                     "database": DB_NAME,
                 }
             ),

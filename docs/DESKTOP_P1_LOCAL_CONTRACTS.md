@@ -47,7 +47,7 @@ un test échoue si l'export diverge des builders Python.
   version de paquet. Résultats : `compatible`, `compatible_degraded`,
   `daemon_too_old`, `desktop_too_old`, `capability_missing`,
   `protocol_incompatible`. Échec = fail-closed (`silent_fallback: false`).
-- **Bridge** : 28 commandes et 4 événements, table `CommandSpec` par commande
+- **Bridge** : 29 commandes et 4 événements, table `CommandSpec` par commande
   (capability, mutation, annulation, délai, tailles). Aucune primitive shell,
   filesystem arbitraire, spawn ou proxy HTTP ; `allowlist_violations()` doit
   renvoyer `[]`.
@@ -100,9 +100,13 @@ ou rendre obligatoire un champ exige un nouveau protocole majeur. Le test de
 dérive compare à l'export courant, pas à une référence figée : toute régénération
 de `contracts/local/` doit être relue dans le diff.
 
+P4 ajoute `daemon.health` derrière la capability négociée `daemon.health`
+(`DEC-0094`, proposed). Cette commande séparée est additive : elle ne modifie
+pas les réponses strictes `daemon.status` des pairs P1 existants.
+
 ## Fixtures
 
-80 fixtures valides et 22 invalides nommées, couvrant : runtime
+82 fixtures valides et 22 invalides nommées, couvrant : runtime
 compatible/incompatible, daemon running/unavailable/crash-recovery, workspace
 valide/absent-déplacé, Knowledge disabled/indexing/ready, Code Graph
 absent/indexing/ready, Graphify incompatible, graphes vide / Knowledge / Code /

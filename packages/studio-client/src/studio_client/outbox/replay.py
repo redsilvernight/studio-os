@@ -6,11 +6,12 @@ from datetime import datetime
 from uuid import UUID
 
 from studio_contracts.events import EventCreate, EventType
+from studio_contracts.local.identity import IdentityBinding
 
 from studio_client.api_client import StudioApiClient
 from studio_client.errors import StudioApiError
 from studio_client.outbox.models import OutboxTable, PendingRow
-from studio_client.outbox.store import OutboxStore, transaction
+from studio_client.outbox.store import OutboxIdentityError, OutboxStore, transaction
 from studio_client.retry import RetryPolicy, is_retryable
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,7 @@ class ReplayOutcome:
     succeeded: int = 0
     dead_lettered: int = 0
     stopped_on_transient_error: bool = False
+    identity_mismatch: bool = False
 
 
 class OutboxReplayer:
@@ -41,13 +43,25 @@ class OutboxReplayer:
     resolved, not stuck (`.claude/rules/offline-sync.md`)."""
 
     def __init__(
-        self, store: OutboxStore, client: StudioApiClient, retry_policy: RetryPolicy
+        self,
+        store: OutboxStore,
+        client: StudioApiClient,
+        retry_policy: RetryPolicy,
+        *,
+        active_binding: IdentityBinding | None = None,
     ) -> None:
         self._store = store
         self._client = client
         self._retry_policy = retry_policy
+        self._active_binding = active_binding
 
     async def replay_ready(self, *, limit: int = 100) -> ReplayOutcome:
+        if self._active_binding is not None:
+            try:
+                self._store.assert_identity(self._active_binding)
+            except OutboxIdentityError:
+                logger.error("outbox replay refused: identity mismatch")
+                return ReplayOutcome(identity_mismatch=True)
         ready: list[tuple[datetime, OutboxTable, PendingRow]] = [
             (row.created_at, table, row)
             for table in _REPLAYABLE_TABLES

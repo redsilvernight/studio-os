@@ -33,11 +33,16 @@ from studio_contracts.local.daemon_control import (
     DaemonControlOutcome,
     DaemonControlRequest,
     DaemonControlResult,
+    DaemonHealth,
+    DaemonHealthRequest,
     DaemonInstanceRef,
     DaemonOwnership,
     DaemonRunState,
     DaemonStatus,
     OutboxSummary,
+    RuntimeServiceCondition,
+    RuntimeServiceHealth,
+    RuntimeServiceId,
     decide_outbox_replay,
     instance_lock_key,
 )
@@ -146,6 +151,7 @@ DESKTOP_CAPABILITIES = [
     "code_graph.index",
     "code_graph.read",
     "daemon.control",
+    "daemon.health",
     "harness.apply",
     "harness.plan",
     "harness.read",
@@ -208,6 +214,7 @@ def desktop_peer(
             *CODE_GRAPH_CAPABILITIES,
             *HARNESS_CAPABILITIES,
             *KNOWLEDGE_CAPABILITIES,
+            "daemon.health",
             "publication.plan",
             "publication.publish",
         ],
@@ -249,7 +256,12 @@ def daemon_peer(
         if component.state in (ComponentState.READY, ComponentState.STALE)
         for name in component.provides
     }
-    base = [*REQUIRED_CAPABILITIES, "publication.plan", "publication.publish"]
+    base = [
+        *REQUIRED_CAPABILITIES,
+        "daemon.health",
+        "publication.plan",
+        "publication.publish",
+    ]
     offered = sorted((set(base) | served) - drop)
     return PeerInfo(
         role=PeerRole.DAEMON,
@@ -823,6 +835,49 @@ def build_fixtures() -> list[LocalFixture]:
 
     running = running_daemon_status()
     fixtures["daemon.status.running"] = running
+    fixtures["daemon.health.request"] = DaemonHealthRequest(profile=PROFILE)
+    fixtures["daemon.health.running"] = DaemonHealth(
+        observed_at=NOW,
+        status=running,
+        heartbeat=RuntimeServiceHealth(
+            service=RuntimeServiceId.HEARTBEAT,
+            state=ComponentState.STALE,
+            condition=RuntimeServiceCondition.SERVER_UNAVAILABLE,
+            last_attempt_at=NOW,
+            last_success_at=EARLIER,
+            error=error(
+                LocalErrorCode.DAEMON_UNAVAILABLE,
+                ComponentId.DAEMON,
+                "The server is temporarily unavailable.",
+                retryable=True,
+            ),
+        ),
+        git_watchers=[
+            RuntimeServiceHealth(
+                service=RuntimeServiceId.GIT_WATCHER,
+                instance_key="watch-01",
+                state=ComponentState.READY,
+                condition=RuntimeServiceCondition.HEALTHY,
+                last_attempt_at=NOW,
+                last_success_at=NOW,
+            )
+        ],
+        outbox_replay=RuntimeServiceHealth(
+            service=RuntimeServiceId.OUTBOX_REPLAY,
+            state=ComponentState.READY,
+            condition=RuntimeServiceCondition.HEALTHY,
+            last_attempt_at=NOW,
+            last_success_at=NOW,
+        ),
+        providers=[
+            OptionalComponentStatus(
+                component=ComponentId.KNOWLEDGE,
+                state=ComponentState.READY,
+                provider_id=KNOWLEDGE_PROVIDER_ID,
+                provides=KNOWLEDGE_CAPABILITIES,
+            )
+        ],
+    )
     fixtures["daemon.status.stopped"] = DaemonStatus(state=DaemonRunState.STOPPED)
     fixtures["daemon.status.recovering"] = DaemonStatus(
         state=DaemonRunState.RECOVERING, instance=running.instance, outbox=running.outbox

@@ -2,7 +2,7 @@
   "name": "studio-desktop",
   "version": "0.1.0",
   "private": true,
-  "description": "Studi'OS Desktop (P2 foundation) - thin Tauri 2 shell around the shared Dashboard build.",
+  "description": "Studi'OS Desktop - Tauri 2 shell with the supervised Studio OS daemon.",
   "type": "module",
   "engines": { "node": ">=22.18" },
   "scripts": {

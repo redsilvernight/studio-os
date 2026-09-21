@@ -37,9 +37,11 @@ from studio_contracts.local.common import (
 from studio_contracts.local.daemon_control import (
     DaemonAction,
     DaemonControlRequest,
+    DaemonHealth,
     DaemonRunState,
     DaemonStatus,
     ReplayVerdict,
+    RuntimeServiceCondition,
     decide_outbox_replay,
     instance_lock_key,
 )
@@ -85,6 +87,7 @@ REQUIRED_FIXTURES = {
     "runtime.handshake.capability_missing",
     "runtime.handshake.protocol_incompatible",
     "daemon.status.running",
+    "daemon.health.running",
     "daemon.control.unavailable",
     "daemon.status.crashed",
     "daemon.status.recovering",
@@ -236,6 +239,19 @@ class TestHandshake:
         older = daemon.model_copy(update={"component_version": "0.0.1"})
         assert negotiate(request, older).outcome is negotiate(request, daemon).outcome
 
+    def test_current_daemon_offers_health_and_old_daemon_degrades_safely(self) -> None:
+        request = HandshakeRequest(peer=fixtures.desktop_peer())
+        current = negotiate(request, fixtures.daemon_peer())
+        old = negotiate(
+            request,
+            fixtures.daemon_peer(drop=frozenset({"daemon.health"})),
+        )
+
+        assert "daemon.health" in current.granted_capabilities
+        assert old.outcome is CompatibilityOutcome.COMPATIBLE_DEGRADED
+        assert old.missing_optional == ["daemon.health"]
+        assert "daemon.health" not in old.granted_capabilities
+
     def test_incompatible_response_cannot_be_forged(self) -> None:
         data = _model("runtime.handshake.capability_missing").model_dump(mode="json")
         data["granted_capabilities"] = ["daemon.control"]
@@ -289,7 +305,13 @@ class TestBridgeAllowlist:
             "harness.apply",
             "publication.publish",
         }
-        readonly = {"runtime.handshake", "daemon.status", "identity.get_view", "knowledge.search"}
+        readonly = {
+            "runtime.handshake",
+            "daemon.status",
+            "daemon.health",
+            "identity.get_view",
+            "knowledge.search",
+        }
         assert not mutating & readonly
 
     def test_publication_and_apply_commands_require_confirmation_payloads(self) -> None:
@@ -544,6 +566,13 @@ class TestDaemon:
         assert status.outbox.partition_key == partition_key(status.outbox.binding)
         assert status.instance is not None
         assert status.instance.lock_key == instance_lock_key(fixtures.PROFILE)
+
+    def test_health_is_a_separate_capability_gated_contract(self) -> None:
+        health: DaemonHealth = _model("daemon.health.running")
+        assert health.heartbeat.condition is RuntimeServiceCondition.SERVER_UNAVAILABLE
+        assert health.heartbeat.error is not None
+        assert len(health.git_watchers) == 1
+        assert BRIDGE_COMMANDS[BridgeCommand.DAEMON_HEALTH].capability == "daemon.health"
 
     def test_unavailable_and_already_running_carry_errors(self) -> None:
         assert _model("daemon.control.unavailable").error.code is LocalErrorCode.DAEMON_UNAVAILABLE

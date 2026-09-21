@@ -1,4 +1,4 @@
-// P2 Desktop E2E: drives the REAL packaged Desktop (WebView2) over CDP against a
+// Desktop E2E: drives the REAL packaged Desktop (WebView2) over CDP against a
 // throwaway API stack. Nothing here mocks the shell, the sidecar or the server.
 //
 //   node scripts/e2e.mjs            # needs `npm run build:with-sidecar` first
@@ -104,11 +104,17 @@ const bridgeRequest = (command, payload) => {
 async function main() {
   if (!existsSync(exe)) throw new Error(`missing ${exe} - run: npm run build:with-sidecar`);
   const stack = await startStack();
-  const { api, email, password, project, admin_id: adminId, machine_token: machineToken } = stack.info;
+  const { api, email, password, project, admin_id: adminId, machine_id: machineId, machine_token: machineToken } = stack.info;
   console.log(`stack up: ${api} (database ${stack.info.database})`);
 
   const app = spawn(exe, [], {
-    env: { ...process.env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${CDP_PORT}` },
+    env: {
+      ...process.env,
+      STUDIO_CLIENT_API_BASE_URL: `${api}/api/v1`,
+      STUDIO_CLIENT_MACHINE_ID: machineId,
+      STUDIO_CLIENT_MACHINE_TOKEN: machineToken,
+      WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${CDP_PORT}`,
+    },
     stdio: "ignore",
   });
   let browser;
@@ -260,6 +266,9 @@ async function main() {
     const hs = await invoke(page, "bridge_request", { request: bridgeRequest("runtime.handshake", { peer: info.peer }) });
     check("bridge.handshake_compatible", hs.ok && hs.value.kind === "response" && hs.value.payload?.outcome === "compatible", `handshake outcome ${hs.value?.payload?.outcome ?? JSON.stringify(hs.value?.error?.code)}`);
     const profile = { profile_id: "default", server_origin: api };
+    const started = await invoke(page, "bridge_request", { request: bridgeRequest("daemon.start", { action: "start", profile }) });
+    check("daemon.starts_real_runtime", started.ok && started.value?.payload?.outcome === "ok", `daemon.start -> ${started.value?.payload?.outcome}`);
+    await sleep(500);
     const st = await invoke(page, "bridge_request", { request: bridgeRequest("daemon.status", { action: "status", profile }) });
     const status = st.value?.payload?.status;
     check("daemon.sidecar_answers_status", st.ok && status?.state === "running" && Number.isInteger(status?.instance?.pid), `daemon.status -> ${status?.state}, sidecar pid ${status?.instance?.pid}`);
@@ -301,8 +310,8 @@ async function main() {
     const info3 = (await invoke(page, "desktop_info")).value;
     check("process.termination_detected", info3.sidecar.state === "exited", `after kill: ${JSON.stringify(info3.sidecar)}`);
     const after = await invoke(page, "bridge_request", { request: bridgeRequest("daemon.status", { action: "status", profile }) });
-    check("process.request_after_exit_is_typed_error", after.ok && after.value.error?.code === "daemon_crashed", `daemon.status after kill -> ${after.value?.error?.code}`);
-    check("process.no_orphan_after_kill", processCount("studio-daemon-spike.exe") === 0, `studio-daemon-spike.exe processes: ${processCount("studio-daemon-spike.exe")}`);
+    check("process.request_after_exit_recovers_once", after.ok && after.value?.payload?.status?.state === "stopped", `daemon.status after restart -> ${after.value?.payload?.status?.state}`);
+    check("process.single_sidecar_after_recovery", processCount("studio-daemon.exe") === 1, `studio-daemon.exe processes: ${processCount("studio-daemon.exe")}`);
 
     // ---- H. Network error handling (server down) ------------------------------
     await stopStack(stack);
@@ -322,7 +331,7 @@ async function main() {
     killTree(app.pid);
     if (!stack.stopped) await stopStack(stack);
   }
-  check("process.no_sidecar_left_after_app_exit", (await (async () => { await sleep(1500); return processCount("studio-daemon-spike.exe"); })()) === 0, "no studio-daemon-spike.exe after the app is closed");
+  check("process.no_sidecar_left_after_app_exit", (await (async () => { await sleep(1500); return processCount("studio-daemon.exe"); })()) === 0, "no studio-daemon.exe after the app is closed");
 }
 
 let failed = false;
