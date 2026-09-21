@@ -88,6 +88,7 @@ Distinction a retenir :
 
 ## Sauvegardes
 - dump PostgreSQL quotidien via `./backup.sh <backup_root>` ou `./install-backup-cron.sh <backup_root>`.
+  Un `<backup_root>` place sous `docker/backups/` est ignore par Git : ces dumps contiennent des hashes de credentials et ne doivent jamais etre commites.
 - sauvegarde des secrets hors du VPS.
 - copie/replication des objets importants selon budget.
 - test de restauration documente avec `./restore.sh <backup_dir>` sur une base vierge.
@@ -97,3 +98,14 @@ Distinction a retenir :
 - migrations Alembic avant demarrage de la nouvelle API (`bootstrap.sh` ou conteneur one-shot).
 - rollback documente.
 - environnement staging recommande avant mises a jour structurantes.
+
+## Hebergement interimaire sur poste (Tailscale, sans DNS public)
+Le deploiement interimaire (branche `deploy/flo-laptop`, hors VPS) desactive le TLS
+automatique de Caddy et ajoute un site `:9000` qui proxye l'API S3 de MinIO, afin
+que les URLs pre-signees soient joignables via l'hote Tailscale
+(`STUDIO_S3_PUBLIC_ENDPOINT_URL=http://<ip-tailscale>:9000`, requis par ce compose).
+Dette connue : ce compose publie `9000:9000` sur `0.0.0.0` (toutes les interfaces,
+LAN compris) ; seule la signature des URLs protege l'acces. A restreindre a l'IP
+Tailscale (`<ip-tailscale>:9000:9000`) tant que ce mode dure ; sur le VPS, ce site
+`:9000` disparait au profit de `{$STORAGE_DOMAIN}` avec TLS. Le compose de `master`
+ne publie pas le port 9000.

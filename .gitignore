@@ -32,3 +32,6 @@ playwright-report/
 
 # Docker local volumes (dev compose)
 docker/.data/
+
+# Dumps PostgreSQL (backup.sh) : contiennent des hashes de credentials, jamais commites
+docker/backups/
