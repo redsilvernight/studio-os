@@ -1,17 +1,21 @@
 name: Deploy
 
-# Continuous deployment to the production host. Runs on the self-hosted
-# runner installed on that host itself (see docker/install-runner.ps1): no
-# inbound access is required, which fits a Tailscale-only network with no
-# public DNS.
+# PARKED: the self-hosted runner this workflow targets cannot run on the
+# current production host — Device Guard / WDAC blocks Runner.Listener.exe and
+# WSL exposes no general-purpose distro. The active CD is the Windows Scheduled
+# Task driver `docker/install-deploy-task.ps1` + `docker/deploy-poll.ps1`.
+# This workflow is kept for a runner-capable host and is manual-only on
+# purpose, so a push never queues a job that has no runner to pick it up.
+#
+# Runs on the self-hosted runner installed on that host itself (see
+# docker/install-runner.ps1): no inbound access is required, which fits a
+# Tailscale-only network with no public DNS.
 #
 # The job deploys the canonical working copy in $DEPLOY_DIR, NOT the runner's
 # own ephemeral checkout, so the gitignored production state (docker/.env,
 # docker/.data, docker/backups) is never touched. Only git-tracked files move.
 
 on:
-  push:
-    branches: [deploy/flo-laptop]
   workflow_dispatch:
 
 concurrency:
