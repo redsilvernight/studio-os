@@ -25,17 +25,23 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from typing import Literal, Protocol
+from typing import Protocol
 
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+from studio_contracts.project_context import (
+    RoadmapItem,
+    RoadmapOverview,
+    RoadmapRef,
+    RoadmapStepItem,
+    RoadmapTaskRef,
+    TaskLocation,
+    Why,
+)
 from studio_contracts.roadmaps import (
     ContextStep,
     LinkedTask,
     Phase,
-    Progress,
     Roadmap,
-    RoadmapContext,
     RoadmapStatus,
     RoadmapSummary,
     Step,
@@ -44,7 +50,21 @@ from studio_contracts.roadmaps import (
 
 from studio_api.services import roadmaps as roadmaps_service
 from studio_api.services import tasks as tasks_service
-from studio_api.services.context_why import Why
+
+__all__ = [
+    # Canonical contract re-exports (live in studio_contracts.project_context).
+    "RoadmapItem",
+    "RoadmapOverview",
+    "RoadmapRef",
+    "RoadmapStepItem",
+    "RoadmapTaskRef",
+    "TaskLocation",
+    "Why",
+    # Section entry points.
+    "RoadmapSelection",
+    "TextBudget",
+    "select_roadmap",
+]
 
 TITLE_CAP = 200
 OBJECTIVE_CAP = 600
@@ -61,9 +81,6 @@ _OVERVIEW_RANK = {
     RoadmapStatus.COMPLETED: 2,
 }
 
-TaskLocation = Literal["task", "related_tasks"]
-
-
 class TextBudget(Protocol):
     """The slice of the shared character budget the section spends from."""
 
@@ -74,57 +91,6 @@ class TextBudget(Protocol):
     def mark(self) -> int: ...
 
     def rollback(self, mark: int) -> None: ...
-
-
-class RoadmapTaskRef(BaseModel):
-    """A Task linked to a step: a bare reference when the package already
-    carries it (`in_context`), a title and status otherwise."""
-
-    id: uuid.UUID
-    title: str | None = None
-    status: str | None = None
-    in_context: TaskLocation | None = None
-
-
-class RoadmapStepItem(ContextStep):
-    """A step the agent may work on now: the shared `ContextStep` plus its
-    objective and the Tasks tied to it. `acceptance_criteria` lists the criteria
-    still to satisfy (already checked ones are only counted)."""
-
-    objective: str | None = None
-    truncated: bool = False
-    criteria_total: int = 0
-    criteria_checked: int = 0
-    linked_tasks: list[RoadmapTaskRef] = []
-
-
-class RoadmapItem(RoadmapContext):
-    """`RoadmapContext` (TECH/07) extended with the fields a consumer needs to
-    trust it: status, provenance, truncation and the step of the requested Task."""
-
-    status: RoadmapStatus
-    objective: str | None = None
-    truncated: bool = False
-    current_step: RoadmapStepItem | None = None
-    task_step: RoadmapStepItem | None = None
-    why: Why
-
-
-class RoadmapRef(BaseModel):
-    id: uuid.UUID
-    title: str
-    status: RoadmapStatus
-    progress: Progress
-    truncated: bool = False
-
-
-class RoadmapOverview(BaseModel):
-    """Roadmaps other than the active one, by reference: what is waiting for a
-    human decision (`draft_pending`) or finished."""
-
-    counts: dict[str, int]
-    draft_pending: int
-    others: list[RoadmapRef] = []
 
 
 @dataclass

@@ -3,14 +3,19 @@
 A read-only *selection* over shared state the existing services already
 expose — never a second source of truth. Every row is obtained through the
 same service function the normal surfaces use (`projects`, `tasks`,
-`decisions`, `library`, `claims`), so visibility, shadowing and scope rules
-are those services' rules, not re-implemented here. No SQL of its own, no
-write, no LLM, no embedding.
+`decisions`, `library`, `ai_work`, `claims`), so visibility, shadowing and
+scope rules are those services' rules, not re-implemented here. No SQL of
+its own, no write, no LLM, no embedding.
+
+Wire models and budget constants live in `studio_contracts.project_context`
+(P2 canonical contract) and are re-exported here unchanged, so the MCP
+payload stays compatible.
 
 Relevance is only what Studi'OS can establish and explain:
 
-* structural links — the requested task, decisions attached to it, claims on
-  it or overlapping the given `files`, project-scope Library definitions;
+* structural links — the requested task, decisions and recent AI work
+  attached to it, claims on it or overlapping the given `files`,
+  project-scope Library definitions;
 * lexical overlap — exact token match between the objective and an item's
   title/body (stop words and short tokens dropped, no stemming).
 
@@ -21,17 +26,45 @@ from __future__ import annotations
 
 import re
 import uuid
-from datetime import datetime
-from typing import Any, Literal
 
 from fastapi import HTTPException, status
-from pydantic import BaseModel, SerializerFunctionWrapHandler, model_serializer
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.library import LibraryKind, RuleContent, SkillContent
+from studio_contracts.project_context import (
+    AIWORK_BUDGET_SHARE,
+    AIWORK_LIST_CAP,
+    DEFAULT_LIMIT,
+    DEFAULT_MAX_CHARS,
+    ITEM_TEXT_CAP,
+    LIBRARY_SCAN_CAP,
+    MAX_FILES,
+    MAX_LIMIT,
+    MAX_MATCHED_TERMS_SHOWN,
+    MAX_MAX_CHARS,
+    MAX_PATH_CHARS,
+    MAX_QUERY_TERMS,
+    MIN_MAX_CHARS,
+    MIN_TERM_LENGTH,
+    MIN_TEXT_CHARS,
+    OBJECTIVE_MAX_CHARS,
+    PROJECT_DESCRIPTION_CAP,
+    ROADMAP_BUDGET_SHARE,
+    ActiveWork,
+    AIWorkItem,
+    ClaimItem,
+    ContextLimits,
+    DecisionItem,
+    LibraryItem,
+    PreparedContext,
+    ProjectRef,
+    TaskItem,
+)
 
+from studio_api.db.models.ai_work import AIWorkLogModel
 from studio_api.db.models.claim import ResourceClaimModel
 from studio_api.db.models.decision import DecisionModel
 from studio_api.db.models.task import TaskModel
+from studio_api.services import ai_work as ai_work_service
 from studio_api.services import claims as claims_service
 from studio_api.services import decisions as decisions_service
 from studio_api.services import library as library_service
@@ -46,22 +79,43 @@ from studio_api.services.project_context_roadmap import (
     select_roadmap,
 )
 
-DEFAULT_LIMIT = 5
-MAX_LIMIT = 20
-DEFAULT_MAX_CHARS = 12_000
-MIN_MAX_CHARS = 1_000
-MAX_MAX_CHARS = 50_000
-ITEM_TEXT_CAP = 1_500
-PROJECT_DESCRIPTION_CAP = 400
-MIN_TEXT_CHARS = 200
-OBJECTIVE_MAX_CHARS = 1_000
-MAX_QUERY_TERMS = 24
-MAX_FILES = 20
-MAX_PATH_CHARS = 500
-LIBRARY_SCAN_CAP = 200
-MIN_TERM_LENGTH = 3
-MAX_MATCHED_TERMS_SHOWN = 5
-ROADMAP_BUDGET_SHARE = 0.25
+__all__ = [
+    # Canonical contract re-exports (live in studio_contracts.project_context).
+    "AIWORK_BUDGET_SHARE",
+    "AIWORK_LIST_CAP",
+    "DEFAULT_LIMIT",
+    "ITEM_TEXT_CAP",
+    "LIBRARY_SCAN_CAP",
+    "MAX_FILES",
+    "MAX_LIMIT",
+    "MAX_MATCHED_TERMS_SHOWN",
+    "MAX_MAX_CHARS",
+    "MAX_PATH_CHARS",
+    "MAX_QUERY_TERMS",
+    "MIN_MAX_CHARS",
+    "MIN_TERM_LENGTH",
+    "MIN_TEXT_CHARS",
+    "OBJECTIVE_MAX_CHARS",
+    "PROJECT_DESCRIPTION_CAP",
+    "ROADMAP_BUDGET_SHARE",
+    "ActiveWork",
+    "AIWorkItem",
+    "ClaimItem",
+    "ContextLimits",
+    "DecisionItem",
+    "LibraryItem",
+    "PreparedContext",
+    "ProjectRef",
+    "RoadmapItem",
+    "RoadmapOverview",
+    "TaskItem",
+    "TaskLocation",
+    # Selection entry points.
+    "prepare_project_context",
+    "query_terms",
+    "score",
+    "tokens",
+]
 
 _TOKEN_RE = re.compile(r"[^\W_]+")
 _STOPWORDS = frozenset(
@@ -79,111 +133,6 @@ _STOPWORDS = frozenset(
         "aux du de la le un en et ou ne pas"
     ).split()
 )
-
-
-class ProjectRef(BaseModel):
-    id: uuid.UUID
-    slug: str
-    name: str
-    description: str | None = None
-    truncated: bool = False
-
-
-class TaskItem(BaseModel):
-    id: uuid.UUID
-    readable_id: str | None = None
-    title: str
-    status: str
-    description: str | None = None
-    truncated: bool = False
-    claimed_by_machine_id: uuid.UUID | None = None
-    claimed_by_self: bool = False
-    why: Why
-
-
-class DecisionItem(BaseModel):
-    id: uuid.UUID
-    readable_id: str
-    title: str
-    status: str
-    task_id: uuid.UUID | None = None
-    body: str
-    truncated: bool = False
-    why: Why
-
-
-class LibraryItem(BaseModel):
-    kind: Literal["rule", "skill"]
-    stable_key: str
-    title: str
-    scope: str
-    version: int
-    version_origin: str
-    text: str
-    truncated: bool = False
-    why: Why
-
-
-class ClaimItem(BaseModel):
-    id: uuid.UUID
-    resource_path: str
-    resource_type: str
-    task_id: uuid.UUID | None = None
-    claimed_by_machine_id: uuid.UUID
-    claimed_by_self: bool
-    expires_at: datetime
-    why: Why
-
-
-class ActiveWork(BaseModel):
-    claims: list[ClaimItem] = []
-
-
-class ContextLimits(BaseModel):
-    limit: int
-    max_chars: int
-    chars_used: int
-    item_text_cap: int
-    library_scan_capped: bool = False
-    roadmap_scan_capped: bool = False
-
-    @model_serializer(mode="wrap")
-    def _drop_unset_roadmap_cap(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
-        """Absent, not `false`, until the Roadmap scan actually hit its ceiling."""
-        data: dict[str, Any] = handler(self)
-        if not data.get("roadmap_scan_capped"):
-            data.pop("roadmap_scan_capped", None)
-        return data
-
-
-class PreparedContext(BaseModel):
-    project: ProjectRef
-    query_terms: list[str]
-    task: TaskItem | None = None
-    related_tasks: list[TaskItem] = []
-    decisions: list[DecisionItem] = []
-    rules: list[LibraryItem] = []
-    skills: list[LibraryItem] = []
-    active_work: ActiveWork = ActiveWork()
-    roadmap: RoadmapItem | None = None
-    roadmap_overview: RoadmapOverview | None = None
-    unavailable: list[str] = []
-    returned: dict[str, int]
-    additional_available: dict[str, int]
-    omitted_for_budget: dict[str, int] = {}
-    limits: ContextLimits
-
-    @model_serializer(mode="wrap")
-    def _drop_absent_roadmap(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
-        """A project without an `active` roadmap serialises exactly as before
-        the Roadmap section existed: the additive fields are absent, not null."""
-        data: dict[str, Any] = handler(self)
-        for name in ("roadmap", "roadmap_overview"):
-            if data.get(name) is None:
-                data.pop(name, None)
-        if not data.get("unavailable"):
-            data.pop("unavailable", None)
-        return data
 
 
 def _invalid(message: str) -> HTTPException:
@@ -562,6 +511,87 @@ async def _select_claims(
     return picked, len(claims)
 
 
+def _cap_str_list(values: list[str], cap: int = AIWORK_LIST_CAP) -> tuple[list[str], bool]:
+    """Bound a string list for the wire: first `cap` entries plus whether the
+    rest was cut. Pure and deterministic — unit-tested without a database."""
+    if len(values) > cap:
+        return values[:cap], True
+    return list(values), False
+
+
+def _ai_work_item(
+    work: AIWorkLogModel, why: Why, budget: _Budget
+) -> AIWorkItem | None:
+    """One work entry as context: the summary spends free-text budget, the
+    file/test lists are count-bounded instead. `None` means the section ran
+    out of budget and the entry is counted, not silently dropped."""
+    taken = budget.take(work.summary or "")
+    if taken is None:
+        return None
+    summary, summary_cut = taken
+    changed_files, files_cut = _cap_str_list(list(work.changed_files or []))
+    tests_run, tests_cut = _cap_str_list(list(work.tests_run or []))
+    return AIWorkItem(
+        id=work.id,
+        status=work.status,
+        summary=summary,
+        truncated=summary_cut or files_cut or tests_cut,
+        changed_files=changed_files,
+        tests_run=tests_run,
+        started_at=work.started_at,
+        ended_at=work.ended_at,
+        why=why,
+    )
+
+
+async def _select_ai_work(
+    session: AsyncSession,
+    project_id: uuid.UUID,
+    task_id: uuid.UUID | None,
+    terms: list[str],
+    limit: int,
+    budget: _Budget,
+    omitted: dict[str, int],
+) -> tuple[list[AIWorkItem], int]:
+    """Recent work relevant to the resume: entries on the requested task first
+    (newest first — the handoff packet lives here), then entries whose summary
+    lexically overlaps the objective. Bounded by `limit` and its own budget
+    slice, so the section can neither starve nor swamp the rest."""
+    rows = await ai_work_service.list_ai_work(session, project_id=project_id)
+    linked: list[tuple[float, str, AIWorkLogModel]] = []
+    lexical: list[tuple[int, float, str, AIWorkLogModel, list[str]]] = []
+    for row in rows:
+        if task_id is not None and row.task_id == task_id:
+            linked.append((-row.started_at.timestamp(), str(row.id), row))
+        else:
+            value, matched = score(terms, "", row.summary or "")
+            if value > 0:
+                lexical.append(
+                    (-value, -row.started_at.timestamp(), str(row.id), row, matched)
+                )
+    linked.sort(key=lambda entry: entry[:2])
+    lexical.sort(key=lambda entry: entry[:3])
+
+    picked: list[AIWorkItem] = []
+    for _, _, row in linked:
+        if len(picked) == limit:
+            break
+        item = _ai_work_item(row, _why("linked_to_task", []), budget)
+        if item is None:
+            omitted["ai_work"] = omitted.get("ai_work", 0) + 1
+            continue
+        picked.append(item)
+    for _, _, _, row, matched in lexical:
+        if len(picked) == limit:
+            break
+        item = _ai_work_item(row, _why("lexical", matched), budget)
+        if item is None:
+            omitted["ai_work"] = omitted.get("ai_work", 0) + 1
+            continue
+        picked.append(item)
+    return picked, len(rows)
+
+
 def _clean_files(files: list[str] | None) -> list[str]:
     if files is None:
         return []
@@ -642,6 +672,15 @@ async def prepare_project_context(
     )
     for name, count in roadmap.omitted.items():
         omitted[name] = omitted.get(name, 0) + count
+    ai_work, ai_work_total = await _select_ai_work(
+        session,
+        project_id,
+        task_id,
+        terms,
+        limit,
+        budget.slice(int(max_chars * AIWORK_BUDGET_SHARE)),
+        omitted,
+    )
     decisions, decisions_total = await _select_decisions(
         session, project_id, task_id, terms, limit, budget, omitted
     )
@@ -658,6 +697,7 @@ async def prepare_project_context(
         "decisions": len(decisions),
         "rules": len(rules),
         "skills": len(skills),
+        "ai_work": len(ai_work),
         "claims": len(claims),
     }
     additional = {
@@ -665,6 +705,7 @@ async def prepare_project_context(
         "decisions": decisions_total - len(decisions),
         "rules": rules_total - len(rules),
         "skills": skills_total - len(skills),
+        "ai_work": ai_work_total - len(ai_work),
         "claims": claims_total - len(claims),
     }
     if roadmap.item is not None:
@@ -679,6 +720,7 @@ async def prepare_project_context(
         decisions=decisions,
         rules=rules,
         skills=skills,
+        ai_work=ai_work,
         active_work=ActiveWork(claims=claims),
         roadmap=roadmap.item,
         roadmap_overview=roadmap.overview,

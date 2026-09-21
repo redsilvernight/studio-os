@@ -287,7 +287,7 @@ optionnels `task_id` (doit appartenir au projet, sinon `not_found`),
 
 Sortie `PreparedContext | McpError` (enveloppée sous `result`) :
 `project`, `query_terms`, `task`, `related_tasks`, `decisions`, `rules`,
-`skills`, `active_work.claims`, `returned`, `additional_available`,
+`skills`, `ai_work`, `active_work.claims`, `returned`, `additional_available`,
 `omitted_for_budget`, `limits`, et — additifs, absents sans objet (P6,
 DEC-0088, section ci-dessous) — `roadmap`, `roadmap_overview`, `unavailable`
 (`limits.roadmap_scan_capped` n'apparaît que si vrai). Chaque élément porte
@@ -301,9 +301,20 @@ Garanties : au plus `limit` éléments par catégorie ; texte libre coupé à
 Sélection = liens structurels + recouvrement lexical exact avec l'objectif,
 jamais de recherche sémantique ni de LLM. Mêmes règles d'accès que les
 outils de lecture composés (Library `user` d'autrui invisible, tâche d'un
-autre projet = `not_found`). Non couvert : sessions, AIWorkLog, événements,
-builds, transferts, mémoire/graphe/Git locaux. Ce n'est pas le Context
-Package (DEC-0057, composé localement par le Bloc B).
+autre projet = `not_found`). Section AI Work (P2) — `ai_work` : entrées de travail pertinentes pour la
+reprise, bornées à `limit`, tranche dédiée de 15 % de `max_chars` sur le même
+mécanisme. Ordre : entrées liées à la tâche demandée d'abord (`linked_to_task`,
+plus récentes d'abord — le paquet de handoff vit ici), puis recouvrement
+lexical du résumé (`lexical`). Chaque entrée : `id`, `status`, `summary`
+(budgeté), `changed_files` / `tests_run` (plafonnés à 10, `truncated` si coupés),
+`started_at`, `ended_at`, `why`. Comptée dans `returned` / `additional_available`
+(`ai_work`), coupures dans `omitted_for_budget`. `studio_get_ai_work` reste
+disponible pour approfondir. Le résumé structuré P1 (DONE/STATE/CHANGED/TESTS/
+NEXT/BLOCKERS) suffit : aucun champ NEXT/BLOCKERS dédié, aucune nouvelle table.
+
+Non couvert : sessions, événements, builds, transferts, mémoire/graphe/Git
+locaux. Ce n'est pas le Context Package (DEC-0057, composé localement par le
+Bloc B).
 
 Section Roadmap (P6, DEC-0088) — champs additifs, **absents** (jamais `null`)
 sans objet, donc un projet sans roadmap répond comme avant :

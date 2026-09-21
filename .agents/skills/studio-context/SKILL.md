@@ -31,9 +31,11 @@ pack, all ADRs, all roadmaps, all skills, or the whole history.
 
 ## Resume after handoff
 
-A new agent with zero history resumes with `studio_prepare_context(objective, task_id)`
-plus `studio_get_ai_work(task_id)` for the previous handoff summary, then identifies
-NEXT. If those two calls do not yield the next action, the handoff was incomplete —
+A new agent with zero history resumes with a single call —
+`studio_prepare_context(objective, task_id)` carries the task, the linked
+decisions and the recent AI work (handoff summary → NEXT). Use
+`studio_get_ai_work(task_id)` only to go deeper. If one bounded call plus
+targeted follow-ups do not yield the next action, the handoff was incomplete —
 say so instead of scanning the repo.
 
 ## Don't
