@@ -121,7 +121,7 @@ racine du dépôt.
   `C:\Users\redsi\Documents\Coding\Projet\Studi'os`.
 - Pour un build manuel, passer la racine source réelle comme argument au lanceur
   projet ; ne pas changer la destination avec `--out` ou `--output`.
-- Suivre `.claude/skills/graphify/SKILL.md` ; ne jamais envoyer une question brute
+- Suivre `.agents/skills/graphify/SKILL.md` ; ne jamais envoyer une question brute
   à `graphify query`, `path` ou `explain` sans expansion contrôlée du vocabulaire.
 - Si un graphe local apparaît par erreur, transférer le résultat à l'emplacement
   central puis retirer uniquement ce dossier local après vérification des chemins.
