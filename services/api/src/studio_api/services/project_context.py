@@ -420,7 +420,7 @@ async def _select_library(
         capped = capped or len(rows) == LIBRARY_SCAN_CAP
         keys.update(r.stable_key for r in rows)
 
-    ranked: list[tuple[int, int, str, LibraryItem]] = []
+    ranked: list[tuple[int, int, int, str, LibraryItem]] = []
     total = 0
     for key in sorted(keys):
         try:
