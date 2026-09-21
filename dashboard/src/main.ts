@@ -37,6 +37,8 @@ import { renderInspector } from "./views/inspector";
 import { renderDesignSystem } from "./views/designSystem";
 import { renderNotFound } from "./views/notFound";
 import { loginOverlayHtml, renderLogin } from "./login";
+import { getPlatform } from "./platform";
+import { getDesktopShell, paintShellStatus, prepareDesktop, setDesktopHooks } from "./desktopShell";
 import { parseRoute } from "./router";
 import { shellHtml, syncAuthState, syncNav } from "./shell";
 import { createRenderGuard } from "./renderGuard";
@@ -157,6 +159,7 @@ async function render(): Promise<void> {
   old.replaceWith(staging);
   syncNav(route, document);
   syncAuthState(authed, document);
+  paintShellStatus(document);
 }
 
 let conflictBannerTimer: ReturnType<typeof setTimeout> | null = null;
@@ -253,6 +256,7 @@ function mountShell(): void {
   const app = document.getElementById("app");
   if (app === null) throw new Error("#app missing");
   app.innerHTML = shellHtml(parseRoute(location.hash), hasToken());
+  paintShellStatus(document);
 
   document.getElementById("nav-open")?.addEventListener("click", () => openDrawer());
   document.getElementById("nav-close")?.addEventListener("click", () => closeDrawer());
@@ -291,6 +295,7 @@ function mountShell(): void {
   document.getElementById("token-clear")?.addEventListener("click", () => {
     clearToken();
     syncRealtimeConnection();
+    getDesktopShell()?.monitor.clearAuthExpired();
     mountLogin();
   });
 
@@ -301,22 +306,51 @@ function mountShell(): void {
   void render();
 }
 
-function mountLogin(): void {
+function mountLogin(notice?: string): void {
   const app = document.getElementById("app");
   if (app === null) throw new Error("#app missing");
   app.innerHTML = loginOverlayHtml();
-  renderLogin(app, () => {
-    syncRealtimeConnection();
-    mountShell();
-  });
+  renderLogin(
+    app,
+    () => {
+      const desktop = getDesktopShell();
+      if (desktop !== null) {
+        desktop.monitor.clearAuthExpired();
+        void desktop.monitor.check();
+      }
+      syncRealtimeConnection();
+      mountShell();
+    },
+    { notice, desktop: getDesktopShell() !== null, onServerChange: () => void mountLogin() },
+  );
 }
 
-export function boot(): void {
+function start(): void {
   if (hasToken()) {
     mountShell();
   } else {
     mountLogin();
   }
+}
+
+export function boot(): void {
+  const platform = getPlatform();
+  if (platform.mode !== "desktop") {
+    start();
+    return;
+  }
+  // Desktop only: learn the server origin before the first API call.
+  void prepareDesktop(platform).then(() => {
+    setDesktopHooks({
+      rerender: () => void render(),
+      authExpired: () => {
+        clearToken();
+        syncRealtimeConnection();
+        mountLogin("Votre session a expiré. Reconnectez-vous pour continuer.");
+      },
+    });
+    start();
+  });
 }
 
 boot();

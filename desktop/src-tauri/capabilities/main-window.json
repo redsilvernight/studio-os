@@ -1,7 +1,15 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main-window",
-  "description": "Minimal P2 grant: the two app commands of the typed local bridge, nothing else.",
+  "description": "Explicit grant of the typed app commands (P2 bridge + P3 shell), nothing else: no plugin, no generic primitive.",
   "windows": ["main"],
-  "permissions": ["allow-desktop-info", "allow-bridge-request"]
+  "permissions": [
+    "allow-desktop-info",
+    "allow-bridge-request",
+    "allow-get-server-origin",
+    "allow-set-server-origin",
+    "allow-restart-desktop",
+    "allow-choose-folder",
+    "allow-choose-file"
+  ]
 }
