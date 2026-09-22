@@ -95,11 +95,14 @@ from studio_contracts.local.identity import (
 )
 from studio_contracts.local.knowledge import (
     KnowledgeDocumentRef,
+    KnowledgeInitVaultRequest,
+    KnowledgeInitVaultResult,
     KnowledgeIntegration,
     KnowledgeSearchHit,
     KnowledgeSearchRequest,
     KnowledgeSearchResult,
     KnowledgeStatus,
+    KnowledgeVaultState,
 )
 from studio_contracts.local.provider import IndexInfo, IndexState, ProviderInfo
 from studio_contracts.local.publication import (
@@ -162,13 +165,19 @@ DESKTOP_CAPABILITIES = [
     "identity.view",
     "knowledge.graph",
     "knowledge.index",
+    "knowledge.init",
     "knowledge.read",
     "publication.plan",
     "publication.publish",
     "workspace.config",
 ]
 REQUIRED_CAPABILITIES = ["daemon.control", "identity.view", "workspace.config"]
-KNOWLEDGE_CAPABILITIES = ["knowledge.graph", "knowledge.index", "knowledge.read"]
+KNOWLEDGE_CAPABILITIES = [
+    "knowledge.graph",
+    "knowledge.index",
+    "knowledge.init",
+    "knowledge.read",
+]
 CODE_GRAPH_CAPABILITIES = ["code_graph.graph", "code_graph.index", "code_graph.read"]
 HARNESS_CAPABILITIES = ["harness.apply", "harness.plan", "harness.read"]
 
@@ -1211,6 +1220,23 @@ def build_fixtures() -> list[LocalFixture]:
             ComponentId.KNOWLEDGE,
             "The vault folder cannot be read.",
         ),
+    )
+    fixtures["knowledge.init_vault.request"] = KnowledgeInitVaultRequest(
+        workspace_id=WORKSPACE_ID,
+        confirmed=True,
+    )
+    fixtures["knowledge.init_vault.result"] = KnowledgeInitVaultResult(
+        workspace_id=WORKSPACE_ID,
+        state_before=KnowledgeVaultState.MISSING,
+        created=[
+            ".studio",
+            ".studio/vault.json",
+            "README.md",
+            "conventions",
+            "decisions",
+            "projects",
+            "tasks",
+        ],
     )
     fixtures["knowledge.search.request"] = KnowledgeSearchRequest(
         workspace_id=WORKSPACE_ID, query="combat rules"

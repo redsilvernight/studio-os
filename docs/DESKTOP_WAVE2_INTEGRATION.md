@@ -32,7 +32,9 @@ Workspace (P5) ── KnowledgeConfig ──▶ VaultKnowledgeProvider (P6)
   jetable : `KnowledgeService.detach()` le supprime, jamais un fichier `.md`.
 - Le provider lit et recherche les fichiers localement ; l'édition reste
   externe (Obsidian est optionnel, jamais requis).
-- Le daemon sert `knowledge.status|search|get_document|graph_page|graph_expand|reindex`.
+- Le daemon sert `knowledge.status|init_vault|search|get_document|graph_page|graph_expand|reindex`.
+  `init_vault` est la seule écriture sur la source Markdown : elle est confirmée,
+  bornée au workspace, idempotente et non destructive.
 
 ## Architecture Code Graph
 
@@ -97,8 +99,9 @@ Les deux sources sont **locales**. Aucune intégration Wave 2 n'upload
 automatiquement : ni Markdown, ni graphe Knowledge, ni graphe Code, ni contenu
 source, ni chemin local, ni cache Graphify. Le serveur distant ne devient pas
 propriétaire de ces données. Les seuls fichiers créés sont les index dérivés,
-sous le cache du daemon. Le bridge ne fait que répondre à des requêtes de
-lecture ; la politique local/shared P1 est respectée.
+sous le cache du daemon. Le bridge sert les lectures et l'initialisation locale
+bornée du Vault ; aucune opération n'upload ces données. La politique
+local/shared P1 est respectée.
 
 ## États possibles
 

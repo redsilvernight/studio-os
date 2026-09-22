@@ -134,4 +134,65 @@ describe("onboarding view", () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(restarted).toBe(true);
   });
+
+  it("initializes and indexes a new memory folder from the wizard", async () => {
+    const calls: Array<{ command: string; payload: Record<string, unknown> }> = [];
+    let ready = false;
+    const platform = fakeDesktop({
+      request: (async (command: string, payload: Record<string, unknown>) => {
+        calls.push({ command, payload });
+        if (command === "knowledge.status") {
+          return ok({
+            workspace_id: WS,
+            state: ready ? "ready" : "unavailable",
+            canonical_source: "markdown_files",
+            index: { state: ready ? "ready" : "absent", derived: true, rebuildable: true },
+            integrations: [],
+          });
+        }
+        if (command === "workspace.get_config") {
+          return ok({
+            schema_version: 1,
+            workspace_id: WS,
+            project_id: "22222222-2222-4222-8222-222222222222",
+            project_slug: "demo",
+            profile: { profile_id: "main", server_origin: "https://studio.example" },
+            roots: { workspace_root: "C:\\Projects\\demo", repo_roots: [] },
+            features: {},
+            created_at: "2026-09-22T00:00:00Z",
+            updated_at: "2026-09-22T00:00:00Z",
+          });
+        }
+        if (command === "workspace.save_config") return ok(payload.config);
+        if (command === "knowledge.init_vault") {
+          return ok({ workspace_id: WS, state_before: "missing", created: ["README.md"], skipped: [] });
+        }
+        if (command === "knowledge.reindex") {
+          ready = true;
+          return ok({ accepted: true, operation_id: "op-init", state: "indexing" });
+        }
+        return refused("not_supported");
+      }) as never,
+    });
+    const root = document.createElement("main");
+    document.body.append(root);
+    await renderOnboarding(
+      root,
+      platform,
+      emptySession({ schema: 1, status: "in_progress", current: "memoire", workspaceId: WS }),
+    );
+    root.querySelector<HTMLFormElement>("[data-testid=memory-folder-form]")?.dispatchEvent(
+      new Event("submit", { bubbles: true, cancelable: true }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(calls.find((call) => call.command === "knowledge.init_vault")?.payload).toEqual({
+      workspace_id: WS,
+      confirmed: true,
+    });
+    const commands = calls.map((call) => call.command);
+    expect(commands.indexOf("knowledge.init_vault")).toBeLessThan(
+      commands.indexOf("knowledge.reindex"),
+    );
+    expect(root.textContent).toContain("Mémoire activée et préparée");
+  });
 });

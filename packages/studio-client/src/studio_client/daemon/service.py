@@ -67,6 +67,7 @@ from studio_contracts.local.identity import (
 )
 from studio_contracts.local.knowledge import (
     KnowledgeGetDocumentRequest,
+    KnowledgeInitVaultRequest,
     KnowledgeReindexRequest,
     KnowledgeSearchRequest,
 )
@@ -143,6 +144,7 @@ SERVED = frozenset(
         BridgeCommand.WORKSPACE_GIT_STATUS,
         BridgeCommand.WORKSPACE_SAVE_CONFIG,
         BridgeCommand.KNOWLEDGE_STATUS,
+        BridgeCommand.KNOWLEDGE_INIT_VAULT,
         BridgeCommand.KNOWLEDGE_SEARCH,
         BridgeCommand.KNOWLEDGE_GET_DOCUMENT,
         BridgeCommand.KNOWLEDGE_GRAPH_PAGE,
@@ -163,6 +165,7 @@ SERVED = frozenset(
 _LOCAL_FEATURE_COMMANDS = frozenset(
     {
         BridgeCommand.KNOWLEDGE_STATUS,
+        BridgeCommand.KNOWLEDGE_INIT_VAULT,
         BridgeCommand.KNOWLEDGE_SEARCH,
         BridgeCommand.KNOWLEDGE_GET_DOCUMENT,
         BridgeCommand.KNOWLEDGE_GRAPH_PAGE,
@@ -683,6 +686,8 @@ class BridgeService:
         payload = request.payload
         if request.command is BridgeCommand.KNOWLEDGE_STATUS:
             return features.knowledge_status(WorkspaceScope.model_validate(payload))
+        if request.command is BridgeCommand.KNOWLEDGE_INIT_VAULT:
+            return features.knowledge_init_vault(KnowledgeInitVaultRequest.model_validate(payload))
         if request.command is BridgeCommand.KNOWLEDGE_SEARCH:
             return features.knowledge_search(KnowledgeSearchRequest.model_validate(payload))
         if request.command is BridgeCommand.KNOWLEDGE_GET_DOCUMENT:

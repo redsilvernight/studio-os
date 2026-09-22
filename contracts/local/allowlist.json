@@ -221,6 +221,17 @@
       "timeout_ms": 30000
     },
     {
+      "cancellable": false,
+      "capability": "knowledge.init",
+      "command": "knowledge.init_vault",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": true,
+      "request": "KnowledgeInitVaultRequest",
+      "response": "KnowledgeInitVaultResult",
+      "timeout_ms": 30000
+    },
+    {
       "cancellable": true,
       "capability": "knowledge.index",
       "command": "knowledge.reindex",

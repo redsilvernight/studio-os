@@ -44,6 +44,7 @@
         "provides": [
           "knowledge.graph",
           "knowledge.index",
+          "knowledge.init",
           "knowledge.read"
         ],
         "state": "ready"

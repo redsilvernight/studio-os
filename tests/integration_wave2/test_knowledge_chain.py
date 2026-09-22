@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -91,6 +93,88 @@ def test_a_search_returns_contract_shaped_hits(knowledge_only) -> None:
     assert answer["payload"]["index_state"] == "ready"
     assert answer["payload"]["hits"]
     _validate(answer["payload"], "KnowledgeSearchResult")
+
+
+def test_a_fresh_workspace_initializes_the_vault_without_manual_filesystem_steps(
+    tmp_path: Path,
+) -> None:
+    workspace = build_workspace(tmp_path, knowledge=True, code_graph=False)
+    shutil.rmtree(workspace.vault)
+    registry = make_registry([workspace.config], tmp_path / "cache", service=None)
+    controller_ = controller(tmp_path, registry)
+    registry.start(controller_._profile())
+    service = BridgeService(controller_)
+    negotiate(service, DESKTOP_CAPABILITIES)
+    try:
+        first = service.handle_line(
+            bridge_request(
+                "knowledge.init_vault",
+                {"workspace_id": str(WORKSPACE_ID), "confirmed": True},
+            )
+        )
+        assert first["kind"] == "response", first
+        assert first["payload"]["state_before"] == "missing"
+        assert "README.md" in first["payload"]["created"]
+        assert workspace.vault.joinpath("README.md").is_file()
+
+        second = service.handle_line(
+            bridge_request(
+                "knowledge.init_vault",
+                {"workspace_id": str(WORKSPACE_ID), "confirmed": True},
+            )
+        )
+        assert second["kind"] == "response", second
+        assert second["payload"]["state_before"] == "studios_vault"
+        assert second["payload"]["created"] == []
+
+        rebuilt = service.handle_line(
+            bridge_request(
+                "knowledge.reindex",
+                {"workspace_id": str(WORKSPACE_ID), "mode": "full_rebuild"},
+            )
+        )
+        assert rebuilt["kind"] == "response", rebuilt
+        assert wait_for(lambda: _status(service)["payload"]["state"] == "ready")
+    finally:
+        registry.stop()
+
+
+def test_vault_initialization_refuses_a_link_outside_the_workspace(tmp_path: Path) -> None:
+    workspace_root = tmp_path / "workspace"
+    workspace = build_workspace(workspace_root, knowledge=True, code_graph=False)
+    shutil.rmtree(workspace.vault)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    try:
+        os.symlink(outside, workspace.vault, target_is_directory=True)
+    except OSError as error:
+        if os.name != "nt":
+            pytest.skip(f"directory symlinks are unavailable on this machine: {error}")
+        junction = subprocess.run(
+            ["cmd.exe", "/d", "/c", "mklink", "/J", str(workspace.vault), str(outside)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if junction.returncode != 0:
+            pytest.skip("directory links and junctions are unavailable on this machine")
+    registry = make_registry([workspace.config], tmp_path / "cache", service=None)
+    controller_ = controller(tmp_path, registry)
+    registry.start(controller_._profile())
+    service = BridgeService(controller_)
+    negotiate(service, DESKTOP_CAPABILITIES)
+    try:
+        answer = service.handle_line(
+            bridge_request(
+                "knowledge.init_vault",
+                {"workspace_id": str(WORKSPACE_ID), "confirmed": True},
+            )
+        )
+        assert answer["kind"] == "error", answer
+        assert answer["error"]["code"] == "invalid_request"
+        assert not list(outside.iterdir())
+    finally:
+        registry.stop()
 
 
 def test_d_an_inaccessible_vault_reports_unavailable_without_leaking_a_path(

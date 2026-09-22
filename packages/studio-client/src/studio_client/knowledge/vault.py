@@ -199,10 +199,11 @@ def _ensure_directory(root: Path, relative: str) -> tuple[bool, str]:
 
 
 def _ensure_file(path: Path, content: str) -> bool:
-    if path.exists():
+    try:
+        with path.open("x", encoding="utf-8", newline="\n") as stream:
+            stream.write(content)
+    except FileExistsError:
         return False
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8", newline="\n")
     return True
 
 

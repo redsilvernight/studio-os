@@ -53,6 +53,8 @@ from studio_contracts.local.identity import IdentityView
 from studio_contracts.local.knowledge import (
     KnowledgeDocument,
     KnowledgeGetDocumentRequest,
+    KnowledgeInitVaultRequest,
+    KnowledgeInitVaultResult,
     KnowledgeReindexRequest,
     KnowledgeReindexResult,
     KnowledgeSearchRequest,
@@ -121,6 +123,7 @@ class BridgeCommand(StrEnum):
     WORKSPACE_GIT_STATUS = "workspace.git_status"
     WORKSPACE_SAVE_CONFIG = "workspace.save_config"
     KNOWLEDGE_STATUS = "knowledge.status"
+    KNOWLEDGE_INIT_VAULT = "knowledge.init_vault"
     KNOWLEDGE_SEARCH = "knowledge.search"
     KNOWLEDGE_GET_DOCUMENT = "knowledge.get_document"
     KNOWLEDGE_GRAPH_PAGE = "knowledge.graph_page"
@@ -243,6 +246,13 @@ BRIDGE_COMMANDS: dict[BridgeCommand, CommandSpec] = dict(
             mutating=True,
         ),
         _spec(BridgeCommand.KNOWLEDGE_STATUS, WorkspaceScope, KnowledgeStatus, "knowledge.read"),
+        _spec(
+            BridgeCommand.KNOWLEDGE_INIT_VAULT,
+            KnowledgeInitVaultRequest,
+            KnowledgeInitVaultResult,
+            "knowledge.init",
+            mutating=True,
+        ),
         _spec(
             BridgeCommand.KNOWLEDGE_SEARCH,
             KnowledgeSearchRequest,

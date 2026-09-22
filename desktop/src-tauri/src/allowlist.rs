@@ -34,6 +34,7 @@ pub const SERVED_BY_DAEMON: &[&str] = &[
     "workspace.git_status",
     "workspace.save_config",
     "knowledge.status",
+    "knowledge.init_vault",
     "knowledge.search",
     "knowledge.get_document",
     "knowledge.graph_page",
@@ -100,8 +101,8 @@ mod tests {
     fn allowlist_matches_p1_export() {
         assert_eq!(
             all_commands().len(),
-            31,
-            "studio.local/v1 exports 31 commands"
+            32,
+            "studio.local/v1 exports 32 commands"
         );
         assert!(lookup("runtime.handshake").is_some());
         assert!(lookup("daemon.status").is_some());
