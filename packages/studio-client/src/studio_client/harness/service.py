@@ -31,6 +31,9 @@ from studio_contracts.local.harness import (
     HarnessState,
     HarnessStatus,
     HarnessStatusRequest,
+    HarnessVerifyRequest,
+    HarnessVerifyResult,
+    VerifyState,
 )
 from studio_contracts.local.workspace import WorkspaceScope
 
@@ -444,6 +447,166 @@ class HarnessService:
             restored=restored,
             state=_map_state(adapter.detect(ctx))[0],
         )
+
+    def verify(self, request: HarnessVerifyRequest) -> HarnessVerifyResult:
+        info = self._workspace(request.workspace_id, needs_feature=True)
+        adapter = self._adapter(request.adapter_id)
+        ctx = self._context(info)
+        detection = adapter.detect(ctx)
+        if detection.state is not DetectionState.CONFIGURED:
+            return HarnessVerifyResult(
+                adapter_id=adapter.adapter_id,
+                state=VerifyState.UNCONFIGURED
+                if detection.state is DetectionState.CONFIGURATION_MISSING
+                else VerifyState.FAILED,
+                mcp_url=None,
+                error=None,
+                details={"detection_state": detection.state.value},
+            )
+        # The harness is CONFIGURED - now test the actual MCP connection
+        # We need to verify that the MCP server can be reached and authenticated
+        # This requires the STUDIO_MCP_MACHINE_TOKEN to be available in the environment
+        token = ctx.env_value("STUDIO_MCP_MACHINE_TOKEN")
+        if not token:
+            return HarnessVerifyResult(
+                adapter_id=adapter.adapter_id,
+                state=VerifyState.CONFIGURED,
+                mcp_url=info.mcp_url,
+                error=None,
+                details={"reason": "token_missing"},
+            )
+        # Try to make a real MCP call to verify the connection
+        # Use streamable-http transport: initialize -> get session -> tools/call
+        # This proves the full chain: harness config -> MCP URL -> auth -> Studi'OS
+        try:
+            import asyncio
+            import httpx
+            
+            async def test_mcp_call() -> tuple[bool, str | None]:
+                headers = {
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                    "Accept": "application/json, text/event-stream",
+                }
+                try:
+                    async with httpx.AsyncClient(timeout=15.0) as client:
+                        # Step 1: Initialize to get session ID
+                        init_payload = {
+                            "jsonrpc": "2.0",
+                            "id": 1,
+                            "method": "initialize",
+                            "params": {
+                                "protocolVersion": "2024-11-05",
+                                "capabilities": {},
+                                "clientInfo": {"name": "studio-verify", "version": "1.0"}
+                            }
+                        }
+                        init_response = await client.post(info.mcp_url, json=init_payload, headers=headers)
+                        if init_response.status_code != 200:
+                            return False, f"Initialize failed: HTTP {init_response.status_code}: {init_response.text[:200]}"
+                        
+                        # Extract session ID from response header
+                        session_id = init_response.headers.get("mcp-session-id")
+                        if not session_id:
+                            # Try to parse from event stream
+                            for line in init_response.text.splitlines():
+                                if line.startswith("data: "):
+                                    import json
+                                    try:
+                                        data = json.loads(line[6:])
+                                        if "result" in data and "sessionId" in data.get("result", {}):
+                                            session_id = data["result"]["sessionId"]
+                                            break
+                                    except:
+                                        pass
+                        
+                        if not session_id:
+                            return False, "No session ID returned from initialize"
+                        
+                        # Step 2: Call a tool with the session ID
+                        headers["Mcp-Session-Id"] = session_id
+                        tool_payload = {
+                            "jsonrpc": "2.0",
+                            "id": 2,
+                            "method": "tools/call",
+                            "params": {
+                                "name": "studio_get_projects",
+                                "arguments": {}
+                            }
+                        }
+                        tool_response = await client.post(info.mcp_url, json=tool_payload, headers=headers)
+                        if tool_response.status_code != 200:
+                            return False, f"Tool call failed: HTTP {tool_response.status_code}: {tool_response.text[:200]}"
+                        
+                        # Parse event stream response - check for actual success
+                        # The MCP server may return 200 with a result that contains an error in the content
+                        success = False
+                        error_msg = None
+                        for line in tool_response.text.splitlines():
+                            if line.startswith("data: "):
+                                import json
+                                try:
+                                    data = json.loads(line[6:])
+                                    if "error" in data and data["error"]:
+                                        # JSON-RPC error returned
+                                        err = data["error"]
+                                        return False, f"MCP error: {err.get('message', 'unknown')} (code: {err.get('code', 'unknown')})"
+                                    if "result" in data:
+                                        result = data["result"]
+                                        # Check if result indicates an error (isError=true or error_code in structuredContent)
+                                        if result.get("isError") is True:
+                                            error_msg = result.get("content", [{}])[0].get("text", "Unknown error")
+                                            break
+                                        structured = result.get("structuredContent", {})
+                                        if isinstance(structured, dict) and "error_code" in structured:
+                                            error_msg = structured.get("message", structured.get("error_code", "Unknown error"))
+                                            break
+                                        success = True
+                                except:
+                                    pass
+                        if error_msg:
+                            return False, f"Tool returned error: {error_msg}"
+                        if success:
+                            return True, None
+                        return False, f"Tool call returned no result: {tool_response.text[:200]}"
+                except Exception as e:
+                    return False, str(e)
+            
+            success, error_msg = asyncio.run(test_mcp_call())
+            if success:
+                return HarnessVerifyResult(
+                    adapter_id=adapter.adapter_id,
+                    state=VerifyState.VERIFIED,
+                    mcp_url=info.mcp_url,
+                    error=None,
+                    details={"method": "studio_get_projects"},
+                )
+            else:
+                return HarnessVerifyResult(
+                    adapter_id=adapter.adapter_id,
+                    state=VerifyState.FAILED,
+                    mcp_url=info.mcp_url,
+                    error=LocalError(
+                        code=LocalErrorCode.INTERNAL_ERROR,
+                        message=f"MCP verification failed: {error_msg}",
+                        component=ComponentId.HARNESS,
+                        retryable=True,
+                    ),
+                    details={"reason": "mcp_call_failed"},
+                )
+        except Exception as e:
+            return HarnessVerifyResult(
+                adapter_id=adapter.adapter_id,
+                state=VerifyState.FAILED,
+                mcp_url=info.mcp_url,
+                error=LocalError(
+                    code=LocalErrorCode.INTERNAL_ERROR,
+                    message=f"Verification error: {str(e)[:200]}",
+                    component=ComponentId.HARNESS,
+                    retryable=True,
+                ),
+                details={"reason": "verification_exception"},
+            )
 
     def _find_record(self, rollback_id: str) -> BackupRecord:
         record: BackupRecord | None = None

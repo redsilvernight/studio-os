@@ -184,3 +184,42 @@ class HarnessRollbackResult(LocalContractModel):
     restored: list[OpaqueId] = Field(default=[], max_length=50)
     state: HarnessState
     error: LocalError | None = None
+
+
+class VerifyState(StrEnum):
+    UNCONFIGURED = "unconfigured"
+    CONFIGURED = "configured"
+    VERIFIED = "verified"
+    FAILED = "failed"
+
+
+class HarnessVerifyRequest(LocalContractModel):
+    """Ask the harness to prove it can reach Studi'OS via MCP. CONFIGURED
+    means the config file is in place; VERIFIED means a real MCP call
+    succeeded end-to-end (auth + at least one tool call)."""
+
+    workspace_id: UUID
+    adapter_id: Identifier
+
+
+class HarnessVerifyResult(LocalContractModel):
+    adapter_id: Identifier
+    state: VerifyState
+    mcp_url: str | None = None
+    error: LocalError | None = None
+    details: dict[str, str] = Field(default={}, max_length=16)
+
+    @model_validator(mode="after")
+    def _consistent(self) -> Self:
+        if self.state is VerifyState.VERIFIED:
+            if self.error is not None:
+                raise ValueError("verified state carries no error")
+            if self.mcp_url is None:
+                raise ValueError("verified state requires mcp_url")
+        if self.state in (VerifyState.UNCONFIGURED, VerifyState.CONFIGURED):
+            if self.error is not None:
+                raise ValueError(f"state {self.state.value} carries no error")
+        if self.state is VerifyState.FAILED:
+            if self.error is None:
+                raise ValueError("failed state requires error")
+        return self

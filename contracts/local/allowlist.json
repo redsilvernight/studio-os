@@ -178,6 +178,17 @@
     },
     {
       "cancellable": false,
+      "capability": "harness.verify",
+      "command": "harness.verify",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "HarnessVerifyRequest",
+      "response": "HarnessVerifyResult",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
       "capability": "identity.view",
       "command": "identity.get_view",
       "max_request_bytes": 65536,

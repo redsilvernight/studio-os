@@ -1,0 +1,22 @@
+{
+  "additionalProperties": false,
+  "description": "Ask the harness to prove it can reach Studi'OS via MCP. CONFIGURED\nmeans the config file is in place; VERIFIED means a real MCP call\nsucceeded end-to-end (auth + at least one tool call).",
+  "properties": {
+    "adapter_id": {
+      "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+      "title": "Adapter Id",
+      "type": "string"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace_id",
+    "adapter_id"
+  ],
+  "title": "HarnessVerifyRequest",
+  "type": "object"
+}
