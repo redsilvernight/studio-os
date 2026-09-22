@@ -70,10 +70,65 @@ export type PickResult =
   | { status: "unavailable" }
   | { status: "error"; code: string };
 
+/** Data-format marker state of the daemon data directory. */
+export type DataFormatState =
+  | { state: "unstamped" }
+  | { state: "supported"; format: number }
+  | { state: "too_new"; format: number; supported: number }
+  | { state: "unreadable" };
+
+/** What the shell reports about its installation (no secret, home directory masked). */
+export interface DesktopDiagnostics {
+  desktop_version: string;
+  protocol: string;
+  os: string;
+  arch: string;
+  sidecar: {
+    state: DesktopInfo["sidecar"];
+    present: boolean;
+    manifest: { daemon_version: string; desktop_version: string; protocol: string } | null;
+    compat: "compatible" | "version_drift" | "protocol_mismatch" | "unknown";
+  };
+  server_origin: string | null;
+  updates_configured: boolean;
+  locations: {
+    daemon_data_dir: string | null;
+    logs_dir: string | null;
+    shell_settings_dir: string | null;
+    install_dir: string | null;
+    data_format: DataFormatState;
+    logs: { name: string; bytes: number }[];
+  };
+}
+
+export type DataFolder = "logs" | "diagnostics";
+
+export type DiagnosticsExportResult = { ok: true; file: string } | { ok: false; code: string };
+
+export type UpdateStatus =
+  | { state: "not_configured" }
+  | { state: "up_to_date"; current: string }
+  | { state: "available"; current: string; version: string; notes: string | null };
+
+export type UpdateErrorCode =
+  | "not_configured"
+  | "network"
+  | "invalid_metadata"
+  | "invalid_signature"
+  | "install_failed"
+  | "failed";
+
+export type UpdateCheckResult = { ok: true; status: UpdateStatus } | { ok: false; code: UpdateErrorCode };
+
 export interface Platform {
   readonly mode: PlatformMode;
   /** Which native controls this runtime really has (all false on the web). */
-  readonly native: { readonly serverOrigin: boolean; readonly pickers: boolean };
+  readonly native: {
+    readonly serverOrigin: boolean;
+    readonly pickers: boolean;
+    readonly diagnostics: boolean;
+    readonly updates: boolean;
+  };
   /** `null` in web mode: there is no Desktop to describe. */
   desktopInfo(): Promise<DesktopInfo | null>;
   /** Typed local bridge. Web mode answers `not_supported`, never a fake success. */
@@ -86,6 +141,16 @@ export interface Platform {
   restartDesktop(): Promise<boolean>;
   chooseFolder(options?: PickerOptions): Promise<PickResult>;
   chooseFile(options?: PickerOptions): Promise<PickResult>;
+  /** Versions, sidecar state and data locations. `null` in web mode. */
+  diagnostics(): Promise<DesktopDiagnostics | null>;
+  /** Write the redacted diagnostics file; the shell chooses the destination. */
+  exportDiagnostics(): Promise<DiagnosticsExportResult>;
+  /** Reveal the logs or the exported diagnostics folder. Resolves `false` where unavailable. */
+  openDataFolder(folder: DataFolder): Promise<boolean>;
+  /** User-driven update check; nothing checks on its own. */
+  checkForUpdate(): Promise<UpdateCheckResult>;
+  /** Download the release found by `checkForUpdate`, verify it, install and restart. */
+  installUpdate(): Promise<{ ok: true } | { ok: false; code: UpdateErrorCode }>;
 }
 
 export type { DaemonStatus, IdentityView };

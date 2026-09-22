@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import stat
 import sys
 from pathlib import Path
@@ -7,6 +8,7 @@ from pathlib import Path
 import pytest
 from studio_code_graph.graphify.locator import (
     EXECUTABLE_ENV,
+    find_on_path,
     parse_version,
     probe_install,
     resolve_executable,
@@ -41,7 +43,7 @@ def test_parse_version(text: str, expected: tuple[int, int, int] | None) -> None
 @pytest.fixture(autouse=True)
 def no_ambient_install(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv(EXECUTABLE_ENV, raising=False)
-    monkeypatch.setattr("shutil.which", lambda name: None)
+    monkeypatch.setenv("PATH", "")
 
 
 def test_not_installed_when_nothing_is_found() -> None:
@@ -86,8 +88,35 @@ def test_environment_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
 def test_broken_override_does_not_fall_back_to_path(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    found = str(fake_executable(tmp_path, "graphify 0.9.59"))
+    fake_executable(tmp_path, "graphify 0.9.59")
     monkeypatch.setenv(EXECUTABLE_ENV, str(tmp_path / "absent"))
-    monkeypatch.setattr("shutil.which", lambda name: found)
+    monkeypatch.setenv("PATH", str(tmp_path))
     probe, _ = probe_install()
     assert probe.state is ProbeState.NOT_INSTALLED
+
+
+def _tool(directory: Path, name: str) -> Path:
+    path = directory / (f"{name}.cmd" if sys.platform == "win32" else name)
+    body = "@echo off\r\n" if sys.platform == "win32" else "#!/bin/sh\n"
+    path.write_text(body, encoding="utf-8", newline="")
+    path.chmod(path.stat().st_mode | stat.S_IEXEC)
+    return path
+
+
+def test_path_lookup_finds_a_tool_in_an_absolute_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tool = _tool(tmp_path, "graphify")
+    monkeypatch.setenv("PATH", str(tmp_path))
+    monkeypatch.setenv("PATHEXT", ".CMD")
+    assert find_on_path("graphify") == str(tool)
+
+
+def test_path_lookup_ignores_the_working_directory_and_relative_entries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _tool(tmp_path, "graphify")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PATHEXT", ".CMD")
+    monkeypatch.setenv("PATH", os.pathsep.join([str(tmp_path), ".", ""]))
+    assert find_on_path("graphify") is None

@@ -1,17 +1,28 @@
 ---
-id: DEC-0095
+id: DEC-0096
 title: 'Desktop P9 : adaptateurs de harnais au scope projet, jeton par référence, fail-closed'
-status: active
+status: proposed
 date: '2026-09-22'
 superseded_by: null
-source: docs/decisions/DEC-0095-desktop-p9-harness-adapters.md
+source: docs/decisions/DEC-0096-desktop-p9-harness-adapters.md
 ---
 
-# DEC-0095 — Desktop P9: harness adapters
+# DEC-0096 — Desktop P9: harness adapters
 
-Status: **active**
+Status: **proposed**
 Date: 2026-09-22
 Task: `[Desktop P9] Harness Adapters (Claude Code, OpenCode)`
+
+Note de réconciliation (2026-09-22, intégration P9+P10) : cette décision a été
+créée sous l'identifiant DEC-0095 sur la branche `desktop/harness-adapters`,
+en collision avec DEC-0095 déjà attribué à la décision P10 (packaging Windows
+NSIS, Graphify non redistribué) — celle-ci existait déjà côté serveur Studio OS
+avec le statut `proposed` (task_id `b0cb4b94-8ed6-4f67-bc6b-c2c9063831f9`).
+DEC-0095 est conservé pour la décision P10 afin de rester cohérent avec l'état
+serveur déjà en place ; cette décision P9 est renumérotée DEC-0096, seul
+identifiant libre suivant, et son statut ramené à `proposed` (elle n'avait
+jamais été soumise/acceptée côté serveur malgré le `active` déclaré sur la
+branche source). Contenu de la décision inchangé sur le fond.
 
 ## Context
 

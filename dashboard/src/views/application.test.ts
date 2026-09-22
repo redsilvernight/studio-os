@@ -123,12 +123,71 @@ describe("Settings › Application (Desktop)", () => {
     expect(root.querySelector("[data-testid=diagnostics]")).not.toBeNull();
   });
 
-  it("the logs entry is present but disabled: P4 owns log collection", async () => {
-    const { root } = await mount();
+  it("the logs entry opens the logs folder and the export reports the file, never a secret", async () => {
+    const openDataFolder = vi.fn(async () => true);
+    const exportDiagnostics = vi.fn(async () => ({ ok: true as const, file: "~\\StudioOS\\diagnostics\\diagnostics-1.json" }));
+    const { root } = await mount(fakeDesktop({ openDataFolder, exportDiagnostics }));
     const logs = root.querySelector<HTMLButtonElement>("[data-testid=open-logs]");
-    expect(logs?.disabled).toBe(true);
-    expect(logs?.getAttribute("aria-disabled")).toBe("true");
-    expect(root.querySelector("[data-testid=diagnostics]")?.textContent).toContain("Non disponible dans cette version");
+    expect(logs?.disabled).toBe(false);
+    logs?.click();
+    await flush();
+    expect(openDataFolder).toHaveBeenCalledWith("logs");
+    root.querySelector<HTMLButtonElement>("[data-testid=export-diagnostics]")?.click();
+    await flush();
+    expect(exportDiagnostics).toHaveBeenCalledTimes(1);
+    const shown = root.querySelector("[data-testid=export-result]")?.textContent ?? "";
+    expect(shown).toContain("diagnostics-1.json");
+    expect(root.textContent).not.toMatch(/token|password|api[_ ]?key/i);
+  });
+
+  it("shows versions, the sidecar, optional components and where user data lives", async () => {
+    const { root } = await mount();
+    const text = root.querySelector("[data-testid=diagnostics]")?.textContent ?? "";
+    expect(text).toContain("Version de l'assistant local");
+    expect(text).toContain("Compatible");
+    expect(text).toContain("Graphify : installation séparée");
+    expect(text).toContain("StudioOS");
+    expect(text).toContain("Version 1");
+  });
+
+  it("degrades to a sentence when the diagnostics cannot be read", async () => {
+    const { root } = await mount(
+      fakeDesktop({
+        diagnostics: async () => {
+          throw new Error("bad shape");
+        },
+      }),
+    );
+    expect(root.querySelector("[data-testid=open-logs]")).toBeNull();
+    expect(root.querySelector("[data-testid=diagnostics]")?.textContent).toContain("Non disponible");
+  });
+
+  it("update check: not configured, up to date, available then install, and each refusal", async () => {
+    const checkForUpdate = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, status: { state: "not_configured" } })
+      .mockResolvedValueOnce({ ok: true, status: { state: "up_to_date", current: "0.1.0" } })
+      .mockResolvedValueOnce({ ok: true, status: { state: "available", current: "0.1.0", version: "0.2.0", notes: null } })
+      .mockResolvedValueOnce({ ok: false, code: "invalid_signature" });
+    const installUpdate = vi.fn(async () => ({ ok: false as const, code: "network" as const }));
+    const { root } = await mount(fakeDesktop({ checkForUpdate, installUpdate }));
+    const click = async (action: string): Promise<void> => {
+      root.querySelector<HTMLButtonElement>(`[data-action=${action}]`)?.click();
+      await flush();
+    };
+    const status = (): string => root.querySelector("[data-testid=update-status]")?.textContent ?? "";
+    await click("check-update");
+    expect(status()).toContain("ne sont pas activées");
+    await click("check-update");
+    expect(status()).toContain("dernière version");
+    await click("check-update");
+    expect(status()).toContain("0.2.0");
+    await click("install-update");
+    expect(installUpdate).toHaveBeenCalledTimes(1);
+    expect(root.querySelector("[data-testid=update-error]")?.textContent).toContain("injoignable");
+    await click("check-update");
+    expect(root.querySelector("[data-testid=update-error]")?.textContent).toContain("signature");
+    expect(root.querySelector("[data-action=install-update]")).toBeNull();
   });
 
   it("refuses an invalid address with an understandable message and keeps the typed text", async () => {

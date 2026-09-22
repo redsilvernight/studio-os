@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -57,6 +56,27 @@ def _git_text(result: CompletedLike) -> str | None:
     return result.stdout.strip() or None
 
 
+def _find_git() -> str | None:
+    """`git` from an absolute `PATH` entry only: never the working directory, which
+    Windows would search first (a repository could shadow git with its own binary)."""
+    cwd = os.path.normcase(os.path.abspath(os.getcwd()))
+    suffixes = [""]
+    if os.name == "nt":
+        suffixes = [
+            ext.lower() for ext in os.environ.get("PATHEXT", ".EXE;.CMD;.BAT").split(";") if ext
+        ]
+    for entry in os.environ.get("PATH", "").split(os.pathsep):
+        if not entry or not os.path.isabs(entry):
+            continue
+        if os.path.normcase(os.path.abspath(entry)) == cwd:
+            continue
+        for suffix in suffixes:
+            candidate = os.path.join(entry, "git" + suffix)
+            if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+                return candidate
+    return None
+
+
 def detect_git(
     path: str,
     *,
@@ -71,7 +91,7 @@ def detect_git(
             return GitRepoInfo(GitStatus.INACCESSIBLE, path)
     except OSError:
         return GitRepoInfo(GitStatus.INACCESSIBLE, path)
-    exe = git_exe if git_exe is not None else shutil.which("git")
+    exe = git_exe if git_exe is not None else _find_git()
     if exe is None:
         return GitRepoInfo(GitStatus.GIT_ABSENT, path)
     try:

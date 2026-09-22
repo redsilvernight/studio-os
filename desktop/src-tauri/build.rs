@@ -22,7 +22,24 @@ fn windows_icon_override() -> Option<PathBuf> {
     Some(copy)
 }
 
+/// Common Controls v6 for the unit-test executable. The app carries tauri-build's
+/// embedded manifest; a test binary has none, and the Windows loader refuses it
+/// (STATUS_ENTRYPOINT_NOT_FOUND, `TaskDialogIndirect`) since the Wry runtime is
+/// linked. The linker-generated external manifest sits next to the test exe and
+/// is ignored wherever an embedded manifest exists (the app).
+fn common_controls_for_tests() {
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows")
+        && std::env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc")
+    {
+        println!("cargo:rustc-link-arg=/MANIFEST");
+        println!(
+            "cargo:rustc-link-arg=/MANIFESTDEPENDENCY:type='win32' name='Microsoft.Windows.Common-Controls'              version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'"
+        );
+    }
+}
+
 fn main() {
+    common_controls_for_tests();
     println!("cargo:rerun-if-env-changed=STUDIO_DESKTOP_API_URL");
     let mut windows = tauri_build::WindowsAttributes::new();
     if let Some(icon) = windows_icon_override() {

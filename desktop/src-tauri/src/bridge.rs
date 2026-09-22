@@ -76,7 +76,10 @@ pub fn validate_request(raw: &Value) -> Result<ValidRequest, Rejection> {
         message: "The command is not part of the local protocol allowlist.",
     })?;
     let message_id = obj.get("message_id").and_then(Value::as_str).unwrap_or("");
-    let correlation_id = obj.get("correlation_id").and_then(Value::as_str).unwrap_or("");
+    let correlation_id = obj
+        .get("correlation_id")
+        .and_then(Value::as_str)
+        .unwrap_or("");
     if !is_identifier(message_id) || !is_identifier(correlation_id) {
         return Err(Rejection {
             code: "invalid_request",
@@ -91,7 +94,9 @@ pub fn validate_request(raw: &Value) -> Result<ValidRequest, Rejection> {
             message: "The request timestamp or payload is missing.",
         });
     }
-    let size = serde_json::to_vec(raw).map(|v| v.len()).unwrap_or(usize::MAX);
+    let size = serde_json::to_vec(raw)
+        .map(|v| v.len())
+        .unwrap_or(usize::MAX);
     if size > spec.max_request_bytes + ENVELOPE_OVERHEAD_BYTES {
         return Err(Rejection {
             code: "payload_too_large",
@@ -188,7 +193,9 @@ pub fn reject(raw: &Value, rejection: &Rejection) -> Value {
 /// A peer answer is only relayed if it is a response or error for *this*
 /// request; anything else is an internal error, never passed through.
 pub fn check_peer_answer(request: &ValidRequest, answer: &Value) -> Result<(), &'static str> {
-    let obj = answer.as_object().ok_or("The local peer answered with a non-object.")?;
+    let obj = answer
+        .as_object()
+        .ok_or("The local peer answered with a non-object.")?;
     let kind = obj.get("kind").and_then(Value::as_str);
     if !matches!(kind, Some("response") | Some("error")) {
         return Err("The local peer answered with an unexpected message kind.");
@@ -260,15 +267,56 @@ mod tests {
             f(v.as_object_mut().unwrap());
             validate_request(&v).unwrap_err().code
         };
-        assert_eq!(mutate(&|o| { o.insert("command".into(), json!("execute_shell")); }), "unknown_command");
-        assert_eq!(mutate(&|o| { o.insert("command".into(), json!("")); }), "unknown_command");
-        assert_eq!(mutate(&|o| { o.insert("protocol".into(), json!("studio.local/v2")); }), "protocol_incompatible");
-        assert_eq!(mutate(&|o| { o.insert("kind".into(), json!("cancel")); }), "invalid_request");
-        assert_eq!(mutate(&|o| { o.insert("extra".into(), json!(1)); }), "invalid_request");
-        assert_eq!(mutate(&|o| { o.insert("message_id".into(), json!("a b")); }), "invalid_request");
-        assert_eq!(mutate(&|o| { o.remove("payload"); }), "invalid_request");
-        assert_eq!(validate_request(&json!("x")).unwrap_err().code, "invalid_request");
-        assert_eq!(validate_request(&json!(null)).unwrap_err().code, "invalid_request");
+        assert_eq!(
+            mutate(&|o| {
+                o.insert("command".into(), json!("execute_shell"));
+            }),
+            "unknown_command"
+        );
+        assert_eq!(
+            mutate(&|o| {
+                o.insert("command".into(), json!(""));
+            }),
+            "unknown_command"
+        );
+        assert_eq!(
+            mutate(&|o| {
+                o.insert("protocol".into(), json!("studio.local/v2"));
+            }),
+            "protocol_incompatible"
+        );
+        assert_eq!(
+            mutate(&|o| {
+                o.insert("kind".into(), json!("cancel"));
+            }),
+            "invalid_request"
+        );
+        assert_eq!(
+            mutate(&|o| {
+                o.insert("extra".into(), json!(1));
+            }),
+            "invalid_request"
+        );
+        assert_eq!(
+            mutate(&|o| {
+                o.insert("message_id".into(), json!("a b"));
+            }),
+            "invalid_request"
+        );
+        assert_eq!(
+            mutate(&|o| {
+                o.remove("payload");
+            }),
+            "invalid_request"
+        );
+        assert_eq!(
+            validate_request(&json!("x")).unwrap_err().code,
+            "invalid_request"
+        );
+        assert_eq!(
+            validate_request(&json!(null)).unwrap_err().code,
+            "invalid_request"
+        );
     }
 
     #[test]

@@ -11,10 +11,15 @@
     "build:sidecar": "node scripts/build-sidecar.mjs",
     "build": "node scripts/build.mjs",
     "build:with-sidecar": "node scripts/build.mjs --sidecar",
+    "package": "node scripts/build.mjs --installer",
+    "version:check": "node scripts/version.mjs --check",
+    "version:sync": "node scripts/version.mjs --sync",
     "dev": "node scripts/dev.mjs",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "test:e2e": "node scripts/e2e.mjs",
     "test:e2e:shell": "node scripts/e2e-shell.mjs",
+    "test:install": "node scripts/install-test.mjs",
+    "notices": "node scripts/notices.mjs --check",
     "gate": "node scripts/build.mjs --sidecar && node scripts/e2e.mjs"
   },
   "devDependencies": {

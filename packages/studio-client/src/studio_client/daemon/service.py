@@ -86,6 +86,7 @@ from studio_client.daemon.runtime import (
     InstanceLock,
     WorkspaceSource,
 )
+from studio_client.data_format import DataFormatError, ensure_data_format
 from studio_client.outbox import OutboxIdentityError
 from studio_client.tokens import KeyringTokenStore
 
@@ -788,6 +789,11 @@ def main(
 ) -> int:
     data_root = default_config_path().parent
     configure_daemon_logging(data_root)
+    try:
+        ensure_data_format(data_root)
+    except DataFormatError as exc:
+        _LOGGER.error("refusing to start: %s", exc)
+        return 3
     try:
         desktop_config = desktop_client_config()
     except DesktopOriginError:

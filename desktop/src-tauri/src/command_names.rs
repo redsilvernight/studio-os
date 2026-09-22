@@ -12,4 +12,10 @@ pub const APP_COMMANDS: &[&str] = &[
     "restart_desktop",
     "choose_folder",
     "choose_file",
+    // P10: diagnostics and user-driven updates (typed, closed inputs only).
+    "get_diagnostics",
+    "export_diagnostics",
+    "open_data_folder",
+    "check_for_update",
+    "install_update",
 ];

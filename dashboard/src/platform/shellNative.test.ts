@@ -92,7 +92,7 @@ describe("Desktop shell adapter: native pickers", () => {
 
 describe("Web adapter: native controls are absent, never faked", () => {
   it("reports unavailable everywhere", async () => {
-    expect(webPlatform.native).toEqual({ serverOrigin: false, pickers: false });
+    expect(webPlatform.native).toEqual({ serverOrigin: false, pickers: false, diagnostics: false, updates: false });
     expect(await webPlatform.serverOrigin()).toBeNull();
     expect(await webPlatform.setServerOrigin("https://x.example")).toEqual({ ok: false, reason: "unavailable" });
     expect(await webPlatform.restartDesktop()).toBe(false);
@@ -108,6 +108,6 @@ describe("Web adapter: native controls are absent, never faked", () => {
 
 describe("Desktop platform declares its native controls", () => {
   it("flags server origin and pickers as available", () => {
-    expect(fake({}).platform.native).toEqual({ serverOrigin: true, pickers: true });
+    expect(fake({}).platform.native).toEqual({ serverOrigin: true, pickers: true, diagnostics: true, updates: true });
   });
 });

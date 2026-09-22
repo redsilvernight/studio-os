@@ -93,7 +93,7 @@ def test_graphify_provider_satisfies_the_neutral_protocol() -> None:
 
 def test_probe_reports_states(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("STUDIO_CODE_GRAPH_GRAPHIFY_EXE", raising=False)
-    monkeypatch.setattr("shutil.which", lambda name: None)
+    monkeypatch.setenv("PATH", "")
     assert GraphifyProvider().probe().state is ProbeState.NOT_INSTALLED
     exe = fake_executable(tmp_path, "graphify 0.9.59")
     assert GraphifyProvider(executable=exe).probe().state is ProbeState.AVAILABLE
@@ -142,7 +142,7 @@ async def test_not_installed_at_build_time(
     tmp_path: Path, repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("STUDIO_CODE_GRAPH_GRAPHIFY_EXE", raising=False)
-    monkeypatch.setattr("shutil.which", lambda name: None)
+    monkeypatch.setenv("PATH", "")
     with pytest.raises(CodeGraphBuildError) as error:
         await GraphifyProvider().build(request(tmp_path, repo), "code.graphify")
     assert error.value.failure is BuildFailure.NOT_AVAILABLE

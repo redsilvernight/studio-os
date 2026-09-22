@@ -9,13 +9,15 @@
 use serde::Serialize;
 use std::collections::VecDeque;
 use std::io::{BufRead, BufReader, Read, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 pub const SIDECAR_BASENAME: &str = "studio-daemon";
+const SIDECAR_DIR: &str = "sidecar";
+const MANIFEST_FILE: &str = "sidecar-manifest.json";
 pub const SERVER_ORIGIN_ENV: &str = "STUDIO_DESKTOP_SERVER_ORIGIN";
 const EXCHANGE_TIMEOUT: Duration = Duration::from_secs(20);
 const MAX_LINE_BYTES: usize = 2 * 1024 * 1024;
@@ -27,10 +29,18 @@ const MAX_RESTARTS: usize = 3;
 pub enum SidecarState {
     /// Never started (started lazily by the first served bridge request).
     NotStarted,
-    Running { pid: u32 },
-    Exited { code: Option<i32> },
-    Recovering { attempts: usize },
-    Abandoned { attempts: usize },
+    Running {
+        pid: u32,
+    },
+    Exited {
+        code: Option<i32>,
+    },
+    Recovering {
+        attempts: usize,
+    },
+    Abandoned {
+        attempts: usize,
+    },
     /// Binary absent or not launchable. Never a silent success.
     Unavailable,
 }
@@ -63,14 +73,56 @@ struct Inner {
 #[derive(Clone, Default)]
 pub struct Sidecar(Arc<Mutex<Inner>>);
 
-fn sidecar_path() -> Option<PathBuf> {
+/// Directory holding the frozen daemon (a PyInstaller one-folder build shipped
+/// as an app resource): `<install dir>/sidecar`. Nothing is ever extracted to a
+/// temp directory at run time.
+pub fn sidecar_dir() -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
+    Some(exe.parent()?.join(SIDECAR_DIR))
+}
+
+fn sidecar_path() -> Option<PathBuf> {
     let name = if cfg!(windows) {
         format!("{SIDECAR_BASENAME}.exe")
     } else {
         SIDECAR_BASENAME.to_owned()
     };
-    Some(exe.parent()?.join(name))
+    Some(sidecar_dir()?.join(name))
+}
+
+/// Build-time description of the frozen daemon (`sidecar-manifest.json`).
+#[derive(Debug, Clone, Serialize, serde::Deserialize, PartialEq, Eq)]
+pub struct SidecarManifest {
+    pub daemon_version: String,
+    pub desktop_version: String,
+    pub protocol: String,
+}
+
+pub fn read_manifest(dir: &Path) -> Option<SidecarManifest> {
+    let text = std::fs::read_to_string(dir.join(MANIFEST_FILE)).ok()?;
+    serde_json::from_str(&text).ok()
+}
+
+/// How the bundled daemon relates to this shell. A different bridge protocol is
+/// refused at spawn (fail closed); a different build version only warns, since
+/// capability negotiation already handles additive drift.
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SidecarCompat {
+    Compatible,
+    VersionDrift,
+    ProtocolMismatch,
+    /// No manifest (development build): nothing to compare.
+    Unknown,
+}
+
+pub fn compat(manifest: Option<&SidecarManifest>) -> SidecarCompat {
+    match manifest {
+        None => SidecarCompat::Unknown,
+        Some(m) if m.protocol != crate::allowlist::PROTOCOL => SidecarCompat::ProtocolMismatch,
+        Some(m) if m.desktop_version != crate::info::DESKTOP_VERSION => SidecarCompat::VersionDrift,
+        Some(_) => SidecarCompat::Compatible,
+    }
 }
 
 fn persist_after_desktop_close() -> bool {
@@ -86,8 +138,15 @@ impl Inner {
             self.unavailable = true;
             return Err(ExchangeError::Unavailable);
         };
+        let manifest = path.parent().and_then(read_manifest);
+        if compat(manifest.as_ref()) == SidecarCompat::ProtocolMismatch {
+            self.unavailable = true;
+            return Err(ExchangeError::Unavailable);
+        }
         let mut cmd = Command::new(path);
-        cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null());
+        cmd.stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null());
         if persist_after_desktop_close() {
             cmd.env("STUDIO_DAEMON_PERSIST", "1");
         }
@@ -125,7 +184,9 @@ impl Inner {
                         if bytes.ends_with(b"\r") {
                             bytes.pop();
                         }
-                        let Ok(line) = String::from_utf8(bytes) else { break };
+                        let Ok(line) = String::from_utf8(bytes) else {
+                            break;
+                        };
                         if tx.send(line).is_err() {
                             break;
                         }
@@ -208,7 +269,10 @@ impl Sidecar {
     /// here so no unvalidated value can ever reach the child environment.
     pub fn with_origin(origin: Option<String>) -> Self {
         let origin = origin.and_then(|raw| crate::server_origin::validate(&raw).ok());
-        Self(Arc::new(Mutex::new(Inner { origin, ..Inner::default() })))
+        Self(Arc::new(Mutex::new(Inner {
+            origin,
+            ..Inner::default()
+        })))
     }
 
     #[cfg(test)]
@@ -217,7 +281,10 @@ impl Sidecar {
     }
 
     pub fn state(&self) -> SidecarState {
-        self.0.lock().map(|mut g| g.state()).unwrap_or(SidecarState::Unavailable)
+        self.0
+            .lock()
+            .map(|mut g| g.state())
+            .unwrap_or(SidecarState::Unavailable)
     }
 
     /// One request line in, one response line out. Blocking: call from a
@@ -261,7 +328,9 @@ impl Sidecar {
                 if g.child.is_some() {
                     g.kill();
                 }
-                Err(ExchangeError::Crashed { code: g.exit.flatten() })
+                Err(ExchangeError::Crashed {
+                    code: g.exit.flatten(),
+                })
             }
         }
     }
@@ -311,10 +380,26 @@ mod tests {
         for _ in 0..MAX_RESTARTS {
             inner.restarts.push_back(Instant::now());
         }
-        assert_eq!(inner.state(), SidecarState::Recovering { attempts: MAX_RESTARTS });
-        assert!(matches!(inner.restart(), Err(ExchangeError::Crashed { code: Some(1) })));
-        assert_eq!(inner.state(), SidecarState::Abandoned { attempts: MAX_RESTARTS });
-        assert!(matches!(inner.restart(), Err(ExchangeError::Crashed { .. })));
+        assert_eq!(
+            inner.state(),
+            SidecarState::Recovering {
+                attempts: MAX_RESTARTS
+            }
+        );
+        assert!(matches!(
+            inner.restart(),
+            Err(ExchangeError::Crashed { code: Some(1) })
+        ));
+        assert_eq!(
+            inner.state(),
+            SidecarState::Abandoned {
+                attempts: MAX_RESTARTS
+            }
+        );
+        assert!(matches!(
+            inner.restart(),
+            Err(ExchangeError::Crashed { .. })
+        ));
         assert_eq!(inner.restarts.len(), MAX_RESTARTS);
     }
 
@@ -339,7 +424,9 @@ mod tests {
     fn only_a_validated_origin_is_kept_for_the_child_environment() {
         assert_eq!(Sidecar::with_origin(None).origin(), None);
         assert_eq!(
-            Sidecar::with_origin(Some("https://Studio.Example.com:443".into())).origin().as_deref(),
+            Sidecar::with_origin(Some("https://Studio.Example.com:443".into()))
+                .origin()
+                .as_deref(),
             Some("https://studio.example.com")
         );
         for bad in [
@@ -351,8 +438,57 @@ mod tests {
             "https://a.example --flag",
             "",
         ] {
-            assert_eq!(Sidecar::with_origin(Some(bad.into())).origin(), None, "{bad}");
+            assert_eq!(
+                Sidecar::with_origin(Some(bad.into())).origin(),
+                None,
+                "{bad}"
+            );
         }
+    }
+
+    fn manifest(protocol: &str, version: &str) -> SidecarManifest {
+        SidecarManifest {
+            daemon_version: "0.1.0".into(),
+            desktop_version: version.into(),
+            protocol: protocol.into(),
+        }
+    }
+
+    #[test]
+    fn a_sidecar_speaking_another_protocol_is_refused_and_a_version_drift_only_warns() {
+        let ok = manifest(crate::allowlist::PROTOCOL, crate::info::DESKTOP_VERSION);
+        assert_eq!(compat(Some(&ok)), SidecarCompat::Compatible);
+        assert_eq!(compat(None), SidecarCompat::Unknown);
+        assert_eq!(
+            compat(Some(&manifest(crate::allowlist::PROTOCOL, "0.0.1"))),
+            SidecarCompat::VersionDrift
+        );
+        assert_eq!(
+            compat(Some(&manifest(
+                "studio.local/v2",
+                crate::info::DESKTOP_VERSION
+            ))),
+            SidecarCompat::ProtocolMismatch
+        );
+    }
+
+    #[test]
+    fn the_manifest_is_read_from_disk_and_a_corrupt_one_is_unknown() {
+        let dir =
+            std::env::temp_dir().join(format!("studio-sidecar-manifest-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        assert!(read_manifest(&dir).is_none());
+        std::fs::write(dir.join(MANIFEST_FILE), "{ not json").unwrap();
+        assert!(read_manifest(&dir).is_none());
+        let good = manifest("studio.local/v1", "0.1.0");
+        std::fs::write(
+            dir.join(MANIFEST_FILE),
+            serde_json::to_string(&good).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(read_manifest(&dir), Some(good));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

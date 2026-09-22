@@ -23,6 +23,11 @@ dirs = "6"
 # Native folder/file dialogs only (no Tauri plugin, no ACL surface): the shell
 # exposes semantic choose_folder/choose_file commands, never a filesystem API.
 rfd = { version = "0.15", default-features = false }
+tauri-plugin-updater = "2"
+regex = { version = "1", default-features = false, features = ["std", "unicode-perl", "perf"] }
+
+[dev-dependencies]
+tauri = { version = "2", features = ["test"] }
 
 [profile.release]
 lto = true

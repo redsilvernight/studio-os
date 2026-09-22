@@ -1,0 +1,58 @@
+name: Desktop release build (manual)
+
+# Builds a signed installer and its updater artifacts; it never publishes a
+# GitHub release or an update feed. Publishing stays a separate, human step
+# (docs/DESKTOP_P10_PACKAGING.md, "Release procedure").
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: "API origin baked into the build"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  UV_LOCKED: "1"
+
+jobs:
+  build-signed:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    environment: desktop-release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Sync workspace
+        run: uv sync --all-packages
+      - name: Install Node dependencies
+        run: |
+          npm ci
+          npm ci --prefix ../dashboard
+        working-directory: desktop
+      - name: Build the installer with the update mechanism compiled in
+        run: node scripts/build.mjs --installer --api-url "${{ inputs.api_url }}"
+        working-directory: desktop
+        env:
+          STUDIO_UPDATER_PUBKEY: ${{ secrets.STUDIO_UPDATER_PUBKEY }}
+          STUDIO_UPDATER_ENDPOINT: ${{ secrets.STUDIO_UPDATER_ENDPOINT }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      - name: Install, launch, upgrade and uninstall
+        run: npm run test:install
+        working-directory: desktop
+      - name: Keep the build outputs as a private workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: studio-desktop-release-candidate
+          path: |
+            desktop/src-tauri/target/release/bundle/nsis/*.exe
+            desktop/src-tauri/target/release/bundle/nsis/*.sig
+          retention-days: 14
+          if-no-files-found: error

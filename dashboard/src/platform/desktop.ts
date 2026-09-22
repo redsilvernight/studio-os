@@ -10,13 +10,19 @@
 import { buildRequest, parseAnswer, type BridgeAnswer, type BridgeCommand } from "./contracts";
 import { LOCAL_PROTOCOL } from "./generated/local-contracts.generated";
 import type {
+  DataFolder,
+  DesktopDiagnostics,
   DesktopInfo,
+  DiagnosticsExportResult,
   PickerOptions,
   PickResult,
   Platform,
   ServerOriginRefusal,
   ServerOriginState,
   SetServerOriginResult,
+  UpdateCheckResult,
+  UpdateErrorCode,
+  UpdateStatus,
 } from "./types";
 
 export type TauriInvoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
@@ -96,10 +102,68 @@ function pickErrorCode(error: unknown): string {
   return typeof code === "string" && /^[a-z_]{1,40}$/.test(code) ? code : "failed";
 }
 
+const isString = (v: unknown): v is string => typeof v === "string";
+const isNullableString = (v: unknown): boolean => v === null || typeof v === "string";
+const COMPAT = ["compatible", "version_drift", "protocol_mismatch", "unknown"];
+
+type Bag = Record<string, unknown>;
+const isBag = (v: unknown): v is Bag => typeof v === "object" && v !== null && !Array.isArray(v);
+
+export function isDiagnostics(v: unknown): v is DesktopDiagnostics {
+  if (!isBag(v) || !isBag(v.sidecar) || !isBag(v.locations)) return false;
+  const s = v.sidecar;
+  const l = v.locations;
+  const m = s.manifest;
+  return (
+    isString(v.desktop_version) &&
+    isString(v.protocol) &&
+    isString(v.os) &&
+    isString(v.arch) &&
+    isBag(s.state) &&
+    isString(s.state.state) &&
+    typeof s.present === "boolean" &&
+    COMPAT.includes(s.compat as string) &&
+    (m === null || (isBag(m) && isString(m.daemon_version) && isString(m.desktop_version) && isString(m.protocol))) &&
+    isNullableString(v.server_origin) &&
+    typeof v.updates_configured === "boolean" &&
+    isNullableString(l.daemon_data_dir) &&
+    isNullableString(l.logs_dir) &&
+    isNullableString(l.shell_settings_dir) &&
+    isNullableString(l.install_dir) &&
+    isBag(l.data_format) &&
+    isString(l.data_format.state) &&
+    Array.isArray(l.logs) &&
+    l.logs.every((f) => isBag(f) && isString(f.name) && typeof f.bytes === "number")
+  );
+}
+
+export function toUpdateStatus(v: unknown): UpdateStatus | null {
+  if (!isBag(v)) return null;
+  if (v.state === "not_configured") return { state: "not_configured" };
+  if (v.state === "up_to_date" && isString(v.current)) return { state: "up_to_date", current: v.current };
+  if (v.state === "available" && isString(v.current) && isString(v.version) && isNullableString(v.notes ?? null)) {
+    return { state: "available", current: v.current, version: v.version, notes: (v.notes as string | null | undefined) ?? null };
+  }
+  return null;
+}
+
+const UPDATE_CODES: readonly UpdateErrorCode[] = [
+  "not_configured",
+  "network",
+  "invalid_metadata",
+  "invalid_signature",
+  "install_failed",
+];
+
+function updateCodeOf(error: unknown): UpdateErrorCode {
+  const code = (error as { code?: unknown } | null)?.code;
+  return UPDATE_CODES.find((c) => c === code) ?? "failed";
+}
+
 export function createDesktopPlatform(invoke: TauriInvoke): Platform {
   return {
     mode: "desktop",
-    native: { serverOrigin: true, pickers: true },
+    native: { serverOrigin: true, pickers: true, diagnostics: true, updates: true },
     async desktopInfo() {
       const info = await invoke("desktop_info");
       if (!isDesktopInfo(info)) throw new Error("desktop_info answered an unexpected shape");
@@ -152,6 +216,44 @@ export function createDesktopPlatform(invoke: TauriInvoke): Platform {
         return toPickResult(await invoke("choose_file", { options: options ?? null }));
       } catch (error) {
         return { status: "error", code: pickErrorCode(error) };
+      }
+    },
+    async diagnostics(): Promise<DesktopDiagnostics | null> {
+      const value = await invoke("get_diagnostics");
+      if (!isDiagnostics(value)) throw new Error("get_diagnostics answered an unexpected shape");
+      return value;
+    },
+    async exportDiagnostics(): Promise<DiagnosticsExportResult> {
+      try {
+        const answer = await invoke("export_diagnostics");
+        const file = isBag(answer) ? answer.file : undefined;
+        return isString(file) && file ? { ok: true, file } : { ok: false, code: "unexpected_answer" };
+      } catch (error) {
+        return { ok: false, code: pickErrorCode(error) };
+      }
+    },
+    async openDataFolder(folder: DataFolder): Promise<boolean> {
+      try {
+        await invoke("open_data_folder", { folder });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    async checkForUpdate(): Promise<UpdateCheckResult> {
+      try {
+        const status = toUpdateStatus(await invoke("check_for_update"));
+        return status ? { ok: true, status } : { ok: false, code: "invalid_metadata" };
+      } catch (error) {
+        return { ok: false, code: updateCodeOf(error) };
+      }
+    },
+    async installUpdate() {
+      try {
+        await invoke("install_update");
+        return { ok: true } as const;
+      } catch (error) {
+        return { ok: false, code: updateCodeOf(error) } as const;
       }
     },
   };

@@ -48,7 +48,9 @@ impl OptionsError {
     pub fn message(self) -> &'static str {
         match self {
             Self::Title => "The dialog title is empty, too long or contains control characters.",
-            Self::Filters => "The file filters are not valid (name, plain alphanumeric extensions).",
+            Self::Filters => {
+                "The file filters are not valid (name, plain alphanumeric extensions)."
+            }
             Self::FilterOnFolder => "A folder picker does not take file filters.",
         }
     }
@@ -71,7 +73,10 @@ pub fn validate_options(kind: PickKind, options: &PickerOptions) -> Result<(), O
     }
     for f in &options.filters {
         let name = f.name.trim();
-        if name.is_empty() || name.chars().count() > MAX_FILTER_NAME || name.chars().any(char::is_control) {
+        if name.is_empty()
+            || name.chars().count() > MAX_FILTER_NAME
+            || name.chars().any(char::is_control)
+        {
             return Err(OptionsError::Filters);
         }
         if f.extensions.is_empty() || f.extensions.len() > MAX_EXTENSIONS {
@@ -109,7 +114,11 @@ pub enum PickError {
     UnsupportedPath,
 }
 
-pub fn pick(chooser: &dyn Chooser, kind: PickKind, options: &PickerOptions) -> Result<PickOutcome, PickError> {
+pub fn pick(
+    chooser: &dyn Chooser,
+    kind: PickKind,
+    options: &PickerOptions,
+) -> Result<PickOutcome, PickError> {
     validate_options(kind, options).map_err(PickError::Options)?;
     let Some(path) = chooser.choose(kind, options) else {
         return Ok(PickOutcome::Cancelled);
@@ -120,7 +129,10 @@ pub fn pick(chooser: &dyn Chooser, kind: PickKind, options: &PickerOptions) -> R
         .and_then(|n| n.to_str())
         .map(str::to_owned)
         .unwrap_or_else(|| text.clone());
-    Ok(PickOutcome::Selected { path: text, display_name })
+    Ok(PickOutcome::Selected {
+        path: text,
+        display_name,
+    })
 }
 
 /// The native OS dialog, parented to the main window.
@@ -170,27 +182,58 @@ mod tests {
             title: title.map(str::to_owned),
             filters: filters
                 .into_iter()
-                .map(|(n, e)| FileFilter { name: n.into(), extensions: e.into_iter().map(String::from).collect() })
+                .map(|(n, e)| FileFilter {
+                    name: n.into(),
+                    extensions: e.into_iter().map(String::from).collect(),
+                })
                 .collect(),
         }
     }
 
     #[test]
     fn a_selected_folder_returns_only_its_path_and_name() {
-        let out = pick(&Canned(Some(PathBuf::from("C:/Jeux/Mon Projet"))), PickKind::Folder, &PickerOptions::default()).unwrap();
-        assert_eq!(out, PickOutcome::Selected { path: "C:/Jeux/Mon Projet".into(), display_name: "Mon Projet".into() });
+        let out = pick(
+            &Canned(Some(PathBuf::from("C:/Jeux/Mon Projet"))),
+            PickKind::Folder,
+            &PickerOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            out,
+            PickOutcome::Selected {
+                path: "C:/Jeux/Mon Projet".into(),
+                display_name: "Mon Projet".into()
+            }
+        );
     }
 
     #[test]
     fn a_selected_file_returns_path_and_display_name() {
-        let out = pick(&Canned(Some(PathBuf::from("C:/x/notes.md"))), PickKind::File, &opts(Some("Choisir"), vec![("Markdown", vec!["md"])])).unwrap();
-        assert_eq!(out, PickOutcome::Selected { path: "C:/x/notes.md".into(), display_name: "notes.md".into() });
+        let out = pick(
+            &Canned(Some(PathBuf::from("C:/x/notes.md"))),
+            PickKind::File,
+            &opts(Some("Choisir"), vec![("Markdown", vec!["md"])]),
+        )
+        .unwrap();
+        assert_eq!(
+            out,
+            PickOutcome::Selected {
+                path: "C:/x/notes.md".into(),
+                display_name: "notes.md".into()
+            }
+        );
     }
 
     #[test]
     fn cancelling_is_a_normal_outcome_not_an_error() {
-        assert_eq!(pick(&Canned(None), PickKind::Folder, &PickerOptions::default()).unwrap(), PickOutcome::Cancelled);
-        assert_eq!(pick(&Canned(None), PickKind::File, &PickerOptions::default()).unwrap(), PickOutcome::Cancelled);
+        assert_eq!(
+            pick(&Canned(None), PickKind::Folder, &PickerOptions::default()).unwrap(),
+            PickOutcome::Cancelled
+        );
+        assert_eq!(
+            pick(&Canned(None), PickKind::File, &PickerOptions::default()).unwrap(),
+            PickOutcome::Cancelled
+        );
     }
 
     #[test]
@@ -205,10 +248,16 @@ mod tests {
             (PickKind::File, opts(None, vec![("Tous", vec![".md"])])),
             (PickKind::File, opts(None, vec![("Tous", vec![])])),
             (PickKind::File, opts(None, vec![("", vec!["md"])])),
-            (PickKind::File, opts(None, (0..9).map(|_| ("F", vec!["md"])).collect())),
+            (
+                PickKind::File,
+                opts(None, (0..9).map(|_| ("F", vec!["md"])).collect()),
+            ),
         ];
         for (kind, o) in bad {
-            assert!(matches!(pick(&MustNotOpen, kind, &o), Err(PickError::Options(_))), "{o:?}");
+            assert!(
+                matches!(pick(&MustNotOpen, kind, &o), Err(PickError::Options(_))),
+                "{o:?}"
+            );
         }
     }
 
@@ -216,8 +265,15 @@ mod tests {
     fn options_reject_unknown_fields_so_no_path_can_be_smuggled_in() {
         let ok: PickerOptions = serde_json::from_str(r#"{"title":"Choisir"}"#).unwrap();
         assert_eq!(ok.title.as_deref(), Some("Choisir"));
-        for hostile in [r#"{"directory":"C:/Windows"}"#, r#"{"path":"C:/"}"#, r#"{"filters":[{"name":"a","extensions":["md"],"glob":"*"}]}"#] {
-            assert!(serde_json::from_str::<PickerOptions>(hostile).is_err(), "{hostile}");
+        for hostile in [
+            r#"{"directory":"C:/Windows"}"#,
+            r#"{"path":"C:/"}"#,
+            r#"{"filters":[{"name":"a","extensions":["md"],"glob":"*"}]}"#,
+        ] {
+            assert!(
+                serde_json::from_str::<PickerOptions>(hostile).is_err(),
+                "{hostile}"
+            );
         }
     }
 
@@ -225,7 +281,14 @@ mod tests {
     fn the_outcome_serialises_with_a_status_tag() {
         let v = serde_json::to_value(PickOutcome::Cancelled).unwrap();
         assert_eq!(v, serde_json::json!({"status":"cancelled"}));
-        let v = serde_json::to_value(PickOutcome::Selected { path: "p".into(), display_name: "n".into() }).unwrap();
-        assert_eq!(v, serde_json::json!({"status":"selected","path":"p","display_name":"n"}));
+        let v = serde_json::to_value(PickOutcome::Selected {
+            path: "p".into(),
+            display_name: "n".into(),
+        })
+        .unwrap();
+        assert_eq!(
+            v,
+            serde_json::json!({"status":"selected","path":"p","display_name":"n"})
+        );
     }
 }

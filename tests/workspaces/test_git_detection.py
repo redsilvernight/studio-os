@@ -86,7 +86,7 @@ def test_missing_path_is_inaccessible(tmp_path: Path) -> None:
 
 
 def test_git_absent(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setattr("shutil.which", lambda _cmd: None)
+    monkeypatch.setenv("PATH", "")
     info = detect_git(str(tmp_path))
     assert info.status == GitStatus.GIT_ABSENT
 

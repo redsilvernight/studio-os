@@ -9,7 +9,16 @@
  */
 import { apiBaseUrl } from "../api";
 import { getDesktopShell, paintShellStatus, refreshDaemon, type DesktopShell } from "../desktopShell";
-import { getPlatform, type DesktopInfo, type Platform, type ServerOriginRefusal, type ServerOriginState } from "../platform";
+import {
+  getPlatform,
+  type DesktopDiagnostics,
+  type DesktopInfo,
+  type Platform,
+  type ServerOriginRefusal,
+  type ServerOriginState,
+  type UpdateErrorCode,
+  type UpdateStatus,
+} from "../platform";
 import {
   conditionLabel,
   daemonLabel,
@@ -73,6 +82,11 @@ export interface ApplicationFormState {
   value?: string;
   error?: string;
   notice?: string;
+  update?: UpdateStatus;
+  updateError?: string;
+  exportedFile?: string;
+  exportError?: string;
+  diagnosticsOpen?: boolean;
 }
 
 function row(label: string, value: string): string {
@@ -166,19 +180,98 @@ function assistantSectionHtml(section: DesktopSection, info: DesktopInfo | null)
   );
 }
 
-function diagnosticsHtml(section: DesktopSection, info: DesktopInfo | null): string {
+function updateMessage(form: ApplicationFormState): string {
+  if (form.updateError) return `<p class="state error" role="alert" data-testid="update-error">${esc(form.updateError)}</p>`;
+  const status = form.update;
+  if (!status) return "";
+  if (status.state === "not_configured") {
+    return `<p class="settings-intro" data-testid="update-status">Les mises à jour automatiques ne sont pas activées dans cette version de l'application.</p>`;
+  }
+  if (status.state === "up_to_date") {
+    return `<p class="settings-intro" data-testid="update-status">Vous utilisez la dernière version (${esc(status.current)}).</p>`;
+  }
   return (
-    `<details class="settings-technical" data-testid="diagnostics"><summary>Détails techniques</summary>` +
+    `<p class="settings-intro" data-testid="update-status">La version ${esc(status.version)} est disponible (actuelle : ${esc(status.current)}). ` +
+    `Vos données sont conservées ; l'assistant local est arrêté puis l'application redémarre.</p>` +
+    `<button class="ds-btn ds-btn--primary" type="button" data-action="install-update">Installer la version ${esc(status.version)}</button>`
+  );
+}
+
+const UPDATE_ERRORS: Record<UpdateErrorCode, string> = {
+  not_configured: "Les mises à jour ne sont pas activées dans cette version de l'application.",
+  network: "Le serveur de mises à jour est injoignable. Vérifiez votre connexion puis réessayez.",
+  invalid_metadata: "La réponse du serveur de mises à jour n'est pas exploitable. Rien n'a été modifié.",
+  invalid_signature: "La signature de la mise à jour est invalide : elle a été refusée. Rien n'a été modifié.",
+  install_failed: "L'installation de la mise à jour a échoué. La version actuelle reste en place.",
+  failed: "La mise à jour a échoué. La version actuelle reste en place.",
+};
+
+export function updateErrorMessage(code: UpdateErrorCode): string {
+  return UPDATE_ERRORS[code];
+}
+
+function componentsHtml(diag: DesktopDiagnostics | null): string {
+  if (!diag) return "";
+  const compat = {
+    compatible: "Compatible",
+    version_drift: "Compatible (versions différentes)",
+    protocol_mismatch: "Incompatible — réinstallez l'application",
+    unknown: "Non vérifiée",
+  }[diag.sidecar.compat];
+  const data = diag.locations.data_format;
+  const format =
+    data.state === "supported"
+      ? `Version ${data.format}`
+      : data.state === "unstamped"
+        ? "Pas encore initialisées"
+        : data.state === "too_new"
+          ? `Écrites par une version plus récente (${data.format}) : non modifiées`
+          : "Illisible : non modifiées";
+  return (
+    row("Version de l'assistant local", `<code class="mono">${esc(diag.sidecar.manifest?.daemon_version ?? "inconnue")}</code>`) +
+    row("Assistant local fourni", esc(diag.sidecar.present ? "Oui" : "Non (introuvable)")) +
+    row("Compatibilité de l'assistant", esc(compat)) +
+    row("Composants optionnels", "Aucun n'est fourni avec l'application (Graphify : installation séparée)") +
+    row("Système", esc(`${diag.os} ${diag.arch}`)) +
+    row("Données utilisateur", `<code class="mono">${esc(diag.locations.daemon_data_dir ?? "indisponible")}</code>`) +
+    row("Format des données", esc(format)) +
+    row("Application installée dans", `<code class="mono">${esc(diag.locations.install_dir ?? "indisponible")}</code>`)
+  );
+}
+
+function diagnosticsHtml(
+  section: DesktopSection,
+  info: DesktopInfo | null,
+  diag: DesktopDiagnostics | null,
+  form: ApplicationFormState,
+): string {
+  const exported = form.exportedFile
+    ? `<p class="settings-intro" role="status" data-testid="export-result">Diagnostic enregistré : <code class="mono">${esc(form.exportedFile)}</code>. ` +
+      `Les secrets en sont exclus ; vérifiez-le avant de le partager.</p>`
+    : "";
+  const exportError = form.exportError
+    ? `<p class="state error" role="alert" data-testid="export-error">${esc(form.exportError)}</p>`
+    : "";
+  const checkUpdate = diag
+    ? `<button class="ds-btn ds-btn--ghost" type="button" data-action="check-update" data-testid="check-update">Rechercher une mise à jour</button>`
+    : "";
+  return (
+    `<details class="settings-technical" data-testid="diagnostics"${form.diagnosticsOpen ? " open" : ""}><summary>Détails techniques</summary>` +
     `<dl class="settings-refs">` +
     row("Origine de l'application", `<code class="mono">http://tauri.localhost</code>`) +
     row("Détail réseau", esc(section.connection.detail ?? "aucun")) +
     (info ? row("Processus local", esc(sidecarLabel(info))) : "") +
+    componentsHtml(diag) +
     row(
       "Journaux et diagnostic",
-      `<button class="ds-btn ds-btn--ghost" type="button" disabled aria-disabled="true" data-testid="open-logs">Ouvrir les journaux</button>` +
-        ` <span class="meta">Non disponible dans cette version.</span>`,
+      diag
+        ? `<button class="ds-btn ds-btn--ghost" type="button" data-action="open-logs" data-testid="open-logs">Ouvrir les journaux</button> ` +
+            `<button class="ds-btn ds-btn--ghost" type="button" data-action="export-diagnostics" data-testid="export-diagnostics">Exporter un diagnostic</button>`
+        : `<span class="meta">Non disponible : le diagnostic n'a pas pu être lu.</span>`,
     ) +
-    `</dl></details>`
+    `</dl>${exported}${exportError}` +
+    `<div class="settings-actions">${checkUpdate}</div>${updateMessage(form)}` +
+    `</details>`
   );
 }
 
@@ -188,6 +281,7 @@ export function applicationPageHtml(
   failure?: string,
   section: DesktopSection | null = null,
   form: ApplicationFormState = {},
+  diag: DesktopDiagnostics | null = null,
 ): string {
   const head = `${dsPageHeader("Paramètres", DESCRIPTION)}${configTabsHtml("application")}`;
   let body: string;
@@ -203,7 +297,7 @@ export function applicationPageHtml(
         `Impossible de lire l'identité Desktop${failure ? ` : ${esc(failure)}` : ""}.</div>`;
     body =
       `<section class="settings-domain"><h2>Application</h2>${identity}</section>` +
-      (section ? serverSectionHtml(section, form) + assistantSectionHtml(section, info) + diagnosticsHtml(section, info) : "");
+      (section ? serverSectionHtml(section, form) + assistantSectionHtml(section, info) + diagnosticsHtml(section, info, diag, form) : "");
   } else {
     body =
       `<section class="settings-domain"><h2>Application</h2>` +
@@ -251,6 +345,12 @@ export async function renderApplication(
   } catch (error) {
     failure = error instanceof Error ? error.message : undefined;
   }
+  let diag: DesktopDiagnostics | null = null;
+  try {
+    diag = await platform.diagnostics();
+  } catch {
+    diag = null;
+  }
   let origin: ServerOriginState | null = null;
   try {
     origin = await platform.serverOrigin();
@@ -262,7 +362,7 @@ export async function renderApplication(
     // Refresh the daemon read when the page opens; a failure is a state, not a crash.
     await refreshDaemon(shell).catch(() => undefined);
   }
-  root.innerHTML = applicationPageHtml("desktop", info, failure, shell ? sectionOf(shell, origin) : null, form);
+  root.innerHTML = applicationPageHtml("desktop", info, failure, shell ? sectionOf(shell, origin) : null, form, diag);
   if (shell) bindActions(root, platform, shell);
 }
 
@@ -294,6 +394,29 @@ function bindActions(root: HTMLElement, platform: Platform, shell: DesktopShell)
   root.querySelector("[data-action=restart]")?.addEventListener("click", () => {
     void platform.restartDesktop().then((started) => {
       if (!started) return again({ error: "Le redémarrage n'a pas pu être lancé. Fermez puis rouvrez l'application." });
+      return undefined;
+    });
+  });
+  const keepOpen = (form: ApplicationFormState): Promise<void> => again({ ...form, diagnosticsOpen: true });
+  root.querySelector("[data-action=open-logs]")?.addEventListener("click", () => {
+    void platform.openDataFolder("logs").then((opened) => {
+      if (!opened) return keepOpen({ exportError: "Le dossier des journaux n'a pas pu être ouvert." });
+      return undefined;
+    });
+  });
+  root.querySelector("[data-action=export-diagnostics]")?.addEventListener("click", () => {
+    void platform.exportDiagnostics().then((result) =>
+      keepOpen(result.ok ? { exportedFile: result.file } : { exportError: "Le diagnostic n'a pas pu être enregistré." }),
+    );
+  });
+  root.querySelector("[data-action=check-update]")?.addEventListener("click", () => {
+    void platform.checkForUpdate().then((result) =>
+      keepOpen(result.ok ? { update: result.status } : { updateError: updateErrorMessage(result.code) }),
+    );
+  });
+  root.querySelector("[data-action=install-update]")?.addEventListener("click", () => {
+    void platform.installUpdate().then((result) => {
+      if (!result.ok) return keepOpen({ updateError: updateErrorMessage(result.code) });
       return undefined;
     });
   });

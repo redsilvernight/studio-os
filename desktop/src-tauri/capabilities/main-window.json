@@ -10,6 +10,11 @@
     "allow-set-server-origin",
     "allow-restart-desktop",
     "allow-choose-folder",
-    "allow-choose-file"
+    "allow-choose-file",
+    "allow-get-diagnostics",
+    "allow-export-diagnostics",
+    "allow-open-data-folder",
+    "allow-check-for-update",
+    "allow-install-update"
   ]
 }

@@ -1,6 +1,6 @@
 // Verifies the Windows dev prerequisites and says how to fix what is missing.
 import { existsSync } from "node:fs";
-import { capture, repoRoot, tauriCli, viteCli } from "./lib.mjs";
+import { capture, flag, repoRoot, tauriCli, viteCli } from "./lib.mjs";
 import { join } from "node:path";
 
 const rows = [];
@@ -39,7 +39,7 @@ add("Tauri CLI (desktop/node_modules)", existsSync(tauriCli()), existsSync(tauri
 add("Dashboard deps (dashboard/node_modules)", existsSync(viteCli()), existsSync(viteCli()) ? "installed" : "missing", "cd dashboard && npm ci");
 
 const uv = capture("uv", ["--version"]);
-add("uv (only for --sidecar)", uv.ok, uv.stdout || "not found", "Install uv (https://docs.astral.sh/uv/) — needed to freeze the daemon service.", false);
+add("uv (freezes the daemon)", uv.ok, uv.stdout || "not found", "Install uv (https://docs.astral.sh/uv/) — needed to freeze the daemon service.", flag("--sidecar"));
 
 if (repoRoot.includes("'")) {
   add(
