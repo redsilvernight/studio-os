@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-93 decision(s). Detail complet dans chaque ADR lie.
+94 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -115,3 +115,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0092 | Desktop P0 : CodeGraphProvider neutre, Graphify optionnel installé séparément | active | [decisions/DEC-0092-desktop-p0-codegraph-provider-graphify.md](decisions/DEC-0092-desktop-p0-codegraph-provider-graphify.md) |
 | DEC-0093 | Desktop P1 : contrats locaux studio.local/v1, bridge à allowlist fermée, fixtures partagées | active | [decisions/DEC-0093-desktop-p1-contrats-locaux-studio-local-v1.md](decisions/DEC-0093-desktop-p1-contrats-locaux-studio-local-v1.md) |
 | DEC-0094 | Desktop P4 : daemon unique supervisé, outbox liée à l’identité et health négocié | active | [decisions/DEC-0094-desktop-p4-daemon-lifecycle.md](decisions/DEC-0094-desktop-p4-daemon-lifecycle.md) |
+| DEC-0095 | Desktop P9 : adaptateurs de harnais au scope projet, jeton par référence, fail-closed | active | [decisions/DEC-0095-desktop-p9-harness-adapters.md](decisions/DEC-0095-desktop-p9-harness-adapters.md) |

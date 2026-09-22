@@ -50,6 +50,12 @@ from studio_contracts.local.handshake import (
     PeerInfo,
     negotiate,
 )
+from studio_contracts.local.harness import (
+    HarnessApplyRequest,
+    HarnessPreviewRequest,
+    HarnessRollbackRequest,
+    HarnessStatusRequest,
+)
 from studio_contracts.local.identity import (
     IdentityView,
     ProfileRef,
@@ -105,6 +111,11 @@ SERVED = frozenset(
         BridgeCommand.CODE_GRAPH_GRAPH_PAGE,
         BridgeCommand.CODE_GRAPH_GRAPH_EXPAND,
         BridgeCommand.CODE_GRAPH_REINDEX,
+        BridgeCommand.HARNESS_DETECT,
+        BridgeCommand.HARNESS_STATUS,
+        BridgeCommand.HARNESS_PREVIEW,
+        BridgeCommand.HARNESS_APPLY,
+        BridgeCommand.HARNESS_ROLLBACK,
     }
 )
 _LOCAL_FEATURE_COMMANDS = frozenset(
@@ -120,6 +131,11 @@ _LOCAL_FEATURE_COMMANDS = frozenset(
         BridgeCommand.CODE_GRAPH_GRAPH_PAGE,
         BridgeCommand.CODE_GRAPH_GRAPH_EXPAND,
         BridgeCommand.CODE_GRAPH_REINDEX,
+        BridgeCommand.HARNESS_DETECT,
+        BridgeCommand.HARNESS_STATUS,
+        BridgeCommand.HARNESS_PREVIEW,
+        BridgeCommand.HARNESS_APPLY,
+        BridgeCommand.HARNESS_ROLLBACK,
     }
 )
 _LOGGER = logging.getLogger("studio_client.daemon.service")
@@ -477,7 +493,7 @@ class BridgeService:
                 request,
                 request.correlation_id,
                 LocalErrorCode.NOT_SUPPORTED,
-                "This daemon does not host local knowledge or code graph features.",
+                "This daemon does not host local knowledge, code graph or harness features.",
             )
         try:
             payload = self._answer(request)
@@ -588,6 +604,16 @@ class BridgeService:
             return features.code_graph_graph_page(GraphPageRequest.model_validate(payload))
         if request.command is BridgeCommand.CODE_GRAPH_GRAPH_EXPAND:
             return features.code_graph_graph_expand(GraphExpandRequest.model_validate(payload))
+        if request.command is BridgeCommand.HARNESS_DETECT:
+            return features.harness_detect(WorkspaceScope.model_validate(payload))
+        if request.command is BridgeCommand.HARNESS_STATUS:
+            return features.harness_status(HarnessStatusRequest.model_validate(payload))
+        if request.command is BridgeCommand.HARNESS_PREVIEW:
+            return features.harness_preview(HarnessPreviewRequest.model_validate(payload))
+        if request.command is BridgeCommand.HARNESS_APPLY:
+            return features.harness_apply(HarnessApplyRequest.model_validate(payload))
+        if request.command is BridgeCommand.HARNESS_ROLLBACK:
+            return features.harness_rollback(HarnessRollbackRequest.model_validate(payload))
         return features.code_graph_reindex(CodeReindexRequest.model_validate(payload))
 
     @staticmethod

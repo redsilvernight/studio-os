@@ -18,7 +18,7 @@ pub const P2_CAPABILITIES: &[&str] = &["daemon.control", "identity.view"];
 /// is simply absent instead of failing the handshake.
 pub const OPTIONAL_CAPABILITIES: &[&str] = &["daemon.health"];
 
-/// Additive Wave 2 capabilities (P6 Knowledge, P7 Code Graph). Offered but
+/// Additive Wave 2 capabilities (P6 Knowledge, P7 Code Graph, P9 Harness). Offered but
 /// never required: a daemon without local features answers `compatible_degraded`
 /// and the graph views simply report the source as unavailable.
 pub const LOCAL_FEATURE_CAPABILITIES: &[&str] = &[
@@ -28,6 +28,9 @@ pub const LOCAL_FEATURE_CAPABILITIES: &[&str] = &[
     "code_graph.read",
     "code_graph.graph",
     "code_graph.index",
+    "harness.read",
+    "harness.plan",
+    "harness.apply",
 ];
 
 fn offered_capabilities() -> Vec<&'static str> {

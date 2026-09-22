@@ -4,7 +4,7 @@
 
 export const LOCAL_PROTOCOL = "studio.local/v1" as const;
 export const LOCAL_SCHEMA_VERSION = 1 as const;
-export const LOCAL_CONTRACT_DIGEST = "90969dabb8ae22e06e0ed98ebc64551b1d7ac49db30aff52bac899da9dbaaa54" as const;
+export const LOCAL_CONTRACT_DIGEST = "cf2ea1ca049ea7610d2dbc800d6df9f54f24e533f526268c0f00f2f2969fb456" as const;
 
 export interface LocalCommandSpec {
   readonly command: string;
@@ -363,6 +363,15 @@ export const LOCAL_SCHEMAS: Readonly<Record<string, unknown>> = {
   "KnowledgeSearchResult": {"$defs":{"ComponentState":{"description":"Shared state vocabulary of every optional local component (Knowledge,\nCode Graph, harness, watchers). `ready` is the only fully-served state;\n`stale` serves possibly outdated data explicitly; everything else refuses\nor degrades visibly — never silently.","enum":["disabled","not_installed","unavailable","starting","indexing","ready","stale","permission_denied","incompatible","stopping","recovering","error"],"title":"ComponentState","type":"string"},"KnowledgeDocumentRef":{"additionalProperties":false,"properties":{"content_hash":{"pattern":"^[0-9a-f]{64}$","title":"Content Hash","type":"string"},"modified_at":{"format":"date-time","title":"Modified At","type":"string"},"title":{"maxLength":200,"minLength":1,"title":"Title","type":"string"},"uri":{"title":"Uri","type":"string"}},"required":["uri","title","content_hash","modified_at"],"title":"KnowledgeDocumentRef","type":"object"},"KnowledgeSearchHit":{"additionalProperties":false,"properties":{"document":{"$ref":"#/$defs/KnowledgeDocumentRef"},"score":{"maximum":1,"minimum":0,"title":"Score","type":"number"},"snippet":{"default":"","maxLength":300,"title":"Snippet","type":"string"}},"required":["document","score"],"title":"KnowledgeSearchHit","type":"object"}},"additionalProperties":false,"properties":{"complete":{"default":true,"title":"Complete","type":"boolean"},"hits":{"default":[],"items":{"$ref":"#/$defs/KnowledgeSearchHit"},"maxItems":100,"title":"Hits","type":"array"},"index_state":{"$ref":"#/$defs/ComponentState"},"next_cursor":{"anyOf":[{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","type":"string"},{"type":"null"}],"default":null,"title":"Next Cursor"}},"required":["index_state"],"title":"KnowledgeSearchResult","type":"object"},
   "CodeSymbolQuery": {"$defs":{"NodeKind":{"enum":["document","heading","tag","file","package","module","class","function"],"title":"NodeKind","type":"string"}},"additionalProperties":false,"properties":{"cursor":{"anyOf":[{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","type":"string"},{"type":"null"}],"default":null,"title":"Cursor"},"kinds":{"default":[],"items":{"$ref":"#/$defs/NodeKind"},"maxItems":8,"title":"Kinds","type":"array"},"limit":{"default":20,"maximum":100,"minimum":1,"title":"Limit","type":"integer"},"name":{"maxLength":200,"minLength":1,"title":"Name","type":"string"},"workspace_id":{"format":"uuid","title":"Workspace Id","type":"string"}},"required":["workspace_id","name"],"title":"CodeSymbolQuery","type":"object"},
   "CodeSymbolResult": {"$defs":{"CodeSymbolRef":{"additionalProperties":false,"properties":{"kind":{"$ref":"#/$defs/NodeKind"},"name":{"maxLength":200,"minLength":1,"title":"Name","type":"string"},"node_id":{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","title":"Node Id","type":"string"},"uri":{"title":"Uri","type":"string"}},"required":["node_id","kind","name","uri"],"title":"CodeSymbolRef","type":"object"},"IndexState":{"enum":["absent","indexing","ready","stale","corrupt"],"title":"IndexState","type":"string"},"NodeKind":{"enum":["document","heading","tag","file","package","module","class","function"],"title":"NodeKind","type":"string"}},"additionalProperties":false,"properties":{"complete":{"default":true,"title":"Complete","type":"boolean"},"index_state":{"$ref":"#/$defs/IndexState"},"next_cursor":{"anyOf":[{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","type":"string"},{"type":"null"}],"default":null,"title":"Next Cursor"},"symbols":{"default":[],"items":{"$ref":"#/$defs/CodeSymbolRef"},"maxItems":100,"title":"Symbols","type":"array"}},"required":["index_state"],"title":"CodeSymbolResult","type":"object"},
+  "HarnessDetectResult": {"$defs":{"ComponentId":{"enum":["desktop","bridge","daemon","workspace","knowledge","code_graph","harness","secret_store","watcher"],"title":"ComponentId","type":"string"},"HarnessState":{"enum":["detected","configured","incompatible","not_detected","error"],"title":"HarnessState","type":"string"},"HarnessStatus":{"additionalProperties":false,"description":"What the Desktop knows about one agent harness on this machine. A\nharness is identified by an opaque adapter id; the contract carries no\nvendor concept and never a provider credential — only whether Studio OS's\nown integration files are in place.","properties":{"adapter_id":{"pattern":"^[a-z][a-z0-9_.-]{0,63}$","title":"Adapter Id","type":"string"},"capabilities":{"default":[],"items":{"pattern":"^[a-z][a-z0-9_]{0,31}(\\.[a-z][a-z0-9_]{0,31}){0,3}$","type":"string"},"maxItems":32,"title":"Capabilities","type":"array"},"detected_version":{"anyOf":[{"maxLength":64,"pattern":"^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$","type":"string"},{"type":"null"}],"default":null,"title":"Detected Version"},"display_name":{"maxLength":200,"minLength":1,"title":"Display Name","type":"string"},"error":{"anyOf":[{"$ref":"#/$defs/LocalError"},{"type":"null"}],"default":null},"harness_id":{"pattern":"^[a-z][a-z0-9_.-]{0,63}$","title":"Harness Id","type":"string"},"managed_files":{"default":[],"items":{"type":"string"},"maxItems":64,"title":"Managed Files","type":"array"},"state":{"$ref":"#/$defs/HarnessState"}},"required":["adapter_id","harness_id","display_name","state"],"title":"HarnessStatus","type":"object"},"LocalError":{"additionalProperties":false,"description":"The one structured error shape of the local stack. Never carries a\nsecret, a stack trace or an absolute local path: `message` and `details`\nare validated, bounded and safe to display or log.","properties":{"code":{"$ref":"#/$defs/LocalErrorCode"},"component":{"$ref":"#/$defs/ComponentId"},"correlation_id":{"anyOf":[{"pattern":"^[A-Za-z0-9_.:-]{1,64}$","type":"string"},{"type":"null"}],"default":null,"title":"Correlation Id"},"details":{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"type":"null"}]},"default":{},"title":"Details","type":"object"},"message":{"maxLength":500,"minLength":1,"title":"Message","type":"string"},"retryable":{"title":"Retryable","type":"boolean"}},"required":["code","message","component","retryable"],"title":"LocalError","type":"object"},"LocalErrorCode":{"description":"Closed, deliberately small taxonomy. Codes describe what the caller can\nbranch on; the human message and bounded details carry the rest.","enum":["invalid_request","unknown_command","payload_too_large","protocol_incompatible","capability_missing","not_supported","cancelled","timeout","internal_error","daemon_unavailable","daemon_already_running","daemon_crashed","identity_mismatch","wrong_profile","secret_absent","secret_inaccessible","secret_revoked","keyring_unavailable","workspace_config_missing","workspace_config_invalid","workspace_moved","workspace_inaccessible","project_unavailable","feature_disabled","provider_not_installed","provider_incompatible","permission_denied","index_absent","index_corrupt","language_unsupported","plan_expired"],"title":"LocalErrorCode","type":"string"}},"additionalProperties":false,"properties":{"harnesses":{"default":[],"items":{"$ref":"#/$defs/HarnessStatus"},"maxItems":32,"title":"Harnesses","type":"array"}},"title":"HarnessDetectResult","type":"object"},
+  "HarnessStatus": {"$defs":{"ComponentId":{"enum":["desktop","bridge","daemon","workspace","knowledge","code_graph","harness","secret_store","watcher"],"title":"ComponentId","type":"string"},"HarnessState":{"enum":["detected","configured","incompatible","not_detected","error"],"title":"HarnessState","type":"string"},"LocalError":{"additionalProperties":false,"description":"The one structured error shape of the local stack. Never carries a\nsecret, a stack trace or an absolute local path: `message` and `details`\nare validated, bounded and safe to display or log.","properties":{"code":{"$ref":"#/$defs/LocalErrorCode"},"component":{"$ref":"#/$defs/ComponentId"},"correlation_id":{"anyOf":[{"pattern":"^[A-Za-z0-9_.:-]{1,64}$","type":"string"},{"type":"null"}],"default":null,"title":"Correlation Id"},"details":{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"type":"null"}]},"default":{},"title":"Details","type":"object"},"message":{"maxLength":500,"minLength":1,"title":"Message","type":"string"},"retryable":{"title":"Retryable","type":"boolean"}},"required":["code","message","component","retryable"],"title":"LocalError","type":"object"},"LocalErrorCode":{"description":"Closed, deliberately small taxonomy. Codes describe what the caller can\nbranch on; the human message and bounded details carry the rest.","enum":["invalid_request","unknown_command","payload_too_large","protocol_incompatible","capability_missing","not_supported","cancelled","timeout","internal_error","daemon_unavailable","daemon_already_running","daemon_crashed","identity_mismatch","wrong_profile","secret_absent","secret_inaccessible","secret_revoked","keyring_unavailable","workspace_config_missing","workspace_config_invalid","workspace_moved","workspace_inaccessible","project_unavailable","feature_disabled","provider_not_installed","provider_incompatible","permission_denied","index_absent","index_corrupt","language_unsupported","plan_expired"],"title":"LocalErrorCode","type":"string"}},"additionalProperties":false,"description":"What the Desktop knows about one agent harness on this machine. A\nharness is identified by an opaque adapter id; the contract carries no\nvendor concept and never a provider credential — only whether Studio OS's\nown integration files are in place.","properties":{"adapter_id":{"pattern":"^[a-z][a-z0-9_.-]{0,63}$","title":"Adapter Id","type":"string"},"capabilities":{"default":[],"items":{"pattern":"^[a-z][a-z0-9_]{0,31}(\\.[a-z][a-z0-9_]{0,31}){0,3}$","type":"string"},"maxItems":32,"title":"Capabilities","type":"array"},"detected_version":{"anyOf":[{"maxLength":64,"pattern":"^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$","type":"string"},{"type":"null"}],"default":null,"title":"Detected Version"},"display_name":{"maxLength":200,"minLength":1,"title":"Display Name","type":"string"},"error":{"anyOf":[{"$ref":"#/$defs/LocalError"},{"type":"null"}],"default":null},"harness_id":{"pattern":"^[a-z][a-z0-9_.-]{0,63}$","title":"Harness Id","type":"string"},"managed_files":{"default":[],"items":{"type":"string"},"maxItems":64,"title":"Managed Files","type":"array"},"state":{"$ref":"#/$defs/HarnessState"}},"required":["adapter_id","harness_id","display_name","state"],"title":"HarnessStatus","type":"object"},
+  "HarnessStatusRequest": {"additionalProperties":false,"properties":{"adapter_id":{"pattern":"^[a-z][a-z0-9_.-]{0,63}$","title":"Adapter Id","type":"string"},"workspace_id":{"format":"uuid","title":"Workspace Id","type":"string"}},"required":["workspace_id","adapter_id"],"title":"HarnessStatusRequest","type":"object"},
+  "HarnessPreviewRequest": {"additionalProperties":false,"properties":{"adapter_id":{"pattern":"^[a-z][a-z0-9_.-]{0,63}$","title":"Adapter Id","type":"string"},"workspace_id":{"format":"uuid","title":"Workspace Id","type":"string"}},"required":["workspace_id","adapter_id"],"title":"HarnessPreviewRequest","type":"object"},
+  "HarnessPlan": {"$defs":{"ChangeKind":{"enum":["create","modify","delete"],"title":"ChangeKind","type":"string"},"HarnessChange":{"additionalProperties":false,"description":"One file-level change of a plan. Hashes and a short summary describe it;\nfile content is deliberately absent so that a plan can be shown, logged and\ndiffed without ever exposing a credential a config file might hold.","properties":{"after_hash":{"anyOf":[{"pattern":"^[0-9a-f]{64}$","type":"string"},{"type":"null"}],"default":null,"title":"After Hash"},"before_hash":{"anyOf":[{"pattern":"^[0-9a-f]{64}$","type":"string"},{"type":"null"}],"default":null,"title":"Before Hash"},"change_id":{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","title":"Change Id","type":"string"},"kind":{"$ref":"#/$defs/ChangeKind"},"summary":{"maxLength":200,"minLength":1,"title":"Summary","type":"string"},"target":{"title":"Target","type":"string"}},"required":["change_id","kind","target","summary"],"title":"HarnessChange","type":"object"}},"additionalProperties":false,"properties":{"adapter_id":{"pattern":"^[a-z][a-z0-9_.-]{0,63}$","title":"Adapter Id","type":"string"},"changes":{"default":[],"items":{"$ref":"#/$defs/HarnessChange"},"maxItems":50,"title":"Changes","type":"array"},"created_at":{"format":"date-time","title":"Created At","type":"string"},"expires_at":{"format":"date-time","title":"Expires At","type":"string"},"plan_hash":{"pattern":"^[0-9a-f]{64}$","title":"Plan Hash","type":"string"},"plan_id":{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","title":"Plan Id","type":"string"},"requires_confirmation":{"const":true,"default":true,"title":"Requires Confirmation","type":"boolean"},"workspace_id":{"format":"uuid","title":"Workspace Id","type":"string"}},"required":["plan_id","adapter_id","workspace_id","plan_hash","created_at","expires_at"],"title":"HarnessPlan","type":"object"},
+  "HarnessApplyRequest": {"additionalProperties":false,"description":"Apply is bound to a previously previewed plan by id and hash, and needs\nan explicit confirmation: nothing is applied from a fresh request.","properties":{"confirmed":{"const":true,"title":"Confirmed","type":"boolean"},"plan_hash":{"pattern":"^[0-9a-f]{64}$","title":"Plan Hash","type":"string"},"plan_id":{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","title":"Plan Id","type":"string"}},"required":["plan_id","plan_hash","confirmed"],"title":"HarnessApplyRequest","type":"object"},
+  "HarnessApplyResult": {"$defs":{"ComponentId":{"enum":["desktop","bridge","daemon","workspace","knowledge","code_graph","harness","secret_store","watcher"],"title":"ComponentId","type":"string"},"HarnessState":{"enum":["detected","configured","incompatible","not_detected","error"],"title":"HarnessState","type":"string"},"LocalError":{"additionalProperties":false,"description":"The one structured error shape of the local stack. Never carries a\nsecret, a stack trace or an absolute local path: `message` and `details`\nare validated, bounded and safe to display or log.","properties":{"code":{"$ref":"#/$defs/LocalErrorCode"},"component":{"$ref":"#/$defs/ComponentId"},"correlation_id":{"anyOf":[{"pattern":"^[A-Za-z0-9_.:-]{1,64}$","type":"string"},{"type":"null"}],"default":null,"title":"Correlation Id"},"details":{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"type":"null"}]},"default":{},"title":"Details","type":"object"},"message":{"maxLength":500,"minLength":1,"title":"Message","type":"string"},"retryable":{"title":"Retryable","type":"boolean"}},"required":["code","message","component","retryable"],"title":"LocalError","type":"object"},"LocalErrorCode":{"description":"Closed, deliberately small taxonomy. Codes describe what the caller can\nbranch on; the human message and bounded details carry the rest.","enum":["invalid_request","unknown_command","payload_too_large","protocol_incompatible","capability_missing","not_supported","cancelled","timeout","internal_error","daemon_unavailable","daemon_already_running","daemon_crashed","identity_mismatch","wrong_profile","secret_absent","secret_inaccessible","secret_revoked","keyring_unavailable","workspace_config_missing","workspace_config_invalid","workspace_moved","workspace_inaccessible","project_unavailable","feature_disabled","provider_not_installed","provider_incompatible","permission_denied","index_absent","index_corrupt","language_unsupported","plan_expired"],"title":"LocalErrorCode","type":"string"}},"additionalProperties":false,"properties":{"applied":{"default":[],"items":{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","type":"string"},"maxItems":50,"title":"Applied","type":"array"},"error":{"anyOf":[{"$ref":"#/$defs/LocalError"},{"type":"null"}],"default":null},"plan_id":{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","title":"Plan Id","type":"string"},"rollback_id":{"anyOf":[{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","type":"string"},{"type":"null"}],"default":null,"title":"Rollback Id"},"state":{"$ref":"#/$defs/HarnessState"}},"required":["plan_id","state"],"title":"HarnessApplyResult","type":"object"},
+  "HarnessRollbackRequest": {"additionalProperties":false,"properties":{"confirmed":{"const":true,"title":"Confirmed","type":"boolean"},"rollback_id":{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","title":"Rollback Id","type":"string"}},"required":["rollback_id","confirmed"],"title":"HarnessRollbackRequest","type":"object"},
+  "HarnessRollbackResult": {"$defs":{"ComponentId":{"enum":["desktop","bridge","daemon","workspace","knowledge","code_graph","harness","secret_store","watcher"],"title":"ComponentId","type":"string"},"HarnessState":{"enum":["detected","configured","incompatible","not_detected","error"],"title":"HarnessState","type":"string"},"LocalError":{"additionalProperties":false,"description":"The one structured error shape of the local stack. Never carries a\nsecret, a stack trace or an absolute local path: `message` and `details`\nare validated, bounded and safe to display or log.","properties":{"code":{"$ref":"#/$defs/LocalErrorCode"},"component":{"$ref":"#/$defs/ComponentId"},"correlation_id":{"anyOf":[{"pattern":"^[A-Za-z0-9_.:-]{1,64}$","type":"string"},{"type":"null"}],"default":null,"title":"Correlation Id"},"details":{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"type":"null"}]},"default":{},"title":"Details","type":"object"},"message":{"maxLength":500,"minLength":1,"title":"Message","type":"string"},"retryable":{"title":"Retryable","type":"boolean"}},"required":["code","message","component","retryable"],"title":"LocalError","type":"object"},"LocalErrorCode":{"description":"Closed, deliberately small taxonomy. Codes describe what the caller can\nbranch on; the human message and bounded details carry the rest.","enum":["invalid_request","unknown_command","payload_too_large","protocol_incompatible","capability_missing","not_supported","cancelled","timeout","internal_error","daemon_unavailable","daemon_already_running","daemon_crashed","identity_mismatch","wrong_profile","secret_absent","secret_inaccessible","secret_revoked","keyring_unavailable","workspace_config_missing","workspace_config_invalid","workspace_moved","workspace_inaccessible","project_unavailable","feature_disabled","provider_not_installed","provider_incompatible","permission_denied","index_absent","index_corrupt","language_unsupported","plan_expired"],"title":"LocalErrorCode","type":"string"}},"additionalProperties":false,"properties":{"error":{"anyOf":[{"$ref":"#/$defs/LocalError"},{"type":"null"}],"default":null},"restored":{"default":[],"items":{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","type":"string"},"maxItems":50,"title":"Restored","type":"array"},"rollback_id":{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","title":"Rollback Id","type":"string"},"state":{"$ref":"#/$defs/HarnessState"}},"required":["rollback_id","state"],"title":"HarnessRollbackResult","type":"object"},
 };
 
 export type BridgeCommand = "runtime.handshake" | "daemon.status" | "daemon.attach" | "daemon.start" | "daemon.stop" | "daemon.restart" | "daemon.health" | "identity.get_view" | "workspace.validate" | "workspace.get_config" | "workspace.save_config" | "knowledge.status" | "knowledge.search" | "knowledge.get_document" | "knowledge.graph_page" | "knowledge.graph_expand" | "knowledge.reindex" | "code_graph.status" | "code_graph.find_symbols" | "code_graph.graph_page" | "code_graph.graph_expand" | "code_graph.reindex" | "harness.detect" | "harness.status" | "harness.preview" | "harness.apply" | "harness.rollback" | "publication.preview" | "publication.publish";
@@ -398,6 +407,8 @@ export interface BridgeResponse {
   request_id: string;
   sent_at: string;
 }
+
+export type ChangeKind = "create" | "modify" | "delete";
 
 export interface CodeGraphStatus {
   error?: LocalError | null;
@@ -605,6 +616,79 @@ export interface HandshakeResponse {
   outcome: CompatibilityOutcome;
   remediation?: Remediation;
   silent_fallback?: false;
+}
+
+export interface HarnessApplyRequest {
+  confirmed: true;
+  plan_hash: string;
+  plan_id: string;
+}
+
+export interface HarnessApplyResult {
+  applied?: string[];
+  error?: LocalError | null;
+  plan_id: string;
+  rollback_id?: string | null;
+  state: HarnessState;
+}
+
+export interface HarnessChange {
+  after_hash?: string | null;
+  before_hash?: string | null;
+  change_id: string;
+  kind: ChangeKind;
+  summary: string;
+  target: string;
+}
+
+export interface HarnessDetectResult {
+  harnesses?: HarnessStatus[];
+}
+
+export interface HarnessPlan {
+  adapter_id: string;
+  changes?: HarnessChange[];
+  created_at: string;
+  expires_at: string;
+  plan_hash: string;
+  plan_id: string;
+  requires_confirmation?: true;
+  workspace_id: string;
+}
+
+export interface HarnessPreviewRequest {
+  adapter_id: string;
+  workspace_id: string;
+}
+
+export interface HarnessRollbackRequest {
+  confirmed: true;
+  rollback_id: string;
+}
+
+export interface HarnessRollbackResult {
+  error?: LocalError | null;
+  restored?: string[];
+  rollback_id: string;
+  state: HarnessState;
+}
+
+export type HarnessState = "detected" | "configured" | "incompatible" | "not_detected" | "error";
+
+export interface HarnessStatus {
+  adapter_id: string;
+  capabilities?: string[];
+  detected_version?: string | null;
+  display_name: string;
+  error?: LocalError | null;
+  harness_id: string;
+  managed_files?: string[];
+  state: HarnessState;
+}
+
+export interface HarnessStatusRequest {
+  adapter_id: string;
+  workspace_id: string;
 }
 
 export interface HumanIdentity {

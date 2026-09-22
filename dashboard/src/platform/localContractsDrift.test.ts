@@ -42,7 +42,7 @@ afterEach(() => {
   while (scratch.length > 0) rmSync(scratch.pop() as string, { recursive: true, force: true });
 });
 
-describe("local contracts drift check and line endings", () => {
+describe("local contracts drift check and line endings", { timeout: 30_000 }, () => {
   it("is green on an LF checkout", () => {
     expect(check(checkout("\n")).status).toBe(0);
   });

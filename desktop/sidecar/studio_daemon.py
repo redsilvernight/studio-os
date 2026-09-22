@@ -13,6 +13,7 @@ if __name__ == "__main__":
     local_features = LocalFeatureRegistry(
         workspace_configs=registry_config_source(data_root),
         cache_root=cache_root,
+        harness_backups_root=data_root / "harness-backups",
         code_graph_service=CodeGraphService([GraphifyProvider()], cache_root / "code-graph"),
     )
     raise SystemExit(
