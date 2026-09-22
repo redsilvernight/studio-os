@@ -56,7 +56,6 @@ from studio_contracts.local.harness import (
     HarnessRollbackRequest,
     HarnessStatusRequest,
     HarnessVerifyRequest,
-    HarnessVerifyResult,
 )
 from studio_contracts.local.identity import (
     IdentityView,

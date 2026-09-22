@@ -480,6 +480,7 @@ class HarnessService:
         # This proves the full chain: harness config -> MCP URL -> auth -> Studi'OS
         try:
             import asyncio
+
             import httpx
             
             async def test_mcp_call() -> tuple[bool, str | None]:
