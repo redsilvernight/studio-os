@@ -476,30 +476,99 @@ class HarnessService:
                 details={"reason": "token_missing"},
             )
         # Try to make a real MCP call to verify the connection
-        # Use the local bridge to call a minimal tool (studio_get_projects)
+        # Use streamable-http transport: initialize -> get session -> tools/call
         # This proves the full chain: harness config -> MCP URL -> auth -> Studi'OS
         try:
             import asyncio
             import httpx
             
             async def test_mcp_call() -> tuple[bool, str | None]:
-                headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-                # Use a simple read-only tool call to verify connectivity
-                payload = {
-                    "jsonrpc": "2.0",
-                    "id": 1,
-                    "method": "tools/call",
-                    "params": {
-                        "name": "studio_get_projects",
-                        "arguments": {}
-                    }
+                headers = {
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                    "Accept": "application/json, text/event-stream",
                 }
                 try:
-                    async with httpx.AsyncClient(timeout=10.0) as client:
-                        response = await client.post(info.mcp_url, json=payload, headers=headers)
-                        if response.status_code == 200:
+                    async with httpx.AsyncClient(timeout=15.0) as client:
+                        # Step 1: Initialize to get session ID
+                        init_payload = {
+                            "jsonrpc": "2.0",
+                            "id": 1,
+                            "method": "initialize",
+                            "params": {
+                                "protocolVersion": "2024-11-05",
+                                "capabilities": {},
+                                "clientInfo": {"name": "studio-verify", "version": "1.0"}
+                            }
+                        }
+                        init_response = await client.post(info.mcp_url, json=init_payload, headers=headers)
+                        if init_response.status_code != 200:
+                            return False, f"Initialize failed: HTTP {init_response.status_code}: {init_response.text[:200]}"
+                        
+                        # Extract session ID from response header
+                        session_id = init_response.headers.get("mcp-session-id")
+                        if not session_id:
+                            # Try to parse from event stream
+                            for line in init_response.text.splitlines():
+                                if line.startswith("data: "):
+                                    import json
+                                    try:
+                                        data = json.loads(line[6:])
+                                        if "result" in data and "sessionId" in data.get("result", {}):
+                                            session_id = data["result"]["sessionId"]
+                                            break
+                                    except:
+                                        pass
+                        
+                        if not session_id:
+                            return False, "No session ID returned from initialize"
+                        
+                        # Step 2: Call a tool with the session ID
+                        headers["Mcp-Session-Id"] = session_id
+                        tool_payload = {
+                            "jsonrpc": "2.0",
+                            "id": 2,
+                            "method": "tools/call",
+                            "params": {
+                                "name": "studio_get_projects",
+                                "arguments": {}
+                            }
+                        }
+                        tool_response = await client.post(info.mcp_url, json=tool_payload, headers=headers)
+                        if tool_response.status_code != 200:
+                            return False, f"Tool call failed: HTTP {tool_response.status_code}: {tool_response.text[:200]}"
+                        
+                        # Parse event stream response - check for actual success
+                        # The MCP server may return 200 with a result that contains an error in the content
+                        success = False
+                        error_msg = None
+                        for line in tool_response.text.splitlines():
+                            if line.startswith("data: "):
+                                import json
+                                try:
+                                    data = json.loads(line[6:])
+                                    if "error" in data and data["error"]:
+                                        # JSON-RPC error returned
+                                        err = data["error"]
+                                        return False, f"MCP error: {err.get('message', 'unknown')} (code: {err.get('code', 'unknown')})"
+                                    if "result" in data:
+                                        result = data["result"]
+                                        # Check if result indicates an error (isError=true or error_code in structuredContent)
+                                        if result.get("isError") is True:
+                                            error_msg = result.get("content", [{}])[0].get("text", "Unknown error")
+                                            break
+                                        structured = result.get("structuredContent", {})
+                                        if isinstance(structured, dict) and "error_code" in structured:
+                                            error_msg = structured.get("message", structured.get("error_code", "Unknown error"))
+                                            break
+                                        success = True
+                                except:
+                                    pass
+                        if error_msg:
+                            return False, f"Tool returned error: {error_msg}"
+                        if success:
                             return True, None
-                        return False, f"HTTP {response.status_code}: {response.text[:200]}"
+                        return False, f"Tool call returned no result: {tool_response.text[:200]}"
                 except Exception as e:
                     return False, str(e)
             
