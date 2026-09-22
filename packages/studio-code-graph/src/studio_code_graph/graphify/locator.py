@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import re
-import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -35,6 +34,28 @@ def parse_version(text: str) -> tuple[int, int, int] | None:
     return (int(match.group(1)), int(match.group(2)), int(match.group(3)))
 
 
+def find_on_path(name: str) -> str | None:
+    """`shutil.which` without the implicit current directory: Windows searches the
+    working directory first, so a workspace could shadow the tool with its own binary.
+    Only absolute `PATH` entries other than the working directory are considered."""
+    cwd = os.path.normcase(os.path.abspath(os.getcwd()))
+    suffixes = [""]
+    if os.name == "nt":
+        suffixes = [
+            ext.lower() for ext in os.environ.get("PATHEXT", ".EXE;.CMD;.BAT").split(";") if ext
+        ]
+    for entry in os.environ.get("PATH", "").split(os.pathsep):
+        if not entry or not os.path.isabs(entry):
+            continue
+        if os.path.normcase(os.path.abspath(entry)) == cwd:
+            continue
+        for suffix in suffixes:
+            candidate = os.path.join(entry, name + suffix)
+            if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+                return candidate
+    return None
+
+
 def resolve_executable(configured: Path | None = None) -> Path | None:
     """The Graphify executable to use: an explicit path, the operator override,
     then a plain `PATH` lookup. Nothing is downloaded or installed, and no
@@ -45,7 +66,7 @@ def resolve_executable(configured: Path | None = None) -> Path | None:
         if raw:
             path = Path(raw)
             return path if path.is_absolute() and path.is_file() else None
-    found = shutil.which("graphify")
+    found = find_on_path("graphify")
     return Path(found) if found else None
 
 
