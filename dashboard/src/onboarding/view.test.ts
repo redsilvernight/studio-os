@@ -109,4 +109,29 @@ describe("onboarding view", () => {
   it("mints workspace ids in UUID shape", () => {
     expect(newWorkspaceId()).toMatch(/^[0-9a-f-]{36}$/i);
   });
+
+  it("offers an explicit restart once a new server address needs one to apply", async () => {
+    const { platform } = rig();
+    let restarted = false;
+    const withRestart = {
+      ...platform,
+      setServerOrigin: async () => ({ ok: true as const, state: { configured: "https://new.example", applied: null, restart_required: true } }),
+      restartDesktop: async () => {
+        restarted = true;
+        return true;
+      },
+    };
+    const root = document.createElement("main");
+    document.body.append(root);
+    await renderOnboarding(root, withRestart, emptySession({ schema: 1, status: "in_progress", current: "connexion" }));
+    root.querySelector<HTMLInputElement>("#server-origin-input")!.value = "https://new.example";
+    root.querySelector("[data-testid=server-origin-form]")!.dispatchEvent(new Event("submit", { cancelable: true }));
+    await new Promise((r) => setTimeout(r, 0));
+    const restartButton = root.querySelector<HTMLButtonElement>("[data-action=restart-desktop]");
+    expect(restartButton).not.toBeNull();
+    expect(root.textContent).toContain("Redémarrez l'application");
+    restartButton!.click();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(restarted).toBe(true);
+  });
 });

@@ -138,6 +138,7 @@ export interface SessionData {
   plan: HarnessPlan | null;
   error: string | null;
   notice: string | null;
+  restartRequired: boolean;
 }
 
 async function probeServer(): Promise<{ ok: boolean; detail: string }> {
@@ -275,6 +276,7 @@ export async function renderOnboarding(
     plan: null,
     error: null,
     notice: null,
+    restartRequired: false,
   };
   if (data === null && session.state.status === "in_progress") await revalidate(session, platform);
   const again = (): Promise<void> => renderOnboarding(root, platform, session);
@@ -324,6 +326,7 @@ export function emptySession(state: OnboardingState): SessionData {
     plan: null,
     error: null,
     notice: null,
+    restartRequired: false,
   };
 }
 
@@ -391,6 +394,9 @@ async function paintConnexion(
   const body =
     errorHtml(session.error) +
     noticeHtml(session.notice) +
+    (session.restartRequired
+      ? `<button class="ds-btn ds-btn--primary" type="button" data-action="restart-desktop">Redémarrer maintenant</button>`
+      : "") +
     `<dl class="settings-rows">` +
     `<div class="settings-row"><dt>Adresse utilisée</dt><dd><code class="mono">${esc(origin?.applied ?? "Non configurée")}</code></dd></div>` +
     `<div class="settings-row"><dt>Serveur</dt><dd data-testid="server-probe">${esc(probe.detail)}</dd></div>` +
@@ -420,9 +426,20 @@ async function paintConnexion(
         return again();
       }
       session.serverProbe = null;
-      session.notice = "Adresse enregistrée.";
+      session.restartRequired = result.state.restart_required;
+      session.notice = result.state.restart_required
+        ? "Adresse enregistrée. Redémarrez l'application pour l'utiliser."
+        : "Adresse enregistrée.";
       session.error = null;
       return again();
+    });
+  });
+  root.querySelector("[data-action=restart-desktop]")?.addEventListener("click", () => {
+    void platform.restartDesktop().then((started) => {
+      if (!started) {
+        session.error = "Le redémarrage n'a pas pu être lancé. Fermez puis rouvrez l'application.";
+        void again();
+      }
     });
   });
   root.querySelector("[data-action=retry]")?.addEventListener("click", () => {
