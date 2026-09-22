@@ -191,6 +191,21 @@ def _message_id() -> str:
     return f"daemon-{uuid4().hex[:16]}"
 
 
+def _peek_correlation_id(line: str) -> str | None:
+    """Best-effort correlation id for a line that failed `BridgeRequest`
+    validation. The shell rejects any answer whose correlation id does not
+    echo the request's, so a request with a well-formed envelope but an
+    invalid payload must still get its correlation id back, not "unknown"."""
+    try:
+        data = json.loads(line)
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    correlation_id = data.get("correlation_id")
+    return correlation_id if isinstance(correlation_id, str) else None
+
+
 class DaemonController:
     def __init__(
         self,
@@ -521,7 +536,12 @@ class BridgeService:
         try:
             request = BridgeRequest.model_validate_json(line)
         except ValidationError:
-            return self._error(None, None, LocalErrorCode.INVALID_REQUEST, "Invalid request.")
+            return self._error(
+                None,
+                _peek_correlation_id(line),
+                LocalErrorCode.INVALID_REQUEST,
+                "Invalid request.",
+            )
         if request.command not in SERVED:
             return self._error(
                 request,

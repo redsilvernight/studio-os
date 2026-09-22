@@ -32,6 +32,8 @@ export interface OnboardingState {
   /** Identifiants choisis pendant le parcours (jamais saisis à la main). */
   projectId?: string;
   projectName?: string;
+  /** Slug machine du projet ; seule forme acceptée par `project_slug` côté pont. */
+  projectSlug?: string;
   workspaceId?: string;
   /** Nom d'affichage du dossier (nom seul, jamais le chemin complet). */
   folderName?: string;
@@ -87,6 +89,7 @@ export function loadOnboardingState(store: StorageLike | null = storage()): Onbo
       current: isStepId(parsed.current) ? parsed.current : "bienvenue",
       ...(typeof parsed.projectId === "string" ? { projectId: parsed.projectId } : {}),
       ...(typeof parsed.projectName === "string" ? { projectName: parsed.projectName } : {}),
+      ...(typeof parsed.projectSlug === "string" ? { projectSlug: parsed.projectSlug } : {}),
       ...(typeof parsed.workspaceId === "string" ? { workspaceId: parsed.workspaceId } : {}),
       ...(typeof parsed.folderName === "string" ? { folderName: parsed.folderName } : {}),
       ...(typeof parsed.completedAt === "string" ? { completedAt: parsed.completedAt } : {}),

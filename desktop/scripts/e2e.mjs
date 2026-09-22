@@ -7,8 +7,9 @@
 // desktop/.build/e2e-results.json. Exit code 1 if any check fails.
 
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { chromium } from "playwright-core";
 import { buildDir, desktopDir, repoRoot, toolEnv } from "./lib.mjs";
@@ -107,15 +108,39 @@ async function main() {
   const { api, email, password, project, admin_id: adminId, machine_id: machineId, machine_token: machineToken } = stack.info;
   console.log(`stack up: ${api} (database ${stack.info.database})`);
 
+  // Isolate from the real user profile: the packaged exe otherwise reads/writes
+  // %APPDATA%\StudioOS (daemon state) and the WebView2 profile under
+  // %LOCALAPPDATA%\<bundle id>\EBWebView, both of which are real user data.
+  const profileRoot = mkdtempSync(join(tmpdir(), "studio-e2e-profile-"));
+  const appData = join(profileRoot, "appdata");
+  const localAppData = join(profileRoot, "localappdata");
+  const webviewData = join(profileRoot, "webview2");
+  mkdirSync(appData, { recursive: true });
+  mkdirSync(localAppData, { recursive: true });
+  mkdirSync(webviewData, { recursive: true });
+  console.log(`profile: ${profileRoot}`);
+
   const app = spawn(exe, [], {
     env: {
       ...process.env,
+      APPDATA: appData,
+      LOCALAPPDATA: localAppData,
+      WEBVIEW2_USER_DATA_FOLDER: webviewData,
       STUDIO_CLIENT_API_BASE_URL: `${api}/api/v1`,
       STUDIO_CLIENT_MACHINE_ID: machineId,
       STUDIO_CLIENT_MACHINE_TOKEN: machineToken,
       WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${CDP_PORT}`,
     },
-    stdio: "ignore",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const appOutLog = join(profileRoot, "app-stdio.log");
+  const appOutChunks = [];
+  app.stdout?.on("data", (d) => appOutChunks.push(d));
+  app.stderr?.on("data", (d) => appOutChunks.push(d));
+  process.on("exit", () => {
+    try {
+      writeFileSync(appOutLog, Buffer.concat(appOutChunks));
+    } catch {}
   });
   let browser;
   try {
@@ -129,6 +154,23 @@ async function main() {
     const pages = () => browser.contexts()[0].pages().length;
 
     // ---- A. Embedded Dashboard -------------------------------------------------
+    // This suite covers authenticated dashboard/bridge behavior, not the P11
+    // first-run wizard (already covered by install-test.mjs and the dedicated
+    // onboarding walkthrough). Seed the same "onboarding completed" state a
+    // real completed run leaves in localStorage, then reload past the
+    // #/bienvenue gate in main.ts so the top-level login form is reachable.
+    await page.evaluate(() => {
+      localStorage.setItem(
+        "studio-os.onboarding.v1",
+        JSON.stringify({ schema: 1, status: "completed", current: "termine" }),
+      );
+      // A real completed run also leaves the route past #/bienvenue; without
+      // this the hash from the pre-bypass #/bienvenue redirect survives the
+      // reload below and, once authed, routes back into the onboarding view
+      // instead of the dashboard (parseRoute treats #/bienvenue as onboarding).
+      location.hash = "#/projects";
+    });
+    await page.reload();
     await page.waitForSelector("#login-form", { timeout: 30_000 });
     check("dashboard.loaded", page.url().startsWith(`${APP_ORIGIN}/`), `page ${page.url()}`);
     const hasInvoke = await page.evaluate(() => typeof window.__TAURI__?.core?.invoke === "function");
@@ -158,8 +200,14 @@ async function main() {
     check("auth.login_ok_from_tauri_origin", okLogin?.status === 200, `POST /auth/token -> ${okLogin?.status}`);
     const acao = okLogin?.headers["access-control-allow-origin"];
     check("cors.exact_origin_never_wildcard", acao === APP_ORIGIN, `Access-Control-Allow-Origin: ${acao}`);
-    await sleep(1500);
-    const apiCalls = responses.filter((r) => r.url.startsWith(`${api}/api/v1/`) && !r.url.endsWith("/auth/token"));
+    // A cold, freshly isolated profile takes longer to reach the first
+    // authenticated fetch than a warm one, so poll instead of a fixed sleep.
+    let apiCalls = [];
+    for (let i = 0; i < 20; i++) {
+      apiCalls = responses.filter((r) => r.url.startsWith(`${api}/api/v1/`) && !r.url.endsWith("/auth/token"));
+      if (apiCalls.length > 0) break;
+      await sleep(500);
+    }
     check(
       "rest.authenticated_calls_ok",
       apiCalls.length > 0 && apiCalls.every((r) => r.status < 400),
@@ -248,7 +296,20 @@ async function main() {
     await page.evaluate(() => {
       location.hash = "#/configuration/application";
     });
-    await page.waitForFunction(() => document.body.innerText.includes("Studi'OS Desktop"), null, { timeout: 15_000 });
+    // Version/protocol populate async (bridge round-trip); wait for them
+    // directly rather than the product name alone, since a cold profile's
+    // first bridge call is slower than a warm one. Don't let a genuine miss
+    // abort the whole suite - fall through to check() with whatever text
+    // is on screen once the timeout elapses.
+    try {
+      await page.waitForFunction(
+        () => document.body.innerText.includes("Studi'OS Desktop") && document.body.innerText.includes("0.1.0") && document.body.innerText.includes("studio.local/v1"),
+        null,
+        { timeout: 20_000 },
+      );
+    } catch {
+      /* fall through to check() below, which records the failure with evidence */
+    }
     const text = await page.evaluate(() => document.body.innerText);
     check("settings.shows_identity", text.includes("Studi'OS Desktop") && text.includes("0.1.0") && text.includes("studio.local/v1"), "Settings > Application shows product, version and protocol");
     check("settings.shows_desktop_mode", /Desktop/.test(text) && !/Application Desktop non utilisée/.test(text), "mode Desktop displayed, no web-mode fallback text");
@@ -277,8 +338,8 @@ async function main() {
     const secretStatus = idv.value?.payload?.secrets?.[0]?.status;
     check("keyring.usable_from_frozen_sidecar", idv.ok && ["present", "absent"].includes(secretStatus), `identity.get_view secret status: ${secretStatus} (keyring_unavailable would fail this check)`);
     check("keyring.no_raw_secret_to_renderer", !/token|password|"secret_value"|eyJ/i.test(idText.replace(/secret_reference|secrets|SecretReference|lookup_key|machine_credential|secret_absent|secret_store/gi, "")), "identity view carries references and status only");
-    const unserved = await invoke(page, "bridge_request", { request: bridgeRequest("workspace.save_config", {}) });
-    check("bridge.valid_but_unserved_is_not_supported", unserved.ok && unserved.value.error?.code === "not_supported", `workspace.save_config -> ${unserved.value?.error?.code}`);
+    const unserved = await invoke(page, "bridge_request", { request: bridgeRequest("publication.preview", {}) });
+    check("bridge.valid_but_unserved_is_not_supported", unserved.ok && unserved.value.error?.code === "not_supported", `publication.preview -> ${unserved.value?.error?.code}`);
     const unknown = await invoke(page, "bridge_request", { request: bridgeRequest("shell.execute", {}) });
     check("bridge.unknown_command_refused", unknown.ok && unknown.value.error?.code === "unknown_command", `shell.execute -> ${unknown.value?.error?.code}`);
     const badProtocol = await invoke(page, "bridge_request", { request: { ...bridgeRequest("daemon.status", { action: "status", profile }), protocol: "studio.local/v2" } });

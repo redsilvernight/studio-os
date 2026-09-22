@@ -555,6 +555,7 @@ async function paintProjet(
         ...session.state,
         projectId: input.value,
         projectName: chosen?.name ?? chosen?.slug ?? undefined,
+        projectSlug: chosen?.slug ?? undefined,
       };
       persist(session);
       const next = root.querySelector<HTMLButtonElement>('[data-action=next]');
@@ -574,7 +575,12 @@ async function paintProjet(
       void createProject(client, { name } as Parameters<typeof createProject>[1], newIdempotencyKey()).then(
         (created: Project) => {
           session.projects = [...(session.projects ?? []), created];
-          session.state = { ...session.state, projectId: created.id, projectName: created.name ?? undefined };
+          session.state = {
+            ...session.state,
+            projectId: created.id,
+            projectName: created.name ?? undefined,
+            projectSlug: created.slug ?? undefined,
+          };
           session.error = null;
           session.notice = "Projet créé.";
           persist(session);
@@ -649,7 +655,10 @@ async function paintDossier(
   });
   root.querySelector("[data-action=associate]")?.addEventListener("click", () => {
     if (!picked) return;
-    void associateFolder(root, platform, session, picked.path, picked.displayName, again);
+    associateFolder(root, platform, session, picked.path, picked.displayName, again).catch(() => {
+      session.error = "L'opération a échoué. Aucune modification n'a été confirmée.";
+      void again();
+    });
   });
 }
 
@@ -703,7 +712,7 @@ async function associateFolder(
       workspace_id: workspaceId,
       profile,
       project_id: projectId,
-      ...(session.state.projectName ? { project_slug: session.state.projectName } : {}),
+      ...(session.state.projectSlug ? { project_slug: session.state.projectSlug } : {}),
       roots,
       created_at: now,
       updated_at: now,

@@ -125,8 +125,12 @@ async function main() {
   const root = mkdtempSync(join(tmpdir(), "studio-install-test-"));
   const instDir = join(root, "Programs", PRODUCT);
   const appData = join(root, "appdata");
+  const localAppData = join(root, "localappdata");
+  const webviewData = join(root, "webview2");
   const vault = join(root, "vault");
   mkdirSync(appData, { recursive: true });
+  mkdirSync(localAppData, { recursive: true });
+  mkdirSync(webviewData, { recursive: true });
   mkdirSync(vault, { recursive: true });
   const size = statSync(installerPath).size;
   console.log(`installer ${installerPath} (${(size / 1048576).toFixed(1)} MB) -> ${instDir}`);
@@ -156,6 +160,8 @@ async function main() {
       env: {
         ...process.env,
         APPDATA: appData,
+        LOCALAPPDATA: localAppData,
+        WEBVIEW2_USER_DATA_FOLDER: webviewData,
         STUDIO_CLIENT_API_BASE_URL: "http://127.0.0.1:1/api/v1",
         WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${CDP_PORT}`,
       },
