@@ -314,7 +314,7 @@ async function main() {
     check("process.recovered_sidecar_renegotiates", rehandshake.ok && rehandshake.value?.payload?.outcome === "compatible", `handshake on the restarted sidecar -> ${rehandshake.value?.payload?.outcome ?? JSON.stringify(rehandshake.value?.error?.code)}`);
     const after = await invoke(page, "bridge_request", { request: bridgeRequest("daemon.status", { action: "status", profile }) });
     check("process.request_after_exit_recovers_once", after.ok && after.value?.payload?.status?.state === "stopped", `daemon.status after restart -> ${after.value?.payload?.status?.state}${after.value?.payload?.status ? "" : ` raw=${JSON.stringify(after.value).slice(0, 400)}`}`);
-    check("process.single_sidecar_after_recovery", processCount("studio-daemon.exe") === sidecarProcessesBefore, `studio-daemon.exe processes (a onefile build is a bootloader plus its child): ${processCount("studio-daemon.exe")}, before the kill: ${sidecarProcessesBefore}`);
+    check("process.single_sidecar_after_recovery", processCount("studio-daemon.exe") === sidecarProcessesBefore, `studio-daemon.exe processes (the onedir sidecar is a single process): ${processCount("studio-daemon.exe")}, before the kill: ${sidecarProcessesBefore}`);
 
     let abandoned = null;
     let lastAnswer = null;

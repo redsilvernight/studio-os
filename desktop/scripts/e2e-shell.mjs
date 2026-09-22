@@ -198,8 +198,14 @@ async function main() {
     await page.waitForSelector("[data-testid=server-section]", { timeout: 15_000 });
     const eff = await page.textContent("[data-testid=server-effective]");
     check("settings.effective_server", eff?.includes("59998"), `effective: ${eff}`);
-    const logsDisabled = await page.evaluate(() => document.querySelector("[data-testid=open-logs]")?.disabled === true);
-    check("settings.logs_entry_disabled_not_faked", logsDisabled, "open-logs button disabled (P4 owns log collection)");
+    await page.evaluate(() => {
+      document.querySelector("[data-testid=diagnostics]")?.setAttribute("open", "");
+    });
+    const logsEnabled = await page
+      .waitForSelector("[data-testid=open-logs]", { state: "attached", timeout: 10_000 })
+      .then(() => page.evaluate(() => document.querySelector("[data-testid=open-logs]")?.disabled === false))
+      .catch(() => false);
+    check("settings.logs_entry_enabled", logsEnabled, "open-logs button is a working entry (P10)");
     const daemonText = await page.textContent("[data-testid=daemon-state]");
     check("settings.daemon_state_from_p1", sidecarShipped ? /^(Arr\S+|D\S+marrage|En marche)$/u.test((daemonText ?? "").trim().normalize("NFC")) : /indisponible/i.test(daemonText ?? ""), `sidecar ${sidecarState}; daemon: ${daemonText}`);
     const serverState = await page.textContent("[data-testid=server-section]");
