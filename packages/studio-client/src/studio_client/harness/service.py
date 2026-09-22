@@ -31,6 +31,9 @@ from studio_contracts.local.harness import (
     HarnessState,
     HarnessStatus,
     HarnessStatusRequest,
+    HarnessVerifyRequest,
+    HarnessVerifyResult,
+    VerifyState,
 )
 from studio_contracts.local.workspace import WorkspaceScope
 
@@ -444,6 +447,97 @@ class HarnessService:
             restored=restored,
             state=_map_state(adapter.detect(ctx))[0],
         )
+
+    def verify(self, request: HarnessVerifyRequest) -> HarnessVerifyResult:
+        info = self._workspace(request.workspace_id, needs_feature=True)
+        adapter = self._adapter(request.adapter_id)
+        ctx = self._context(info)
+        detection = adapter.detect(ctx)
+        if detection.state is not DetectionState.CONFIGURED:
+            return HarnessVerifyResult(
+                adapter_id=adapter.adapter_id,
+                state=VerifyState.UNCONFIGURED
+                if detection.state is DetectionState.CONFIGURATION_MISSING
+                else VerifyState.FAILED,
+                mcp_url=None,
+                error=None,
+                details={"detection_state": detection.state.value},
+            )
+        # The harness is CONFIGURED - now test the actual MCP connection
+        # We need to verify that the MCP server can be reached and authenticated
+        # This requires the STUDIO_MCP_MACHINE_TOKEN to be available in the environment
+        token = ctx.env_value("STUDIO_MCP_MACHINE_TOKEN")
+        if not token:
+            return HarnessVerifyResult(
+                adapter_id=adapter.adapter_id,
+                state=VerifyState.CONFIGURED,
+                mcp_url=info.mcp_url,
+                error=None,
+                details={"reason": "token_missing"},
+            )
+        # Try to make a real MCP call to verify the connection
+        # Use the local bridge to call a minimal tool (studio_get_projects)
+        # This proves the full chain: harness config -> MCP URL -> auth -> Studi'OS
+        try:
+            import asyncio
+            import httpx
+            
+            async def test_mcp_call() -> tuple[bool, str | None]:
+                headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+                # Use a simple read-only tool call to verify connectivity
+                payload = {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "studio_get_projects",
+                        "arguments": {}
+                    }
+                }
+                try:
+                    async with httpx.AsyncClient(timeout=10.0) as client:
+                        response = await client.post(info.mcp_url, json=payload, headers=headers)
+                        if response.status_code == 200:
+                            return True, None
+                        return False, f"HTTP {response.status_code}: {response.text[:200]}"
+                except Exception as e:
+                    return False, str(e)
+            
+            success, error_msg = asyncio.run(test_mcp_call())
+            if success:
+                return HarnessVerifyResult(
+                    adapter_id=adapter.adapter_id,
+                    state=VerifyState.VERIFIED,
+                    mcp_url=info.mcp_url,
+                    error=None,
+                    details={"method": "studio_get_projects"},
+                )
+            else:
+                return HarnessVerifyResult(
+                    adapter_id=adapter.adapter_id,
+                    state=VerifyState.FAILED,
+                    mcp_url=info.mcp_url,
+                    error=LocalError(
+                        code=LocalErrorCode.INTERNAL_ERROR,
+                        message=f"MCP verification failed: {error_msg}",
+                        component=ComponentId.HARNESS,
+                        retryable=True,
+                    ),
+                    details={"reason": "mcp_call_failed"},
+                )
+        except Exception as e:
+            return HarnessVerifyResult(
+                adapter_id=adapter.adapter_id,
+                state=VerifyState.FAILED,
+                mcp_url=info.mcp_url,
+                error=LocalError(
+                    code=LocalErrorCode.INTERNAL_ERROR,
+                    message=f"Verification error: {str(e)[:200]}",
+                    component=ComponentId.HARNESS,
+                    retryable=True,
+                ),
+                details={"reason": "verification_exception"},
+            )
 
     def _find_record(self, rollback_id: str) -> BackupRecord:
         record: BackupRecord | None = None

@@ -27,6 +27,8 @@ from studio_contracts.local.harness import (
     HarnessRollbackResult,
     HarnessStatus,
     HarnessStatusRequest,
+    HarnessVerifyRequest,
+    HarnessVerifyResult,
 )
 from studio_contracts.local.identity import ProfileRef
 from studio_contracts.local.knowledge import (
@@ -68,6 +70,7 @@ FEATURE_CAPABILITIES: tuple[str, ...] = (
     "harness.read",
     "harness.plan",
     "harness.apply",
+    "harness.verify",
 )
 MCP_PATH = "/mcp"
 
@@ -592,6 +595,9 @@ class LocalFeatureRegistry:
 
     def harness_rollback(self, request: HarnessRollbackRequest) -> HarnessRollbackResult:
         return self._harness_call(None, lambda: self._harness.rollback(request))
+
+    def harness_verify(self, request: HarnessVerifyRequest) -> HarnessVerifyResult:
+        return self._harness_call(request.workspace_id, lambda: self._harness.verify(request))
 
     async def on_git_change(self, change: GitChange) -> None:
         if not self._started or self._code_graph is None:

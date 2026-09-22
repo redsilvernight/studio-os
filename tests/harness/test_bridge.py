@@ -22,7 +22,7 @@ from tests.integration_wave2.conftest import (
     negotiate,
 )
 
-HARNESS_CAPABILITIES = ["harness.read", "harness.plan", "harness.apply"]
+HARNESS_CAPABILITIES = ["harness.read", "harness.plan", "harness.apply", "harness.verify"]
 SCOPE = {"workspace_id": str(WORKSPACE_ID)}
 MCP_URL = "https://studio.example/mcp"
 
@@ -254,6 +254,28 @@ def test_preview_is_refused_when_the_feature_is_disabled(tmp_path: Path) -> None
 def test_absent_harnesses_are_reported_not_detected(tmp_path: Path) -> None:
     with _make_bridge(tmp_path, harness=True, harnesses=False) as bridge:
         assert set(bridge.states().values()) == {"not_detected"}
+
+
+def test_verify_unconfigured_before_apply(bridge: Bridge) -> None:
+    """verify returns UNCONFIGURED when the harness is not yet applied."""
+    result = bridge.call("harness.verify", {**SCOPE, "adapter_id": "claude-code"})
+    assert result["kind"] != "error", result
+    assert result["payload"]["state"] == "unconfigured"
+    assert result["payload"]["adapter_id"] == "claude-code"
+    assert result["payload"]["mcp_url"] is None
+    assert result["payload"]["error"] is None
+
+
+def test_verify_configured_after_apply(bridge: Bridge) -> None:
+    """verify returns CONFIGURED after apply (without token, no VERIFIED)."""
+    bridge.apply(bridge.preview("claude-code"))
+    result = bridge.call("harness.verify", {**SCOPE, "adapter_id": "claude-code"})
+    assert result["kind"] != "error", result
+    assert result["payload"]["state"] == "configured"
+    assert result["payload"]["adapter_id"] == "claude-code"
+    assert result["payload"]["mcp_url"] == MCP_URL
+    assert result["payload"]["error"] is None
+    assert result["payload"]["details"]["reason"] == "token_missing"
 
 
 def test_j_no_provider_credential_is_involved(bridge: Bridge) -> None:

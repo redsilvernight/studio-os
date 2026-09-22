@@ -48,6 +48,8 @@ from studio_contracts.local.harness import (
     HarnessRollbackResult,
     HarnessStatus,
     HarnessStatusRequest,
+    HarnessVerifyRequest,
+    HarnessVerifyResult,
 )
 from studio_contracts.local.identity import IdentityView
 from studio_contracts.local.knowledge import (
@@ -136,6 +138,7 @@ class BridgeCommand(StrEnum):
     HARNESS_PREVIEW = "harness.preview"
     HARNESS_APPLY = "harness.apply"
     HARNESS_ROLLBACK = "harness.rollback"
+    HARNESS_VERIFY = "harness.verify"
     PUBLICATION_PREVIEW = "publication.preview"
     PUBLICATION_PUBLISH = "publication.publish"
 
@@ -306,6 +309,12 @@ BRIDGE_COMMANDS: dict[BridgeCommand, CommandSpec] = dict(
             HarnessRollbackResult,
             "harness.apply",
             mutating=True,
+        ),
+        _spec(
+            BridgeCommand.HARNESS_VERIFY,
+            HarnessVerifyRequest,
+            HarnessVerifyResult,
+            "harness.verify",
         ),
         _spec(
             BridgeCommand.PUBLICATION_PREVIEW,

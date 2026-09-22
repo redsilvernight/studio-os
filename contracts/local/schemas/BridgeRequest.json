@@ -32,6 +32,7 @@
         "harness.preview",
         "harness.apply",
         "harness.rollback",
+        "harness.verify",
         "publication.preview",
         "publication.publish"
       ],

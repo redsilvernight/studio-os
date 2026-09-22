@@ -162,6 +162,8 @@
     "HarnessRollbackResult",
     "HarnessStatus",
     "HarnessStatusRequest",
+    "HarnessVerifyRequest",
+    "HarnessVerifyResult",
     "HumanIdentity",
     "IdentityBinding",
     "IdentityView",

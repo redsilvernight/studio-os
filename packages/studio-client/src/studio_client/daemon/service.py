@@ -55,6 +55,8 @@ from studio_contracts.local.harness import (
     HarnessPreviewRequest,
     HarnessRollbackRequest,
     HarnessStatusRequest,
+    HarnessVerifyRequest,
+    HarnessVerifyResult,
 )
 from studio_contracts.local.identity import (
     IdentityView,
@@ -158,6 +160,7 @@ SERVED = frozenset(
         BridgeCommand.HARNESS_PREVIEW,
         BridgeCommand.HARNESS_APPLY,
         BridgeCommand.HARNESS_ROLLBACK,
+        BridgeCommand.HARNESS_VERIFY,
     }
 )
 _LOCAL_FEATURE_COMMANDS = frozenset(
@@ -178,6 +181,7 @@ _LOCAL_FEATURE_COMMANDS = frozenset(
         BridgeCommand.HARNESS_PREVIEW,
         BridgeCommand.HARNESS_APPLY,
         BridgeCommand.HARNESS_ROLLBACK,
+        BridgeCommand.HARNESS_VERIFY,
     }
 )
 _LOGGER = logging.getLogger("studio_client.daemon.service")
@@ -713,6 +717,8 @@ class BridgeService:
             return features.harness_apply(HarnessApplyRequest.model_validate(payload))
         if request.command is BridgeCommand.HARNESS_ROLLBACK:
             return features.harness_rollback(HarnessRollbackRequest.model_validate(payload))
+        if request.command is BridgeCommand.HARNESS_VERIFY:
+            return features.harness_verify(HarnessVerifyRequest.model_validate(payload))
         return features.code_graph_reindex(CodeReindexRequest.model_validate(payload))
 
     @staticmethod
