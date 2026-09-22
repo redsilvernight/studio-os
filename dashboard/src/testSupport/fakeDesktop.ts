@@ -1,7 +1,7 @@
 import type { BridgeAnswer } from "../platform/contracts";
 import type { DaemonRunState, PeerInfo } from "../platform/generated/local-contracts.generated";
 import type { BridgeCommand } from "../platform/contracts";
-import type { Platform, ServerOriginState } from "../platform";
+import type { DesktopDiagnostics, Platform, ServerOriginState } from "../platform";
 
 /** A Desktop `PeerInfo` shaped like the Rust one (health optional, never required). */
 export const PEER = {
@@ -24,12 +24,34 @@ export const INFO = {
   peer: PEER,
   sidecar: { state: "not_started" as const },
 };
+export const DIAGNOSTICS: DesktopDiagnostics = {
+  desktop_version: "0.1.0",
+  protocol: "studio.local/v1",
+  os: "windows",
+  arch: "x86_64",
+  sidecar: {
+    state: { state: "not_started" },
+    present: true,
+    manifest: { daemon_version: "0.1.0", desktop_version: "0.1.0", protocol: "studio.local/v1" },
+    compat: "compatible",
+  },
+  server_origin: "https://studio.example.com",
+  updates_configured: false,
+  locations: {
+    daemon_data_dir: "~\\AppData\\Roaming\\StudioOS",
+    logs_dir: "~\\AppData\\Roaming\\StudioOS\\logs",
+    shell_settings_dir: "~\\AppData\\Roaming\\dev.studio-os.desktop",
+    install_dir: "~\\AppData\\Local\\Programs\\Studio OS Desktop",
+    data_format: { state: "supported", format: 1 },
+    logs: [{ name: "daemon.log", bytes: 2048 }],
+  },
+};
 export const notSupported = { ok: false, error: { code: "not_supported" } } as unknown as BridgeAnswer;
 
 export function fakeDesktop(over: Partial<Platform> = {}, origin: ServerOriginState | null = null): Platform {
   return {
     mode: "desktop",
-    native: { serverOrigin: true, pickers: true },
+    native: { serverOrigin: true, pickers: true, diagnostics: true, updates: true },
     desktopInfo: async () => INFO,
     request: async () => notSupported,
     serverOrigin: async () => origin ?? { configured: null, applied: null, restart_required: false },
@@ -37,6 +59,11 @@ export function fakeDesktop(over: Partial<Platform> = {}, origin: ServerOriginSt
     restartDesktop: async () => true,
     chooseFolder: async () => ({ status: "cancelled" }),
     chooseFile: async () => ({ status: "cancelled" }),
+    diagnostics: async () => DIAGNOSTICS,
+    exportDiagnostics: async () => ({ ok: true, file: "~\\AppData\\Roaming\\StudioOS\\diagnostics\\diagnostics-1.json" }),
+    openDataFolder: async () => true,
+    checkForUpdate: async () => ({ ok: true, status: { state: "not_configured" } }),
+    installUpdate: async () => ({ ok: false, code: "not_configured" }),
     ...over,
   };
 }

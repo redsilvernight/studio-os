@@ -3,7 +3,10 @@ import type { Platform } from "./types";
 import { webPlatform } from "./web";
 
 export type {
+  DataFolder,
+  DesktopDiagnostics,
   DesktopInfo,
+  DiagnosticsExportResult,
   PickerOptions,
   PickResult,
   Platform,
@@ -11,6 +14,9 @@ export type {
   ServerOriginRefusal,
   ServerOriginState,
   SetServerOriginResult,
+  UpdateCheckResult,
+  UpdateErrorCode,
+  UpdateStatus,
 } from "./types";
 
 let cached: Platform | undefined;

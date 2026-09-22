@@ -195,3 +195,86 @@ describe("platform adapters", () => {
     expect(seen).toEqual(["bridge_request"]);
   });
 });
+
+describe("desktop adapter: diagnostics and updates", () => {
+  const DIAG = {
+    desktop_version: "0.1.0",
+    protocol: LOCAL_PROTOCOL,
+    os: "windows",
+    arch: "x86_64",
+    sidecar: { state: { state: "not_started" }, present: true, manifest: null, compat: "unknown" },
+    server_origin: null,
+    updates_configured: false,
+    locations: {
+      daemon_data_dir: null,
+      logs_dir: null,
+      shell_settings_dir: null,
+      install_dir: null,
+      data_format: { state: "unstamped" },
+      logs: [],
+    },
+  };
+
+  it("shape-checks the diagnostics and refuses anything else", async () => {
+    expect((await createDesktopPlatform(async () => DIAG).diagnostics())?.os).toBe("windows");
+    await expect(createDesktopPlatform(async () => ({ ...DIAG, sidecar: null })).diagnostics()).rejects.toThrow();
+    await expect(createDesktopPlatform(async () => ({ ...DIAG, locations: { ...DIAG.locations, logs: [{ name: 1 }] } })).diagnostics()).rejects.toThrow();
+    await expect(createDesktopPlatform(async () => "nope").diagnostics()).rejects.toThrow();
+  });
+
+  it("accepts the tagged sidecar state the shell really serializes", async () => {
+    const running = { ...DIAG, sidecar: { ...DIAG.sidecar, state: { state: "running", pid: 4352 } } };
+    expect((await createDesktopPlatform(async () => running).diagnostics())?.sidecar.state).toEqual({ state: "running", pid: 4352 });
+    await expect(createDesktopPlatform(async () => ({ ...DIAG, sidecar: { ...DIAG.sidecar, state: "running" } })).diagnostics()).rejects.toThrow();
+  });
+
+  it("the folder to open is a closed value passed as is; a refusal is just false", async () => {
+    const calls: unknown[] = [];
+    const ok = createDesktopPlatform(async (name, args) => {
+      calls.push([name, args]);
+      return null;
+    });
+    expect(await ok.openDataFolder("logs")).toBe(true);
+    expect(calls).toEqual([["open_data_folder", { folder: "logs" }]]);
+    const refused = createDesktopPlatform(async () => {
+      throw { code: "open_failed" };
+    });
+    expect(await refused.openDataFolder("diagnostics")).toBe(false);
+  });
+
+  it("exports through the shell and never trusts an answer without a file", async () => {
+    expect(await createDesktopPlatform(async () => ({ file: "~\\d.json" })).exportDiagnostics()).toEqual({ ok: true, file: "~\\d.json" });
+    expect((await createDesktopPlatform(async () => ({})).exportDiagnostics()).ok).toBe(false);
+    const failed = await createDesktopPlatform(async () => {
+      throw { code: "export_failed" };
+    }).exportDiagnostics();
+    expect(failed).toEqual({ ok: false, code: "export_failed" });
+  });
+
+  it("maps the update states and every shell error code, unknown ones to failed", async () => {
+    const status = async (v: unknown) => createDesktopPlatform(async () => v).checkForUpdate();
+    expect(await status({ state: "not_configured" })).toEqual({ ok: true, status: { state: "not_configured" } });
+    expect(await status({ state: "up_to_date", current: "0.1.0" })).toEqual({ ok: true, status: { state: "up_to_date", current: "0.1.0" } });
+    expect(await status({ state: "available", current: "0.1.0", version: "0.2.0" })).toEqual({
+      ok: true,
+      status: { state: "available", current: "0.1.0", version: "0.2.0", notes: null },
+    });
+    expect(await status({ state: "available" })).toEqual({ ok: false, code: "invalid_metadata" });
+    const failing = (code: unknown) =>
+      createDesktopPlatform(async () => {
+        throw { code };
+      });
+    for (const code of ["not_configured", "network", "invalid_metadata", "invalid_signature", "install_failed"]) {
+      expect(await failing(code).checkForUpdate()).toEqual({ ok: false, code });
+      expect(await failing(code).installUpdate()).toEqual({ ok: false, code });
+    }
+    expect(await failing("boom").checkForUpdate()).toEqual({ ok: false, code: "failed" });
+  });
+
+  it("the web adapter offers none of it and says so", async () => {
+    expect(webPlatform.native.diagnostics || webPlatform.native.updates).toBe(false);
+    expect(await webPlatform.diagnostics()).toBeNull();
+    expect(await webPlatform.openDataFolder("logs")).toBe(false);
+    expect(await webPlatform.checkForUpdate()).toEqual({ ok: false, code: "not_configured" });
+  });
+});

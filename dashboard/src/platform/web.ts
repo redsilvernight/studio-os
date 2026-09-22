@@ -4,7 +4,7 @@ import type { Platform, SetServerOriginResult } from "./types";
 /** Browser build: no Desktop, no local bridge, no pretending otherwise. */
 export const webPlatform: Platform = {
   mode: "web",
-  native: { serverOrigin: false, pickers: false },
+  native: { serverOrigin: false, pickers: false, diagnostics: false, updates: false },
   async desktopInfo() {
     return null;
   },
@@ -22,6 +22,21 @@ export const webPlatform: Platform = {
   },
   async chooseFile() {
     return { status: "unavailable" };
+  },
+  async diagnostics() {
+    return null;
+  },
+  async exportDiagnostics() {
+    return { ok: false, code: "unavailable" };
+  },
+  async openDataFolder() {
+    return false;
+  },
+  async checkForUpdate() {
+    return { ok: false, code: "not_configured" };
+  },
+  async installUpdate() {
+    return { ok: false, code: "not_configured" };
   },
   async request(): Promise<BridgeAnswer> {
     return {
