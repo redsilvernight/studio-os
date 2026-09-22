@@ -89,7 +89,10 @@ pub fn validate(raw: &str) -> Result<String, OriginError> {
     if trimmed.len() > MAX_LEN {
         return Err(OriginError::TooLong);
     }
-    if trimmed.chars().any(|c| c.is_whitespace() || c.is_control() || c == '*') {
+    if trimmed
+        .chars()
+        .any(|c| c.is_whitespace() || c.is_control() || c == '*')
+    {
         return Err(OriginError::Invalid);
     }
     let url = Url::parse(trimmed).map_err(|_| OriginError::Invalid)?;
@@ -103,7 +106,10 @@ pub fn validate(raw: &str) -> Result<String, OriginError> {
     if url.host().is_none() {
         return Err(OriginError::Invalid);
     }
-    if (url.path() != "/" && !url.path().is_empty()) || url.query().is_some() || url.fragment().is_some() {
+    if (url.path() != "/" && !url.path().is_empty())
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
         return Err(OriginError::NotAnOrigin);
     }
     if is_desktop_origin_host(&url) {
@@ -184,6 +190,10 @@ impl SettingsStore {
         dirs::config_dir().map(|base| Self::new(base.join(identifier)))
     }
 
+    pub fn dir(&self) -> &std::path::Path {
+        &self.dir
+    }
+
     fn file(&self) -> PathBuf {
         self.dir.join(SETTINGS_FILE)
     }
@@ -199,8 +209,10 @@ impl SettingsStore {
     /// Persist an already validated origin, or clear it with `None`.
     pub fn save(&self, origin: Option<&str>) -> std::io::Result<()> {
         fs::create_dir_all(&self.dir)?;
-        let body = serde_json::to_string_pretty(&SettingsFile { server_origin: origin.map(str::to_owned) })
-            .map_err(std::io::Error::other)?;
+        let body = serde_json::to_string_pretty(&SettingsFile {
+            server_origin: origin.map(str::to_owned),
+        })
+        .map_err(std::io::Error::other)?;
         write_atomic(&self.file(), body.as_bytes())
     }
 }
@@ -226,27 +238,54 @@ mod tests {
             Some("https://a.example")
         );
         assert_eq!(
-            effective_origin(Some("http://tauri.localhost"), Some("http://127.0.0.1:8000")).as_deref(),
+            effective_origin(
+                Some("http://tauri.localhost"),
+                Some("http://127.0.0.1:8000")
+            )
+            .as_deref(),
             Some("http://127.0.0.1:8000")
         );
         assert_eq!(effective_origin(None, None), None);
         assert_eq!(effective_origin(None, Some("http://tauri.localhost")), None);
-        assert_eq!(effective_origin(None, Some("http://studio.example.com")), None);
+        assert_eq!(
+            effective_origin(None, Some("http://studio.example.com")),
+            None
+        );
         assert_eq!(effective_origin(None, Some("file:///etc/passwd")), None);
     }
 
     #[test]
     fn https_origins_are_accepted_and_normalised() {
-        assert_eq!(validate("https://studio.example.com").unwrap(), "https://studio.example.com");
-        assert_eq!(validate("  https://Studio.Example.com:443/ ").unwrap(), "https://studio.example.com");
-        assert_eq!(validate("https://studio.example.com:8443").unwrap(), "https://studio.example.com:8443");
+        assert_eq!(
+            validate("https://studio.example.com").unwrap(),
+            "https://studio.example.com"
+        );
+        assert_eq!(
+            validate("  https://Studio.Example.com:443/ ").unwrap(),
+            "https://studio.example.com"
+        );
+        assert_eq!(
+            validate("https://studio.example.com:8443").unwrap(),
+            "https://studio.example.com:8443"
+        );
     }
 
     #[test]
     fn http_is_only_accepted_for_local_development() {
-        assert_eq!(validate("http://localhost:8000").unwrap(), "http://localhost:8000");
-        assert_eq!(validate("http://127.0.0.1:8000").unwrap(), "http://127.0.0.1:8000");
-        for bad in ["http://studio.example.com", "http://192.168.1.10:8000", "http://[::1]:8000", "http://10.0.0.1"] {
+        assert_eq!(
+            validate("http://localhost:8000").unwrap(),
+            "http://localhost:8000"
+        );
+        assert_eq!(
+            validate("http://127.0.0.1:8000").unwrap(),
+            "http://127.0.0.1:8000"
+        );
+        for bad in [
+            "http://studio.example.com",
+            "http://192.168.1.10:8000",
+            "http://[::1]:8000",
+            "http://10.0.0.1",
+        ] {
             assert_eq!(validate(bad), Err(OriginError::InsecureScheme), "{bad}");
         }
     }
@@ -263,8 +302,14 @@ mod tests {
             ("ftp://studio.example.com", OriginError::UnsupportedScheme),
             ("file:///C:/secret", OriginError::UnsupportedScheme),
             ("javascript:alert(1)", OriginError::UnsupportedScheme),
-            ("https://user:pw@studio.example.com", OriginError::CredentialsNotAllowed),
-            ("https://user@studio.example.com", OriginError::CredentialsNotAllowed),
+            (
+                "https://user:pw@studio.example.com",
+                OriginError::CredentialsNotAllowed,
+            ),
+            (
+                "https://user@studio.example.com",
+                OriginError::CredentialsNotAllowed,
+            ),
             ("https://studio.example.com/api", OriginError::NotAnOrigin),
             ("https://studio.example.com/?x=1", OriginError::NotAnOrigin),
             ("https://studio.example.com/#frag", OriginError::NotAnOrigin),
@@ -272,12 +317,20 @@ mod tests {
         for (raw, want) in cases {
             assert_eq!(validate(raw), Err(want), "{raw:?}");
         }
-        assert_eq!(validate(&format!("https://{}.com", "a".repeat(2100))), Err(OriginError::TooLong));
+        assert_eq!(
+            validate(&format!("https://{}.com", "a".repeat(2100))),
+            Err(OriginError::TooLong)
+        );
     }
 
     #[test]
     fn the_desktop_origin_is_never_a_server_origin() {
-        for bad in ["http://tauri.localhost", "https://tauri.localhost", "http://ipc.localhost", "https://TAURI.localhost:1420"] {
+        for bad in [
+            "http://tauri.localhost",
+            "https://tauri.localhost",
+            "http://ipc.localhost",
+            "https://TAURI.localhost:1420",
+        ] {
             assert_eq!(validate(bad), Err(OriginError::DesktopOrigin), "{bad}");
         }
     }
@@ -311,8 +364,13 @@ mod tests {
     #[test]
     fn every_error_has_a_stable_code_and_a_message() {
         let all = [
-            OriginError::Empty, OriginError::TooLong, OriginError::Invalid, OriginError::UnsupportedScheme,
-            OriginError::CredentialsNotAllowed, OriginError::NotAnOrigin, OriginError::InsecureScheme,
+            OriginError::Empty,
+            OriginError::TooLong,
+            OriginError::Invalid,
+            OriginError::UnsupportedScheme,
+            OriginError::CredentialsNotAllowed,
+            OriginError::NotAnOrigin,
+            OriginError::InsecureScheme,
             OriginError::DesktopOrigin,
         ];
         let mut codes: Vec<_> = all.iter().map(|e| e.code()).collect();
@@ -327,7 +385,9 @@ mod tests {
     #[test]
     fn csp_gets_only_the_connect_origin_added() {
         let out = csp_with_connect_origin(BASE, "https://studio.example.com");
-        assert!(out.contains("connect-src 'self' ipc: http://ipc.localhost https://studio.example.com"));
+        assert!(
+            out.contains("connect-src 'self' ipc: http://ipc.localhost https://studio.example.com")
+        );
         assert!(out.contains("default-src 'self'; script-src 'self'"));
         assert!(out.contains("object-src 'none'"));
         assert!(!out.contains('*'));
@@ -336,13 +396,20 @@ mod tests {
     #[test]
     fn csp_injection_is_idempotent_and_creates_connect_src_when_absent() {
         let once = csp_with_connect_origin(BASE, "https://studio.example.com");
-        assert_eq!(csp_with_connect_origin(&once, "https://studio.example.com"), once);
+        assert_eq!(
+            csp_with_connect_origin(&once, "https://studio.example.com"),
+            once
+        );
         let bare = csp_with_connect_origin("default-src 'self'", "https://s.example.com");
-        assert_eq!(bare, "default-src 'self'; connect-src 'self' https://s.example.com");
+        assert_eq!(
+            bare,
+            "default-src 'self'; connect-src 'self' https://s.example.com"
+        );
     }
 
     fn temp_store(tag: &str) -> SettingsStore {
-        let dir = std::env::temp_dir().join(format!("studio-desktop-test-{tag}-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("studio-desktop-test-{tag}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         SettingsStore::new(dir)
     }
@@ -364,7 +431,11 @@ mod tests {
         fs::create_dir_all(&store.dir).unwrap();
         fs::write(store.file(), "not json").unwrap();
         assert_eq!(store.load(), None);
-        fs::write(store.file(), r#"{"server_origin":"http://evil.example.com"}"#).unwrap();
+        fs::write(
+            store.file(),
+            r#"{"server_origin":"http://evil.example.com"}"#,
+        )
+        .unwrap();
         assert_eq!(store.load(), None, "an invalid persisted origin is ignored");
         let _ = fs::remove_dir_all(&store.dir);
     }
@@ -375,7 +446,10 @@ mod tests {
         store.save(Some("https://studio.example.com")).unwrap();
         let text = fs::read_to_string(store.file()).unwrap();
         let v: serde_json::Value = serde_json::from_str(&text).unwrap();
-        assert_eq!(v.as_object().unwrap().keys().collect::<Vec<_>>(), vec!["server_origin"]);
+        assert_eq!(
+            v.as_object().unwrap().keys().collect::<Vec<_>>(),
+            vec!["server_origin"]
+        );
         let _ = fs::remove_dir_all(&store.dir);
     }
 }

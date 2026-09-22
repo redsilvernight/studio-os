@@ -86,7 +86,11 @@ mod tests {
 
     #[test]
     fn allowlist_matches_p1_export() {
-        assert_eq!(all_commands().len(), 29, "studio.local/v1 exports 29 commands");
+        assert_eq!(
+            all_commands().len(),
+            29,
+            "studio.local/v1 exports 29 commands"
+        );
         assert!(lookup("runtime.handshake").is_some());
         assert!(lookup("daemon.status").is_some());
         assert!(lookup("daemon.health").is_some());
@@ -122,8 +126,18 @@ mod tests {
     fn no_allowlisted_name_carries_a_forbidden_primitive_term() {
         // Mirrors studio_contracts.local.bridge.FORBIDDEN_PRIMITIVE_TERMS.
         let terms = [
-            "exec", "shell", "spawn", "process", "filesystem", "fs.", "http", "proxy", "eval",
-            "raw", "stdin", "command_line",
+            "exec",
+            "shell",
+            "spawn",
+            "process",
+            "filesystem",
+            "fs.",
+            "http",
+            "proxy",
+            "eval",
+            "raw",
+            "stdin",
+            "command_line",
         ];
         for name in all_commands() {
             assert!(

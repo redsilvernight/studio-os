@@ -39,8 +39,7 @@ pub fn decide(target: &Url, dev_origin: Option<&Url>) -> Decision {
 }
 
 fn is_internal(target: &Url, dev_origin: Option<&Url>) -> bool {
-    if target.scheme() == "http" && target.host_str() == Some(APP_HOST) && target.port().is_none()
-    {
+    if target.scheme() == "http" && target.host_str() == Some(APP_HOST) && target.port().is_none() {
         return true;
     }
     match dev_origin {
@@ -137,15 +136,27 @@ mod tests {
             assert_eq!(decide(&u(s), None), Decision::Deny, "{s}");
         }
         // The spoof resolves to the *evil* host, never to the app.
-        assert_eq!(u("http://tauri.localhost@evil.test/").host_str(), Some("evil.test"));
+        assert_eq!(
+            u("http://tauri.localhost@evil.test/").host_str(),
+            Some("evil.test")
+        );
     }
 
     #[test]
     fn dev_origin_is_internal_only_when_provided() {
         let dev = u("http://localhost:5173");
-        assert_eq!(decide(&u("http://localhost:5173/x"), Some(&dev)), Decision::Allow);
-        assert_eq!(decide(&u("http://localhost:5174/"), Some(&dev)), Decision::OpenExternally);
-        assert_eq!(decide(&u("http://localhost:5173/x"), None), Decision::OpenExternally);
+        assert_eq!(
+            decide(&u("http://localhost:5173/x"), Some(&dev)),
+            Decision::Allow
+        );
+        assert_eq!(
+            decide(&u("http://localhost:5174/"), Some(&dev)),
+            Decision::OpenExternally
+        );
+        assert_eq!(
+            decide(&u("http://localhost:5173/x"), None),
+            Decision::OpenExternally
+        );
     }
 
     #[test]

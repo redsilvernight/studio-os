@@ -10,12 +10,14 @@ mod allowlist;
 mod bridge;
 #[cfg_attr(not(test), allow(dead_code))] // consumed by build.rs and the tests
 mod command_names;
+mod diagnostics;
 mod info;
 mod navigation;
 mod picker;
 mod server_origin;
 mod shell_commands;
 mod sidecar;
+mod updater;
 
 use navigation::Decision;
 use serde_json::{Map, Value};
@@ -96,7 +98,14 @@ fn handle_request(sidecar: &Sidecar, request: Value) -> Value {
     }
     let line = match serde_json::to_string(&request) {
         Ok(l) if !l.contains('\n') => l,
-        _ => return err("invalid_request", "The request could not be serialised.", false, Map::new()),
+        _ => {
+            return err(
+                "invalid_request",
+                "The request could not be serialised.",
+                false,
+                Map::new(),
+            )
+        }
     };
     match sidecar.exchange(&line) {
         Ok(answer) => match serde_json::from_str::<Value>(&answer) {
@@ -104,7 +113,12 @@ fn handle_request(sidecar: &Sidecar, request: Value) -> Value {
                 Ok(()) => parsed,
                 Err(why) => err("internal_error", why, false, Map::new()),
             },
-            Err(_) => err("internal_error", "The local peer answered with invalid JSON.", false, Map::new()),
+            Err(_) => err(
+                "internal_error",
+                "The local peer answered with invalid JSON.",
+                false,
+                Map::new(),
+            ),
         },
         Err(ExchangeError::Unavailable) => err(
             "daemon_unavailable",
@@ -117,21 +131,34 @@ fn handle_request(sidecar: &Sidecar, request: Value) -> Value {
             if let Some(code) = code {
                 details.insert("exit_code".into(), Value::from(code));
             }
-            err("daemon_crashed", "The local daemon stopped unexpectedly.", true, details)
+            err(
+                "daemon_crashed",
+                "The local daemon stopped unexpectedly.",
+                true,
+                details,
+            )
         }
-        Err(ExchangeError::Timeout) => {
-            err("timeout", "The local daemon did not answer in time.", true, Map::new())
-        }
-        Err(ExchangeError::Io) => {
-            err("internal_error", "The local daemon channel failed.", true, Map::new())
-        }
+        Err(ExchangeError::Timeout) => err(
+            "timeout",
+            "The local daemon did not answer in time.",
+            true,
+            Map::new(),
+        ),
+        Err(ExchangeError::Io) => err(
+            "internal_error",
+            "The local daemon channel failed.",
+            true,
+            Map::new(),
+        ),
     }
 }
 
 fn apply_server_origin_to_csp(config: &mut tauri::Config, origin: &str) {
     let security = &mut config.app.security;
     if let Some(tauri::utils::config::Csp::Policy(policy)) = &security.csp {
-        security.csp = Some(tauri::utils::config::Csp::Policy(server_origin::csp_with_connect_origin(policy, origin)));
+        security.csp = Some(tauri::utils::config::Csp::Policy(
+            server_origin::csp_with_connect_origin(policy, origin),
+        ));
     }
 }
 
@@ -144,15 +171,26 @@ pub fn run() {
     if let Some(origin) = &applied_origin {
         apply_server_origin_to_csp(context.config_mut(), origin);
     }
-    let effective_origin =
-        server_origin::effective_origin(applied_origin.as_deref(), option_env!("STUDIO_DESKTOP_API_URL"));
+    let effective_origin = server_origin::effective_origin(
+        applied_origin.as_deref(),
+        option_env!("STUDIO_DESKTOP_API_URL"),
+    );
     let sidecar = Sidecar::with_origin(effective_origin);
     let exit_sidecar = sidecar.clone();
     let shell_state = shell_commands::ShellState::new(store, applied_origin);
 
-    let app = tauri::Builder::default()
+    // The updater is compiled in but only active when this build carries an
+    // updater configuration (public key + endpoint); otherwise it is absent.
+    let updates_configured = context.config().plugins.0.contains_key("updater");
+    let mut builder = tauri::Builder::default();
+    if updates_configured {
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    }
+
+    let app = builder
         .manage(sidecar)
         .manage(shell_state)
+        .manage(updater::UpdateState::new(updates_configured))
         .invoke_handler(tauri::generate_handler![
             desktop_info,
             bridge_request,
@@ -160,7 +198,12 @@ pub fn run() {
             shell_commands::set_server_origin,
             shell_commands::restart_desktop,
             shell_commands::choose_folder,
-            shell_commands::choose_file
+            shell_commands::choose_file,
+            shell_commands::get_diagnostics,
+            shell_commands::export_diagnostics,
+            shell_commands::open_data_folder,
+            shell_commands::check_for_update,
+            shell_commands::install_update
         ])
         .setup(|app| {
             let dev_origin = if tauri::is_dev() {
@@ -226,6 +269,11 @@ mod tests {
                 "restart_desktop",
                 "choose_folder",
                 "choose_file",
+                "get_diagnostics",
+                "export_diagnostics",
+                "open_data_folder",
+                "check_for_update",
+                "install_update",
             ]
         );
     }
@@ -233,13 +281,27 @@ mod tests {
     #[test]
     fn no_command_name_is_a_generic_dangerous_primitive() {
         let banned = [
-            "execute_shell", "spawn_process", "read_file", "write_file", "proxy_http", "execute",
-            "run_command", "shell", "spawn", "exec", "fs", "http", "proxy", "eval",
+            "execute_shell",
+            "spawn_process",
+            "read_file",
+            "write_file",
+            "proxy_http",
+            "execute",
+            "run_command",
+            "shell",
+            "spawn",
+            "exec",
+            "fs",
+            "http",
+            "proxy",
+            "eval",
         ];
         for name in command_names::APP_COMMANDS {
             let lower = name.to_lowercase();
             assert!(
-                !banned.iter().any(|b| lower.split('_').any(|part| part == *b) || lower == *b),
+                !banned
+                    .iter()
+                    .any(|b| lower.split('_').any(|part| part == *b) || lower == *b),
                 "{name} looks like a generic primitive"
             );
         }
@@ -252,7 +314,11 @@ mod tests {
             .as_array()
             .unwrap()
             .iter()
-            .map(|p| p.as_str().expect("plain permission strings only").to_owned())
+            .map(|p| {
+                p.as_str()
+                    .expect("plain permission strings only")
+                    .to_owned()
+            })
             .collect();
         granted.sort();
         let mut expected: Vec<String> = command_names::APP_COMMANDS
@@ -261,8 +327,17 @@ mod tests {
             .collect();
         expected.sort();
         assert_eq!(granted, expected);
+        assert!(
+            granted
+                .iter()
+                .all(|p| p.starts_with("allow-") && !p.contains(':')),
+            "no plugin permission (updater:*, dialog:*, fs:*) may be granted to the renderer"
+        );
         assert_eq!(cap["windows"], serde_json::json!(["main"]));
-        assert!(cap.get("remote").is_none(), "no remote URL may hold a capability");
+        assert!(
+            cap.get("remote").is_none(),
+            "no remote URL may hold a capability"
+        );
     }
 
     #[test]
@@ -288,7 +363,12 @@ mod tests {
         assert!(!csp.contains("unsafe-eval"));
         assert!(!csp.contains(" *"));
         let cargo = read("Cargo.toml");
-        for banned in ["tauri-plugin-shell", "tauri-plugin-fs", "tauri-plugin-http", "tauri-plugin-opener"] {
+        for banned in [
+            "tauri-plugin-shell",
+            "tauri-plugin-fs",
+            "tauri-plugin-http",
+            "tauri-plugin-opener",
+        ] {
             assert!(!cargo.contains(banned), "{banned} must not be a dependency");
         }
     }
