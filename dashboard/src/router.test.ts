@@ -81,4 +81,9 @@ describe("parseRoute", () => {
     expect(parseRoute("#/design-system")).toEqual({ name: "designSystem" });
     expect(parseRoute("#/design-system/extra")).toEqual({ name: "notFound", hash: "#/design-system/extra" });
   });
+
+  it("parses the P11 first-run assistant route (desktop only, no nav entry)", () => {
+    expect(parseRoute("#/bienvenue")).toEqual({ name: "onboarding" });
+    expect(parseRoute("#/bienvenue/extra")).toEqual({ name: "notFound", hash: "#/bienvenue/extra" });
+  });
 });

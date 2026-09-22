@@ -104,9 +104,17 @@ P4 ajoute `daemon.health` derrière la capability négociée `daemon.health`
 (`DEC-0094`, proposed). Cette commande séparée est additive : elle ne modifie
 pas les réponses strictes `daemon.status` des pairs P1 existants.
 
+P11 sert `workspace.validate/get_config/save_config` (capability existante
+`workspace.config`, formes inchangées) et ajoute deux commandes sous cette
+même capability (`DEC-0097`, proposed) : `workspace.confirm_roots` (lie des
+racines lisibles choisies dans le dialogue natif à un identifiant opaque
+single-use à TTL court, consommé par `save_config`) et `workspace.git_status`
+(sonde Git en lecture seule : état, branche, remote, détaché). Les anciens
+pairs ignorent ces commandes ; l'export compte 31 commandes.
+
 ## Fixtures
 
-82 fixtures valides et 22 invalides nommées, couvrant : runtime
+94 fixtures valides et 23 invalides nommées, couvrant : runtime
 compatible/incompatible, daemon running/unavailable/crash-recovery, workspace
 valide/absent-déplacé, Knowledge disabled/indexing/ready, Code Graph
 absent/indexing/ready, Graphify incompatible, graphes vide / Knowledge / Code /

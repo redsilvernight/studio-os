@@ -26,6 +26,11 @@
       "reason": "roots must be absolute"
     },
     {
+      "model": "WorkspaceConfirmRootsRequest",
+      "name": "workspace.confirm.relative_root",
+      "reason": "roots must be absolute"
+    },
+    {
       "model": "SecretReference",
       "name": "secret.reference_with_value",
       "reason": "unknown field: a reference has no value"
@@ -196,7 +201,10 @@
     "SecretReferenceStatus",
     "SharedStatusSummary",
     "WatcherConfig",
+    "WorkspaceConfirmRootsRequest",
+    "WorkspaceConfirmRootsResult",
     "WorkspaceGetConfigRequest",
+    "WorkspaceGitStatus",
     "WorkspaceMarker",
     "WorkspaceMigrationPolicy",
     "WorkspaceRoots",
@@ -527,6 +535,26 @@
     {
       "model": "LocalWorkspaceConfig",
       "name": "workspace.config.minimal"
+    },
+    {
+      "model": "WorkspaceConfirmRootsRequest",
+      "name": "workspace.confirm.request"
+    },
+    {
+      "model": "WorkspaceConfirmRootsResult",
+      "name": "workspace.confirm.result"
+    },
+    {
+      "model": "WorkspaceGitStatus",
+      "name": "workspace.git.git_absent"
+    },
+    {
+      "model": "WorkspaceGitStatus",
+      "name": "workspace.git.not_a_repo"
+    },
+    {
+      "model": "WorkspaceGitStatus",
+      "name": "workspace.git.valid"
     },
     {
       "model": "WorkspaceSaveConfigRequest",

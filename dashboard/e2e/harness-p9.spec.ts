@@ -35,6 +35,12 @@ async function login(page: Page, hash: string): Promise<void> {
 async function installDesktop(page: Page, options: { rollbackConflict?: boolean } = {}): Promise<void> {
   await page.addInitScript(
     ({ ws, rollbackConflict }) => {
+      // P11: past the first run, so the setup assistant never intercepts the
+      // tested page. The onboarding state itself is covered by onboarding-p11.
+      window.localStorage.setItem(
+        "studio-os.onboarding.v1",
+        JSON.stringify({ schema: 1, status: "completed", current: "termine" }),
+      );
       const states: Record<string, string> = { "claude-code": "detected", opencode: "not_detected" };
       const log: string[] = [];
       (window as unknown as { __harnessLog: string[] }).__harnessLog = log;
@@ -164,12 +170,32 @@ test.describe("integrations (Desktop)", () => {
     await expect(claude).toContainText("Configuré");
   });
 
-  test("asks for a workspace id when none is in the route", async ({ page }) => {
+  test("carries the remembered folder instead of asking for a workspace id", async ({ page }) => {
+    await installDesktop(page);
+    await page.addInitScript(() => {
+      window.localStorage.setItem(
+        "studio-os.onboarding.v1",
+        JSON.stringify({
+          schema: 1,
+          status: "completed",
+          current: "termine",
+          projectId: "22222222-2222-4222-8222-222222222222",
+          workspaceId: "11111111-2222-4333-8444-555555555555",
+          folderName: "Mon jeu",
+        }),
+      );
+    });
+    await login(page, "#/configuration/integrations");
+    await expect(page.locator("#workspace-id-input")).toHaveCount(0);
+    await expect(page.getByTestId("integrations-workspace")).toContainText("Mon jeu");
+    await page.getByTestId("workspace-continue").click();
+    await expect(page.locator('[data-harness="claude-code"]')).toBeVisible();
+  });
+
+  test("points to the setup assistant when no folder is remembered", async ({ page }) => {
     await installDesktop(page);
     await login(page, "#/configuration/integrations");
-    await expect(page.getByTestId("workspace-form")).toBeVisible();
-    await page.fill("#workspace-id-input", WS);
-    await page.locator("[data-testid=workspace-form] button[type=submit]").click();
-    await expect(page.locator('[data-harness="claude-code"]')).toBeVisible();
+    await expect(page.locator("#workspace-id-input")).toHaveCount(0);
+    await expect(page.getByTestId("integrations-workspace")).toContainText("Lancer l'assistant");
   });
 });

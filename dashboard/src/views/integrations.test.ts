@@ -160,15 +160,33 @@ describe("Settings › Intégrations IA (web)", () => {
 });
 
 describe("Settings › Intégrations IA (Desktop)", () => {
-  it("asks for a workspace id when none is routed, and refuses a malformed one", async () => {
+  it("carries the remembered folder instead of asking for a workspace id", async () => {
     const { platform, state } = rig();
+    globalThis.localStorage.setItem(
+      "studio-os.onboarding.v1",
+      JSON.stringify({ schema: 1, status: "in_progress", current: "assistant", workspaceId: WS, folderName: "Mon jeu" }),
+    );
+    try {
+      const root = await mount(platform, null);
+      expect(state.calls).toEqual([]);
+      expect(root.querySelector("#workspace-id-input")).toBeNull();
+      expect(root.querySelector("[data-testid=workspace-form]")).toBeNull();
+      expect(root.textContent).toContain("Mon jeu");
+      expect(root.querySelector<HTMLAnchorElement>("[data-testid=workspace-continue]")?.getAttribute("href")).toBe(
+        `#/configuration/integrations/${WS}`,
+      );
+    } finally {
+      globalThis.localStorage.removeItem("studio-os.onboarding.v1");
+    }
+  });
+
+  it("points to the setup assistant when no folder is remembered", async () => {
+    const { platform, state } = rig();
+    globalThis.localStorage.removeItem("studio-os.onboarding.v1");
     const root = await mount(platform, null);
     expect(state.calls).toEqual([]);
-    root.querySelector<HTMLInputElement>("#workspace-id-input")!.value = "not-a-uuid";
-    root.querySelector<HTMLFormElement>("[data-testid=workspace-form]")!.dispatchEvent(new Event("submit", { cancelable: true }));
-    await flush();
-    expect(root.textContent).toContain("Identifiant invalide");
-    expect(state.calls).toEqual([]);
+    expect(root.querySelector("#workspace-id-input")).toBeNull();
+    expect(root.textContent).toContain("Lancer l'assistant");
   });
 
   it("shows state, version and MCP state per harness, with the right actions", async () => {

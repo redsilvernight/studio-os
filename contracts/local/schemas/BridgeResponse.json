@@ -13,6 +13,8 @@
         "identity.get_view",
         "workspace.validate",
         "workspace.get_config",
+        "workspace.confirm_roots",
+        "workspace.git_status",
         "workspace.save_config",
         "knowledge.status",
         "knowledge.search",

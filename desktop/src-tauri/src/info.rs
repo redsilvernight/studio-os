@@ -33,11 +33,18 @@ pub const LOCAL_FEATURE_CAPABILITIES: &[&str] = &[
     "harness.apply",
 ];
 
+/// Additive P11 capability (workspace configuration, served by the daemon
+/// since P11). Offered but never required: an older daemon answers
+/// `compatible_degraded` and the setup assistant reports the folder step as
+/// unavailable instead of failing the handshake.
+pub const WORKSPACE_CAPABILITIES: &[&str] = &["workspace.config"];
+
 fn offered_capabilities() -> Vec<&'static str> {
     P2_CAPABILITIES
         .iter()
         .chain(OPTIONAL_CAPABILITIES.iter())
         .chain(LOCAL_FEATURE_CAPABILITIES.iter())
+        .chain(WORKSPACE_CAPABILITIES.iter())
         .copied()
         .collect()
 }
@@ -46,6 +53,7 @@ fn optional_capabilities() -> Vec<&'static str> {
     OPTIONAL_CAPABILITIES
         .iter()
         .chain(LOCAL_FEATURE_CAPABILITIES.iter())
+        .chain(WORKSPACE_CAPABILITIES.iter())
         .copied()
         .collect()
 }
@@ -111,6 +119,15 @@ mod tests {
         assert_eq!(a, b);
         assert_eq!(peer_info()["protocol"], expected["protocol"]);
         assert_eq!(peer_info()["role"], expected["role"]);
+        // Values, not just keys: every capability the Desktop offers must be
+        // one the P1 fixture peer knows, or negotiation can never grant it
+        // (P11 caught `workspace.config` missing here).
+        let offered = peer_info()["capabilities"].as_array().unwrap().clone();
+        let known = expected["capabilities"].as_array().unwrap();
+        for capability in &offered {
+            assert!(known.contains(capability), "{capability} not in the P1 fixture peer");
+        }
+        assert!(offered.contains(&json!("workspace.config")));
     }
 
     #[test]
@@ -142,6 +159,25 @@ mod tests {
     fn local_feature_capabilities_are_optional_and_never_required() {
         let peer = peer_info();
         for capability in LOCAL_FEATURE_CAPABILITIES {
+            assert!(peer["capabilities"]
+                .as_array()
+                .unwrap()
+                .contains(&json!(capability)));
+            assert!(!peer["required_capabilities"]
+                .as_array()
+                .unwrap()
+                .contains(&json!(capability)));
+            assert!(peer["optional_capabilities"]
+                .as_array()
+                .unwrap()
+                .contains(&json!(capability)));
+        }
+    }
+
+    #[test]
+    fn workspace_config_is_offered_but_never_required() {
+        let peer = peer_info();
+        for capability in WORKSPACE_CAPABILITIES {
             assert!(peer["capabilities"]
                 .as_array()
                 .unwrap()

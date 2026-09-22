@@ -67,7 +67,10 @@ from studio_contracts.local.publication import (
 )
 from studio_contracts.local.workspace import (
     LocalWorkspaceConfig,
+    WorkspaceConfirmRootsRequest,
+    WorkspaceConfirmRootsResult,
     WorkspaceGetConfigRequest,
+    WorkspaceGitStatus,
     WorkspaceSaveConfigRequest,
     WorkspaceScope,
     WorkspaceStatus,
@@ -114,6 +117,8 @@ class BridgeCommand(StrEnum):
     IDENTITY_GET_VIEW = "identity.get_view"
     WORKSPACE_VALIDATE = "workspace.validate"
     WORKSPACE_GET_CONFIG = "workspace.get_config"
+    WORKSPACE_CONFIRM_ROOTS = "workspace.confirm_roots"
+    WORKSPACE_GIT_STATUS = "workspace.git_status"
     WORKSPACE_SAVE_CONFIG = "workspace.save_config"
     KNOWLEDGE_STATUS = "knowledge.status"
     KNOWLEDGE_SEARCH = "knowledge.search"
@@ -216,6 +221,18 @@ BRIDGE_COMMANDS: dict[BridgeCommand, CommandSpec] = dict(
             BridgeCommand.WORKSPACE_GET_CONFIG,
             WorkspaceGetConfigRequest,
             LocalWorkspaceConfig,
+            "workspace.config",
+        ),
+        _spec(
+            BridgeCommand.WORKSPACE_CONFIRM_ROOTS,
+            WorkspaceConfirmRootsRequest,
+            WorkspaceConfirmRootsResult,
+            "workspace.config",
+        ),
+        _spec(
+            BridgeCommand.WORKSPACE_GIT_STATUS,
+            WorkspaceScope,
+            WorkspaceGitStatus,
             "workspace.config",
         ),
         _spec(

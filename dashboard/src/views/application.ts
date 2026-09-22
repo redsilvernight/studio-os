@@ -33,9 +33,33 @@ import type { ConnectionSnapshot } from "../connection";
 import { esc } from "../ui";
 import { dsPageHeader } from "../ds/ds";
 import { configTabsHtml } from "./configuration";
+import { loadOnboardingState, saveOnboardingState } from "../onboarding/state";
+import { stepById } from "../onboarding/steps";
 import "./configuration.css";
 
 const DESCRIPTION = "Identité, serveur et état de l'application qui exécute ce tableau de bord.";
+
+/** P11 — revoir la configuration locale et relancer l'assistant si besoin. */
+export function onboardingSectionHtml(): string {
+  const state = loadOnboardingState();
+  const status =
+    state.status === "completed"
+      ? `Terminé${state.completedAt ? ` le ${esc(state.completedAt.slice(0, 10))}` : ""}.`
+      : state.status === "in_progress"
+        ? `En cours — étape « ${esc(stepById(state.current).title)} ».`
+        : "Jamais lancé.";
+  return (
+    `<section class="settings-domain" data-testid="onboarding-section"><h2>Assistant de configuration</h2>` +
+    `<dl class="settings-refs">${row("État", esc(status))}</dl>` +
+    `<p class="settings-intro">Revoyez la configuration locale (dossier, mémoire, assistant IA) ou corrigez une étape devenue invalide.</p>` +
+    `<div class="settings-actions">` +
+    (state.status === "in_progress"
+      ? `<a class="ds-btn ds-btn--primary" href="#/bienvenue">Reprendre l'assistant</a> `
+      : "") +
+    `<button class="ds-btn${state.status === "in_progress" ? "" : " ds-btn--primary"}" type="button" data-action="relaunch-onboarding">Relancer l'assistant</button>` +
+    `</div></section>`
+  );
+}
 
 /** Words for the machine codes the shell answers when it refuses an address. */
 export function originRefusalMessage(reason: ServerOriginRefusal): string {
@@ -297,7 +321,7 @@ export function applicationPageHtml(
         `Impossible de lire l'identité Desktop${failure ? ` : ${esc(failure)}` : ""}.</div>`;
     body =
       `<section class="settings-domain"><h2>Application</h2>${identity}</section>` +
-      (section ? serverSectionHtml(section, form) + assistantSectionHtml(section, info) + diagnosticsHtml(section, info, diag, form) : "");
+      (section ? serverSectionHtml(section, form) + assistantSectionHtml(section, info) + onboardingSectionHtml() + diagnosticsHtml(section, info, diag, form) : "");
   } else {
     body =
       `<section class="settings-domain"><h2>Application</h2>` +
@@ -396,6 +420,10 @@ function bindActions(root: HTMLElement, platform: Platform, shell: DesktopShell)
       if (!started) return again({ error: "Le redémarrage n'a pas pu être lancé. Fermez puis rouvrez l'application." });
       return undefined;
     });
+  });
+  root.querySelector("[data-action=relaunch-onboarding]")?.addEventListener("click", () => {
+    saveOnboardingState({ schema: 1, status: "in_progress", current: "bienvenue" });
+    location.hash = "#/bienvenue";
   });
   const keepOpen = (form: ApplicationFormState): Promise<void> => again({ ...form, diagnosticsOpen: true });
   root.querySelector("[data-action=open-logs]")?.addEventListener("click", () => {

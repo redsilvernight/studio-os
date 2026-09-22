@@ -113,6 +113,7 @@ from studio_contracts.local.publication import (
 )
 from studio_contracts.local.workspace import (
     CodeGraphConfig,
+    GitState,
     IndexLocation,
     KnowledgeConfig,
     LocalFeatures,
@@ -120,6 +121,9 @@ from studio_contracts.local.workspace import (
     RepoRoot,
     WatcherConfig,
     WorkspaceAction,
+    WorkspaceConfirmRootsRequest,
+    WorkspaceConfirmRootsResult,
+    WorkspaceGitStatus,
     WorkspaceHealth,
     WorkspaceRoots,
     WorkspaceSaveConfigRequest,
@@ -1101,6 +1105,22 @@ def build_fixtures() -> list[LocalFixture]:
     fixtures["workspace.save.initial"] = WorkspaceSaveConfigRequest(
         config=stored, current_roots=None, root_confirmation_id="rc-demo-2"
     )
+    fixtures["workspace.confirm.request"] = WorkspaceConfirmRootsRequest(roots=stored.roots)
+    fixtures["workspace.confirm.result"] = WorkspaceConfirmRootsResult(
+        root_confirmation_id="rc-demo-3", expires_in_s=600
+    )
+    fixtures["workspace.git.valid"] = WorkspaceGitStatus(
+        workspace_id=WORKSPACE_ID,
+        state=GitState.VALID,
+        branch="main",
+        remote="https://example.test/demo-game.git",
+    )
+    fixtures["workspace.git.not_a_repo"] = WorkspaceGitStatus(
+        workspace_id=WORKSPACE_ID, state=GitState.NOT_A_REPO
+    )
+    fixtures["workspace.git.git_absent"] = WorkspaceGitStatus(
+        workspace_id=WORKSPACE_ID, state=GitState.GIT_ABSENT
+    )
     fixtures["workspace.status.valid"] = _workspace_status(
         WorkspaceHealth.VALID, WorkspaceAction.NONE, None, with_config=True
     )
@@ -1516,6 +1536,12 @@ def build_invalid_fixtures() -> list[InvalidFixture]:
             "workspace.config.relative_root",
             "LocalWorkspaceConfig",
             _with("workspace.config.full", relative_root),
+            "roots must be absolute",
+        ),
+        InvalidFixture(
+            "workspace.confirm.relative_root",
+            "WorkspaceConfirmRootsRequest",
+            _with("workspace.confirm.request", relative_root),
             "roots must be absolute",
         ),
         InvalidFixture(

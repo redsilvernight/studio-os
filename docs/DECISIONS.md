@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-95 decision(s). Detail complet dans chaque ADR lie.
+96 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -117,3 +117,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0094 | Desktop P4 : daemon unique supervisé, outbox liée à l’identité et health négocié | active | [decisions/DEC-0094-desktop-p4-daemon-lifecycle.md](decisions/DEC-0094-desktop-p4-daemon-lifecycle.md) |
 | DEC-0095 | Desktop P10 : installateur NSIS par utilisateur, sidecar onedir, Graphify détecté et non redistribué | proposed | [decisions/DEC-0095-desktop-p10-packaging-graphify-non-redistribue.md](decisions/DEC-0095-desktop-p10-packaging-graphify-non-redistribue.md) |
 | DEC-0096 | Desktop P9 : adaptateurs de harnais au scope projet, jeton par référence, fail-closed | proposed | [decisions/DEC-0096-desktop-p9-harness-adapters.md](decisions/DEC-0096-desktop-p9-harness-adapters.md) |
+| DEC-0097 | Desktop P11 : premier lancement guidé, workspace servi, deux commandes additives | proposed | [decisions/DEC-0097-desktop-p11-onboarding-workspace-seam.md](decisions/DEC-0097-desktop-p11-onboarding-workspace-seam.md) |

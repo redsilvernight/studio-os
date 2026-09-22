@@ -67,6 +67,10 @@ class RootConfirmationService:
         self._pending: dict[str, _Entry] = {}
         self._consumed: set[str] = set()
 
+    @property
+    def ttl_seconds(self) -> float:
+        return self._ttl_seconds
+
     def issue(self, target: WorkspaceRoots) -> str:
         confirmation_id = f"rc-{uuid4().hex}"
         expires_at = self._clock() + self._ttl_seconds

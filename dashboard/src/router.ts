@@ -24,6 +24,7 @@ export type Route =
   | { name: "configApplication" }
   | { name: "configIntegrations"; workspaceId?: string }
   | { name: "workspaces" }
+  | { name: "onboarding" }
   | { name: "graphs"; kind: "knowledge" | "code" | "project"; workspaceId?: string }
   | { name: "inspector"; stableKey: string | null }
   | { name: "designSystem" }
@@ -105,6 +106,7 @@ export function parseRoute(hash: string): Route {
     return notFound(hash);
   }
   if (parts[0] === "workspaces" && parts.length === 1) return { name: "workspaces" };
+  if (parts[0] === "bienvenue" && parts.length === 1) return { name: "onboarding" };
   if (parts[0] === "graphs" && parts.length >= 2 && parts.length <= 3) {
     const kind = parts[1];
     const workspaceId = parts[2];

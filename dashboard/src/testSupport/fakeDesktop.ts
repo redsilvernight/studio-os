@@ -10,9 +10,9 @@ export const PEER = {
   protocol: { minimum: { major: 1, minor: 0 }, maximum: { major: 1, minor: 0 } },
   component_version: "0.1.0",
   server_origin: null,
-  capabilities: ["daemon.control", "identity.view", "daemon.health"],
+  capabilities: ["daemon.control", "identity.view", "daemon.health", "workspace.config"],
   required_capabilities: ["daemon.control", "identity.view"],
-  optional_capabilities: ["daemon.health"],
+  optional_capabilities: ["daemon.health", "workspace.config"],
   optional_components: [],
 } as unknown as PeerInfo;
 

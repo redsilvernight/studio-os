@@ -13,11 +13,12 @@ const ALLOWLIST_JSON: &str = include_str!("../../../contracts/local/allowlist.js
 
 pub const PROTOCOL: &str = "studio.local/v1";
 
-/// Commands implemented by the daemon. Workspace and publication operations
-/// remain owned by their later lanes and are not routed to this process;
-/// Knowledge (P6) and Code Graph (P7) are served by the daemon behind the
-/// `CodeGraphProvider`/`VaultKnowledgeProvider` boundary, and the harness
-/// commands (P9) behind the `HarnessAdapter` registry.
+/// Commands implemented by the daemon. Publication operations remain owned by
+/// their later lane and are not routed to this process; workspace (P5, served
+/// since P11), Knowledge (P6) and Code Graph (P7) are served by the daemon
+/// behind the `WorkspaceStore`/`VaultKnowledgeProvider`/`CodeGraphProvider`
+/// boundary, and the harness commands (P9) behind the `HarnessAdapter`
+/// registry.
 pub const SERVED_BY_DAEMON: &[&str] = &[
     "runtime.handshake",
     "daemon.status",
@@ -27,6 +28,11 @@ pub const SERVED_BY_DAEMON: &[&str] = &[
     "daemon.restart",
     "daemon.health",
     "identity.get_view",
+    "workspace.validate",
+    "workspace.get_config",
+    "workspace.confirm_roots",
+    "workspace.git_status",
+    "workspace.save_config",
     "knowledge.status",
     "knowledge.search",
     "knowledge.get_document",
@@ -94,8 +100,8 @@ mod tests {
     fn allowlist_matches_p1_export() {
         assert_eq!(
             all_commands().len(),
-            29,
-            "studio.local/v1 exports 29 commands"
+            31,
+            "studio.local/v1 exports 31 commands"
         );
         assert!(lookup("runtime.handshake").is_some());
         assert!(lookup("daemon.status").is_some());

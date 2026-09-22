@@ -289,12 +289,34 @@
     {
       "cancellable": false,
       "capability": "workspace.config",
+      "command": "workspace.confirm_roots",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "WorkspaceConfirmRootsRequest",
+      "response": "WorkspaceConfirmRootsResult",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "workspace.config",
       "command": "workspace.get_config",
       "max_request_bytes": 65536,
       "max_response_bytes": 1048576,
       "mutating": false,
       "request": "WorkspaceGetConfigRequest",
       "response": "LocalWorkspaceConfig",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "workspace.config",
+      "command": "workspace.git_status",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "WorkspaceScope",
+      "response": "WorkspaceGitStatus",
       "timeout_ms": 30000
     },
     {

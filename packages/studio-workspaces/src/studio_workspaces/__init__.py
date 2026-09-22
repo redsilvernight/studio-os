@@ -24,6 +24,7 @@ from studio_workspaces.watch_source import (
     registry_config_source,
     registry_watch_source,
 )
+from studio_workspaces.workspace_bridge import WorkspaceBridge
 
 __all__ = [
     "ConfigSource",
@@ -46,6 +47,7 @@ __all__ = [
     "WatchSource",
     "WorkspaceStore",
     "WorkspaceStoreError",
+    "WorkspaceBridge",
     "WorkspaceWatchEntry",
     "assert_no_secrets",
     "check_p5_glob",

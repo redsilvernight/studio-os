@@ -385,12 +385,42 @@ mod tests {
         )
         .unwrap();
         let mut req = req["data"].take();
-        req["command"] = Value::String("workspace.validate".into());
+        // Publication stays owned by its later lane: allowlisted, never served.
+        req["command"] = Value::String("publication.preview".into());
         let out = handle_request(&sc, req);
         assert_eq!(out["kind"], "error");
         assert_eq!(out["error"]["code"], "not_supported");
         // It never reached the sidecar.
         assert_eq!(sc.state(), sidecar::SidecarState::NotStarted);
+    }
+
+    #[test]
+    fn workspace_commands_are_routed_to_the_daemon() {
+        let sc = Sidecar::default();
+        let mut req: Value = serde_json::from_str(
+            &fs::read_to_string(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../contracts/local/fixtures/valid/bridge.request.handshake.json"
+            ))
+            .unwrap(),
+        )
+        .unwrap();
+        let mut req = req["data"].take();
+        // Served since P11: the shell forwards to the sidecar instead of
+        // answering not_supported. With no sidecar binary next to the test
+        // runner the supervisor reports daemon_unavailable, never a refusal.
+        for command in [
+            "workspace.validate",
+            "workspace.get_config",
+            "workspace.confirm_roots",
+            "workspace.git_status",
+            "workspace.save_config",
+        ] {
+            req["command"] = Value::String(command.into());
+            let out = handle_request(&sc, req.clone());
+            assert_eq!(out["kind"], "error", "{command}");
+            assert_eq!(out["error"]["code"], "daemon_unavailable", "{command}");
+        }
     }
 
     #[test]

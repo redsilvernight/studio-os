@@ -1620,6 +1620,7 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "pyyaml" },
     { name = "studio-contracts" },
+    { name = "studio-workspaces" },
 ]
 
 [package.metadata]
@@ -1629,6 +1630,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.4" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "studio-contracts", editable = "packages/studio-contracts" },
+    { name = "studio-workspaces", editable = "packages/studio-workspaces" },
 ]
 
 [[package]]

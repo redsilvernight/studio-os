@@ -26,9 +26,9 @@ import {
 } from "../harnessApi";
 import { esc } from "../ui";
 import { configTabsHtml } from "./configuration";
+import { loadOnboardingState } from "../onboarding/state";
 import "./configuration.css";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DESCRIPTION = "Connecter Claude Code, OpenCode et les autres harnais IA de ce poste au MCP Studi'OS.";
 
 export interface IntegrationsView {
@@ -38,8 +38,6 @@ export interface IntegrationsView {
   plan?: HarnessPlan;
   /** The harness for which a restore awaits confirmation. */
   confirmRestore?: string;
-  workspaceInput?: string;
-  workspaceError?: string;
 }
 
 function header(): string {
@@ -58,19 +56,35 @@ export function integrationsWebHtml(): string {
   );
 }
 
-export function integrationsWorkspaceHtml(view: IntegrationsView): string {
-  const error = view.workspaceError ? `<p class="ds-field-error" role="alert">${esc(view.workspaceError)}</p>` : "";
+/**
+ * Choix du dossier sans saisie manuelle d'identifiant : l'assistant de
+ * configuration transporte déjà le dossier associé. Aucun copier/coller
+ * d'UUID dans le parcours normal.
+ */
+export function integrationsWorkspaceHtml(): string {
+  const remembered = loadOnboardingState();
+  if (remembered.workspaceId) {
+    return (
+      header() +
+      `<section class="settings-domain" data-testid="integrations-workspace">` +
+      `<h2>Dossier local</h2>` +
+      `<p class="settings-intro">Configurer les assistants IA pour « ${esc(remembered.folderName ?? remembered.projectName ?? "le dossier associé")} ».</p>` +
+      `<div class="settings-actions">` +
+      `<a class="ds-btn ds-btn--primary" data-testid="workspace-continue" href="#/configuration/integrations/${esc(remembered.workspaceId)}">Continuer</a> ` +
+      `<a class="ds-btn" href="#/bienvenue">Choisir un autre dossier</a></div>` +
+      `</section>`
+    );
+  }
   return (
     header() +
     `<section class="settings-domain" data-testid="integrations-workspace">` +
     `<h2>Dossier local</h2>` +
-    `<p class="settings-intro">Indiquez l'identifiant du dossier de travail Studi'OS à configurer. Il est affiché par Studi'OS Desktop.</p>` +
-    `<form data-testid="workspace-form" class="settings-form">` +
-    `<label class="ds-field" for="workspace-id-input"><span>Identifiant du dossier</span>` +
-    `<input id="workspace-id-input" name="workspace" type="text" autocomplete="off" spellcheck="false" maxlength="36" value="${esc(view.workspaceInput ?? "")}"></label>` +
-    error +
-    `<button class="ds-btn ds-btn--primary" type="submit">Continuer</button>` +
-    `</form></section>`
+    dsEmptyState(
+      "Aucun dossier associé",
+      "Lancez l'assistant de configuration pour associer un dossier : les assistants IA se configurent par projet, sans identifiant à saisir.",
+    ) +
+    `<div class="settings-actions"><a class="ds-btn ds-btn--primary" href="#/bienvenue">Lancer l'assistant</a></div>` +
+    `</section>`
   );
 }
 
@@ -159,16 +173,7 @@ export async function renderIntegrations(
     return;
   }
   if (workspaceId === undefined) {
-    root.innerHTML = integrationsWorkspaceHtml(view);
-    root.querySelector<HTMLFormElement>("[data-testid=workspace-form]")?.addEventListener("submit", (event) => {
-      event.preventDefault();
-      const value = (root.querySelector<HTMLInputElement>("#workspace-id-input")?.value ?? "").trim();
-      if (!UUID.test(value)) {
-        void renderIntegrations(root, undefined, platform, { workspaceInput: value, workspaceError: "Identifiant invalide (format UUID attendu)." });
-        return;
-      }
-      location.hash = `#/configuration/integrations/${value}`;
-    });
+    root.innerHTML = integrationsWorkspaceHtml();
     return;
   }
   const detected = await detectHarnesses(platform, workspaceId);

@@ -43,8 +43,9 @@ DEC-0093) utilisés tels quels : **aucune modification de contrat**.
 - `picker.py` — `FolderPicker` (protocole côté shell) + `MockFolderPicker`.
   P3 affiche le dialogue natif puis transmet le dossier confirmé au daemon,
   qui émet `root_confirmation_id` via `RootConfirmationService.issue()`.
-  Aucune commande de pont pour la sélection : l'allowlist P1
-  (`workspace.validate/get_config/save_config`) est fermée et inchangée.
+  Depuis P11, cette transmission passe par la commande additive
+  `workspace.confirm_roots` (`DEC-0097`) : l'allowlist P1 reste fermée, elle
+  compte 31 commandes.
 - `daemon_config.py` — interface P4 : `daemon_watch_plan(config)` (dépôts à
   surveiller, debounce, ignore globs). Aucun import P4, aucun watcher ici.
 - `secret_guard.py` — garde-fous structurels (`SecretReference` seule forme
@@ -71,8 +72,10 @@ aucun code P4.
 - `KnowledgeConfig`/`CodeGraphConfig` : portés tels quels dans la config,
   jamais interprétés ici. États `disabled` valides et testés.
 - Sélecteur natif : `NativeFolderPicker` (Wave 1) adapte le dialogue natif P3 ;
-  `MockFolderPicker` reste réservé aux tests. Le daemon ne sert pas encore
-  `workspace.*` : voir `DESKTOP_WAVE1_INTEGRATION.md` (dette).
+  `MockFolderPicker` reste réservé aux tests. Depuis P11 le démon sert
+  `workspace.*` (`WorkspaceBridge`, `DEC-0097`) : le dialogue natif débouche
+  sur `workspace.confirm_roots` puis `save_config`, sans contourner
+  `root_confirmation_id`.
 - `expected_updated_at` : concurrence optimiste côté sauvegarde ; le rechargement
   UI après 409 appartient à l'intégrateur.
 

@@ -70,7 +70,15 @@ from studio_contracts.local.knowledge import (
     KnowledgeReindexRequest,
     KnowledgeSearchRequest,
 )
-from studio_contracts.local.workspace import WorkspaceScope
+from studio_contracts.local.workspace import (
+    WorkspaceConfirmRootsRequest,
+    WorkspaceGetConfigRequest,
+    WorkspaceSaveConfigRequest,
+    WorkspaceScope,
+    WorkspaceValidateRequest,
+)
+from studio_workspaces.store import WorkspaceStoreError
+from studio_workspaces.workspace_bridge import WorkspaceBridge
 
 from studio_client.config import ClientConfig, default_config_path
 from studio_client.daemon.desktop_origin import DesktopOriginError, desktop_client_config
@@ -91,6 +99,34 @@ from studio_client.outbox import OutboxIdentityError
 from studio_client.tokens import KeyringTokenStore
 
 DAEMON_VERSION = "0.1.0"
+WORKSPACE_CAPABILITIES: tuple[str, ...] = ("workspace.config",)
+_WORKSPACE_COMMANDS = frozenset(
+    {
+        BridgeCommand.WORKSPACE_VALIDATE,
+        BridgeCommand.WORKSPACE_GET_CONFIG,
+        BridgeCommand.WORKSPACE_CONFIRM_ROOTS,
+        BridgeCommand.WORKSPACE_GIT_STATUS,
+        BridgeCommand.WORKSPACE_SAVE_CONFIG,
+    }
+)
+_WORKSPACE_STORE_MESSAGES = {
+    LocalErrorCode.WORKSPACE_CONFIG_MISSING: "No workspace config is stored on this machine.",
+    LocalErrorCode.WORKSPACE_CONFIG_INVALID: "The stored workspace config is invalid.",
+    LocalErrorCode.WORKSPACE_INACCESSIBLE: "The workspace folder is inaccessible.",
+    LocalErrorCode.WRONG_PROFILE: "The workspace belongs to another profile.",
+    LocalErrorCode.INVALID_REQUEST: "The workspace request is invalid.",
+}
+
+
+def _workspace_error(exc: WorkspaceStoreError) -> LocalError:
+    return LocalError(
+        code=exc.code,
+        message=_WORKSPACE_STORE_MESSAGES.get(exc.code, "The workspace request failed."),
+        component=ComponentId.WORKSPACE,
+        retryable=False,
+    )
+
+
 SERVED = frozenset(
     {
         BridgeCommand.RUNTIME_HANDSHAKE,
@@ -101,6 +137,11 @@ SERVED = frozenset(
         BridgeCommand.DAEMON_RESTART,
         BridgeCommand.DAEMON_HEALTH,
         BridgeCommand.IDENTITY_GET_VIEW,
+        BridgeCommand.WORKSPACE_VALIDATE,
+        BridgeCommand.WORKSPACE_GET_CONFIG,
+        BridgeCommand.WORKSPACE_CONFIRM_ROOTS,
+        BridgeCommand.WORKSPACE_GIT_STATUS,
+        BridgeCommand.WORKSPACE_SAVE_CONFIG,
         BridgeCommand.KNOWLEDGE_STATUS,
         BridgeCommand.KNOWLEDGE_SEARCH,
         BridgeCommand.KNOWLEDGE_GET_DOCUMENT,
@@ -158,11 +199,13 @@ class DaemonController:
         data_root: Path | None = None,
         workspace_source: WorkspaceSource | None = None,
         local_features: LocalFeatureRegistry | None = None,
+        workspace_bridge: WorkspaceBridge | None = None,
     ) -> None:
         self.config = config
         self.data_root = data_root or default_config_path().parent
         self._workspace_source = workspace_source
         self.local_features = local_features
+        self.workspace_bridge = workspace_bridge
         self._runtime: DaemonRuntime | None = None
         self._thread: threading.Thread | None = None
         self._failure: BaseException | None = None
@@ -496,6 +539,13 @@ class BridgeService:
                 LocalErrorCode.NOT_SUPPORTED,
                 "This daemon does not host local knowledge, code graph or harness features.",
             )
+        if request.command in _WORKSPACE_COMMANDS and self.controller.workspace_bridge is None:
+            return self._error(
+                request,
+                request.correlation_id,
+                LocalErrorCode.NOT_SUPPORTED,
+                "This daemon does not host workspace configuration.",
+            )
         try:
             payload = self._answer(request)
         except (ValidationError, ValueError):
@@ -505,6 +555,8 @@ class BridgeService:
                 LocalErrorCode.INVALID_REQUEST,
                 "The request payload is invalid.",
             )
+        except WorkspaceStoreError as error:
+            return self._local_error(request, _workspace_error(error))
         except LocalFeatureError as error:
             return self._local_error(request, error.error)
         except OutboxIdentityError:
@@ -562,6 +614,11 @@ class BridgeService:
                             "daemon.health",
                             "identity.view",
                             *(
+                                WORKSPACE_CAPABILITIES
+                                if self.controller.workspace_bridge is not None
+                                else ()
+                            ),
+                            *(
                                 FEATURE_CAPABILITIES
                                 if self.controller.local_features is not None
                                 else ()
@@ -575,9 +632,30 @@ class BridgeService:
             return self.controller.health(DaemonHealthRequest.model_validate(request.payload))
         if request.command is BridgeCommand.IDENTITY_GET_VIEW:
             return self.controller.identity_view()
+        if request.command in _WORKSPACE_COMMANDS:
+            return self._workspace(request)
         if request.command in _LOCAL_FEATURE_COMMANDS:
             return self._local_feature(request)
         return self.controller.control(DaemonControlRequest.model_validate(request.payload))
+
+    def _workspace(self, request: BridgeRequest) -> LocalContractModel:
+        bridge = self.controller.workspace_bridge
+        assert bridge is not None
+        payload = request.payload
+        profile = self.controller._profile()
+        if request.command is BridgeCommand.WORKSPACE_VALIDATE:
+            return bridge.validate(
+                WorkspaceValidateRequest.model_validate(payload).workspace_id, profile
+            )
+        if request.command is BridgeCommand.WORKSPACE_GET_CONFIG:
+            return bridge.get_config(
+                WorkspaceGetConfigRequest.model_validate(payload).workspace_id, profile
+            )
+        if request.command is BridgeCommand.WORKSPACE_CONFIRM_ROOTS:
+            return bridge.confirm(WorkspaceConfirmRootsRequest.model_validate(payload))
+        if request.command is BridgeCommand.WORKSPACE_GIT_STATUS:
+            return bridge.git_status(WorkspaceScope.model_validate(payload), profile)
+        return bridge.save(WorkspaceSaveConfigRequest.model_validate(payload), profile)
 
     def _local_feature(self, request: BridgeRequest) -> LocalContractModel:
         features = self.controller.local_features
@@ -786,6 +864,7 @@ def serve_streams(
 def main(
     workspace_source: WorkspaceSource | None = None,
     local_features: LocalFeatureRegistry | None = None,
+    workspace_bridge: WorkspaceBridge | None = None,
 ) -> int:
     data_root = default_config_path().parent
     configure_daemon_logging(data_root)
@@ -805,6 +884,7 @@ def main(
         data_root=data_root,
         workspace_source=workspace_source,
         local_features=local_features,
+        workspace_bridge=workspace_bridge,
     )
     if local_features is not None:
         local_features.start(controller._profile())

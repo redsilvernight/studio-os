@@ -15,6 +15,7 @@ from studio_contracts.local.common import (
     LocalErrorCode,
     OpaqueId,
     RelativePath,
+    ShortText,
     UtcDatetime,
     WorkspaceRootPath,
 )
@@ -216,6 +217,44 @@ class WorkspaceValidateRequest(LocalContractModel):
 
 class WorkspaceGetConfigRequest(LocalContractModel):
     workspace_id: UUID
+
+
+class WorkspaceConfirmRootsRequest(LocalContractModel):
+    """Ask the daemon to bind a user-confirmed folder pick to a single-use
+    `root_confirmation_id`.
+
+    The shell shows the native folder dialog and forwards the confirmed roots;
+    the daemon only binds roots it can read, then `workspace.save_config`
+    consumes the id. The request carries roots only — no identity, no secret —
+    and the id stays bound to the fingerprint of these exact roots, single-use
+    with a short TTL (see `RootConfirmationService`)."""
+
+    roots: WorkspaceRoots
+
+
+class WorkspaceConfirmRootsResult(LocalContractModel):
+    root_confirmation_id: OpaqueId
+    expires_in_s: int = Field(ge=1, le=3600)
+
+
+class GitState(StrEnum):
+    VALID = "valid"
+    NOT_A_REPO = "not_a_repo"
+    INVALID_REPO = "invalid_repo"
+    GIT_ABSENT = "git_absent"
+    INACCESSIBLE = "inaccessible"
+
+
+class WorkspaceGitStatus(LocalContractModel):
+    """Read-only Git probe of a workspace root. Detection only: never a fetch,
+    never a write, never an install. Carries branch/remote names, never paths
+    or commits."""
+
+    workspace_id: UUID
+    state: GitState
+    branch: ShortText | None = None
+    remote: ShortText | None = None
+    detached: bool = False
 
 
 class WorkspaceSaveConfigRequest(LocalContractModel):

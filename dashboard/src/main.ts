@@ -32,6 +32,8 @@ import { renderDecisionsV2 as renderDecisions } from "./views/decisionsV2";
 import { renderTransfers } from "./views/transfers";
 import { renderLibrary, renderLibraryDetail } from "./views/library";
 import { renderApplication } from "./views/application";
+import { renderOnboarding } from "./onboarding/view";
+import { loadOnboardingState } from "./onboarding/state";
 import { renderWorkspaces } from "./views/workspacesPage";
 import { renderGraphs } from "./views/graphs";
 import { renderIntegrations } from "./views/integrations";
@@ -68,6 +70,15 @@ let shellListenersMounted = false;
 async function render(): Promise<void> {
   const my = renderGuard.next();
   const route = parseRoute(location.hash);
+  // Premier lancement (Desktop seul) : l'assistant de configuration est
+  // prioritaire tant qu'il n'est pas terminé ; la reprise revalide l'état
+  // réel au lieu de supposer l'étape mémorisée encore valide.
+  if (getDesktopShell() !== null && route.name !== "onboarding") {
+    if (loadOnboardingState().status !== "completed") {
+      location.hash = "#/bienvenue";
+      return;
+    }
+  }
   const baseUrl = resolveApiUrl(apiBaseUrl());
   const client = createApiClient(baseUrl);
   const authed = hasToken();
@@ -139,6 +150,9 @@ async function render(): Promise<void> {
       break;
     case "workspaces":
       await renderWorkspaces(staging);
+      break;
+    case "onboarding":
+      await renderOnboarding(staging, getPlatform());
       break;
     case "graphs":
       renderGraphs(staging, route.kind, { workspaceId: route.workspaceId });
@@ -338,7 +352,10 @@ function mountLogin(notice?: string): void {
 }
 
 function start(): void {
-  if (hasToken()) {
+  // Sans compte, l'écran de connexion couvre tout — sauf au premier lancement
+  // Desktop, où l'assistant embarque sa propre connexion (étape « Connexion »).
+  const firstRun = getDesktopShell() !== null && loadOnboardingState().status !== "completed";
+  if (hasToken() || firstRun) {
     mountShell();
   } else {
     mountLogin();
