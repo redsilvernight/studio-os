@@ -166,8 +166,10 @@ async function main() {
       const attached = await attach();
       browser = attached.browser;
       const page = attached.page;
-      await page.waitForSelector("#login-form", { timeout: 30_000 });
+      await page.waitForSelector('[data-testid="onboarding-step"]', { timeout: 30_000 });
       check("launch.dashboard_loaded_offline", page.url().startsWith(`${APP_ORIGIN}/`), `page ${page.url()} with an unreachable server`);
+      const firstStep = await page.getAttribute('[data-testid="onboarding-step"]', "data-step");
+      check("launch.onboarding_shown_first_run", firstStep === "bienvenue", `onboarding step on first launch: ${firstStep}`);
       let info = null;
       for (let i = 0; i < 40; i++) {
         info = (await invoke(page, "desktop_info", {})).value;
