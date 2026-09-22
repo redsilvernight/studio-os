@@ -107,8 +107,12 @@ class _Parser:
             return Node("string", start, self.pos, value)
         match = _NUMBER.match(self.text, self.pos)
         if match is not None:
+            try:
+                number = json.loads(match.group())
+            except ValueError:
+                raise self.fail("syntax", "number is out of range") from None
             self.pos = match.end()
-            return Node("number", match.start(), match.end(), json.loads(match.group()))
+            return Node("number", match.start(), match.end(), number)
         for word, literal in _LITERALS.items():
             if self.text.startswith(word, self.pos):
                 start = self.pos

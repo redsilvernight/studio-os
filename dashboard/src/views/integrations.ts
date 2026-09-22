@@ -11,6 +11,7 @@
 import { getPlatform, type Platform } from "../platform";
 import { dsBadge, dsEmptyState, dsPageHeader } from "../ds/ds";
 import {
+  CHANGE_DETAILS,
   CHANGE_LABELS,
   STATE_LABELS,
   STATE_TONES,
@@ -82,7 +83,7 @@ function planHtml(status: HarnessStatus, plan: HarnessPlan): string {
   const rows = changes
     .map(
       (change) =>
-        `<li data-change="${esc(change.kind)}"><strong>${esc(CHANGE_LABELS[change.kind] ?? change.kind)}</strong> · <code class="mono">${esc(change.target)}</code><br><span>${esc(change.summary)}</span></li>`,
+        `<li data-change="${esc(change.kind)}"><strong>${esc(CHANGE_LABELS[change.kind] ?? change.kind)}</strong> · <code class="mono">${esc(change.target)}</code><br><span>${esc(CHANGE_DETAILS[change.kind] ?? "")}</span></li>`,
     )
     .join("");
   return (

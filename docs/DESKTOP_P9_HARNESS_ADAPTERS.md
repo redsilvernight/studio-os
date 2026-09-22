@@ -115,8 +115,9 @@ ou une version illisible, mène au même refus.
    le fichier n'a pas changé depuis l'aperçu, crée la **sauvegarde**, valide le
    résultat, écrit un fichier temporaire dans le même dossier, le revalide,
    remplace atomiquement, relit et vérifie. En cas d'échec, l'original est
-   rétabli et l'erreur est explicite ; rien n'est déclaré appliqué avant la
-   vérification.
+   rétabli (`verify_failed`) ; si ce rétablissement échoue lui-même, l'erreur
+   `restore_failed` le dit et la sauvegarde reste restaurable. Rien n'est déclaré
+   appliqué avant la vérification.
 3. **`harness.rollback`** : compare le hash actuel au hash *après application*. Si
    l'utilisateur a modifié le fichier depuis, le rollback est refusé
    (`INVALID_REQUEST`, `details.reason = rollback_conflict`) : aucune
@@ -130,8 +131,10 @@ ne réécrit rien et ne crée aucune sauvegarde.
 fournisseurs, commentaires JSONC et propriétés inconnues sont conservés
 octet pour octet hors de l'entrée `studio-os`. S'il n'existe pas d'édition sûre
 (JSON invalide, clés dupliquées, fichier trop gros, non UTF-8, imbriquation
-abusive, lien symbolique, plusieurs fichiers candidats, entrée `studio-os`
-différente déjà présente), l'écriture est refusée.
+abusive, nombre hors limites, lien symbolique, plusieurs fichiers candidats),
+l'écriture est refusée. Une entrée `studio-os` déjà présente mais différente n'est
+remplacée qu'après aperçu et confirmation (l'aperçu l'indique) ; sa valeur
+précédente reste dans la sauvegarde.
 
 ## Sauvegardes
 
@@ -142,8 +145,11 @@ différente déjà présente), l'écriture est refusée.
   anciennes sont supprimées après une application réussie.
 - Bornes : chaque fichier ≤ 1 Mio ; si la sauvegarde est impossible, l'écriture
   n'a pas lieu.
-- Aucun secret n'est écrit dans une sauvegarde (le fichier ne contient que la
-  référence à la variable d'environnement).
+- Une sauvegarde est la copie fidèle du fichier de l'utilisateur, qui peut donc
+  contenir ses propres réglages ou clés (ex. un fournisseur dans `opencode.jsonc`) :
+  elle reste locale (dossier en mode 0700 là où l'OS le permet), jamais envoyée,
+  jamais journalisée. P9 n'ajoute lui-même aucun secret : seul le nom de la
+  variable `STUDIO_MCP_MACHINE_TOKEN` est écrit.
 
 ## Formes écrites
 

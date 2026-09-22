@@ -144,6 +144,7 @@ describe("harnessApi", () => {
     expect(harnessErrorMessage({ code: "invalid_request", message: "C:\\Users\\x secret", details: { reason: "rollback_conflict" } } as never)).toContain("modifié");
     expect(harnessErrorMessage({ code: "internal_error", message: "boom C:\\Users\\x", details: {} } as never)).not.toContain("C:");
     expect(harnessErrorMessage(null).length).toBeGreaterThan(5);
+    expect(harnessErrorMessage({ code: "internal_error", message: "x", details: { reason: "restore_failed" } } as never)).toContain("Restaurer");
   });
 });
 
@@ -199,6 +200,7 @@ describe("Settings › Intégrations IA (Desktop)", () => {
     const root = await mount(platform);
     await click(root, "[data-harness=claude-code] [data-action=preview]");
     expect(root.querySelector("[data-testid=plan]")?.textContent).toContain("Création");
+    expect(root.querySelector("[data-testid=plan]")?.textContent).not.toContain("Ajoute le serveur");
     expect(root.querySelector("[data-testid=plan]")?.textContent).toContain(".mcp.json");
     expect(state.calls.map((c) => c.command)).not.toContain("harness.apply");
     expect(root.querySelector("[data-testid=notice]")).toBeNull();

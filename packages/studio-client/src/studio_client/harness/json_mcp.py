@@ -187,7 +187,8 @@ class JsonMcpAdapter(HarnessAdapter):
                 bom = document.bom
                 kind = ChangeKind.MODIFY
                 summary = (
-                    "Update the Studi'OS MCP server entry; every other setting is kept."
+                    "Replace the existing studio-os MCP server entry (its previous value is "
+                    "kept in the backup); every other setting is kept."
                     if detection.reason == "entry_differs"
                     else "Add the Studi'OS MCP server entry; every other setting is kept."
                 )

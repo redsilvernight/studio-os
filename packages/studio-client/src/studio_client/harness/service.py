@@ -354,7 +354,13 @@ class HarnessService:
             if state is not HarnessState.CONFIGURED:
                 raise FsError("verify_failed", "the harness does not see the configuration")
         except FsError as error:
-            self._restore(record, stored, paths, written)
+            if not self._restore(record, paths, written):
+                self._backups.mark_applied(record)
+                raise _error(
+                    LocalErrorCode.INTERNAL_ERROR,
+                    "The change could not be verified and the original could not be restored.",
+                    "restore_failed",
+                ) from error
             self._backups.mark_failed(record)
             raise _refusal_error(error.reason) from error
         self._backups.mark_applied(record)
@@ -365,9 +371,8 @@ class HarnessService:
             state=state,
         )
 
-    def _restore(
-        self, record: BackupRecord, stored: _StoredPlan, paths: list[Path], written: list[int]
-    ) -> None:
+    def _restore(self, record: BackupRecord, paths: list[Path], written: list[int]) -> bool:
+        restored = True
         for index in reversed(written):
             entry = record.entries[index]
             try:
@@ -376,7 +381,8 @@ class HarnessService:
                 else:
                     atomic_write(paths[index], self._backups.read_backup(record, entry))
             except (FsError, BackupError):
-                continue
+                restored = False
+        return restored
 
     def rollback(self, request: HarnessRollbackRequest) -> HarnessRollbackResult:
         record = self._find_record(request.rollback_id)

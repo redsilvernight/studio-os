@@ -311,6 +311,49 @@ def test_a_write_that_does_not_verify_is_restored(
     assert (rig.root / ".mcp.json").read_bytes() == original
 
 
+def test_a_failed_restore_is_reported_and_stays_restorable(
+    rig: Rig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original = b'{"theme": "dark"}' + chr(10).encode()
+    (rig.root / ".mcp.json").write_bytes(original)
+    plan = _preview(rig)
+    real_write = service_module.atomic_write
+    calls = {"count": 0}
+
+    def failing_restore(path: Path, data: bytes) -> None:
+        calls["count"] += 1
+        if calls["count"] > 1:
+            raise FsError("io_error", "cannot restore")
+        real_write(path, data)
+
+    monkeypatch.setattr(service_module, "atomic_write", failing_restore)
+    monkeypatch.setattr(
+        service_module, "_map_state", lambda detection: (HarnessState.DETECTED, None)
+    )
+    with pytest.raises(HarnessServiceError) as failure:
+        _apply(rig, plan)
+    assert failure.value.error.details == {"reason": "restore_failed"}
+    monkeypatch.undo()
+    assert (rig.root / ".mcp.json").read_bytes() != original
+    rig.service.rollback(
+        HarnessRollbackRequest(rollback_id=latest_rollback_id(WORKSPACE_ID, CLAUDE), confirmed=True)
+    )
+    assert (rig.root / ".mcp.json").read_bytes() == original
+
+
+@pytest.mark.parametrize("adapter,name", [(CLAUDE, ".mcp.json"), (OPENCODE, "opencode.json")])
+def test_an_out_of_range_number_fails_closed_for_every_harness(
+    rig: Rig, adapter: str, name: str
+) -> None:
+    content = ('{"n": ' + "9" * 5000 + "}").encode()
+    (rig.root / name).write_bytes(content)
+    statuses = rig.service.detect(WorkspaceScope(workspace_id=WORKSPACE_ID)).harnesses
+    assert {status.adapter_id for status in statuses} == {CLAUDE, OPENCODE}
+    with pytest.raises(HarnessServiceError):
+        _preview(rig, adapter)
+    assert (rig.root / name).read_bytes() == content
+
+
 def test_read_only_config_is_refused_at_preview(rig: Rig) -> None:
     import os
     import stat

@@ -88,7 +88,7 @@ class BackupStore:
             status=_PENDING,
         )
         try:
-            directory.mkdir(parents=True, exist_ok=False)
+            directory.mkdir(mode=0o700, parents=True, exist_ok=False)
             for index, (change_id, target, kind, original, after_hash) in enumerate(entries):
                 backup_file: str | None = None
                 if original is not None:

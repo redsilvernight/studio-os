@@ -100,6 +100,7 @@ const REASONS: Record<string, string> = {
   feature_disabled: "Les intégrations IA ne sont pas activées pour ce dossier.",
   backup_failed: "La sauvegarde n'a pas pu être créée : rien n'a été modifié.",
   verify_failed: "La vérification après écriture a échoué : l'original a été rétabli.",
+  restore_failed: "La vérification a échoué et l'original n'a pas pu être rétabli automatiquement. Utilisez « Restaurer » ; une sauvegarde locale est conservée.",
   unsafe_path: "Emplacement de configuration refusé.",
   symlink: "Emplacement de configuration refusé (lien symbolique).",
   too_large: "Le fichier de configuration est trop volumineux.",
@@ -132,3 +133,10 @@ export function harnessErrorMessage(error: LocalError | null | undefined): strin
 }
 
 export const CHANGE_LABELS: Record<string, string> = { create: "Création", modify: "Modification", delete: "Suppression" };
+
+/** Fixed French wording per kind: the daemon's English summary is never displayed. */
+export const CHANGE_DETAILS: Record<string, string> = {
+  create: "Le fichier est créé avec l'entrée MCP studio-os.",
+  modify: "L'entrée MCP studio-os est ajoutée ou remplacée ; les autres réglages sont conservés et l'ancien fichier est sauvegardé.",
+  delete: "Le fichier est supprimé ; l'ancien contenu est sauvegardé.",
+};
