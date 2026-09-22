@@ -518,7 +518,7 @@ class HarnessService:
                                         if "result" in data and "sessionId" in data.get("result", {}):
                                             session_id = data["result"]["sessionId"]
                                             break
-                                    except:
+                                    except Exception:
                                         pass
                         
                         if not session_id:
@@ -551,19 +551,27 @@ class HarnessService:
                                     if "error" in data and data["error"]:
                                         # JSON-RPC error returned
                                         err = data["error"]
-                                        return False, f"MCP error: {err.get('message', 'unknown')} (code: {err.get('code', 'unknown')})"
+                                        return False, (
+                                            f"MCP error: {err.get('message', 'unknown')} "
+                                            f"(code: {err.get('code', 'unknown')})"
+                                        )
                                     if "result" in data:
                                         result = data["result"]
-                                        # Check if result indicates an error (isError=true or error_code in structuredContent)
+                                        # Check if result indicates an error
+                                        # (isError=true or error_code in structuredContent)
                                         if result.get("isError") is True:
-                                            error_msg = result.get("content", [{}])[0].get("text", "Unknown error")
+                                            error_msg = result.get("content", [{}])[0].get(
+                                                "text", "Unknown error"
+                                            )
                                             break
                                         structured = result.get("structuredContent", {})
                                         if isinstance(structured, dict) and "error_code" in structured:
-                                            error_msg = structured.get("message", structured.get("error_code", "Unknown error"))
+                                            error_msg = structured.get(
+                                                "message", structured.get("error_code", "Unknown error")
+                                            )
                                             break
                                         success = True
-                                except:
+                                except Exception:
                                     pass
                         if error_msg:
                             return False, f"Tool returned error: {error_msg}"

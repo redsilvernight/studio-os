@@ -172,7 +172,7 @@ class LibraryContextProvider:
         content = dict(version_row.content)
         try:
             if kind == "rule":
-                parsed = RuleContent.model_validate(content)
+                parsed: RuleContent | SkillContent = RuleContent.model_validate(content)
             elif kind == "skill":
                 parsed = SkillContent.model_validate(content)
             else:
