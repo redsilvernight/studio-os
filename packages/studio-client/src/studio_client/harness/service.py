@@ -502,9 +502,14 @@ class HarnessService:
                                 "clientInfo": {"name": "studio-verify", "version": "1.0"}
                             }
                         }
-                        init_response = await client.post(info.mcp_url, json=init_payload, headers=headers)
+                        init_response = await client.post(
+                            info.mcp_url, json=init_payload, headers=headers
+                        )
                         if init_response.status_code != 200:
-                            return False, f"Initialize failed: HTTP {init_response.status_code}: {init_response.text[:200]}"
+                            return False, (
+                                f"Initialize failed: HTTP {init_response.status_code}: "
+                                f"{init_response.text[:200]}"
+                            )
                         
                         # Extract session ID from response header
                         session_id = init_response.headers.get("mcp-session-id")
@@ -512,14 +517,18 @@ class HarnessService:
                             # Try to parse from event stream
                             for line in init_response.text.splitlines():
                                 if line.startswith("data: "):
-                                    import json
                                     try:
                                         data = json.loads(line[6:])
-                                        if "result" in data and "sessionId" in data.get("result", {}):
-                                            session_id = data["result"]["sessionId"]
-                                            break
-                                    except Exception:
-                                        pass
+                                    except json.JSONDecodeError:
+                                        continue
+                                    if not isinstance(data, dict):
+                                        continue
+                                    result = data.get("result")
+                                    if isinstance(result, dict) and isinstance(
+                                        result.get("sessionId"), str
+                                    ):
+                                        session_id = result["sessionId"]
+                                        break
                         
                         if not session_id:
                             return False, "No session ID returned from initialize"
@@ -535,44 +544,56 @@ class HarnessService:
                                 "arguments": {}
                             }
                         }
-                        tool_response = await client.post(info.mcp_url, json=tool_payload, headers=headers)
+                        tool_response = await client.post(
+                            info.mcp_url, json=tool_payload, headers=headers
+                        )
                         if tool_response.status_code != 200:
-                            return False, f"Tool call failed: HTTP {tool_response.status_code}: {tool_response.text[:200]}"
+                            return False, (
+                                f"Tool call failed: HTTP {tool_response.status_code}: "
+                                f"{tool_response.text[:200]}"
+                            )
                         
                         # Parse event stream response - check for actual success
-                        # The MCP server may return 200 with a result that contains an error in the content
+                        # The MCP server may return 200 with an error in the content.
                         success = False
                         error_msg = None
                         for line in tool_response.text.splitlines():
                             if line.startswith("data: "):
-                                import json
                                 try:
                                     data = json.loads(line[6:])
-                                    if "error" in data and data["error"]:
-                                        # JSON-RPC error returned
-                                        err = data["error"]
-                                        return False, (
-                                            f"MCP error: {err.get('message', 'unknown')} "
-                                            f"(code: {err.get('code', 'unknown')})"
-                                        )
-                                    if "result" in data:
-                                        result = data["result"]
-                                        # Check if result indicates an error
-                                        # (isError=true or error_code in structuredContent)
-                                        if result.get("isError") is True:
-                                            error_msg = result.get("content", [{}])[0].get(
-                                                "text", "Unknown error"
-                                            )
-                                            break
-                                        structured = result.get("structuredContent", {})
-                                        if isinstance(structured, dict) and "error_code" in structured:
-                                            error_msg = structured.get(
-                                                "message", structured.get("error_code", "Unknown error")
-                                            )
-                                            break
-                                        success = True
-                                except Exception:
-                                    pass
+                                except json.JSONDecodeError:
+                                    continue
+                                if not isinstance(data, dict):
+                                    continue
+                                err = data.get("error")
+                                if isinstance(err, dict) and err:
+                                    return False, (
+                                        f"MCP error: {err.get('message', 'unknown')} "
+                                        f"(code: {err.get('code', 'unknown')})"
+                                    )
+                                result = data.get("result")
+                                if not isinstance(result, dict):
+                                    continue
+                                if result.get("isError") is True:
+                                    content = result.get("content")
+                                    first_content = (
+                                        content[0]
+                                        if isinstance(content, list) and content
+                                        else None
+                                    )
+                                    error_msg = (
+                                        first_content.get("text", "Unknown error")
+                                        if isinstance(first_content, dict)
+                                        else "Unknown error"
+                                    )
+                                    break
+                                structured = result.get("structuredContent", {})
+                                if isinstance(structured, dict) and "error_code" in structured:
+                                    error_msg = structured.get(
+                                        "message", structured.get("error_code", "Unknown error")
+                                    )
+                                    break
+                                success = True
                         if error_msg:
                             return False, f"Tool returned error: {error_msg}"
                         if success:
