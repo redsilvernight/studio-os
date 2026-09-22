@@ -36,7 +36,7 @@ from studio_api.db.models.library import (
 )
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
-from studio_api.db.models.runtime import RuntimeBindingModel
+from studio_api.db.models.runtime import RuntimeBindingModel, RuntimeModel
 from studio_api.services import library as library_service
 from studio_api.services import runtime_registry as registry_service
 from studio_api.services.authz import (
@@ -92,7 +92,7 @@ async def _checked_target(
             or target.capabilities != RuntimeCapabilities()
         ):
             raise _invalid_runtime_binding("runtime_id_must_be_exclusive")
-        runtime = await session.get(registry_service.RuntimeModel, target.runtime_id)
+        runtime = await session.get(RuntimeModel, target.runtime_id)
         if runtime is None:
             raise HTTPException(
                 status.HTTP_404_NOT_FOUND, detail={"error_code": "runtime_not_found"}
