@@ -835,12 +835,25 @@ async function enableKnowledge(
     session.error = workspaceErrorMessage(saved.error);
     return again();
   }
+  const initialized = await platform.request("knowledge.init_vault", {
+    workspace_id: workspaceId,
+    confirmed: true,
+  });
+  if (!initialized.ok) {
+    session.error = workspaceErrorMessage(initialized.error);
+    return again();
+  }
+  const indexed = await platform.request("knowledge.reindex", {
+    workspace_id: workspaceId,
+    mode: "full_rebuild",
+  });
+  if (!indexed.ok) {
+    session.error = workspaceErrorMessage(indexed.error);
+    return again();
+  }
   const { text } = await readKnowledge(platform, workspaceId);
   session.knowledgeText = text;
-  session.notice =
-    text === "Mémoire indisponible : vérifiez le dossier de la mémoire."
-      ? "Mémoire activée : créez le dossier dans votre projet, puis revenez ici."
-      : "Mémoire activée.";
+  session.notice = "Mémoire activée et préparée dans le dossier du projet.";
   session.error = null;
   void root;
   return again();

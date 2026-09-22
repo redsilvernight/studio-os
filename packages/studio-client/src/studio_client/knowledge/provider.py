@@ -93,7 +93,12 @@ from studio_client.knowledge.vault import (
 KNOWLEDGE_PROVIDER_ID = "markdown-files"
 KNOWLEDGE_DISPLAY_NAME = "Markdown files"
 KNOWLEDGE_PROVIDER_VERSION = "1.0.0"
-KNOWLEDGE_CAPABILITIES = ["knowledge.graph", "knowledge.index", "knowledge.read"]
+KNOWLEDGE_CAPABILITIES = [
+    "knowledge.graph",
+    "knowledge.index",
+    "knowledge.init",
+    "knowledge.read",
+]
 MAX_INTEGRATIONS = 8
 MAX_OUTGOING_LINKS = 200
 MAX_DOCUMENT_BYTES = 262_144

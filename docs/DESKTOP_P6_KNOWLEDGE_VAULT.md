@@ -55,6 +55,14 @@ un `README.md` ou un `vault.json` existant est conservé, un chemin canonique
 occupé par un fichier utilisateur est laissé intact (listé en `skipped`), et
 un dossier Markdown non vide est connecté sans réorganisation.
 
+P12 expose cette primitive par la commande locale additive
+`knowledge.init_vault`. La requête contient uniquement le `workspace_id` et
+`confirmed: true` : le daemon résout `KnowledgeConfig.content_root` dans le
+workspace confirmé, refuse les symlinks/junctions et ne renvoie jamais de chemin
+absolu. La capability optionnelle `knowledge.init` reste distincte de
+`knowledge.index`; l'indexation est déclenchée séparément par
+`knowledge.reindex`.
+
 États explicites (`VaultState`) : `missing`, `not_a_directory`, `inaccessible`
 (PermissionError à l'énumération), `empty`, `markdown_existing`,
 `studios_vault`. Un chemin déplacé ou inaccessible n'est jamais deviné : le

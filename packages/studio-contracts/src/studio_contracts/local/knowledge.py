@@ -16,6 +16,7 @@ from studio_contracts.local.common import (
     LocalResourceKind,
     LocalResourceUri,
     OpaqueId,
+    RelativePath,
     SafeText,
     Sha256Hex,
     ShortText,
@@ -109,6 +110,25 @@ class KnowledgeDocument(LocalContractModel):
 class KnowledgeReindexMode(StrEnum):
     INCREMENTAL = "incremental"
     FULL_REBUILD = "full_rebuild"
+
+
+class KnowledgeVaultState(StrEnum):
+    MISSING = "missing"
+    EMPTY = "empty"
+    MARKDOWN_EXISTING = "markdown_existing"
+    STUDIOS_VAULT = "studios_vault"
+
+
+class KnowledgeInitVaultRequest(LocalContractModel):
+    workspace_id: UUID
+    confirmed: Literal[True]
+
+
+class KnowledgeInitVaultResult(LocalContractModel):
+    workspace_id: UUID
+    state_before: KnowledgeVaultState
+    created: list[RelativePath] = Field(default_factory=list, max_length=32)
+    skipped: list[RelativePath] = Field(default_factory=list, max_length=32)
 
 
 class KnowledgeReindexRequest(LocalContractModel):

@@ -17,6 +17,7 @@
         "workspace.git_status",
         "workspace.save_config",
         "knowledge.status",
+        "knowledge.init_vault",
         "knowledge.search",
         "knowledge.get_document",
         "knowledge.graph_page",

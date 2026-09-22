@@ -22,6 +22,7 @@
       "capabilities": [
         "knowledge.graph",
         "knowledge.index",
+        "knowledge.init",
         "knowledge.read"
       ],
       "display_name": "Markdown files",

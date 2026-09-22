@@ -25,6 +25,7 @@ pub const LOCAL_FEATURE_CAPABILITIES: &[&str] = &[
     "knowledge.read",
     "knowledge.graph",
     "knowledge.index",
+    "knowledge.init",
     "code_graph.read",
     "code_graph.graph",
     "code_graph.index",

@@ -1,0 +1,47 @@
+{
+  "$defs": {
+    "KnowledgeVaultState": {
+      "enum": [
+        "missing",
+        "empty",
+        "markdown_existing",
+        "studios_vault"
+      ],
+      "title": "KnowledgeVaultState",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "created": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Created",
+      "type": "array"
+    },
+    "skipped": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Skipped",
+      "type": "array"
+    },
+    "state_before": {
+      "$ref": "#/$defs/KnowledgeVaultState"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace_id",
+    "state_before"
+  ],
+  "title": "KnowledgeInitVaultResult",
+  "type": "object"
+}

@@ -13,6 +13,7 @@
         "identity.view",
         "knowledge.graph",
         "knowledge.index",
+        "knowledge.init",
         "knowledge.read",
         "publication.plan",
         "publication.publish",
@@ -27,6 +28,7 @@
           "provides": [
             "knowledge.graph",
             "knowledge.index",
+            "knowledge.init",
             "knowledge.read"
           ],
           "state": "ready"
@@ -81,6 +83,7 @@
       "identity.view",
       "knowledge.graph",
       "knowledge.index",
+      "knowledge.init",
       "knowledge.read",
       "publication.plan",
       "publication.publish",

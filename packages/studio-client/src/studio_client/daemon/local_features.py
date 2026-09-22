@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import threading
 from collections.abc import Awaitable, Callable, Coroutine, Mapping, Sequence
 from pathlib import Path
@@ -32,11 +33,14 @@ from studio_contracts.local.identity import ProfileRef
 from studio_contracts.local.knowledge import (
     KnowledgeDocument,
     KnowledgeGetDocumentRequest,
+    KnowledgeInitVaultRequest,
+    KnowledgeInitVaultResult,
     KnowledgeReindexRequest,
     KnowledgeReindexResult,
     KnowledgeSearchRequest,
     KnowledgeSearchResult,
     KnowledgeStatus,
+    KnowledgeVaultState,
 )
 from studio_contracts.local.workspace import LocalWorkspaceConfig, WorkspaceScope
 
@@ -51,6 +55,7 @@ from studio_client.harness.service import (
 from studio_client.knowledge.errors import KnowledgeError
 from studio_client.knowledge.provider import disabled_knowledge_status
 from studio_client.knowledge.service import KnowledgeService, knowledge_service_from_workspace
+from studio_client.knowledge.vault import VaultInitReport, initialize_vault
 from studio_client.knowledge.watch import VaultIndexWatcher
 from studio_client.watchers import GitChange
 
@@ -62,6 +67,7 @@ FEATURE_CAPABILITIES: tuple[str, ...] = (
     "knowledge.read",
     "knowledge.graph",
     "knowledge.index",
+    "knowledge.init",
     "code_graph.read",
     "code_graph.graph",
     "code_graph.index",
@@ -397,6 +403,37 @@ class LocalFeatureRegistry:
         except KnowledgeError as error:
             raise _knowledge_error(error) from error
 
+    def knowledge_init_vault(
+        self, request: KnowledgeInitVaultRequest
+    ) -> KnowledgeInitVaultResult:
+        self._resolve(request.workspace_id)
+        with self._lock:
+            return self._loop.submit(self._knowledge_init_vault(request), timeout=60)
+
+    async def _knowledge_init_vault(
+        self, request: KnowledgeInitVaultRequest
+    ) -> KnowledgeInitVaultResult:
+        service = self._require_knowledge(request.workspace_id)
+        config = self._configs[request.workspace_id]
+        try:
+            report = await asyncio.to_thread(_initialize_workspace_vault, config, service)
+        except KnowledgeError as error:
+            raise _knowledge_error(error) from error
+        except OSError as error:
+            raise LocalFeatureError(
+                _error(
+                    ComponentId.KNOWLEDGE,
+                    LocalErrorCode.PERMISSION_DENIED,
+                    "The knowledge folder could not be initialized.",
+                )
+            ) from error
+        return KnowledgeInitVaultResult(
+            workspace_id=request.workspace_id,
+            state_before=KnowledgeVaultState(report.state_before.value),
+            created=list(report.created),
+            skipped=list(report.skipped),
+        )
+
     def knowledge_search(self, request: KnowledgeSearchRequest) -> KnowledgeSearchResult:
         self._resolve(request.workspace_id)
         return self._loop.submit(self._knowledge_search(request), timeout=60)
@@ -616,3 +653,40 @@ def _default_knowledge_factory(
     config: LocalWorkspaceConfig, cache_dir: Path
 ) -> KnowledgeService | None:
     return knowledge_service_from_workspace(config, cache_dir=cache_dir)
+
+
+def _initialize_workspace_vault(
+    config: LocalWorkspaceConfig, service: KnowledgeService
+) -> VaultInitReport:
+    workspace_root = Path(config.roots.workspace_root)
+    vault_root = service.vault_root
+    try:
+        relative = vault_root.relative_to(workspace_root)
+    except ValueError as error:
+        raise KnowledgeError(
+            KnowledgeError.OUT_OF_SCOPE, "the vault must stay inside the workspace"
+        ) from error
+    current = workspace_root
+    for part in relative.parts:
+        current /= part
+        if (current.exists() or current.is_symlink()) and _is_link_or_junction(current):
+            raise KnowledgeError(
+                KnowledgeError.OUT_OF_SCOPE, "the vault cannot traverse a link or junction"
+            )
+    try:
+        vault_root.resolve(strict=False).relative_to(workspace_root.resolve(strict=True))
+    except (OSError, ValueError) as error:
+        raise KnowledgeError(
+            KnowledgeError.OUT_OF_SCOPE, "the vault must stay inside the workspace"
+        ) from error
+    return initialize_vault(vault_root)
+
+
+def _is_link_or_junction(path: Path) -> bool:
+    if path.is_symlink():
+        return True
+    isjunction = getattr(os.path, "isjunction", None)
+    try:
+        return bool(isjunction(path)) if isjunction is not None else False
+    except OSError:
+        return True

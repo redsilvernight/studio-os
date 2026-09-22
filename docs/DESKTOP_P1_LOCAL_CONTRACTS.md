@@ -47,10 +47,12 @@ un test échoue si l'export diverge des builders Python.
   version de paquet. Résultats : `compatible`, `compatible_degraded`,
   `daemon_too_old`, `desktop_too_old`, `capability_missing`,
   `protocol_incompatible`. Échec = fail-closed (`silent_fallback: false`).
-- **Bridge** : 29 commandes et 4 événements, table `CommandSpec` par commande
+- **Bridge** : 32 commandes et 4 événements, table `CommandSpec` par commande
   (capability, mutation, annulation, délai, tailles). Aucune primitive shell,
   filesystem arbitraire, spawn ou proxy HTTP ; `allowlist_violations()` doit
   renvoyer `[]`.
+  P12 ajoute `knowledge.init_vault` sous la capability optionnelle
+  `knowledge.init` : seul `workspace_id` est adressable, aucune saisie de chemin.
 - **Daemon / outbox** : partition d'outbox = sha256(origine, profil, machine) ;
   verrou d'instance = sha256(origine, profil). Rejeu sous une autre identité
   refusé (`IDENTITY_MISMATCH`).

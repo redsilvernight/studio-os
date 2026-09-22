@@ -60,7 +60,7 @@ from studio_contracts.local.identity import (
     binding_mismatches,
     partition_key,
 )
-from studio_contracts.local.knowledge import KnowledgeStatus
+from studio_contracts.local.knowledge import KnowledgeInitVaultRequest, KnowledgeStatus
 from studio_contracts.local.provider import IndexInfo, IndexState
 from studio_contracts.local.publication import (
     DEFAULT_PUBLICATION_POLICY,
@@ -374,6 +374,27 @@ class TestBridgeAllowlist:
         capability = BRIDGE_COMMANDS[BridgeCommand.CODE_GRAPH_FIND_SYMBOLS].capability
         assert capability is not None
         assert check_capability(BridgeCommand.CODE_GRAPH_FIND_SYMBOLS, {capability}) is None
+
+    def test_vault_initialization_is_bounded_and_explicitly_confirmed(self) -> None:
+        spec = BRIDGE_COMMANDS[BridgeCommand.KNOWLEDGE_INIT_VAULT]
+        assert spec.capability == "knowledge.init"
+        assert spec.mutating is True
+        assert spec.cancellable is False
+        assert spec.timeout_ms == 30_000
+        request = KnowledgeInitVaultRequest(workspace_id=fixtures.WORKSPACE_ID, confirmed=True)
+        assert request.confirmed is True
+        with pytest.raises(ValidationError):
+            KnowledgeInitVaultRequest.model_validate(
+                {"workspace_id": str(fixtures.WORKSPACE_ID), "confirmed": False}
+            )
+        with pytest.raises(ValidationError):
+            KnowledgeInitVaultRequest.model_validate(
+                {
+                    "workspace_id": str(fixtures.WORKSPACE_ID),
+                    "confirmed": True,
+                    "path": "C:/arbitrary",
+                }
+            )
 
     def test_reply_correlation(self) -> None:
         request = _model("bridge.request.knowledge_search")
