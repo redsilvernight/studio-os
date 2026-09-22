@@ -64,6 +64,8 @@ const MODELS = [
   "HarnessRollbackResult",
   "KnowledgeInitVaultRequest",
   "KnowledgeInitVaultResult",
+  "HarnessVerifyRequest",
+  "HarnessVerifyResult",
 ];
 
 // Line endings are not content: a Windows checkout may hold CRLF where the
