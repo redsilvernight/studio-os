@@ -37,7 +37,7 @@ describe("P1 contract boundary (no second source of truth)", () => {
     };
     expect(LOCAL_PROTOCOL).toBe(exported.protocol);
     expect(knownCommands().sort()).toEqual(exported.commands.map((c) => c.command).sort());
-    expect(knownCommands()).toHaveLength(32);
+    expect(knownCommands()).toHaveLength(33);
   });
 
   it("every bundled schema accepts every valid P1 fixture of that model", () => {
