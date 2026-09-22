@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
-from collections.abc import Awaitable, Callable, Coroutine, Sequence
+from collections.abc import Awaitable, Callable, Coroutine, Mapping, Sequence
 from pathlib import Path
 from typing import Any, Protocol, TypeVar
 from uuid import UUID
@@ -17,6 +17,17 @@ from studio_contracts.local.code_graph import (
 )
 from studio_contracts.local.common import ComponentId, ComponentState, LocalError, LocalErrorCode
 from studio_contracts.local.graph import GraphExpandRequest, GraphPage, GraphPageRequest
+from studio_contracts.local.harness import (
+    HarnessApplyRequest,
+    HarnessApplyResult,
+    HarnessDetectResult,
+    HarnessPlan,
+    HarnessPreviewRequest,
+    HarnessRollbackRequest,
+    HarnessRollbackResult,
+    HarnessStatus,
+    HarnessStatusRequest,
+)
 from studio_contracts.local.identity import ProfileRef
 from studio_contracts.local.knowledge import (
     KnowledgeDocument,
@@ -29,6 +40,14 @@ from studio_contracts.local.knowledge import (
 )
 from studio_contracts.local.workspace import LocalWorkspaceConfig, WorkspaceScope
 
+from studio_client.harness.backup import BackupStore
+from studio_client.harness.base import system_env
+from studio_client.harness.registry import HarnessRegistry, default_adapters
+from studio_client.harness.service import (
+    HarnessService,
+    HarnessServiceError,
+    WorkspaceInfo,
+)
 from studio_client.knowledge.errors import KnowledgeError
 from studio_client.knowledge.provider import disabled_knowledge_status
 from studio_client.knowledge.service import KnowledgeService, knowledge_service_from_workspace
@@ -46,7 +65,11 @@ FEATURE_CAPABILITIES: tuple[str, ...] = (
     "code_graph.read",
     "code_graph.graph",
     "code_graph.index",
+    "harness.read",
+    "harness.plan",
+    "harness.apply",
 )
+MCP_PATH = "/mcp"
 
 WorkspaceConfigSource = Callable[[ProfileRef], Sequence[LocalWorkspaceConfig]]
 KnowledgeServiceFactory = Callable[[LocalWorkspaceConfig, Path], KnowledgeService | None]
@@ -236,6 +259,9 @@ class LocalFeatureRegistry:
         code_graph_service: CodeGraphServiceLike | None = None,
         knowledge_factory: KnowledgeServiceFactory | None = None,
         vault_poll_seconds: float = 30.0,
+        harness_backups_root: Path | None = None,
+        harness_registry: HarnessRegistry | None = None,
+        harness_env: Callable[[], Mapping[str, str]] | None = None,
     ) -> None:
         self._workspace_configs = workspace_configs
         self._cache_root = cache_root
@@ -249,6 +275,12 @@ class LocalFeatureRegistry:
         self._services: dict[UUID, KnowledgeService | None] = {}
         self._watchers: dict[UUID, asyncio.Task[None]] = {}
         self._started = False
+        self._harness = HarnessService(
+            harness_registry or HarnessRegistry(default_adapters()),
+            BackupStore(harness_backups_root or cache_root.parent / "harness-backups"),
+            self._harness_workspace,
+            env=harness_env or system_env,
+        )
 
     @property
     def started(self) -> bool:
@@ -526,6 +558,40 @@ class LocalFeatureRegistry:
                 )
             )
         return self._code_graph
+
+    def _harness_workspace(self, workspace_id: UUID) -> WorkspaceInfo | None:
+        config = self._configs.get(workspace_id)
+        if config is None:
+            return None
+        return WorkspaceInfo(
+            workspace_id=workspace_id,
+            root=Path(config.roots.workspace_root),
+            mcp_url=str(config.profile.server_origin).rstrip("/") + MCP_PATH,
+            harness_enabled=config.features.harness,
+        )
+
+    def _harness_call(self, workspace_id: UUID | None, call: Callable[[], _T]) -> _T:
+        if workspace_id is not None:
+            self._resolve(workspace_id)
+        try:
+            return call()
+        except HarnessServiceError as error:
+            raise LocalFeatureError(error.error) from error
+
+    def harness_detect(self, request: WorkspaceScope) -> HarnessDetectResult:
+        return self._harness_call(request.workspace_id, lambda: self._harness.detect(request))
+
+    def harness_status(self, request: HarnessStatusRequest) -> HarnessStatus:
+        return self._harness_call(request.workspace_id, lambda: self._harness.status(request))
+
+    def harness_preview(self, request: HarnessPreviewRequest) -> HarnessPlan:
+        return self._harness_call(request.workspace_id, lambda: self._harness.preview(request))
+
+    def harness_apply(self, request: HarnessApplyRequest) -> HarnessApplyResult:
+        return self._harness_call(None, lambda: self._harness.apply(request))
+
+    def harness_rollback(self, request: HarnessRollbackRequest) -> HarnessRollbackResult:
+        return self._harness_call(None, lambda: self._harness.rollback(request))
 
     async def on_git_change(self, change: GitChange) -> None:
         if not self._started or self._code_graph is None:

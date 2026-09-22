@@ -44,6 +44,15 @@ const MODELS = [
   "KnowledgeSearchResult",
   "CodeSymbolQuery",
   "CodeSymbolResult",
+  "HarnessDetectResult",
+  "HarnessStatus",
+  "HarnessStatusRequest",
+  "HarnessPreviewRequest",
+  "HarnessPlan",
+  "HarnessApplyRequest",
+  "HarnessApplyResult",
+  "HarnessRollbackRequest",
+  "HarnessRollbackResult",
 ];
 
 // Line endings are not content: a Windows checkout may hold CRLF where the

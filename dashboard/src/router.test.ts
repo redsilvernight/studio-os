@@ -61,6 +61,11 @@ describe("parseRoute", () => {
     expect(parseRoute("#/configuration/runtimes/rt1")).toEqual({ name: "configRuntime", id: "rt1" });
     expect(parseRoute("#/configuration/bindings")).toEqual({ name: "configBindings" });
     expect(parseRoute("#/configuration/application")).toEqual({ name: "configApplication" });
+    expect(parseRoute("#/configuration/integrations")).toEqual({ name: "configIntegrations" });
+    expect(parseRoute("#/configuration/integrations/11111111-2222-4333-8444-555555555555")).toEqual({
+      name: "configIntegrations",
+      workspaceId: "11111111-2222-4333-8444-555555555555",
+    });
     expect(parseRoute("#/configuration/project")).toEqual({ name: "configProject", tab: "resources" });
     expect(parseRoute("#/configuration/project/locks")).toEqual({ name: "configProject", tab: "locks" });
     expect(parseRoute("#/configuration/project/overrides")).toEqual({ name: "configProject", tab: "overrides" });

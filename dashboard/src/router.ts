@@ -22,6 +22,7 @@ export type Route =
   | { name: "configBindings" }
   | { name: "configProject"; tab: ProjectConfigTab }
   | { name: "configApplication" }
+  | { name: "configIntegrations"; workspaceId?: string }
   | { name: "workspaces" }
   | { name: "graphs"; kind: "knowledge" | "code" | "project"; workspaceId?: string }
   | { name: "inspector"; stableKey: string | null }
@@ -85,6 +86,10 @@ export function parseRoute(hash: string): Route {
     }
     if (parts[1] === "bindings" && parts.length === 2) return { name: "configBindings" };
     if (parts[1] === "application" && parts.length === 2) return { name: "configApplication" };
+    if (parts[1] === "integrations" && parts.length === 2) return { name: "configIntegrations" };
+    if (parts[1] === "integrations" && parts.length === 3 && parts[2] !== undefined) {
+      return { name: "configIntegrations", workspaceId: decode(parts[2]) };
+    }
     if (parts[1] === "project" && parts.length <= 3) {
       const tab: ProjectConfigTab =
         parts[2] === "locks" || parts[2] === "overrides" ? parts[2] : "resources";

@@ -270,3 +270,37 @@
 .settings-restart {
   margin-top: var(--ds-space-4);
 }
+
+.integrations-list {
+  display: grid;
+  gap: var(--ds-space-4);
+}
+.integration-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-2);
+}
+.integration-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+  margin-top: var(--ds-space-3);
+}
+.integration-plan {
+  margin-top: var(--ds-space-3);
+  padding: var(--ds-space-3);
+  border: 1px solid var(--ds-border, currentColor);
+  border-radius: var(--ds-radius-md, 6px);
+  overflow-wrap: anywhere;
+}
+.integration-plan ul {
+  margin: var(--ds-space-2) 0;
+  padding-left: var(--ds-space-4);
+}
+.integration-reason {
+  margin: var(--ds-space-2) 0 0;
+  font-size: var(--ds-text-sm);
+  color: var(--ds-text-muted);
+}
