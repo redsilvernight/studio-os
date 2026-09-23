@@ -17,9 +17,13 @@
 //    and writes its third-party inventory (fails on an undeclared/unreviewed license);
 // 4. compiles the shell with `tauri build --no-bundle` (or `--bundles nsis` with --installer).
 import { join } from "node:path";
-import { arg, dashboardDir, dashboardOut, DEFAULT_API_URL, desktopDir, flag, overlayPath, runOrFail, tauriCli, viteCli } from "./lib.mjs";
+import { ALLOW_INSECURE_ORIGIN_ENV, allowInsecureOrigin, arg, dashboardDir, dashboardOut, DEFAULT_API_URL, desktopDir, flag, overlayPath, runOrFail, tauriCli, validateBuildApiUrl, viteCli } from "./lib.mjs";
 
-const apiUrl = arg("--api-url", process.env.STUDIO_DESKTOP_API_URL ?? DEFAULT_API_URL);
+const insecureOriginAllowed = allowInsecureOrigin();
+const apiUrl = validateBuildApiUrl(
+  arg("--api-url", process.env.STUDIO_DESKTOP_API_URL ?? DEFAULT_API_URL),
+  insecureOriginAllowed,
+);
 const installer = flag("--installer");
 const sidecar = flag("--sidecar") || installer;
 const node = process.execPath;
@@ -48,7 +52,10 @@ if (sidecar) {
 const tauriArgs = installer ? ["build", "--bundles", "nsis"] : ["build", "--no-bundle"];
 console.log(`\n▶ Tauri build (${tauriArgs.slice(1).join(" ")})`);
 await runOrFail(node, [tauriCli(), ...tauriArgs, "--config", overlayPath], {
-  env: { STUDIO_DESKTOP_API_URL: apiUrl },
+  env: {
+    STUDIO_DESKTOP_API_URL: apiUrl,
+    [ALLOW_INSECURE_ORIGIN_ENV]: insecureOriginAllowed ? "1" : "0",
+  },
 });
 console.log("\n✔ built: desktop/src-tauri/target/release/studio-desktop.exe");
 if (installer) console.log("✔ installer: desktop/src-tauri/target/release/bundle/nsis/");
