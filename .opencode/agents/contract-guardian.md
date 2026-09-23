@@ -25,7 +25,7 @@ Studio OS is built by two parallel tracks (Bloc A: Cloud/Core, Bloc B: Local Cli
 4. Check `Idempotency-Key` support is preserved on any endpoint that creates a replayable resource.
 5. Check event envelope fields (`event_id`, `event_type`, `actor_type`, `schema_version`, ...) are not altered incompatibly.
 6. Check whether both Bloc A and Bloc B mocks/consumers need updating in the same change, per `IMPLEMENTATION/04_INTEGRATION_CHECKLIST.md`.
-7. Check whether the change corresponds to a recorded Decision (`DEC-XXXX`); if it should have one and doesn't, flag it. Check the AI-Memory vault (`projects/studio-os/decisions/`) for a prior decision covering the same contract before assuming none exists — the vault can hold a decision not yet reflected in `docs/DECISIONS.md` or vice versa; treat a mismatch between them as its own finding.
+7. Check whether the change corresponds to a recorded Decision (`DEC-XXXX` in `docs/decisions/`); if it should have one and doesn't, flag it. `docs/decisions/` is canonical — do not cross-check the AI-Memory vault, it is a non-canonical mirror.
 8. Use Graphify (`graphify path`/`graphify explain`) to find every consumer of the changed field/event/endpoint on both Bloc A and Bloc B — grep alone misses call sites reached indirectly (MCP tool wrapping a router, a daemon watcher constructing the same envelope). Before relying on it, verify that the changed files are reflected in `E:\Graphify\Studio-OS\graphify-out\manifest.json`; if they are not, update the graph first. Do not infer freshness from file mtimes alone.
 
 ## Important
@@ -35,6 +35,8 @@ Studio OS is built by two parallel tracks (Bloc A: Cloud/Core, Bloc B: Local Cli
 - Do not block genuinely additive, backward-compatible changes.
 
 ## Output
+
+~400 words total unless the number of findings genuinely requires more — cite contract path/section instead of pasting raw contract text or diffs.
 
 ### Verdict
 Additive / Breaking / Needs a Decision / Compliant.

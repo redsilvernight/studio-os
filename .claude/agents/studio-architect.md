@@ -1,7 +1,7 @@
 ---
 name: "studio-architect"
 description: "Analyze Studio OS architecture before a non-trivial change — ownership of state, contract boundaries (API/Event/Auth-Sync/Data Model), and the split between Bloc A (Cloud/Core) and Bloc B (Local Client)."
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob, Bash, PowerShell
 ---
 
 # Studio Architect
@@ -35,7 +35,7 @@ Your job is to understand the existing architecture and the relevant contracts b
 
 ## Output
 
-Return a concise report containing:
+Return a concise report, ~400 words total unless the number of contracts/risks genuinely requires more — never paste raw file content, diffs, or full contract text; cite path and section instead. Containing:
 
 ### Systems
 Relevant systems and their responsibilities (Cloud/Core vs Local Client).

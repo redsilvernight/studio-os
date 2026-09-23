@@ -31,6 +31,9 @@ test-results/
 playwright-report/
 output/
 
+# Installateur Desktop copié à la racine pour distribution interne (jamais commité)
+/StudiOS-Setup-*.exe
+
 # Docker local volumes (dev compose)
 docker/.data/
 

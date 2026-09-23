@@ -1,7 +1,7 @@
 ---
 name: "sync-debugger"
 description: "Investigate offline-queue, idempotency, resource-claim, and resumable-transfer bugs in Studio OS — SQLite outbox replay, duplicate events, stuck/expired claims, failed multipart resume."
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob, Bash, PowerShell
 ---
 
 # Sync Debugger
@@ -39,6 +39,8 @@ Your job is to identify the root cause of a sync, offline-queue, claim, or trans
 - Do not recommend rewriting unrelated systems.
 
 ## Output
+
+~400 words total unless the evidence genuinely requires more — cite file/line and table/event names instead of pasting raw log or query output.
 
 ### Symptom
 What is happening, client-side and server-side.
