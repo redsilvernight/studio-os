@@ -51,19 +51,31 @@ fn patterns() -> &'static [(Regex, &'static str)] {
     P.get_or_init(|| {
         let build = |re: &str, rep: &'static str| (Regex::new(re).expect("static pattern"), rep);
         vec![
+            build(
+                r#"(?i)("[A-Za-z0-9_.-]*?(?:token|secret(?:[_-]?(?:access[_-]?)?key)?|password|passwd|api[_-]?key|private[_-]?key|credentials?|signature|authorization)"\s*:\s*")(?:[^"\\]|\\.)*(")"#,
+                "${1}[REDACTED]${2}",
+            ),
+            build(
+                r#"(?i)('[A-Za-z0-9_.-]*?(?:token|secret(?:[_-]?(?:access[_-]?)?key)?|password|passwd|api[_-]?key|private[_-]?key|credentials?|signature|authorization)'\s*:\s*b?')(?:[^'\\]|\\.)*(')"#,
+                "${1}[REDACTED]${2}",
+            ),
             build(r"(?i)(authorization\s*[:=]\s*(?:bearer\s+)?)[^\s,;]+", "${1}[REDACTED]"),
             build(r"(?i)\b(bearer\s+)[A-Za-z0-9._~+/=-]{8,}", "${1}[REDACTED]"),
             build(
-                r"(?i)(token|secret|password|passwd|api[_-]?key|signature|x-amz-signature)(\s*[:=]\s*)[^\s,;&]+",
+                r#"(?i)(token|secret(?:[_-]?(?:access[_-]?)?key)?|password|passwd|api[_-]?key|private[_-]?key|credentials?|signature|x-amz-signature)(["']?\s*[:=]\s*["']?)[^\s,;&"'{}\[\]]+"#,
                 "${1}${2}[REDACTED]",
             ),
-            build(r"(?i)([?&](?:x-amz-[^=&]+|signature|token|key)=)[^&\s]+", "${1}[REDACTED]"),
-            build(r"(?i)(https?://)[^/\s:@]+:[^/\s@]+@", "${1}[REDACTED]@"),
+            build(r"(?i)([?&](?:x-amz-[^=&?\s]+|signature|token|key)=)[^&\s]+", "${1}[REDACTED]"),
+            build(r"(?i)([a-z][a-z0-9+.-]*://)[^/\s:@]+:[^/\s@]+@", "${1}[REDACTED]@"),
         ]
     })
 }
 
 /// Redact secrets and the user's profile path from free text.
+///
+/// Same secret policy as `studio_client.daemon.logging.redact_text`, which
+/// masks them before they reach daemon.log; both are checked against
+/// `tests/fixtures/log_redaction_vectors.json`.
 pub fn redact(input: &str) -> String {
     let mut out = input.to_owned();
     for (re, rep) in patterns() {
@@ -349,6 +361,31 @@ mod tests {
         }
         assert!(out.contains("[REDACTED]"));
         assert!(out.contains("a=1"), "non-secret query parts are kept");
+    }
+
+    #[test]
+    fn shared_redaction_vectors_hold() {
+        let vectors: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/log_redaction_vectors.json"
+        ))
+        .unwrap();
+        for case in vectors["redacted"].as_array().unwrap() {
+            let name = case["name"].as_str().unwrap();
+            let out = redact(case["input"].as_str().unwrap());
+            for secret in case["secrets"].as_array().unwrap() {
+                let secret = secret.as_str().unwrap();
+                assert!(!out.contains(secret), "{name}: {secret} leaked: {out}");
+            }
+            for kept in case["kept"].as_array().into_iter().flatten() {
+                let kept = kept.as_str().unwrap();
+                assert!(out.contains(kept), "{name}: lost {kept}: {out}");
+            }
+            assert_eq!(redact(&out), out, "{name}: not idempotent");
+        }
+        for value in vectors["unchanged"].as_array().unwrap() {
+            let value = value.as_str().unwrap();
+            assert_eq!(redact(value), value);
+        }
     }
 
     #[test]

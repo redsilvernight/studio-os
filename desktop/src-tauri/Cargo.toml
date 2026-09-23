@@ -24,7 +24,7 @@ dirs = "6"
 # exposes semantic choose_folder/choose_file commands, never a filesystem API.
 rfd = { version = "0.15", default-features = false }
 tauri-plugin-updater = "2"
-regex = { version = "1", default-features = false, features = ["std", "unicode-perl", "perf"] }
+regex = { version = "1", default-features = false, features = ["std", "unicode-perl", "unicode-case", "perf"] }
 
 [dev-dependencies]
 tauri = { version = "2", features = ["test"] }
