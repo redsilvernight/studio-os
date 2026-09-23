@@ -325,7 +325,19 @@ test.describe("UI-4 projets et workspace", () => {
     await expect(view).toContainText("Choisir le moteur de rendu");
     await expect(view).toContainText("DEC-0049");
     await expect(view).toContainText("décisions globales");
-    await expect(view).not.toContainText("Accept");
+    // DEC-0098 : seules les transitions que le service autorise depuis
+    // `proposed` (accepter, remplacer) sont proposées ; pour un non-admin
+    // elles restent visibles mais désactivées, avec la raison affichée.
+    const accept = view.locator("[data-decision-accept]");
+    const supersede = view.locator("[data-decision-supersede]");
+    await expect(accept).toHaveCount(1);
+    await expect(supersede).toHaveCount(1);
+    await expect(accept).toHaveText("Accepter");
+    await expect(supersede).toHaveText("Remplacer");
+    await expect(accept).toBeDisabled();
+    await expect(supersede).toBeDisabled();
+    await expect(view).toContainText("Réservé au rôle admin.");
+    await expect(view.locator(".decision-actions button")).toHaveCount(2);
     await expect(view).not.toContainText("Supersede");
     expect(csp).toEqual([]);
     expect(fatal).toEqual([]);
