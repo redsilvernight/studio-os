@@ -10,7 +10,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { arg, buildDir, dashboardDir, DEFAULT_API_URL, flag, overlayPath, tauriDir } from "./lib.mjs";
+import { allowInsecureOrigin, arg, buildDir, dashboardDir, DEFAULT_API_URL, flag, overlayPath, tauriDir, validateBuildApiUrl } from "./lib.mjs";
 
 const { buildDashboardCsp } = await import(pathToFileURL(join(dashboardDir, "csp-policy.ts")).href);
 
@@ -69,7 +69,11 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     }
     console.log("tauri.conf.json CSP in sync with dashboard/csp-policy.ts");
   } else {
-    const out = overlay({ apiUrl: arg("--api-url", process.env.STUDIO_DESKTOP_API_URL ?? DEFAULT_API_URL), sidecar: flag("--sidecar"), installer: flag("--installer"), updater: updaterFromEnv() });
+    const apiUrl = validateBuildApiUrl(
+      arg("--api-url", process.env.STUDIO_DESKTOP_API_URL ?? DEFAULT_API_URL),
+      allowInsecureOrigin(),
+    );
+    const out = overlay({ apiUrl, sidecar: flag("--sidecar"), installer: flag("--installer"), updater: updaterFromEnv() });
     mkdirSync(buildDir, { recursive: true });
     writeFileSync(overlayPath, JSON.stringify(out, null, 2) + "\n");
     console.log(`wrote ${overlayPath}`);

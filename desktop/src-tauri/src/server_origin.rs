@@ -81,7 +81,7 @@ fn is_desktop_origin_host(url: &Url) -> bool {
 
 /// Validate and normalise a server origin (`scheme://host[:port]`, no trailing
 /// slash).
-pub fn validate(raw: &str) -> Result<String, OriginError> {
+fn validate_with_policy(raw: &str, allow_remote_http: bool) -> Result<String, OriginError> {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
         return Err(OriginError::Empty);
@@ -115,25 +115,50 @@ pub fn validate(raw: &str) -> Result<String, OriginError> {
     if is_desktop_origin_host(&url) {
         return Err(OriginError::DesktopOrigin);
     }
-    if url.scheme() == "http" && !is_local_dev_host(&url) {
+    if url.scheme() == "http" && !is_local_dev_host(&url) && !allow_remote_http {
         return Err(OriginError::InsecureScheme);
     }
     Ok(url.origin().ascii_serialization())
 }
 
+/// Validate a runtime-configured origin. Remote HTTP is always rejected.
+pub fn validate(raw: &str) -> Result<String, OriginError> {
+    validate_with_policy(raw, false)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ApprovedOrigin(String);
+
+impl ApprovedOrigin {
+    pub(crate) fn into_string(self) -> String {
+        self.0
+    }
+}
+
 /// The origin baked into this build (`STUDIO_DESKTOP_API_URL`), reduced to its
 /// origin and validated; anything unusable yields `None`.
-pub fn build_default_origin(raw: Option<&str>) -> Option<String> {
+pub(crate) fn build_default_origin(
+    raw: Option<&str>,
+    allow_insecure: Option<&str>,
+) -> Option<ApprovedOrigin> {
     let url = Url::parse(raw?.trim()).ok()?;
-    validate(&url.origin().ascii_serialization()).ok()
+    let allow_remote_http = allow_insecure == Some("1");
+    validate_with_policy(&url.origin().ascii_serialization(), allow_remote_http)
+        .ok()
+        .map(ApprovedOrigin)
 }
 
 /// The origin the renderer talks to: the applied user origin, else the build
 /// default. This is the only value handed to the sidecar.
-pub fn effective_origin(applied: Option<&str>, build_default: Option<&str>) -> Option<String> {
+pub(crate) fn effective_origin(
+    applied: Option<&str>,
+    build_default: Option<&str>,
+    allow_insecure_build_origin: Option<&str>,
+) -> Option<ApprovedOrigin> {
     applied
         .and_then(|origin| validate(origin).ok())
-        .or_else(|| build_default_origin(build_default))
+        .map(ApprovedOrigin)
+        .or_else(|| build_default_origin(build_default, allow_insecure_build_origin))
 }
 
 /// Add `origin` to the `connect-src` directive of `csp` (created when absent).
@@ -230,28 +255,64 @@ mod tests {
     #[test]
     fn the_effective_origin_prefers_the_applied_origin_then_the_build_default() {
         assert_eq!(
-            effective_origin(Some("https://b.example"), Some("https://a.example")).as_deref(),
+            effective_origin(Some("https://b.example"), Some("https://a.example"), None)
+                .map(ApprovedOrigin::into_string)
+                .as_deref(),
             Some("https://b.example")
         );
         assert_eq!(
-            effective_origin(None, Some("https://a.example/api/v1")).as_deref(),
+            effective_origin(None, Some("https://a.example/api/v1"), None)
+                .map(ApprovedOrigin::into_string)
+                .as_deref(),
             Some("https://a.example")
         );
         assert_eq!(
             effective_origin(
                 Some("http://tauri.localhost"),
-                Some("http://127.0.0.1:8000")
+                Some("http://127.0.0.1:8000"),
+                None,
             )
+            .map(ApprovedOrigin::into_string)
             .as_deref(),
             Some("http://127.0.0.1:8000")
         );
-        assert_eq!(effective_origin(None, None), None);
-        assert_eq!(effective_origin(None, Some("http://tauri.localhost")), None);
+        assert_eq!(effective_origin(None, None, None), None);
         assert_eq!(
-            effective_origin(None, Some("http://studio.example.com")),
+            effective_origin(None, Some("http://tauri.localhost"), None),
             None
         );
-        assert_eq!(effective_origin(None, Some("file:///etc/passwd")), None);
+        assert_eq!(
+            effective_origin(None, Some("http://studio.example.com"), None),
+            None
+        );
+        assert_eq!(
+            effective_origin(None, Some("file:///etc/passwd"), None),
+            None
+        );
+    }
+
+    #[test]
+    fn an_explicit_build_opt_in_approves_only_the_compiled_remote_http_origin() {
+        let approved = effective_origin(None, Some("http://deploy.example:8080"), Some("1"))
+            .map(ApprovedOrigin::into_string);
+        assert_eq!(approved.as_deref(), Some("http://deploy.example:8080"));
+
+        assert_eq!(
+            validate("http://deploy.example:8080"),
+            Err(OriginError::InsecureScheme)
+        );
+        assert_eq!(
+            validate("http://other.example:8080"),
+            Err(OriginError::InsecureScheme)
+        );
+        assert_eq!(
+            build_default_origin(Some("http://deploy.example:8080"), None),
+            None
+        );
+        assert_eq!(
+            build_default_origin(Some("http://deploy.example:8080"), Some("true")),
+            None
+        );
     }
 
     #[test]

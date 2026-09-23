@@ -265,10 +265,8 @@ impl Inner {
 }
 
 impl Sidecar {
-    /// `origin` must already be validated by `server_origin`; it is re-checked
-    /// here so no unvalidated value can ever reach the child environment.
-    pub fn with_origin(origin: Option<String>) -> Self {
-        let origin = origin.and_then(|raw| crate::server_origin::validate(&raw).ok());
+    pub(crate) fn with_origin(origin: Option<crate::server_origin::ApprovedOrigin>) -> Self {
+        let origin = origin.map(crate::server_origin::ApprovedOrigin::into_string);
         Self(Arc::new(Mutex::new(Inner {
             origin,
             ..Inner::default()
@@ -424,9 +422,13 @@ mod tests {
     fn only_a_validated_origin_is_kept_for_the_child_environment() {
         assert_eq!(Sidecar::with_origin(None).origin(), None);
         assert_eq!(
-            Sidecar::with_origin(Some("https://Studio.Example.com:443".into()))
-                .origin()
-                .as_deref(),
+            Sidecar::with_origin(crate::server_origin::effective_origin(
+                Some("https://Studio.Example.com:443"),
+                None,
+                None,
+            ))
+            .origin()
+            .as_deref(),
             Some("https://studio.example.com")
         );
         for bad in [
@@ -439,11 +441,32 @@ mod tests {
             "",
         ] {
             assert_eq!(
-                Sidecar::with_origin(Some(bad.into())).origin(),
+                Sidecar::with_origin(crate::server_origin::effective_origin(
+                    Some(bad),
+                    None,
+                    None,
+                ))
+                .origin(),
                 None,
                 "{bad}"
             );
         }
+    }
+
+    #[test]
+    fn an_explicit_remote_http_build_origin_reaches_the_sidecar_without_weakening_runtime_validation(
+    ) {
+        let origin = crate::server_origin::effective_origin(
+            None,
+            Some("http://deploy.example:8080"),
+            Some("1"),
+        );
+        assert_eq!(
+            Sidecar::with_origin(origin).origin().as_deref(),
+            Some("http://deploy.example:8080")
+        );
+        assert!(crate::server_origin::validate("http://deploy.example:8080").is_err());
+        assert!(crate::server_origin::validate("http://other.example:8080").is_err());
     }
 
     fn manifest(protocol: &str, version: &str) -> SidecarManifest {

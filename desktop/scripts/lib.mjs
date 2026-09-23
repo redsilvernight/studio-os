@@ -14,6 +14,35 @@ export const buildDir = join(desktopDir, ".build");
 export const dashboardOut = join(buildDir, "dashboard");
 export const overlayPath = join(buildDir, "tauri.overlay.json");
 export const DEFAULT_API_URL = "http://127.0.0.1:8000";
+export const ALLOW_INSECURE_ORIGIN_ENV = "STUDIO_DESKTOP_ALLOW_INSECURE_ORIGIN";
+
+export function allowInsecureOrigin(env = process.env) {
+  return env[ALLOW_INSECURE_ORIGIN_ENV] === "1";
+}
+
+export function validateBuildApiUrl(apiUrl, allowInsecure = false) {
+  if (typeof apiUrl !== "string" || !apiUrl.trim() || /[\s\x00-\x1f*]/u.test(apiUrl)) {
+    throw new Error(`API url is not a valid origin: ${apiUrl}`);
+  }
+  const url = new URL(apiUrl);
+  if (!["http:", "https:"].includes(url.protocol)) {
+    throw new Error(`API url must be http(s): ${apiUrl}`);
+  }
+  if (url.username || url.password || (url.pathname !== "/" && url.pathname !== "") || url.search || url.hash) {
+    throw new Error(`API url must be an origin without credentials, path, query or fragment: ${apiUrl}`);
+  }
+  const hostname = url.hostname.toLowerCase().replace(/\.$/u, "");
+  if (["tauri.localhost", "ipc.localhost", "tauri"].includes(hostname)) {
+    throw new Error(`API url must not be the Desktop application origin: ${apiUrl}`);
+  }
+  const loopback = hostname === "localhost" || hostname === "127.0.0.1";
+  if (url.protocol === "http:" && !loopback && !allowInsecure) {
+    throw new Error(
+      `remote HTTP API origin requires ${ALLOW_INSECURE_ORIGIN_ENV}=1: ${url.origin}`,
+    );
+  }
+  return apiUrl;
+}
 
 /** Environment with rustup's default install location on PATH (Windows installs do not always export it). */
 export function toolEnv(extra = {}) {

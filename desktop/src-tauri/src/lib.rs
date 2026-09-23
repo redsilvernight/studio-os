@@ -174,6 +174,7 @@ pub fn run() {
     let effective_origin = server_origin::effective_origin(
         applied_origin.as_deref(),
         option_env!("STUDIO_DESKTOP_API_URL"),
+        option_env!("STUDIO_DESKTOP_ALLOW_INSECURE_ORIGIN"),
     );
     let sidecar = Sidecar::with_origin(effective_origin);
     let exit_sidecar = sidecar.clone();

@@ -28,4 +28,4 @@ npm run version:check        # one version across package.json, Cargo.toml and t
 
 Packaging, data locations, updates, signing and the Graphify decision: [`docs/DESKTOP_P10_PACKAGING.md`](../docs/DESKTOP_P10_PACKAGING.md).
 
-`--api-url <origin>` (build scripts) sets the API origin baked into the build. The server must list `http://tauri.localhost` in `STUDIO_CORS_ORIGINS` for the packaged Desktop to reach it.
+`--api-url <origin>` (build scripts) sets the API origin baked into the build. Remote HTTPS and loopback HTTP are accepted by default. A remote HTTP deployment requires the explicit build-only opt-in `STUDIO_DESKTOP_ALLOW_INSECURE_ORIGIN=1`; this does not allow users to configure arbitrary remote HTTP origins at runtime. The server must list `http://tauri.localhost` in `STUDIO_CORS_ORIGINS` for the packaged Desktop to reach it.
