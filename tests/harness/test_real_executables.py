@@ -4,13 +4,13 @@ import os
 from pathlib import Path
 
 import pytest
+from studio_client.harness.backup import BackupStore
 from studio_client.harness.base import DetectionState, HarnessAdapter, HarnessContext
 from studio_client.harness.claude_code import ClaudeCodeAdapter
 from studio_client.harness.opencode import OpenCodeAdapter
 from studio_client.harness.probe import locate_executable
-from studio_client.harness.service import HarnessService, WorkspaceInfo
-from studio_client.harness.backup import BackupStore
 from studio_client.harness.registry import HarnessRegistry
+from studio_client.harness.service import HarnessService, WorkspaceInfo
 
 MCP_URL = "https://studio.example/mcp"
 WORKSPACE_ID = __import__("uuid").UUID("11111111-1111-4111-8111-111111111111")
@@ -79,6 +79,9 @@ def test_verify_returns_unconfigured_when_not_applied(
 
     # Without applying, verify should return UNCONFIGURED
     from studio_contracts.local.harness import HarnessVerifyRequest, VerifyState
-    result = service.verify(HarnessVerifyRequest(workspace_id=WORKSPACE_ID, adapter_id=adapter.adapter_id))
+
+    result = service.verify(
+        HarnessVerifyRequest(workspace_id=WORKSPACE_ID, adapter_id=adapter.adapter_id)
+    )
     assert result.state in (VerifyState.UNCONFIGURED, VerifyState.FAILED)
     assert result.adapter_id == adapter.adapter_id

@@ -18,7 +18,9 @@ import { createInterface } from "node:readline";
 import { chromium } from "playwright-core";
 import { desktopDir, repoRoot, toolEnv } from "./lib.mjs";
 
-const exe = resolve(desktopDir, "src-tauri", "target", "release", "studio-desktop.exe");
+const exe = process.env.STUDIO_ONBOARDING_EXE
+  ? resolve(process.env.STUDIO_ONBOARDING_EXE)
+  : resolve(desktopDir, "src-tauri", "target", "release", "studio-desktop.exe");
 const CDP_PORT = Number(process.env.STUDIO_ONBOARDING_CDP_PORT ?? 9339);
 const APP_ORIGIN = "http://tauri.localhost";
 const results = [];
@@ -75,6 +77,36 @@ async function attach(port) {
 function spawnApp(env) {
   return spawn(exe, [], { env: { ...process.env, ...env }, stdio: ["ignore", "pipe", "pipe"] });
 }
+
+const invoke = (page, name, args) =>
+  page.evaluate(
+    async ({ name, args }) => {
+      try {
+        return { ok: true, value: await window.__TAURI__.core.invoke(name, args) };
+      } catch (error) {
+        return { ok: false, error: String(error) };
+      }
+    },
+    { name, args },
+  );
+
+let requestCounter = 0;
+const bridge = async (page, command, payload) => {
+  requestCounter += 1;
+  const request = {
+    kind: "request",
+    protocol: "studio.local/v1",
+    message_id: `p12-onboarding-${requestCounter}`,
+    correlation_id: `p12-onboarding-${requestCounter}`,
+    sent_at: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+    command,
+    payload,
+  };
+  const answer = await invoke(page, "bridge_request", { request });
+  if (!answer.ok) return { ok: false, error: { code: "transport_error", message: answer.error } };
+  if (answer.value.error) return { ok: false, error: answer.value.error };
+  return { ok: true, value: answer.value.payload };
+};
 
 // P12-authorized fixture: the onboarding "verification" step's identity
 // check (service.py identity_view) reads the real OS keyring directly, not
@@ -225,16 +257,54 @@ async function main() {
     await page.click('[data-action="associate"]');
 
     await page.waitForSelector('[data-testid="onboarding-step"][data-step="memoire"]', { timeout: 20_000 });
+
+    const onboardingState = await page.evaluate(() =>
+      JSON.parse(localStorage.getItem("studio-os.onboarding.v1") ?? "{}"),
+    );
+    const workspaceId = onboardingState.workspaceId;
+    check("onboarding.workspace_uuid_generated", Boolean(workspaceId), `workspaceId=${workspaceId}`);
+
     const memoireForm = await page.$('[data-testid="memory-folder-form"]');
     if (memoireForm) {
       await page.click('[data-testid="memory-folder-form"] button[type=submit]');
       await sleep(1500);
     }
     check("onboarding.memoire_knowledge_enabled", Boolean(memoireForm), "markdown-files knowledge provider activated on the picked folder's vault/");
+    let knowledge = null;
+    for (let i = 0; i < 40; i++) {
+      const answer = await bridge(page, "knowledge.status", { workspace_id: workspaceId });
+      if (answer.ok) knowledge = answer.value;
+      if (knowledge?.state === "ready" && knowledge?.index?.state === "ready") break;
+      await sleep(250);
+    }
+    check(
+      "onboarding.knowledge_init_vault_and_reindex_ready",
+      knowledge?.state === "ready" &&
+        knowledge?.index?.state === "ready" &&
+        knowledge?.provider?.provider_id === "markdown-files",
+      JSON.stringify(knowledge),
+    );
+    check(
+      "onboarding.obsidian_absent_non_blocking",
+      knowledge?.integrations?.some(
+        (integration) => integration.integration_id === "obsidian" && integration.state === "not_installed",
+      ),
+      JSON.stringify(knowledge?.integrations ?? []),
+    );
     await page.click('[data-action="next"]');
 
     await page.waitForSelector('[data-testid="onboarding-step"][data-step="environnement"]', { timeout: 20_000 });
     check("onboarding.environnement_probed", true, "git/code-graph/harness probe rendered");
+    const codeGraph = await bridge(page, "code_graph.status", { workspace_id: workspaceId });
+    check(
+      "onboarding.graphify_absent_non_blocking",
+      codeGraph.ok &&
+        ((codeGraph.value?.state === "not_installed" &&
+          codeGraph.value?.error?.code === "provider_not_installed") ||
+          (codeGraph.value?.state === "disabled" &&
+            codeGraph.value?.error?.code === "feature_disabled")),
+      JSON.stringify(codeGraph.ok ? codeGraph.value : codeGraph.error),
+    );
     await page.click('[data-action="next"]');
 
     await page.waitForSelector('[data-testid="onboarding-step"][data-step="assistant"]', { timeout: 15_000 });
@@ -253,22 +323,67 @@ async function main() {
       page.url().startsWith(`${APP_ORIGIN}/`) && !dashboardText.includes("Bienvenue dans Studi'OS"),
       `page ${page.url()}`,
     );
+    const completedState = await page.evaluate(() =>
+      JSON.parse(localStorage.getItem("studio-os.onboarding.v1") ?? "{}"),
+    );
+    check(
+      "onboarding.completion_state_persisted",
+      completedState.status === "completed" && completedState.workspaceId === workspaceId,
+      JSON.stringify(completedState),
+    );
 
     await browser.close();
     browser = null;
-    killTree(app.pid);
-    await sleep(1500);
+    spawnSync(
+      "pwsh",
+      [
+        "-NoProfile",
+        "-Command",
+        `(Get-Process -Id ${app.pid} -ErrorAction SilentlyContinue).CloseMainWindow() | Out-Null`,
+      ],
+      { stdio: "ignore" },
+    );
+    for (let i = 0; i < 20 && app.exitCode === null; i++) await sleep(250);
+    if (app.exitCode === null) killTree(app.pid);
 
     app = spawnApp(env);
     const reattached = await attach(CDP_PORT);
     browser = reattached.browser;
     page = reattached.page;
-    await sleep(2000);
+    await page
+      .waitForFunction(() => location.hash !== "#/bienvenue", null, { timeout: 20_000 })
+      .catch(() => {});
     const relaunchText = await page.evaluate(() => document.body.innerText);
     check(
       "onboarding.relaunch_skips_wizard_shows_dashboard",
-      !relaunchText.includes("Bienvenue dans Studi'OS") && !relaunchText.includes("Configuration terminée"),
+      page.url() !== `${APP_ORIGIN}/#/bienvenue` &&
+        !relaunchText.includes("Bienvenue dans Studi'OS") &&
+        !relaunchText.includes("Configuration terminée"),
       `after relaunch with the same profile: ${page.url()}`,
+    );
+    const persistedIdentity = await bridge(page, "identity.get_view", {});
+    const persistedWorkspace = await bridge(page, "workspace.get_config", {
+      workspace_id: workspaceId,
+    });
+    const persistedKnowledge = await bridge(page, "knowledge.status", {
+      workspace_id: workspaceId,
+    });
+    const persistedOrigin = await invoke(page, "get_server_origin", {});
+    check(
+      "onboarding.relaunch_preserves_identity_settings_workspace_knowledge",
+      persistedIdentity.ok &&
+        persistedWorkspace.ok &&
+        persistedWorkspace.value?.workspace_id === workspaceId &&
+        persistedKnowledge.ok &&
+        persistedKnowledge.value?.state === "ready" &&
+        persistedOrigin.ok &&
+        persistedOrigin.value?.applied === api,
+      JSON.stringify({
+        identity: persistedIdentity.ok,
+        workspace: persistedWorkspace.ok ? persistedWorkspace.value?.workspace_id : persistedWorkspace.error,
+        knowledge: persistedKnowledge.ok ? persistedKnowledge.value?.state : persistedKnowledge.error,
+        origin: persistedOrigin.ok ? persistedOrigin.value : persistedOrigin.error,
+      }),
     );
   }
   } finally {

@@ -4,6 +4,7 @@ import {
   clearOnboardingState,
   INITIAL_ONBOARDING_STATE,
   loadOnboardingState,
+  onboardingRedirect,
   ONBOARDING_STORAGE_KEY,
   saveOnboardingState,
   type OnboardingState,
@@ -23,6 +24,14 @@ function memStore(): Storage {
 }
 
 describe("onboarding state", () => {
+  it("routes unfinished users into onboarding and completed users back to the dashboard", () => {
+    expect(onboardingRedirect("in_progress", false)).toBe("#/bienvenue");
+    expect(onboardingRedirect("in_progress", true)).toBeNull();
+    expect(onboardingRedirect("completed", true)).toBe("#/");
+    expect(onboardingRedirect("completed", false)).toBeNull();
+    expect(onboardingRedirect("skipped", true)).toBe("#/");
+  });
+
   it("starts as not_started on first run", () => {
     expect(loadOnboardingState(memStore())).toEqual(INITIAL_ONBOARDING_STATE);
   });

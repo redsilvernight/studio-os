@@ -482,7 +482,7 @@ class HarnessService:
             import asyncio
 
             import httpx
-            
+
             async def test_mcp_call() -> tuple[bool, str | None]:
                 headers = {
                     "Authorization": f"Bearer {token}",
@@ -499,8 +499,8 @@ class HarnessService:
                             "params": {
                                 "protocolVersion": "2024-11-05",
                                 "capabilities": {},
-                                "clientInfo": {"name": "studio-verify", "version": "1.0"}
-                            }
+                                "clientInfo": {"name": "studio-verify", "version": "1.0"},
+                            },
                         }
                         init_response = await client.post(
                             info.mcp_url, json=init_payload, headers=headers
@@ -510,7 +510,7 @@ class HarnessService:
                                 f"Initialize failed: HTTP {init_response.status_code}: "
                                 f"{init_response.text[:200]}"
                             )
-                        
+
                         # Extract session ID from response header
                         session_id = init_response.headers.get("mcp-session-id")
                         if not session_id:
@@ -529,20 +529,17 @@ class HarnessService:
                                     ):
                                         session_id = result["sessionId"]
                                         break
-                        
+
                         if not session_id:
                             return False, "No session ID returned from initialize"
-                        
+
                         # Step 2: Call a tool with the session ID
                         headers["Mcp-Session-Id"] = session_id
                         tool_payload = {
                             "jsonrpc": "2.0",
                             "id": 2,
                             "method": "tools/call",
-                            "params": {
-                                "name": "studio_get_projects",
-                                "arguments": {}
-                            }
+                            "params": {"name": "studio_get_projects", "arguments": {}},
                         }
                         tool_response = await client.post(
                             info.mcp_url, json=tool_payload, headers=headers
@@ -552,7 +549,7 @@ class HarnessService:
                                 f"Tool call failed: HTTP {tool_response.status_code}: "
                                 f"{tool_response.text[:200]}"
                             )
-                        
+
                         # Parse event stream response - check for actual success
                         # The MCP server may return 200 with an error in the content.
                         success = False
@@ -601,7 +598,7 @@ class HarnessService:
                         return False, f"Tool call returned no result: {tool_response.text[:200]}"
                 except Exception as e:
                     return False, str(e)
-            
+
             success, error_msg = asyncio.run(test_mcp_call())
             if success:
                 return HarnessVerifyResult(

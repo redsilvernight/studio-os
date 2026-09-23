@@ -681,7 +681,11 @@ class BridgeService:
             return bridge.confirm(WorkspaceConfirmRootsRequest.model_validate(payload))
         if request.command is BridgeCommand.WORKSPACE_GIT_STATUS:
             return bridge.git_status(WorkspaceScope.model_validate(payload), profile)
-        return bridge.save(WorkspaceSaveConfigRequest.model_validate(payload), profile)
+        saved = bridge.save(WorkspaceSaveConfigRequest.model_validate(payload), profile)
+        features = self.controller.local_features
+        if features is not None:
+            features.refresh(profile)
+        return saved
 
     def _local_feature(self, request: BridgeRequest) -> LocalContractModel:
         features = self.controller.local_features

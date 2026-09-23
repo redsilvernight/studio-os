@@ -126,7 +126,10 @@ mod tests {
         let offered = peer_info()["capabilities"].as_array().unwrap().clone();
         let known = expected["capabilities"].as_array().unwrap();
         for capability in &offered {
-            assert!(known.contains(capability), "{capability} not in the P1 fixture peer");
+            assert!(
+                known.contains(capability),
+                "{capability} not in the P1 fixture peer"
+            );
         }
         assert!(offered.contains(&json!("workspace.config")));
     }

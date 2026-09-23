@@ -406,9 +406,7 @@ class LocalFeatureRegistry:
         except KnowledgeError as error:
             raise _knowledge_error(error) from error
 
-    def knowledge_init_vault(
-        self, request: KnowledgeInitVaultRequest
-    ) -> KnowledgeInitVaultResult:
+    def knowledge_init_vault(self, request: KnowledgeInitVaultRequest) -> KnowledgeInitVaultResult:
         self._resolve(request.workspace_id)
         with self._lock:
             return self._loop.submit(self._knowledge_init_vault(request), timeout=60)

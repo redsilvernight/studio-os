@@ -115,3 +115,13 @@ export function clearOnboardingState(store: StorageLike | null = storage()): voi
     // Rien à réparer : l'état est local et régénérable.
   }
 }
+
+export function onboardingRedirect(
+  status: OnboardingStatus,
+  routeIsOnboarding: boolean,
+): "#/bienvenue" | "#/" | null {
+  if (status === "completed" || status === "skipped") {
+    return routeIsOnboarding ? "#/" : null;
+  }
+  return routeIsOnboarding ? null : "#/bienvenue";
+}

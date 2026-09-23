@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+from typing import cast
+from unittest.mock import Mock
 from uuid import UUID, uuid4
 
 import pytest
 from studio_client.config import ClientConfig
+from studio_client.daemon.local_features import LocalFeatureRegistry
 from studio_client.daemon.service import BridgeService, DaemonController
 from studio_contracts.local.bridge import BridgeRequest
 from studio_contracts.local.handshake import HandshakeRequest
@@ -23,7 +26,9 @@ def _cleanup_transfer_storage() -> None:
     return None
 
 
-def controller(tmp_path, bridge=True) -> DaemonController:
+def controller(
+    tmp_path, bridge=True, local_features: LocalFeatureRegistry | None = None
+) -> DaemonController:
     return DaemonController(
         ClientConfig(
             api_base_url="https://studio.example/api/v1",
@@ -32,6 +37,7 @@ def controller(tmp_path, bridge=True) -> DaemonController:
         ),
         data_root=tmp_path,
         workspace_bridge=WorkspaceBridge(tmp_path, RootConfirmationService()) if bridge else None,
+        local_features=local_features,
     )
 
 
@@ -186,6 +192,48 @@ def test_full_first_association_over_the_bridge(tmp_path) -> None:
     )
     assert probed["workspace_id"] == str(WS)
     assert probed["state"] in ("not_a_repo", "git_absent", "valid")
+
+
+def test_workspace_save_refreshes_local_features_immediately(tmp_path) -> None:
+    folder = tmp_path / "game"
+    folder.mkdir()
+    features = Mock(spec=LocalFeatureRegistry)
+    service = BridgeService(
+        controller(tmp_path, local_features=cast(LocalFeatureRegistry, features))
+    )
+    negotiate(service)
+    confirmed = answer_payload(
+        service.handle_line(
+            request(
+                "workspace.confirm_roots",
+                {"roots": {"workspace_root": str(folder), "repo_roots": []}},
+            )
+        )
+    )
+    answer_payload(
+        service.handle_line(
+            request(
+                "workspace.save_config",
+                {
+                    "config": {
+                        "schema_version": 1,
+                        "workspace_id": str(WS),
+                        "profile": {
+                            "profile_id": "main",
+                            "server_origin": "https://studio.example",
+                        },
+                        "project_id": str(PROJECT_ID),
+                        "roots": {"workspace_root": str(folder), "repo_roots": []},
+                        "created_at": "2026-01-15T10:00:00Z",
+                        "updated_at": "2026-01-15T12:00:00Z",
+                    },
+                    "current_roots": None,
+                    "root_confirmation_id": confirmed["root_confirmation_id"],
+                },
+            )
+        )
+    )
+    features.refresh.assert_called_once_with(PROFILE)
 
 
 def test_save_without_confirmation_is_invalid_request(tmp_path) -> None:

@@ -33,7 +33,7 @@ import { renderTransfers } from "./views/transfers";
 import { renderLibrary, renderLibraryDetail } from "./views/library";
 import { renderApplication } from "./views/application";
 import { renderOnboarding } from "./onboarding/view";
-import { loadOnboardingState } from "./onboarding/state";
+import { loadOnboardingState, onboardingRedirect } from "./onboarding/state";
 import { renderWorkspaces } from "./views/workspacesPage";
 import { renderGraphs } from "./views/graphs";
 import { renderIntegrations } from "./views/integrations";
@@ -73,9 +73,13 @@ async function render(): Promise<void> {
   // Premier lancement (Desktop seul) : l'assistant de configuration est
   // prioritaire tant qu'il n'est pas terminé ; la reprise revalide l'état
   // réel au lieu de supposer l'étape mémorisée encore valide.
-  if (getDesktopShell() !== null && route.name !== "onboarding") {
-    if (loadOnboardingState().status !== "completed") {
-      location.hash = "#/bienvenue";
+  if (getDesktopShell() !== null) {
+    const redirect = onboardingRedirect(
+      loadOnboardingState().status,
+      route.name === "onboarding",
+    );
+    if (redirect !== null) {
+      location.hash = redirect;
       return;
     }
   }
@@ -354,7 +358,16 @@ function mountLogin(notice?: string): void {
 function start(): void {
   // Sans compte, l'écran de connexion couvre tout — sauf au premier lancement
   // Desktop, où l'assistant embarque sa propre connexion (étape « Connexion »).
-  const firstRun = getDesktopShell() !== null && loadOnboardingState().status !== "completed";
+  const desktop = getDesktopShell() !== null;
+  const onboardingStatus = loadOnboardingState().status;
+  if (desktop) {
+    const redirect = onboardingRedirect(
+      onboardingStatus,
+      parseRoute(location.hash).name === "onboarding",
+    );
+    if (redirect !== null) location.hash = redirect;
+  }
+  const firstRun = desktop && onboardingStatus !== "completed" && onboardingStatus !== "skipped";
   if (hasToken() || firstRun) {
     mountShell();
   } else {

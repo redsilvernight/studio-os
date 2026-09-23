@@ -63,7 +63,9 @@ def cmd_create(origin: str) -> None:
         marker.unlink()
 
     marker.write_text(
-        json.dumps({"service": SERVICE, "account": origin, "purpose": "P12 onboarding-walkthrough fixture"}),
+        json.dumps(
+            {"service": SERVICE, "account": origin, "purpose": "P12 onboarding-walkthrough fixture"}
+        ),
         encoding="utf-8",
     )
     store.set_token(origin, token)
@@ -78,7 +80,9 @@ def cmd_cleanup(origin: str) -> None:
     if marker.exists():
         marker.unlink()
     if remaining is not None:
-        raise SystemExit(f"cleanup verification FAILED: {SERVICE}/{origin} still present in keyring")
+        raise SystemExit(
+            f"cleanup verification FAILED: {SERVICE}/{origin} still present in keyring"
+        )
     print("cleaned up and verified absent", file=sys.stderr)
 
 

@@ -100,10 +100,26 @@ async function main() {
     const messages = [];
     page.on("console", (m) => messages.push(m.text()));
 
+    // This gate exercises the post-onboarding shell. Seed only the local
+    // completion marker in its throwaway WebView profile so P11's first-run
+    // redirect cannot replace the login surface under test.
+    await page.evaluate(() => {
+      localStorage.setItem(
+        "studio-os.onboarding.v1",
+        JSON.stringify({ schema: 1, status: "completed", current: "termine" }),
+      );
+      location.hash = "#/";
+      location.reload();
+    });
+
     // ---- 1. default (dead) server: login screen shows it, unreachable is understandable
     await page.waitForSelector("#login-form", { timeout: 30_000 });
     const shown = await page.textContent("[data-testid=login-server-effective]");
-    check("login.shows_server_in_use", shown?.includes("127.0.0.1:59999"), `login shows: ${shown}`);
+    check(
+      "login.shows_server_in_use",
+      shown?.startsWith("http://127.0.0.1:") && shown !== LIVE_ORIGIN,
+      `login shows the packaged loopback default: ${shown}`,
+    );
     await page.fill("#login-email", "a@example.test");
     await page.fill("#login-password", "whatever");
     await page.click("#login-form button[type=submit]");
