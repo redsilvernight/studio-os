@@ -195,4 +195,88 @@ describe("onboarding view", () => {
     );
     expect(root.textContent).toContain("Mémoire activée et préparée");
   });
+
+  it("enables the code graph with the associated folder as its repository", async () => {
+    const calls: Array<{ command: string; payload: Record<string, unknown> }> = [];
+    let enabled = false;
+    const platform = fakeDesktop({
+      request: (async (command: string, payload: Record<string, unknown>) => {
+        calls.push({ command, payload });
+        if (command === "code_graph.status") return ok({ workspace_id: WS, state: enabled ? "indexing" : "disabled" });
+        if (command === "workspace.git_status") return ok({ state: "valid", branch: "master" });
+        if (command === "workspace.get_config") {
+          return ok({
+            schema_version: 1,
+            workspace_id: WS,
+            roots: { workspace_root: "C:\\Projects\\demo", repo_roots: [] },
+            features: { knowledge: true },
+            updated_at: "2026-09-22T00:00:00Z",
+          });
+        }
+        if (command === "workspace.confirm_roots") return ok({ root_confirmation_id: "rc-1" });
+        if (command === "workspace.save_config") {
+          enabled = true;
+          return ok(payload.config);
+        }
+        if (command === "code_graph.reindex") return ok({ accepted: true, operation_id: "op-1", state: "indexing" });
+        return refused("not_supported");
+      }) as never,
+    });
+    const root = document.createElement("main");
+    document.body.append(root);
+    await renderOnboarding(
+      root,
+      platform,
+      emptySession({ schema: 1, status: "in_progress", current: "environnement", workspaceId: WS }),
+    );
+    root.querySelector<HTMLButtonElement>("[data-action=enable-code]")!.click();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const confirm = calls.find((call) => call.command === "workspace.confirm_roots")?.payload;
+    expect(confirm).toEqual({
+      roots: { workspace_root: "C:\\Projects\\demo", repo_roots: [{ name: "main", path: "C:\\Projects\\demo" }] },
+    });
+    const save = calls.find((call) => call.command === "workspace.save_config")?.payload as {
+      config: { features: Record<string, boolean>; code_graph: { provider_id: string } };
+      root_confirmation_id: string;
+    };
+    expect(save.root_confirmation_id).toBe("rc-1");
+    expect(save.config.features).toEqual({ knowledge: true, code_graph: true });
+    expect(save.config.code_graph.provider_id).toBe("graphify");
+    expect(root.textContent).toContain("Analyse du code activée");
+    expect(root.querySelector("[data-action=enable-code]")).toBeNull();
+  });
+
+  it("locks the memory button while enabling and surfaces a thrown failure", async () => {
+    let release: () => void = () => undefined;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const platform = fakeDesktop({
+      request: (async (command: string) => {
+        if (command === "knowledge.status") {
+          return ok({ workspace_id: WS, state: "disabled", canonical_source: "markdown_files", integrations: [] });
+        }
+        if (command === "workspace.get_config") {
+          await pending;
+          throw new Error("bridge down");
+        }
+        return refused("not_supported");
+      }) as never,
+    });
+    const root = document.createElement("main");
+    document.body.append(root);
+    await renderOnboarding(
+      root,
+      platform,
+      emptySession({ schema: 1, status: "in_progress", current: "memoire", workspaceId: WS }),
+    );
+    const form = root.querySelector<HTMLFormElement>("[data-testid=memory-folder-form]")!;
+    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    const submit = form.querySelector<HTMLButtonElement>("button[type=submit]")!;
+    expect(submit.disabled).toBe(true);
+    expect(submit.textContent).toContain("Activation en cours");
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(root.textContent).toContain("L'activation de la mémoire a échoué");
+  });
 });

@@ -10,7 +10,7 @@
 import { apiBaseUrl, createApiClient } from "../api";
 import { hasToken } from "../auth";
 import { joinUrl } from "../config";
-import { getDesktopShell } from "../desktopShell";
+import { getDesktopShell, refreshDaemon } from "../desktopShell";
 import { daemonLabel } from "../shellStatus";
 import { dsBadge, dsEmptyState, dsPageHeader } from "../ds/ds";
 import {
@@ -235,19 +235,25 @@ async function readKnowledge(platform: Platform, workspaceId: string): Promise<{
 }
 
 async function readCodeGraph(platform: Platform, workspaceId: string): Promise<string> {
+  return (await readCodeGraphStatus(platform, workspaceId)).text;
+}
+
+async function readCodeGraphStatus(platform: Platform, workspaceId: string): Promise<{ text: string; disabled: boolean }> {
   const answer = await platform.request("code_graph.status", { workspace_id: workspaceId });
   if (!answer.ok) {
     if (answer.error.code === "not_supported" || answer.error.code === "capability_missing") {
-      return "Analyse avancée du code indisponible.";
+      return { text: "Analyse avancée du code indisponible.", disabled: false };
     }
-    return "Analyse du code indisponible pour l'instant.";
+    return { text: "Analyse du code indisponible pour l'instant.", disabled: false };
   }
   const raw = answer.response.payload as { state?: string; provider?: { provider_id?: string } | null };
-  if (raw.state === "ready") return "Analyse du code prête.";
-  if (raw.state === "not_installed") return "Analyse avancée du code indisponible (composant non installé).";
-  if (raw.state === "indexing") return "Analyse du code en cours d'indexation…";
-  if (raw.state === "disabled") return "Analyse du code désactivée pour ce dossier.";
-  return "Analyse du code indisponible pour l'instant.";
+  if (raw.state === "ready") return { text: "Analyse du code prête.", disabled: false };
+  if (raw.state === "not_installed") {
+    return { text: "Analyse avancée du code indisponible (composant non installé).", disabled: false };
+  }
+  if (raw.state === "indexing") return { text: "Analyse du code en cours d'indexation…", disabled: false };
+  if (raw.state === "disabled") return { text: "Analyse du code désactivée pour ce dossier.", disabled: true };
+  return { text: "Analyse du code indisponible pour l'instant.", disabled: false };
 }
 
 export async function renderOnboarding(
@@ -473,6 +479,7 @@ async function paintVerification(
 ): Promise<void> {
   const step = stepById("verification");
   const shell = getDesktopShell();
+  if (shell) await refreshDaemon(shell).catch(() => undefined);
   const daemonText = shell ? `Assistant local : ${daemonLabel(shell.daemon)}` : "Assistant local : état inconnu.";
   const { view, error } = await readIdentity(platform);
   session.identity = view;
@@ -796,8 +803,19 @@ async function paintMemoire(
   session.notice = null;
   root.querySelector<HTMLFormElement>("[data-testid=memory-folder-form]")?.addEventListener("submit", (event) => {
     event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
+    const submit = form.querySelector<HTMLButtonElement>("button[type=submit]");
+    if (submit?.disabled) return;
+    if (submit) {
+      submit.disabled = true;
+      submit.textContent = "Activation en cours…";
+    }
+    form.setAttribute("aria-busy", "true");
     const contentRoot = (root.querySelector<HTMLInputElement>("#memory-folder-input")?.value ?? "vault").trim() || "vault";
-    void enableKnowledge(root, platform, session, contentRoot, again);
+    enableKnowledge(root, platform, session, contentRoot, again).catch(() => {
+      session.error = "L'activation de la mémoire a échoué. Réessayez ou passez cette étape.";
+      void again();
+    });
   });
   root.querySelector("[data-action=skip]")?.addEventListener("click", () => {
     go(session, nextStep("memoire") ?? "environnement");
@@ -886,11 +904,14 @@ async function paintEnvironnement(
   const workspaceId = session.state.workspaceId;
   let git = "Aucun dossier associé pour l'instant.";
   let code = "Aucun dossier associé pour l'instant.";
+  let codeDisabled = false;
   if (workspaceId) {
     const probed = await workspaceGitStatus(platform, workspaceId);
     git = probed.ok ? gitStatusMessage(probed.value) : workspaceErrorMessage(probed.error);
     session.gitText = git;
-    code = await readCodeGraph(platform, workspaceId);
+    const codeStatus = await readCodeGraphStatus(platform, workspaceId);
+    code = codeStatus.text;
+    codeDisabled = codeStatus.disabled;
     session.codeText = code;
   }
   const detected = await detectHarnessesSafe(platform, workspaceId);
@@ -899,17 +920,32 @@ async function paintEnvironnement(
     .join("");
   const body =
     errorHtml(session.error) +
+    noticeHtml(session.notice) +
     `<dl class="settings-rows">` +
     `<div class="settings-row"><dt>Git</dt><dd>${esc(git)}</dd></div>` +
     `<div class="settings-row"><dt>Mémoire projet</dt><dd>${esc(session.knowledgeText ?? "Non configurée.")}</dd></div>` +
     `<div class="settings-row"><dt>Analyse du code</dt><dd>${esc(code)}</dd></div>` +
     (harnessRows || `<div class="settings-row"><dt>Assistants IA</dt><dd>Aucun détecté.</dd></div>`) +
     `</dl>` +
+    (codeDisabled
+      ? `<div class="settings-actions"><button class="ds-btn ds-btn--primary" type="button" data-action="enable-code">Activer l'analyse du code</button></div>`
+      : "") +
     navButtons({
       prev: previousStep("environnement"),
       extra: `<button class="ds-btn ds-btn--primary" type="button" data-action="next">Continuer</button>`,
     });
   root.innerHTML = layout(step, "environnement", body);
+  session.notice = null;
+  root.querySelector<HTMLButtonElement>("[data-action=enable-code]")?.addEventListener("click", (event) => {
+    const button = event.currentTarget as HTMLButtonElement;
+    if (button.disabled) return;
+    button.disabled = true;
+    button.textContent = "Activation en cours…";
+    enableCodeGraph(platform, session, again).catch(() => {
+      session.error = "L'activation de l'analyse du code a échoué. Réessayez ou continuez sans.";
+      void again();
+    });
+  });
   root.querySelector("[data-action=prev]")?.addEventListener("click", () => {
     go(session, previousStep("environnement") ?? "memoire");
     void again();
@@ -918,6 +954,70 @@ async function paintEnvironnement(
     go(session, nextStep("environnement") ?? "assistant");
     void again();
   });
+}
+
+const CODE_GRAPH_REPO_NAME = "main";
+
+async function enableCodeGraph(
+  platform: Platform,
+  session: SessionData,
+  again: () => Promise<void>,
+): Promise<void> {
+  const workspaceId = session.state.workspaceId;
+  if (!workspaceId) {
+    session.error = "Associez d'abord un dossier.";
+    return again();
+  }
+  const answer = await platform.request("workspace.get_config", { workspace_id: workspaceId });
+  if (!answer.ok) {
+    session.error = workspaceErrorMessage(answer.error);
+    return again();
+  }
+  const stored = answer.response.payload as Record<string, unknown>;
+  const storedRoots = stored.roots as { workspace_root: string; repo_roots?: { name: string; path: string }[] };
+  const repoRoots = storedRoots.repo_roots ?? [];
+  // Sans dépôt déclaré, l'analyse n'aurait rien à indexer : le dossier associé devient le dépôt.
+  const roots = repoRoots.length
+    ? { workspace_root: storedRoots.workspace_root, repo_roots: repoRoots }
+    : { workspace_root: storedRoots.workspace_root, repo_roots: [{ name: CODE_GRAPH_REPO_NAME, path: storedRoots.workspace_root }] };
+  let rootConfirmationId: string | undefined;
+  if (!repoRoots.length) {
+    const confirmed = await confirmRoots(platform, roots);
+    if (!confirmed.ok) {
+      session.error = workspaceErrorMessage(confirmed.error);
+      return again();
+    }
+    rootConfirmationId = confirmed.value.root_confirmation_id;
+  }
+  const config = {
+    ...(stored as object),
+    roots,
+    features: { ...((stored.features as Record<string, unknown>) ?? {}), code_graph: true },
+    code_graph: {
+      provider_id: "graphify",
+      index: { scope: "workspace_cache", directory_name: "code-graph-index" },
+    },
+    updated_at: utcNow(),
+  };
+  const saved = await saveWorkspaceConfig(platform, {
+    config,
+    current_roots: storedRoots,
+    ...(rootConfirmationId ? { root_confirmation_id: rootConfirmationId } : {}),
+    ...(typeof stored.updated_at === "string" ? { expected_updated_at: stored.updated_at } : {}),
+  });
+  if (!saved.ok) {
+    session.error = workspaceErrorMessage(saved.error);
+    return again();
+  }
+  const indexed = await platform.request("code_graph.reindex", { workspace_id: workspaceId, mode: "full_rebuild" });
+  const status = await readCodeGraphStatus(platform, workspaceId);
+  session.codeText = status.text;
+  session.error = null;
+  session.notice =
+    indexed.ok && (indexed.response.payload as { accepted?: boolean }).accepted
+      ? "Analyse du code activée : l'indexation se poursuit en arrière-plan."
+      : "Analyse du code activée. L'indexation démarrera dès que le composant d'analyse sera disponible.";
+  return again();
 }
 
 async function detectHarnessesSafe(platform: Platform, workspaceId: string | undefined): Promise<HarnessStatus[]> {

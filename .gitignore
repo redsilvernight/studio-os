@@ -39,3 +39,6 @@ docker/.data/
 
 # Dumps PostgreSQL (backup.sh) : contiennent des hashes de credentials, jamais commites
 docker/backups/
+
+# Vault mémoire local créé par l'assistant Desktop
+/vault/
