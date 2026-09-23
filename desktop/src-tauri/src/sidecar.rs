@@ -19,6 +19,7 @@ pub const SIDECAR_BASENAME: &str = "studio-daemon";
 const SIDECAR_DIR: &str = "sidecar";
 const MANIFEST_FILE: &str = "sidecar-manifest.json";
 pub const SERVER_ORIGIN_ENV: &str = "STUDIO_DESKTOP_SERVER_ORIGIN";
+pub const ALLOW_INSECURE_ORIGIN_ENV: &str = "STUDIO_DESKTOP_ALLOW_INSECURE_ORIGIN";
 const EXCHANGE_TIMEOUT: Duration = Duration::from_secs(20);
 const MAX_LINE_BYTES: usize = 2 * 1024 * 1024;
 const RESTART_WINDOW: Duration = Duration::from_secs(60);
@@ -68,6 +69,7 @@ struct Inner {
     restarts: VecDeque<Instant>,
     abandoned: bool,
     origin: Option<String>,
+    remote_http_build_opt_in: bool,
 }
 
 #[derive(Clone, Default)]
@@ -154,6 +156,11 @@ impl Inner {
             Some(origin) => cmd.env(SERVER_ORIGIN_ENV, origin),
             None => cmd.env_remove(SERVER_ORIGIN_ENV),
         };
+        if self.remote_http_build_opt_in {
+            cmd.env(ALLOW_INSECURE_ORIGIN_ENV, "1");
+        } else {
+            cmd.env_remove(ALLOW_INSECURE_ORIGIN_ENV);
+        }
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
@@ -266,9 +273,16 @@ impl Inner {
 
 impl Sidecar {
     pub(crate) fn with_origin(origin: Option<crate::server_origin::ApprovedOrigin>) -> Self {
-        let origin = origin.map(crate::server_origin::ApprovedOrigin::into_string);
+        let (origin, remote_http_build_opt_in) = match origin {
+            Some(origin) => {
+                let (value, opt_in) = origin.into_parts();
+                (Some(value), opt_in)
+            }
+            None => (None, false),
+        };
         Self(Arc::new(Mutex::new(Inner {
             origin,
+            remote_http_build_opt_in,
             ..Inner::default()
         })))
     }
@@ -276,6 +290,14 @@ impl Sidecar {
     #[cfg(test)]
     pub fn origin(&self) -> Option<String> {
         self.0.lock().ok().and_then(|g| g.origin.clone())
+    }
+
+    #[cfg(test)]
+    fn remote_http_build_opt_in(&self) -> bool {
+        self.0
+            .lock()
+            .map(|g| g.remote_http_build_opt_in)
+            .unwrap_or(false)
     }
 
     pub fn state(&self) -> SidecarState {
@@ -461,10 +483,12 @@ mod tests {
             Some("http://deploy.example:8080"),
             Some("1"),
         );
+        let sidecar = Sidecar::with_origin(origin);
         assert_eq!(
-            Sidecar::with_origin(origin).origin().as_deref(),
+            sidecar.origin().as_deref(),
             Some("http://deploy.example:8080")
         );
+        assert!(sidecar.remote_http_build_opt_in());
         assert!(crate::server_origin::validate("http://deploy.example:8080").is_err());
         assert!(crate::server_origin::validate("http://other.example:8080").is_err());
     }
