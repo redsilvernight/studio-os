@@ -11,7 +11,7 @@ triggers:
   - uncertain claim root cause
   - uncertain resumable-transfer root cause
 edit_policy: deny
-tools: [read, grep, glob, bash]
+tools: [read, grep, glob, bash, powershell]
 requirements:
   reasoning: medium
 rules: [offline-sync, storage-transfers, python-conventions]
@@ -47,6 +47,8 @@ Your job is to identify the root cause of a sync, offline-queue, claim, or trans
 - Do not recommend rewriting unrelated systems.
 
 ## Output
+
+~400 words total unless the evidence genuinely requires more — cite file/line and table/event names instead of pasting raw log or query output.
 
 ### Symptom
 What is happening, client-side and server-side.

@@ -12,7 +12,7 @@ triggers:
   - feature crossing the server/client boundary
   - major refactor
 edit_policy: deny
-tools: [read, grep, glob, bash]
+tools: [read, grep, glob, bash, powershell]
 requirements:
   reasoning: high
 rules: [contracts, database, mcp-tools, python-conventions]
@@ -44,7 +44,7 @@ Your job is to understand the existing architecture and the relevant contracts b
 
 ## Output
 
-Return a concise report containing:
+Return a concise report, ~400 words total unless the number of contracts/risks genuinely requires more — never paste raw file content, diffs, or full contract text; cite path and section instead. Containing:
 
 ### Systems
 Relevant systems and their responsibilities (Cloud/Core vs Local Client).
