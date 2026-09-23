@@ -70,8 +70,19 @@ function listFiles(dir) {
 
 const dirSize = (dir) => listFiles(dir).reduce((sum, f) => sum + statSync(f).size, 0);
 
-async function attach() {
+async function cdpTargets() {
+  try {
+    const response = await fetch(`http://127.0.0.1:${CDP_PORT}/json/list`, { signal: AbortSignal.timeout(2000) });
+    const targets = await response.json();
+    return targets.map((t) => `${t.type}:${t.url}`).join(" | ") || "no target";
+  } catch (e) {
+    return `endpoint unreachable (${e?.cause?.code ?? e?.name ?? e})`;
+  }
+}
+
+async function attach(app, stderrTail) {
   for (let i = 0; i < 60; i++) {
+    if (app.exitCode !== null) break;
     try {
       const browser = await chromium.connectOverCDP(`http://127.0.0.1:${CDP_PORT}`);
       const page = browser.contexts()[0]?.pages().find((p) => p.url().startsWith(APP_ORIGIN));
@@ -82,7 +93,13 @@ async function attach() {
     }
     await sleep(1000);
   }
-  throw new Error("could not attach to the installed Desktop over CDP");
+  // Enough context to diagnose a CI-only failure from the annotation alone.
+  const state = app.exitCode === null ? `still running (pid ${app.pid})` : `exited with ${app.exitCode}`;
+  throw new Error(
+    `could not attach to the installed Desktop over CDP: app ${state}; ` +
+      `desktop processes ${processCount("studio-desktop.exe")}, webview processes ${processCount("msedgewebview2.exe")}; ` +
+      `CDP targets: ${await cdpTargets()}; stderr: ${stderrTail().slice(-600) || "(empty)"}`,
+  );
 }
 
 const invoke = (page, name, args) =>
@@ -165,11 +182,15 @@ async function main() {
         STUDIO_CLIENT_API_BASE_URL: "http://127.0.0.1:1/api/v1",
         WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${CDP_PORT}`,
       },
-      stdio: "ignore",
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    let stderr = "";
+    app.stderr.on("data", (chunk) => {
+      stderr = (stderr + chunk).slice(-4000);
     });
     let browser;
     try {
-      const attached = await attach();
+      const attached = await attach(app, () => stderr);
       browser = attached.browser;
       const page = attached.page;
       await page.waitForSelector('[data-testid="onboarding-step"]', { timeout: 30_000 });
