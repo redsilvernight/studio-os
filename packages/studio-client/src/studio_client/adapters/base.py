@@ -191,8 +191,7 @@ _SHELL_DEGRADED_NOTES = {
     ),
 }
 _DEFAULT_SHELL_DEGRADED_NOTE = (
-    "shell execution is degraded on this harness — keep shell use minimal "
-    "and non-destructive"
+    "shell execution is degraded on this harness — keep shell use minimal and non-destructive"
 )
 
 

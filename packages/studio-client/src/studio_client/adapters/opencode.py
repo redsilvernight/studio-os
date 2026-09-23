@@ -87,8 +87,7 @@ class OpenCodeAdapter:
         content = f"{frontmatter}\n\n{body}"
         if edit_policy_str in ("deny", "ask"):
             policy_note = (
-                "canonical read-only policy projected as harness "
-                f"`edit: {edit_policy_str}`"
+                f"canonical read-only policy projected as harness `edit: {edit_policy_str}`"
             )
         else:
             policy_note = "no canonical edit policy; harness defaults apply"
