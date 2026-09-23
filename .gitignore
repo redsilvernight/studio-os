@@ -33,6 +33,10 @@ output/
 
 # Installateur Desktop copié à la racine pour distribution interne (jamais commité)
 /StudiOS-Setup-*.exe
+*.exe
+
+# Rapports d'audit générés à la racine (livrables locaux, jamais commités)
+/AUDIT_*.pdf
 
 # Docker local volumes (dev compose)
 docker/.data/
