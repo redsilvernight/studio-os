@@ -162,6 +162,7 @@ DESKTOP_CAPABILITIES = [
     "harness.apply",
     "harness.plan",
     "harness.read",
+    "harness.verify",
     "identity.view",
     "knowledge.graph",
     "knowledge.index",
@@ -179,7 +180,7 @@ KNOWLEDGE_CAPABILITIES = [
     "knowledge.read",
 ]
 CODE_GRAPH_CAPABILITIES = ["code_graph.graph", "code_graph.index", "code_graph.read"]
-HARNESS_CAPABILITIES = ["harness.apply", "harness.plan", "harness.read"]
+HARNESS_CAPABILITIES = ["harness.apply", "harness.plan", "harness.read", "harness.verify"]
 
 
 def sha(label: str) -> str:

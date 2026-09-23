@@ -32,6 +32,7 @@ pub const LOCAL_FEATURE_CAPABILITIES: &[&str] = &[
     "harness.read",
     "harness.plan",
     "harness.apply",
+    "harness.verify",
 ];
 
 /// Additive P11 capability (workspace configuration, served by the daemon
@@ -131,6 +132,7 @@ mod tests {
                 "{capability} not in the P1 fixture peer"
             );
         }
+        assert!(offered.contains(&json!("harness.verify")));
         assert!(offered.contains(&json!("workspace.config")));
     }
 

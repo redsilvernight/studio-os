@@ -240,6 +240,13 @@ class TestHandshake:
         daemon = fixtures.daemon_peer(code_graph_state=ComponentState.INCOMPATIBLE)
         assert negotiate(request, daemon).outcome in COMPATIBLE_OUTCOMES
 
+    def test_current_desktop_and_daemon_grant_harness_verify(self) -> None:
+        request = HandshakeRequest(peer=fixtures.desktop_peer())
+        response = negotiate(request, fixtures.daemon_peer())
+
+        assert response.outcome is CompatibilityOutcome.COMPATIBLE
+        assert "harness.verify" in response.granted_capabilities
+
     def test_versions_of_packages_do_not_matter(self) -> None:
         request = HandshakeRequest(peer=fixtures.desktop_peer())
         daemon = fixtures.daemon_peer()

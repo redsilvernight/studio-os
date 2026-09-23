@@ -10,6 +10,7 @@
         "harness.apply",
         "harness.plan",
         "harness.read",
+        "harness.verify",
         "identity.view",
         "knowledge.graph",
         "knowledge.index",
@@ -49,7 +50,8 @@
           "provides": [
             "harness.apply",
             "harness.plan",
-            "harness.read"
+            "harness.read",
+            "harness.verify"
           ],
           "state": "ready"
         }
