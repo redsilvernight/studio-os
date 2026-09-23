@@ -1,0 +1,33 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "content_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Content Hash",
+      "type": "string"
+    },
+    "modified_at": {
+      "format": "date-time",
+      "title": "Modified At",
+      "type": "string"
+    },
+    "title": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "uri": {
+      "title": "Uri",
+      "type": "string"
+    }
+  },
+  "required": [
+    "uri",
+    "title",
+    "content_hash",
+    "modified_at"
+  ],
+  "title": "KnowledgeDocumentRef",
+  "type": "object"
+}

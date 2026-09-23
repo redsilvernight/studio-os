@@ -31,11 +31,19 @@ import { renderMachines } from "./views/machines";
 import { renderDecisionsV2 as renderDecisions } from "./views/decisionsV2";
 import { renderTransfers } from "./views/transfers";
 import { renderLibrary, renderLibraryDetail } from "./views/library";
+import { renderApplication } from "./views/application";
+import { renderOnboarding } from "./onboarding/view";
+import { loadOnboardingState, onboardingRedirect } from "./onboarding/state";
+import { renderWorkspaces } from "./views/workspacesPage";
+import { renderGraphs } from "./views/graphs";
+import { renderIntegrations } from "./views/integrations";
 import { renderBindings, renderProjectConfig, renderRuntimeDetail, renderRuntimes } from "./views/configuration";
 import { renderInspector } from "./views/inspector";
 import { renderDesignSystem } from "./views/designSystem";
 import { renderNotFound } from "./views/notFound";
 import { loginOverlayHtml, renderLogin } from "./login";
+import { getPlatform } from "./platform";
+import { getDesktopShell, paintShellStatus, prepareDesktop, setDesktopHooks } from "./desktopShell";
 import { parseRoute } from "./router";
 import { shellHtml, syncAuthState, syncNav } from "./shell";
 import { createRenderGuard } from "./renderGuard";
@@ -62,6 +70,19 @@ let shellListenersMounted = false;
 async function render(): Promise<void> {
   const my = renderGuard.next();
   const route = parseRoute(location.hash);
+  // Premier lancement (Desktop seul) : l'assistant de configuration est
+  // prioritaire tant qu'il n'est pas terminé ; la reprise revalide l'état
+  // réel au lieu de supposer l'étape mémorisée encore valide.
+  if (getDesktopShell() !== null) {
+    const redirect = onboardingRedirect(
+      loadOnboardingState().status,
+      route.name === "onboarding",
+    );
+    if (redirect !== null) {
+      location.hash = redirect;
+      return;
+    }
+  }
   const baseUrl = resolveApiUrl(apiBaseUrl());
   const client = createApiClient(baseUrl);
   const authed = hasToken();
@@ -126,6 +147,21 @@ async function render(): Promise<void> {
     case "configBindings":
       await renderBindings(staging, { client, authed });
       break;
+    case "configApplication":
+      await renderApplication(staging);
+      break;
+    case "configIntegrations":
+      await renderIntegrations(staging, route.workspaceId);
+      break;
+    case "workspaces":
+      await renderWorkspaces(staging);
+      break;
+    case "onboarding":
+      await renderOnboarding(staging, getPlatform());
+      break;
+    case "graphs":
+      renderGraphs(staging, route.kind, { workspaceId: route.workspaceId });
+      break;
     case "configProject":
       await renderProjectConfig(staging, { client, authed }, route.tab);
       break;
@@ -152,8 +188,9 @@ async function render(): Promise<void> {
   staging.id = "view";
   staging.tabIndex = -1;
   old.replaceWith(staging);
-  syncNav(route, document);
+  syncNav(route, document, getDesktopShell() !== null);
   syncAuthState(authed, document);
+  paintShellStatus(document);
 }
 
 let conflictBannerTimer: ReturnType<typeof setTimeout> | null = null;
@@ -249,7 +286,8 @@ export function isDrawerOpen(): boolean {
 function mountShell(): void {
   const app = document.getElementById("app");
   if (app === null) throw new Error("#app missing");
-  app.innerHTML = shellHtml(parseRoute(location.hash), hasToken());
+  app.innerHTML = shellHtml(parseRoute(location.hash), hasToken(), getDesktopShell() !== null);
+  paintShellStatus(document);
 
   document.getElementById("nav-open")?.addEventListener("click", () => openDrawer());
   document.getElementById("nav-close")?.addEventListener("click", () => closeDrawer());
@@ -288,6 +326,7 @@ function mountShell(): void {
   document.getElementById("token-clear")?.addEventListener("click", () => {
     clearToken();
     syncRealtimeConnection();
+    getDesktopShell()?.monitor.clearAuthExpired();
     mountLogin();
   });
 
@@ -298,22 +337,63 @@ function mountShell(): void {
   void render();
 }
 
-function mountLogin(): void {
+function mountLogin(notice?: string): void {
   const app = document.getElementById("app");
   if (app === null) throw new Error("#app missing");
   app.innerHTML = loginOverlayHtml();
-  renderLogin(app, () => {
-    syncRealtimeConnection();
-    mountShell();
-  });
+  renderLogin(
+    app,
+    () => {
+      const desktop = getDesktopShell();
+      if (desktop !== null) {
+        desktop.monitor.clearAuthExpired();
+        void desktop.monitor.check();
+      }
+      syncRealtimeConnection();
+      mountShell();
+    },
+    { notice, desktop: getDesktopShell() !== null, onServerChange: () => void mountLogin() },
+  );
 }
 
-export function boot(): void {
-  if (hasToken()) {
+function start(): void {
+  // Sans compte, l'écran de connexion couvre tout — sauf au premier lancement
+  // Desktop, où l'assistant embarque sa propre connexion (étape « Connexion »).
+  const desktop = getDesktopShell() !== null;
+  const onboardingStatus = loadOnboardingState().status;
+  if (desktop) {
+    const redirect = onboardingRedirect(
+      onboardingStatus,
+      parseRoute(location.hash).name === "onboarding",
+    );
+    if (redirect !== null) location.hash = redirect;
+  }
+  const firstRun = desktop && onboardingStatus !== "completed" && onboardingStatus !== "skipped";
+  if (hasToken() || firstRun) {
     mountShell();
   } else {
     mountLogin();
   }
+}
+
+export function boot(): void {
+  const platform = getPlatform();
+  if (platform.mode !== "desktop") {
+    start();
+    return;
+  }
+  // Desktop only: learn the server origin before the first API call.
+  void prepareDesktop(platform).then(() => {
+    setDesktopHooks({
+      rerender: () => void render(),
+      authExpired: () => {
+        clearToken();
+        syncRealtimeConnection();
+        mountLogin("Votre session a expiré. Reconnectez-vous pour continuer.");
+      },
+    });
+    start();
+  });
 }
 
 boot();

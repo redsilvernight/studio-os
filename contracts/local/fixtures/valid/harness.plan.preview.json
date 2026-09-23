@@ -1,0 +1,30 @@
+{
+  "data": {
+    "adapter_id": "harness-alpha-adapter",
+    "changes": [
+      {
+        "after_hash": "72badc431a9456ba6517b75de274294a6b45884f483dc42e9d6d2b491826def6",
+        "before_hash": null,
+        "change_id": "chg-1",
+        "kind": "create",
+        "summary": "Add Studio OS working rules",
+        "target": ".studio/harness/rules.md"
+      },
+      {
+        "after_hash": "4cb489d904a289e570cfb53d545a9ed23477eadff1d4a8f0a6d3a8177aac679a",
+        "before_hash": "ec68d7c2581952ba5cec6a35581e19ff826cc2c6a3d7e70a577fc1f3fde96175",
+        "change_id": "chg-2",
+        "kind": "modify",
+        "summary": "Register the rules file",
+        "target": ".studio/harness/index.md"
+      }
+    ],
+    "created_at": "2026-01-15T12:00:00Z",
+    "expires_at": "2026-01-15T12:15:00Z",
+    "plan_hash": "d129262c7772059f5d77659a30bdff984a9736bc6c2bda56965af740bb423e41",
+    "plan_id": "plan-0001",
+    "requires_confirmation": true,
+    "workspace_id": "11111111-1111-4111-8111-111111111111"
+  },
+  "model": "HarnessPlan"
+}

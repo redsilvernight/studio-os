@@ -1,0 +1,22 @@
+{
+  "data": {
+    "action": "status",
+    "error": {
+      "code": "daemon_unavailable",
+      "component": "daemon",
+      "correlation_id": null,
+      "details": {},
+      "message": "The daemon does not answer.",
+      "retryable": true
+    },
+    "outcome": "unavailable",
+    "status": {
+      "instance": null,
+      "last_crash": null,
+      "negotiated": null,
+      "outbox": null,
+      "state": "unavailable"
+    }
+  },
+  "model": "DaemonControlResult"
+}

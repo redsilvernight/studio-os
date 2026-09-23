@@ -1,0 +1,76 @@
+{
+  "$defs": {
+    "ComponentId": {
+      "enum": [
+        "desktop",
+        "bridge",
+        "daemon",
+        "workspace",
+        "knowledge",
+        "code_graph",
+        "harness",
+        "secret_store",
+        "watcher"
+      ],
+      "title": "ComponentId",
+      "type": "string"
+    },
+    "ComponentState": {
+      "description": "Shared state vocabulary of every optional local component (Knowledge,\nCode Graph, harness, watchers). `ready` is the only fully-served state;\n`stale` serves possibly outdated data explicitly; everything else refuses\nor degrades visibly — never silently.",
+      "enum": [
+        "disabled",
+        "not_installed",
+        "unavailable",
+        "starting",
+        "indexing",
+        "ready",
+        "stale",
+        "permission_denied",
+        "incompatible",
+        "stopping",
+        "recovering",
+        "error"
+      ],
+      "title": "ComponentState",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "An optional component as the daemon sees it at handshake time. Its\nabsence never breaks compatibility; it degrades exactly the capabilities\nthat depend on it.",
+  "properties": {
+    "component": {
+      "$ref": "#/$defs/ComponentId"
+    },
+    "provider_id": {
+      "anyOf": [
+        {
+          "maxLength": 64,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Provider Id"
+    },
+    "provides": {
+      "default": [],
+      "items": {
+        "pattern": "^[a-z][a-z0-9_]{0,31}(\\.[a-z][a-z0-9_]{0,31}){0,3}$",
+        "type": "string"
+      },
+      "title": "Provides",
+      "type": "array"
+    },
+    "state": {
+      "$ref": "#/$defs/ComponentState"
+    }
+  },
+  "required": [
+    "component",
+    "state"
+  ],
+  "title": "OptionalComponentStatus",
+  "type": "object"
+}

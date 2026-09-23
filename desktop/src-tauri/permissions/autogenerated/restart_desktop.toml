@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-restart-desktop"
+description = "Enables the restart_desktop command without any pre-configured scope."
+commands.allow = ["restart_desktop"]
+
+[[permission]]
+identifier = "deny-restart-desktop"
+description = "Denies the restart_desktop command without any pre-configured scope."
+commands.deny = ["restart_desktop"]

@@ -35,7 +35,7 @@ async def get_review_queue(
     """Aggregates everything waiting on a human decision: AIWorkLog entries in
     `review_requested` (DEC-0041), `Decision`s still `proposed` (actionable —
     resolved via `POST /decisions/{id}/accept` or `.../supersede`, admin-only,
-    DEC-0094), recent `resource.conflict` events, failed `Build`s (DEC-0059),
+    DEC-0098), recent `resource.conflict` events, failed `Build`s (DEC-0059),
     and `git.pr.opened` events with no `git.pr.merged` yet (DEC-0059).
     Conflicts and PRs have no persisted "still open" state (no
     Conflict/PullRequest table exists) — these are best-effort, time-windowed

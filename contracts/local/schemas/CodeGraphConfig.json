@@ -1,0 +1,81 @@
+{
+  "$defs": {
+    "IndexLocation": {
+      "additionalProperties": false,
+      "description": "Where a derived index is stored, always inside the daemon's own cache\ndirectory and addressed by workspace and provider — never by an arbitrary\npath.",
+      "properties": {
+        "directory_name": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Directory Name",
+          "type": "string"
+        },
+        "scope": {
+          "const": "workspace_cache",
+          "default": "workspace_cache",
+          "title": "Scope",
+          "type": "string"
+        }
+      },
+      "required": [
+        "directory_name"
+      ],
+      "title": "IndexLocation",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "exclude_globs": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Exclude Globs",
+      "type": "array"
+    },
+    "include_globs": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Include Globs",
+      "type": "array"
+    },
+    "index": {
+      "$ref": "#/$defs/IndexLocation"
+    },
+    "languages": {
+      "default": [],
+      "items": {
+        "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+        "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Languages",
+      "type": "array"
+    },
+    "provider_id": {
+      "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+      "title": "Provider Id",
+      "type": "string"
+    },
+    "repo_names": {
+      "default": [],
+      "items": {
+        "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+        "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Repo Names",
+      "type": "array"
+    }
+  },
+  "required": [
+    "provider_id",
+    "index"
+  ],
+  "title": "CodeGraphConfig",
+  "type": "object"
+}

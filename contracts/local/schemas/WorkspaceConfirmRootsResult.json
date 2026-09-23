@@ -1,0 +1,22 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "expires_in_s": {
+      "maximum": 3600,
+      "minimum": 1,
+      "title": "Expires In S",
+      "type": "integer"
+    },
+    "root_confirmation_id": {
+      "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+      "title": "Root Confirmation Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "root_confirmation_id",
+    "expires_in_s"
+  ],
+  "title": "WorkspaceConfirmRootsResult",
+  "type": "object"
+}

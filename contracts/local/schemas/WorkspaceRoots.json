@@ -1,0 +1,45 @@
+{
+  "$defs": {
+    "RepoRoot": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "path"
+      ],
+      "title": "RepoRoot",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "repo_roots": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/RepoRoot"
+      },
+      "maxItems": 32,
+      "title": "Repo Roots",
+      "type": "array"
+    },
+    "workspace_root": {
+      "title": "Workspace Root",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace_root"
+  ],
+  "title": "WorkspaceRoots",
+  "type": "object"
+}

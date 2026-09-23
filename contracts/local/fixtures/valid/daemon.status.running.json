@@ -1,0 +1,37 @@
+{
+  "data": {
+    "instance": {
+      "daemon_version": "0.1.0",
+      "instance_id": "55555555-5555-4555-8555-555555555555",
+      "lock_key": "0d0b25d088a7a4a01afbd327b9c23828e6a85bb864a1a82b58ce86d041749da0",
+      "ownership": "desktop_started",
+      "pid": 4242,
+      "profile": {
+        "profile_id": "default",
+        "server_origin": "https://studio.example.test"
+      },
+      "started_at": "2026-01-15T10:00:00Z"
+    },
+    "last_crash": null,
+    "negotiated": {
+      "major": 1,
+      "minor": 0
+    },
+    "outbox": {
+      "binding": {
+        "machine_id": "44444444-4444-4444-8444-444444444444",
+        "profile_id": "default",
+        "project_id": "22222222-2222-4222-8222-222222222222",
+        "server_origin": "https://studio.example.test",
+        "workspace_id": "11111111-1111-4111-8111-111111111111"
+      },
+      "blocked_reason": null,
+      "oldest_pending_at": "2026-01-15T10:00:00Z",
+      "partition_key": "764589a978f76c84c06bc90f882699be55a0b9df14ff880405ad8259dbc35739",
+      "pending_count": 3,
+      "replay_blocked": false
+    },
+    "state": "running"
+  },
+  "model": "DaemonStatus"
+}

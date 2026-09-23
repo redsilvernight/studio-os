@@ -29,6 +29,7 @@ dist/
 build/
 test-results/
 playwright-report/
+output/
 
 # Docker local volumes (dev compose)
 docker/.data/

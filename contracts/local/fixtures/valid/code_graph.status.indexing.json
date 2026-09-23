@@ -1,0 +1,32 @@
+{
+  "data": {
+    "error": null,
+    "index": {
+      "built_at": null,
+      "derived": true,
+      "item_count": null,
+      "progress_percent": 65,
+      "rebuildable": true,
+      "source_fingerprint": null,
+      "state": "indexing"
+    },
+    "languages": [
+      "python",
+      "gdscript"
+    ],
+    "provider": {
+      "capabilities": [
+        "code_graph.graph",
+        "code_graph.index",
+        "code_graph.read"
+      ],
+      "display_name": "Code graph adapter",
+      "provider_id": "graphify",
+      "provider_version": "0.4.1"
+    },
+    "state": "indexing",
+    "unsupported_languages": [],
+    "workspace_id": "11111111-1111-4111-8111-111111111111"
+  },
+  "model": "CodeGraphStatus"
+}

@@ -1,0 +1,39 @@
+{
+  "$defs": {
+    "CodeReindexMode": {
+      "enum": [
+        "incremental",
+        "full_rebuild"
+      ],
+      "title": "CodeReindexMode",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "mode": {
+      "$ref": "#/$defs/CodeReindexMode",
+      "default": "incremental"
+    },
+    "repo_names": {
+      "default": [],
+      "items": {
+        "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+        "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Repo Names",
+      "type": "array"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace_id"
+  ],
+  "title": "CodeReindexRequest",
+  "type": "object"
+}

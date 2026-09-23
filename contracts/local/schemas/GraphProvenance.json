@@ -1,0 +1,49 @@
+{
+  "$defs": {
+    "Confidence": {
+      "enum": [
+        "extracted",
+        "inferred",
+        "declared"
+      ],
+      "title": "Confidence",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Required on every node and edge: where the fact comes from and how\nsure the extractor is. Facts without provenance are not representable.",
+  "properties": {
+    "confidence": {
+      "$ref": "#/$defs/Confidence"
+    },
+    "evidence": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Evidence"
+    },
+    "extractor": {
+      "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+      "title": "Extractor",
+      "type": "string"
+    },
+    "source_id": {
+      "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+      "title": "Source Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "source_id",
+    "extractor",
+    "confidence"
+  ],
+  "title": "GraphProvenance",
+  "type": "object"
+}

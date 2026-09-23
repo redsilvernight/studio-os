@@ -1,0 +1,15 @@
+{
+  "data": {
+    "roots": {
+      "repo_roots": [
+        {
+          "name": "game",
+          "path": "C:/Work/demo-game/game"
+        }
+      ],
+      "workspace_root": "demo-game"
+    }
+  },
+  "model": "WorkspaceConfirmRootsRequest",
+  "reason": "roots must be absolute"
+}

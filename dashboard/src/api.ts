@@ -10,6 +10,8 @@
 import createClient, { type Middleware } from "openapi-fetch";
 import type { paths } from "./openapi-schema";
 import { getToken } from "./auth";
+import { observedFetch } from "./apiEvents";
+import { getServerOriginOverride } from "./runtimeConfig";
 
 export interface ApiErrorDetails {
   status: number;
@@ -82,13 +84,16 @@ export function parseErrorBody(status: number, body: unknown): ApiErrorDetails {
 export type StudioClient = ReturnType<typeof createClient<paths>>;
 
 export function createApiClient(baseUrl: string): StudioClient {
-  const client = createClient<paths>({ baseUrl, fetch });
+  const client = createClient<paths>({ baseUrl, fetch: observedFetch });
   client.use(bearer);
   return client;
 }
 
-/** Base URL for same-origin-or-configured calls (used by the SSE client). */
+/** Base URL for same-origin-or-configured calls (used by the SSE client).
+ *  A runtime server origin (Desktop) wins over the build-time value. */
 export function apiBaseUrl(): string {
+  const runtime = getServerOriginOverride();
+  if (runtime !== null) return runtime;
   const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
   return (env["VITE_STUDIO_API_URL"] ?? "").trim().replace(/\/+$/, "");
 }

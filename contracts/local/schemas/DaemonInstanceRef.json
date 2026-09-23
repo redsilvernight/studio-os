@@ -1,0 +1,86 @@
+{
+  "$defs": {
+    "DaemonOwnership": {
+      "enum": [
+        "desktop_started",
+        "external"
+      ],
+      "title": "DaemonOwnership",
+      "type": "string"
+    },
+    "ProfileRef": {
+      "additionalProperties": false,
+      "description": "A local profile is one server origin on one machine. Two profiles never\nshare a secret, an outbox partition or a daemon instance.",
+      "properties": {
+        "profile_id": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Profile Id",
+          "type": "string"
+        },
+        "server_origin": {
+          "title": "Server Origin",
+          "type": "string"
+        }
+      },
+      "required": [
+        "profile_id",
+        "server_origin"
+      ],
+      "title": "ProfileRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "daemon_version": {
+      "maxLength": 64,
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$",
+      "title": "Daemon Version",
+      "type": "string"
+    },
+    "instance_id": {
+      "format": "uuid",
+      "title": "Instance Id",
+      "type": "string"
+    },
+    "lock_key": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Lock Key",
+      "type": "string"
+    },
+    "ownership": {
+      "$ref": "#/$defs/DaemonOwnership"
+    },
+    "pid": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Pid"
+    },
+    "profile": {
+      "$ref": "#/$defs/ProfileRef"
+    },
+    "started_at": {
+      "format": "date-time",
+      "title": "Started At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "instance_id",
+    "profile",
+    "lock_key",
+    "ownership",
+    "daemon_version",
+    "started_at"
+  ],
+  "title": "DaemonInstanceRef",
+  "type": "object"
+}

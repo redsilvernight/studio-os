@@ -1,0 +1,23 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "major": {
+      "maximum": 999,
+      "minimum": 1,
+      "title": "Major",
+      "type": "integer"
+    },
+    "minor": {
+      "maximum": 999,
+      "minimum": 0,
+      "title": "Minor",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "major",
+    "minor"
+  ],
+  "title": "ProtocolVersion",
+  "type": "object"
+}

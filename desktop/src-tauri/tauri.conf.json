@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Studio OS Desktop",
+  "mainBinaryName": "studio-desktop",
+  "identifier": "dev.studio-os.desktop",
+  "build": {
+    "frontendDist": "../.build/dashboard",
+    "devUrl": "http://localhost:5173"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+    }
+  },
+  "bundle": {
+    "active": false,
+    "targets": ["nsis"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.ico"],
+    "publisher": "Studio OS",
+    "category": "DeveloperTool",
+    "shortDescription": "Studio OS Desktop",
+    "longDescription": "Desktop client for Studio OS: local workspaces, knowledge and code graph, with a bundled local daemon.",
+    "windows": {
+      "allowDowngrades": false,
+      "webviewInstallMode": { "type": "embedBootstrapper" },
+      "nsis": {
+        "installMode": "currentUser",
+        "installerHooks": "installer/hooks.nsh",
+        "compression": "lzma",
+        "displayLanguageSelector": false,
+        "languages": ["French", "English"]
+      }
+    }
+  }
+}

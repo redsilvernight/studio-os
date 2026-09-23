@@ -1,0 +1,120 @@
+{
+  "$defs": {
+    "ComponentState": {
+      "description": "Shared state vocabulary of every optional local component (Knowledge,\nCode Graph, harness, watchers). `ready` is the only fully-served state;\n`stale` serves possibly outdated data explicitly; everything else refuses\nor degrades visibly — never silently.",
+      "enum": [
+        "disabled",
+        "not_installed",
+        "unavailable",
+        "starting",
+        "indexing",
+        "ready",
+        "stale",
+        "permission_denied",
+        "incompatible",
+        "stopping",
+        "recovering",
+        "error"
+      ],
+      "title": "ComponentState",
+      "type": "string"
+    },
+    "KnowledgeDocumentRef": {
+      "additionalProperties": false,
+      "properties": {
+        "content_hash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Content Hash",
+          "type": "string"
+        },
+        "modified_at": {
+          "format": "date-time",
+          "title": "Modified At",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "uri": {
+          "title": "Uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "uri",
+        "title",
+        "content_hash",
+        "modified_at"
+      ],
+      "title": "KnowledgeDocumentRef",
+      "type": "object"
+    },
+    "KnowledgeSearchHit": {
+      "additionalProperties": false,
+      "properties": {
+        "document": {
+          "$ref": "#/$defs/KnowledgeDocumentRef"
+        },
+        "score": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Score",
+          "type": "number"
+        },
+        "snippet": {
+          "default": "",
+          "maxLength": 300,
+          "title": "Snippet",
+          "type": "string"
+        }
+      },
+      "required": [
+        "document",
+        "score"
+      ],
+      "title": "KnowledgeSearchHit",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "complete": {
+      "default": true,
+      "title": "Complete",
+      "type": "boolean"
+    },
+    "hits": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/KnowledgeSearchHit"
+      },
+      "maxItems": 100,
+      "title": "Hits",
+      "type": "array"
+    },
+    "index_state": {
+      "$ref": "#/$defs/ComponentState"
+    },
+    "next_cursor": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Next Cursor"
+    }
+  },
+  "required": [
+    "index_state"
+  ],
+  "title": "KnowledgeSearchResult",
+  "type": "object"
+}

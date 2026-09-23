@@ -18,6 +18,8 @@
  * so DASH-3 wires the loop without rewriting the transport.
  */
 
+import { observedFetch } from "./apiEvents";
+
 export interface SseMessage {
   /** Transport cursor (`id:` line). Null when the server sent no id. */
   seq: number | null;
@@ -158,7 +160,7 @@ export async function connectEventStream(
   }
 
   try {
-    const response = await fetch(url, { headers, signal: controller.signal });
+    const response = await observedFetch(url, { headers, signal: controller.signal });
     if (!response.ok || response.body === null) {
       throw new Error(`stream HTTP ${response.status}`);
     }

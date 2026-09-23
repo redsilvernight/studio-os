@@ -210,7 +210,7 @@ describe("reviewItemHtml", () => {
     expect(html).toContain("disabled");
   });
 
-  it("decision_proposal : actions Accepter/Remplacer pour un admin authed (DEC-0094)", () => {
+  it("decision_proposal : actions Accepter/Remplacer pour un admin authed (DEC-0098)", () => {
     const html = reviewItemHtml(decisionProposalItem().items[0]!, true, true);
     expect(html).toContain("Proposition de décision");
     expect(html).toContain('data-decision-accept="rw2"');
@@ -369,7 +369,7 @@ describe("decisionHtml", () => {
     expect(html).toContain("Tâche: —");
   });
 
-  it("proposed, admin : Accepter et Remplacer disponibles (DEC-0094)", () => {
+  it("proposed, admin : Accepter et Remplacer disponibles (DEC-0098)", () => {
     const html = decisionHtml(decision("d1", "proposed"), true, true);
     expect(html).toContain('data-decision-accept="d1"');
     expect(html).toContain("Accepter");

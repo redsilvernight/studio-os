@@ -1,0 +1,226 @@
+{
+  "$defs": {
+    "ComponentId": {
+      "enum": [
+        "desktop",
+        "bridge",
+        "daemon",
+        "workspace",
+        "knowledge",
+        "code_graph",
+        "harness",
+        "secret_store",
+        "watcher"
+      ],
+      "title": "ComponentId",
+      "type": "string"
+    },
+    "HarnessState": {
+      "enum": [
+        "detected",
+        "configured",
+        "incompatible",
+        "not_detected",
+        "error"
+      ],
+      "title": "HarnessState",
+      "type": "string"
+    },
+    "HarnessStatus": {
+      "additionalProperties": false,
+      "description": "What the Desktop knows about one agent harness on this machine. A\nharness is identified by an opaque adapter id; the contract carries no\nvendor concept and never a provider credential — only whether Studio OS's\nown integration files are in place.",
+      "properties": {
+        "adapter_id": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Adapter Id",
+          "type": "string"
+        },
+        "capabilities": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]{0,31}(\\.[a-z][a-z0-9_]{0,31}){0,3}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "detected_version": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detected Version"
+        },
+        "display_name": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Display Name",
+          "type": "string"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalError"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "harness_id": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Harness Id",
+          "type": "string"
+        },
+        "managed_files": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Managed Files",
+          "type": "array"
+        },
+        "state": {
+          "$ref": "#/$defs/HarnessState"
+        }
+      },
+      "required": [
+        "adapter_id",
+        "harness_id",
+        "display_name",
+        "state"
+      ],
+      "title": "HarnessStatus",
+      "type": "object"
+    },
+    "LocalError": {
+      "additionalProperties": false,
+      "description": "The one structured error shape of the local stack. Never carries a\nsecret, a stack trace or an absolute local path: `message` and `details`\nare validated, bounded and safe to display or log.",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/LocalErrorCode"
+        },
+        "component": {
+          "$ref": "#/$defs/ComponentId"
+        },
+        "correlation_id": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.:-]{1,64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Correlation Id"
+        },
+        "details": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Details",
+          "type": "object"
+        },
+        "message": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        },
+        "retryable": {
+          "title": "Retryable",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "component",
+        "retryable"
+      ],
+      "title": "LocalError",
+      "type": "object"
+    },
+    "LocalErrorCode": {
+      "description": "Closed, deliberately small taxonomy. Codes describe what the caller can\nbranch on; the human message and bounded details carry the rest.",
+      "enum": [
+        "invalid_request",
+        "unknown_command",
+        "payload_too_large",
+        "protocol_incompatible",
+        "capability_missing",
+        "not_supported",
+        "cancelled",
+        "timeout",
+        "internal_error",
+        "daemon_unavailable",
+        "daemon_already_running",
+        "daemon_crashed",
+        "identity_mismatch",
+        "wrong_profile",
+        "secret_absent",
+        "secret_inaccessible",
+        "secret_revoked",
+        "keyring_unavailable",
+        "workspace_config_missing",
+        "workspace_config_invalid",
+        "workspace_moved",
+        "workspace_inaccessible",
+        "project_unavailable",
+        "feature_disabled",
+        "provider_not_installed",
+        "provider_incompatible",
+        "permission_denied",
+        "index_absent",
+        "index_corrupt",
+        "language_unsupported",
+        "plan_expired"
+      ],
+      "title": "LocalErrorCode",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "harnesses": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/HarnessStatus"
+      },
+      "maxItems": 32,
+      "title": "Harnesses",
+      "type": "array"
+    }
+  },
+  "title": "HarnessDetectResult",
+  "type": "object"
+}

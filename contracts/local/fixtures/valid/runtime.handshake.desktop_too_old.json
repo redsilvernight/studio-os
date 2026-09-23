@@ -1,0 +1,92 @@
+{
+  "data": {
+    "daemon": {
+      "capabilities": [
+        "code_graph.graph",
+        "code_graph.index",
+        "code_graph.read",
+        "daemon.control",
+        "daemon.health",
+        "harness.apply",
+        "harness.plan",
+        "harness.read",
+        "harness.verify",
+        "identity.view",
+        "knowledge.graph",
+        "knowledge.index",
+        "knowledge.init",
+        "knowledge.read",
+        "publication.plan",
+        "publication.publish",
+        "workspace.config"
+      ],
+      "component_version": "0.1.0",
+      "optional_capabilities": [],
+      "optional_components": [
+        {
+          "component": "knowledge",
+          "provider_id": "markdown-files",
+          "provides": [
+            "knowledge.graph",
+            "knowledge.index",
+            "knowledge.init",
+            "knowledge.read"
+          ],
+          "state": "ready"
+        },
+        {
+          "component": "code_graph",
+          "provider_id": "graphify",
+          "provides": [
+            "code_graph.graph",
+            "code_graph.index",
+            "code_graph.read"
+          ],
+          "state": "ready"
+        },
+        {
+          "component": "harness",
+          "provider_id": "harness-alpha",
+          "provides": [
+            "harness.apply",
+            "harness.plan",
+            "harness.read",
+            "harness.verify"
+          ],
+          "state": "ready"
+        }
+      ],
+      "protocol": {
+        "maximum": {
+          "major": 2,
+          "minor": 3
+        },
+        "minimum": {
+          "major": 2,
+          "minor": 0
+        }
+      },
+      "protocol_id": "studio.local",
+      "required_capabilities": [],
+      "role": "daemon",
+      "server_origin": null
+    },
+    "degraded": [],
+    "error": {
+      "code": "protocol_incompatible",
+      "component": "daemon",
+      "correlation_id": "corr-0001",
+      "details": {},
+      "message": "The Desktop is older than the oldest protocol this daemon accepts.",
+      "retryable": false
+    },
+    "granted_capabilities": [],
+    "missing_optional": [],
+    "missing_required": [],
+    "negotiated": null,
+    "outcome": "desktop_too_old",
+    "remediation": "update_desktop",
+    "silent_fallback": false
+  },
+  "model": "HandshakeResponse"
+}

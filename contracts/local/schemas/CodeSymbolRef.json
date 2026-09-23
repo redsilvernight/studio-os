@@ -1,0 +1,47 @@
+{
+  "$defs": {
+    "NodeKind": {
+      "enum": [
+        "document",
+        "heading",
+        "tag",
+        "file",
+        "package",
+        "module",
+        "class",
+        "function"
+      ],
+      "title": "NodeKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "$ref": "#/$defs/NodeKind"
+    },
+    "name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "node_id": {
+      "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+      "title": "Node Id",
+      "type": "string"
+    },
+    "uri": {
+      "title": "Uri",
+      "type": "string"
+    }
+  },
+  "required": [
+    "node_id",
+    "kind",
+    "name",
+    "uri"
+  ],
+  "title": "CodeSymbolRef",
+  "type": "object"
+}

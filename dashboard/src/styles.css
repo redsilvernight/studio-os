@@ -333,3 +333,7 @@ ul.edges li { margin: 2px 0; }
 table + form, .editor + form { margin-top: 12px; }
 
 
+
+.login-server { margin-top: 12px; }
+.login-server form { margin: 8px 0; }
+.login-server .ds-btn { width: auto; }

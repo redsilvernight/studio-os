@@ -1,0 +1,6 @@
+# Line endings are part of the contract: the committed blobs are LF, so a checkout must be LF
+# on every platform (a CRLF checkout changes the bytes that contract digests and drift checks read).
+* text=auto eol=lf
+*.sh text eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf

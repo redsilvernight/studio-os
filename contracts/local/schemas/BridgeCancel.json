@@ -1,0 +1,45 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "correlation_id": {
+      "pattern": "^[A-Za-z0-9_.:-]{1,64}$",
+      "title": "Correlation Id",
+      "type": "string"
+    },
+    "kind": {
+      "const": "cancel",
+      "default": "cancel",
+      "title": "Kind",
+      "type": "string"
+    },
+    "message_id": {
+      "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+      "title": "Message Id",
+      "type": "string"
+    },
+    "protocol": {
+      "const": "studio.local/v1",
+      "default": "studio.local/v1",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "request_id": {
+      "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "sent_at": {
+      "format": "date-time",
+      "title": "Sent At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "message_id",
+    "correlation_id",
+    "sent_at",
+    "request_id"
+  ],
+  "title": "BridgeCancel",
+  "type": "object"
+}

@@ -11,6 +11,7 @@
  */
 import type { StudioClient } from "./api";
 import { ApiError, parseErrorBody } from "./api";
+import { observedFetch } from "./apiEvents";
 import { joinUrl } from "./config";
 import type { components } from "./openapi-schema";
 
@@ -299,7 +300,7 @@ export function formatRelativeFr(iso: string | null | undefined, now: number): s
  * on a real error (401/403/5xx other than 501).
  */
 export async function fetchCanonicalMachines(baseUrl: string, token: string): Promise<Machine[] | null> {
-  const response = await fetch(joinUrl(baseUrl, "/api/v1/machines"), {
+  const response = await observedFetch(joinUrl(baseUrl, "/api/v1/machines"), {
     headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
   });
   if (response.status === 404 || response.status === 405 || response.status === 501) return null;

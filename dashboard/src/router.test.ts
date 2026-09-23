@@ -67,6 +67,12 @@ describe("parseRoute", () => {
     expect(parseRoute("#/configuration/runtimes")).toEqual({ name: "configRuntimes" });
     expect(parseRoute("#/configuration/runtimes/rt1")).toEqual({ name: "configRuntime", id: "rt1" });
     expect(parseRoute("#/configuration/bindings")).toEqual({ name: "configBindings" });
+    expect(parseRoute("#/configuration/application")).toEqual({ name: "configApplication" });
+    expect(parseRoute("#/configuration/integrations")).toEqual({ name: "configIntegrations" });
+    expect(parseRoute("#/configuration/integrations/11111111-2222-4333-8444-555555555555")).toEqual({
+      name: "configIntegrations",
+      workspaceId: "11111111-2222-4333-8444-555555555555",
+    });
     expect(parseRoute("#/configuration/project")).toEqual({ name: "configProject", tab: "resources" });
     expect(parseRoute("#/configuration/project/locks")).toEqual({ name: "configProject", tab: "locks" });
     expect(parseRoute("#/configuration/project/overrides")).toEqual({ name: "configProject", tab: "overrides" });
@@ -81,5 +87,10 @@ describe("parseRoute", () => {
   it("parses the internal UI-1 Design System route (DEC-0078, no nav entry)", () => {
     expect(parseRoute("#/design-system")).toEqual({ name: "designSystem" });
     expect(parseRoute("#/design-system/extra")).toEqual({ name: "notFound", hash: "#/design-system/extra" });
+  });
+
+  it("parses the P11 first-run assistant route (desktop only, no nav entry)", () => {
+    expect(parseRoute("#/bienvenue")).toEqual({ name: "onboarding" });
+    expect(parseRoute("#/bienvenue/extra")).toEqual({ name: "notFound", hash: "#/bienvenue/extra" });
   });
 });

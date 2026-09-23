@@ -1,0 +1,14 @@
+{
+  "data": {
+    "action": "stop",
+    "confirm_external": false,
+    "drain_outbox": true,
+    "expected_instance_id": null,
+    "profile": {
+      "profile_id": "default",
+      "server_origin": "https://studio.example.test"
+    },
+    "timeout_ms": 10000
+  },
+  "model": "DaemonControlRequest"
+}

@@ -1,0 +1,41 @@
+{
+  "data": {
+    "created_at": "2026-01-15T12:00:00Z",
+    "excluded_classes": [
+      "code_graph",
+      "filesystem_details",
+      "harness_config",
+      "indexes",
+      "paths",
+      "secrets",
+      "sensitive_diagnostics",
+      "vault_content",
+      "workspace_config"
+    ],
+    "expires_at": "2026-01-15T12:10:00Z",
+    "included": [],
+    "plan_hash": "ba09117cb0cf062bff32ab381d534a7814c6d1cd98919fe5e16383f5b8b3e5e5",
+    "plan_id": "pub-0001",
+    "summary": {
+      "components": [
+        {
+          "component": "knowledge",
+          "item_count": 42,
+          "provider_id": "markdown-files",
+          "state": "ready"
+        },
+        {
+          "component": "code_graph",
+          "item_count": 1250,
+          "provider_id": "graphify",
+          "state": "stale"
+        }
+      ],
+      "generated_at": "2026-01-15T12:00:00Z",
+      "project_id": "22222222-2222-4222-8222-222222222222",
+      "protocol_version": "1.0.0",
+      "workspace_id": "11111111-1111-4111-8111-111111111111"
+    }
+  },
+  "model": "PublicationPlan"
+}

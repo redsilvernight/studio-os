@@ -1,0 +1,25 @@
+{
+  "data": {
+    "counts": {
+      "edges": 0,
+      "nodes": 0,
+      "total_edges": null,
+      "total_nodes": null
+    },
+    "edges": [],
+    "frontier": [],
+    "next_cursor": null,
+    "nodes": [],
+    "source": {
+      "generated_at": "2026-01-15T12:00:00Z",
+      "index_fingerprint": "e94ac01c833eda049c864c4bb7fe3b52d89c643815cd834d8e77c79113957a25",
+      "kind": "code",
+      "member_sources": [],
+      "provider_id": "graphify",
+      "source_id": "code-main",
+      "workspace_id": "11111111-1111-4111-8111-111111111111"
+    },
+    "truncated": false
+  },
+  "model": "GraphPage"
+}

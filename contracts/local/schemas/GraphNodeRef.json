@@ -1,0 +1,21 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "node_id": {
+      "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+      "title": "Node Id",
+      "type": "string"
+    },
+    "source_id": {
+      "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+      "title": "Source Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "source_id",
+    "node_id"
+  ],
+  "title": "GraphNodeRef",
+  "type": "object"
+}

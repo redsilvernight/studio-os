@@ -1,0 +1,15 @@
+{
+  "data": {
+    "adapter_id": "harness-alpha-adapter",
+    "capabilities": [
+      "harness.plan"
+    ],
+    "detected_version": "1.2.0",
+    "display_name": "Harness Alpha",
+    "error": null,
+    "harness_id": "harness-alpha",
+    "managed_files": [],
+    "state": "detected"
+  },
+  "model": "HarnessStatus"
+}

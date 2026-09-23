@@ -1,0 +1,18 @@
+{
+  "data": {
+    "action": "detach_workspace",
+    "candidate_root": null,
+    "config": null,
+    "error": {
+      "code": "project_unavailable",
+      "component": "workspace",
+      "correlation_id": null,
+      "details": {},
+      "message": "Workspace is project_unavailable.",
+      "retryable": false
+    },
+    "health": "project_unavailable",
+    "workspace_id": "11111111-1111-4111-8111-111111111111"
+  },
+  "model": "WorkspaceStatus"
+}

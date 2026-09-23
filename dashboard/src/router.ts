@@ -21,6 +21,11 @@ export type Route =
   | { name: "configRuntime"; id: string }
   | { name: "configBindings" }
   | { name: "configProject"; tab: ProjectConfigTab }
+  | { name: "configApplication" }
+  | { name: "configIntegrations"; workspaceId?: string }
+  | { name: "workspaces" }
+  | { name: "onboarding" }
+  | { name: "graphs"; kind: "knowledge" | "code" | "project"; workspaceId?: string }
   | { name: "inspector"; stableKey: string | null }
   | { name: "designSystem" }
   | { name: "notFound"; hash: string };
@@ -83,6 +88,11 @@ export function parseRoute(hash: string): Route {
       return { name: "configRuntime", id: decode(parts[2]) };
     }
     if (parts[1] === "bindings" && parts.length === 2) return { name: "configBindings" };
+    if (parts[1] === "application" && parts.length === 2) return { name: "configApplication" };
+    if (parts[1] === "integrations" && parts.length === 2) return { name: "configIntegrations" };
+    if (parts[1] === "integrations" && parts.length === 3 && parts[2] !== undefined) {
+      return { name: "configIntegrations", workspaceId: decode(parts[2]) };
+    }
     if (parts[1] === "project" && parts.length <= 3) {
       const tab: ProjectConfigTab =
         parts[2] === "locks" || parts[2] === "overrides" ? parts[2] : "resources";
@@ -94,6 +104,17 @@ export function parseRoute(hash: string): Route {
     if (parts.length === 1) return { name: "inspector", stableKey: null };
     if (parts.length === 2 && parts[1] !== undefined) {
       return { name: "inspector", stableKey: decode(parts[1]) };
+    }
+    return notFound(hash);
+  }
+  if (parts[0] === "workspaces" && parts.length === 1) return { name: "workspaces" };
+  if (parts[0] === "bienvenue" && parts.length === 1) return { name: "onboarding" };
+  if (parts[0] === "graphs" && parts.length >= 2 && parts.length <= 3) {
+    const kind = parts[1];
+    const workspaceId = parts[2];
+    if ((kind === "knowledge" || kind === "code" || kind === "project") &&
+      (workspaceId === undefined || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(workspaceId))) {
+      return { name: "graphs", kind, ...(workspaceId ? { workspaceId } : {}) };
     }
     return notFound(hash);
   }

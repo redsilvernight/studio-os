@@ -1,0 +1,7 @@
+{
+  "data": {
+    "expires_in_s": 600,
+    "root_confirmation_id": "rc-demo-3"
+  },
+  "model": "WorkspaceConfirmRootsResult"
+}
