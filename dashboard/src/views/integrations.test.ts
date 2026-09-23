@@ -140,6 +140,63 @@ describe("harnessApi", () => {
     expect(calls).toEqual(["harness.detect", "runtime.handshake", "harness.detect"]);
   });
 
+  it("turns harness integrations on for the folder, then previews again once", async () => {
+    let harnessOn = false;
+    const calls: { command: string; payload: Record<string, unknown> }[] = [];
+    const roots = { workspace_root: "C:/jeu", repo_roots: [] };
+    const stored = { workspace_id: WS, roots, features: { knowledge: true, harness: false }, updated_at: "2026-09-22T10:00:00Z" };
+    const platform = fakeDesktop({
+      request: (async (command: string, payload: Record<string, unknown> = {}) => {
+        calls.push({ command, payload });
+        if (command === "harness.preview") return harnessOn ? ok(plan("claude-code")) : refused("feature_disabled", "feature_disabled");
+        if (command === "workspace.get_config") return ok(stored);
+        if (command === "workspace.save_config") {
+          harnessOn = true;
+          return ok(payload["config"]);
+        }
+        return refused("not_supported");
+      }) as never,
+    });
+    const outcome = await previewHarness(platform, WS, "claude-code");
+    expect(outcome.ok).toBe(true);
+    expect(calls.map((c) => c.command)).toEqual(["harness.preview", "workspace.get_config", "workspace.save_config", "harness.preview"]);
+    const save = calls[2]?.payload as { config: { features: Record<string, unknown> }; current_roots: unknown; expected_updated_at: string };
+    expect(save.config.features).toEqual({ knowledge: true, harness: true });
+    expect(save.current_roots).toEqual(roots);
+    expect(save.expected_updated_at).toBe("2026-09-22T10:00:00Z");
+    expect(calls.map((c) => c.command)).not.toContain("harness.apply");
+  });
+
+  it("does not loop when the feature stays disabled", async () => {
+    const calls: string[] = [];
+    const platform = fakeDesktop({
+      request: (async (command: string, payload: Record<string, unknown> = {}) => {
+        calls.push(command);
+        if (command === "workspace.get_config") return ok({ workspace_id: WS, roots: {}, features: {} });
+        if (command === "workspace.save_config") return ok(payload["config"]);
+        return refused("feature_disabled", "feature_disabled");
+      }) as never,
+    });
+    const outcome = await previewHarness(platform, WS, "claude-code");
+    expect(outcome.ok).toBe(false);
+    expect(calls).toEqual(["harness.preview", "workspace.get_config", "workspace.save_config", "harness.preview"]);
+  });
+
+  it("reports a refused config save without previewing again", async () => {
+    const calls: string[] = [];
+    const platform = fakeDesktop({
+      request: (async (command: string) => {
+        calls.push(command);
+        if (command === "workspace.get_config") return ok({ workspace_id: WS, roots: {}, features: {} });
+        if (command === "workspace.save_config") return refused("invalid_request");
+        return refused("feature_disabled", "feature_disabled");
+      }) as never,
+    });
+    const outcome = await previewHarness(platform, WS, "claude-code");
+    expect(outcome.ok).toBe(false);
+    expect(calls).toEqual(["harness.preview", "workspace.get_config", "workspace.save_config"]);
+  });
+
   it("words refusals in French without echoing raw daemon text", () => {
     expect(harnessErrorMessage({ code: "invalid_request", message: "C:\\Users\\x secret", details: { reason: "rollback_conflict" } } as never)).toContain("modifié");
     expect(harnessErrorMessage({ code: "internal_error", message: "boom C:\\Users\\x", details: {} } as never)).not.toContain("C:");

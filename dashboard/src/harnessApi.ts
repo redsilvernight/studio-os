@@ -46,8 +46,39 @@ export function detectHarnesses(platform: Platform, workspaceId: string): Promis
   return call(platform, "harness.detect", { workspace_id: workspaceId });
 }
 
-export function previewHarness(platform: Platform, workspaceId: string, adapterId: string): Promise<HarnessOutcome<HarnessPlan>> {
-  return call(platform, "harness.preview", { workspace_id: workspaceId, adapter_id: adapterId });
+function utcNow(): string {
+  return new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+/**
+ * Turns `features.harness` on in the folder's local config. Only the local
+ * toggle changes: no harness file is written before a confirmed apply.
+ */
+export async function enableHarnessFeature(platform: Platform, workspaceId: string): Promise<HarnessOutcome<null>> {
+  const stored = await call<Record<string, unknown>>(platform, "workspace.get_config", { workspace_id: workspaceId });
+  if (!stored.ok) return stored;
+  const config = stored.value;
+  const features = (config["features"] as Record<string, unknown> | undefined) ?? {};
+  if (features["harness"] === true) return { ok: true, value: null };
+  const saved = await call(platform, "workspace.save_config", {
+    config: { ...config, features: { ...features, harness: true }, updated_at: utcNow() },
+    current_roots: config["roots"],
+    ...(typeof config["updated_at"] === "string" ? { expected_updated_at: config["updated_at"] } : {}),
+  });
+  return saved.ok ? { ok: true, value: null } : saved;
+}
+
+/**
+ * Asking for a preview is the user's request to connect this folder: a
+ * folder whose harness integrations are still off gets them turned on once.
+ */
+export async function previewHarness(platform: Platform, workspaceId: string, adapterId: string): Promise<HarnessOutcome<HarnessPlan>> {
+  const payload = { workspace_id: workspaceId, adapter_id: adapterId };
+  const first = await call<HarnessPlan>(platform, "harness.preview", payload);
+  if (first.ok || first.error.code !== "feature_disabled") return first;
+  const enabled = await enableHarnessFeature(platform, workspaceId);
+  if (!enabled.ok) return enabled;
+  return call(platform, "harness.preview", payload);
 }
 
 export function applyHarness(platform: Platform, plan: HarnessPlan): Promise<HarnessOutcome<HarnessApplyResult>> {
