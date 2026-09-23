@@ -19,6 +19,8 @@ from studio_contracts.local.harness import (
     VerifyState,
 )
 
+from tests.harness.support import fake_harness_env
+
 MCP_URL = "https://studio.example/mcp"
 WORKSPACE_ID = UUID("11111111-1111-4111-8111-111111111111")
 
@@ -294,7 +296,7 @@ def test_no_network_transmission_of_backups(tmp_path: Path):
     workspace.mkdir()
     backups_root = Path(tmp_path) / "backups"
     backups_root.mkdir()
-    env = dict(os.environ)
+    env = fake_harness_env(tmp_path)
 
     service = HarnessService(
         HarnessRegistry([ClaudeCodeAdapter()]),
