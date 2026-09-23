@@ -84,6 +84,7 @@ __all__ = [
     "AIWORK_BUDGET_SHARE",
     "AIWORK_LIST_CAP",
     "DEFAULT_LIMIT",
+    "DEFAULT_MAX_CHARS",
     "ITEM_TEXT_CAP",
     "LIBRARY_SCAN_CAP",
     "MAX_FILES",
