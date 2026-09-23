@@ -189,6 +189,12 @@ export async function revalidate(data: SessionData, platform: Platform): Promise
   const id = data.state.workspaceId;
   if (!id) return;
   const checked = await validateWorkspace(platform, id);
+  if (!checked.ok && checked.error.code !== "workspace_config_missing") {
+    // Refus transitoire (assistant local encore en démarrage, pont muet) : ce
+    // n'est pas une preuve que le dossier a disparu, on garde l'association.
+    data.error = `État du dossier non vérifiable pour l'instant : ${workspaceErrorMessage(checked.error)} Réessayez dans un instant.`;
+    return;
+  }
   if (!checked.ok) {
     data.state = { ...data.state, workspaceId: undefined, folderName: undefined, current: "dossier" };
     data.error = "Le dossier associé n'est plus valide : choisissez-le à nouveau.";
