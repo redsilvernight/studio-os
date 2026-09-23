@@ -12,6 +12,7 @@ from studio_client.config import ClientConfig
 _LOGGER = logging.getLogger("studio_client.daemon.desktop_origin")
 
 DESKTOP_ORIGIN_ENV = "STUDIO_DESKTOP_SERVER_ORIGIN"
+ALLOW_INSECURE_ORIGIN_ENV = "STUDIO_DESKTOP_ALLOW_INSECURE_ORIGIN"
 TOKEN_ENV = "STUDIO_CLIENT_MACHINE_TOKEN"
 TOKEN_ORIGIN_ENV = "STUDIO_CLIENT_MACHINE_TOKEN_ORIGIN"
 
@@ -25,7 +26,7 @@ class DesktopOriginError(ValueError):
     pass
 
 
-def validate_desktop_origin(raw: str) -> str:
+def validate_desktop_origin(raw: str, *, allow_remote_http: bool = False) -> str:
     value = raw.strip()
     if not value or len(value) > _MAX_LENGTH:
         raise DesktopOriginError("invalid desktop server origin")
@@ -46,7 +47,7 @@ def validate_desktop_origin(raw: str) -> str:
         raise DesktopOriginError("desktop server origin must not carry a path")
     if host.rstrip(".") in _DESKTOP_HOSTS:
         raise DesktopOriginError("desktop server origin must not be the desktop shell origin")
-    if scheme == "http" and host not in _LOOPBACK_HOSTS:
+    if scheme == "http" and host not in _LOOPBACK_HOSTS and not allow_remote_http:
         raise DesktopOriginError("plain http is only accepted for local development")
     authority = f"[{host}]" if ":" in host else host
     if port is not None and port != _DEFAULT_PORTS[scheme]:
@@ -86,6 +87,9 @@ def desktop_client_config() -> ClientConfig | None:
     raw = os.environ.get(DESKTOP_ORIGIN_ENV)
     if raw is None:
         return None
-    origin = validate_desktop_origin(raw)
+    origin = validate_desktop_origin(
+        raw,
+        allow_remote_http=os.environ.get(ALLOW_INSECURE_ORIGIN_ENV) == "1",
+    )
     bind_env_token(origin, _configured_origin(), os.environ)
     return ClientConfig(api_base_url=origin)

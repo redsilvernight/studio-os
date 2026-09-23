@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 from studio_client.config import ClientConfig
 from studio_client.daemon.desktop_origin import (
+    ALLOW_INSECURE_ORIGIN_ENV,
     DESKTOP_ORIGIN_ENV,
     TOKEN_ENV,
     TOKEN_ORIGIN_ENV,
@@ -31,7 +32,12 @@ def _cleanup_transfer_storage() -> None:
 
 @pytest.fixture(autouse=True)
 def _clean_desktop_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    for name in (DESKTOP_ORIGIN_ENV, TOKEN_ENV, TOKEN_ORIGIN_ENV):
+    for name in (
+        DESKTOP_ORIGIN_ENV,
+        ALLOW_INSECURE_ORIGIN_ENV,
+        TOKEN_ENV,
+        TOKEN_ORIGIN_ENV,
+    ):
         monkeypatch.setenv(name, "")
         monkeypatch.delenv(name)
 
@@ -100,6 +106,31 @@ def test_invalid_desktop_origin_is_an_error_not_a_fallback(
 ) -> None:
     monkeypatch.setenv(DESKTOP_ORIGIN_ENV, "http://tauri.localhost")
     monkeypatch.setenv("STUDIO_CLIENT_API_BASE_URL", f"{ORIGIN_A}/api/v1")
+    with pytest.raises(DesktopOriginError):
+        desktop_client_config()
+
+
+def test_explicit_build_opt_in_allows_only_the_sidecar_origin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    deployment_origin = "http://deploy.example:8080"
+    monkeypatch.setenv(DESKTOP_ORIGIN_ENV, deployment_origin)
+    monkeypatch.setenv(ALLOW_INSECURE_ORIGIN_ENV, "1")
+    config = desktop_client_config()
+    assert config is not None
+    assert config.api_base_url == deployment_origin
+    with pytest.raises(DesktopOriginError):
+        validate_desktop_origin(deployment_origin)
+    with pytest.raises(DesktopOriginError):
+        validate_desktop_origin("http://other.example:8080")
+
+
+@pytest.mark.parametrize("value", ["", "0", "true", "yes"])
+def test_remote_http_sidecar_origin_requires_exact_opt_in(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    monkeypatch.setenv(DESKTOP_ORIGIN_ENV, "http://deploy.example:8080")
+    monkeypatch.setenv(ALLOW_INSECURE_ORIGIN_ENV, value)
     with pytest.raises(DesktopOriginError):
         desktop_client_config()
 

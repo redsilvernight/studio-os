@@ -41,6 +41,7 @@ fn common_controls_for_tests() {
 fn main() {
     common_controls_for_tests();
     println!("cargo:rerun-if-env-changed=STUDIO_DESKTOP_API_URL");
+    println!("cargo:rerun-if-env-changed=STUDIO_DESKTOP_ALLOW_INSECURE_ORIGIN");
     let mut windows = tauri_build::WindowsAttributes::new();
     if let Some(icon) = windows_icon_override() {
         windows = windows.window_icon_path(icon);

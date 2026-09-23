@@ -127,11 +127,19 @@ pub fn validate(raw: &str) -> Result<String, OriginError> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ApprovedOrigin(String);
+pub(crate) struct ApprovedOrigin {
+    value: String,
+    remote_http_build_opt_in: bool,
+}
 
 impl ApprovedOrigin {
-    pub(crate) fn into_string(self) -> String {
-        self.0
+    pub(crate) fn into_parts(self) -> (String, bool) {
+        (self.value, self.remote_http_build_opt_in)
+    }
+
+    #[cfg(test)]
+    fn into_string(self) -> String {
+        self.value
     }
 }
 
@@ -143,9 +151,14 @@ pub(crate) fn build_default_origin(
 ) -> Option<ApprovedOrigin> {
     let url = Url::parse(raw?.trim()).ok()?;
     let allow_remote_http = allow_insecure == Some("1");
+    let remote_http_build_opt_in =
+        url.scheme() == "http" && !is_local_dev_host(&url) && allow_remote_http;
     validate_with_policy(&url.origin().ascii_serialization(), allow_remote_http)
         .ok()
-        .map(ApprovedOrigin)
+        .map(|value| ApprovedOrigin {
+            value,
+            remote_http_build_opt_in,
+        })
 }
 
 /// The origin the renderer talks to: the applied user origin, else the build
@@ -157,7 +170,10 @@ pub(crate) fn effective_origin(
 ) -> Option<ApprovedOrigin> {
     applied
         .and_then(|origin| validate(origin).ok())
-        .map(ApprovedOrigin)
+        .map(|value| ApprovedOrigin {
+            value,
+            remote_http_build_opt_in: false,
+        })
         .or_else(|| build_default_origin(build_default, allow_insecure_build_origin))
 }
 
