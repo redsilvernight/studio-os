@@ -195,4 +195,38 @@ describe("onboarding view", () => {
     );
     expect(root.textContent).toContain("Mémoire activée et préparée");
   });
+
+  it("locks the memory button while enabling and surfaces a thrown failure", async () => {
+    let release: () => void = () => undefined;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const platform = fakeDesktop({
+      request: (async (command: string) => {
+        if (command === "knowledge.status") {
+          return ok({ workspace_id: WS, state: "disabled", canonical_source: "markdown_files", integrations: [] });
+        }
+        if (command === "workspace.get_config") {
+          await pending;
+          throw new Error("bridge down");
+        }
+        return refused("not_supported");
+      }) as never,
+    });
+    const root = document.createElement("main");
+    document.body.append(root);
+    await renderOnboarding(
+      root,
+      platform,
+      emptySession({ schema: 1, status: "in_progress", current: "memoire", workspaceId: WS }),
+    );
+    const form = root.querySelector<HTMLFormElement>("[data-testid=memory-folder-form]")!;
+    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    const submit = form.querySelector<HTMLButtonElement>("button[type=submit]")!;
+    expect(submit.disabled).toBe(true);
+    expect(submit.textContent).toContain("Activation en cours");
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(root.textContent).toContain("L'activation de la mémoire a échoué");
+  });
 });

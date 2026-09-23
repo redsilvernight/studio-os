@@ -10,7 +10,7 @@
 import { apiBaseUrl, createApiClient } from "../api";
 import { hasToken } from "../auth";
 import { joinUrl } from "../config";
-import { getDesktopShell } from "../desktopShell";
+import { getDesktopShell, refreshDaemon } from "../desktopShell";
 import { daemonLabel } from "../shellStatus";
 import { dsBadge, dsEmptyState, dsPageHeader } from "../ds/ds";
 import {
@@ -473,6 +473,7 @@ async function paintVerification(
 ): Promise<void> {
   const step = stepById("verification");
   const shell = getDesktopShell();
+  if (shell) await refreshDaemon(shell).catch(() => undefined);
   const daemonText = shell ? `Assistant local : ${daemonLabel(shell.daemon)}` : "Assistant local : état inconnu.";
   const { view, error } = await readIdentity(platform);
   session.identity = view;
@@ -796,8 +797,19 @@ async function paintMemoire(
   session.notice = null;
   root.querySelector<HTMLFormElement>("[data-testid=memory-folder-form]")?.addEventListener("submit", (event) => {
     event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
+    const submit = form.querySelector<HTMLButtonElement>("button[type=submit]");
+    if (submit?.disabled) return;
+    if (submit) {
+      submit.disabled = true;
+      submit.textContent = "Activation en cours…";
+    }
+    form.setAttribute("aria-busy", "true");
     const contentRoot = (root.querySelector<HTMLInputElement>("#memory-folder-input")?.value ?? "vault").trim() || "vault";
-    void enableKnowledge(root, platform, session, contentRoot, again);
+    enableKnowledge(root, platform, session, contentRoot, again).catch(() => {
+      session.error = "L'activation de la mémoire a échoué. Réessayez ou passez cette étape.";
+      void again();
+    });
   });
   root.querySelector("[data-action=skip]")?.addEventListener("click", () => {
     go(session, nextStep("memoire") ?? "environnement");
