@@ -1,5 +1,5 @@
 ---
-id: DEC-0094
+id: DEC-0098
 title: 'Decisions accept/supersede : transitions admin-only, et identite technique dashboard exclue des Machines'
 status: active
 date: '2026-09-21'
@@ -7,7 +7,7 @@ superseded_by: null
 source: docs/DECISIONS.md
 ---
 
-# DEC-0094 — Decisions accept/supersede et identite technique dashboard
+# DEC-0098 — Decisions accept/supersede et identite technique dashboard
 
 Comble un manque reel de master (verifie sur le code, pas suppose) : `Decision`
 peut naitre `proposed` (`POST /decisions`) et apparaitre dans la Review Queue
@@ -20,8 +20,11 @@ aucun contrat existant n'est rompu, `API_CONTRACT_VERSION` et
 Numerotation : `DEC-0091` (Desktop P0, Tauri 2) et `DEC-0092`
 (CodeGraphProvider) sont deja actives sur `desktop/architecture` ; `DEC-0093`
 (Desktop P1, contrats locaux) est deja active sur `desktop/contracts-core`.
-`DEC-0094` est le premier numero libre verifie a la fois sur `origin/master`
-et sur ces deux branches Desktop au moment de l'ecriture.
+La decision portait initialement `DEC-0094`, premier numero libre sur les
+branches inspectees au moment de l'ecriture. La reconciliation finale avec la
+branche Desktop a revele que ce numero designait deja le cycle de vie du
+daemon P4 ; cette decision est donc renumerotee `DEC-0098` sans changer son
+contenu ni son statut.
 
 ## Decisions ≠ Roadmaps
 

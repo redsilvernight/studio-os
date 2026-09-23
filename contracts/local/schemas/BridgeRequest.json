@@ -1,0 +1,105 @@
+{
+  "$defs": {
+    "BridgeCommand": {
+      "description": "The complete, closed set of things the Desktop may ask the local side to\ndo. Adding a command is a contract change; nothing outside this list is\nreachable, and no member executes user-supplied code, touches an arbitrary\npath, spawns a process or forwards a network request.",
+      "enum": [
+        "runtime.handshake",
+        "daemon.status",
+        "daemon.attach",
+        "daemon.start",
+        "daemon.stop",
+        "daemon.restart",
+        "daemon.health",
+        "identity.get_view",
+        "workspace.validate",
+        "workspace.get_config",
+        "workspace.confirm_roots",
+        "workspace.git_status",
+        "workspace.save_config",
+        "knowledge.status",
+        "knowledge.init_vault",
+        "knowledge.search",
+        "knowledge.get_document",
+        "knowledge.graph_page",
+        "knowledge.graph_expand",
+        "knowledge.reindex",
+        "code_graph.status",
+        "code_graph.find_symbols",
+        "code_graph.graph_page",
+        "code_graph.graph_expand",
+        "code_graph.reindex",
+        "harness.detect",
+        "harness.status",
+        "harness.preview",
+        "harness.apply",
+        "harness.rollback",
+        "harness.verify",
+        "publication.preview",
+        "publication.publish"
+      ],
+      "title": "BridgeCommand",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "command": {
+      "$ref": "#/$defs/BridgeCommand"
+    },
+    "correlation_id": {
+      "pattern": "^[A-Za-z0-9_.:-]{1,64}$",
+      "title": "Correlation Id",
+      "type": "string"
+    },
+    "deadline_ms": {
+      "anyOf": [
+        {
+          "maximum": 300000,
+          "minimum": 100,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Deadline Ms"
+    },
+    "kind": {
+      "const": "request",
+      "default": "request",
+      "title": "Kind",
+      "type": "string"
+    },
+    "message_id": {
+      "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+      "title": "Message Id",
+      "type": "string"
+    },
+    "payload": {
+      "additionalProperties": true,
+      "default": {},
+      "title": "Payload",
+      "type": "object"
+    },
+    "protocol": {
+      "const": "studio.local/v1",
+      "default": "studio.local/v1",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "sent_at": {
+      "format": "date-time",
+      "title": "Sent At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "message_id",
+    "correlation_id",
+    "sent_at",
+    "command"
+  ],
+  "title": "BridgeRequest",
+  "type": "object"
+}

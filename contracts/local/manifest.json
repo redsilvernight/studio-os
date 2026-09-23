@@ -1,0 +1,608 @@
+{
+  "invalid_fixtures": [
+    {
+      "model": "WorkspaceSaveConfigRequest",
+      "name": "workspace.save.transition_unconfirmed",
+      "reason": "a root transition without confirmation is refused"
+    },
+    {
+      "model": "WorkspaceSaveConfigRequest",
+      "name": "workspace.save.initial_unconfirmed",
+      "reason": "the first authorization of roots needs confirmation too"
+    },
+    {
+      "model": "WorkspaceSaveConfigRequest",
+      "name": "workspace.save.confirmation_without_transition",
+      "reason": "a stable config carries no confirmation id"
+    },
+    {
+      "model": "LocalWorkspaceConfig",
+      "name": "workspace.config.secret_field",
+      "reason": "unknown field: configuration never carries secret values"
+    },
+    {
+      "model": "LocalWorkspaceConfig",
+      "name": "workspace.config.relative_root",
+      "reason": "roots must be absolute"
+    },
+    {
+      "model": "WorkspaceConfirmRootsRequest",
+      "name": "workspace.confirm.relative_root",
+      "reason": "roots must be absolute"
+    },
+    {
+      "model": "SecretReference",
+      "name": "secret.reference_with_value",
+      "reason": "unknown field: a reference has no value"
+    },
+    {
+      "model": "IdentityView",
+      "name": "identity.view.revoked_without_error",
+      "reason": "non-present secret requires a structured error"
+    },
+    {
+      "model": "BridgeRequest",
+      "name": "bridge.request.forbidden_command",
+      "reason": "command outside the allowlist"
+    },
+    {
+      "model": "BridgeRequest",
+      "name": "bridge.request.unknown_field",
+      "reason": "unknown envelope field"
+    },
+    {
+      "model": "BridgeRequest",
+      "name": "bridge.request.payload_extra_field",
+      "reason": "payload field outside the command schema"
+    },
+    {
+      "model": "BridgeRequest",
+      "name": "bridge.request.action_mismatch",
+      "reason": "daemon command and payload action must agree"
+    },
+    {
+      "model": "HandshakeResponse",
+      "name": "handshake.incompatible_grants_capability",
+      "reason": "an incompatible outcome grants nothing"
+    },
+    {
+      "model": "BridgeErrorMessage",
+      "name": "error.secret_detail_key",
+      "reason": "error details cannot name a secret"
+    },
+    {
+      "model": "BridgeErrorMessage",
+      "name": "error.path_detail_value",
+      "reason": "error details cannot carry an absolute path"
+    },
+    {
+      "model": "KnowledgeSearchResult",
+      "name": "knowledge.search.traversal_uri",
+      "reason": "resource URI must be canonical"
+    },
+    {
+      "model": "KnowledgeSearchResult",
+      "name": "knowledge.search.code_uri",
+      "reason": "a knowledge document has a knowledge URI"
+    },
+    {
+      "model": "KnowledgeSearchResult",
+      "name": "knowledge.search.credential_snippet",
+      "reason": "credential-shaped content is refused"
+    },
+    {
+      "model": "GraphPage",
+      "name": "graph.edge_without_provenance",
+      "reason": "provenance is required"
+    },
+    {
+      "model": "GraphPage",
+      "name": "graph.edge_dangling",
+      "reason": "edge endpoint is neither loaded nor on the frontier"
+    },
+    {
+      "model": "GraphPage",
+      "name": "graph.relation_wrong_source",
+      "reason": "a code relation is not valid in a knowledge graph"
+    },
+    {
+      "model": "HarnessApplyRequest",
+      "name": "harness.apply_unconfirmed",
+      "reason": "apply requires explicit confirmation"
+    },
+    {
+      "model": "PublicationPublishRequest",
+      "name": "publication.publish_unconfirmed",
+      "reason": "publication requires explicit confirmation"
+    }
+  ],
+  "models": [
+    "BridgeCancel",
+    "BridgeErrorMessage",
+    "BridgeEvent",
+    "BridgeProgress",
+    "BridgeRequest",
+    "BridgeResponse",
+    "CodeGraphConfig",
+    "CodeGraphStatus",
+    "CodeReindexRequest",
+    "CodeReindexResult",
+    "CodeSymbolQuery",
+    "CodeSymbolRef",
+    "CodeSymbolResult",
+    "ComponentStateChanged",
+    "ComponentStatusSummary",
+    "CrashInfo",
+    "DaemonControlRequest",
+    "DaemonControlResult",
+    "DaemonHealth",
+    "DaemonHealthRequest",
+    "DaemonInstanceRef",
+    "DaemonStatus",
+    "DegradedFeature",
+    "EmptyPayload",
+    "GraphCounts",
+    "GraphEdge",
+    "GraphExpandRequest",
+    "GraphNode",
+    "GraphNodeRef",
+    "GraphPage",
+    "GraphPageRequest",
+    "GraphProvenance",
+    "GraphSource",
+    "HandshakeRequest",
+    "HandshakeResponse",
+    "HarnessApplyRequest",
+    "HarnessApplyResult",
+    "HarnessChange",
+    "HarnessDetectResult",
+    "HarnessPlan",
+    "HarnessPreviewRequest",
+    "HarnessRollbackRequest",
+    "HarnessRollbackResult",
+    "HarnessStatus",
+    "HarnessStatusRequest",
+    "HarnessVerifyRequest",
+    "HarnessVerifyResult",
+    "HumanIdentity",
+    "IdentityBinding",
+    "IdentityView",
+    "IndexInfo",
+    "IndexLocation",
+    "KnowledgeConfig",
+    "KnowledgeDocument",
+    "KnowledgeDocumentRef",
+    "KnowledgeGetDocumentRequest",
+    "KnowledgeInitVaultRequest",
+    "KnowledgeInitVaultResult",
+    "KnowledgeIntegration",
+    "KnowledgeReindexRequest",
+    "KnowledgeReindexResult",
+    "KnowledgeSearchHit",
+    "KnowledgeSearchRequest",
+    "KnowledgeSearchResult",
+    "KnowledgeStatus",
+    "LocalError",
+    "LocalFeatures",
+    "LocalWorkspaceConfig",
+    "MachineIdentity",
+    "OptionalComponentStatus",
+    "OutboxSummary",
+    "PeerInfo",
+    "ProfileRef",
+    "ProtocolRange",
+    "ProtocolVersion",
+    "ProviderInfo",
+    "PublicationPlan",
+    "PublicationPolicy",
+    "PublicationPreviewRequest",
+    "PublicationPublishRequest",
+    "PublicationResult",
+    "ReplayDecision",
+    "RepoRoot",
+    "RuntimeServiceHealth",
+    "SecretReference",
+    "SecretReferenceStatus",
+    "SharedStatusSummary",
+    "WatcherConfig",
+    "WorkspaceConfirmRootsRequest",
+    "WorkspaceConfirmRootsResult",
+    "WorkspaceGetConfigRequest",
+    "WorkspaceGitStatus",
+    "WorkspaceMarker",
+    "WorkspaceMigrationPolicy",
+    "WorkspaceRoots",
+    "WorkspaceSaveConfigRequest",
+    "WorkspaceScope",
+    "WorkspaceStatus",
+    "WorkspaceValidateRequest"
+  ],
+  "protocol": "studio.local/v1",
+  "schema_version": 1,
+  "valid_fixtures": [
+    {
+      "model": "BridgeCancel",
+      "name": "bridge.cancel.reindex"
+    },
+    {
+      "model": "BridgeErrorMessage",
+      "name": "bridge.error.capability_missing"
+    },
+    {
+      "model": "BridgeEvent",
+      "name": "bridge.event.component_state_changed"
+    },
+    {
+      "model": "BridgeEvent",
+      "name": "bridge.event.daemon_state_changed"
+    },
+    {
+      "model": "BridgeProgress",
+      "name": "bridge.progress.reindex"
+    },
+    {
+      "model": "BridgeRequest",
+      "name": "bridge.request.handshake"
+    },
+    {
+      "model": "BridgeRequest",
+      "name": "bridge.request.knowledge_search"
+    },
+    {
+      "model": "BridgeResponse",
+      "name": "bridge.response.knowledge_search"
+    },
+    {
+      "model": "CodeGraphStatus",
+      "name": "code_graph.status.corrupt"
+    },
+    {
+      "model": "CodeGraphStatus",
+      "name": "code_graph.status.disabled"
+    },
+    {
+      "model": "CodeGraphStatus",
+      "name": "code_graph.status.index_absent"
+    },
+    {
+      "model": "CodeGraphStatus",
+      "name": "code_graph.status.indexing"
+    },
+    {
+      "model": "CodeGraphStatus",
+      "name": "code_graph.status.not_installed"
+    },
+    {
+      "model": "CodeGraphStatus",
+      "name": "code_graph.status.provider_incompatible"
+    },
+    {
+      "model": "CodeGraphStatus",
+      "name": "code_graph.status.ready"
+    },
+    {
+      "model": "CodeGraphStatus",
+      "name": "code_graph.status.stale"
+    },
+    {
+      "model": "CodeGraphStatus",
+      "name": "code_graph.status.unsupported_language"
+    },
+    {
+      "model": "CodeSymbolResult",
+      "name": "code_graph.symbols.result"
+    },
+    {
+      "model": "DaemonControlResult",
+      "name": "daemon.control.already_running"
+    },
+    {
+      "model": "DaemonControlResult",
+      "name": "daemon.control.incompatible"
+    },
+    {
+      "model": "DaemonControlRequest",
+      "name": "daemon.control.request_stop"
+    },
+    {
+      "model": "DaemonControlResult",
+      "name": "daemon.control.start_ok"
+    },
+    {
+      "model": "DaemonControlResult",
+      "name": "daemon.control.stop_ok"
+    },
+    {
+      "model": "DaemonControlResult",
+      "name": "daemon.control.unavailable"
+    },
+    {
+      "model": "DaemonHealthRequest",
+      "name": "daemon.health.request"
+    },
+    {
+      "model": "DaemonHealth",
+      "name": "daemon.health.running"
+    },
+    {
+      "model": "ReplayDecision",
+      "name": "daemon.outbox.replay_allowed"
+    },
+    {
+      "model": "ReplayDecision",
+      "name": "daemon.outbox.replay_refused_identity_mismatch"
+    },
+    {
+      "model": "DaemonStatus",
+      "name": "daemon.status.crashed"
+    },
+    {
+      "model": "DaemonStatus",
+      "name": "daemon.status.recovering"
+    },
+    {
+      "model": "DaemonStatus",
+      "name": "daemon.status.running"
+    },
+    {
+      "model": "DaemonStatus",
+      "name": "daemon.status.stopped"
+    },
+    {
+      "model": "GraphPage",
+      "name": "graph.code.partial"
+    },
+    {
+      "model": "GraphPage",
+      "name": "graph.code.small"
+    },
+    {
+      "model": "GraphPage",
+      "name": "graph.empty"
+    },
+    {
+      "model": "GraphExpandRequest",
+      "name": "graph.expand.request"
+    },
+    {
+      "model": "GraphPage",
+      "name": "graph.knowledge.after_deletion"
+    },
+    {
+      "model": "GraphPage",
+      "name": "graph.knowledge.empty"
+    },
+    {
+      "model": "GraphPage",
+      "name": "graph.knowledge.links"
+    },
+    {
+      "model": "GraphPage",
+      "name": "graph.knowledge.partial"
+    },
+    {
+      "model": "GraphPage",
+      "name": "graph.knowledge.small"
+    },
+    {
+      "model": "GraphPageRequest",
+      "name": "graph.page.request"
+    },
+    {
+      "model": "GraphPage",
+      "name": "graph.projection.cross_source"
+    },
+    {
+      "model": "HarnessApplyRequest",
+      "name": "harness.apply.request"
+    },
+    {
+      "model": "HarnessApplyResult",
+      "name": "harness.apply.result"
+    },
+    {
+      "model": "HarnessDetectResult",
+      "name": "harness.detect.result"
+    },
+    {
+      "model": "HarnessPlan",
+      "name": "harness.plan.preview"
+    },
+    {
+      "model": "HarnessStatus",
+      "name": "harness.status.configured"
+    },
+    {
+      "model": "HarnessStatus",
+      "name": "harness.status.detected"
+    },
+    {
+      "model": "HarnessStatus",
+      "name": "harness.status.error"
+    },
+    {
+      "model": "HarnessStatus",
+      "name": "harness.status.incompatible"
+    },
+    {
+      "model": "HarnessStatus",
+      "name": "harness.status.not_detected"
+    },
+    {
+      "model": "IdentityView",
+      "name": "identity.view.keyring_unavailable"
+    },
+    {
+      "model": "IdentityView",
+      "name": "identity.view.ok"
+    },
+    {
+      "model": "IdentityView",
+      "name": "identity.view.secret_absent"
+    },
+    {
+      "model": "IdentityView",
+      "name": "identity.view.secret_inaccessible"
+    },
+    {
+      "model": "IdentityView",
+      "name": "identity.view.secret_revoked"
+    },
+    {
+      "model": "IdentityView",
+      "name": "identity.view.wrong_profile"
+    },
+    {
+      "model": "KnowledgeInitVaultRequest",
+      "name": "knowledge.init_vault.request"
+    },
+    {
+      "model": "KnowledgeInitVaultResult",
+      "name": "knowledge.init_vault.result"
+    },
+    {
+      "model": "KnowledgeSearchRequest",
+      "name": "knowledge.search.request"
+    },
+    {
+      "model": "KnowledgeSearchResult",
+      "name": "knowledge.search.result"
+    },
+    {
+      "model": "KnowledgeStatus",
+      "name": "knowledge.status.disabled"
+    },
+    {
+      "model": "KnowledgeStatus",
+      "name": "knowledge.status.error"
+    },
+    {
+      "model": "KnowledgeStatus",
+      "name": "knowledge.status.indexing"
+    },
+    {
+      "model": "KnowledgeStatus",
+      "name": "knowledge.status.permission_denied"
+    },
+    {
+      "model": "KnowledgeStatus",
+      "name": "knowledge.status.ready"
+    },
+    {
+      "model": "KnowledgeStatus",
+      "name": "knowledge.status.stale"
+    },
+    {
+      "model": "KnowledgeStatus",
+      "name": "knowledge.status.unavailable"
+    },
+    {
+      "model": "PublicationPlan",
+      "name": "publication.plan.preview"
+    },
+    {
+      "model": "PublicationPolicy",
+      "name": "publication.policy.default"
+    },
+    {
+      "model": "PublicationResult",
+      "name": "publication.result.published"
+    },
+    {
+      "model": "PublicationResult",
+      "name": "publication.result.transport_unavailable"
+    },
+    {
+      "model": "HandshakeResponse",
+      "name": "runtime.handshake.capability_missing"
+    },
+    {
+      "model": "HandshakeResponse",
+      "name": "runtime.handshake.compatible"
+    },
+    {
+      "model": "HandshakeResponse",
+      "name": "runtime.handshake.compatible_degraded"
+    },
+    {
+      "model": "HandshakeResponse",
+      "name": "runtime.handshake.daemon_too_old"
+    },
+    {
+      "model": "HandshakeResponse",
+      "name": "runtime.handshake.desktop_too_old"
+    },
+    {
+      "model": "HandshakeResponse",
+      "name": "runtime.handshake.protocol_incompatible"
+    },
+    {
+      "model": "HandshakeRequest",
+      "name": "runtime.handshake.request"
+    },
+    {
+      "model": "LocalWorkspaceConfig",
+      "name": "workspace.config.full"
+    },
+    {
+      "model": "LocalWorkspaceConfig",
+      "name": "workspace.config.minimal"
+    },
+    {
+      "model": "WorkspaceConfirmRootsRequest",
+      "name": "workspace.confirm.request"
+    },
+    {
+      "model": "WorkspaceConfirmRootsResult",
+      "name": "workspace.confirm.result"
+    },
+    {
+      "model": "WorkspaceGitStatus",
+      "name": "workspace.git.git_absent"
+    },
+    {
+      "model": "WorkspaceGitStatus",
+      "name": "workspace.git.not_a_repo"
+    },
+    {
+      "model": "WorkspaceGitStatus",
+      "name": "workspace.git.valid"
+    },
+    {
+      "model": "WorkspaceSaveConfigRequest",
+      "name": "workspace.save.initial"
+    },
+    {
+      "model": "WorkspaceSaveConfigRequest",
+      "name": "workspace.save.root_transition"
+    },
+    {
+      "model": "WorkspaceSaveConfigRequest",
+      "name": "workspace.save.unchanged"
+    },
+    {
+      "model": "WorkspaceStatus",
+      "name": "workspace.status.config_invalid"
+    },
+    {
+      "model": "WorkspaceStatus",
+      "name": "workspace.status.config_missing"
+    },
+    {
+      "model": "WorkspaceStatus",
+      "name": "workspace.status.inaccessible"
+    },
+    {
+      "model": "WorkspaceStatus",
+      "name": "workspace.status.moved"
+    },
+    {
+      "model": "WorkspaceStatus",
+      "name": "workspace.status.project_unavailable"
+    },
+    {
+      "model": "WorkspaceStatus",
+      "name": "workspace.status.valid"
+    }
+  ]
+}

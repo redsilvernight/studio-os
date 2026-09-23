@@ -18,6 +18,7 @@
  */
 import type { StudioClient } from "../api";
 import { ApiError, parseErrorBody } from "../api";
+import { observedFetch } from "../apiEvents";
 import { joinUrl } from "../config";
 import { dsBadge, dsEmptyState, dsMetric, dsPageHeader, dsSectionHeader, dsSkeleton, dsStatus } from "../ds/ds";
 import { resolveReview, type ReviewResolution } from "../reviewApi";
@@ -99,7 +100,7 @@ export interface HealthInfo {
 
 export async function checkHealth(baseUrl: string): Promise<HealthInfo> {
   try {
-    const response = await fetch(joinUrl(baseUrl, "/healthz"));
+    const response = await observedFetch(joinUrl(baseUrl, "/healthz"));
     return { reachable: response.ok };
   } catch {
     return { reachable: false };

@@ -1,0 +1,84 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "completed": {
+      "minimum": 0,
+      "title": "Completed",
+      "type": "integer"
+    },
+    "correlation_id": {
+      "pattern": "^[A-Za-z0-9_.:-]{1,64}$",
+      "title": "Correlation Id",
+      "type": "string"
+    },
+    "kind": {
+      "const": "progress",
+      "default": "progress",
+      "title": "Kind",
+      "type": "string"
+    },
+    "message": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Message"
+    },
+    "message_id": {
+      "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+      "title": "Message Id",
+      "type": "string"
+    },
+    "phase": {
+      "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+      "title": "Phase",
+      "type": "string"
+    },
+    "protocol": {
+      "const": "studio.local/v1",
+      "default": "studio.local/v1",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "request_id": {
+      "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "sent_at": {
+      "format": "date-time",
+      "title": "Sent At",
+      "type": "string"
+    },
+    "total": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Total"
+    }
+  },
+  "required": [
+    "message_id",
+    "correlation_id",
+    "sent_at",
+    "request_id",
+    "phase",
+    "completed"
+  ],
+  "title": "BridgeProgress",
+  "type": "object"
+}

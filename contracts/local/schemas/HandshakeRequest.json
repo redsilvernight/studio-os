@@ -1,0 +1,218 @@
+{
+  "$defs": {
+    "ComponentId": {
+      "enum": [
+        "desktop",
+        "bridge",
+        "daemon",
+        "workspace",
+        "knowledge",
+        "code_graph",
+        "harness",
+        "secret_store",
+        "watcher"
+      ],
+      "title": "ComponentId",
+      "type": "string"
+    },
+    "ComponentState": {
+      "description": "Shared state vocabulary of every optional local component (Knowledge,\nCode Graph, harness, watchers). `ready` is the only fully-served state;\n`stale` serves possibly outdated data explicitly; everything else refuses\nor degrades visibly — never silently.",
+      "enum": [
+        "disabled",
+        "not_installed",
+        "unavailable",
+        "starting",
+        "indexing",
+        "ready",
+        "stale",
+        "permission_denied",
+        "incompatible",
+        "stopping",
+        "recovering",
+        "error"
+      ],
+      "title": "ComponentState",
+      "type": "string"
+    },
+    "OptionalComponentStatus": {
+      "additionalProperties": false,
+      "description": "An optional component as the daemon sees it at handshake time. Its\nabsence never breaks compatibility; it degrades exactly the capabilities\nthat depend on it.",
+      "properties": {
+        "component": {
+          "$ref": "#/$defs/ComponentId"
+        },
+        "provider_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Id"
+        },
+        "provides": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]{0,31}(\\.[a-z][a-z0-9_]{0,31}){0,3}$",
+            "type": "string"
+          },
+          "title": "Provides",
+          "type": "array"
+        },
+        "state": {
+          "$ref": "#/$defs/ComponentState"
+        }
+      },
+      "required": [
+        "component",
+        "state"
+      ],
+      "title": "OptionalComponentStatus",
+      "type": "object"
+    },
+    "PeerInfo": {
+      "additionalProperties": false,
+      "description": "One side of the handshake. `component_version` is informational and\nnever enters a compatibility decision: only the protocol range and the\ncapability sets do.",
+      "properties": {
+        "capabilities": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]{0,31}(\\.[a-z][a-z0-9_]{0,31}){0,3}$",
+            "type": "string"
+          },
+          "maxItems": 128,
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "component_version": {
+          "maxLength": 64,
+          "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$",
+          "title": "Component Version",
+          "type": "string"
+        },
+        "optional_capabilities": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]{0,31}(\\.[a-z][a-z0-9_]{0,31}){0,3}$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Optional Capabilities",
+          "type": "array"
+        },
+        "optional_components": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/OptionalComponentStatus"
+          },
+          "title": "Optional Components",
+          "type": "array"
+        },
+        "protocol": {
+          "$ref": "#/$defs/ProtocolRange"
+        },
+        "protocol_id": {
+          "default": "studio.local",
+          "maxLength": 32,
+          "title": "Protocol Id",
+          "type": "string"
+        },
+        "required_capabilities": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]{0,31}(\\.[a-z][a-z0-9_]{0,31}){0,3}$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Required Capabilities",
+          "type": "array"
+        },
+        "role": {
+          "$ref": "#/$defs/PeerRole"
+        },
+        "server_origin": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Server Origin"
+        }
+      },
+      "required": [
+        "role",
+        "protocol",
+        "component_version"
+      ],
+      "title": "PeerInfo",
+      "type": "object"
+    },
+    "PeerRole": {
+      "enum": [
+        "desktop",
+        "daemon"
+      ],
+      "title": "PeerRole",
+      "type": "string"
+    },
+    "ProtocolRange": {
+      "additionalProperties": false,
+      "properties": {
+        "maximum": {
+          "$ref": "#/$defs/ProtocolVersion"
+        },
+        "minimum": {
+          "$ref": "#/$defs/ProtocolVersion"
+        }
+      },
+      "required": [
+        "minimum",
+        "maximum"
+      ],
+      "title": "ProtocolRange",
+      "type": "object"
+    },
+    "ProtocolVersion": {
+      "additionalProperties": false,
+      "properties": {
+        "major": {
+          "maximum": 999,
+          "minimum": 1,
+          "title": "Major",
+          "type": "integer"
+        },
+        "minor": {
+          "maximum": 999,
+          "minimum": 0,
+          "title": "Minor",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "major",
+        "minor"
+      ],
+      "title": "ProtocolVersion",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "peer": {
+      "$ref": "#/$defs/PeerInfo"
+    }
+  },
+  "required": [
+    "peer"
+  ],
+  "title": "HandshakeRequest",
+  "type": "object"
+}

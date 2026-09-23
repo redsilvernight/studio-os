@@ -1,0 +1,16 @@
+{
+  "data": {
+    "complete": true,
+    "index_state": "ready",
+    "next_cursor": null,
+    "symbols": [
+      {
+        "kind": "function",
+        "name": "step",
+        "node_id": "fn-step",
+        "uri": "studio-local://code/11111111-1111-4111-8111-111111111111/game/main.py#L15-L20"
+      }
+    ]
+  },
+  "model": "CodeSymbolResult"
+}

@@ -1,0 +1,10 @@
+{
+  "data": {
+    "instance": null,
+    "last_crash": null,
+    "negotiated": null,
+    "outbox": null,
+    "state": "stopped"
+  },
+  "model": "DaemonStatus"
+}

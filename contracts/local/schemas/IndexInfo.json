@@ -1,0 +1,90 @@
+{
+  "$defs": {
+    "IndexState": {
+      "enum": [
+        "absent",
+        "indexing",
+        "ready",
+        "stale",
+        "corrupt"
+      ],
+      "title": "IndexState",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Description of a derived index. An index is always rebuildable from its\ncanonical source; `derived` and `rebuildable` are constants of the model,\nnot settings.",
+  "properties": {
+    "built_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Built At"
+    },
+    "derived": {
+      "default": true,
+      "title": "Derived",
+      "type": "boolean"
+    },
+    "item_count": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Item Count"
+    },
+    "progress_percent": {
+      "anyOf": [
+        {
+          "maximum": 100,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Progress Percent"
+    },
+    "rebuildable": {
+      "default": true,
+      "title": "Rebuildable",
+      "type": "boolean"
+    },
+    "source_fingerprint": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Fingerprint"
+    },
+    "state": {
+      "$ref": "#/$defs/IndexState"
+    }
+  },
+  "required": [
+    "state"
+  ],
+  "title": "IndexInfo",
+  "type": "object"
+}

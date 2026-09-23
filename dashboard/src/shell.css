@@ -282,3 +282,52 @@
     grid-template-columns: 280px minmax(0, 1fr);
   }
 }
+
+/* Pastille d'état Desktop (P3) : un seul état simple, détails dans Paramètres. */
+.app-topbar > .app-status {
+  margin-left: auto;
+}
+.app-status + .app-topbar-state {
+  margin-left: 0;
+}
+.app-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  padding: var(--ds-space-1) var(--ds-space-3);
+  border: 1px solid var(--ds-border);
+  border-radius: 999px;
+  background: var(--ds-neutral-soft);
+  color: var(--ds-text);
+  font-size: var(--ds-text-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+.app-status:focus-visible {
+  outline: 2px solid var(--ds-action);
+  outline-offset: 2px;
+}
+.app-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.app-status--ok {
+  background: var(--ds-success-soft);
+  border-color: var(--ds-success-border);
+  color: var(--ds-success);
+}
+.app-status--warn {
+  background: var(--ds-warning-soft);
+  border-color: var(--ds-warning-border);
+  color: var(--ds-warning);
+}
+.app-status--error {
+  background: var(--ds-danger-soft);
+  border-color: var(--ds-danger-border);
+  color: var(--ds-danger);
+}
+.app-status--info {
+  color: var(--ds-text-muted);
+}

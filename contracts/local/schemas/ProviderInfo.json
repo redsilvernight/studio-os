@@ -1,0 +1,46 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "capabilities": {
+      "default": [],
+      "items": {
+        "pattern": "^[a-z][a-z0-9_]{0,31}(\\.[a-z][a-z0-9_]{0,31}){0,3}$",
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Capabilities",
+      "type": "array"
+    },
+    "display_name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Display Name",
+      "type": "string"
+    },
+    "provider_id": {
+      "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+      "title": "Provider Id",
+      "type": "string"
+    },
+    "provider_version": {
+      "anyOf": [
+        {
+          "maxLength": 64,
+          "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Provider Version"
+    }
+  },
+  "required": [
+    "provider_id",
+    "display_name"
+  ],
+  "title": "ProviderInfo",
+  "type": "object"
+}

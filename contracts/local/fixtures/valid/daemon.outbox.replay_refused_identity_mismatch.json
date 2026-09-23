@@ -1,0 +1,19 @@
+{
+  "data": {
+    "error": {
+      "code": "identity_mismatch",
+      "component": "daemon",
+      "correlation_id": "corr-0001",
+      "details": {
+        "mismatched": "machine_id"
+      },
+      "message": "Queued work belongs to a different identity and was not replayed.",
+      "retryable": false
+    },
+    "mismatched": [
+      "machine_id"
+    ],
+    "verdict": "refuse_identity_mismatch"
+  },
+  "model": "ReplayDecision"
+}

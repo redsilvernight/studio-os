@@ -1,0 +1,56 @@
+{
+  "$defs": {
+    "ProfileRef": {
+      "additionalProperties": false,
+      "description": "A local profile is one server origin on one machine. Two profiles never\nshare a secret, an outbox partition or a daemon instance.",
+      "properties": {
+        "profile_id": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Profile Id",
+          "type": "string"
+        },
+        "server_origin": {
+          "title": "Server Origin",
+          "type": "string"
+        }
+      },
+      "required": [
+        "profile_id",
+        "server_origin"
+      ],
+      "title": "ProfileRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The registered machine the daemon acts as. Its credential is held by the\ndaemon through a SecretReference and never crosses the bridge.",
+  "properties": {
+    "machine_id": {
+      "format": "uuid",
+      "title": "Machine Id",
+      "type": "string"
+    },
+    "machine_name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Machine Name",
+      "type": "string"
+    },
+    "profile": {
+      "$ref": "#/$defs/ProfileRef"
+    },
+    "registered_at": {
+      "format": "date-time",
+      "title": "Registered At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "machine_id",
+    "machine_name",
+    "profile",
+    "registered_at"
+  ],
+  "title": "MachineIdentity",
+  "type": "object"
+}

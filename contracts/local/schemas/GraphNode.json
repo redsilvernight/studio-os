@@ -1,0 +1,129 @@
+{
+  "$defs": {
+    "Confidence": {
+      "enum": [
+        "extracted",
+        "inferred",
+        "declared"
+      ],
+      "title": "Confidence",
+      "type": "string"
+    },
+    "GraphProvenance": {
+      "additionalProperties": false,
+      "description": "Required on every node and edge: where the fact comes from and how\nsure the extractor is. Facts without provenance are not representable.",
+      "properties": {
+        "confidence": {
+          "$ref": "#/$defs/Confidence"
+        },
+        "evidence": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evidence"
+        },
+        "extractor": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Extractor",
+          "type": "string"
+        },
+        "source_id": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Source Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "extractor",
+        "confidence"
+      ],
+      "title": "GraphProvenance",
+      "type": "object"
+    },
+    "NodeKind": {
+      "enum": [
+        "document",
+        "heading",
+        "tag",
+        "file",
+        "package",
+        "module",
+        "class",
+        "function"
+      ],
+      "title": "NodeKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "$ref": "#/$defs/NodeKind"
+    },
+    "label": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Label",
+      "type": "string"
+    },
+    "metadata": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "integer"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "default": {},
+      "title": "Metadata",
+      "type": "object"
+    },
+    "node_id": {
+      "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+      "title": "Node Id",
+      "type": "string"
+    },
+    "provenance": {
+      "$ref": "#/$defs/GraphProvenance"
+    },
+    "uri": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Uri"
+    }
+  },
+  "required": [
+    "node_id",
+    "kind",
+    "label",
+    "provenance"
+  ],
+  "title": "GraphNode",
+  "type": "object"
+}

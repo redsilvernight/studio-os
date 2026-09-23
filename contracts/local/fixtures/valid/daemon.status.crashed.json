@@ -1,0 +1,22 @@
+{
+  "data": {
+    "instance": null,
+    "last_crash": {
+      "crashed_at": "2026-01-15T12:00:00Z",
+      "error": {
+        "code": "daemon_crashed",
+        "component": "daemon",
+        "correlation_id": null,
+        "details": {},
+        "message": "The daemon exited unexpectedly.",
+        "retryable": false
+      },
+      "exit_code": 139,
+      "recoveries_attempted": 2
+    },
+    "negotiated": null,
+    "outbox": null,
+    "state": "crashed"
+  },
+  "model": "DaemonStatus"
+}

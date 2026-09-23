@@ -1,0 +1,116 @@
+{
+  "data": {
+    "daemon": {
+      "capabilities": [
+        "daemon.control",
+        "daemon.health",
+        "harness.apply",
+        "harness.plan",
+        "harness.read",
+        "harness.verify",
+        "identity.view",
+        "knowledge.graph",
+        "knowledge.index",
+        "knowledge.init",
+        "knowledge.read",
+        "publication.plan",
+        "publication.publish",
+        "workspace.config"
+      ],
+      "component_version": "0.1.0",
+      "optional_capabilities": [],
+      "optional_components": [
+        {
+          "component": "knowledge",
+          "provider_id": "markdown-files",
+          "provides": [
+            "knowledge.graph",
+            "knowledge.index",
+            "knowledge.init",
+            "knowledge.read"
+          ],
+          "state": "ready"
+        },
+        {
+          "component": "code_graph",
+          "provider_id": "graphify",
+          "provides": [
+            "code_graph.graph",
+            "code_graph.index",
+            "code_graph.read"
+          ],
+          "state": "not_installed"
+        },
+        {
+          "component": "harness",
+          "provider_id": "harness-alpha",
+          "provides": [
+            "harness.apply",
+            "harness.plan",
+            "harness.read",
+            "harness.verify"
+          ],
+          "state": "ready"
+        }
+      ],
+      "protocol": {
+        "maximum": {
+          "major": 1,
+          "minor": 0
+        },
+        "minimum": {
+          "major": 1,
+          "minor": 0
+        }
+      },
+      "protocol_id": "studio.local",
+      "required_capabilities": [],
+      "role": "daemon",
+      "server_origin": null
+    },
+    "degraded": [
+      {
+        "capability": "code_graph.graph",
+        "component": "code_graph",
+        "state": "not_installed"
+      },
+      {
+        "capability": "code_graph.index",
+        "component": "code_graph",
+        "state": "not_installed"
+      },
+      {
+        "capability": "code_graph.read",
+        "component": "code_graph",
+        "state": "not_installed"
+      }
+    ],
+    "error": null,
+    "granted_capabilities": [
+      "daemon.control",
+      "daemon.health",
+      "harness.apply",
+      "harness.plan",
+      "harness.read",
+      "harness.verify",
+      "identity.view",
+      "knowledge.graph",
+      "knowledge.index",
+      "knowledge.init",
+      "knowledge.read",
+      "publication.plan",
+      "publication.publish",
+      "workspace.config"
+    ],
+    "missing_optional": [],
+    "missing_required": [],
+    "negotiated": {
+      "major": 1,
+      "minor": 0
+    },
+    "outcome": "compatible_degraded",
+    "remediation": "install_optional_component",
+    "silent_fallback": false
+  },
+  "model": "HandshakeResponse"
+}

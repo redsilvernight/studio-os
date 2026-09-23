@@ -149,7 +149,7 @@ async function createDecision(
   throw new ApiError(parseErrorBody(result.response.status, result.error));
 }
 
-/** Accepte une décision proposée (transition, admin uniquement — DEC-0094). */
+/** Accepte une décision proposée (transition, admin uniquement — DEC-0098). */
 async function acceptDecision(client: StudioClient, decisionId: string): Promise<Decision> {
   const result = await client.POST("/api/v1/decisions/{decision_id}/accept", {
     params: { path: { decision_id: decisionId } },
@@ -158,7 +158,7 @@ async function acceptDecision(client: StudioClient, decisionId: string): Promise
   throw new ApiError(parseErrorBody(result.response.status, result.error));
 }
 
-/** Supersede une décision (transition, admin uniquement — DEC-0094). */
+/** Supersede une décision (transition, admin uniquement — DEC-0098). */
 async function supersedeDecision(client: StudioClient, decisionId: string): Promise<Decision> {
   const result = await client.POST("/api/v1/decisions/{decision_id}/supersede", {
     params: { path: { decision_id: decisionId } },
@@ -545,7 +545,7 @@ function bindReviewActions(root: HTMLElement, panel: HTMLElement, ctx: Decisions
 
 /**
  * Accept/supersede buttons appear both on Review Queue `decision_proposal`
- * items and on the Decisions list itself (DEC-0094) — one handler, bound in
+ * items and on the Decisions list itself (DEC-0098) — one handler, bound in
  * both panels, that resolves the transition then refreshes both (a
  * transition always changes whether the Decision still belongs in the
  * queue, and always changes its status in the list).

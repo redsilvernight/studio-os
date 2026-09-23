@@ -78,3 +78,14 @@ def test_resolve_token_falls_back_to_store() -> None:
 def test_resolve_token_raises_when_missing() -> None:
     with pytest.raises(MissingMachineToken):
         resolve_token("https://a.example.com", stores=[MemoryTokenStore()])
+
+
+def test_env_token_bound_to_an_origin_is_refused_for_any_other(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("STUDIO_CLIENT_MACHINE_TOKEN", "token-of-a")
+    monkeypatch.setenv("STUDIO_CLIENT_MACHINE_TOKEN_ORIGIN", "https://a.example.com/")
+
+    assert resolve_token("https://a.example.com", stores=[]) == "token-of-a"
+    with pytest.raises(MissingMachineToken):
+        resolve_token("https://b.example.com", stores=[])

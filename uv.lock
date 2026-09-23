@@ -11,9 +11,11 @@ resolution-markers = [
 members = [
     "studio-api",
     "studio-client",
+    "studio-code-graph",
     "studio-contracts",
     "studio-mcp",
     "studio-os",
+    "studio-workspaces",
 ]
 
 [[package]]
@@ -1618,6 +1620,7 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "pyyaml" },
     { name = "studio-contracts" },
+    { name = "studio-workspaces" },
 ]
 
 [package.metadata]
@@ -1627,7 +1630,19 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.4" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "studio-contracts", editable = "packages/studio-contracts" },
+    { name = "studio-workspaces", editable = "packages/studio-workspaces" },
 ]
+
+[[package]]
+name = "studio-code-graph"
+version = "0.1.0"
+source = { editable = "packages/studio-code-graph" }
+dependencies = [
+    { name = "studio-contracts" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "studio-contracts", editable = "packages/studio-contracts" }]
 
 [[package]]
 name = "studio-contracts"
@@ -1679,6 +1694,17 @@ dev = [
     { name = "ruff", specifier = ">=0.16.7" },
     { name = "types-pyyaml", specifier = ">=6.0" },
 ]
+
+[[package]]
+name = "studio-workspaces"
+version = "0.1.0"
+source = { editable = "packages/studio-workspaces" }
+dependencies = [
+    { name = "studio-contracts" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "studio-contracts", editable = "packages/studio-contracts" }]
 
 [[package]]
 name = "truststore"

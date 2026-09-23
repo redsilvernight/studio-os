@@ -1,0 +1,9 @@
+{
+  "data": {
+    "confirmed": false,
+    "plan_hash": "d129262c7772059f5d77659a30bdff984a9736bc6c2bda56965af740bb423e41",
+    "plan_id": "plan-0001"
+  },
+  "model": "HarnessApplyRequest",
+  "reason": "apply requires explicit confirmation"
+}

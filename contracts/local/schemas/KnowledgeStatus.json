@@ -1,0 +1,368 @@
+{
+  "$defs": {
+    "ComponentId": {
+      "enum": [
+        "desktop",
+        "bridge",
+        "daemon",
+        "workspace",
+        "knowledge",
+        "code_graph",
+        "harness",
+        "secret_store",
+        "watcher"
+      ],
+      "title": "ComponentId",
+      "type": "string"
+    },
+    "ComponentState": {
+      "description": "Shared state vocabulary of every optional local component (Knowledge,\nCode Graph, harness, watchers). `ready` is the only fully-served state;\n`stale` serves possibly outdated data explicitly; everything else refuses\nor degrades visibly — never silently.",
+      "enum": [
+        "disabled",
+        "not_installed",
+        "unavailable",
+        "starting",
+        "indexing",
+        "ready",
+        "stale",
+        "permission_denied",
+        "incompatible",
+        "stopping",
+        "recovering",
+        "error"
+      ],
+      "title": "ComponentState",
+      "type": "string"
+    },
+    "IndexInfo": {
+      "additionalProperties": false,
+      "description": "Description of a derived index. An index is always rebuildable from its\ncanonical source; `derived` and `rebuildable` are constants of the model,\nnot settings.",
+      "properties": {
+        "built_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Built At"
+        },
+        "derived": {
+          "default": true,
+          "title": "Derived",
+          "type": "boolean"
+        },
+        "item_count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Item Count"
+        },
+        "progress_percent": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Progress Percent"
+        },
+        "rebuildable": {
+          "default": true,
+          "title": "Rebuildable",
+          "type": "boolean"
+        },
+        "source_fingerprint": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Fingerprint"
+        },
+        "state": {
+          "$ref": "#/$defs/IndexState"
+        }
+      },
+      "required": [
+        "state"
+      ],
+      "title": "IndexInfo",
+      "type": "object"
+    },
+    "IndexState": {
+      "enum": [
+        "absent",
+        "indexing",
+        "ready",
+        "stale",
+        "corrupt"
+      ],
+      "title": "IndexState",
+      "type": "string"
+    },
+    "KnowledgeIntegration": {
+      "additionalProperties": false,
+      "description": "An optional tool layered on the same Markdown files (for example a note\neditor). Never required: Knowledge works without any integration.",
+      "properties": {
+        "integration_id": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Integration Id",
+          "type": "string"
+        },
+        "required": {
+          "const": false,
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "state": {
+          "$ref": "#/$defs/ComponentState"
+        }
+      },
+      "required": [
+        "integration_id",
+        "state"
+      ],
+      "title": "KnowledgeIntegration",
+      "type": "object"
+    },
+    "LocalError": {
+      "additionalProperties": false,
+      "description": "The one structured error shape of the local stack. Never carries a\nsecret, a stack trace or an absolute local path: `message` and `details`\nare validated, bounded and safe to display or log.",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/LocalErrorCode"
+        },
+        "component": {
+          "$ref": "#/$defs/ComponentId"
+        },
+        "correlation_id": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.:-]{1,64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Correlation Id"
+        },
+        "details": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Details",
+          "type": "object"
+        },
+        "message": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        },
+        "retryable": {
+          "title": "Retryable",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "component",
+        "retryable"
+      ],
+      "title": "LocalError",
+      "type": "object"
+    },
+    "LocalErrorCode": {
+      "description": "Closed, deliberately small taxonomy. Codes describe what the caller can\nbranch on; the human message and bounded details carry the rest.",
+      "enum": [
+        "invalid_request",
+        "unknown_command",
+        "payload_too_large",
+        "protocol_incompatible",
+        "capability_missing",
+        "not_supported",
+        "cancelled",
+        "timeout",
+        "internal_error",
+        "daemon_unavailable",
+        "daemon_already_running",
+        "daemon_crashed",
+        "identity_mismatch",
+        "wrong_profile",
+        "secret_absent",
+        "secret_inaccessible",
+        "secret_revoked",
+        "keyring_unavailable",
+        "workspace_config_missing",
+        "workspace_config_invalid",
+        "workspace_moved",
+        "workspace_inaccessible",
+        "project_unavailable",
+        "feature_disabled",
+        "provider_not_installed",
+        "provider_incompatible",
+        "permission_denied",
+        "index_absent",
+        "index_corrupt",
+        "language_unsupported",
+        "plan_expired"
+      ],
+      "title": "LocalErrorCode",
+      "type": "string"
+    },
+    "ProviderInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "capabilities": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]{0,31}(\\.[a-z][a-z0-9_]{0,31}){0,3}$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "display_name": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Display Name",
+          "type": "string"
+        },
+        "provider_id": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Provider Id",
+          "type": "string"
+        },
+        "provider_version": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Version"
+        }
+      },
+      "required": [
+        "provider_id",
+        "display_name"
+      ],
+      "title": "ProviderInfo",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Markdown files are the canonical content; everything else — search\nindex, link graph — is derived from them and can be rebuilt at any time.",
+  "properties": {
+    "canonical_source": {
+      "const": "markdown_files",
+      "default": "markdown_files",
+      "title": "Canonical Source",
+      "type": "string"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LocalError"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "index": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/IndexInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "integrations": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/KnowledgeIntegration"
+      },
+      "title": "Integrations",
+      "type": "array"
+    },
+    "provider": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ProviderInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "state": {
+      "$ref": "#/$defs/ComponentState"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace_id",
+    "state"
+  ],
+  "title": "KnowledgeStatus",
+  "type": "object"
+}

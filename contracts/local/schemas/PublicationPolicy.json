@@ -1,0 +1,64 @@
+{
+  "$defs": {
+    "LocalDataClass": {
+      "enum": [
+        "paths",
+        "vault_content",
+        "indexes",
+        "code_graph",
+        "filesystem_details",
+        "harness_config",
+        "sensitive_diagnostics",
+        "workspace_config",
+        "secrets"
+      ],
+      "title": "LocalDataClass",
+      "type": "string"
+    },
+    "Visibility": {
+      "enum": [
+        "local_only",
+        "shareable_summary"
+      ],
+      "title": "Visibility",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Local by default. Data classes are LOCAL_ONLY; only the cohesive\nSharedStatusSummary may leave the machine, never automatically, and only\nafter the user has seen the exact payload.",
+  "properties": {
+    "automatic_upload": {
+      "const": false,
+      "default": false,
+      "title": "Automatic Upload",
+      "type": "boolean"
+    },
+    "classes": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Visibility"
+      },
+      "propertyNames": {
+        "$ref": "#/$defs/LocalDataClass"
+      },
+      "title": "Classes",
+      "type": "object"
+    },
+    "requires_explicit_confirmation": {
+      "const": true,
+      "default": true,
+      "title": "Requires Explicit Confirmation",
+      "type": "boolean"
+    },
+    "requires_visible_preview": {
+      "const": true,
+      "default": true,
+      "title": "Requires Visible Preview",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "classes"
+  ],
+  "title": "PublicationPolicy",
+  "type": "object"
+}

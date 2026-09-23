@@ -1,0 +1,27 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "confirmed": {
+      "const": true,
+      "title": "Confirmed",
+      "type": "boolean"
+    },
+    "plan_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Plan Hash",
+      "type": "string"
+    },
+    "plan_id": {
+      "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+      "title": "Plan Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "plan_id",
+    "plan_hash",
+    "confirmed"
+  ],
+  "title": "PublicationPublishRequest",
+  "type": "object"
+}

@@ -1,0 +1,20 @@
+{
+  "data": {
+    "adapter_id": "harness-alpha-adapter",
+    "capabilities": [],
+    "detected_version": null,
+    "display_name": "Harness Alpha",
+    "error": {
+      "code": "internal_error",
+      "component": "harness",
+      "correlation_id": null,
+      "details": {},
+      "message": "Harness detection failed.",
+      "retryable": true
+    },
+    "harness_id": "harness-alpha",
+    "managed_files": [],
+    "state": "error"
+  },
+  "model": "HarnessStatus"
+}

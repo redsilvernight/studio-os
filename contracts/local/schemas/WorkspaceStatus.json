@@ -1,0 +1,629 @@
+{
+  "$defs": {
+    "CodeGraphConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "exclude_globs": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Exclude Globs",
+          "type": "array"
+        },
+        "include_globs": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Include Globs",
+          "type": "array"
+        },
+        "index": {
+          "$ref": "#/$defs/IndexLocation"
+        },
+        "languages": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Languages",
+          "type": "array"
+        },
+        "provider_id": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Provider Id",
+          "type": "string"
+        },
+        "repo_names": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Repo Names",
+          "type": "array"
+        }
+      },
+      "required": [
+        "provider_id",
+        "index"
+      ],
+      "title": "CodeGraphConfig",
+      "type": "object"
+    },
+    "ComponentId": {
+      "enum": [
+        "desktop",
+        "bridge",
+        "daemon",
+        "workspace",
+        "knowledge",
+        "code_graph",
+        "harness",
+        "secret_store",
+        "watcher"
+      ],
+      "title": "ComponentId",
+      "type": "string"
+    },
+    "IndexLocation": {
+      "additionalProperties": false,
+      "description": "Where a derived index is stored, always inside the daemon's own cache\ndirectory and addressed by workspace and provider — never by an arbitrary\npath.",
+      "properties": {
+        "directory_name": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Directory Name",
+          "type": "string"
+        },
+        "scope": {
+          "const": "workspace_cache",
+          "default": "workspace_cache",
+          "title": "Scope",
+          "type": "string"
+        }
+      },
+      "required": [
+        "directory_name"
+      ],
+      "title": "IndexLocation",
+      "type": "object"
+    },
+    "KnowledgeConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "content_root": {
+          "title": "Content Root",
+          "type": "string"
+        },
+        "exclude_globs": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Exclude Globs",
+          "type": "array"
+        },
+        "include_globs": {
+          "default": [
+            "**/*.md"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Include Globs",
+          "type": "array"
+        },
+        "index": {
+          "$ref": "#/$defs/IndexLocation"
+        },
+        "integrations": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+            "type": "string"
+          },
+          "maxItems": 8,
+          "title": "Integrations",
+          "type": "array"
+        },
+        "provider_id": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Provider Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider_id",
+        "content_root",
+        "index"
+      ],
+      "title": "KnowledgeConfig",
+      "type": "object"
+    },
+    "LocalError": {
+      "additionalProperties": false,
+      "description": "The one structured error shape of the local stack. Never carries a\nsecret, a stack trace or an absolute local path: `message` and `details`\nare validated, bounded and safe to display or log.",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/LocalErrorCode"
+        },
+        "component": {
+          "$ref": "#/$defs/ComponentId"
+        },
+        "correlation_id": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.:-]{1,64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Correlation Id"
+        },
+        "details": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Details",
+          "type": "object"
+        },
+        "message": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        },
+        "retryable": {
+          "title": "Retryable",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "component",
+        "retryable"
+      ],
+      "title": "LocalError",
+      "type": "object"
+    },
+    "LocalErrorCode": {
+      "description": "Closed, deliberately small taxonomy. Codes describe what the caller can\nbranch on; the human message and bounded details carry the rest.",
+      "enum": [
+        "invalid_request",
+        "unknown_command",
+        "payload_too_large",
+        "protocol_incompatible",
+        "capability_missing",
+        "not_supported",
+        "cancelled",
+        "timeout",
+        "internal_error",
+        "daemon_unavailable",
+        "daemon_already_running",
+        "daemon_crashed",
+        "identity_mismatch",
+        "wrong_profile",
+        "secret_absent",
+        "secret_inaccessible",
+        "secret_revoked",
+        "keyring_unavailable",
+        "workspace_config_missing",
+        "workspace_config_invalid",
+        "workspace_moved",
+        "workspace_inaccessible",
+        "project_unavailable",
+        "feature_disabled",
+        "provider_not_installed",
+        "provider_incompatible",
+        "permission_denied",
+        "index_absent",
+        "index_corrupt",
+        "language_unsupported",
+        "plan_expired"
+      ],
+      "title": "LocalErrorCode",
+      "type": "string"
+    },
+    "LocalFeatures": {
+      "additionalProperties": false,
+      "description": "Every optional local capability is off until the workspace turns it on.",
+      "properties": {
+        "code_graph": {
+          "default": false,
+          "title": "Code Graph",
+          "type": "boolean"
+        },
+        "harness": {
+          "default": false,
+          "title": "Harness",
+          "type": "boolean"
+        },
+        "knowledge": {
+          "default": false,
+          "title": "Knowledge",
+          "type": "boolean"
+        },
+        "watchers": {
+          "default": false,
+          "title": "Watchers",
+          "type": "boolean"
+        }
+      },
+      "title": "LocalFeatures",
+      "type": "object"
+    },
+    "LocalWorkspaceConfig": {
+      "additionalProperties": false,
+      "description": "Per-machine workspace configuration. Holds paths and toggles only; every\ncredential appears as a SecretReference, so the file is safe to back up and\nto inspect. It is stored outside the repository (see\nWORKSPACE_CONFIG_USER_RELATIVE_PATH) and never synchronised.",
+      "properties": {
+        "code_graph": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CodeGraphConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "features": {
+          "$ref": "#/$defs/LocalFeatures",
+          "default": {
+            "code_graph": false,
+            "harness": false,
+            "knowledge": false,
+            "watchers": false
+          }
+        },
+        "knowledge": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/KnowledgeConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "profile": {
+          "$ref": "#/$defs/ProfileRef"
+        },
+        "project_id": {
+          "format": "uuid",
+          "title": "Project Id",
+          "type": "string"
+        },
+        "project_slug": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Project Slug"
+        },
+        "roots": {
+          "$ref": "#/$defs/WorkspaceRoots"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "secret_references": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/SecretReference"
+          },
+          "maxItems": 8,
+          "title": "Secret References",
+          "type": "array"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        },
+        "watchers": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WatcherConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "workspace_id": {
+          "format": "uuid",
+          "title": "Workspace Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "profile",
+        "project_id",
+        "roots",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "LocalWorkspaceConfig",
+      "type": "object"
+    },
+    "ProfileRef": {
+      "additionalProperties": false,
+      "description": "A local profile is one server origin on one machine. Two profiles never\nshare a secret, an outbox partition or a daemon instance.",
+      "properties": {
+        "profile_id": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Profile Id",
+          "type": "string"
+        },
+        "server_origin": {
+          "title": "Server Origin",
+          "type": "string"
+        }
+      },
+      "required": [
+        "profile_id",
+        "server_origin"
+      ],
+      "title": "ProfileRef",
+      "type": "object"
+    },
+    "RepoRoot": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "path"
+      ],
+      "title": "RepoRoot",
+      "type": "object"
+    },
+    "SecretKind": {
+      "enum": [
+        "machine_credential"
+      ],
+      "title": "SecretKind",
+      "type": "string"
+    },
+    "SecretReference": {
+      "additionalProperties": false,
+      "description": "Names where a secret lives; carries no secret material. `ref_id` is an\nopaque local handle, `lookup_key` is the store-side entry name.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/SecretKind"
+        },
+        "lookup_key": {
+          "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+          "title": "Lookup Key",
+          "type": "string"
+        },
+        "profile": {
+          "$ref": "#/$defs/ProfileRef"
+        },
+        "ref_id": {
+          "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+          "title": "Ref Id",
+          "type": "string"
+        },
+        "store": {
+          "$ref": "#/$defs/SecretStore"
+        }
+      },
+      "required": [
+        "ref_id",
+        "kind",
+        "store",
+        "lookup_key",
+        "profile"
+      ],
+      "title": "SecretReference",
+      "type": "object"
+    },
+    "SecretStore": {
+      "enum": [
+        "os_keyring",
+        "process_environment"
+      ],
+      "title": "SecretStore",
+      "type": "string"
+    },
+    "WatcherConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "debounce_ms": {
+          "default": 500,
+          "maximum": 60000,
+          "minimum": 50,
+          "title": "Debounce Ms",
+          "type": "integer"
+        },
+        "follow_symlinks": {
+          "const": false,
+          "default": false,
+          "title": "Follow Symlinks",
+          "type": "boolean"
+        },
+        "ignore_globs": {
+          "default": [
+            ".git/**",
+            "node_modules/**"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Ignore Globs",
+          "type": "array"
+        },
+        "max_events_per_second": {
+          "default": 200,
+          "maximum": 10000,
+          "minimum": 1,
+          "title": "Max Events Per Second",
+          "type": "integer"
+        }
+      },
+      "title": "WatcherConfig",
+      "type": "object"
+    },
+    "WorkspaceAction": {
+      "enum": [
+        "none",
+        "create_config",
+        "repair_config",
+        "confirm_relocation",
+        "grant_access",
+        "detach_workspace"
+      ],
+      "title": "WorkspaceAction",
+      "type": "string"
+    },
+    "WorkspaceHealth": {
+      "enum": [
+        "valid",
+        "config_missing",
+        "config_invalid",
+        "moved",
+        "inaccessible",
+        "project_unavailable"
+      ],
+      "title": "WorkspaceHealth",
+      "type": "string"
+    },
+    "WorkspaceRoots": {
+      "additionalProperties": false,
+      "properties": {
+        "repo_roots": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/RepoRoot"
+          },
+          "maxItems": 32,
+          "title": "Repo Roots",
+          "type": "array"
+        },
+        "workspace_root": {
+          "title": "Workspace Root",
+          "type": "string"
+        }
+      },
+      "required": [
+        "workspace_root"
+      ],
+      "title": "WorkspaceRoots",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Result of validating a workspace. Anything but `valid` disables the\nlocal features of that workspace (fail-closed) and never touches Git or the\nserver; the config is never rewritten automatically.",
+  "properties": {
+    "action": {
+      "$ref": "#/$defs/WorkspaceAction"
+    },
+    "candidate_root": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Candidate Root"
+    },
+    "config": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LocalWorkspaceConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "error": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LocalError"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "health": {
+      "$ref": "#/$defs/WorkspaceHealth"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace_id",
+    "health",
+    "action"
+  ],
+  "title": "WorkspaceStatus",
+  "type": "object"
+}

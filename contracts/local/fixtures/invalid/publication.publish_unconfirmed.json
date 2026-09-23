@@ -1,0 +1,9 @@
+{
+  "data": {
+    "confirmed": false,
+    "plan_hash": "ba09117cb0cf062bff32ab381d534a7814c6d1cd98919fe5e16383f5b8b3e5e5",
+    "plan_id": "pub-0001"
+  },
+  "model": "PublicationPublishRequest",
+  "reason": "publication requires explicit confirmation"
+}

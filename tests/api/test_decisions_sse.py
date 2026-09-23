@@ -61,7 +61,7 @@ async def test_accept_decision_is_delivered_live_on_the_sse_stream(
     live_project_and_token: tuple[ProjectModel, MachineModel, str],
     live_admin_token: str,
 ) -> None:
-    """DEC-0094: the lost prior attempt found a defect exactly here — a
+    """DEC-0098: the lost prior attempt found a defect exactly here — a
     transition recorded in the events table but never fanned out to
     `GET /events/stream`. Assert the live delivery itself, not just that the
     event was stored (`test_accept_decision_emits_decision_accepted_event`

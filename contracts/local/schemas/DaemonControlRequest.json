@@ -1,0 +1,81 @@
+{
+  "$defs": {
+    "DaemonAction": {
+      "enum": [
+        "attach",
+        "start",
+        "stop",
+        "status",
+        "restart"
+      ],
+      "title": "DaemonAction",
+      "type": "string"
+    },
+    "ProfileRef": {
+      "additionalProperties": false,
+      "description": "A local profile is one server origin on one machine. Two profiles never\nshare a secret, an outbox partition or a daemon instance.",
+      "properties": {
+        "profile_id": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Profile Id",
+          "type": "string"
+        },
+        "server_origin": {
+          "title": "Server Origin",
+          "type": "string"
+        }
+      },
+      "required": [
+        "profile_id",
+        "server_origin"
+      ],
+      "title": "ProfileRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "action": {
+      "$ref": "#/$defs/DaemonAction"
+    },
+    "confirm_external": {
+      "default": false,
+      "title": "Confirm External",
+      "type": "boolean"
+    },
+    "drain_outbox": {
+      "default": true,
+      "title": "Drain Outbox",
+      "type": "boolean"
+    },
+    "expected_instance_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Expected Instance Id"
+    },
+    "profile": {
+      "$ref": "#/$defs/ProfileRef"
+    },
+    "timeout_ms": {
+      "default": 10000,
+      "maximum": 60000,
+      "minimum": 100,
+      "title": "Timeout Ms",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "action",
+    "profile"
+  ],
+  "title": "DaemonControlRequest",
+  "type": "object"
+}

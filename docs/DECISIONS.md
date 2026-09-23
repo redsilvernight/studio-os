@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-90 decision(s). Detail complet dans chaque ADR lie.
+97 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -111,4 +111,11 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0088 | Roadmaps P6 : section Roadmap de studio_prepare_context, budgetée, optionnelle et neutre | active | [decisions/DEC-0088-roadmaps-p6-context.md](decisions/DEC-0088-roadmaps-p6-context.md) |
 | DEC-0089 | Roadmaps P8 : propositions de revision, relecture humaine (approve/request-changes/reject) et file de review | active | [decisions/DEC-0089-roadmaps-p8-propositions-revisions-review.md](decisions/DEC-0089-roadmaps-p8-propositions-revisions-review.md) |
 | DEC-0090 | Roadmaps P10 : validation E2E finale, frontière de review par le rôle, provenance conservée et correction de l'ordre d'initialisation proposed | active | [decisions/DEC-0090-roadmaps-p10-validation-finale-et-cloture.md](decisions/DEC-0090-roadmaps-p10-validation-finale-et-cloture.md) |
-| DEC-0094 | Decisions accept/supersede : transitions admin-only, et identite technique dashboard exclue des Machines | active | [decisions/DEC-0094-decisions-accept-supersede-et-machines-identite-dashboard.md](decisions/DEC-0094-decisions-accept-supersede-et-machines-identite-dashboard.md) |
+| DEC-0091 | Desktop P0 : Tauri 2 comme shell mince, frontières Desktop/bridge/daemon/serveur | active | [decisions/DEC-0091-desktop-p0-tauri-shell-frontieres.md](decisions/DEC-0091-desktop-p0-tauri-shell-frontieres.md) |
+| DEC-0092 | Desktop P0 : CodeGraphProvider neutre, Graphify optionnel installé séparément | active | [decisions/DEC-0092-desktop-p0-codegraph-provider-graphify.md](decisions/DEC-0092-desktop-p0-codegraph-provider-graphify.md) |
+| DEC-0093 | Desktop P1 : contrats locaux studio.local/v1, bridge à allowlist fermée, fixtures partagées | active | [decisions/DEC-0093-desktop-p1-contrats-locaux-studio-local-v1.md](decisions/DEC-0093-desktop-p1-contrats-locaux-studio-local-v1.md) |
+| DEC-0094 | Desktop P4 : daemon unique supervisé, outbox liée à l’identité et health négocié | active | [decisions/DEC-0094-desktop-p4-daemon-lifecycle.md](decisions/DEC-0094-desktop-p4-daemon-lifecycle.md) |
+| DEC-0095 | Desktop P10 : installateur NSIS par utilisateur, sidecar onedir, Graphify détecté et non redistribué | proposed | [decisions/DEC-0095-desktop-p10-packaging-graphify-non-redistribue.md](decisions/DEC-0095-desktop-p10-packaging-graphify-non-redistribue.md) |
+| DEC-0096 | Desktop P9 : adaptateurs de harnais au scope projet, jeton par référence, fail-closed | proposed | [decisions/DEC-0096-desktop-p9-harness-adapters.md](decisions/DEC-0096-desktop-p9-harness-adapters.md) |
+| DEC-0097 | Desktop P11 : premier lancement guidé, workspace servi, deux commandes additives | proposed | [decisions/DEC-0097-desktop-p11-onboarding-workspace-seam.md](decisions/DEC-0097-desktop-p11-onboarding-workspace-seam.md) |
+| DEC-0098 | Decisions accept/supersede : transitions admin-only, et identite technique dashboard exclue des Machines | active | [decisions/DEC-0098-decisions-accept-supersede-et-machines-identite-dashboard.md](decisions/DEC-0098-decisions-accept-supersede-et-machines-identite-dashboard.md) |

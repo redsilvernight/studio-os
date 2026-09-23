@@ -12,6 +12,7 @@ members = ["packages/*", "services/*"]
 studio-contracts = { workspace = true }
 studio-api = { workspace = true }
 studio-client = { workspace = true }
+studio-workspaces = { workspace = true }
 
 [tool.ruff]
 line-length = 100

@@ -1,0 +1,66 @@
+{
+  "$defs": {
+    "GitState": {
+      "enum": [
+        "valid",
+        "not_a_repo",
+        "invalid_repo",
+        "git_absent",
+        "inaccessible"
+      ],
+      "title": "GitState",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Read-only Git probe of a workspace root. Detection only: never a fetch,\nnever a write, never an install. Carries branch/remote names, never paths\nor commits.",
+  "properties": {
+    "branch": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Branch"
+    },
+    "detached": {
+      "default": false,
+      "title": "Detached",
+      "type": "boolean"
+    },
+    "remote": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Remote"
+    },
+    "state": {
+      "$ref": "#/$defs/GitState"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace_id",
+    "state"
+  ],
+  "title": "WorkspaceGitStatus",
+  "type": "object"
+}

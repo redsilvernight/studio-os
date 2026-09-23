@@ -1,0 +1,193 @@
+{
+  "$defs": {
+    "ComponentId": {
+      "enum": [
+        "desktop",
+        "bridge",
+        "daemon",
+        "workspace",
+        "knowledge",
+        "code_graph",
+        "harness",
+        "secret_store",
+        "watcher"
+      ],
+      "title": "ComponentId",
+      "type": "string"
+    },
+    "ComponentState": {
+      "description": "Shared state vocabulary of every optional local component (Knowledge,\nCode Graph, harness, watchers). `ready` is the only fully-served state;\n`stale` serves possibly outdated data explicitly; everything else refuses\nor degrades visibly — never silently.",
+      "enum": [
+        "disabled",
+        "not_installed",
+        "unavailable",
+        "starting",
+        "indexing",
+        "ready",
+        "stale",
+        "permission_denied",
+        "incompatible",
+        "stopping",
+        "recovering",
+        "error"
+      ],
+      "title": "ComponentState",
+      "type": "string"
+    },
+    "ComponentStatusSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "component": {
+          "$ref": "#/$defs/ComponentId"
+        },
+        "item_count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Item Count"
+        },
+        "provider_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Id"
+        },
+        "state": {
+          "$ref": "#/$defs/ComponentState"
+        }
+      },
+      "required": [
+        "component",
+        "state"
+      ],
+      "title": "ComponentStatusSummary",
+      "type": "object"
+    },
+    "LocalDataClass": {
+      "enum": [
+        "paths",
+        "vault_content",
+        "indexes",
+        "code_graph",
+        "filesystem_details",
+        "harness_config",
+        "sensitive_diagnostics",
+        "workspace_config",
+        "secrets"
+      ],
+      "title": "LocalDataClass",
+      "type": "string"
+    },
+    "SharedStatusSummary": {
+      "additionalProperties": false,
+      "description": "The only publishable shape: enumerated states, provider identifiers and\ncounts. It has no free-text, path or content field, so it cannot leak what\nit does not have.",
+      "properties": {
+        "components": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ComponentStatusSummary"
+          },
+          "maxItems": 16,
+          "title": "Components",
+          "type": "array"
+        },
+        "generated_at": {
+          "format": "date-time",
+          "title": "Generated At",
+          "type": "string"
+        },
+        "project_id": {
+          "format": "uuid",
+          "title": "Project Id",
+          "type": "string"
+        },
+        "protocol_version": {
+          "maxLength": 64,
+          "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$",
+          "title": "Protocol Version",
+          "type": "string"
+        },
+        "workspace_id": {
+          "format": "uuid",
+          "title": "Workspace Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "project_id",
+        "protocol_version",
+        "generated_at"
+      ],
+      "title": "SharedStatusSummary",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "excluded_classes": {
+      "items": {
+        "$ref": "#/$defs/LocalDataClass"
+      },
+      "title": "Excluded Classes",
+      "type": "array"
+    },
+    "expires_at": {
+      "format": "date-time",
+      "title": "Expires At",
+      "type": "string"
+    },
+    "included": {
+      "default": [],
+      "items": {
+        "pattern": "^[a-z][a-z0-9_]{0,31}(\\.[a-z][a-z0-9_]{0,31}){0,3}$",
+        "type": "string"
+      },
+      "maxItems": 16,
+      "title": "Included",
+      "type": "array"
+    },
+    "plan_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Plan Hash",
+      "type": "string"
+    },
+    "plan_id": {
+      "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+      "title": "Plan Id",
+      "type": "string"
+    },
+    "summary": {
+      "$ref": "#/$defs/SharedStatusSummary"
+    }
+  },
+  "required": [
+    "plan_id",
+    "summary",
+    "plan_hash",
+    "created_at",
+    "expires_at",
+    "excluded_classes"
+  ],
+  "title": "PublicationPlan",
+  "type": "object"
+}

@@ -126,7 +126,7 @@ async def test_concurrent_decisions_get_unique_readable_ids(
 async def test_concurrent_accept_of_the_same_decision_succeeds_exactly_once(
     real_engine: AsyncEngine, real_client: AsyncClient
 ) -> None:
-    """DEC-0094: two admins racing to resolve the same Decision must never
+    """DEC-0098: two admins racing to resolve the same Decision must never
     both succeed — the row-level `SELECT ... FOR UPDATE` lock
     (`decisions_service._lock_decision`) serializes the transitions, so
     exactly one `202`/`200` and the rest `409 invalid_decision_transition`."""

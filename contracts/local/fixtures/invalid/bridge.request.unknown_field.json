@@ -1,0 +1,20 @@
+{
+  "data": {
+    "command": "knowledge.search",
+    "correlation_id": "corr-0001",
+    "deadline_ms": null,
+    "kind": "request",
+    "message_id": "req-0001",
+    "payload": {
+      "cursor": null,
+      "limit": 20,
+      "query": "combat rules",
+      "workspace_id": "11111111-1111-4111-8111-111111111111"
+    },
+    "protocol": "studio.local/v1",
+    "sent_at": "2026-01-15T12:00:00Z",
+    "shell": "cmd"
+  },
+  "model": "BridgeRequest",
+  "reason": "unknown envelope field"
+}

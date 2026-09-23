@@ -11,6 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "gen:local-contracts": "node scripts/gen-local-contracts.mjs",
+    "check:local-contracts": "node scripts/gen-local-contracts.mjs --check",
     "openapi:export": "python scripts/export_openapi.py",
     "openapi:types": "openapi-typescript openapi.json -o src/openapi-schema.ts",
     "openapi": "npm run openapi:export && npm run openapi:types"

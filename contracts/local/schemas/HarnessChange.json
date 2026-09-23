@@ -1,0 +1,69 @@
+{
+  "$defs": {
+    "ChangeKind": {
+      "enum": [
+        "create",
+        "modify",
+        "delete"
+      ],
+      "title": "ChangeKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "One file-level change of a plan. Hashes and a short summary describe it;\nfile content is deliberately absent so that a plan can be shown, logged and\ndiffed without ever exposing a credential a config file might hold.",
+  "properties": {
+    "after_hash": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "After Hash"
+    },
+    "before_hash": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Before Hash"
+    },
+    "change_id": {
+      "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+      "title": "Change Id",
+      "type": "string"
+    },
+    "kind": {
+      "$ref": "#/$defs/ChangeKind"
+    },
+    "summary": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Summary",
+      "type": "string"
+    },
+    "target": {
+      "title": "Target",
+      "type": "string"
+    }
+  },
+  "required": [
+    "change_id",
+    "kind",
+    "target",
+    "summary"
+  ],
+  "title": "HarnessChange",
+  "type": "object"
+}

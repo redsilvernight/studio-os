@@ -1,0 +1,30 @@
+{
+  "additionalProperties": false,
+  "description": "A config older than the daemon's schema is migrated forward with a\n`.bak` copy; a newer one is refused (`workspace_config_invalid`) rather than\nguessed at.",
+  "properties": {
+    "current_version": {
+      "default": 1,
+      "title": "Current Version",
+      "type": "integer"
+    },
+    "keeps_backup": {
+      "const": true,
+      "default": true,
+      "title": "Keeps Backup",
+      "type": "boolean"
+    },
+    "oldest_migratable_version": {
+      "default": 1,
+      "title": "Oldest Migratable Version",
+      "type": "integer"
+    },
+    "refuses_newer": {
+      "const": true,
+      "default": true,
+      "title": "Refuses Newer",
+      "type": "boolean"
+    }
+  },
+  "title": "WorkspaceMigrationPolicy",
+  "type": "object"
+}

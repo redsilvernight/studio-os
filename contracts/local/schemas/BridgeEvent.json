@@ -1,0 +1,61 @@
+{
+  "$defs": {
+    "BridgeEventName": {
+      "enum": [
+        "daemon.state_changed",
+        "component.state_changed",
+        "workspace.changed",
+        "identity.changed"
+      ],
+      "title": "BridgeEventName",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "correlation_id": {
+      "pattern": "^[A-Za-z0-9_.:-]{1,64}$",
+      "title": "Correlation Id",
+      "type": "string"
+    },
+    "event": {
+      "$ref": "#/$defs/BridgeEventName"
+    },
+    "kind": {
+      "const": "event",
+      "default": "event",
+      "title": "Kind",
+      "type": "string"
+    },
+    "message_id": {
+      "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+      "title": "Message Id",
+      "type": "string"
+    },
+    "payload": {
+      "additionalProperties": true,
+      "title": "Payload",
+      "type": "object"
+    },
+    "protocol": {
+      "const": "studio.local/v1",
+      "default": "studio.local/v1",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "sent_at": {
+      "format": "date-time",
+      "title": "Sent At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "message_id",
+    "correlation_id",
+    "sent_at",
+    "event",
+    "payload"
+  ],
+  "title": "BridgeEvent",
+  "type": "object"
+}

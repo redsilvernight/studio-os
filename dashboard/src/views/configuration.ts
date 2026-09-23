@@ -73,12 +73,14 @@ export interface ConfigurationContext {
   authed: boolean;
 }
 
-export type ConfigTab = "runtimes" | "bindings" | "project";
+export type ConfigTab = "runtimes" | "bindings" | "project" | "application" | "integrations";
 
 const CONFIG_TABS: readonly { name: ConfigTab; label: string; href: string }[] = [
   { name: "runtimes", label: "Runtimes", href: "#/configuration/runtimes" },
   { name: "bindings", label: "Bindings", href: "#/configuration/bindings" },
   { name: "project", label: "Projet", href: "#/configuration/project/resources" },
+  { name: "application", label: "Application", href: "#/configuration/application" },
+  { name: "integrations", label: "Intégrations IA", href: "#/configuration/integrations" },
 ];
 
 const SETTINGS_DESCRIPTION =
