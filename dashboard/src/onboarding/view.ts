@@ -7,7 +7,7 @@
  * Vocabulaire utilisateur, aucune saisie d'UUID, aucun secret affiché ou
  * stocké, aucun chemin complet conservé.
  */
-import { apiBaseUrl, createApiClient } from "../api";
+import { ApiError, apiBaseUrl, createApiClient } from "../api";
 import { hasToken } from "../auth";
 import { joinUrl } from "../config";
 import { getDesktopShell, refreshDaemon } from "../desktopShell";
@@ -79,6 +79,38 @@ export function newWorkspaceId(): string {
   return `${raw.slice(0, 8)}-${raw.slice(8, 12)}-4${raw.slice(13, 16)}-8${raw.slice(17, 20)}-${raw.slice(20, 32)}`;
 }
 
+/**
+ * Slug machine dérivé du nom saisi : `ProjectCreate` l'exige et le pont local
+ * n'accepte `project_slug` que sous la forme `^[a-z][a-z0-9_.-]{0,63}$`.
+ */
+export function projectSlugFromName(name: string): string {
+  const base = name
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  // Rien d'exploitable (ponctuation seule, écriture non latine) : pas de slug
+  // de repli partagé, qui produirait un conflit trompeur au projet suivant.
+  if (!base) return "";
+  const slug = /^[a-z]/.test(base) ? base : `projet-${base}`;
+  return slug.slice(0, 64).replace(/[-.]+$/, "");
+}
+
+/**
+ * Verrouille un bouton pendant une action asynchrone : empêche le double clic
+ * et annonce l'attente. Le rendu suivant (`again`) remplace le bouton, ce qui
+ * lève le verrou. Faux = une action est déjà en cours.
+ */
+function lockButton(button: HTMLButtonElement | null | undefined, label: string): boolean {
+  if (!button) return true;
+  if (button.disabled) return false;
+  button.disabled = true;
+  button.textContent = label;
+  button.setAttribute("aria-busy", "true");
+  return true;
+}
+
 function utcNow(): string {
   return new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
 }
@@ -139,6 +171,8 @@ export interface SessionData {
   error: string | null;
   notice: string | null;
   restartRequired: boolean;
+  /** Clé d'idempotence de la création de projet en cours, par slug. */
+  createAttempt?: { slug: string; key: string };
 }
 
 async function probeServer(): Promise<{ ok: boolean; detail: string }> {
@@ -189,6 +223,12 @@ export async function revalidate(data: SessionData, platform: Platform): Promise
   const id = data.state.workspaceId;
   if (!id) return;
   const checked = await validateWorkspace(platform, id);
+  if (!checked.ok && checked.error.code !== "workspace_config_missing") {
+    // Refus transitoire (assistant local encore en démarrage, pont muet) : ce
+    // n'est pas une preuve que le dossier a disparu, on garde l'association.
+    data.error = `État du dossier non vérifiable pour l'instant : ${workspaceErrorMessage(checked.error)} Réessayez dans un instant.`;
+    return;
+  }
   if (!checked.ok) {
     data.state = { ...data.state, workspaceId: undefined, folderName: undefined, current: "dossier" };
     data.error = "Le dossier associé n'est plus valide : choisissez-le à nouveau.";
@@ -425,6 +465,8 @@ async function paintConnexion(
   root.innerHTML = layout(step, "connexion", body);
   root.querySelector<HTMLFormElement>("[data-testid=server-origin-form]")?.addEventListener("submit", (event) => {
     event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
+    if (!lockButton(form.querySelector<HTMLButtonElement>("button[type=submit]"), "Enregistrement…")) return;
     const value = root.querySelector<HTMLInputElement>("#server-origin-input")?.value ?? "";
     void platform.setServerOrigin(value).then((result) => {
       if (!result.ok) {
@@ -440,7 +482,8 @@ async function paintConnexion(
       return again();
     });
   });
-  root.querySelector("[data-action=restart-desktop]")?.addEventListener("click", () => {
+  root.querySelector<HTMLButtonElement>("[data-action=restart-desktop]")?.addEventListener("click", (event) => {
+    if (!lockButton(event.currentTarget as HTMLButtonElement, "Redémarrage…")) return;
     void platform.restartDesktop().then((started) => {
       if (!started) {
         session.error = "Le redémarrage n'a pas pu être lancé. Fermez puis rouvrez l'application.";
@@ -560,9 +603,11 @@ async function paintProjet(
   const body =
     errorHtml(session.error ?? session.projectsError) +
     noticeHtml(session.notice) +
-    (list.length === 0
-      ? `<p class="settings-intro">Aucun projet sur le serveur : créez-le ci-dessous.</p>`
-      : `<ul class="ds-list" data-testid="project-list">${cards}</ul>`) +
+    (session.projectsError
+      ? `<div class="settings-actions"><button class="ds-btn" type="button" data-action="reload-projects">Recharger la liste</button></div>`
+      : list.length === 0
+        ? `<p class="settings-intro">Aucun projet sur le serveur : créez-le ci-dessous.</p>`
+        : `<ul class="ds-list" data-testid="project-list">${cards}</ul>`) +
     `<form class="settings-server-form" data-testid="project-create-form">` +
     `<label class="settings-field">Nom du nouveau projet<input id="project-name-input" name="project_name" type="text" autocomplete="off" maxlength="80" /></label>` +
     `<div class="settings-actions"><button class="ds-btn" type="submit">Créer</button></div></form>` +
@@ -586,17 +631,29 @@ async function paintProjet(
       if (next) next.disabled = false;
     });
   });
+  root.querySelector("[data-action=reload-projects]")?.addEventListener("click", () => {
+    session.projects = null;
+    session.projectsError = null;
+    session.error = null;
+    void again();
+  });
   root.querySelector<HTMLFormElement>("[data-testid=project-create-form]")?.addEventListener("submit", (event) => {
     event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
     const name = (root.querySelector<HTMLInputElement>("#project-name-input")?.value ?? "").trim();
-    if (!name) {
-      session.error = "Indiquez un nom de projet.";
+    const slug = projectSlugFromName(name);
+    if (!name || !slug) {
+      session.error = "Indiquez un nom de projet contenant au moins une lettre (a à z) ou un chiffre.";
       void again();
       return;
     }
+    if (!lockButton(form.querySelector<HTMLButtonElement>("button[type=submit]"), "Création en cours…")) return;
     try {
       const client = createApiClient(apiBaseUrl());
-      void createProject(client, { name } as Parameters<typeof createProject>[1], newIdempotencyKey()).then(
+      // Même nom = même tentative : la clé est réutilisée, une relance après une
+      // réponse perdue rejoue la création au lieu de heurter le slug (409).
+      if (session.createAttempt?.slug !== slug) session.createAttempt = { slug, key: newIdempotencyKey() };
+      void createProject(client, { slug, name }, session.createAttempt.key).then(
         (created: Project) => {
           session.projects = [...(session.projects ?? []), created];
           session.state = {
@@ -607,11 +664,19 @@ async function paintProjet(
           };
           session.error = null;
           session.notice = "Projet créé.";
+          session.createAttempt = undefined;
           persist(session);
           void again();
         },
-        () => {
-          session.error = "La création a échoué. Vérifiez vos droits puis réessayez.";
+        (error: unknown) => {
+          session.error =
+            error instanceof ApiError && error.status === 409
+              ? "Un projet utilise déjà ce nom : sélectionnez-le dans la liste ou choisissez un autre nom."
+              : "La création a échoué. Vérifiez vos droits puis réessayez.";
+          if (error instanceof ApiError && error.status === 409) {
+            session.projects = null;
+            session.projectsError = null;
+          }
           void again();
         },
       );
@@ -661,7 +726,9 @@ async function paintDossier(
     });
   root.innerHTML = layout(step, "dossier", body);
   session.notice = null;
-  root.querySelector("[data-action=pick]")?.addEventListener("click", () => {
+  root.querySelector<HTMLButtonElement>("[data-action=pick]")?.addEventListener("click", (event) => {
+    // Une seule fenêtre de sélection à la fois.
+    if (!lockButton(event.currentTarget as HTMLButtonElement, "Sélection en cours…")) return;
     void pickWorkspaceFolder(platform).then((next) => {
       session.folder = next;
       session.statusText = null;
@@ -677,8 +744,9 @@ async function paintDossier(
     go(session, previousStep("dossier") ?? "projet");
     void again();
   });
-  root.querySelector("[data-action=associate]")?.addEventListener("click", () => {
+  root.querySelector<HTMLButtonElement>("[data-action=associate]")?.addEventListener("click", (event) => {
     if (!picked) return;
+    if (!lockButton(event.currentTarget as HTMLButtonElement, "Association en cours…")) return;
     associateFolder(root, platform, session, picked.path, picked.displayName, again).catch(() => {
       session.error = "L'opération a échoué. Aucune modification n'a été confirmée.";
       void again();
@@ -1135,7 +1203,12 @@ function bindHarnessCards(
 ): void {
   for (const card of root.querySelectorAll<HTMLElement>("[data-harness]")) {
     const adapterId = card.dataset["harness"] ?? "";
-    card.querySelector("[data-action=preview]")?.addEventListener("click", () => {
+    const failed = (): Promise<void> => {
+      session.error = harnessErrorMessage(null);
+      return again();
+    };
+    card.querySelector<HTMLButtonElement>("[data-action=preview]")?.addEventListener("click", (event) => {
+      if (!lockButton(event.currentTarget as HTMLButtonElement, "Préparation…")) return;
       void previewHarness(platform, workspaceId, adapterId).then((outcome) => {
         if (!outcome.ok) {
           session.error = harnessErrorMessage(outcome.error);
@@ -1144,15 +1217,16 @@ function bindHarnessCards(
         session.plan = outcome.value;
         session.error = null;
         return again();
-      });
+      }, failed);
     });
     card.querySelector("[data-action=cancel-plan]")?.addEventListener("click", () => {
       session.plan = null;
       void again();
     });
-    card.querySelector("[data-action=apply-plan]")?.addEventListener("click", () => {
+    card.querySelector<HTMLButtonElement>("[data-action=apply-plan]")?.addEventListener("click", (event) => {
       const plan = session.plan;
       if (!plan || plan.adapter_id !== adapterId) return;
+      if (!lockButton(event.currentTarget as HTMLButtonElement, "Application…")) return;
       void applyHarness(platform, plan).then((outcome) => {
         if (!outcome.ok) {
           session.error = harnessErrorMessage(outcome.error);
@@ -1166,7 +1240,7 @@ function bindHarnessCards(
         session.notice = "Configuration appliquée. Une sauvegarde locale permet de la restaurer.";
         session.error = null;
         return again();
-      });
+      }, failed);
     });
   }
 }

@@ -126,9 +126,7 @@ async def test_unknown_agent_fails_closed(
     db_session: AsyncSession, machine: Machine, auth_ctx: FakeContext
 ) -> None:
     project = await _project(db_session)
-    result = await _prepare(
-        auth_ctx, project, "anything", agent_stable_key="no-such-agent"
-    )
+    result = await _prepare(auth_ctx, project, "anything", agent_stable_key="no-such-agent")
     assert result["error_code"] == "definition_not_found"
 
 
@@ -151,12 +149,8 @@ async def test_cross_harness_resume(
     """P3.9: Agent A configured from the Claude projection, Agent B from the
     OpenCode projection of the SAME canonical source. B has zero A history
     and still resumes via one prepare_context."""
-    claude_cfg = get_adapter("claude-code").translate(
-        build_offline_resolved(REPO, "studio-tester")
-    )
-    opencode_cfg = get_adapter("opencode").translate(
-        build_offline_resolved(REPO, "studio-tester")
-    )
+    claude_cfg = get_adapter("claude-code").translate(build_offline_resolved(REPO, "studio-tester"))
+    opencode_cfg = get_adapter("opencode").translate(build_offline_resolved(REPO, "studio-tester"))
     # Same canon, two envelopes: identical instructions and rule sets.
     assert "You are the QA specialist" in claude_cfg.artifacts[0].content
     assert "You are the QA specialist" in opencode_cfg.artifacts[0].content

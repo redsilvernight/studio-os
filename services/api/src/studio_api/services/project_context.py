@@ -84,6 +84,7 @@ __all__ = [
     "AIWORK_BUDGET_SHARE",
     "AIWORK_LIST_CAP",
     "DEFAULT_LIMIT",
+    "DEFAULT_MAX_CHARS",
     "ITEM_TEXT_CAP",
     "LIBRARY_SCAN_CAP",
     "MAX_FILES",
@@ -461,9 +462,7 @@ async def _select_library(
             why=_why(reason, matched),
             agent_applies=applies,
         )
-        ranked.append(
-            (0 if applies else 1, -value, _SCOPE_RANK.get(scope_value, 9), key, item)
-        )
+        ranked.append((0 if applies else 1, -value, _SCOPE_RANK.get(scope_value, 9), key, item))
     ranked.sort(key=lambda entry: entry[:4])
 
     picked: list[LibraryItem] = []
@@ -529,9 +528,7 @@ def _cap_str_list(values: list[str], cap: int = AIWORK_LIST_CAP) -> tuple[list[s
     return list(values), False
 
 
-def _ai_work_item(
-    work: AIWorkLogModel, why: Why, budget: _Budget
-) -> AIWorkItem | None:
+def _ai_work_item(work: AIWorkLogModel, why: Why, budget: _Budget) -> AIWorkItem | None:
     """One work entry as context: the summary spends free-text budget, the
     file/test lists are count-bounded instead. `None` means the section ran
     out of budget and the entry is counted, not silently dropped."""
@@ -576,9 +573,7 @@ async def _select_ai_work(
         else:
             value, matched = score(terms, "", row.summary or "")
             if value > 0:
-                lexical.append(
-                    (-value, -row.started_at.timestamp(), str(row.id), row, matched)
-                )
+                lexical.append((-value, -row.started_at.timestamp(), str(row.id), row, matched))
     linked.sort(key=lambda entry: entry[:2])
     lexical.sort(key=lambda entry: entry[:3])
 
@@ -724,11 +719,25 @@ async def prepare_project_context(
         session, project_id, task_id, terms, limit, budget, omitted
     )
     rules, rules_total, rules_capped = await _select_library(
-        session, principal, project_id, LibraryKind.RULE, terms, limit, budget, omitted,
+        session,
+        principal,
+        project_id,
+        LibraryKind.RULE,
+        terms,
+        limit,
+        budget,
+        omitted,
         applicable,
     )
     skills, skills_total, skills_capped = await _select_library(
-        session, principal, project_id, LibraryKind.SKILL, terms, limit, budget, omitted,
+        session,
+        principal,
+        project_id,
+        LibraryKind.SKILL,
+        terms,
+        limit,
+        budget,
+        omitted,
         applicable,
     )
 

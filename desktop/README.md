@@ -29,3 +29,5 @@ npm run version:check        # one version across package.json, Cargo.toml and t
 Packaging, data locations, updates, signing and the Graphify decision: [`docs/DESKTOP_P10_PACKAGING.md`](../docs/DESKTOP_P10_PACKAGING.md).
 
 `--api-url <origin>` (build scripts) sets the API origin baked into the build. Remote HTTPS and loopback HTTP are accepted by default. A remote HTTP deployment requires the explicit build-only opt-in `STUDIO_DESKTOP_ALLOW_INSECURE_ORIGIN=1`; this does not allow users to configure arbitrary remote HTTP origins at runtime. The server must list `http://tauri.localhost` in `STUDIO_CORS_ORIGINS` for the packaged Desktop to reach it.
+
+`--storage-url <origin>` (or `STUDIO_DESKTOP_STORAGE_URL`) adds the storage origin of the pre-signed transfer URLs (`STUDIO_S3_PUBLIC_ENDPOINT_URL` on the server) to the Desktop CSP, so direct uploads from the Transfers view are allowed. Same policy as `--api-url`: HTTPS or loopback HTTP, remote HTTP only with the explicit opt-in. Without it, the Desktop CSP blocks those uploads.

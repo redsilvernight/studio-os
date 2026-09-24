@@ -41,3 +41,16 @@ test("the build origin is exact and fails closed", () => {
     assert.throws(() => validateBuildApiUrl(invalid, true));
   }
 });
+
+test("the storage origin of pre-signed uploads joins connect-src only when given", async () => {
+  const { desktopCsp, overlay } = await import("./make-config.mjs");
+  const connect = (csp) => csp.split("; ").find((d) => d.startsWith("connect-src "));
+  assert.equal(connect(desktopCsp("https://studio.example")), "connect-src 'self' ipc: http://ipc.localhost https://studio.example");
+  assert.equal(
+    connect(desktopCsp("https://studio.example", "https://storage.example:8443")),
+    "connect-src 'self' ipc: http://ipc.localhost https://studio.example https://storage.example:8443",
+  );
+  // Same origin twice is listed once.
+  assert.equal(connect(desktopCsp("https://studio.example", "https://studio.example")).split(" ").length, 5);
+  assert.match(overlay({ apiUrl: "https://a.example", storageUrl: "https://s.example" }).app.security.csp, /https:\/\/s\.example/);
+});

@@ -17,6 +17,8 @@ from studio_contracts.local.harness import (
     HarnessVerifyRequest,
 )
 
+from tests.harness.support import fake_harness_env
+
 MCP_URL = "https://studio.example/mcp"
 MCP_ORIGIN = "https://studio.example"
 WORKSPACE_ID = UUID("11111111-1111-4111-8111-111111111111")
@@ -63,7 +65,7 @@ def test_35_diagnostics_no_secrets_after_apply(tmp_path: Path):
     workspace.mkdir()
     backups_root = tmp_path / "backups"
     backups_root.mkdir()
-    env = dict(os.environ)
+    env = fake_harness_env(tmp_path)
     env["STUDIO_MCP_MACHINE_TOKEN"] = "SECRET-TOKEN-DIAGNOSTICS"
 
     service = _make_service(workspace, backups_root, env)
@@ -85,7 +87,7 @@ def test_35_diagnostics_no_secrets_after_verify(tmp_path: Path):
     workspace.mkdir()
     backups_root = tmp_path / "backups"
     backups_root.mkdir()
-    env = dict(os.environ)
+    env = fake_harness_env(tmp_path)
     env["STUDIO_MCP_MACHINE_TOKEN"] = "SECRET-TOKEN-DIAGNOSTICS"
 
     service = _make_service(workspace, backups_root, env)
@@ -110,7 +112,7 @@ def test_35_diagnostics_no_secrets_in_backups(tmp_path: Path):
     workspace.mkdir()
     backups_root = tmp_path / "backups"
     backups_root.mkdir()
-    env = dict(os.environ)
+    env = fake_harness_env(tmp_path)
     env["STUDIO_MCP_MACHINE_TOKEN"] = "SECRET-TOKEN-DIAGNOSTICS"
 
     service = _make_service(workspace, backups_root, env)
@@ -153,7 +155,7 @@ def test_39_network_confidentiality_no_config_files_in_mcp_calls(tmp_path: Path)
     workspace.mkdir()
     backups_root = tmp_path / "backups"
     backups_root.mkdir()
-    env = dict(os.environ)
+    env = fake_harness_env(tmp_path)
 
     service = _make_service(workspace, backups_root, env)
 
@@ -285,7 +287,7 @@ def test_40_token_security_no_plaintext_anywhere(tmp_path: Path):
     workspace.mkdir()
     backups_root = tmp_path / "backups"
     backups_root.mkdir()
-    env = dict(os.environ)
+    env = fake_harness_env(tmp_path)
     env["STUDIO_MCP_MACHINE_TOKEN"] = "PLAINTEXT-TOKEN-FORBIDDEN"
 
     service = _make_service(workspace, backups_root, env)

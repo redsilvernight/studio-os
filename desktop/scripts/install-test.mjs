@@ -70,8 +70,39 @@ function listFiles(dir) {
 
 const dirSize = (dir) => listFiles(dir).reduce((sum, f) => sum + statSync(f).size, 0);
 
-async function attach() {
+function webviewCommandLines() {
+  const out = spawnSync(
+    "powershell",
+    ["-NoProfile", "-Command", "Get-CimInstance Win32_Process -Filter \"Name='msedgewebview2.exe'\" | ForEach-Object { $_.CommandLine }"],
+    { encoding: "utf8" },
+  ).stdout ?? "";
+  const lines = out.split(/\r?\n/).filter(Boolean);
+  const browser = lines.find((l) => !l.includes("--type=")) ?? lines[0] ?? "";
+  const debugArgs = browser.match(/--remote-debugging[^ "]*/g) ?? [];
+  const features = browser.match(/--(?:disable|enable)-features=[^ ]*/g) ?? [];
+  return `${lines.length} webview command line(s); browser debug args: ${debugArgs.join(" ") || "none"}; ${features.join(" ")}; tail: ${browser.slice(-300)}`;
+}
+
+async function cdpTargets() {
+  try {
+    const response = await fetch(`http://127.0.0.1:${CDP_PORT}/json/list`, { signal: AbortSignal.timeout(2000) });
+    const targets = await response.json();
+    return targets.map((t) => `${t.type}:${t.url}`).join(" | ") || "no target";
+  } catch (e) {
+    return `endpoint unreachable (${e?.cause?.code ?? e?.name ?? e})`;
+  }
+}
+
+let webviewDataDir = null;
+function devToolsActivePort() {
+  const file = webviewDataDir ? join(webviewDataDir, "EBWebView", "DevToolsActivePort") : null;
+  if (!file || !existsSync(file)) return "no DevToolsActivePort file";
+  return `DevToolsActivePort: ${readFileSync(file, "utf8").split(/\s+/)[0]}`;
+}
+
+async function attach(app, stderrTail) {
   for (let i = 0; i < 60; i++) {
+    if (app.exitCode !== null) break;
     try {
       const browser = await chromium.connectOverCDP(`http://127.0.0.1:${CDP_PORT}`);
       const page = browser.contexts()[0]?.pages().find((p) => p.url().startsWith(APP_ORIGIN));
@@ -82,7 +113,13 @@ async function attach() {
     }
     await sleep(1000);
   }
-  throw new Error("could not attach to the installed Desktop over CDP");
+  // Enough context to diagnose a CI-only failure from the annotation alone.
+  const state = app.exitCode === null ? `still running (pid ${app.pid})` : `exited with ${app.exitCode}`;
+  throw new Error(
+    `could not attach to the installed Desktop over CDP: app ${state}; ` +
+      `desktop processes ${processCount("studio-desktop.exe")}, webview processes ${processCount("msedgewebview2.exe")}; ` +
+      `CDP targets: ${await cdpTargets()}; ${webviewCommandLines()}; ${devToolsActivePort()}; stderr: ${stderrTail().slice(-600) || "(empty)"}`,
+  );
 }
 
 const invoke = (page, name, args) =>
@@ -131,6 +168,7 @@ async function main() {
   mkdirSync(appData, { recursive: true });
   mkdirSync(localAppData, { recursive: true });
   mkdirSync(webviewData, { recursive: true });
+  webviewDataDir = webviewData;
   mkdirSync(vault, { recursive: true });
   const size = statSync(installerPath).size;
   console.log(`installer ${installerPath} (${(size / 1048576).toFixed(1)} MB) -> ${instDir}`);
@@ -165,11 +203,15 @@ async function main() {
         STUDIO_CLIENT_API_BASE_URL: "http://127.0.0.1:1/api/v1",
         WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${CDP_PORT}`,
       },
-      stdio: "ignore",
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    let stderr = "";
+    app.stderr.on("data", (chunk) => {
+      stderr = (stderr + chunk).slice(-4000);
     });
     let browser;
     try {
-      const attached = await attach();
+      const attached = await attach(app, () => stderr);
       browser = attached.browser;
       const page = attached.page;
       await page.waitForSelector('[data-testid="onboarding-step"]', { timeout: 30_000 });
