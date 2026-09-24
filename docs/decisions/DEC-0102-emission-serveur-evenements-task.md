@@ -1,5 +1,5 @@
 ---
-id: DEC-0101
+id: DEC-0102
 title: 'Tasks : emission serveur des evenements task.* a chaque ecriture'
 status: accepted
 date: '2026-09-24'
@@ -7,7 +7,7 @@ superseded_by: null
 source: docs/DECISIONS.md
 ---
 
-# DEC-0101 — Tasks : emission serveur des evenements task.*
+# DEC-0102 — Tasks : emission serveur des evenements task.*
 
 Status: **accepted**
 Date: 2026-09-24
