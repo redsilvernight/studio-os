@@ -28,6 +28,8 @@ concurrency:
 env:
   UV_LOCKED: "1"
   STUDIO_DESKTOP_API_URL: https://flo-laptop.tailf61f85.ts.net
+  # S3 pre-signed uploads go through Tailscale Serve HTTPS :8443 (audit A13).
+  STUDIO_DESKTOP_STORAGE_URL: https://flo-laptop.tailf61f85.ts.net:8443
 
 jobs:
   installer:
@@ -50,7 +52,7 @@ jobs:
           npm ci --prefix ../dashboard
         working-directory: desktop
       - name: Build the unsigned installer for this deployment
-        run: node scripts/build.mjs --installer --api-url "$env:STUDIO_DESKTOP_API_URL"
+        run: node scripts/build.mjs --installer --api-url "$env:STUDIO_DESKTOP_API_URL" --storage-url "$env:STUDIO_DESKTOP_STORAGE_URL"
         working-directory: desktop
       - name: Install, launch, upgrade and uninstall
         run: npm run test:install
