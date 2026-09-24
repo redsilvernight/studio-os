@@ -1,16 +1,16 @@
 ---
 id: DEC-0100
 title: 'Workflow W2b : setup-hooks distribue les hooks ensure sur fresh machine'
-status: proposed
+status: accepted
 date: '2026-09-24'
 superseded_by: null
 source: docs/DECISIONS.md
-sync_hash: sha256:ce25dcd6959f261b0dbb9f5aca8cf90726af95b02109a4e348fecc9fa70a251d
+sync_hash: sha256:e0cfb020155a91264214070ee384f785da059608614a39fba3dcb38ea28332bc
 ---
 
 # DEC-0100 — Workflow W2b : setup-hooks distribue les hooks ensure
 
-Status: **proposed**
+Status: **accepted**
 Date: 2026-09-24
 Task: `[Workflow W2b] Distribuer agents ensure sur fresh machine (setup-hooks)`
 
