@@ -19,6 +19,7 @@ Le rapport complet (reproductions, résultats de tests) est le PDF local
 | Wizard (revue studio-tester) : noms sans slug exploitable refusés ; clé d'idempotence réutilisée pour une relance | `86aba61` |
 | pytest instable : `test_server_origin_switch` rejouait l'outbox avant l'échéance du backoff | `d3caed1` |
 | Desktop validation : `test:install` ne pouvait pas s'attacher en CDP (WebView2 152 ignore `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` sous wry) | `d677eee` |
+| `test:install` : fermeture demandée via `pwsh`, absent d'un Windows standard (échec local 28/29) | `71fbb3a` |
 
 ## Documenté, non corrigé
 
@@ -29,8 +30,11 @@ Le rapport complet (reproductions, résultats de tests) est le PDF local
   (bloc `{$STORAGE_DOMAIN}` du Caddyfile ou un port Tailscale Serve dédié), vérifier que la
   signature SigV4 survit au proxy (en-tête `Host`), puis builder le Desktop avec `--storage-url`.
 - **Installateur non signé** : SmartScreen avertit ; Smart App Control (actif sur FLO-LAPTOP)
-  bloque les binaires non signés. Il bloque aussi `rustc` (proc-macros locales) : ni build Rust
-  ni `test:install` ne sont possibles sur ce poste. Tout passe par la CI Windows.
+  peut bloquer les binaires non signés. Il bloque `rustc` (proc-macros compilées localement)
+  sur ce poste : tout build Rust passe par la CI Windows. L'installateur CI s'installe et se
+  lance localement, mais SAC a bloqué `studio-daemon.exe` (sidecar PyInstaller non signé) lors
+  d'un second lancement : sur FLO-LAPTOP, le daemon du Desktop peut être indisponible tant que
+  les binaires ne sont pas signés.
 - **Wizard** : l'étape « Dossier » propose « Passer » alors que « Terminer » exige un dossier.
 - **Sidecar** : un échec de lancement rend le daemon indisponible pour toute la session
   (pas de nouvelle tentative) ; l'état « abandonné » reste affiché après une reprise.
