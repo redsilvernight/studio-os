@@ -240,7 +240,10 @@ pub fn run() {
                         NewWindowResponse::Deny
                     });
             let requested = std::env::var(webview_args::ENV).ok();
-            if let Some(args) = webview_args::browser_args(requested.as_deref()) {
+            let persisted = webview_args::persisted_value();
+            if let Some(args) =
+                webview_args::browser_args(requested.as_deref(), persisted.as_deref())
+            {
                 window = window.additional_browser_args(&args);
             }
             window.build()?;

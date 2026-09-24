@@ -24,6 +24,10 @@ const EXCHANGE_TIMEOUT: Duration = Duration::from_secs(20);
 const MAX_LINE_BYTES: usize = 2 * 1024 * 1024;
 const RESTART_WINDOW: Duration = Duration::from_secs(60);
 const MAX_RESTARTS: usize = 3;
+/// Delay before a daemon that failed to launch (antivirus, Smart App Control,
+/// locked file) is tried again. A missing binary or a protocol mismatch is not
+/// retried: waiting would not change it.
+const LAUNCH_RETRY_DELAY: Duration = Duration::from_secs(15);
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(tag = "state", rename_all = "snake_case")]
@@ -66,6 +70,9 @@ struct Inner {
     started: bool,
     exit: Option<Option<i32>>,
     unavailable: bool,
+    /// Set when the binary exists but could not be launched: the only
+    /// unavailability that is worth retrying.
+    launch_failed_at: Option<Instant>,
     restarts: VecDeque<Instant>,
     abandoned: bool,
     origin: Option<String>,
@@ -135,8 +142,13 @@ fn persist_after_desktop_close() -> bool {
 
 impl Inner {
     fn spawn(&mut self) -> Result<(), ExchangeError> {
+        self.spawn_at(sidecar_path())
+    }
+
+    fn spawn_at(&mut self, path: Option<PathBuf>) -> Result<(), ExchangeError> {
         self.started = true;
-        let Some(path) = sidecar_path().filter(|p| p.is_file()) else {
+        self.launch_failed_at = None;
+        let Some(path) = path.filter(|p| p.is_file()) else {
             self.unavailable = true;
             return Err(ExchangeError::Unavailable);
         };
@@ -170,9 +182,12 @@ impl Inner {
             Ok(c) => c,
             Err(_) => {
                 self.unavailable = true;
+                self.launch_failed_at = Some(Instant::now());
                 return Err(ExchangeError::Unavailable);
             }
         };
+        self.unavailable = false;
+        self.abandoned = false;
         let stdin = child.stdin.take().ok_or(ExchangeError::Io)?;
         let stdout = child.stdout.take().ok_or(ExchangeError::Io)?;
         let (tx, rx) = mpsc::channel::<String>();
@@ -240,6 +255,11 @@ impl Inner {
             return SidecarState::Exited { code };
         }
         SidecarState::NotStarted
+    }
+
+    fn launch_retry_due(&self, now: Instant) -> bool {
+        self.launch_failed_at
+            .is_some_and(|failed| now.duration_since(failed) >= LAUNCH_RETRY_DELAY)
     }
 
     fn restart(&mut self) -> Result<(), ExchangeError> {
@@ -315,7 +335,10 @@ impl Sidecar {
         if !g.started {
             g.spawn()?;
         } else if g.unavailable {
-            return Err(ExchangeError::Unavailable);
+            if !g.launch_retry_due(Instant::now()) {
+                return Err(ExchangeError::Unavailable);
+            }
+            g.spawn()?;
         } else if g.child.is_none() {
             g.restart()?;
         }
@@ -438,6 +461,59 @@ mod tests {
         let _ = inner.restart();
         assert!(!inner.abandoned);
         assert_eq!(inner.restarts.len(), 1);
+    }
+
+    fn temp_dir(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("studio-sidecar-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn a_daemon_that_failed_to_launch_is_retried_after_a_delay() {
+        // A file that exists but is not an executable: the spawn itself fails,
+        // as when an antivirus or Smart App Control blocks the daemon.
+        let dir = temp_dir("launch-failure");
+        let bogus = dir.join("studio-daemon.exe");
+        std::fs::write(&bogus, "not an executable").unwrap();
+        let mut inner = Inner::default();
+        assert!(matches!(
+            inner.spawn_at(Some(bogus.clone())),
+            Err(ExchangeError::Unavailable)
+        ));
+        assert_eq!(inner.state(), SidecarState::Unavailable);
+        let failed = inner.launch_failed_at.expect("launch failure recorded");
+        assert!(!inner.launch_retry_due(failed));
+        assert!(inner.launch_retry_due(failed + LAUNCH_RETRY_DELAY));
+        // A missing binary is not a launch failure: it is never retried.
+        assert!(matches!(
+            inner.spawn_at(Some(dir.join("absent.exe"))),
+            Err(ExchangeError::Unavailable)
+        ));
+        assert!(inner.launch_failed_at.is_none());
+        assert!(!inner.launch_retry_due(Instant::now() + LAUNCH_RETRY_DELAY));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_successful_launch_clears_the_unavailable_and_abandoned_states() {
+        // cmd.exe waits on its piped stdin like the daemon does.
+        let cmd = PathBuf::from(std::env::var("ComSpec").expect("ComSpec is set on Windows"));
+        let mut inner = Inner {
+            unavailable: true,
+            abandoned: true,
+            launch_failed_at: Some(Instant::now()),
+            ..Inner::default()
+        };
+        inner.spawn_at(Some(cmd)).expect("cmd.exe launches");
+        assert!(!inner.unavailable);
+        assert!(!inner.abandoned);
+        assert!(inner.launch_failed_at.is_none());
+        assert!(matches!(inner.state(), SidecarState::Running { .. }));
+        inner.kill();
+        assert!(matches!(inner.state(), SidecarState::Exited { .. }));
     }
 
     #[test]

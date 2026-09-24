@@ -718,11 +718,10 @@ async function paintDossier(
         `<div class="settings-row"><dt>État</dt><dd>${esc(statusLine || "Prêt à associer.")}</dd></div></dl>`
       : `<p class="settings-intro">Aucun dossier choisi pour l'instant.</p>`) +
     `<div class="settings-actions"><button class="ds-btn ds-btn--primary" type="button" data-action="pick">Choisir un dossier…</button></div>` +
+    // Étape obligatoire : « Terminer » exige un dossier, donc pas de « Passer ».
     navButtons({
       prev: previousStep("dossier"),
-      extra:
-        `<button class="ds-btn" type="button" data-action="skip">Passer cette étape</button>` +
-        `<button class="ds-btn ds-btn--primary" type="button" data-action="associate" ${picked ? "" : "disabled"}>Associer ce dossier</button>`,
+      extra: `<button class="ds-btn ds-btn--primary" type="button" data-action="associate" ${picked ? "" : "disabled"}>Associer ce dossier</button>`,
     });
   root.innerHTML = layout(step, "dossier", body);
   session.notice = null;
@@ -735,10 +734,6 @@ async function paintDossier(
       session.error = next.kind === "error" ? "Le dossier n'a pas pu être sélectionné." : null;
       void again();
     });
-  });
-  root.querySelector("[data-action=skip]")?.addEventListener("click", () => {
-    go(session, nextStep("dossier") ?? "memoire");
-    void again();
   });
   root.querySelector("[data-action=prev]")?.addEventListener("click", () => {
     go(session, previousStep("dossier") ?? "projet");
