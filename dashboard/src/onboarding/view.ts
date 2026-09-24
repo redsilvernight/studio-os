@@ -90,7 +90,10 @@ export function projectSlugFromName(name: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
-  const slug = /^[a-z]/.test(base) ? base : `projet-${base}`.replace(/-+$/, "");
+  // Rien d'exploitable (ponctuation seule, écriture non latine) : pas de slug
+  // de repli partagé, qui produirait un conflit trompeur au projet suivant.
+  if (!base) return "";
+  const slug = /^[a-z]/.test(base) ? base : `projet-${base}`;
   return slug.slice(0, 64).replace(/[-.]+$/, "");
 }
 
@@ -168,6 +171,8 @@ export interface SessionData {
   error: string | null;
   notice: string | null;
   restartRequired: boolean;
+  /** Clé d'idempotence de la création de projet en cours, par slug. */
+  createAttempt?: { slug: string; key: string };
 }
 
 async function probeServer(): Promise<{ ok: boolean; detail: string }> {
@@ -638,14 +643,17 @@ async function paintProjet(
     const name = (root.querySelector<HTMLInputElement>("#project-name-input")?.value ?? "").trim();
     const slug = projectSlugFromName(name);
     if (!name || !slug) {
-      session.error = "Indiquez un nom de projet contenant au moins une lettre ou un chiffre.";
+      session.error = "Indiquez un nom de projet contenant au moins une lettre (a à z) ou un chiffre.";
       void again();
       return;
     }
     if (!lockButton(form.querySelector<HTMLButtonElement>("button[type=submit]"), "Création en cours…")) return;
     try {
       const client = createApiClient(apiBaseUrl());
-      void createProject(client, { slug, name }, newIdempotencyKey()).then(
+      // Même nom = même tentative : la clé est réutilisée, une relance après une
+      // réponse perdue rejoue la création au lieu de heurter le slug (409).
+      if (session.createAttempt?.slug !== slug) session.createAttempt = { slug, key: newIdempotencyKey() };
+      void createProject(client, { slug, name }, session.createAttempt.key).then(
         (created: Project) => {
           session.projects = [...(session.projects ?? []), created];
           session.state = {
@@ -656,6 +664,7 @@ async function paintProjet(
           };
           session.error = null;
           session.notice = "Projet créé.";
+          session.createAttempt = undefined;
           persist(session);
           void again();
         },

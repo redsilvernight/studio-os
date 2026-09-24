@@ -73,7 +73,8 @@ describe("projectSlugFromName", () => {
     ["Élan d'été 2", "elan-d-ete-2"],
     ["2049", "projet-2049"],
     ["  --Studio--  ", "studio"],
-    ["!!!", "projet"],
+    ["!!!", ""],
+    ["日本", ""],
   ])("%s -> %s", (name, slug) => {
     expect(projectSlugFromName(name)).toBe(slug);
   });
@@ -130,11 +131,31 @@ describe("step « Projet »", () => {
     api.GET.mockResolvedValue({ response: { ok: true }, data: [] });
     const root = mount();
     await renderOnboarding(root, fakeDesktop(), emptySession({ schema: 1, status: "in_progress", current: "projet" }));
-    root.querySelector<HTMLInputElement>("#project-name-input")!.value = "   ";
+    root.querySelector<HTMLInputElement>("#project-name-input")!.value = "!!!";
     root.querySelector("[data-testid=project-create-form]")!.dispatchEvent(new Event("submit", { cancelable: true }));
     await tick(10);
     expect(api.createProject).not.toHaveBeenCalled();
     expect(root.querySelector("[data-testid=onboarding-error]")).not.toBeNull();
+  });
+
+  it("reuses the idempotency key when the same project is retried after a lost answer", async () => {
+    api.GET.mockResolvedValue({ response: { ok: true }, data: [] });
+    api.createProject.mockRejectedValueOnce(new TypeError("network down")).mockRejectedValueOnce(new TypeError("network down"));
+    const root = mount();
+    await renderOnboarding(root, fakeDesktop(), emptySession({ schema: 1, status: "in_progress", current: "projet" }));
+    const submit = async (name: string): Promise<void> => {
+      root.querySelector<HTMLInputElement>("#project-name-input")!.value = name;
+      root.querySelector("[data-testid=project-create-form]")!.dispatchEvent(new Event("submit", { cancelable: true }));
+      await tick(10);
+    };
+    await submit("Jeu Phare");
+    expect(root.querySelector("[data-testid=onboarding-error]")?.textContent).toContain("La création a échoué");
+    await submit("Jeu Phare");
+    api.createProject.mockResolvedValueOnce({ id: PROJECT, slug: "autre", name: "Autre" });
+    await submit("Autre");
+    const keys = api.createProject.mock.calls.map((call) => call[2]);
+    expect(keys[0]).toBe(keys[1]);
+    expect(keys[2]).not.toBe(keys[0]);
   });
 
   it("offers a retry after the project list failed, and shows the list once it answers", async () => {
