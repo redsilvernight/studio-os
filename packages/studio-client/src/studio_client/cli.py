@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import getpass
 import json
+import os
 import sys
 import uuid
 from collections.abc import Awaitable, Callable, Sequence
@@ -28,6 +29,7 @@ from studio_client.context import (
     ContextPackageOptions,
 )
 from studio_client.errors import StudioApiError
+from studio_client.hooks import HARNESSES, deploy_hooks, detect_harnesses
 from studio_client.knowledge import GraphifyGraphProvider, ScopePolicy, VaultMemoryProvider
 from studio_client.outbox import OutboxStore, connect, default_outbox_path
 from studio_client.outbox.legacy import main as legacy_outbox_main
@@ -132,6 +134,65 @@ def login(argv: Sequence[str] | None = None) -> int:
     origin = origin_of(args.api_base_url)
     KeyringTokenStore().set_token(origin, token)
     print(f"Token stored for {origin}.")
+    return 0
+
+
+def setup_hooks(argv: Sequence[str] | None = None) -> int:
+    """Deploy versioned session-start hooks (workflow W2b, DEC-0100): `agents
+    ensure` at every harness session start, so a fresh machine gets a stable
+    `agent_id` without manual wiring. Pure local command — no server, no
+    secret written (the template carries none; the machine token stays
+    keyring/env). Never edits user/global account configs: only Studio OS's
+    own hook files are written (DEC-0096 boundary); the one-line harness
+    registration is printed for the operator to paste."""
+    parser = argparse.ArgumentParser(
+        prog="studio-client setup-hooks",
+        description="Deploy Studio OS session-start hooks for detected harnesses.",
+    )
+    parser.add_argument(
+        "--harness",
+        choices=[spec.harness for spec in HARNESSES],
+        help="Deploy a single harness (default: all detected).",
+    )
+    parser.add_argument("--home", help="Home directory to deploy into (default: current user's).")
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Replace even a foreign (non-managed) hook file.",
+    )
+    parser.add_argument("--dry-run", action="store_true", help="Print the plan without writing.")
+    parser.add_argument(_JSON_FLAG, action="store_true", help="Print machine-readable JSON.")
+    args = parser.parse_args(argv)
+
+    home = Path(args.home).expanduser() if args.home else Path.home()
+    skipped: list[str] = []
+    if args.harness:
+        specs = [spec for spec in HARNESSES if spec.harness == args.harness]
+    else:
+        installed = {
+            spec.harness
+            for spec in detect_harnesses(home, tuple(os.environ.get("PATH", "").split(os.pathsep)))
+        }
+        specs = [spec for spec in HARNESSES if spec.harness in installed]
+        skipped = [spec.harness for spec in HARNESSES if spec.harness not in installed]
+    result = deploy_hooks(home, specs, overwrite=args.overwrite, dry_run=args.dry_run)
+    if args.json:
+        payload = result.to_dict()
+        payload["skipped"] = skipped
+        print(json.dumps(payload, indent=2))
+    else:
+        for report in result.reports:
+            line = f"{report.harness}: {report.status} ({report.target})"
+            if report.detail:
+                line += f" — {report.detail}"
+            print(line)
+        for name in skipped:
+            print(f"{name}: skipped (harness not detected under {home})")
+        if result.reports and not args.dry_run:
+            print(
+                "Next: register the hook in each harness (one line to paste, "
+                "see the W2b decision), then restart the harness session."
+            )
     return 0
 
 
@@ -1090,6 +1151,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     argv = list(argv if argv is not None else sys.argv[1:])
     if argv[:1] == ["login"]:
         raise SystemExit(login(argv[1:]))
+    if argv[:1] == ["setup-hooks"]:
+        raise SystemExit(setup_hooks(argv[1:]))
     if argv[:2] == ["outbox", "legacy"]:
         raise SystemExit(legacy_outbox_main(argv[2:]))
 
