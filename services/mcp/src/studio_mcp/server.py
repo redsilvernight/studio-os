@@ -6,6 +6,7 @@ from typing import Literal, get_args
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 
+from studio_mcp.tools.agents import studio_register_agent
 from studio_mcp.tools.ai_library import (
     studio_configure_runtime,
     studio_discover_definitions,
@@ -278,14 +279,29 @@ def create_server() -> MCPServer:
         annotations=_IDEMPOTENT_WRITE,
     )
     server.add_tool(
+        studio_register_agent,
+        name="studio_register_agent",
+        description=(
+            "Register an agent provenance identity for the caller's own machine "
+            "(display_name required; agent_kind, agent_profile, harness, provider, "
+            "model optional). machine_id is always derived from the authenticated "
+            "machine, never supplied. Requires a writer role (read-only callers fail "
+            "with forbidden). Registration confers no permission; it exists only to "
+            "attribute AI work logs. Pass idempotency_key when retrying a call that "
+            "may have already succeeded — replaying the same key+arguments returns "
+            "the original agent instead of a duplicate; the same key with different "
+            "arguments fails with idempotency_key_payload_mismatch."
+        ),
+    )
+    server.add_tool(
         studio_log_ai_work,
         name="studio_log_ai_work",
         description=(
             "Log AI work: creates a new work ledger entry when ai_work_id is "
             "omitted, or updates the existing entry (status/changed_files/tests_run) "
             "when given. Requires a writer role. New entries must reference an agent attached to "
-            "the caller's own machine — register one first over HTTP (POST /api/v1/agents), "
-            "since agent registration is HTTP-only; a foreign or unknown agent fails with "
+            "the caller's own machine — register one first via studio_register_agent "
+            "(or HTTP POST /api/v1/agents); a foreign or unknown agent fails with "
             "actor_not_owned. Updating is limited to the owning machine's entries, and resolving "
             "a review (approved / changes requested) additionally requires a privileged role."
         ),
