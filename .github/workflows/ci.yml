@@ -13,8 +13,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
       - name: Install Python
@@ -29,8 +29,8 @@ jobs:
   typecheck:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
       - name: Install Python
@@ -46,8 +46,8 @@ jobs:
       run:
         working-directory: dashboard
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -84,8 +84,8 @@ jobs:
       # for the shared source of state, even in CI.
       STUDIO_TEST_DATABASE_URL: postgresql+asyncpg://studio:studio@localhost:5432/studio_os_test
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
       - name: Install Python

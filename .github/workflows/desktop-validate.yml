@@ -32,11 +32,11 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
       - uses: dtolnay/rust-toolchain@stable
@@ -72,7 +72,7 @@ jobs:
         run: node scripts/annotate-results.mjs install-test-results.json
         working-directory: desktop
       - name: Upload the unsigned development installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: studio-desktop-unsigned-installer
           path: desktop/src-tauri/target/release/bundle/nsis/*.exe
