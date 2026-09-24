@@ -6,6 +6,7 @@ import { webPlatform } from "../platform/web";
 import { fakeDesktop } from "../testSupport/fakeDesktop";
 import type { ComponentState } from "../platform/generated/local-contracts.generated";
 import { parseRoute } from "../router";
+import { INITIAL_ONBOARDING_STATE, ONBOARDING_STORAGE_KEY } from "../onboarding/state";
 
 const active: ReturnType<typeof mountGraphPage>[] = [];
 function mount(...args: Parameters<typeof mountGraphPage> extends [HTMLElement, ...infer R] ? R : never) {
@@ -24,6 +25,15 @@ describe("graph pages", () => {
     const desktop = mount("code", { platform: fakeDesktop() }); await desktop.ready;
     expect(desktop.root.textContent).toContain("Aucun dossier actif");
     expect(desktop.root.querySelector("svg")).toBeNull();
+  });
+  it("falls back to the workspace remembered by onboarding in Desktop", async () => {
+    const id = "11111111-1111-4111-8111-111111111111";
+    localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify({ ...INITIAL_ONBOARDING_STATE, workspaceId: id }));
+    try {
+      const view = mount("knowledge", { platform: fakeDesktop() }); await view.ready;
+      expect(view.root.textContent).not.toContain("Aucun dossier actif");
+      expect(view.root.querySelector<HTMLAnchorElement>('a[href^="#/graphs/code"]')?.getAttribute("href")).toBe(`#/graphs/code/${id}`);
+    } finally { localStorage.removeItem(ONBOARDING_STORAGE_KEY); }
   });
   it.each(["ready", "stale", "indexing", "error", "unavailable", "permission_denied", "disabled", "not_installed", "incompatible"] as ComponentState[])("displays %s explicitly", async (state) => {
     const source = createFixtureGraphSource("knowledge", "small", state);
