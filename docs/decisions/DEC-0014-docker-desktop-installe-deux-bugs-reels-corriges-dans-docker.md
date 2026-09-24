@@ -55,3 +55,16 @@ seulement "healthy" au sens du healthcheck :
 
 Stack arretee (`docker compose down`) apres validation — pas de service
 Docker laisse tourner en permanence sur cette machine de dev.
+
+## Amendement 2026-09-24 — images MinIO communautaires
+
+Valide par l'humain le 2026-09-24. `quay.io/minio/minio` et `quay.io/minio/mc`
+repondent desormais `401 UNAUTHORIZED` : MinIO ne publie plus d'images pour
+l'edition communautaire, et l'etape CI « Start MinIO » echouait. Solution
+transitoire : les builds communautaires Pigsty `pgsty/minio` et `pgsty/mc`,
+epingles par digest dans `docker/docker-compose.yml` et
+`.github/workflows/ci.yml`. Ce sont les memes binaires, avec la meme commande
+`server /data`, et `mc` est inclus pour le healthcheck. Verification locale :
+bucket prive cree et 14 tests `tests/api/test_transfers_*` verts (URLs
+pre-signees, multipart). Une migration vers un stockage S3 maintenu (Garage
+pressenti) reste a decider separement.
