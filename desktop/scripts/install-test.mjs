@@ -248,7 +248,7 @@ async function main() {
       check("launch.updater_not_configured_in_dev_installer", upd.ok && upd.value?.state === "not_configured", JSON.stringify(upd));
     } finally {
       if (browser) await browser.close().catch(() => {});
-      spawnSync("pwsh", ["-NoProfile", "-Command", `(Get-Process -Id ${app.pid} -ErrorAction SilentlyContinue).CloseMainWindow() | Out-Null`], { stdio: "ignore" });
+      spawnSync("powershell", ["-NoProfile", "-Command", `(Get-Process -Id ${app.pid} -ErrorAction SilentlyContinue).CloseMainWindow() | Out-Null`], { stdio: "ignore" });
       for (let i = 0; i < 20 && (processCount("studio-desktop.exe") > 0 || processCount("studio-daemon.exe") > 0); i++) await sleep(500);
       const leftover = processCount("studio-desktop.exe") + processCount("studio-daemon.exe");
       if (leftover > 0) spawnSync("taskkill", ["/IM", "studio-daemon.exe", "/T", "/F"], { stdio: "ignore" });
