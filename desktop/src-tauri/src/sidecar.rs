@@ -20,6 +20,7 @@ const SIDECAR_DIR: &str = "sidecar";
 const MANIFEST_FILE: &str = "sidecar-manifest.json";
 pub const SERVER_ORIGIN_ENV: &str = "STUDIO_DESKTOP_SERVER_ORIGIN";
 pub const ALLOW_INSECURE_ORIGIN_ENV: &str = "STUDIO_DESKTOP_ALLOW_INSECURE_ORIGIN";
+pub const AUTOSTART_ENV: &str = "STUDIO_DAEMON_AUTOSTART";
 const EXCHANGE_TIMEOUT: Duration = Duration::from_secs(20);
 const MAX_LINE_BYTES: usize = 2 * 1024 * 1024;
 const RESTART_WINDOW: Duration = Duration::from_secs(60);
@@ -165,8 +166,8 @@ impl Inner {
             cmd.env("STUDIO_DAEMON_PERSIST", "1");
         }
         match &self.origin {
-            Some(origin) => cmd.env(SERVER_ORIGIN_ENV, origin),
-            None => cmd.env_remove(SERVER_ORIGIN_ENV),
+            Some(origin) => cmd.env(SERVER_ORIGIN_ENV, origin).env(AUTOSTART_ENV, "1"),
+            None => cmd.env_remove(SERVER_ORIGIN_ENV).env_remove(AUTOSTART_ENV),
         };
         if self.remote_http_build_opt_in {
             cmd.env(ALLOW_INSECURE_ORIGIN_ENV, "1");
