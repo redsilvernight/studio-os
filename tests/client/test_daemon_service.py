@@ -105,6 +105,20 @@ def test_profile_mismatch_is_fail_closed(tmp_path) -> None:
     assert answer["payload"]["error"]["code"] == "identity_mismatch"
 
 
+def test_start_without_enrolled_machine_is_refused_not_raised(tmp_path) -> None:
+    daemon = DaemonController(
+        ClientConfig(api_base_url="https://studio.example/api/v1", profile_id="main"),
+        data_root=tmp_path,
+    )
+    control = DaemonControlRequest(action=DaemonAction.START, profile=daemon._profile())
+
+    result = daemon.control(control)
+
+    assert result.outcome == "unavailable"
+    assert result.error is not None and result.error.code == "daemon_unavailable"
+    assert result.status.state == "stopped"
+
+
 def test_stale_expected_instance_is_refused_before_control(tmp_path) -> None:
     daemon = controller(tmp_path)
     service = BridgeService(daemon)

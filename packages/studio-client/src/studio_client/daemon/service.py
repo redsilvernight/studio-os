@@ -444,6 +444,13 @@ class DaemonController:
                     status=self._status(),
                     error=error,
                 )
+            if self.config.machine_id is None:
+                return self._result(
+                    request,
+                    DaemonControlOutcome.UNAVAILABLE,
+                    LocalErrorCode.DAEMON_UNAVAILABLE,
+                    "This machine is not enrolled yet; the daemon runtime cannot start.",
+                )
             runtime = DaemonRuntime(
                 self.config,
                 data_root=self.data_root,
