@@ -69,7 +69,12 @@ from studio_api.db.models.roadmap import (
 )
 from studio_api.db.models.task import TaskModel
 from studio_api.services import events as events_service
-from studio_api.services.authz import Principal, ensure_can_write
+from studio_api.services.authz import (
+    Principal,
+    ProjectAction,
+    ensure_can_write,
+    ensure_project_access,
+)
 
 
 # --- errors ---
@@ -249,6 +254,37 @@ async def lock_roadmap(session: AsyncSession, roadmap_id: uuid.UUID) -> RoadmapM
     return roadmap
 
 
+async def ensure_roadmap_access(
+    session: AsyncSession,
+    principal: Principal,
+    roadmap_id: uuid.UUID,
+    action: ProjectAction = "read",
+) -> RoadmapModel:
+    """Load a roadmap (404 when absent) and check its project level
+    (DEC-0100 §7): an inaccessible project answers 403 before anything of the
+    roadmap is returned."""
+    roadmap = await session.get(RoadmapModel, roadmap_id)
+    if roadmap is None:
+        raise not_found()
+    ensure_project_access(principal, roadmap.project_id, action)
+    return roadmap
+
+
+async def authorize_roadmap_write(
+    session: AsyncSession, principal: Principal, roadmap_id: uuid.UUID
+) -> None:
+    """Project then role check of a roadmap mutation, run ahead of the
+    idempotency replay short-circuit (DEC-0036, DEC-0100 §12)."""
+    await ensure_roadmap_access(session, principal, roadmap_id, "write")
+    ensure_can_write(principal, "roadmap")
+
+
+def authorize_roadmap_create(principal: Principal, project_id: uuid.UUID) -> None:
+    """Project then role check of a roadmap creation or import."""
+    ensure_project_access(principal, project_id, "write")
+    ensure_can_write(principal, "roadmap")
+
+
 def guard_write(
     principal: Principal,
     roadmap: RoadmapModel,
@@ -261,6 +297,7 @@ def guard_write(
     (`POST .../proposals`, `WriteKind.PROPOSAL`) so the change becomes a pending
     revision a human reviews: refused explicitly here, never silently applied
     and never dropped."""
+    ensure_project_access(principal, roadmap.project_id, "write")
     ensure_can_write(principal, "roadmap")
     current = RoadmapStatus(roadmap.status)
     if not write_allowed(current, kind):

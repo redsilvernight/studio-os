@@ -16,7 +16,12 @@ from studio_api.db.models.task import TaskModel
 from studio_api.services import claims as claims_service
 from studio_api.services import events as events_service
 from studio_api.services import tasks as tasks_service
-from studio_api.services.authz import Principal, ensure_can_write
+from studio_api.services.authz import (
+    Principal,
+    ensure_can_write,
+    ensure_project_access,
+    project_visibility_clause,
+)
 
 _MAX_TASKS_SCANNED = 500
 _MAX_RANKING_ENTRIES = 50
@@ -66,7 +71,7 @@ async def _priority_analysis(tasks: list[TaskModel]) -> dict[str, object]:
 
 
 async def _blocker_detection(
-    session: AsyncSession, project_id: UUID, tasks: list[TaskModel]
+    session: AsyncSession, principal: Principal, project_id: UUID, tasks: list[TaskModel]
 ) -> dict[str, object]:
     blocked_tasks: list[dict[str, object]] = [
         {"task_id": str(t.id), "title": t.title, "reason": "task status is blocked"}
@@ -74,7 +79,7 @@ async def _blocker_detection(
         if t.status == "blocked"
     ]
     blockers: list[dict[str, object]] = list(blocked_tasks)
-    claims = await claims_service.list_claims(session, project_id=project_id)
+    claims = await claims_service.list_claims(session, principal, project_id=project_id)
     now = datetime.now(UTC)
     active = [c for c in claims if c.status == "active" and c.expires_at > now]
     seen: set[tuple[str, str]] = set()
@@ -104,12 +109,12 @@ async def _blocker_detection(
 
 
 async def _parallelization(
-    session: AsyncSession, project_id: UUID, tasks: list[TaskModel]
+    session: AsyncSession, principal: Principal, project_id: UUID, tasks: list[TaskModel]
 ) -> dict[str, object]:
     """Greedy groups of schedulable tasks (created/in_progress, never
     blocked) whose claimed resource paths are pairwise disjoint — safe to
     run concurrently without tripping a claim conflict."""
-    claims = await claims_service.list_claims(session, project_id=project_id)
+    claims = await claims_service.list_claims(session, principal, project_id=project_id)
     now = datetime.now(UTC)
     by_task: dict[str, list[tuple[str, str]]] = {}
     for claim in claims:
@@ -175,17 +180,32 @@ def _decomposition(task: TaskModel) -> dict[str, object]:
 
 
 async def list_producer_jobs(
-    session: AsyncSession, project_id: UUID | None = None, limit: int = 100
+    session: AsyncSession, principal: Principal, project_id: UUID | None = None, limit: int = 100
 ) -> list[ProducerJobModel]:
     stmt = select(ProducerJobModel).order_by(ProducerJobModel.created_at.desc()).limit(limit)
     if project_id is not None:
+        ensure_project_access(principal, project_id)
         stmt = stmt.where(ProducerJobModel.project_id == project_id)
+    elif (visible := project_visibility_clause(principal, ProducerJobModel.project_id)) is not None:
+        stmt = stmt.where(visible)
     result = await session.execute(stmt)
     return list(result.scalars().all())
 
 
-async def get_producer_job(session: AsyncSession, job_id: UUID) -> ProducerJobModel | None:
-    return await session.get(ProducerJobModel, job_id)
+async def get_producer_job(
+    session: AsyncSession, principal: Principal, job_id: UUID
+) -> ProducerJobModel | None:
+    job = await session.get(ProducerJobModel, job_id)
+    if job is not None:
+        ensure_project_access(principal, job.project_id)
+    return job
+
+
+def authorize_request(principal: Principal, project_id: UUID) -> None:
+    """Project then role check of a job request, run ahead of the
+    idempotency replay short-circuit (DEC-0036, DEC-0100 §12)."""
+    ensure_project_access(principal, project_id, "write")
+    ensure_can_write(principal, "producer_job")
 
 
 def _producer_event_id(job_id: UUID, status: str) -> UUID:
@@ -199,7 +219,7 @@ async def request_producer_job(
     is already `completed`/`failed`. Creates the row, never mutates
     `Task`/`ResourceClaim`: a `decomposition` result is a proposal the
     caller materializes via `POST /tasks`."""
-    ensure_can_write(principal, "producer_job")
+    authorize_request(principal, job_in.project_id)
     if job_in.kind == ProducerJobKind.DECOMPOSITION and job_in.task_id is None:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -250,14 +270,14 @@ async def request_producer_job(
 
     try:
         tasks = await tasks_service.list_tasks(
-            session, project_id=job_in.project_id, limit=_MAX_TASKS_SCANNED
+            session, principal, project_id=job_in.project_id, limit=_MAX_TASKS_SCANNED
         )
         if job_in.kind == ProducerJobKind.PRIORITY_ANALYSIS:
             result = await _priority_analysis(tasks)
         elif job_in.kind == ProducerJobKind.BLOCKER_DETECTION:
-            result = await _blocker_detection(session, job_in.project_id, tasks)
+            result = await _blocker_detection(session, principal, job_in.project_id, tasks)
         elif job_in.kind == ProducerJobKind.PARALLELIZATION:
-            result = await _parallelization(session, job_in.project_id, tasks)
+            result = await _parallelization(session, principal, job_in.project_id, tasks)
         else:
             assert task is not None
             result = _decomposition(task)

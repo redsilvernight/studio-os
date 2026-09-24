@@ -13,7 +13,13 @@ from studio_contracts.events import ActorType, EventCreate, EventType
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.ai_work import AIWorkLogModel
 from studio_api.services import events as events_service
-from studio_api.services.authz import Principal, ensure_can_write, forbidden
+from studio_api.services.authz import (
+    Principal,
+    ensure_can_write,
+    ensure_project_access,
+    forbidden,
+    project_visibility_clause,
+)
 
 _EVENT_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "studio-os/ai-work-events")
 
@@ -60,21 +66,34 @@ async def _emit_ai_work_event(
 
 
 async def list_ai_work(
-    session: AsyncSession, project_id: uuid.UUID | None = None, task_id: uuid.UUID | None = None
+    session: AsyncSession,
+    principal: Principal,
+    project_id: uuid.UUID | None = None,
+    task_id: uuid.UUID | None = None,
 ) -> list[AIWorkLogModel]:
     stmt = select(AIWorkLogModel)
     if project_id is not None:
+        ensure_project_access(principal, project_id)
         stmt = stmt.where(AIWorkLogModel.project_id == project_id)
+    elif (visible := project_visibility_clause(principal, AIWorkLogModel.project_id)) is not None:
+        stmt = stmt.where(visible)
     if task_id is not None:
         stmt = stmt.where(AIWorkLogModel.task_id == task_id)
     result = await session.execute(stmt)
     return list(result.scalars().all())
 
 
+def authorize_create(principal: Principal, project_id: uuid.UUID) -> None:
+    """Project then role check of an AI work entry creation, run ahead of the
+    idempotency replay short-circuit (DEC-0036, DEC-0100 §12)."""
+    ensure_project_access(principal, project_id, "write")
+    ensure_can_write(principal, "ai_work")
+
+
 async def create_ai_work(
     session: AsyncSession, principal: Principal, work_in: AIWorkLogCreate
 ) -> AIWorkLogModel:
-    ensure_can_write(principal, "ai_work")
+    authorize_create(principal, work_in.project_id)
     agent = await session.get(AgentModel, work_in.agent_id)
     if agent is None or agent.machine_id != principal.machine.id:
         raise HTTPException(
@@ -151,6 +170,7 @@ def _ensure_can_resolve_review(
 async def update_ai_work(
     session: AsyncSession, principal: Principal, work: AIWorkLogModel, work_in: AIWorkLogUpdate
 ) -> AIWorkLogModel:
+    ensure_project_access(principal, work.project_id, "write")
     previous_status = work.status
     if work_in.status in _REVIEW_RESOLUTIONS:
         _ensure_can_resolve_review(principal, work, work_in.status)

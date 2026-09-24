@@ -46,23 +46,30 @@ from studio_api.services.authz import Principal
 
 class RoadmapServicePort(Protocol):
     """Structural contract `studio_api.services.roadmaps` satisfies.
-    Module-level functions, `session` first, `principal` on writes only."""
+    Module-level functions, `session` then `principal` (DEC-0100)."""
 
     async def list_roadmaps(
         self,
         session: AsyncSession,
+        principal: Principal,
         project_id: UUID,
         roadmap_status: RoadmapStatus | None = None,
     ) -> list[RoadmapSummary]: ...
 
-    async def get_roadmap(self, session: AsyncSession, roadmap_id: UUID) -> Roadmap: ...
+    async def get_roadmap(
+        self, session: AsyncSession, principal: Principal, roadmap_id: UUID
+    ) -> Roadmap: ...
 
     async def import_roadmap(
         self, session: AsyncSession, principal: Principal, payload: RoadmapImport
     ) -> Roadmap: ...
 
     async def preview_hydration(
-        self, session: AsyncSession, roadmap_id: UUID, payload: HydrationRequest
+        self,
+        session: AsyncSession,
+        principal: Principal,
+        roadmap_id: UUID,
+        payload: HydrationRequest,
     ) -> HydrationResult: ...
 
     async def apply_hydration(
@@ -111,6 +118,7 @@ class RoadmapServicePort(Protocol):
     async def list_revisions(
         self,
         session: AsyncSession,
+        principal: Principal,
         roadmap_id: UUID,
         kind: RevisionKind | None = None,
         revision_status: RevisionStatus | None = None,

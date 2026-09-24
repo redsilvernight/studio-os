@@ -30,21 +30,25 @@ def pytest_configure(config: pytest.Config) -> None:
 def _backfilled_memberships(request: pytest.FixtureRequest) -> Iterator[None]:
     """Reproduces the 0014 backfill for the tests written before project
     isolation: every user created in the test (outsiders excepted) is a
-    member of every project, whatever the creation order. Tests marked
-    `isolation` get the real deny-by-default behavior."""
+    member of every project, whatever the creation order — through any
+    session of the test, the app's own included. A Principal is loaded once
+    and often before the test creates its project, so the scope of those
+    members is the global one (projects created later, or none at all yet).
+    Tests marked `isolation` get the real deny-by-default behavior."""
     if "db_session" not in request.fixturenames or request.node.get_closest_marker("isolation"):
         yield
         return
 
     from sqlalchemy import event, text
+    from sqlalchemy.orm import Session
     from studio_api.db.models.project import ProjectModel
     from studio_api.db.models.user import UserModel
+    from studio_api.services import authz, events
 
     db_session = request.getfixturevalue("db_session")
     if db_session is None:  # suites that stub the session out
         yield
         return
-    sync_session = db_session.sync_session
 
     def _grant(session: Any, _flush_context: Any) -> None:
         conn = session.connection()
@@ -67,8 +71,19 @@ def _backfilled_memberships(request: pytest.FixtureRequest) -> Iterator[None]:
                     {"uid": obj.id},
                 )
 
-    event.listen(sync_session, "after_flush", _grant)
+    real_scope = authz.load_project_scope
+
+    async def _scope(session: Any, user_id: Any, role: Any) -> Any:
+        user = await session.get(UserModel, user_id)
+        if user is not None and user.display_name.startswith(OUTSIDER_PREFIX):
+            return await real_scope(session, user_id, role)
+        return authz.ALL_PROJECTS
+
+    monkeypatch = request.getfixturevalue("monkeypatch")
+    monkeypatch.setattr(authz, "load_project_scope", _scope)
+    monkeypatch.setattr(events, "load_project_scope", _scope)
+    event.listen(Session, "after_flush", _grant)
     try:
         yield
     finally:
-        event.remove(sync_session, "after_flush", _grant)
+        event.remove(Session, "after_flush", _grant)

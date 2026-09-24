@@ -580,6 +580,7 @@ async def test_out_of_range_arguments_are_rejected(
     assert result["error_code"] == "invalid_argument"
 
 
+@pytest.mark.isolation
 async def test_bad_ids_and_unknown_project(project: ProjectModel, auth_ctx: FakeContext) -> None:
     assert dump(await studio_prepare_context("nope", "x", auth_ctx))["error_code"] == (
         "invalid_argument"

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Any, Literal
 
@@ -66,6 +66,16 @@ async def load_project_scope(session: AsyncSession, user_id: uuid.UUID, role: Ro
         select(ProjectMembershipModel.project_id).where(ProjectMembershipModel.user_id == user_id)
     )
     return frozenset(rows.scalars().all())
+
+
+def with_created_project(principal: Principal, project_id: uuid.UUID) -> Principal:
+    """The Principal is loaded once per request (DEC-0100 §12), before a
+    project the request itself creates. Its creator is granted in the same
+    commit (§5), so the rest of the request sees that project too."""
+    scope = principal.project_scope
+    if isinstance(scope, frozenset):
+        return replace(principal, project_scope=scope | {project_id})
+    return principal
 
 
 def has_project_access(principal: Principal, project_id: uuid.UUID) -> bool:

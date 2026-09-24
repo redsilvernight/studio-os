@@ -54,7 +54,12 @@ from studio_api.services import library as library_service
 from studio_api.services import projects as projects_service
 from studio_api.services import runtime_bindings as runtime_bindings_service
 from studio_api.services import tasks as tasks_service
-from studio_api.services.authz import Principal, ensure_can_provision, ensure_can_write
+from studio_api.services.authz import (
+    Principal,
+    ensure_can_provision,
+    ensure_can_write,
+    with_created_project,
+)
 from studio_api.services.roadmap_port import RoadmapServicePort
 
 _PROJECT_LEVELS = (RuntimeLevel.PROJECT_OVERRIDE, RuntimeLevel.PROJECT_DEFAULT)
@@ -530,11 +535,14 @@ class StudioServicesInitializationTarget:
         project = await projects_service.create_project(
             self._session, spec.slug, spec.name, spec.description, creator=self._principal.user
         )
+        self._principal = with_created_project(self._principal, project.id)
         return project.id
 
     async def roadmap_ids_by_title(self, project_id: UUID) -> dict[str, UUID]:
         result: dict[str, UUID] = {}
-        for roadmap in await self._roadmaps().list_roadmaps(self._session, project_id):
+        for roadmap in await self._roadmaps().list_roadmaps(
+            self._session, self._principal, project_id
+        ):
             result[str(roadmap.title)] = roadmap.id
         return result
 
@@ -556,7 +564,9 @@ class StudioServicesInitializationTarget:
         return roadmap.id
 
     async def task_ids_by_title(self, project_id: UUID) -> dict[str, UUID]:
-        tasks = await tasks_service.list_tasks(self._session, project_id=project_id, limit=1000)
+        tasks = await tasks_service.list_tasks(
+            self._session, self._principal, project_id=project_id, limit=1000
+        )
         return {task.title: task.id for task in tasks}
 
     async def create_task(self, project_id: UUID, task: InitializationTask) -> UUID:
@@ -572,7 +582,7 @@ class StudioServicesInitializationTarget:
     ) -> None:
         # An existing link is a no-op even when the roadmap is frozen for review
         # (`proposed`), so replaying a proposed-mode plan never fails on its own links.
-        roadmap = await self._roadmaps().get_roadmap(self._session, roadmap_id)
+        roadmap = await self._roadmaps().get_roadmap(self._session, self._principal, roadmap_id)
         for phase in roadmap.phases:
             for step in phase.steps:
                 if step.key == step_key and any(

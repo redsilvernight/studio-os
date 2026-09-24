@@ -24,7 +24,8 @@ from uuid import UUID
 from mcp.server.mcpserver import Context
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.services import idempotency as idempotency_service
-from studio_api.services.authz import Principal, ensure_can_write
+from studio_api.services import roadmap_support
+from studio_api.services.authz import Principal
 from studio_api.services.roadmap_port import RoadmapServicePort
 from studio_contracts.roadmaps import (
     HydrationApplyRequest,
@@ -206,7 +207,7 @@ async def studio_get_roadmap(
     """Read a project's roadmap summary and the current phase/step position.
     Absence of a roadmap is a normal state, not an error."""
 
-    async def _handler(session: AsyncSession, _principal: Principal) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed = parse_uuid(project_id, "project_id")
         if isinstance(parsed, dict):
             return parsed
@@ -218,7 +219,7 @@ async def studio_get_roadmap(
                 return {"error_code": "invalid_argument", "message": f"unknown status: {status!r}"}
         bounded_limit = max(1, min(limit, MAX_LIMIT))
         bounded_chars = max(MIN_MAX_CHARS, min(max_chars, MAX_MAX_CHARS))
-        summaries = await _roadmaps().list_roadmaps(session, parsed, parsed_status)
+        summaries = await _roadmaps().list_roadmaps(session, principal, parsed, parsed_status)
         roadmaps = [
             _compact_summary(summary, bounded_chars) for summary in summaries[:bounded_limit]
         ]
@@ -228,12 +229,13 @@ async def studio_get_roadmap(
         active = None
         pending_proposals: list[dict[str, Any]] = []
         if active_summary is not None:
-            detail = await _roadmaps().get_roadmap(session, active_summary.id)
+            detail = await _roadmaps().get_roadmap(session, principal, active_summary.id)
             active = _current_position(detail, bounded_chars)
             pending_proposals = [
                 _compact_revision(revision, bounded_chars)
                 for revision in await _roadmaps().list_revisions(
                     session,
+                    principal,
                     active_summary.id,
                     RevisionKind.PROPOSAL,
                     RevisionStatus.PENDING,
@@ -293,7 +295,6 @@ async def studio_propose_roadmap(
             if isinstance(candidate, dict):
                 return candidate
             parsed_agent = candidate
-        ensure_can_write(principal, "roadmap")
         provenance = WriteProvenance(origin=RoadmapOrigin.AI_PROPOSAL, agent_id=parsed_agent)
 
         if roadmap_id is not None:
@@ -305,6 +306,7 @@ async def studio_propose_roadmap(
                     "error_code": "invalid_argument",
                     "message": "base_revision_no is required when roadmap_id is given",
                 }
+            await roadmap_support.authorize_roadmap_write(session, principal, parsed_roadmap)
             proposal = ProposalCreate(
                 base_revision_no=base_revision_no,
                 document=document,
@@ -334,6 +336,7 @@ async def studio_propose_roadmap(
                 session, idempotency_key, "MCP studio_propose_roadmap", request_hash, _propose
             )
 
+        roadmap_support.authorize_roadmap_create(principal, parsed)
         request = RoadmapImport(
             project_id=parsed, document=document, submit=submit, provenance=provenance
         )
@@ -366,12 +369,12 @@ async def studio_preview_roadmap_hydration(
     """Preview the Tasks a roadmap would create/reuse/skip — read-only, writes
     nothing, works on any non-archived status."""
 
-    async def _handler(session: AsyncSession, _principal: Principal) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed = parse_uuid(roadmap_id, "roadmap_id")
         if isinstance(parsed, dict):
             return parsed
         request = HydrationRequest(step_keys=step_keys)
-        result = await _roadmaps().preview_hydration(session, parsed, request)
+        result = await _roadmaps().preview_hydration(session, principal, parsed, request)
         return _compact_hydration(result, max(1, min(limit, MAX_LIMIT)))
 
     return await run_tool(ctx, _handler)
@@ -394,7 +397,7 @@ async def studio_apply_roadmap_hydration(
         parsed = parse_uuid(roadmap_id, "roadmap_id")
         if isinstance(parsed, dict):
             return parsed
-        ensure_can_write(principal, "roadmap")
+        await roadmap_support.authorize_roadmap_write(session, principal, parsed)
         request = HydrationApplyRequest(step_keys=step_keys, expected_version=expected_version)
 
         async def _apply() -> dict[str, Any]:
@@ -454,7 +457,7 @@ async def studio_update_roadmap_step(
             if isinstance(candidate, dict):
                 return candidate
             parsed_agent = candidate
-        ensure_can_write(principal, "roadmap")
+        await roadmap_support.authorize_roadmap_write(session, principal, parsed)
         progress = StepProgressUpdate(
             state_override=override,
             clear_state_override=clear_state_override,

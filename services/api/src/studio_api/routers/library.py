@@ -14,7 +14,7 @@ from studio_contracts.library import (
     LibraryVersionCreate,
 )
 
-from studio_api.deps import CurrentMachine, CurrentPrincipal, DbSession
+from studio_api.deps import CurrentPrincipal, DbSession
 from studio_api.openapi_meta import (
     IDEMPOTENCY_KEY_DESCRIPTION,
     RESP_401_UNAUTHORIZED,
@@ -33,7 +33,6 @@ from studio_api.openapi_meta import (
 )
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import library as library_service
-from studio_api.services.authz import ensure_can_write
 
 router = APIRouter(prefix="/api/v1/library", tags=["library"])
 locks_router = APIRouter(prefix="/api/v1/library-locks", tags=["library"])
@@ -45,13 +44,14 @@ locks_router = APIRouter(prefix="/api/v1/library-locks", tags=["library"])
     description=(
         "List library definitions, optionally filtered. User-scope rows are "
         "visible to their owner (or an admin) only — collections never "
-        "count, list, or hint at another user's private resources."
+        "count, list, or hint at another user's private resources. Project "
+        "rows need their project, Studio rows at least one project; a "
+        "`project_id` the caller cannot access answers `403 forbidden`."
     ),
-    responses={**RESP_401_UNAUTHORIZED},
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
 )
 async def list_library(
     session: DbSession,
-    machine: CurrentMachine,
     principal: CurrentPrincipal,
     kind: str | None = Query(default=None),
     scope: str | None = Query(default=None),
@@ -104,7 +104,7 @@ async def create_library_resource(
         default=None, alias="Idempotency-Key", description=IDEMPOTENCY_KEY_DESCRIPTION
     ),
 ) -> LibraryResource:
-    ensure_can_write(principal, "library")
+    library_service.authorize_create(principal, resource_in.scope.value, resource_in.project_id)
 
     async def _create() -> LibraryResource:
         resource, _ = await library_service.create_resource(session, principal, resource_in)
@@ -188,7 +188,7 @@ async def create_library_version(
     resource = await library_service.get_resource(session, principal, resource_id)
     if resource is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "library resource not found")
-    ensure_can_write(principal, "library")
+    library_service.authorize_write(principal, resource)
 
     async def _create() -> LibraryVersion:
         row = await library_service.create_resource_version(
@@ -236,7 +236,7 @@ async def activate_library_version(
     resource = await library_service.get_resource(session, principal, resource_id)
     if resource is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "library resource not found")
-    ensure_can_write(principal, "library")
+    library_service.authorize_write(principal, resource)
 
     async def _activate() -> LibraryResource:
         updated = await library_service.activate_resource_version(
@@ -288,7 +288,7 @@ async def deprecate_library_resource(
     resource = await library_service.get_resource(session, principal, resource_id)
     if resource is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "library resource not found")
-    ensure_can_write(principal, "library")
+    library_service.authorize_write(principal, resource)
 
     async def _deprecate() -> LibraryResource:
         updated = await library_service.deprecate_resource(
@@ -351,7 +351,7 @@ async def set_library_lock(
         default=None, alias="Idempotency-Key", description=IDEMPOTENCY_KEY_DESCRIPTION
     ),
 ) -> LibraryProjectLock:
-    ensure_can_write(principal, "library")
+    library_service.authorize_lock(principal, lock_in.project_id)
 
     async def _create() -> LibraryProjectLock:
         return LibraryProjectLock.model_validate(

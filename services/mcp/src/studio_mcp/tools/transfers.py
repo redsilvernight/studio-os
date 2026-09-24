@@ -99,6 +99,7 @@ async def studio_create_transfer_metadata(
                 return parsed
             parsed_task_id = parsed
 
+        transfers_service.authorize_create(principal, parsed_project_id)
         if parsed_project_id is None:
             project_slug = "unscoped"
         else:

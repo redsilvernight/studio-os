@@ -325,6 +325,7 @@ async def _select_tasks(
 
 async def _select_decisions(
     session: AsyncSession,
+    principal: Principal,
     project_id: uuid.UUID,
     task_id: uuid.UUID | None,
     terms: list[str],
@@ -334,7 +335,7 @@ async def _select_decisions(
 ) -> tuple[list[DecisionItem], int]:
     rows = [
         d
-        for d in await decisions_service.list_decisions(session, project_id=project_id)
+        for d in await decisions_service.list_decisions(session, principal, project_id=project_id)
         if d.status != "superseded"
     ]
     ranked: list[tuple[int, int, int, float, str, DecisionModel, Why]] = []
@@ -553,6 +554,7 @@ def _ai_work_item(work: AIWorkLogModel, why: Why, budget: _Budget) -> AIWorkItem
 
 async def _select_ai_work(
     session: AsyncSession,
+    principal: Principal,
     project_id: uuid.UUID,
     task_id: uuid.UUID | None,
     terms: list[str],
@@ -564,7 +566,7 @@ async def _select_ai_work(
     (newest first — the handoff packet lives here), then entries whose summary
     lexically overlaps the objective. Bounded by `limit` and its own budget
     slice, so the section can neither starve nor swamp the rest."""
-    rows = await ai_work_service.list_ai_work(session, project_id=project_id)
+    rows = await ai_work_service.list_ai_work(session, principal, project_id=project_id)
     linked: list[tuple[float, str, AIWorkLogModel]] = []
     lexical: list[tuple[int, float, str, AIWorkLogModel, list[str]]] = []
     for row in rows:
@@ -696,6 +698,7 @@ async def prepare_project_context(
         known_tasks[task.id] = "task"
     roadmap = await select_roadmap(
         session,
+        principal,
         project_id,
         task_id,
         known_tasks,
@@ -706,6 +709,7 @@ async def prepare_project_context(
         omitted[name] = omitted.get(name, 0) + count
     ai_work, ai_work_total = await _select_ai_work(
         session,
+        principal,
         project_id,
         task_id,
         terms,
@@ -714,7 +718,7 @@ async def prepare_project_context(
         omitted,
     )
     decisions, decisions_total = await _select_decisions(
-        session, project_id, task_id, terms, limit, budget, omitted
+        session, principal, project_id, task_id, terms, limit, budget, omitted
     )
     rules, rules_total, rules_capped = await _select_library(
         session,

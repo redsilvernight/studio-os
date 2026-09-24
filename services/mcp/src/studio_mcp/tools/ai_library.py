@@ -317,7 +317,17 @@ async def studio_publish_definition(
             return resource
 
         try:
-            ensure_can_write(principal, "library")
+            # Ahead of the idempotency replay short-circuit (DEC-0100 §12).
+            if action == "create":
+                if scope in {s.value for s in LibraryScope}:
+                    library_service.authorize_create(principal, str(scope), parsed_project)
+                else:
+                    ensure_can_write(principal, "library")
+            else:
+                loaded = await _load_resource(resource_id)
+                if isinstance(loaded, McpError):
+                    return loaded
+                library_service.authorize_write(principal, loaded)
         except HTTPException as exc:
             return _from_http(exc)
 
@@ -455,7 +465,7 @@ async def studio_configure_runtime(
         if isinstance(parsed_project, McpError):
             return parsed_project
         try:
-            ensure_can_write(principal, "runtime_binding")
+            bindings_service.authorize_create(principal, parsed_level, parsed_project)
         except HTTPException as exc:
             return _from_http(exc)
 

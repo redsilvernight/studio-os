@@ -39,6 +39,7 @@ async def test_get_project_state_rejects_bad_uuid(auth_ctx: FakeContext) -> None
     assert result["error_code"] == "invalid_argument"
 
 
+@pytest.mark.isolation
 async def test_get_project_state_unknown_project_is_forbidden_for_non_admin(
     auth_ctx: FakeContext,
 ) -> None:

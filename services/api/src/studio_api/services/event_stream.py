@@ -10,12 +10,31 @@ _QUEUE_MAXSIZE = 256
 
 _CLOSED = object()
 
+KEEPALIVE_SECONDS = 10.0
+"""Idle interval after which `receive` returns `KEEPALIVE` (DEC-0100 §9)."""
+
+
+class _Keepalive:
+    pass
+
+
+KEEPALIVE = _Keepalive()
+
 
 @dataclass(frozen=True)
 class StreamEvent:
     seq: int
     project_id: UUID
     envelope: EventEnvelope
+
+
+@dataclass(frozen=True)
+class AccessRevoked:
+    """Internal, never persisted signal (DEC-0100 §9): `user_id` lost its
+    membership of `project_id`; every stream of that pair closes."""
+
+    user_id: UUID
+    project_id: UUID
 
 
 _subscribers: set[asyncio.Queue[object]] = set()
@@ -31,7 +50,7 @@ def unsubscribe(queue: asyncio.Queue[object]) -> None:
     _subscribers.discard(queue)
 
 
-def publish(event: StreamEvent) -> None:
+def publish(event: StreamEvent | AccessRevoked) -> None:
     """In-process fan-out only (DEC-0018) — a single `api` replica, per
     docker/docker-compose.yml. A subscriber too slow to drain its queue is
     disconnected rather than blocking every other subscriber or growing
@@ -46,11 +65,22 @@ def publish(event: StreamEvent) -> None:
             queue.put_nowait(_CLOSED)
 
 
-async def receive(queue: asyncio.Queue[object]) -> StreamEvent | None:
-    """Returns the next event, or `None` once this subscriber has been
-    disconnected for falling behind (see `publish`)."""
-    item = await queue.get()
+def revoke_access(user_id: UUID, project_id: UUID) -> None:
+    """Called when a membership is removed, after its commit."""
+    publish(AccessRevoked(user_id=user_id, project_id=project_id))
+
+
+async def receive(
+    queue: asyncio.Queue[object], timeout: float | None = None
+) -> StreamEvent | AccessRevoked | _Keepalive | None:
+    """Returns the next item, `KEEPALIVE` when nothing arrived within
+    `timeout` seconds, or `None` once this subscriber has been disconnected
+    for falling behind (see `publish`)."""
+    try:
+        item = await asyncio.wait_for(queue.get(), timeout)
+    except TimeoutError:
+        return KEEPALIVE
     if item is _CLOSED:
         return None
-    assert isinstance(item, StreamEvent)
+    assert isinstance(item, StreamEvent | AccessRevoked)
     return item

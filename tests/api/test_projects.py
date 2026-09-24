@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 
+import pytest
 from httpx import AsyncClient
 from studio_api.db.models.project import ProjectModel
 
@@ -42,6 +43,7 @@ async def test_project_state_lists_active_tasks_and_claims(
     assert len(body["active_claims"]) == 1
 
 
+@pytest.mark.isolation
 async def test_unknown_project_is_forbidden_for_non_admin(
     client: AsyncClient, auth_headers: dict[str, str]
 ) -> None:
