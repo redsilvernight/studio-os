@@ -74,6 +74,11 @@ const canonicalText = (p) => readFileSync(p, "utf8").replace(/\r\n/g, "\n");
 const readJson = (p) => JSON.parse(canonicalText(p));
 const manifest = readJson(resolve(localDir, "manifest.json"));
 const allowlist = readJson(resolve(localDir, "allowlist.json"));
+// Every allowlisted command's request and response model is bundled: a
+// missing one makes buildRequest/parseAnswer refuse the command at runtime.
+for (const c of allowlist.commands) {
+  for (const m of [c.request, c.response]) if (!MODELS.includes(m)) MODELS.push(m);
+}
 const schemas = Object.fromEntries(
   MODELS.map((m) => [m, readJson(resolve(localDir, "schemas", `${m}.json`))]),
 );

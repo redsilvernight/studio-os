@@ -4,7 +4,7 @@
 
 export const LOCAL_PROTOCOL = "studio.local/v1" as const;
 export const LOCAL_SCHEMA_VERSION = 1 as const;
-export const LOCAL_CONTRACT_DIGEST = "d3e73df3bf3486061ec8448a93ac6c77b4a1fcad4616132281ceff0c049ab641" as const;
+export const LOCAL_CONTRACT_DIGEST = "1d5541d9deeb9a652c12a803e2e3b9c1849396629a1b03d5e94a39cad0348380" as const;
 
 export interface LocalCommandSpec {
   readonly command: string;
@@ -429,6 +429,16 @@ export const LOCAL_SCHEMAS: Readonly<Record<string, unknown>> = {
   "KnowledgeInitVaultResult": {"$defs":{"KnowledgeVaultState":{"enum":["missing","empty","markdown_existing","studios_vault"],"title":"KnowledgeVaultState","type":"string"}},"additionalProperties":false,"properties":{"created":{"items":{"type":"string"},"maxItems":32,"title":"Created","type":"array"},"skipped":{"items":{"type":"string"},"maxItems":32,"title":"Skipped","type":"array"},"state_before":{"$ref":"#/$defs/KnowledgeVaultState"},"workspace_id":{"format":"uuid","title":"Workspace Id","type":"string"}},"required":["workspace_id","state_before"],"title":"KnowledgeInitVaultResult","type":"object"},
   "HarnessVerifyRequest": {"additionalProperties":false,"description":"Ask the harness to prove it can reach Studi'OS via MCP. CONFIGURED\nmeans the config file is in place; VERIFIED means a real MCP call\nsucceeded end-to-end (auth + at least one tool call).","properties":{"adapter_id":{"pattern":"^[a-z][a-z0-9_.-]{0,63}$","title":"Adapter Id","type":"string"},"workspace_id":{"format":"uuid","title":"Workspace Id","type":"string"}},"required":["workspace_id","adapter_id"],"title":"HarnessVerifyRequest","type":"object"},
   "HarnessVerifyResult": {"$defs":{"ComponentId":{"enum":["desktop","bridge","daemon","workspace","knowledge","code_graph","harness","secret_store","watcher"],"title":"ComponentId","type":"string"},"LocalError":{"additionalProperties":false,"description":"The one structured error shape of the local stack. Never carries a\nsecret, a stack trace or an absolute local path: `message` and `details`\nare validated, bounded and safe to display or log.","properties":{"code":{"$ref":"#/$defs/LocalErrorCode"},"component":{"$ref":"#/$defs/ComponentId"},"correlation_id":{"anyOf":[{"pattern":"^[A-Za-z0-9_.:-]{1,64}$","type":"string"},{"type":"null"}],"default":null,"title":"Correlation Id"},"details":{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"type":"null"}]},"default":{},"title":"Details","type":"object"},"message":{"maxLength":500,"minLength":1,"title":"Message","type":"string"},"retryable":{"title":"Retryable","type":"boolean"}},"required":["code","message","component","retryable"],"title":"LocalError","type":"object"},"LocalErrorCode":{"description":"Closed, deliberately small taxonomy. Codes describe what the caller can\nbranch on; the human message and bounded details carry the rest.","enum":["invalid_request","unknown_command","payload_too_large","protocol_incompatible","capability_missing","not_supported","cancelled","timeout","internal_error","daemon_unavailable","daemon_already_running","daemon_crashed","identity_mismatch","wrong_profile","secret_absent","secret_inaccessible","secret_revoked","keyring_unavailable","workspace_config_missing","workspace_config_invalid","workspace_moved","workspace_inaccessible","project_unavailable","feature_disabled","provider_not_installed","provider_incompatible","permission_denied","index_absent","index_corrupt","language_unsupported","plan_expired"],"title":"LocalErrorCode","type":"string"},"VerifyState":{"enum":["unconfigured","configured","verified","failed"],"title":"VerifyState","type":"string"}},"additionalProperties":false,"properties":{"adapter_id":{"pattern":"^[a-z][a-z0-9_.-]{0,63}$","title":"Adapter Id","type":"string"},"details":{"additionalProperties":{"type":"string"},"default":{},"maxProperties":16,"title":"Details","type":"object"},"error":{"anyOf":[{"$ref":"#/$defs/LocalError"},{"type":"null"}],"default":null},"mcp_url":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Mcp Url"},"state":{"$ref":"#/$defs/VerifyState"}},"required":["adapter_id","state"],"title":"HarnessVerifyResult","type":"object"},
+  "CodeReindexRequest": {"$defs":{"CodeReindexMode":{"enum":["incremental","full_rebuild"],"title":"CodeReindexMode","type":"string"}},"additionalProperties":false,"properties":{"mode":{"$ref":"#/$defs/CodeReindexMode","default":"incremental"},"repo_names":{"default":[],"items":{"pattern":"^[a-z][a-z0-9_.-]{0,63}$","type":"string"},"maxItems":32,"title":"Repo Names","type":"array"},"workspace_id":{"format":"uuid","title":"Workspace Id","type":"string"}},"required":["workspace_id"],"title":"CodeReindexRequest","type":"object"},
+  "CodeReindexResult": {"$defs":{"ComponentId":{"enum":["desktop","bridge","daemon","workspace","knowledge","code_graph","harness","secret_store","watcher"],"title":"ComponentId","type":"string"},"ComponentState":{"description":"Shared state vocabulary of every optional local component (Knowledge,\nCode Graph, harness, watchers). `ready` is the only fully-served state;\n`stale` serves possibly outdated data explicitly; everything else refuses\nor degrades visibly — never silently.","enum":["disabled","not_installed","unavailable","starting","indexing","ready","stale","permission_denied","incompatible","stopping","recovering","error"],"title":"ComponentState","type":"string"},"LocalError":{"additionalProperties":false,"description":"The one structured error shape of the local stack. Never carries a\nsecret, a stack trace or an absolute local path: `message` and `details`\nare validated, bounded and safe to display or log.","properties":{"code":{"$ref":"#/$defs/LocalErrorCode"},"component":{"$ref":"#/$defs/ComponentId"},"correlation_id":{"anyOf":[{"pattern":"^[A-Za-z0-9_.:-]{1,64}$","type":"string"},{"type":"null"}],"default":null,"title":"Correlation Id"},"details":{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"type":"null"}]},"default":{},"title":"Details","type":"object"},"message":{"maxLength":500,"minLength":1,"title":"Message","type":"string"},"retryable":{"title":"Retryable","type":"boolean"}},"required":["code","message","component","retryable"],"title":"LocalError","type":"object"},"LocalErrorCode":{"description":"Closed, deliberately small taxonomy. Codes describe what the caller can\nbranch on; the human message and bounded details carry the rest.","enum":["invalid_request","unknown_command","payload_too_large","protocol_incompatible","capability_missing","not_supported","cancelled","timeout","internal_error","daemon_unavailable","daemon_already_running","daemon_crashed","identity_mismatch","wrong_profile","secret_absent","secret_inaccessible","secret_revoked","keyring_unavailable","workspace_config_missing","workspace_config_invalid","workspace_moved","workspace_inaccessible","project_unavailable","feature_disabled","provider_not_installed","provider_incompatible","permission_denied","index_absent","index_corrupt","language_unsupported","plan_expired"],"title":"LocalErrorCode","type":"string"}},"additionalProperties":false,"properties":{"accepted":{"title":"Accepted","type":"boolean"},"error":{"anyOf":[{"$ref":"#/$defs/LocalError"},{"type":"null"}],"default":null},"operation_id":{"anyOf":[{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","type":"string"},{"type":"null"}],"default":null,"title":"Operation Id"},"state":{"$ref":"#/$defs/ComponentState"}},"required":["accepted","state"],"title":"CodeReindexResult","type":"object"},
+  "KnowledgeGetDocumentRequest": {"additionalProperties":false,"properties":{"max_bytes":{"default":65536,"maximum":262144,"minimum":1,"title":"Max Bytes","type":"integer"},"uri":{"title":"Uri","type":"string"}},"required":["uri"],"title":"KnowledgeGetDocumentRequest","type":"object"},
+  "KnowledgeDocument": {"$defs":{"GraphNodeRef":{"additionalProperties":false,"properties":{"node_id":{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","title":"Node Id","type":"string"},"source_id":{"pattern":"^[a-z][a-z0-9_.-]{0,63}$","title":"Source Id","type":"string"}},"required":["source_id","node_id"],"title":"GraphNodeRef","type":"object"},"KnowledgeDocumentRef":{"additionalProperties":false,"properties":{"content_hash":{"pattern":"^[0-9a-f]{64}$","title":"Content Hash","type":"string"},"modified_at":{"format":"date-time","title":"Modified At","type":"string"},"title":{"maxLength":200,"minLength":1,"title":"Title","type":"string"},"uri":{"title":"Uri","type":"string"}},"required":["uri","title","content_hash","modified_at"],"title":"KnowledgeDocumentRef","type":"object"}},"additionalProperties":false,"properties":{"document":{"$ref":"#/$defs/KnowledgeDocumentRef"},"markdown":{"maxLength":262144,"title":"Markdown","type":"string"},"outgoing_links":{"default":[],"items":{"$ref":"#/$defs/GraphNodeRef"},"maxItems":200,"title":"Outgoing Links","type":"array"},"truncated":{"default":false,"title":"Truncated","type":"boolean"}},"required":["document","markdown"],"title":"KnowledgeDocument","type":"object"},
+  "KnowledgeReindexRequest": {"$defs":{"KnowledgeReindexMode":{"enum":["incremental","full_rebuild"],"title":"KnowledgeReindexMode","type":"string"}},"additionalProperties":false,"properties":{"mode":{"$ref":"#/$defs/KnowledgeReindexMode","default":"incremental"},"workspace_id":{"format":"uuid","title":"Workspace Id","type":"string"}},"required":["workspace_id"],"title":"KnowledgeReindexRequest","type":"object"},
+  "KnowledgeReindexResult": {"$defs":{"ComponentId":{"enum":["desktop","bridge","daemon","workspace","knowledge","code_graph","harness","secret_store","watcher"],"title":"ComponentId","type":"string"},"ComponentState":{"description":"Shared state vocabulary of every optional local component (Knowledge,\nCode Graph, harness, watchers). `ready` is the only fully-served state;\n`stale` serves possibly outdated data explicitly; everything else refuses\nor degrades visibly — never silently.","enum":["disabled","not_installed","unavailable","starting","indexing","ready","stale","permission_denied","incompatible","stopping","recovering","error"],"title":"ComponentState","type":"string"},"LocalError":{"additionalProperties":false,"description":"The one structured error shape of the local stack. Never carries a\nsecret, a stack trace or an absolute local path: `message` and `details`\nare validated, bounded and safe to display or log.","properties":{"code":{"$ref":"#/$defs/LocalErrorCode"},"component":{"$ref":"#/$defs/ComponentId"},"correlation_id":{"anyOf":[{"pattern":"^[A-Za-z0-9_.:-]{1,64}$","type":"string"},{"type":"null"}],"default":null,"title":"Correlation Id"},"details":{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"type":"null"}]},"default":{},"title":"Details","type":"object"},"message":{"maxLength":500,"minLength":1,"title":"Message","type":"string"},"retryable":{"title":"Retryable","type":"boolean"}},"required":["code","message","component","retryable"],"title":"LocalError","type":"object"},"LocalErrorCode":{"description":"Closed, deliberately small taxonomy. Codes describe what the caller can\nbranch on; the human message and bounded details carry the rest.","enum":["invalid_request","unknown_command","payload_too_large","protocol_incompatible","capability_missing","not_supported","cancelled","timeout","internal_error","daemon_unavailable","daemon_already_running","daemon_crashed","identity_mismatch","wrong_profile","secret_absent","secret_inaccessible","secret_revoked","keyring_unavailable","workspace_config_missing","workspace_config_invalid","workspace_moved","workspace_inaccessible","project_unavailable","feature_disabled","provider_not_installed","provider_incompatible","permission_denied","index_absent","index_corrupt","language_unsupported","plan_expired"],"title":"LocalErrorCode","type":"string"}},"additionalProperties":false,"properties":{"accepted":{"title":"Accepted","type":"boolean"},"error":{"anyOf":[{"$ref":"#/$defs/LocalError"},{"type":"null"}],"default":null},"operation_id":{"anyOf":[{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","type":"string"},{"type":"null"}],"default":null,"title":"Operation Id"},"state":{"$ref":"#/$defs/ComponentState"}},"required":["accepted","state"],"title":"KnowledgeReindexResult","type":"object"},
+  "PublicationPreviewRequest": {"additionalProperties":false,"properties":{"workspace_id":{"format":"uuid","title":"Workspace Id","type":"string"}},"required":["workspace_id"],"title":"PublicationPreviewRequest","type":"object"},
+  "PublicationPlan": {"$defs":{"ComponentId":{"enum":["desktop","bridge","daemon","workspace","knowledge","code_graph","harness","secret_store","watcher"],"title":"ComponentId","type":"string"},"ComponentState":{"description":"Shared state vocabulary of every optional local component (Knowledge,\nCode Graph, harness, watchers). `ready` is the only fully-served state;\n`stale` serves possibly outdated data explicitly; everything else refuses\nor degrades visibly — never silently.","enum":["disabled","not_installed","unavailable","starting","indexing","ready","stale","permission_denied","incompatible","stopping","recovering","error"],"title":"ComponentState","type":"string"},"ComponentStatusSummary":{"additionalProperties":false,"properties":{"component":{"$ref":"#/$defs/ComponentId"},"item_count":{"anyOf":[{"minimum":0,"type":"integer"},{"type":"null"}],"default":null,"title":"Item Count"},"provider_id":{"anyOf":[{"pattern":"^[a-z][a-z0-9_.-]{0,63}$","type":"string"},{"type":"null"}],"default":null,"title":"Provider Id"},"state":{"$ref":"#/$defs/ComponentState"}},"required":["component","state"],"title":"ComponentStatusSummary","type":"object"},"LocalDataClass":{"enum":["paths","vault_content","indexes","code_graph","filesystem_details","harness_config","sensitive_diagnostics","workspace_config","secrets"],"title":"LocalDataClass","type":"string"},"SharedStatusSummary":{"additionalProperties":false,"description":"The only publishable shape: enumerated states, provider identifiers and\ncounts. It has no free-text, path or content field, so it cannot leak what\nit does not have.","properties":{"components":{"default":[],"items":{"$ref":"#/$defs/ComponentStatusSummary"},"maxItems":16,"title":"Components","type":"array"},"generated_at":{"format":"date-time","title":"Generated At","type":"string"},"project_id":{"format":"uuid","title":"Project Id","type":"string"},"protocol_version":{"maxLength":64,"pattern":"^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$","title":"Protocol Version","type":"string"},"workspace_id":{"format":"uuid","title":"Workspace Id","type":"string"}},"required":["workspace_id","project_id","protocol_version","generated_at"],"title":"SharedStatusSummary","type":"object"}},"additionalProperties":false,"properties":{"created_at":{"format":"date-time","title":"Created At","type":"string"},"excluded_classes":{"items":{"$ref":"#/$defs/LocalDataClass"},"title":"Excluded Classes","type":"array"},"expires_at":{"format":"date-time","title":"Expires At","type":"string"},"included":{"default":[],"items":{"pattern":"^[a-z][a-z0-9_]{0,31}(\\.[a-z][a-z0-9_]{0,31}){0,3}$","type":"string"},"maxItems":16,"title":"Included","type":"array"},"plan_hash":{"pattern":"^[0-9a-f]{64}$","title":"Plan Hash","type":"string"},"plan_id":{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","title":"Plan Id","type":"string"},"summary":{"$ref":"#/$defs/SharedStatusSummary"}},"required":["plan_id","summary","plan_hash","created_at","expires_at","excluded_classes"],"title":"PublicationPlan","type":"object"},
+  "PublicationPublishRequest": {"additionalProperties":false,"properties":{"confirmed":{"const":true,"title":"Confirmed","type":"boolean"},"plan_hash":{"pattern":"^[0-9a-f]{64}$","title":"Plan Hash","type":"string"},"plan_id":{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","title":"Plan Id","type":"string"}},"required":["plan_id","plan_hash","confirmed"],"title":"PublicationPublishRequest","type":"object"},
+  "PublicationResult": {"$defs":{"ComponentId":{"enum":["desktop","bridge","daemon","workspace","knowledge","code_graph","harness","secret_store","watcher"],"title":"ComponentId","type":"string"},"LocalError":{"additionalProperties":false,"description":"The one structured error shape of the local stack. Never carries a\nsecret, a stack trace or an absolute local path: `message` and `details`\nare validated, bounded and safe to display or log.","properties":{"code":{"$ref":"#/$defs/LocalErrorCode"},"component":{"$ref":"#/$defs/ComponentId"},"correlation_id":{"anyOf":[{"pattern":"^[A-Za-z0-9_.:-]{1,64}$","type":"string"},{"type":"null"}],"default":null,"title":"Correlation Id"},"details":{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"type":"null"}]},"default":{},"title":"Details","type":"object"},"message":{"maxLength":500,"minLength":1,"title":"Message","type":"string"},"retryable":{"title":"Retryable","type":"boolean"}},"required":["code","message","component","retryable"],"title":"LocalError","type":"object"},"LocalErrorCode":{"description":"Closed, deliberately small taxonomy. Codes describe what the caller can\nbranch on; the human message and bounded details carry the rest.","enum":["invalid_request","unknown_command","payload_too_large","protocol_incompatible","capability_missing","not_supported","cancelled","timeout","internal_error","daemon_unavailable","daemon_already_running","daemon_crashed","identity_mismatch","wrong_profile","secret_absent","secret_inaccessible","secret_revoked","keyring_unavailable","workspace_config_missing","workspace_config_invalid","workspace_moved","workspace_inaccessible","project_unavailable","feature_disabled","provider_not_installed","provider_incompatible","permission_denied","index_absent","index_corrupt","language_unsupported","plan_expired"],"title":"LocalErrorCode","type":"string"},"PublicationOutcome":{"enum":["published","rejected","plan_expired","transport_unavailable"],"title":"PublicationOutcome","type":"string"}},"additionalProperties":false,"properties":{"error":{"anyOf":[{"$ref":"#/$defs/LocalError"},{"type":"null"}],"default":null},"outcome":{"$ref":"#/$defs/PublicationOutcome"},"plan_id":{"pattern":"^[A-Za-z0-9_.:-]{1,200}$","title":"Plan Id","type":"string"},"published_at":{"anyOf":[{"format":"date-time","type":"string"},{"type":"null"}],"default":null,"title":"Published At"}},"required":["plan_id","outcome"],"title":"PublicationResult","type":"object"},
 };
 
 export type BridgeCommand = "runtime.handshake" | "daemon.status" | "daemon.attach" | "daemon.start" | "daemon.stop" | "daemon.restart" | "daemon.health" | "identity.get_view" | "workspace.validate" | "workspace.get_config" | "workspace.confirm_roots" | "workspace.git_status" | "workspace.save_config" | "knowledge.status" | "knowledge.init_vault" | "knowledge.search" | "knowledge.get_document" | "knowledge.graph_page" | "knowledge.graph_expand" | "knowledge.reindex" | "code_graph.status" | "code_graph.find_symbols" | "code_graph.graph_page" | "code_graph.graph_expand" | "code_graph.reindex" | "harness.detect" | "harness.status" | "harness.preview" | "harness.apply" | "harness.rollback" | "harness.verify" | "publication.preview" | "publication.publish";
@@ -486,6 +496,21 @@ export interface CodeGraphStatus {
   workspace_id: string;
 }
 
+export type CodeReindexMode = "incremental" | "full_rebuild";
+
+export interface CodeReindexRequest {
+  mode?: CodeReindexMode;
+  repo_names?: string[];
+  workspace_id: string;
+}
+
+export interface CodeReindexResult {
+  accepted: boolean;
+  error?: LocalError | null;
+  operation_id?: string | null;
+  state: ComponentState;
+}
+
 export interface CodeSymbolQuery {
   cursor?: string | null;
   kinds?: NodeKind[];
@@ -513,6 +538,13 @@ export type CompatibilityOutcome = "compatible" | "compatible_degraded" | "daemo
 export type ComponentId = "desktop" | "bridge" | "daemon" | "workspace" | "knowledge" | "code_graph" | "harness" | "secret_store" | "watcher";
 
 export type ComponentState = "disabled" | "not_installed" | "unavailable" | "starting" | "indexing" | "ready" | "stale" | "permission_denied" | "incompatible" | "stopping" | "recovering" | "error";
+
+export interface ComponentStatusSummary {
+  component: ComponentId;
+  item_count?: number | null;
+  provider_id?: string | null;
+  state: ComponentState;
+}
 
 export type Confidence = "extracted" | "inferred" | "declared";
 
@@ -820,10 +852,22 @@ export interface KnowledgeConfig {
   provider_id: string;
 }
 
+export interface KnowledgeDocument {
+  document: KnowledgeDocumentRef;
+  markdown: string;
+  outgoing_links?: GraphNodeRef[];
+  truncated?: boolean;
+}
+
 export interface KnowledgeDocumentRef {
   content_hash: string;
   modified_at: string;
   title: string;
+  uri: string;
+}
+
+export interface KnowledgeGetDocumentRequest {
+  max_bytes?: number;
   uri: string;
 }
 
@@ -842,6 +886,20 @@ export interface KnowledgeInitVaultResult {
 export interface KnowledgeIntegration {
   integration_id: string;
   required?: false;
+  state: ComponentState;
+}
+
+export type KnowledgeReindexMode = "incremental" | "full_rebuild";
+
+export interface KnowledgeReindexRequest {
+  mode?: KnowledgeReindexMode;
+  workspace_id: string;
+}
+
+export interface KnowledgeReindexResult {
+  accepted: boolean;
+  error?: LocalError | null;
+  operation_id?: string | null;
   state: ComponentState;
 }
 
@@ -876,6 +934,8 @@ export interface KnowledgeStatus {
 }
 
 export type KnowledgeVaultState = "missing" | "empty" | "markdown_existing" | "studios_vault";
+
+export type LocalDataClass = "paths" | "vault_content" | "indexes" | "code_graph" | "filesystem_details" | "harness_config" | "sensitive_diagnostics" | "workspace_config" | "secrets";
 
 export interface LocalError {
   code: LocalErrorCode;
@@ -972,6 +1032,35 @@ export interface ProviderInfo {
   provider_version?: string | null;
 }
 
+export type PublicationOutcome = "published" | "rejected" | "plan_expired" | "transport_unavailable";
+
+export interface PublicationPlan {
+  created_at: string;
+  excluded_classes: LocalDataClass[];
+  expires_at: string;
+  included?: string[];
+  plan_hash: string;
+  plan_id: string;
+  summary: SharedStatusSummary;
+}
+
+export interface PublicationPreviewRequest {
+  workspace_id: string;
+}
+
+export interface PublicationPublishRequest {
+  confirmed: true;
+  plan_hash: string;
+  plan_id: string;
+}
+
+export interface PublicationResult {
+  error?: LocalError | null;
+  outcome: PublicationOutcome;
+  plan_id: string;
+  published_at?: string | null;
+}
+
 export type RelationKind = "links_to" | "tagged_with" | "embeds" | "contains" | "imports" | "calls" | "defines" | "inherits" | "references" | "documents";
 
 export type Remediation = "none" | "update_daemon" | "update_desktop" | "install_optional_component" | "enable_feature" | "report_problem";
@@ -1015,6 +1104,14 @@ export interface SecretReferenceStatus {
 export type SecretStatus = "present" | "absent" | "inaccessible" | "revoked" | "wrong_profile" | "keyring_unavailable";
 
 export type SecretStore = "os_keyring" | "process_environment";
+
+export interface SharedStatusSummary {
+  components?: ComponentStatusSummary[];
+  generated_at: string;
+  project_id: string;
+  protocol_version: string;
+  workspace_id: string;
+}
 
 export type VerifyState = "unconfigured" | "configured" | "verified" | "failed";
 
