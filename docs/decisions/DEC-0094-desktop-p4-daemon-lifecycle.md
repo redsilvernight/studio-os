@@ -35,7 +35,9 @@ protocole P1.
   existantes et n’est émise qu’après négociation.
 - Le transport local reste privé, borné et typé. Il n’expose ni shell, ni spawn,
   ni filesystem arbitraire, ni proxy HTTP.
-- Le démarrage automatique est un primitive opt-in (`STUDIO_DAEMON_AUTOSTART=1`).
+- Le démarrage automatique passe par `STUDIO_DAEMON_AUTOSTART=1`. Desktop le
+  pose au lancement du sidecar dès qu’une origine serveur est configurée (voir
+  Amendement 2026-09-24) ; sans origine, le runtime reste arrêté.
   Par défaut, fermer Desktop demande l’arrêt gracieux ;
   `STUDIO_DESKTOP_KEEP_DAEMON=1` conserve le processus, qui reste joignable par
   l’endpoint privé lors de la réouverture de Desktop.
@@ -50,6 +52,16 @@ Les anciens pairs continuent d’utiliser `daemon.status`; seuls les pairs qui
 négocient `daemon.health` voient heartbeat, Git watchers, replay et providers.
 La CLI et Desktop doivent passer par le même assemblage runtime afin qu’aucun
 second heartbeat ou replayer ne contourne le verrou.
+
+## Amendement 2026-09-24 — démarrage automatique par Desktop
+
+Validé par l’humain le 2026-09-24. Avec l’autostart en opt-in, rien dans Desktop
+ne démarrait le runtime : le sidecar répondait au bridge mais heartbeat, rejeu
+de l’outbox et watchers ne tournaient jamais (`daemon.status` = `stopped`).
+Desktop (`desktop/src-tauri/src/sidecar.rs`) pose donc `STUDIO_DAEMON_AUTOSTART=1`
+dès qu’une origine serveur est configurée. Le daemon ne démarre le runtime que
+s’il possède le verrou ; un daemon déjà présent reste attaché, et
+`daemon.start` répond alors `already_running`.
 
 ## Validation attendue
 

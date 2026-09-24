@@ -29,10 +29,10 @@ Le rapport complet (reproductions, résultats de tests) est le PDF local
 | A16 — Sidecar sans nouvelle tentative | Échec de lancement retenté après 15 s (binaire absent ou protocole incompatible : jamais) ; un lancement réussi efface « indisponible » et « abandonné » |
 | A17 — Port de débogage WebView2 en release | Refusé quand `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` est une variable persistante (utilisateur ou machine) ; une valeur posée pour le lancement (scripts de test) reste acceptée |
 | Actions GitHub Node 20 | `checkout@v5`, `setup-node@v5`, `upload-artifact@v6`, `setup-uv@v7` (Node 24) |
+| A13 — S3 en HTTP depuis une page HTTPS | Tailscale Serve `https://flo-laptop.tailf61f85.ts.net:8443` (tailnet only) → Caddy `:9000` → MinIO ; `STUDIO_S3_PUBLIC_ENDPOINT_URL` du `.env` live pointé dessus. Vérifié : PUT/GET pré-signés (SigV4 intact), CORS pour l'origine du Dashboard. Installateur flo-laptop construit avec `--storage-url` (`deploy/flo-laptop` 247b641) |
 
-Restent ouverts : A13 (S3 en HTTPS, changement d'infrastructure à approuver) et
-A14 (Smart App Control / signature de code : certificat requis, paramètre de sécurité
-du poste non modifiable par un agent).
+Reste ouvert : A14 (Smart App Control / signature de code : certificat requis, paramètre
+de sécurité du poste non modifiable par un agent).
 
 ## Documenté, non corrigé (état initial de l'audit)
 

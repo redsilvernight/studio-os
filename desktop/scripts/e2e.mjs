@@ -328,7 +328,7 @@ async function main() {
     check("bridge.handshake_compatible", hs.ok && hs.value.kind === "response" && hs.value.payload?.outcome === "compatible", `handshake outcome ${hs.value?.payload?.outcome ?? JSON.stringify(hs.value?.error?.code)}`);
     const profile = { profile_id: "default", server_origin: api };
     const started = await invoke(page, "bridge_request", { request: bridgeRequest("daemon.start", { action: "start", profile }) });
-    check("daemon.starts_real_runtime", started.ok && started.value?.payload?.outcome === "ok", `daemon.start -> ${started.value?.payload?.outcome}`);
+    check("daemon.starts_real_runtime", started.ok && ["ok", "already_running"].includes(started.value?.payload?.outcome), `daemon.start -> ${started.value?.payload?.outcome}`);
     await sleep(500);
     const st = await invoke(page, "bridge_request", { request: bridgeRequest("daemon.status", { action: "status", profile }) });
     const status = st.value?.payload?.status;
