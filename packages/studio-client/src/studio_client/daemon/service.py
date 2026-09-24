@@ -90,6 +90,7 @@ from studio_client.daemon.local_features import (
     LocalFeatureRegistry,
 )
 from studio_client.daemon.logging import configure_daemon_logging
+from studio_client.daemon.machine_identity import MachineResolver, resolve_machine_id
 from studio_client.daemon.runtime import (
     AlreadyRunningError,
     DaemonRuntime,
@@ -221,9 +222,11 @@ class DaemonController:
         workspace_source: WorkspaceSource | None = None,
         local_features: LocalFeatureRegistry | None = None,
         workspace_bridge: WorkspaceBridge | None = None,
+        machine_resolver: MachineResolver = resolve_machine_id,
     ) -> None:
         self.config = config
         self.data_root = data_root or default_config_path().parent
+        self._machine_resolver = machine_resolver
         self._workspace_source = workspace_source
         self.local_features = local_features
         self.workspace_bridge = workspace_bridge
@@ -445,11 +448,16 @@ class DaemonController:
                     error=error,
                 )
             if self.config.machine_id is None:
+                machine_id = self._machine_resolver(self.config, self.data_root)
+                if machine_id is not None:
+                    self.config = self.config.model_copy(update={"machine_id": machine_id})
+            if self.config.machine_id is None:
                 return self._result(
                     request,
                     DaemonControlOutcome.UNAVAILABLE,
                     LocalErrorCode.DAEMON_UNAVAILABLE,
-                    "This machine is not enrolled yet; the daemon runtime cannot start.",
+                    "This machine's identity is unknown (no stored credential or "
+                    "server unreachable); the daemon runtime cannot start.",
                 )
             runtime = DaemonRuntime(
                 self.config,

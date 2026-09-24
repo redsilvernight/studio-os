@@ -38,6 +38,23 @@ async def list_machines(session: DbSession, machine: CurrentMachine) -> list[Mac
     ]
 
 
+@router.get(
+    "/me",
+    response_model=Machine,
+    description=(
+        "Return the machine the presented credential belongs to, so a "
+        "client holding only its credential can learn its own `id` (for "
+        "heartbeats and the local daemon). Any authenticated machine may "
+        "read. `status` is derived from `last_seen_at` exactly as in the list."
+    ),
+    responses={**RESP_401_UNAUTHORIZED},
+)
+async def get_own_machine(machine: CurrentMachine) -> Machine:
+    return Machine.model_validate(machine).model_copy(
+        update={"status": heartbeats_service.derive_status(machine, get_settings())}
+    )
+
+
 @router.post(
     "",
     response_model=MachineCreated,

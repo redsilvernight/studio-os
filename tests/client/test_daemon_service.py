@@ -109,6 +109,7 @@ def test_start_without_enrolled_machine_is_refused_not_raised(tmp_path) -> None:
     daemon = DaemonController(
         ClientConfig(api_base_url="https://studio.example/api/v1", profile_id="main"),
         data_root=tmp_path,
+        machine_resolver=lambda _config, _root: None,
     )
     control = DaemonControlRequest(action=DaemonAction.START, profile=daemon._profile())
 
@@ -117,6 +118,24 @@ def test_start_without_enrolled_machine_is_refused_not_raised(tmp_path) -> None:
     assert result.outcome == "unavailable"
     assert result.error is not None and result.error.code == "daemon_unavailable"
     assert result.status.state == "stopped"
+
+
+def test_start_resolves_the_machine_identity_from_the_credential(tmp_path) -> None:
+    machine_id = uuid4()
+    daemon = DaemonController(
+        ClientConfig(api_base_url="https://studio.example/api/v1", profile_id="main"),
+        data_root=tmp_path,
+        machine_resolver=lambda _config, _root: machine_id,
+    )
+    profile = daemon._profile()
+
+    try:
+        result = daemon.control(DaemonControlRequest(action=DaemonAction.START, profile=profile))
+    finally:
+        daemon.control(DaemonControlRequest(action=DaemonAction.STOP, profile=profile))
+
+    assert result.outcome == "ok"
+    assert daemon.config.machine_id == machine_id
 
 
 def test_stale_expected_instance_is_refused_before_control(tmp_path) -> None:

@@ -37,6 +37,10 @@ Base: `/api/v1`
   (dernier heartbeat, memes seuils que `POST /heartbeats`), jamais stocke ;
   une machine sans heartbeat a `last_seen_at: null` et `status: offline`.
   Ni credential ni hash n'apparaissent jamais.
+- GET /machines/me (additif, DEC-0094 amendement du 2026-09-24) — la `Machine`
+  a laquelle appartient le credential presente, `status` derive comme dans la
+  liste. Toute machine authentifiee peut lire. Sert au daemon local a
+  connaitre son propre `id` a partir du seul credential.
 - POST /machines (role `admin` — reponse = `Machine` + `credential` en clair,
   une seule fois ; pas de `Idempotency-Key`, cf. risque de fuite du credential
   dans la table d'idempotence)

@@ -7,7 +7,7 @@ from uuid import UUID
 
 import httpx
 from studio_contracts.ai_work import AIWorkLog
-from studio_contracts.auth import HeartbeatRequest, HeartbeatResponse
+from studio_contracts.auth import HeartbeatRequest, HeartbeatResponse, Machine
 from studio_contracts.builds import (
     Build,
     BuildStatus,
@@ -144,6 +144,10 @@ class StudioApiClient:
     async def get_project_state(self, project_id: UUID) -> ProjectState:
         response = await self._request("GET", f"/api/v1/projects/{project_id}/state")
         return ProjectState.model_validate(response.json())
+
+    async def get_own_machine(self) -> Machine:
+        response = await self._request("GET", "/api/v1/machines/me")
+        return Machine.model_validate(response.json())
 
     async def send_heartbeat(
         self, machine_id: UUID, agent_id: UUID | None = None
