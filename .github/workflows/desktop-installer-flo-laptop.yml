@@ -64,6 +64,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
+          trap { "::error title=publish::$($_.Exception.Message)"; exit 1 }
           $version = (Get-Content desktop/package.json | ConvertFrom-Json).version
           $short = "${{ github.sha }}".Substring(0, 7)
           $tag = "desktop-flo-laptop-$version-$short"
@@ -72,5 +73,6 @@ jobs:
           Copy-Item $source.FullName $asset
           $hash = (Get-FileHash $asset -Algorithm SHA256).Hash.ToLower()
           $notes = "Unsigned development installer for the flo-laptop deployment ($env:STUDIO_DESKTOP_API_URL), built from ${{ github.sha }} and checked by npm run test:install. SHA-256: $hash. Not signed: SmartScreen / Smart App Control may block it."
-          gh release create $tag $asset --target "${{ github.sha }}" --prerelease --title "Studi'OS Desktop $version (flo-laptop, $short)" --notes $notes
+          $out = gh release create $tag $asset --target "${{ github.sha }}" --prerelease --title "Studi'OS Desktop $version (flo-laptop, $short)" --notes $notes 2>&1
+          if ($LASTEXITCODE -ne 0) { "::error title=gh release create::$(($out | Out-String).Trim() -replace "`r?`n", " ")"; exit 1 }
           "Published $tag ($hash)" >> $env:GITHUB_STEP_SUMMARY
