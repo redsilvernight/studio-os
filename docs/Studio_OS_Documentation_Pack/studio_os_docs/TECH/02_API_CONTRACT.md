@@ -1,8 +1,8 @@
 # API Contract v1
 
 Base: `/api/v1` — version contractuelle `API_CONTRACT_VERSION = 2` (DEC-0100).
-Statut : **specifie, effectif a l'acceptation de DEC-0100** et a la livraison
-du lot d'implementation A0 ; jusque-la le serveur deploie reste en version 1.
+Statut : **specifie (DEC-0100 acceptee), effectif a la livraison du lot
+d'implementation A0** ; jusque-la le serveur deploie reste en version 1.
 Le prefixe de transport `/api/v1` est conserve ; aucune base `/api/v2` n'est
 creee. La version contractuelle est exposee par le champ
 `api_contract_version` de `GET /api/v1/meta/compatibility` (public, additif,

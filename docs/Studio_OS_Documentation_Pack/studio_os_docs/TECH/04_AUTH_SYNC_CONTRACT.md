@@ -144,8 +144,8 @@ renvoie la ligne existante sans y toucher.
 
 ## Autorisation (DEC-0036 amende par DEC-0100 — RUPTURE, `API_CONTRACT_VERSION` 2)
 
-Statut : specifie, effectif a l'acceptation de DEC-0100 et a la livraison du
-lot d'implementation A0 (voir `TECH/02_API_CONTRACT.md` en tete).
+Statut : specifie (DEC-0100 acceptee), effectif a la livraison du lot
+d'implementation A0 (voir `TECH/02_API_CONTRACT.md` en tete).
 
 Trois niveaux, composes par ET logique (jamais OU) :
 

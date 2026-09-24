@@ -1,7 +1,7 @@
 ---
 id: DEC-0100
 title: 'Isolation projet minimale : membership User→Project, rôle = quoi, membership = où'
-status: proposed
+status: accepted
 date: '2026-09-24'
 superseded_by: null
 server_decision_id: 19922554-bcd8-498f-9a14-7dab87916bf2
@@ -13,7 +13,7 @@ source: docs/DU0_AUTH_PROJECT_DATA_AUDIT.md
 # DEC-0100 — Isolation projet minimale : membership User→Project
 
 Gate DU-0 de la roadmap « Desktop Distribution, Updates & Public Registration »
-(tâche `d0e23fe3`). Préalable à toute inscription publique. Proposée, non
+(tâche `d0e23fe3`). Préalable à toute inscription publique. Acceptée (serveur DEC-0103), non
 implémentée. Classement contractuel : `contract-guardian` (2026-09-24).
 
 ## Problème
