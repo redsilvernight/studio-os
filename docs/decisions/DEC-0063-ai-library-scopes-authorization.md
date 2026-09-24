@@ -45,3 +45,11 @@ Session transitoire > lock projet (une resolution contrevenant a un lock est
 une erreur structuree, jamais un bypass silencieux) > binding User > defaut
 Project > defaut Studio. La resolution elle-meme est P5 ; cette precedence
 est figee ici pour que scopes, bindings et locks restent coherents.
+
+## Amendement — DEC-0100 (2026-09-24, acceptee ; serveur DEC-0103)
+
+Scope Project : lecture composee avec l'acces projet (membership ou `admin`).
+Scope Studio : lecture reservee a `admin` ou a un User ayant au moins une
+membership. Scope User, precedence de resolution et `404` non-oracle
+inchanges (evalues apres le controle projet). « Sans ACL parallele » est
+remplace pour le scope Project. Effectif a la livraison du lot d'implementation A0.

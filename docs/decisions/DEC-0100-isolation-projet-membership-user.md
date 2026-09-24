@@ -1,7 +1,7 @@
 ---
 id: DEC-0100
 title: 'Isolation projet minimale : membership User→Project, rôle = quoi, membership = où'
-status: proposed
+status: accepted
 date: '2026-09-24'
 superseded_by: null
 server_decision_id: 19922554-bcd8-498f-9a14-7dab87916bf2
@@ -13,7 +13,7 @@ source: docs/DU0_AUTH_PROJECT_DATA_AUDIT.md
 # DEC-0100 — Isolation projet minimale : membership User→Project
 
 Gate DU-0 de la roadmap « Desktop Distribution, Updates & Public Registration »
-(tâche `d0e23fe3`). Préalable à toute inscription publique. Proposée, non
+(tâche `d0e23fe3`). Préalable à toute inscription publique. Acceptée (serveur DEC-0103), non
 implémentée. Classement contractuel : `contract-guardian` (2026-09-24).
 
 ## Problème
@@ -120,7 +120,9 @@ compte valide obtiendrait donc un accès automatique à tous les projets.
     - Un lock ou un binding Project qui pointe vers une ressource Studio suit
       l'accès au projet.
     - Une membership ne donne jamais accès aux ressources globales d'un
-      co-membre. `GET /machines` et `GET /agents` restent self/admin.
+      co-membre. `GET /machines` et `GET /agents` deviennent self/admin
+      (aujourd'hui ouverts à toute machine authentifiée, DEC-0082 : rupture
+      couverte par la version 2).
     - Une session n'est visible que par son lien direct
       `session -> task -> project`. L'activité d'équipe est filtrée par le
       `project_id` propre de chaque enregistrement, jamais par le propriétaire
@@ -169,7 +171,8 @@ compte valide obtiendrait donc un accès automatique à tous les projets.
 - `TECH/04` (RUPTURE) : réécrire l.147, l.159, l.161-162 et l.181-189, et
   compléter l.218-228.
 - `TECH/02` (RUPTURE) : l.14, l.26-29 et SSE l.547-551. Routes `members`
-  additives. Retirer « Reads stay fully available » de l'OpenAPI.
+  additives. `GET /machines` et `GET /agents` restreints à self/admin.
+  Retirer « Reads stay fully available » de l'OpenAPI.
 - `TECH/05` (ADDITIF) : entité `ProjectMembership` et règles de lecture des
   `project_id` nullables.
 - `TECH/07` (RUPTURE sémantique, schémas inchangés) : l.305-307, pour

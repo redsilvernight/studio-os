@@ -142,11 +142,14 @@ jamais l'event original : la validation ci-dessus s'applique a l'identite de
 l'appelant courant avant `create_event`, dont le court-circuit d'idempotence
 renvoie la ligne existante sans y toucher.
 
-## Autorisation (DEC-0036, additif — roadmap etape 7 P1-2)
+## Autorisation (DEC-0036 amende par DEC-0100 — RUPTURE, `API_CONTRACT_VERSION` 2)
 
-Deux niveaux, tous deux derives de champs existants (aucune nouvelle table) :
+Statut : specifie (DEC-0100 acceptee), effectif a la livraison du lot
+d'implementation A0 (voir `TECH/02_API_CONTRACT.md` en tete).
 
-- **Role transverse** : `User.role` du proprietaire (`Machine.owner_user_id`)
+Trois niveaux, composes par ET logique (jamais OU) :
+
+- **Role transverse** (quoi) : `User.role` du proprietaire (`Machine.owner_user_id`)
   de la machine authentifiee — `admin`/`developer`/`agent`/`readonly`
   (`## Roles minimum` ci-dessus). Charge une seule fois par requete/appel
   MCP dans `studio_api.services.authz.Principal{machine, user, role}`
@@ -156,10 +159,60 @@ Deux niveaux, tous deux derives de champs existants (aucune nouvelle table) :
   machine/un user — `Task.claimed_by_machine_id`, `ResourceClaim.claimed_by_machine_id`,
   `WorkSession.machine_id`, `AIWorkLog.agent_id` (via `Agent.machine_id` —
   `AIWorkLog.machine_id` est nullable), `Transfer.sender_user_id` /
-  `recipient_user_id`. Jamais une ACL projet separee.
+  `recipient_user_id`.
+- **Acces projet** (ou, DEC-0100) : table `project_memberships(project_id,
+  user_id)`. Le `User` est l'identite porteuse : une `Machine` herite des
+  memberships de son `owner_user_id`, un `Agent` n'en a jamais en propre et
+  opere via sa machine. `admin` a une portee globale (`project_scope = ALL`)
+  et contourne ce controle ; tout autre role (`agent` compris) n'accede qu'aux
+  projets dont il est membre. `Principal` porte `project_scope`, charge une
+  fois par requete/appel MCP (`ALL` ou ensemble d'identifiants). Chemins
+  serveur de confiance sans `Principal` (webhook GitHub, Producer,
+  `resource.conflict`) : exemptes explicitement.
 
-`readonly` : lecture totale de l'etat partage (tous les `GET`, `GET
-/library-locks` inclus) plus
+Acces projet — regles (DEC-0100 §7-12) :
+
+- **Ressource rattachee a un projet**, accedee directement ou via son parent
+  (`task`, `roadmap`, `build`, `session`→task, version Library→definition,
+  claim, decision, event, ai-work, review, timeline, transfer, lock/binding
+  Project) : projet inaccessible → `403 {"detail": {"error_code":
+  "forbidden", "resource": "project", "action": "read|write"}}`. Ce controle
+  passe avant tout `404` non-oracle existant (Library User, resolution),
+  avant le controle d'ownership et avant le court-circuit d'idempotence /
+  la deduplication `event_id`.
+- **Collections** : filtrage silencieux aux projets accessibles
+  (`project_visibility_clause`), sans compter les elements invisibles.
+  `GET /projects` ne renvoie que les projets accessibles. Un filtre
+  `?project_id=` inaccessible **ou** inexistant repond `403` (pas d'oracle
+  d'existence).
+- **Donnees sans projet** (`project_id` nul : decisions globales, Library et
+  bindings Studio, transferts sans projet) : lisibles seulement par `admin`
+  ou par un User ayant au moins une membership.
+- **Ressources propres** (profil, machines, agents, runtimes, Library User,
+  transferts dont il est emetteur/destinataire) : toujours visibles de leur
+  proprietaire, avec ou sans membership. Un compte actif a 0 membership est
+  valide et ne voit que celles-ci.
+- **Co-membership non transitive** : une membership ne donne jamais acces aux
+  ressources globales d'un co-membre (`GET /machines`, `GET /agents` deviennent
+  self/admin en version 2 — rupture, `TECH/02_API_CONTRACT.md`). Une session n'est visible que via `session → task → project`
+  ; l'activite d'equipe est filtree par le `project_id` propre de chaque
+  enregistrement, jamais par le proprietaire d'une machine.
+- **Creation de projet** : le createur (`principal.user`) recoit une
+  membership dans la meme transaction (`POST /projects` et initialisation,
+  HTTP et MCP), `admin` compris.
+- **Attribution** : `admin` uniquement (`/api/v1/projects/{id}/members`,
+  `studio-admin project grant|revoke`) ; aucune auto-attribution.
+- **Primitives canoniques** (`studio_api.services.authz`) :
+  `ensure_project_access(principal, project_id, action)`,
+  `project_visibility_clause(principal, column)` et resolution
+  parent→projet. Aucune decision d'autorisation dans les routers ni les
+  handlers MCP.
+- **Inventaire fail-closed** : toute route HTTP et tout outil MCP est classe
+  `project|instance|own|public` ; une route/un outil non classe fait echouer
+  la CI.
+
+`readonly` : lecture de l'etat partage des projets accessibles (tous les
+`GET`, `GET /library-locks` inclus, filtres par l'acces projet) plus
 heartbeat, aucune ecriture metier nulle part (tasks, claims, sessions,
 ai-work, decisions, events, transfers, library). `agent` : memes ecritures que
 `developer`, jamais `POST /projects` / `POST /machines` / `POST /users`
@@ -176,11 +229,12 @@ Ownership (au-dela du role transverse — la machine proprietaire, ou un
 createur `owner_user_id`, renseigne depuis l'appelant a la creation),
 `DELETE /library-locks/{id}` (utilisateur createur ou `admin`). Une
 ressource pas encore possedee (`claimed_by_machine_id` nul) reste ouverte a
-tout ecrivain passe le role transverse.
+tout ecrivain passe le role transverse et l'acces projet.
 
-Regle Library (P1, DEC-0063 — aucune ACL projet, aucune table
-supplementaire) : lecture Studio/Project ouverte a toute machine
-authentifiee ; lecture User restreinte au owner ou `admin`, tout autre
+Regle Library (P1, DEC-0063 amende par DEC-0100) : lecture Project
+composee avec l'acces projet (membres ou `admin`) ; lecture Studio reservee a
+`admin` ou a un User ayant au moins une membership (donnee sans projet, voir
+ci-dessus) ; lecture User restreinte au owner ou `admin`, tout autre
 acces direct repondant `404` et non `403` (aucune surface — get, liste,
 recherche, resolution, erreur, compteur, metadonnee — ne doit reveler
 l'existence d'une ressource User d'autrui) ; creation Studio exige
@@ -203,7 +257,12 @@ projet) :
 | lecture (liste/metadonnees/download-url) | oui | oui | oui | oui |
 | ecriture (upload/initiate, upload/refresh-parts, upload/complete, delete) | oui | non | non | oui |
 
-`GET /transfers` filtre silencieusement sur ces 4 conditions
+Un transfert rattache a un projet exige **en plus** l'acces a ce projet (ET
+logique) : une diffusion projet n'est visible que des membres (et `admin`) ;
+emetteur ou destinataire non membre → `403 resource=project`.
+
+`GET /transfers` filtre silencieusement sur ces 4 conditions (composees avec
+`project_visibility_clause` quand `project_id` est renseigne)
 (`transfer_visibility_clause`) au lieu de 403 — une liste ne revele jamais
 l'existence d'une ressource interdite. Chaque `GET`/action sur un transfert
 precis (`GET /{id}`, `download-url`, `upload/*`, `DELETE`) applique
@@ -215,8 +274,10 @@ mutantes elles-memes (`principal` en premier argument apres `session`),
 jamais dans les routers HTTP ni les handlers MCP separement — garantit la
 parite HTTP/MCP sans dupliquer la logique
 (`services/mcp/src/studio_mcp/errors.py::run_tool` charge le `Principal`
-juste apres l'authentification machine, avant d'appeler le handler). Le
-controle de role s'execute **avant** le court-circuit d'idempotence
+juste apres l'authentification machine, avec son `project_scope`, avant
+d'appeler le handler). Les services de lecture recoivent aussi le
+`Principal`. Les controles de role et d'acces projet s'executent **avant** le
+court-circuit d'idempotence
 (`run_idempotent`/`create_event`), pour qu'un appelant non autorise ne
 puisse jamais consommer ou observer la reponse deja stockee d'un tiers via
 un rejeu.
@@ -224,8 +285,13 @@ un rejeu.
 403 partout, jamais de 404 de confidentialite (pas de surface
 d'enumeration : UUID v4, pas de lookup par code humain, les listes filtrent
 deja). Enveloppe : `403 {"detail": {"error_code": "forbidden", "resource":
-"<task|claim|session|ai_work|decision|event|transfer|...>", "action":
-"<write|release|renew|end|update|read>"}}`.
+"<project|task|claim|session|ai_work|decision|event|transfer|...>", "action":
+"<write|release|renew|end|update|read>"}}`. `resource: "project"` designe
+toujours un refus d'acces projet (DEC-0100), distinct d'un refus de role ou
+d'ownership ; un client ne doit pas le traiter comme une erreur
+d'authentification (pas de deconnexion). SSE : `403` avant l'ouverture du
+flux, et flux ferme des que l'acces est retire (revalidation a chaque
+keep-alive/evenement, TTL ≤ 30 s).
 
 Cote client (`packages/studio-client`), un `403` reste dans la meme
 categorie `ForbiddenError` que le reste de ce document (jamais rejouable,

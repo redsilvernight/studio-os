@@ -1,7 +1,7 @@
 # Modele de donnees v1
 
 ## Entites principales
-Studio, User, Machine, Agent, Project, MachineProjectConfig, Task, WorkSession, ResourceClaim, Decision, AIWorkLog, Event, Transfer, TransferPart(optional), Notification, Build, Recording, RecordingMarker, MarketingCandidate, LibraryResource, LibraryResourceVersion, LibraryResourceLink, LibraryProjectLock.
+Studio, User, Machine, Agent, Project, ProjectMembership, MachineProjectConfig, Task, WorkSession, ResourceClaim, Decision, AIWorkLog, Event, Transfer, TransferPart(optional), Notification, Build, Recording, RecordingMarker, MarketingCandidate, LibraryResource, LibraryResourceVersion, LibraryResourceLink, LibraryProjectLock.
 
 Statut : les entites Phase 1 ci-dessous (User, Machine, Agent, Project, Task,
 WorkSession, ResourceClaim, Decision, AIWorkLog, Event, Transfer) ont un
@@ -30,6 +30,8 @@ nullabilite est **breaking** et suit `.claude/skills/contract-change`
 (cf. `.claude/rules/contracts.md`).
 
 ## Relations clefs
+- User N-N Project via ProjectMembership (DEC-0100) ; Machine et Agent n'en
+  portent jamais en propre (heritage via `Machine.owner_user_id`).
 - Project 1-N Task.
 - Task 1-N WorkSession / Decision / AIWorkLog / Transfer / Event.
 - Machine 1-N Heartbeats / sessions / agents.
@@ -71,6 +73,33 @@ jamais lues par l'autorisation.
 ## Project
 `id`, `slug` (unique), `name`, `description` (nullable), `archived` (bool,
 defaut false), + champs communs mutables.
+
+## ProjectMembership (DEC-0100, additif — migration Alembic reversible)
+Table `project_memberships` : `project_id` (FK Project, `ON DELETE CASCADE`),
+`user_id` (FK User, `ON DELETE CASCADE`), `granted_by_user_id` (FK User,
+nullable, `ON DELETE SET NULL`), `created_at`. Cle primaire `(project_id,
+user_id)`. Pas de niveau par projet en V1 (le role global `User.role` reste
+seul juge du « quoi ») ; pas de `version` : une membership est accordee ou
+retiree, jamais modifiee.
+
+- `granted_by_user_id` nul **uniquement** pour le backfill systeme de la
+  migration ; toute attribution applicative (`PUT
+  /projects/{id}/members/{user_id}`, `studio-admin project grant`) enregistre
+  l'admin qui l'accorde.
+- Creation de projet : la membership du createur est inseree dans la meme
+  transaction que le `Project` (flush, jamais de commit interne au service).
+- Migration : preflight bloquant (chaque `Machine` a un `owner_user_id`
+  valide, aucun orphelin), puis backfill de chaque couple (User existant ×
+  Project existant), ensemble exact des couples archive. Downgrade = suppression
+  de la table.
+
+Regles de lecture des `project_id` nullables (`Decision`, `Event`,
+`Transfer`, `LibraryResource` scope studio/user, bindings) : `project_id`
+renseigne → acces projet requis (membership ou `admin`) ; `project_id` nul →
+donnee partagee sans projet, lisible par `admin` ou par un User ayant au moins
+une membership, sauf ressource propre (Transfer emetteur/destinataire,
+Library User, runtimes, bindings User) dont la regle existante s'applique
+seule (`TECH/04_AUTH_SYNC_CONTRACT.md` section Autorisation).
 
 ## Task
 `id`, `readable_id` (nullable, unique — ID lisible optionnel a cote de l'UUID
