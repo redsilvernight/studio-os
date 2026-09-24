@@ -124,4 +124,23 @@ jobs:
       - name: adapters check (canonical projections anti-drift)
         run: uv run --package studio-client studio-client adapters check --repo-root .
       - name: pytest
-        run: uv run pytest -q
+        run: uv run pytest -q --junitxml=pytest-results.xml
+      - name: Annotate failing tests
+        # Job logs need a signed-in reader; annotations are public.
+        if: failure()
+        run: |
+          uv run python - <<'EOF'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          path = Path("pytest-results.xml")
+          if not path.exists():
+              print("::warning::no pytest-results.xml (pytest did not finish)")
+              raise SystemExit
+          for case in ET.parse(path).getroot().iter("testcase"):
+              for problem in [*case.findall("failure"), *case.findall("error")]:
+                  name = f"{case.get('classname')}::{case.get('name')}"
+                  text = (problem.get("message") or "") + "\n" + (problem.text or "")[-1500:]
+                  text = text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+                  print(f"::error title={name}::{text}")
+          EOF
