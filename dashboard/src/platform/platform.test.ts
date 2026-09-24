@@ -40,6 +40,19 @@ describe("P1 contract boundary (no second source of truth)", () => {
     expect(knownCommands()).toHaveLength(33);
   });
 
+  it("bundles the request and response schema of every allowlisted command", () => {
+    for (const c of LOCAL_COMMANDS) {
+      expect(LOCAL_SCHEMAS[c.request], `${c.command} request ${c.request}`).toBeDefined();
+      expect(LOCAL_SCHEMAS[c.response], `${c.command} response ${c.response}`).toBeDefined();
+    }
+  });
+
+  it("the reindex commands build a valid request", () => {
+    const workspace_id = "3f2b8c1e-4d5a-4b6c-9e7f-0a1b2c3d4e5f";
+    expect(() => buildRequest("knowledge.reindex", { workspace_id, mode: "full_rebuild" })).not.toThrow();
+    expect(() => buildRequest("code_graph.reindex", { workspace_id, mode: "full_rebuild" })).not.toThrow();
+  });
+
   it("every bundled schema accepts every valid P1 fixture of that model", () => {
     const checked = fixtures("valid").filter((f) => f.model in LOCAL_SCHEMAS);
     expect(checked.length).toBeGreaterThan(10);
@@ -193,6 +206,18 @@ describe("platform adapters", () => {
     const out = await platform.request("identity.get_view");
     expect(out.ok).toBe(false);
     expect(seen).toEqual(["bridge_request"]);
+  });
+
+  it("desktop adapter answers a contract-invalid request with a typed error, never a throw", async () => {
+    const seen: string[] = [];
+    const platform = createDesktopPlatform(async (name) => {
+      seen.push(name);
+      return null;
+    });
+    const out = await platform.request("knowledge.reindex", { workspace_id: "not-a-uuid" });
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.error.code).toBe("invalid_request");
+    expect(seen).toEqual([]);
   });
 });
 
