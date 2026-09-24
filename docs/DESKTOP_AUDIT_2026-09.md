@@ -16,6 +16,8 @@ Le rapport complet (reproductions, résultats de tests) est le PDF local
 | Wizard : création de projet toujours en échec (slug manquant, 422, message trompeur) ; liste des projets sans relance ; doubles clics (projets en double, associations/applications multiples) ; rejets harnais silencieux | `d835c2f` |
 | Desktop : la CSP bloquait les uploads directs vers le stockage pré-signé (option de build `--storage-url`) | `19b38ca` |
 | Desktop validation : ne tournait que sur PR/dispatch ; échecs illisibles sans compte GitHub | `a8d59b5`, `f853907`, `5511c67`, `d677eee` (annotations) |
+| Wizard (revue studio-tester) : noms sans slug exploitable refusés ; clé d'idempotence réutilisée pour une relance | `86aba61` |
+| pytest instable : `test_server_origin_switch` rejouait l'outbox avant l'échéance du backoff | `d3caed1` |
 | Desktop validation : `test:install` ne pouvait pas s'attacher en CDP (WebView2 152 ignore `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` sous wry) | `d677eee` |
 
 ## Documenté, non corrigé
@@ -39,8 +41,6 @@ Le rapport complet (reproductions, résultats de tests) est le PDF local
   valider l'installateur réel ; à reconsidérer avec la signature. `WRY_DEFAULT_ARGS` est une
   copie des défauts de wry 0.55.1 : à revérifier à chaque montée de wry.
 - **`onboarding-walkthrough.mjs`** exige une sélection humaine dans le sélecteur natif : non exécuté.
-- **pytest instable** : un échec isolé sur le run 35936871212 (`5511c67`), non reproduit ensuite ;
-  les annotations pytest ajoutées nommeront le test à la prochaine occurrence.
 
 ## Reprise
 
