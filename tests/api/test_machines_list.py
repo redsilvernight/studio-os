@@ -47,6 +47,24 @@ async def test_heartbeat_feeds_listed_status_and_last_seen(
     assert row["last_seen_at"] is not None
 
 
+async def test_own_machine_is_derived_from_the_credential(
+    client: AsyncClient, auth_headers: dict[str, str], machine: tuple[MachineModel, str]
+) -> None:
+    machine_model, _ = machine
+    response = await client.get("/api/v1/machines/me", headers=auth_headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["id"] == str(machine_model.id)
+    assert body["display_name"] == machine_model.display_name
+    assert "credential" not in body
+    assert "credential_hash" not in body
+
+
+async def test_own_machine_requires_authentication(client: AsyncClient) -> None:
+    response = await client.get("/api/v1/machines/me", headers={"X-Forwarded-For": "203.0.113.43"})
+    assert response.status_code == 401
+
+
 async def test_readonly_machine_may_list_machines(
     client: AsyncClient,
     readonly_auth_headers: dict[str, str],

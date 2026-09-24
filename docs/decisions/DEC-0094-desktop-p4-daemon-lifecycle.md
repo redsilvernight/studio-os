@@ -63,6 +63,17 @@ dès qu’une origine serveur est configurée. Le daemon ne démarre le runtime 
 s’il possède le verrou ; un daemon déjà présent reste attaché, et
 `daemon.start` répond alors `already_running`.
 
+## Amendement 2026-09-24 — identité machine résolue depuis le credential
+
+Statut : proposé. Desktop n’écrit pas de `config.toml` : le daemon n’avait donc
+pas de `machine_id`, refusait de démarrer le runtime et la machine restait
+« Hors ligne ». Au `daemon.start`, si `machine_id` est absent, le daemon lit le
+credential du keyring et appelle `GET /api/v1/machines/me` (endpoint additif).
+Il met l’`id` en cache dans `<data_root>/identity/<clé d’instance>.json`, lié à
+l’empreinte SHA-256 du credential, ce qui permet un démarrage hors ligne. Un
+nouveau credential invalide le cache. Sans credential, ou si le serveur est
+injoignable sans cache, `daemon.start` répond `unavailable`.
+
 ## Validation attendue
 
 Démarrage, attach, stop, restart, double lancement, mismatch d’identité,

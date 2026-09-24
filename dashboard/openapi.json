@@ -6571,6 +6571,43 @@
     ]
    }
   },
+  "/api/v1/machines/me": {
+   "get": {
+    "tags": [
+     "machines"
+    ],
+    "summary": "Get Own Machine",
+    "description": "Return the machine the presented credential belongs to, so a client holding only its credential can learn its own `id` (for heartbeats and the local daemon). Any authenticated machine may read. `status` is derived from `last_seen_at` exactly as in the list.",
+    "operationId": "get_own_machine_api_v1_machines_me_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Machine"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ]
+   }
+  },
   "/api/v1/machines/{machine_id}/revoke": {
    "post": {
     "tags": [
