@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-97 decision(s). Detail complet dans chaque ADR lie.
+101 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -119,5 +119,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0096 | Desktop P9 : adaptateurs de harnais au scope projet, jeton par référence, fail-closed | proposed | [decisions/DEC-0096-desktop-p9-harness-adapters.md](decisions/DEC-0096-desktop-p9-harness-adapters.md) |
 | DEC-0097 | Desktop P11 : premier lancement guidé, workspace servi, deux commandes additives | proposed | [decisions/DEC-0097-desktop-p11-onboarding-workspace-seam.md](decisions/DEC-0097-desktop-p11-onboarding-workspace-seam.md) |
 | DEC-0098 | Decisions accept/supersede : transitions admin-only, et identite technique dashboard exclue des Machines | active | [decisions/DEC-0098-decisions-accept-supersede-et-machines-identite-dashboard.md](decisions/DEC-0098-decisions-accept-supersede-et-machines-identite-dashboard.md) |
-| DEC-0099 | Workflow W2 : le hook SessionStart assure l'Agent du harnais (ensure, sans autorite) | active | [decisions/DEC-0099-workflow-w2-agent-session-start.md](decisions/DEC-0099-workflow-w2-agent-session-start.md) |
-| DEC-0100 | Workflow W2b : setup-hooks distribue les hooks ensure sur fresh machine | active | [decisions/DEC-0100-workflow-w2b-setup-hooks.md](decisions/DEC-0100-workflow-w2b-setup-hooks.md) |
+| DEC-0099 | Workflow W2 : le hook SessionStart assure lAgent du harnais (ensure, sans autorite) | accepted | [decisions/DEC-0099-workflow-w2-agent-session-start.md](decisions/DEC-0099-workflow-w2-agent-session-start.md) |
+| DEC-0100 | Workflow W2b : setup-hooks distribue les hooks ensure sur fresh machine | accepted | [decisions/DEC-0100-workflow-w2b-setup-hooks.md](decisions/DEC-0100-workflow-w2b-setup-hooks.md) |
+| DEC-0101 | Enregistrement Agent expose via MCP | accepted | [decisions/DEC-0101-enregistrement-agent-via-mcp.md](decisions/DEC-0101-enregistrement-agent-via-mcp.md) |
+| DEC-0102 | Tasks : emission serveur des evenements task.* a chaque ecriture | accepted | [decisions/DEC-0102-emission-serveur-evenements-task.md](decisions/DEC-0102-emission-serveur-evenements-task.md) |

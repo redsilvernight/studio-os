@@ -1,3 +1,12 @@
+---
+id: DEC-0101
+title: 'Enregistrement Agent expose via MCP'
+status: accepted
+date: '2026-09-24'
+superseded_by: null
+source: docs/DECISIONS.md
+---
+
 # DEC-0101 — Enregistrement Agent exposé via MCP
 
 Statut : accepted (serveur : DEC-0113 acceptée le 2026-09-24).

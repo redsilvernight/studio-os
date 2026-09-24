@@ -23,6 +23,7 @@ import pytest
 import uvicorn
 from sqlalchemy import delete
 from studio_api.db import session as db_api_session
+from studio_api.db.models.event import EventModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.task import TaskModel
@@ -436,6 +437,7 @@ async def _delete_committed_rows(
     await db_api_session.reset_engine()
     session_factory = db_api_session.get_session_factory()
     async with session_factory() as session:
+        await session.execute(delete(EventModel).where(EventModel.project_id == project_id))
         await session.execute(delete(TaskModel).where(TaskModel.project_id == project_id))
         await session.execute(delete(ProjectModel).where(ProjectModel.id == project_id))
         await session.execute(delete(MachineModel).where(MachineModel.id == machine_id))
