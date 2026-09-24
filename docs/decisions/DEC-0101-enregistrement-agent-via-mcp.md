@@ -1,6 +1,6 @@
 # DEC-0101 — Enregistrement Agent exposé via MCP
 
-Statut : proposed (serveur : DEC-0113).
+Statut : accepted (serveur : DEC-0113 acceptée le 2026-09-24).
 Tâche : `[MCP] Exposer enregistrement agent via outil MCP` (`bb964309`).
 
 ## Contexte
