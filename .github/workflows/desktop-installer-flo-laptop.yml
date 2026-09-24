@@ -1,0 +1,76 @@
+name: Desktop installer (flo-laptop)
+
+# Deployment-specific: lives only on deploy/flo-laptop. Builds the unsigned
+# NSIS installer bound to this deployment's API origin, proves it installs,
+# launches and uninstalls, then publishes it as a GitHub pre-release asset
+# (the only artifact location readable without a signed-in GitHub client).
+# Unsigned development build: SmartScreen / Smart App Control will warn or block.
+
+on:
+  push:
+    branches: ["deploy/flo-laptop"]
+    paths:
+      - "desktop/**"
+      - "dashboard/**"
+      - "packages/studio-client/**"
+      - "packages/studio-code-graph/**"
+      - "packages/studio-workspaces/**"
+      - ".github/workflows/desktop-installer-flo-laptop.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-installer-flo-laptop
+  cancel-in-progress: false
+
+env:
+  UV_LOCKED: "1"
+  STUDIO_DESKTOP_API_URL: https://flo-laptop.tailf61f85.ts.net
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Sync workspace
+        run: uv sync --all-packages
+      - name: Install Node dependencies
+        run: |
+          npm ci
+          npm ci --prefix ../dashboard
+        working-directory: desktop
+      - name: Build the unsigned installer for this deployment
+        run: node scripts/build.mjs --installer --api-url "$env:STUDIO_DESKTOP_API_URL"
+        working-directory: desktop
+      - name: Install, launch, upgrade and uninstall
+        run: npm run test:install
+        working-directory: desktop
+      - name: Annotate failing install checks
+        if: failure()
+        run: node scripts/annotate-results.mjs install-test-results.json
+        working-directory: desktop
+      - name: Publish the installer as a pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $version = (Get-Content desktop/package.json | ConvertFrom-Json).version
+          $short = "${{ github.sha }}".Substring(0, 7)
+          $tag = "desktop-flo-laptop-$version-$short"
+          $source = Get-ChildItem desktop/src-tauri/target/release/bundle/nsis/*.exe | Select-Object -First 1
+          $asset = Join-Path $env:RUNNER_TEMP "StudiOS-Setup-$version-flo-laptop-$short.exe"
+          Copy-Item $source.FullName $asset
+          $hash = (Get-FileHash $asset -Algorithm SHA256).Hash.ToLower()
+          $notes = "Unsigned development installer for the flo-laptop deployment ($env:STUDIO_DESKTOP_API_URL), built from ${{ github.sha }} and checked by npm run test:install. SHA-256: $hash. Not signed: SmartScreen / Smart App Control may block it."
+          gh release create $tag $asset --target "${{ github.sha }}" --prerelease --title "Studi'OS Desktop $version (flo-laptop, $short)" --notes $notes
+          "Published $tag ($hash)" >> $env:GITHUB_STEP_SUMMARY
