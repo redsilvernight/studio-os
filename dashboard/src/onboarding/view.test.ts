@@ -106,6 +106,18 @@ describe("onboarding view", () => {
     expect(root.querySelector("[data-action=pick]")).not.toBeNull();
   });
 
+  it("offers no skip on the folder step, since finishing requires a folder", async () => {
+    const { platform } = rig();
+    const root = document.createElement("main");
+    await renderOnboarding(
+      root,
+      platform,
+      emptySession({ schema: 1, status: "in_progress", current: "dossier", projectId: "22222222-2222-4222-8222-222222222222" }),
+    );
+    expect(root.querySelector("[data-action=skip]")).toBeNull();
+    expect(root.querySelector("[data-action=prev]")).not.toBeNull();
+  });
+
   it("mints workspace ids in UUID shape", () => {
     expect(newWorkspaceId()).toMatch(/^[0-9a-f-]{36}$/i);
   });
