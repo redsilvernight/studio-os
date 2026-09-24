@@ -70,14 +70,6 @@ function listFiles(dir) {
 
 const dirSize = (dir) => listFiles(dir).reduce((sum, f) => sum + statSync(f).size, 0);
 
-// WebView2 reads extra browser arguments from WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
-// and from the per-user WebView2 policy key; the GitHub Windows runner ignores the
-// former, so the debug port is also set through the policy, scoped to this exe and
-// removed in the finally block below.
-const WEBVIEW2_POLICY_KEY = "HKCU\\Software\\Policies\\Microsoft\\Edge\\WebView2\\AdditionalBrowserArguments";
-const WEBVIEW2_POLICY_VALUE = "studio-desktop.exe";
-const hadWebview2Policy = () => reg("query", WEBVIEW2_POLICY_KEY, "/v", WEBVIEW2_POLICY_VALUE).status === 0;
-
 function webviewCommandLines() {
   const out = spawnSync(
     "powershell",
@@ -181,8 +173,6 @@ async function main() {
   const size = statSync(installerPath).size;
   console.log(`installer ${installerPath} (${(size / 1048576).toFixed(1)} MB) -> ${instDir}`);
 
-  const policyPreexisting = hadWebview2Policy();
-  if (policyPreexisting) throw new Error(`${WEBVIEW2_POLICY_KEY}\\${WEBVIEW2_POLICY_VALUE} already set; refusing to overwrite it`);
   try {
     // ---- 1. install ---------------------------------------------------------
     const t0 = Date.now();
@@ -204,7 +194,6 @@ async function main() {
     check("install.size", true, `installer ${(size / 1048576).toFixed(1)} MB; installed ${(dirSize(instDir) / 1048576).toFixed(1)} MB in ${files.length} files`);
 
     // ---- 2. launch the installed app, offline, isolated data ----------------------
-    reg("add", WEBVIEW2_POLICY_KEY, "/v", WEBVIEW2_POLICY_VALUE, "/t", "REG_SZ", "/d", `--remote-debugging-port=${CDP_PORT}`, "/f");
     const app = spawn(exe, [], {
       env: {
         ...process.env,
@@ -287,7 +276,6 @@ async function main() {
     check("uninstall.vault_untouched", readFileSync(join(vault, "note.md"), "utf8") === "# my note\n", "vault note intact");
     check("uninstall.no_process_left", processCount("studio-daemon.exe") === 0 && processCount("studio-desktop.exe") === 0, "no studio process left");
   } finally {
-    if (!policyPreexisting) reg("delete", WEBVIEW2_POLICY_KEY, "/v", WEBVIEW2_POLICY_VALUE, "/f");
     if (installedKey()) {
       const u = join(instDir, "uninstall.exe");
       if (existsSync(u)) await runSilent(u, ["/S", `_?=${instDir}`]);
