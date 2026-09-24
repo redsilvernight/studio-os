@@ -3259,6 +3259,7 @@ dependencies = [
  "tauri-plugin-updater",
  "url",
  "webbrowser",
+ "winreg",
 ]
 
 [[package]]
