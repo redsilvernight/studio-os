@@ -8,20 +8,47 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
 
-_SECRET_PATTERNS = (
-    re.compile(r"(?i)(authorization\s*[:=]\s*(?:bearer\s+)?)[^\s,;]+"),
-    re.compile(r"(?i)(token|secret|password|signature|x-amz-signature)(\s*[:=]\s*)[^\s,;&]+"),
-    re.compile(r"(?i)([?&](?:x-amz-[^=&]+|signature|token)=)[^&\s]+"),
+_SECRET_NAME = (
+    r"token|secret(?:[_-]?(?:access[_-]?)?key)?|password|passwd|api[_-]?key"
+    r"|private[_-]?key|credentials?|signature"
+)
+_SENSITIVE_KEY = rf"(?:{_SECRET_NAME}|authorization)"
+
+_SECRET_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (
+        re.compile(rf'(?i)("[A-Za-z0-9_.-]*?{_SENSITIVE_KEY}"\s*:\s*")(?:[^"\\]|\\.)*(")'),
+        r"\1[REDACTED]\2",
+    ),
+    (
+        re.compile(rf"(?i)('[A-Za-z0-9_.-]*?{_SENSITIVE_KEY}'\s*:\s*b?')(?:[^'\\]|\\.)*(')"),
+        r"\1[REDACTED]\2",
+    ),
+    (re.compile(r"(?i)(authorization\s*[:=]\s*(?:bearer\s+)?)[^\s,;]+"), r"\1[REDACTED]"),
+    (re.compile(r"(?i)\b(bearer\s+)[A-Za-z0-9._~+/=-]{8,}"), r"\1[REDACTED]"),
+    (
+        re.compile(
+            rf"(?i)({_SECRET_NAME}|x-amz-signature)"
+            r"([\"']?\s*[:=]\s*[\"']?)[^\s,;&\"'{}\[\]]+"
+        ),
+        r"\1\2[REDACTED]",
+    ),
+    (
+        re.compile(r"(?i)([?&](?:x-amz-[^=&?\s]+|signature|token|key)=)[^&\s]+"),
+        r"\1[REDACTED]",
+    ),
+    (re.compile(r"(?i)([a-z][a-z0-9+.-]*://)[^/\s:@]+:[^/\s@]+@"), r"\1[REDACTED]@"),
 )
 
 
 def redact_text(value: str) -> str:
+    """Mask credentials before they reach daemon.log.
+
+    Same policy as ``redact`` in ``desktop/src-tauri/src/diagnostics.rs``; both
+    are checked against ``tests/fixtures/log_redaction_vectors.json``.
+    """
     redacted = value
-    for pattern in _SECRET_PATTERNS:
-        if pattern.groups == 1:
-            redacted = pattern.sub(r"\1[REDACTED]", redacted)
-        else:
-            redacted = pattern.sub(r"\1\2[REDACTED]", redacted)
+    for pattern, replacement in _SECRET_PATTERNS:
+        redacted = pattern.sub(replacement, redacted)
     return redacted
 
 
