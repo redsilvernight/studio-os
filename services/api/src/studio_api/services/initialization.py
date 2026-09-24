@@ -521,14 +521,14 @@ class StudioServicesInitializationTarget:
         return cast(RoadmapServicePort, import_module("studio_api.services.roadmaps"))
 
     async def project_id_for_slug(self, slug: str) -> UUID | None:
-        for project in await projects_service.list_projects(self._session):
+        for project in await projects_service.list_projects(self._session, self._principal):
             if project.slug == slug:
                 return project.id
         return None
 
     async def create_project(self, spec: InitializationProjectSpec) -> UUID:
         project = await projects_service.create_project(
-            self._session, spec.slug, spec.name, spec.description
+            self._session, spec.slug, spec.name, spec.description, creator=self._principal.user
         )
         return project.id
 

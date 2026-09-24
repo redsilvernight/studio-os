@@ -84,7 +84,11 @@ async def test_concurrent_claims_on_same_resource_never_block(
             setup_session, user.id, "claims-concurrency-machine"
         )
         project = await projects_service.create_project(
-            setup_session, f"claims-concurrency-{uuid.uuid4().hex[:8]}", "Claims Concurrency", None
+            setup_session,
+            f"claims-concurrency-{uuid.uuid4().hex[:8]}",
+            "Claims Concurrency",
+            None,
+            creator=None,
         )
 
     headers = {"Authorization": f"Bearer {token}"}

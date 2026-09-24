@@ -1,35 +1,116 @@
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any, Literal
 
 from fastapi import HTTPException, status
-from sqlalchemy import ColumnElement, or_
+from sqlalchemy import ColumnElement, false, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.auth import Role
 
 from studio_api.db.models.machine import MachineModel
+from studio_api.db.models.project_membership import ProjectMembershipModel
 from studio_api.db.models.transfer import TransferModel
 from studio_api.db.models.user import UserModel
 
 
+class _AllProjects(Enum):
+    ALL = "all"
+
+
+ALL_PROJECTS = _AllProjects.ALL
+"""`Principal.project_scope` of an admin: global scope, memberships bypassed."""
+
+ProjectScope = _AllProjects | frozenset[uuid.UUID]
+ProjectAction = Literal["read", "write"]
+
+
 @dataclass(frozen=True)
 class Principal:
-    """The two levels authorization is checked against (TECH/04, DEC-0036):
-    a transverse role (`role`, the owner of the authenticated machine) and,
-    per resource, ownership derived from the resource's own existing link to
-    a machine/user — never a separate ACL table."""
+    """The three levels authorization is checked against, composed with AND
+    (TECH/04, DEC-0036, DEC-0100): a transverse role (`role`, the owner of the
+    authenticated machine), project access (`project_scope`, the owner's
+    memberships — `ALL_PROJECTS` for an admin) and, per resource, ownership
+    derived from the resource's own existing link to a machine/user.
+
+    `project_scope` defaults to no project at all: a Principal built anywhere
+    but `load_principal` is fail-closed."""
 
     machine: MachineModel
     user: UserModel
     role: Role
+    project_scope: ProjectScope = field(default_factory=frozenset)
 
 
 async def load_principal(session: AsyncSession, machine: MachineModel) -> Principal:
+    """Loaded once per request/tool call (DEC-0100 §12). A Machine inherits its
+    owner's memberships; an Agent never has any of its own."""
     user = await session.get(UserModel, machine.owner_user_id)
     if user is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "machine owner not found")
-    return Principal(machine=machine, user=user, role=Role(user.role))
+    role = Role(user.role)
+    return Principal(
+        machine=machine,
+        user=user,
+        role=role,
+        project_scope=await load_project_scope(session, user.id, role),
+    )
+
+
+async def load_project_scope(session: AsyncSession, user_id: uuid.UUID, role: Role) -> ProjectScope:
+    if role == Role.ADMIN:
+        return ALL_PROJECTS
+    rows = await session.execute(
+        select(ProjectMembershipModel.project_id).where(ProjectMembershipModel.user_id == user_id)
+    )
+    return frozenset(rows.scalars().all())
+
+
+def has_project_access(principal: Principal, project_id: uuid.UUID) -> bool:
+    scope = principal.project_scope
+    return scope is ALL_PROJECTS or project_id in scope
+
+
+def has_any_project(principal: Principal) -> bool:
+    """Shared data without a project (global decisions, Studio Library and
+    bindings, project-less transfers) is readable only by an admin or a User
+    with at least one membership (DEC-0100 §4)."""
+    scope = principal.project_scope
+    return scope is ALL_PROJECTS or bool(scope)
+
+
+def ensure_project_access(
+    principal: Principal, project_id: uuid.UUID, action: ProjectAction = "read"
+) -> None:
+    """The canonical project check (DEC-0100 §8/§12). Inaccessible and
+    nonexistent projects answer the same 403 — no existence oracle — so this
+    runs before any lookup, idempotency short-circuit or `event_id` dedup."""
+    if not has_project_access(principal, project_id):
+        raise forbidden("project", action)
+
+
+def ensure_shared_access(principal: Principal, action: ProjectAction = "read") -> None:
+    """Guard for project-less shared data (see `has_any_project`)."""
+    if not has_any_project(principal):
+        raise forbidden("project", action)
+
+
+def project_visibility_clause(principal: Principal, column: Any) -> ColumnElement[bool] | None:
+    """Filter for listing a project-scoped collection: silently restricted to
+    accessible projects, never counting invisible rows (DEC-0100 §7). `None`
+    means "no filter" (admin). A nullable `project_id` column keeps its
+    project-less rows only for a Principal that `has_any_project`."""
+    scope = principal.project_scope
+    if scope is ALL_PROJECTS:
+        return None
+    if not scope:
+        return false()
+    clause: ColumnElement[bool] = column.in_(scope)
+    if column.nullable:
+        return or_(clause, column.is_(None))
+    return clause
 
 
 def forbidden(resource: str, action: str) -> HTTPException:

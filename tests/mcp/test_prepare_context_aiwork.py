@@ -85,7 +85,7 @@ async def _log(
 
 async def _project(db_session) -> ProjectModel:
     return await projects_service.create_project(
-        db_session, f"ctx-{uuid.uuid4().hex[:8]}", "Context Project", None
+        db_session, f"ctx-{uuid.uuid4().hex[:8]}", "Context Project", None, creator=None
     )
 
 

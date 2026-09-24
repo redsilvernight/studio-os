@@ -42,8 +42,16 @@ async def test_project_state_lists_active_tasks_and_claims(
     assert len(body["active_claims"]) == 1
 
 
-async def test_unknown_project_returns_404(
+async def test_unknown_project_is_forbidden_for_non_admin(
     client: AsyncClient, auth_headers: dict[str, str]
 ) -> None:
+    """No existence oracle (DEC-0100 §3): 403, like an inaccessible project."""
     response = await client.get(f"/api/v1/projects/{uuid.uuid4()}", headers=auth_headers)
+    assert response.status_code == 403
+
+
+async def test_unknown_project_returns_404_for_admin(
+    client: AsyncClient, admin_auth_headers: dict[str, str]
+) -> None:
+    response = await client.get(f"/api/v1/projects/{uuid.uuid4()}", headers=admin_auth_headers)
     assert response.status_code == 404

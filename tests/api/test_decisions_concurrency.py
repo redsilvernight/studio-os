@@ -80,7 +80,11 @@ async def test_concurrent_decisions_get_unique_readable_ids(
             setup_session, user.id, "decision-concurrency-machine"
         )
         project = await projects_service.create_project(
-            setup_session, f"dec-concurrency-{uuid.uuid4().hex[:8]}", "Decision Concurrency", None
+            setup_session,
+            f"dec-concurrency-{uuid.uuid4().hex[:8]}",
+            "Decision Concurrency",
+            None,
+            creator=None,
         )
 
     headers = {"Authorization": f"Bearer {token}"}
@@ -145,7 +149,11 @@ async def test_concurrent_accept_of_the_same_decision_succeeds_exactly_once(
             setup_session, admin.id, "decision-race-admin"
         )
         project = await projects_service.create_project(
-            setup_session, f"dec-accept-race-{uuid.uuid4().hex[:8]}", "Decision Accept Race", None
+            setup_session,
+            f"dec-accept-race-{uuid.uuid4().hex[:8]}",
+            "Decision Accept Race",
+            None,
+            creator=None,
         )
 
     proposer_headers = {"Authorization": f"Bearer {proposer_token}"}

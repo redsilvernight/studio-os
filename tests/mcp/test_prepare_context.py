@@ -55,7 +55,7 @@ async def _principal(db_session: AsyncSession, machine: Machine) -> Principal:
 
 async def _project(db_session: AsyncSession, description: str | None = None) -> ProjectModel:
     return await projects_service.create_project(
-        db_session, f"ctx-{uuid.uuid4().hex[:8]}", "Context Project", description
+        db_session, f"ctx-{uuid.uuid4().hex[:8]}", "Context Project", description, creator=None
     )
 
 
@@ -589,7 +589,11 @@ async def test_bad_ids_and_unknown_project(project: ProjectModel, auth_ctx: Fake
         == "invalid_argument"
     )
     unknown = dump(await studio_prepare_context(str(uuid.uuid4()), "x", auth_ctx))
-    assert unknown["error_code"] == "not_found"
+    assert (unknown["error_code"], unknown["resource"], unknown["action"]) == (
+        "forbidden",
+        "project",
+        "read",
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -50,11 +50,11 @@ async def studio_get_task(task_id: str, ctx: Context) -> dict[str, Any]:
 async def studio_get_active_tasks(project_id: str, ctx: Context) -> dict[str, Any]:
     """List active (created/in_progress/blocked) tasks for a project_id (UUID string)."""
 
-    async def _handler(session: AsyncSession, _principal: Principal) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed = parse_uuid(project_id, "project_id")
         if isinstance(parsed, dict):
             return parsed
-        tasks = await projects_service.get_active_tasks(session, parsed)
+        tasks = await projects_service.get_active_tasks(session, principal, parsed)
         return {"tasks": [_compact_task(t) for t in tasks]}
 
     return await run_tool(ctx, _handler)

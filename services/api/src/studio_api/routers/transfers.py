@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Header, HTTPException, Query, Request, status
+from fastapi import APIRouter, Body, Header, Query, Request, status
 from studio_contracts.transfers import (
     DownloadUrlResponse,
     Transfer,
@@ -91,9 +91,7 @@ async def create_transfer(
         if transfer_in.project_id is None:
             project_slug = "unscoped"
         else:
-            project = await projects_service.get_project(session, transfer_in.project_id)
-            if project is None:
-                raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+            project = await projects_service.get_project(session, principal, transfer_in.project_id)
             project_slug = project.slug
 
         transfer = await transfers_service.create_transfer(

@@ -14,8 +14,8 @@ from studio_mcp.util import parse_uuid
 async def studio_get_projects(ctx: Context) -> dict[str, Any]:
     """List active (non-archived) Studio OS projects, compact fields only."""
 
-    async def _handler(session: AsyncSession, _principal: Principal) -> dict[str, Any]:
-        projects = await projects_service.list_projects(session)
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
+        projects = await projects_service.list_projects(session, principal)
         return {"projects": [{"id": str(p.id), "slug": p.slug, "name": p.name} for p in projects]}
 
     return await run_tool(ctx, _handler)
@@ -25,17 +25,14 @@ async def studio_get_project_state(project_id: str, ctx: Context) -> dict[str, A
     """Get a project's active tasks and active resource claims — the bootstrap
     view a client/agent should read before starting work on it."""
 
-    async def _handler(session: AsyncSession, _principal: Principal) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed_id = parse_uuid(project_id, "project_id")
         if isinstance(parsed_id, dict):
             return parsed_id
 
-        project = await projects_service.get_project(session, parsed_id)
-        if project is None:
-            return {"error_code": "not_found", "message": f"project {project_id} not found"}
-
-        tasks = await projects_service.get_active_tasks(session, parsed_id)
-        claims = await projects_service.get_active_claims(session, parsed_id)
+        await projects_service.get_project(session, principal, parsed_id)
+        tasks = await projects_service.get_active_tasks(session, principal, parsed_id)
+        claims = await projects_service.get_active_claims(session, principal, parsed_id)
         return {
             "project_id": project_id,
             "active_tasks": [

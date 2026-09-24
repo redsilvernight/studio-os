@@ -108,7 +108,9 @@ async def _show_machine_by_token(token: str) -> None:
 
 async def _create_project(slug: str, name: str, description: str | None) -> None:
     async with get_session_factory()() as session:
-        project = await projects_service.create_project(session, slug, name, description)
+        project = await projects_service.create_project(
+            session, slug, name, description, creator=None
+        )
         print(f"project created: {project.id} ({project.slug})")
 
 
