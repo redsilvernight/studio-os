@@ -18,6 +18,7 @@ mod server_origin;
 mod shell_commands;
 mod sidecar;
 mod updater;
+mod webview_args;
 
 use navigation::Decision;
 use serde_json::{Map, Value};
@@ -216,27 +217,33 @@ pub fn run() {
 
             let nav_dev = dev_origin.clone();
             let popup_dev = dev_origin.clone();
-            WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
-                .title(info::PRODUCT)
-                .inner_size(1280.0, 800.0)
-                .min_inner_size(900.0, 600.0)
-                .on_navigation(move |url| match navigation::decide(url, nav_dev.as_ref()) {
-                    Decision::Allow => true,
-                    Decision::OpenExternally => {
-                        open_externally(url);
-                        false
-                    }
-                    Decision::Deny => false,
-                })
-                .on_new_window(move |url, _features| {
-                    // Popups never get a WebView of their own: same policy,
-                    // and an internal target is still refused as a new window.
-                    if navigation::decide(&url, popup_dev.as_ref()) == Decision::OpenExternally {
-                        open_externally(&url);
-                    }
-                    NewWindowResponse::Deny
-                })
-                .build()?;
+            let mut window =
+                WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+                    .title(info::PRODUCT)
+                    .inner_size(1280.0, 800.0)
+                    .min_inner_size(900.0, 600.0)
+                    .on_navigation(move |url| match navigation::decide(url, nav_dev.as_ref()) {
+                        Decision::Allow => true,
+                        Decision::OpenExternally => {
+                            open_externally(url);
+                            false
+                        }
+                        Decision::Deny => false,
+                    })
+                    .on_new_window(move |url, _features| {
+                        // Popups never get a WebView of their own: same policy,
+                        // and an internal target is still refused as a new window.
+                        if navigation::decide(&url, popup_dev.as_ref()) == Decision::OpenExternally
+                        {
+                            open_externally(&url);
+                        }
+                        NewWindowResponse::Deny
+                    });
+            let requested = std::env::var(webview_args::ENV).ok();
+            if let Some(args) = webview_args::browser_args(requested.as_deref()) {
+                window = window.additional_browser_args(&args);
+            }
+            window.build()?;
             Ok(())
         })
         .build(context)

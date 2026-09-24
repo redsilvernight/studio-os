@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock
@@ -183,6 +184,7 @@ async def test_an_offline_server_keeps_the_partition_pending_and_never_leaks_to_
     await OutboxReplayer(b_store, other, POLICY, active_binding=binding(ORIGIN_B)).replay_ready()
     other.post_event.assert_not_awaited()
 
+    await asyncio.sleep(POLICY.backoff_max * 2)
     back = AsyncMock()
     back.post_event.return_value = None
     reconnected = OutboxStore(connect(path_a))

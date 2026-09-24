@@ -1,6 +1,16 @@
 name: Desktop validation
 
 on:
+  push:
+    # No PR is needed to validate the Desktop: master and fix/** pushes run it too.
+    branches: [master, "fix/**"]
+    paths:
+      - "desktop/**"
+      - "dashboard/**"
+      - "packages/studio-client/**"
+      - "packages/studio-code-graph/**"
+      - "packages/studio-workspaces/**"
+      - ".github/workflows/desktop-*.yml"
   pull_request:
     paths:
       - "desktop/**"
@@ -55,6 +65,11 @@ jobs:
         working-directory: desktop
       - name: Install, launch, upgrade and uninstall
         run: npm run test:install
+        working-directory: desktop
+      - name: Annotate failing install checks
+        # Job logs need a signed-in reader; annotations are public.
+        if: failure()
+        run: node scripts/annotate-results.mjs install-test-results.json
         working-directory: desktop
       - name: Upload the unsigned development installer
         uses: actions/upload-artifact@v4

@@ -81,6 +81,7 @@ _OVERVIEW_RANK = {
     RoadmapStatus.COMPLETED: 2,
 }
 
+
 class TextBudget(Protocol):
     """The slice of the shared character budget the section spends from."""
 

@@ -99,8 +99,7 @@ class ClaudeCodeAdapter:
                 *warnings,
                 AdapterWarning(
                     "tools_not_projected",
-                    "canonical tool needs without Claude mapping dropped: "
-                    f"{unknown_tools}",
+                    f"canonical tool needs without Claude mapping dropped: {unknown_tools}",
                 ),
             ]
         warnings = [
