@@ -30,7 +30,7 @@ Le rapport complet (reproductions, résultats de tests) est le PDF local
   (bloc `{$STORAGE_DOMAIN}` du Caddyfile ou un port Tailscale Serve dédié), vérifier que la
   signature SigV4 survit au proxy (en-tête `Host`), puis builder le Desktop avec `--storage-url`.
 - **Installateur non signé** : SmartScreen avertit ; Smart App Control (actif sur FLO-LAPTOP)
-  bloque les binaires non signés. Il bloque aussi `rustc` (proc-macros locales) : ni build Rust
+  peut bloquer les binaires non signés. Il bloque `rustc` (proc-macros compilées localement)
   sur ce poste : tout build Rust passe par la CI Windows. L'installateur CI s'installe et se
   lance localement, mais SAC a bloqué `studio-daemon.exe` (sidecar PyInstaller non signé) lors
   d'un second lancement : sur FLO-LAPTOP, le daemon du Desktop peut être indisponible tant que
