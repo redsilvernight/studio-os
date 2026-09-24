@@ -21,7 +21,20 @@ Le rapport complet (reproductions, résultats de tests) est le PDF local
 | Desktop validation : `test:install` ne pouvait pas s'attacher en CDP (WebView2 152 ignore `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` sous wry) | `d677eee` |
 | `test:install` : fermeture demandée via `pwsh`, absent d'un Windows standard (échec local 28/29) | `71fbb3a` |
 
-## Documenté, non corrigé
+## Suivi du 2026-09-24 (branche `fix/desktop-audit-followups`)
+
+| Point | Traitement |
+| --- | --- |
+| A15 — « Passer » sur l'étape Dossier obligatoire | Bouton retiré : l'étape est `required` et « Terminer » exige un dossier |
+| A16 — Sidecar sans nouvelle tentative | Échec de lancement retenté après 15 s (binaire absent ou protocole incompatible : jamais) ; un lancement réussi efface « indisponible » et « abandonné » |
+| A17 — Port de débogage WebView2 en release | Refusé quand `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` est une variable persistante (utilisateur ou machine) ; une valeur posée pour le lancement (scripts de test) reste acceptée |
+| Actions GitHub Node 20 | `checkout@v5`, `setup-node@v5`, `upload-artifact@v6`, `setup-uv@v7` (Node 24) |
+
+Restent ouverts : A13 (S3 en HTTPS, changement d'infrastructure à approuver) et
+A14 (Smart App Control / signature de code : certificat requis, paramètre de sécurité
+du poste non modifiable par un agent).
+
+## Documenté, non corrigé (état initial de l'audit)
 
 - **S3 HTTP depuis une page HTTPS** : `STUDIO_S3_PUBLIC_ENDPOINT_URL=http://100.124.49.80:9000`.
   Les uploads directs du Dashboard web servi en `https://flo-laptop.tailf61f85.ts.net` sont
