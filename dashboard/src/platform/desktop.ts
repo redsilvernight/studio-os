@@ -7,7 +7,7 @@
  * injected by Tauri; no `@tauri-apps/*` package is imported, so the web bundle
  * has no Tauri dependency at all. Every shell answer is shape-checked here.
  */
-import { buildRequest, parseAnswer, type BridgeAnswer, type BridgeCommand } from "./contracts";
+import { buildRequest, parseAnswer, type BridgeAnswer, type BridgeCommand, type BridgeRequest } from "./contracts";
 import { LOCAL_PROTOCOL } from "./generated/local-contracts.generated";
 import type {
   DataFolder,
@@ -38,7 +38,7 @@ export function detectTauriInvoke(scope: unknown = globalThis): TauriInvoke | nu
   return typeof invoke === "function" ? (invoke as TauriInvoke) : null;
 }
 
-function failure(code: "daemon_unavailable" | "internal_error", message: string): BridgeAnswer {
+function failure(code: "daemon_unavailable" | "internal_error" | "invalid_request", message: string): BridgeAnswer {
   return {
     ok: false,
     error: { code, component: "bridge", message, retryable: code === "daemon_unavailable", correlation_id: null, details: {} },
@@ -174,7 +174,13 @@ export function createDesktopPlatform(invoke: TauriInvoke): Platform {
       return info;
     },
     async request(command: BridgeCommand, payload: Record<string, unknown> = {}) {
-      const request = buildRequest(command, payload);
+      let request: BridgeRequest;
+      try {
+        request = buildRequest(command, payload);
+      } catch {
+        // A request the contract refuses never leaves: a typed error, not a throw.
+        return failure("invalid_request", "The request does not match the local contract.");
+      }
       try {
         return parseAnswer(request, await invoke("bridge_request", { request }));
       } catch {
