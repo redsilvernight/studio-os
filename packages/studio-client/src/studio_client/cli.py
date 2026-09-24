@@ -13,6 +13,7 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ValidationError
+from studio_contracts.auth import AgentCreate
 from studio_contracts.builds import BuildStatus, ProducerJobKind, ProducerJobRequest
 from studio_contracts.claims import ResourceClaimCreate, ResourceType
 from studio_contracts.sessions import WorkSessionCreate
@@ -221,6 +222,39 @@ def _sessions_end(args: argparse.Namespace, config: ClientConfig) -> None:
     session_id = _parse_uuid(args.session_id, field="session_id")
     session = _run(config, lambda client: client.end_session(session_id))
     _print_model(session, as_json=args.json)
+
+
+def _agents_list(args: argparse.Namespace, config: ClientConfig) -> None:
+    agents = _run(config, lambda client: client.list_agents())
+    _print_models(agents, as_json=args.json)
+
+
+def _agents_ensure(args: argparse.Namespace, config: ClientConfig) -> None:
+    """Session-start helper (workflow W2): find this machine's agent for a
+    harness or register it (CC-1, no authority conferred), so hooks can expose
+    a stable `agent_id` to `sessions start` / `studio_start_session` and
+    `studio_log_ai_work`. The default idempotency key is stable per harness so
+    a retried hook never registers a duplicate; changing the metadata with the
+    default key fails explicitly with `idempotency_key_payload_mismatch`."""
+    agent_in = AgentCreate(
+        display_name=args.display_name or f"studio-{args.harness}",
+        agent_kind=args.agent_kind,
+        agent_profile=args.agent_profile,
+        harness=args.harness,
+        provider=args.provider,
+        model=args.model,
+    )
+    key = args.idempotency_key or f"agents-ensure-{args.harness}"
+
+    async def action(client: StudioApiClient) -> tuple[Any, bool]:
+        return await client.ensure_agent(agent_in, idempotency_key=key)
+
+    agent, created = _run(config, action)
+    if args.json:
+        _print_model(agent, as_json=True)
+    else:
+        verb = "Registered" if created else "Found"
+        print(f"{verb} agent {agent.id} ({agent.display_name}).")
 
 
 def _claims_list(args: argparse.Namespace, config: ClientConfig) -> None:
@@ -799,6 +833,28 @@ def _build_parser() -> argparse.ArgumentParser:
     sessions_end.add_argument("session_id")
     _add_json_flag(sessions_end)
     sessions_end.set_defaults(func=_sessions_end)
+
+    agents_parser = subparsers.add_parser("agents", help="Agent provenance identities (CC-1).")
+    agents_sub = agents_parser.add_subparsers(dest="agents_command", required=True)
+
+    agents_list = agents_sub.add_parser("list", help="List agent identities.")
+    _add_json_flag(agents_list)
+    agents_list.set_defaults(func=_agents_list)
+
+    agents_ensure = agents_sub.add_parser(
+        "ensure", help="Find this machine's harness agent or register it."
+    )
+    agents_ensure.add_argument("--harness", required=True, help="Harness name, e.g. opencode.")
+    agents_ensure.add_argument("--display-name", help="Defaults to 'studio-<harness>'.")
+    agents_ensure.add_argument("--agent-kind", default="")
+    agents_ensure.add_argument("--agent-profile")
+    agents_ensure.add_argument("--provider")
+    agents_ensure.add_argument("--model")
+    agents_ensure.add_argument(
+        "--idempotency-key", help="Defaults to a stable 'agents-ensure-<harness>' key."
+    )
+    _add_json_flag(agents_ensure)
+    agents_ensure.set_defaults(func=_agents_ensure)
 
     claims_parser = subparsers.add_parser("claims", help="Resource claims (soft locks).")
     claims_sub = claims_parser.add_subparsers(dest="claims_command", required=True)
