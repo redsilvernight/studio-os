@@ -21,6 +21,7 @@ studio_get_sessions
 studio_get_teammate_activity
 studio_start_session
 studio_end_session
+studio_register_agent
 studio_log_ai_work
 studio_get_ai_work
 studio_get_review_queue
@@ -61,10 +62,11 @@ token (pas d'attaquant reseau).
 
 ## Etat reel (roadmap etape 5, DEC-0023, UC-3/DEC-0047, P8/DEC-0072)
 
-Le serveur VPS enregistre 42 outils (`services/mcp/src/studio_mcp/` : 29
+Le serveur VPS enregistre 43 outils (`services/mcp/src/studio_mcp/` : 29
 historiques + 5 AI Library P8, section ci-dessous, + `studio_prepare_context`,
 DEC-0080, section « Contexte projet borné », + 7 outils Roadmaps P4/P5,
-DEC-0087, section « Roadmaps et initialisation via MCP »).
+DEC-0087, section « Roadmaps et initialisation via MCP », +
+`studio_register_agent`, DEC-0101, section « Enregistrement d'Agent »).
 Les 3 outils locaux read-only specifies ci-dessous (UC-3, exposition via
 MCP local par poste, DEC-0047) sont en place mais conditionnels au
 fichier de configuration du poste : `studio_memory_search`,
@@ -172,11 +174,17 @@ optimiste via `expected_version`, deja protegee), `studio_log_ai_work`
 (semantique create-ou-update ambigue pour une seule cle — hors perimetre de
 DEC-0027, a trancher separement si un besoin reel de replay apparait).
 
-**Enregistrement d'Agent (CC-1/DEC-0045)** : HTTP-only (`POST /agents`,
-`TECH/02`) — aucun outil `studio_register_agent` n'existe a ce jour. Un
-consommateur purement MCP materialise son `Agent` via HTTP ; `studio_log_ai_work`
-applique la meme regle d'ownership `actor_not_owned` que le chemin HTTP,
-le service etant partage (DEC-0005/DEC-0036).
+**Enregistrement d'Agent (CC-1/DEC-0045, DEC-0101 additif)** : `POST /agents`
+(`TECH/02`) et `studio_register_agent` partagent le meme service
+(`agents.create_agent`, DEC-0005). Les deux chemins derivent `machine_id`
+de la machine authentifiee (DEC-0035, jamais fourni par le client),
+exigent `ensure_can_write` avant le court-circuit d'idempotence (DEC-0036),
+et rejouent sous des namespaces distincts (`POST /agents` vs
+`MCP studio_register_agent`, DEC-0024/DEC-0027 — jamais la meme intention).
+`studio_log_ai_work` applique la meme regle d'ownership `actor_not_owned`
+sur les deux chemins. L'enregistrement ne confere aucun droit (CC-1) ;
+`display_name` requis, `agent_kind`/`agent_profile`/`harness`/`provider`/
+`model` optionnels (chaines ouvertes d'observabilite, TECH/02).
 
 ## Review Queue et notifications (sous-etape 8.4/8.5, DEC-0049/DEC-0051)
 
@@ -368,7 +376,7 @@ sans roadmap `active`). Budgets et erreurs
 structurees comme les autres outils (DEC-0048, sans version par payload).
 
 ## Roadmaps et initialisation via MCP (P4/P5, DEC-0087) — implementes
-Surface MCP implementee (35 -> 42 outils), sur les memes services que l'API
+Surface MCP implementee (35 -> 43 outils), sur les memes services que l'API
 (DEC-0046). Tout est derive des contrats P1 (`studio.roadmap/v1`) plus le
 nouveau contrat neutre `studio.initialization/v1`.
 - `studio_get_roadmap(project_id, status?, limit, max_chars)` — lecture :
