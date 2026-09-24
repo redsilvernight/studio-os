@@ -86,7 +86,9 @@ function webviewCommandLines() {
   ).stdout ?? "";
   const lines = out.split(/\r?\n/).filter(Boolean);
   const browser = lines.find((l) => !l.includes("--type=")) ?? lines[0] ?? "";
-  return `${lines.length} webview command line(s); browser: ${browser.slice(0, 400) || "(none)"}`;
+  const debugArgs = browser.match(/--remote-debugging[^ "]*/g) ?? [];
+  const features = browser.match(/--(?:disable|enable)-features=[^ ]*/g) ?? [];
+  return `${lines.length} webview command line(s); browser debug args: ${debugArgs.join(" ") || "none"}; ${features.join(" ")}; tail: ${browser.slice(-300)}`;
 }
 
 async function cdpTargets() {
@@ -97,6 +99,13 @@ async function cdpTargets() {
   } catch (e) {
     return `endpoint unreachable (${e?.cause?.code ?? e?.name ?? e})`;
   }
+}
+
+let webviewDataDir = null;
+function devToolsActivePort() {
+  const file = webviewDataDir ? join(webviewDataDir, "EBWebView", "DevToolsActivePort") : null;
+  if (!file || !existsSync(file)) return "no DevToolsActivePort file";
+  return `DevToolsActivePort: ${readFileSync(file, "utf8").split(/\s+/)[0]}`;
 }
 
 async function attach(app, stderrTail) {
@@ -117,7 +126,7 @@ async function attach(app, stderrTail) {
   throw new Error(
     `could not attach to the installed Desktop over CDP: app ${state}; ` +
       `desktop processes ${processCount("studio-desktop.exe")}, webview processes ${processCount("msedgewebview2.exe")}; ` +
-      `CDP targets: ${await cdpTargets()}; ${webviewCommandLines()}; stderr: ${stderrTail().slice(-600) || "(empty)"}`,
+      `CDP targets: ${await cdpTargets()}; ${webviewCommandLines()}; ${devToolsActivePort()}; stderr: ${stderrTail().slice(-600) || "(empty)"}`,
   );
 }
 
@@ -167,6 +176,7 @@ async function main() {
   mkdirSync(appData, { recursive: true });
   mkdirSync(localAppData, { recursive: true });
   mkdirSync(webviewData, { recursive: true });
+  webviewDataDir = webviewData;
   mkdirSync(vault, { recursive: true });
   const size = statSync(installerPath).size;
   console.log(`installer ${installerPath} (${(size / 1048576).toFixed(1)} MB) -> ${instDir}`);
