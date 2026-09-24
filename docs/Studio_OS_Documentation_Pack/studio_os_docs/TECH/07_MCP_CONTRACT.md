@@ -269,6 +269,18 @@ vocabulaire d'erreurs metier preserve (`definition_not_found`,
 seconde taxonomie ; aucun `version`/`schema_version` en payload
 (DEC-0048) ; overrides session valides comme des choix stockes,
 gagnants selon P4, jamais persists.
+
+Acces projet (DEC-0100, rupture semantique, schemas inchanges) : tout
+outil MCP applique les memes gardes que HTTP, dans les services partages
+(DEC-0046 §4) — `run_tool` injecte le `Principal` avec son
+`project_scope`. `studio_prepare_context`, `studio_discover_definitions` et
+`studio_resolve_agent` verifient l'acces au projet **avant** toute lecture.
+Refus : `{error_code: "forbidden", resource: "project", action:
+"read|write"}` dans l'enveloppe plate `McpError`, jamais `not_found` pour un
+projet inaccessible ; les listes (`studio_get_projects`,
+`studio_get_active_tasks`, ...) filtrent silencieusement, une liste de
+projets vide est une reponse valide. Aucun outil `_v2`. Tout outil est classe
+`project|instance|own|public` dans le registre fail-closed partage avec HTTP.
 Volontairement absents : `resolve_definition` P2 seul (redondant avec
 P5 canonique), locks projet (lus via la resolution), lecture Registry
 detaillee (couverte par discovery/configure), P9 (Context Package) et
@@ -281,7 +293,8 @@ seule, réponse bornée et déterministe. Les outils `get/list/discover`
 restent disponibles pour les besoins précis ou avancés.
 
 Entrée : `project_id` (UUID) et `objective` (1..1000 car.) requis ;
-optionnels `task_id` (doit appartenir au projet, sinon `not_found`),
+optionnels `task_id` (doit appartenir au projet, sinon `not_found` —
+`forbidden` si son projet est inaccessible, voir « Accès projet » ci-dessous),
 `files` (≤ 20 chemins), `limit` (1..20, défaut 5, éléments par catégorie),
 `max_chars` (1000..50000, défaut 12000, budget de texte libre),
 `agent_stable_key` (définition d'agent résolue via le Resolution Engine :
@@ -303,8 +316,16 @@ Garanties : au plus `limit` éléments par catégorie ; texte libre coupé à
 `additional_available`. Le budget compte des caractères, pas des tokens.
 Sélection = liens structurels + recouvrement lexical exact avec l'objectif,
 jamais de recherche sémantique ni de LLM. Mêmes règles d'accès que les
-outils de lecture composés (Library `user` d'autrui invisible, tâche d'un
-autre projet = `not_found`). Section AI Work (P2) — `ai_work` : entrées de travail pertinentes pour la
+outils de lecture composés (Library `user` d'autrui invisible, Library
+Studio réservée à `admin` ou à un User ayant au moins une membership).
+Accès projet (DEC-0100, rupture sémantique, schémas inchangés) : `project_id`
+inaccessible (ni membership ni `admin`) ou inexistant →
+`{error_code: "forbidden", resource: "project", action: "read"}` **avant
+toute lecture** ; un `task_id` rattaché à un projet inaccessible →
+même refus `forbidden` / `resource: "project"` (remplace l'ancien
+`not_found` inter-projet, DEC-0100 §8/§10 : UUID v4, pas d'oracle
+exploitable) ; un `task_id` inexistant, ou rattaché à un autre projet
+accessible, reste `not_found`. Section AI Work (P2) — `ai_work` : entrées de travail pertinentes pour la
 reprise, bornées à `limit`, tranche dédiée de 15 % de `max_chars` sur le même
 mécanisme. Ordre : entrées liées à la tâche demandée d'abord (`linked_to_task`,
 plus récentes d'abord — le paquet de handoff vit ici), puis recouvrement

@@ -187,3 +187,12 @@ Tests modifies/ajoutes : `tests/api/test_authz.py` (nouveau),
 
 Validation `studio-tester` et `contract-guardian` : voir rapports separes
 dans la session.
+
+## Amendement propose — DEC-0100 (2026-09-24, statut `proposed`)
+
+Conserve : role transverse, ownership par ressource, regle Transfer, controle
+avant le court-circuit d'idempotence, `403` sans `404` de confidentialite.
+Remplace : « sans nouvelle table » et « jamais une ACL projet separee » — un
+troisieme niveau, l'acces projet par `project_memberships`, se compose par ET
+logique avec les deux autres. Contrats : `TECH/02` et `TECH/04` (rupture,
+`API_CONTRACT_VERSION` 2). Effectif a l'acceptation de DEC-0100.
