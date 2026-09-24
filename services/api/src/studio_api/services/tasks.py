@@ -8,13 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.tasks import TaskCreate, TaskUpdate
 
 from studio_api.db.models.task import TaskModel
-from studio_api.services.authz import (
-    Principal,
-    ensure_can_write,
-    ensure_machine_owned,
-    ensure_project_access,
-    project_visibility_clause,
-)
+from studio_api.services.authz import Principal, ensure_can_write, ensure_machine_owned
 
 
 async def list_tasks(
@@ -98,7 +92,6 @@ async def claim_task(
 
 
 async def release_task(session: AsyncSession, principal: Principal, task: TaskModel) -> TaskModel:
-    ensure_project_access(principal, task.project_id, "write")
     ensure_machine_owned(principal, task.claimed_by_machine_id, "task", "release")
     task.claimed_by_machine_id = None
     task.claimed_by_agent_id = None
