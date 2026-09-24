@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from uuid import UUID
 
@@ -17,6 +16,8 @@ from studio_contracts.local.harness import (
     HarnessVerifyRequest,
     VerifyState,
 )
+
+from tests.harness.support import fake_harness_env
 
 MCP_URL = "https://studio.example/mcp"
 WORKSPACE_ID = UUID("11111111-1111-4111-8111-111111111111")
@@ -40,7 +41,7 @@ def test_dogfood_scenario_ia_to_studios_workspace_setup(tmp_path: Path):
     workspace.mkdir()
     backups_root = tmp_path / "backups"
     backups_root.mkdir()
-    env = dict(os.environ)
+    env = fake_harness_env(tmp_path)
     env["STUDIO_MCP_MACHINE_TOKEN"] = "test-machine-token-for-dogfood"
 
     def lookup(workspace_id):
@@ -104,7 +105,7 @@ def test_dogfood_opencode_configuration(tmp_path: Path):
     workspace.mkdir()
     backups_root = tmp_path / "backups"
     backups_root.mkdir()
-    env = dict(os.environ)
+    env = fake_harness_env(tmp_path)
 
     def lookup(workspace_id):
         if workspace_id != WORKSPACE_ID:
@@ -152,7 +153,7 @@ def test_dogfood_studios_to_studios_temp_clone(tmp_path: Path):
 
     backups_root = tmp_path / "backups"
     backups_root.mkdir()
-    env = dict(os.environ)
+    env = fake_harness_env(tmp_path)
     env["STUDIO_MCP_MACHINE_TOKEN"] = "test-token"
 
     def lookup(workspace_id):

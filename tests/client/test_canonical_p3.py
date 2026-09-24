@@ -56,9 +56,7 @@ def test_canonical_definitions_exist_and_parse() -> None:
 
 def test_canonical_definitions_name_no_model_or_harness() -> None:
     for key in KEYS:
-        text = (REPO / ".agents" / "definitions" / f"{key}.md").read_text(
-            encoding="utf-8"
-        ).lower()
+        text = (REPO / ".agents" / "definitions" / f"{key}.md").read_text(encoding="utf-8").lower()
         for token in FORBIDDEN:
             assert token not in text, f"{key} leaks {token!r}"
 
@@ -127,8 +125,7 @@ def test_fake_third_party_adapter_needs_no_core_change() -> None:
                 artifacts=(
                     AdapterArtifact(
                         path=f"{self.managed_dir}/{resolved.agent.stable_key}.test",
-                        content=f"agent={resolved.agent.stable_key}\n"
-                        f"rules={len(resolved.rules)}\n",
+                        content=f"agent={resolved.agent.stable_key}\nrules={len(resolved.rules)}\n",
                     ),
                 ),
             )

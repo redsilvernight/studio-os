@@ -1,6 +1,16 @@
 name: Desktop validation
 
 on:
+  push:
+    # No PR is needed to validate the Desktop: master and fix/** pushes run it too.
+    branches: [master, "fix/**"]
+    paths:
+      - "desktop/**"
+      - "dashboard/**"
+      - "packages/studio-client/**"
+      - "packages/studio-code-graph/**"
+      - "packages/studio-workspaces/**"
+      - ".github/workflows/desktop-*.yml"
   pull_request:
     paths:
       - "desktop/**"
@@ -22,11 +32,11 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
       - uses: dtolnay/rust-toolchain@stable
@@ -56,8 +66,13 @@ jobs:
       - name: Install, launch, upgrade and uninstall
         run: npm run test:install
         working-directory: desktop
+      - name: Annotate failing install checks
+        # Job logs need a signed-in reader; annotations are public.
+        if: failure()
+        run: node scripts/annotate-results.mjs install-test-results.json
+        working-directory: desktop
       - name: Upload the unsigned development installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: studio-desktop-unsigned-installer
           path: desktop/src-tauri/target/release/bundle/nsis/*.exe

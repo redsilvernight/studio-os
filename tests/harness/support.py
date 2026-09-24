@@ -107,3 +107,17 @@ def make_rig(tmp_path: Path, *, claude: bool = True, opencode: bool = True) -> R
 
 def env_with(env: Mapping[str, str], **extra: str) -> dict[str, str]:
     return {**env, **extra}
+
+
+def fake_harness_env(
+    tmp_path: Path, *, claude: bool = True, opencode: bool = True
+) -> dict[str, str]:
+    """The real process environment with PATH swapped for stand-in harness
+    executables, so a scenario never depends on which harnesses (or which
+    versions) happen to be installed on the machine running the suite."""
+    bin_dir = tmp_path / "fake-bin"
+    if claude:
+        install_fake(bin_dir, "claude", CLAUDE_VERSION_LINE)
+    if opencode:
+        install_fake(bin_dir, "opencode", OPENCODE_VERSION_LINE)
+    return base_env(bin_dir)

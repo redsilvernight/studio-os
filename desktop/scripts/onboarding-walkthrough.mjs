@@ -335,7 +335,7 @@ async function main() {
     await browser.close();
     browser = null;
     spawnSync(
-      "pwsh",
+      "powershell",
       [
         "-NoProfile",
         "-Command",

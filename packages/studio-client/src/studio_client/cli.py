@@ -659,9 +659,7 @@ def _adapters_check(args: argparse.Namespace, config: ClientConfig | None) -> No
                 else None
             )
             if on_disk != render_claude_rule(key, applies_to, body):
-                failures.append(
-                    {"adapter": "rules", "key": key, "error": f"drifted: {current}"}
-                )
+                failures.append({"adapter": "rules", "key": key, "error": f"drifted: {current}"})
         checked += 1
         agents_text = (root / "AGENTS.md").read_text(encoding="utf-8").replace("\r\n", "\n")
         expected = render_agents_rules_block(root)
@@ -1041,10 +1039,14 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     parser = _build_parser()
     args = parser.parse_args(argv)
-    if getattr(args, "adapters_command", None) in ("check",) or (
-        getattr(args, "adapters_command", None) == "export"
-        and getattr(args, "from_canonical", False)
-    ) or getattr(args, "rules_command", None) in ("sync",):
+    if (
+        getattr(args, "adapters_command", None) in ("check",)
+        or (
+            getattr(args, "adapters_command", None) == "export"
+            and getattr(args, "from_canonical", False)
+        )
+        or getattr(args, "rules_command", None) in ("sync",)
+    ):
         # Offline canonical commands need no server configuration.
         args.func(args, None)
     else:

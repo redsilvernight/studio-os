@@ -26,6 +26,11 @@ rfd = { version = "0.15", default-features = false }
 tauri-plugin-updater = "2"
 regex = { version = "1", default-features = false, features = ["std", "unicode-perl", "unicode-case", "perf"] }
 
+[target.'cfg(windows)'.dependencies]
+# Read-only: tells a persistent WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS apart from
+# a launch-scoped one (webview_args.rs). Already in the tree through tauri.
+winreg = "0.55"
+
 [dev-dependencies]
 tauri = { version = "2", features = ["test"] }
 

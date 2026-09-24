@@ -73,9 +73,7 @@ async def _log(
     work = await ai_work_service.create_ai_work(
         db_session,
         principal,
-        AIWorkLogCreate(
-            project_id=project.id, agent_id=agent.id, task_id=task_id, summary=summary
-        ),
+        AIWorkLogCreate(project_id=project.id, agent_id=agent.id, task_id=task_id, summary=summary),
     )
     return await ai_work_service.update_ai_work(
         db_session,
@@ -104,14 +102,18 @@ async def test_linked_ai_work_included_unrelated_excluded(
     other = await _task(db_session, principal, project, "Repaint dashboard header")
     files = [f"services/api/src/studio_api/services/m{i}.py" for i in range(12)]
     await _log(
-        db_session, principal, project, agent, task.id, HANDOFF_SUMMARY,
-        files=files, tests=["pytest tests/mcp/"],
+        db_session,
+        principal,
+        project,
+        agent,
+        task.id,
+        HANDOFF_SUMMARY,
+        files=files,
+        tests=["pytest tests/mcp/"],
     )
     await _log(db_session, principal, project, agent, other.id, "Unrelated repaint notes")
 
-    result = await _prepare(
-        auth_ctx, project, "migrate claim TTL index", task_id=str(task.id)
-    )
+    result = await _prepare(auth_ctx, project, "migrate claim TTL index", task_id=str(task.id))
 
     assert result["task"]["id"] == str(task.id)
     assert result["returned"]["ai_work"] == 1
@@ -184,9 +186,7 @@ async def test_agent_a_to_b_handoff_resumes_from_one_call(
     first_end = await sessions_service.end_session(db_session, principal, work_session.id)
 
     # --- Agent B: logically fresh, one bounded call. ---
-    result = await _prepare(
-        auth_ctx, project, "migrate claim TTL index", task_id=str(task.id)
-    )
+    result = await _prepare(auth_ctx, project, "migrate claim TTL index", task_id=str(task.id))
 
     assert result["task"]["id"] == str(task.id)
     assert result["task"]["status"] == "created"

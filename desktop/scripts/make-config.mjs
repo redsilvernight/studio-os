@@ -1,12 +1,13 @@
 // Derives the build-specific Tauri config overlay (never hand-edited).
 //
-//   node scripts/make-config.mjs [--api-url <origin>] [--sidecar] [--installer]   # write .build/tauri.overlay.json
+//   node scripts/make-config.mjs [--api-url <origin>] [--storage-url <origin>] [--sidecar] [--installer]   # write .build/tauri.overlay.json
 //   node scripts/make-config.mjs --check                            # base config CSP is in sync
 //
 // The Content-Security-Policy is built from the Dashboard's own policy module
 // (dashboard/csp-policy.ts) so there is one definition; the desktop build only
 // adds what the shell needs: the IPC origin and — because a Tauri CSP is static
-// per build — the API origin this build talks to.
+// per build — the API origin this build talks to and, when given, the storage
+// origin of the pre-signed transfer URLs (direct uploads, DEC-0025).
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -20,9 +21,10 @@ export function apiOrigin(apiUrl) {
   return u.origin;
 }
 
-/** Desktop CSP: Dashboard policy + IPC + optional API origin; never framed. */
-export function desktopCsp(apiUrl) {
-  const extra = ["ipc:", "http://ipc.localhost", ...(apiUrl ? [apiOrigin(apiUrl)] : [])];
+/** Desktop CSP: Dashboard policy + IPC + optional API and storage origins; never framed. */
+export function desktopCsp(apiUrl, storageUrl) {
+  const origins = [apiUrl, storageUrl].filter(Boolean).map(apiOrigin);
+  const extra = ["ipc:", "http://ipc.localhost", ...new Set(origins)];
   return buildDashboardCsp({ connectExtra: extra }).replace("frame-ancestors 'self'", "frame-ancestors 'none'");
 }
 
@@ -35,8 +37,8 @@ export const SIDECAR_RESOURCE = { "../.build/sidecar/dist/studio-daemon/": "side
  * `updater`: `{ pubkey, endpoint }` - only then is the update mechanism present;
  *   the public key is baked in and the artifacts are signed by the build.
  */
-export function overlay({ apiUrl, sidecar, installer = false, updater }) {
-  const out = { app: { security: { csp: desktopCsp(apiUrl) } } };
+export function overlay({ apiUrl, storageUrl, sidecar, installer = false, updater }) {
+  const out = { app: { security: { csp: desktopCsp(apiUrl, storageUrl) } } };
   const bundle = {};
   if (sidecar) bundle.resources = SIDECAR_RESOURCE;
   if (installer) bundle.active = true;
@@ -73,7 +75,9 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
       arg("--api-url", process.env.STUDIO_DESKTOP_API_URL ?? DEFAULT_API_URL),
       allowInsecureOrigin(),
     );
-    const out = overlay({ apiUrl, sidecar: flag("--sidecar"), installer: flag("--installer"), updater: updaterFromEnv() });
+    const storageArg = arg("--storage-url", process.env.STUDIO_DESKTOP_STORAGE_URL);
+    const storageUrl = storageArg ? validateBuildApiUrl(storageArg, allowInsecureOrigin()) : undefined;
+    const out = overlay({ apiUrl, storageUrl, sidecar: flag("--sidecar"), installer: flag("--installer"), updater: updaterFromEnv() });
     mkdirSync(buildDir, { recursive: true });
     writeFileSync(overlayPath, JSON.stringify(out, null, 2) + "\n");
     console.log(`wrote ${overlayPath}`);
