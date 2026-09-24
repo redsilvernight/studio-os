@@ -2,6 +2,7 @@ import { getPlatform, type Platform } from "../platform";
 import type { GraphPage, GraphNodeRef } from "../platform/generated/local-contracts.generated";
 import { dsPageHeader } from "../ds/ds";
 import { esc } from "../ui";
+import { loadOnboardingState } from "../onboarding/state";
 import { GraphCollection, nodeKey } from "../graphs/model";
 import { createLocalGraphSource, STATE_LABELS, type GraphDataSource, type GraphKind, type SourceStatus } from "../graphs/provider";
 import { mountGraphViewer } from "../graphs/viewer";
@@ -19,7 +20,8 @@ const titles: Record<GraphKind, string> = { knowledge: "Graphe de connaissances"
 
 export function mountGraphPage(root: HTMLElement, kind: GraphKind, options: GraphPageOptions = {}): { ready: Promise<void>; dispose(): void } {
   const platform = options.platform ?? getPlatform();
-  const workspaceId = options.workspaceId;
+  // Sans dossier dans l'URL (lien de la barre latérale), reprendre celui retenu par l'onboarding.
+  const workspaceId = options.workspaceId ?? (platform.mode === "web" ? undefined : loadOnboardingState().workspaceId);
   const suffix = workspaceId ? `/${encodeURIComponent(workspaceId)}` : "";
   root.innerHTML = `${dsPageHeader(titles[kind], kind === "project" ? "Projection des sources disponibles et de leurs références explicites." : "Explorez les éléments, leurs relations et leur provenance.")}
     <nav class="graph-tabs" aria-label="Vues de graphe">${Object.entries(titles).map(([key, title]) => `<a class="ds-btn" href="#/graphs/${key}${suffix}" ${key === kind ? 'aria-current="page"' : ""}>${title}</a>`).join("")}</nav>
