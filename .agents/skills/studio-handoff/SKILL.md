@@ -14,6 +14,7 @@ description: Close a unit of work with existing Studi'OS primitives so a zero-hi
 3. `studio_release_task`.
 4. `studio_end_session` for the session, if one was started.
 5. Optional: `studio_emit_event` for a session note other consumers should see.
+6. Stop for the user's merge approval (`studio-git-flow`); set `completed` only after the merge.
 
 Typical cost: 4 calls plus one per active resource claim.
 

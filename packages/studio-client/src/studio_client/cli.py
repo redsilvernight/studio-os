@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import getpass
 import json
+import os
 import sys
 import uuid
 from collections.abc import Awaitable, Callable, Sequence
@@ -13,6 +14,7 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ValidationError
+from studio_contracts.auth import AgentCreate
 from studio_contracts.builds import BuildStatus, ProducerJobKind, ProducerJobRequest
 from studio_contracts.claims import ResourceClaimCreate, ResourceType
 from studio_contracts.sessions import WorkSessionCreate
@@ -27,6 +29,7 @@ from studio_client.context import (
     ContextPackageOptions,
 )
 from studio_client.errors import StudioApiError
+from studio_client.hooks import HARNESSES, deploy_hooks, detect_harnesses
 from studio_client.knowledge import GraphifyGraphProvider, ScopePolicy, VaultMemoryProvider
 from studio_client.outbox import OutboxStore, connect, default_outbox_path
 from studio_client.outbox.legacy import main as legacy_outbox_main
@@ -134,6 +137,65 @@ def login(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
+def setup_hooks(argv: Sequence[str] | None = None) -> int:
+    """Deploy versioned session-start hooks (workflow W2b, DEC-0100): `agents
+    ensure` at every harness session start, so a fresh machine gets a stable
+    `agent_id` without manual wiring. Pure local command — no server, no
+    secret written (the template carries none; the machine token stays
+    keyring/env). Never edits user/global account configs: only Studio OS's
+    own hook files are written (DEC-0096 boundary); the one-line harness
+    registration is printed for the operator to paste."""
+    parser = argparse.ArgumentParser(
+        prog="studio-client setup-hooks",
+        description="Deploy Studio OS session-start hooks for detected harnesses.",
+    )
+    parser.add_argument(
+        "--harness",
+        choices=[spec.harness for spec in HARNESSES],
+        help="Deploy a single harness (default: all detected).",
+    )
+    parser.add_argument("--home", help="Home directory to deploy into (default: current user's).")
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Replace even a foreign (non-managed) hook file.",
+    )
+    parser.add_argument("--dry-run", action="store_true", help="Print the plan without writing.")
+    parser.add_argument(_JSON_FLAG, action="store_true", help="Print machine-readable JSON.")
+    args = parser.parse_args(argv)
+
+    home = Path(args.home).expanduser() if args.home else Path.home()
+    skipped: list[str] = []
+    if args.harness:
+        specs = [spec for spec in HARNESSES if spec.harness == args.harness]
+    else:
+        installed = {
+            spec.harness
+            for spec in detect_harnesses(home, tuple(os.environ.get("PATH", "").split(os.pathsep)))
+        }
+        specs = [spec for spec in HARNESSES if spec.harness in installed]
+        skipped = [spec.harness for spec in HARNESSES if spec.harness not in installed]
+    result = deploy_hooks(home, specs, overwrite=args.overwrite, dry_run=args.dry_run)
+    if args.json:
+        payload = result.to_dict()
+        payload["skipped"] = skipped
+        print(json.dumps(payload, indent=2))
+    else:
+        for report in result.reports:
+            line = f"{report.harness}: {report.status} ({report.target})"
+            if report.detail:
+                line += f" — {report.detail}"
+            print(line)
+        for name in skipped:
+            print(f"{name}: skipped (harness not detected under {home})")
+        if result.reports and not args.dry_run:
+            print(
+                "Next: register the hook in each harness (one line to paste, "
+                "see the W2b decision), then restart the harness session."
+            )
+    return 0
+
+
 def _projects_list(args: argparse.Namespace, config: ClientConfig) -> None:
     projects = _run(config, lambda client: client.list_projects())
     _print_models(projects, as_json=args.json)
@@ -221,6 +283,39 @@ def _sessions_end(args: argparse.Namespace, config: ClientConfig) -> None:
     session_id = _parse_uuid(args.session_id, field="session_id")
     session = _run(config, lambda client: client.end_session(session_id))
     _print_model(session, as_json=args.json)
+
+
+def _agents_list(args: argparse.Namespace, config: ClientConfig) -> None:
+    agents = _run(config, lambda client: client.list_agents())
+    _print_models(agents, as_json=args.json)
+
+
+def _agents_ensure(args: argparse.Namespace, config: ClientConfig) -> None:
+    """Session-start helper (workflow W2): find this machine's agent for a
+    harness or register it (CC-1, no authority conferred), so hooks can expose
+    a stable `agent_id` to `sessions start` / `studio_start_session` and
+    `studio_log_ai_work`. The default idempotency key is stable per harness so
+    a retried hook never registers a duplicate; changing the metadata with the
+    default key fails explicitly with `idempotency_key_payload_mismatch`."""
+    agent_in = AgentCreate(
+        display_name=args.display_name or f"studio-{args.harness}",
+        agent_kind=args.agent_kind,
+        agent_profile=args.agent_profile,
+        harness=args.harness,
+        provider=args.provider,
+        model=args.model,
+    )
+    key = args.idempotency_key or f"agents-ensure-{args.harness}"
+
+    async def action(client: StudioApiClient) -> tuple[Any, bool]:
+        return await client.ensure_agent(agent_in, idempotency_key=key)
+
+    agent, created = _run(config, action)
+    if args.json:
+        _print_model(agent, as_json=True)
+    else:
+        verb = "Registered" if created else "Found"
+        print(f"{verb} agent {agent.id} ({agent.display_name}).")
 
 
 def _claims_list(args: argparse.Namespace, config: ClientConfig) -> None:
@@ -800,6 +895,28 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_json_flag(sessions_end)
     sessions_end.set_defaults(func=_sessions_end)
 
+    agents_parser = subparsers.add_parser("agents", help="Agent provenance identities (CC-1).")
+    agents_sub = agents_parser.add_subparsers(dest="agents_command", required=True)
+
+    agents_list = agents_sub.add_parser("list", help="List agent identities.")
+    _add_json_flag(agents_list)
+    agents_list.set_defaults(func=_agents_list)
+
+    agents_ensure = agents_sub.add_parser(
+        "ensure", help="Find this machine's harness agent or register it."
+    )
+    agents_ensure.add_argument("--harness", required=True, help="Harness name, e.g. opencode.")
+    agents_ensure.add_argument("--display-name", help="Defaults to 'studio-<harness>'.")
+    agents_ensure.add_argument("--agent-kind", default="")
+    agents_ensure.add_argument("--agent-profile")
+    agents_ensure.add_argument("--provider")
+    agents_ensure.add_argument("--model")
+    agents_ensure.add_argument(
+        "--idempotency-key", help="Defaults to a stable 'agents-ensure-<harness>' key."
+    )
+    _add_json_flag(agents_ensure)
+    agents_ensure.set_defaults(func=_agents_ensure)
+
     claims_parser = subparsers.add_parser("claims", help="Resource claims (soft locks).")
     claims_sub = claims_parser.add_subparsers(dest="claims_command", required=True)
 
@@ -1034,6 +1151,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     argv = list(argv if argv is not None else sys.argv[1:])
     if argv[:1] == ["login"]:
         raise SystemExit(login(argv[1:]))
+    if argv[:1] == ["setup-hooks"]:
+        raise SystemExit(setup_hooks(argv[1:]))
     if argv[:2] == ["outbox", "legacy"]:
         raise SystemExit(legacy_outbox_main(argv[2:]))
 
