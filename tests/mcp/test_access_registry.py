@@ -103,7 +103,8 @@ PROBES: dict[str, tuple[Probe, ...]] = {
     ),
     "studio_get_recent_changes": (
         Probe({"project_id": "{pid}"}),
-        Probe({"task_id": "{task}"}, "filtered"),
+        Probe({"task_id": "{task}"}),
+        Probe({"task_id": _UNKNOWN}, "filtered"),
         Probe({}, "filtered"),
     ),
     "studio_get_sessions": (Probe({"task_id": "{task}"}),),
@@ -123,7 +124,8 @@ PROBES: dict[str, tuple[Probe, ...]] = {
     ),
     "studio_get_ai_work": (
         Probe({"project_id": "{pid}"}),
-        Probe({"task_id": "{task}"}, "filtered"),
+        Probe({"task_id": "{task}"}),
+        Probe({"task_id": _UNKNOWN}, "filtered"),
         Probe({}, "filtered"),
     ),
     "studio_get_builds": (Probe({"project_id": "{pid}"}), Probe({}, "filtered")),

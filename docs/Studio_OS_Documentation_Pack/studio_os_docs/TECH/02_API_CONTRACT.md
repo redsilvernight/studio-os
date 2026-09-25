@@ -518,6 +518,8 @@ absente = etat valide. Le serveur ne decide rien : il valide et applique.
 - POST /events
 - GET /events — sans filtre `project_id`, limite aux projets accessibles
   (DEC-0100) ; filtre sur un projet inaccessible ou inexistant : `403`.
+  Filtre `task_id` (idem `GET /ai-work`) : tache d'un projet inaccessible
+  → `403` (DEC-0100 §8) ; tache inexistante → liste vide.
 - GET /events/stream (Server-Sent Events, DEC-0018)
 
 ### Transfers

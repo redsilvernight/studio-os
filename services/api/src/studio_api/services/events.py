@@ -15,6 +15,7 @@ from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.user import UserModel
 from studio_api.db.session import get_session_factory
 from studio_api.services import event_stream
+from studio_api.services import tasks as tasks_service
 from studio_api.services.authz import (
     Principal,
     ensure_can_write,
@@ -199,6 +200,9 @@ async def list_events(
     elif (visible := project_visibility_clause(principal, EventModel.project_id)) is not None:
         stmt = stmt.where(visible)
     if task_id is not None:
+        # A task of an inaccessible project answers the project 403, not an
+        # empty listing (DEC-0100 §8); an unknown task filters to nothing.
+        await tasks_service.read_task(session, principal, _as_uuid(task_id))
         stmt = stmt.where(EventModel.task_id == task_id)
     if since is not None:
         stmt = stmt.where(EventModel.server_timestamp >= since)

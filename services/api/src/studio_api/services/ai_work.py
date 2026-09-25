@@ -13,6 +13,7 @@ from studio_contracts.events import ActorType, EventCreate, EventType
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.ai_work import AIWorkLogModel
 from studio_api.services import events as events_service
+from studio_api.services import tasks as tasks_service
 from studio_api.services.authz import (
     Principal,
     ensure_can_write,
@@ -78,6 +79,9 @@ async def list_ai_work(
     elif (visible := project_visibility_clause(principal, AIWorkLogModel.project_id)) is not None:
         stmt = stmt.where(visible)
     if task_id is not None:
+        # A task of an inaccessible project answers the project 403, not an
+        # empty listing (DEC-0100 §8); an unknown task filters to nothing.
+        await tasks_service.read_task(session, principal, task_id)
         stmt = stmt.where(AIWorkLogModel.task_id == task_id)
     result = await session.execute(stmt)
     return list(result.scalars().all())
