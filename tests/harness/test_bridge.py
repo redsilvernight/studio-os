@@ -266,12 +266,12 @@ def test_verify_unconfigured_before_apply(bridge: Bridge) -> None:
     assert result["payload"]["error"] is None
 
 
-def test_verify_configured_after_apply(bridge: Bridge) -> None:
-    """verify returns CONFIGURED after apply (without token, no VERIFIED)."""
+def test_verify_token_missing_after_apply(bridge: Bridge) -> None:
+    """verify returns TOKEN_MISSING after apply without a token: never a success state."""
     bridge.apply(bridge.preview("claude-code"))
     result = bridge.call("harness.verify", {**SCOPE, "adapter_id": "claude-code"})
     assert result["kind"] != "error", result
-    assert result["payload"]["state"] == "configured"
+    assert result["payload"]["state"] == "token_missing"
     assert result["payload"]["adapter_id"] == "claude-code"
     assert result["payload"]["mcp_url"] == MCP_URL
     assert result["payload"]["error"] is None

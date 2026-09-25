@@ -79,6 +79,8 @@ from studio_contracts.local.harness import (
     HarnessPlan,
     HarnessState,
     HarnessStatus,
+    HarnessVerifyResult,
+    VerifyState,
 )
 from studio_contracts.local.identity import (
     HumanIdentity,
@@ -1372,6 +1374,18 @@ def build_fixtures() -> list[LocalFixture]:
         rollback_id="rb-0001",
         state=HarnessState.CONFIGURED,
     )
+    fixtures["harness.verify.result.token_missing"] = HarnessVerifyResult(
+        adapter_id="harness-alpha-adapter",
+        state=VerifyState.TOKEN_MISSING,
+        mcp_url="https://studio.example/mcp",
+        details={"reason": "token_missing"},
+    )
+    fixtures["harness.verify.result.verified"] = HarnessVerifyResult(
+        adapter_id="harness-alpha-adapter",
+        state=VerifyState.VERIFIED,
+        mcp_url="https://studio.example/mcp",
+        details={"method": "studio_get_projects"},
+    )
 
     fixtures["publication.plan.preview"] = _publication_plan()
     fixtures["publication.result.published"] = PublicationResult(
@@ -1676,6 +1690,18 @@ def build_invalid_fixtures() -> list[InvalidFixture]:
             "HarnessApplyRequest",
             _with("harness.apply.request", unconfirmed),
             "apply requires explicit confirmation",
+        ),
+        InvalidFixture(
+            "harness.verify.token_missing_with_error",
+            "HarnessVerifyResult",
+            _with(
+                "harness.verify.result.token_missing",
+                add_field(
+                    "error",
+                    _dump(error(LocalErrorCode.INTERNAL_ERROR, ComponentId.HARNESS, "x")),
+                ),
+            ),
+            "a missing token is a condition, not a failure: it carries no error",
         ),
         InvalidFixture(
             "publication.publish_unconfirmed",

@@ -13,6 +13,11 @@ un compte Claude/OpenAI. Il configure uniquement *harnais → MCP Studi'OS*. Le
 jeton Studi'OS n'est jamais écrit : les fichiers ne contiennent qu'une
 **référence** à la variable d'environnement `STUDIO_MCP_MACHINE_TOKEN`.
 
+> **Écart connu (DEC-0104, proposée).** Aucun code de Desktop ne fournit encore
+> cette variable au harnais : sans action manuelle, le harnais envoie le texte
+> `${STUDIO_MCP_MACHINE_TOKEN}` et le MCP refuse l'appel (`unauthenticated`).
+> `harness.verify` le signale par l'état `token_missing`. Voir § « Jeton ».
+
 ## Audit : CURRENT / TARGET / GAP
 
 | | Avant P9 | Cible P9 | Écart comblé |
@@ -167,9 +172,37 @@ OpenCode (`opencode.json[c]`) :
   "headers": {"Authorization": "Bearer {env:STUDIO_MCP_MACHINE_TOKEN}"}}}}
 ```
 
-`<origine>` est l'origine serveur configurée dans Desktop. La variable
-`STUDIO_MCP_MACHINE_TOKEN` doit être fournie à l'environnement du harnais par le
-mécanisme d'identifiants existant de Desktop ; P9 ne la lit ni ne l'écrit.
+`<origine>` est l'origine serveur configurée dans Desktop.
+
+## Jeton
+
+État réel : le jeton machine vit dans le trousseau de l'OS (`KeyringTokenStore`,
+service `studio-os`, clé = origine). **Rien ne le copie aujourd'hui dans
+l'environnement du harnais** : ni Desktop, ni le daemon, ni `studio-client`. Le
+harnais ne s'authentifie que s'il est lancé depuis un environnement où
+`STUDIO_MCP_MACHINE_TOKEN` est défini manuellement (contournement, non
+recommandé de façon persistante : un jeton en variable utilisateur est lisible
+par tout processus de la session).
+
+Vérification (`harness.verify`, action « Vérifier la connexion » de l'écran) :
+
+| État | Sens |
+|---|---|
+| `unconfigured` | pas d'entrée `studio-os` |
+| `token_missing` | entrée en place, aucun jeton disponible : les appels MCP seront refusés |
+| `verified` | `initialize` + `tools/call studio_get_projects` réussis avec le jeton |
+| `failed` | détection en erreur ou appel MCP refusé (`error` renseigné) |
+
+`configured` reste dans le contrat pour compatibilité mais n'est plus renvoyé
+par `harness.verify`. Limite : la présence du jeton est lue dans
+l'environnement du daemon, qui n'est pas celui du harnais ; un jeton posé
+seulement dans le terminal qui lance le harnais donne `token_missing` alors que
+le harnais fonctionne.
+
+Mécanisme de fourniture proposé (DEC-0104, non implémenté, en attente
+d'accord) : `headersHelper` Claude Code appelant `studio-client mcp-headers`
+(lecture du trousseau, jamais d'écriture du jeton) et relais stdio
+`studio-client mcp-relay` pour OpenCode.
 
 ## Sécurité
 
@@ -216,8 +249,8 @@ Aucun changement du domaine serveur, du contrat ni du service n'est requis.
 - Le pont ne sert pas `workspace.*` : l'écran prend l'identifiant du dossier dans
   la route ou un formulaire (dette : liste de dossiers via le pont).
 - Scope utilisateur/global des deux harnais volontairement non géré.
-- La résolution `${STUDIO_MCP_MACHINE_TOKEN}` / `{env:…}` par les harnais suit
-  leur documentation ; elle n'a pas été éprouvée de bout en bout avec un serveur
-  Studi'OS réel dans cette phase.
+- La résolution `${STUDIO_MCP_MACHINE_TOKEN}` / `{env:…}` n'a été éprouvée de
+  bout en bout qu'avec la variable posée à la main (`desktop/e2e/`) ; la
+  fourniture par Desktop n'existe pas (DEC-0104).
 - `cargo fmt` / `cargo clippy` : composants non installés dans l'environnement de
   validation.

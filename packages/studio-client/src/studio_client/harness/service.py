@@ -43,6 +43,7 @@ from studio_client.harness.backup import (
     BackupStore,
 )
 from studio_client.harness.base import (
+    STUDIO_MCP_TOKEN_ENV,
     AdapterRefusal,
     Detection,
     DetectionState,
@@ -463,14 +464,11 @@ class HarnessService:
                 error=None,
                 details={"detection_state": detection.state.value},
             )
-        # The harness is CONFIGURED - now test the actual MCP connection
-        # We need to verify that the MCP server can be reached and authenticated
-        # This requires the STUDIO_MCP_MACHINE_TOKEN to be available in the environment
-        token = ctx.env_value("STUDIO_MCP_MACHINE_TOKEN")
+        token = ctx.env_value(STUDIO_MCP_TOKEN_ENV)
         if not token:
             return HarnessVerifyResult(
                 adapter_id=adapter.adapter_id,
-                state=VerifyState.CONFIGURED,
+                state=VerifyState.TOKEN_MISSING,
                 mcp_url=info.mcp_url,
                 error=None,
                 details={"reason": "token_missing"},

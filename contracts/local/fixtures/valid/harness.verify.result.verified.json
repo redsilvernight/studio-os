@@ -1,0 +1,12 @@
+{
+  "data": {
+    "adapter_id": "harness-alpha-adapter",
+    "details": {
+      "method": "studio_get_projects"
+    },
+    "error": null,
+    "mcp_url": "https://studio.example/mcp",
+    "state": "verified"
+  },
+  "model": "HarnessVerifyResult"
+}

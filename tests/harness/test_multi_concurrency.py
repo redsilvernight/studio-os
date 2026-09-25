@@ -79,7 +79,7 @@ def test_a_claude_alone(adapter: HarnessAdapter, tmp_path: Path):
     result = service.verify(
         HarnessVerifyRequest(workspace_id=WORKSPACE_ID, adapter_id=adapter.adapter_id)
     )
-    assert result.state in (VerifyState.CONFIGURED, VerifyState.FAILED)
+    assert result.state in (VerifyState.TOKEN_MISSING, VerifyState.FAILED)
 
 
 def test_two_harnesses_same_workspace_independent_configs(tmp_path: Path):
@@ -139,7 +139,7 @@ def test_two_harnesses_same_workspace_independent_configs(tmp_path: Path):
     opencode_result = opencode_service.verify(
         HarnessVerifyRequest(workspace_id=WORKSPACE_ID, adapter_id="opencode")
     )
-    assert opencode_result.state == VerifyState.CONFIGURED
+    assert opencode_result.state == VerifyState.TOKEN_MISSING
 
 
 def test_no_harnesses_works(tmp_path: Path):

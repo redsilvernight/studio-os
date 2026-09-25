@@ -13,10 +13,21 @@ import type {
   HarnessRollbackResult,
   HarnessState,
   HarnessStatus,
+  HarnessVerifyResult,
   LocalError,
+  VerifyState,
 } from "./platform/generated/local-contracts.generated";
 
-export type { HarnessApplyResult, HarnessDetectResult, HarnessPlan, HarnessRollbackResult, HarnessState, HarnessStatus };
+export type {
+  HarnessApplyResult,
+  HarnessDetectResult,
+  HarnessPlan,
+  HarnessRollbackResult,
+  HarnessState,
+  HarnessStatus,
+  HarnessVerifyResult,
+  VerifyState,
+};
 
 export type HarnessOutcome<T> = { ok: true; value: T } | { ok: false; error: LocalError };
 
@@ -93,6 +104,31 @@ export function latestRollbackId(workspaceId: string, adapterId: string): string
 export function rollbackHarness(platform: Platform, rollbackId: string): Promise<HarnessOutcome<HarnessRollbackResult>> {
   return call(platform, "harness.rollback", { rollback_id: rollbackId, confirmed: true });
 }
+
+/** Proves the harness can reach Studi'OS: a real MCP call, nothing is written. */
+export function verifyHarness(platform: Platform, workspaceId: string, adapterId: string): Promise<HarnessOutcome<HarnessVerifyResult>> {
+  return call(platform, "harness.verify", { workspace_id: workspaceId, adapter_id: adapterId });
+}
+
+export const VERIFY_TONES: Record<VerifyState, "neutral" | "success" | "warning" | "danger" | "info"> = {
+  unconfigured: "neutral",
+  configured: "info",
+  token_missing: "warning",
+  verified: "success",
+  failed: "danger",
+};
+
+/** Fixed French wording per verification state: the daemon's text is never displayed. */
+export const VERIFY_MESSAGES: Record<VerifyState, string> = {
+  unconfigured: "Le harnais n'est pas encore configuré pour Studi'OS.",
+  configured: "Configuration en place ; la connexion n'a pas pu être vérifiée.",
+  token_missing:
+    "Configuration en place, mais aucun jeton machine n'est fourni au harnais : ses appels au MCP Studi'OS seront refusés. " +
+    "Studi'OS Desktop ne transmet pas encore ce jeton automatiquement. En attendant, lancez le harnais depuis un terminal " +
+    "où la variable STUDIO_MCP_MACHINE_TOKEN contient le jeton de ce poste, puis vérifiez à nouveau.",
+  verified: "Connexion vérifiée : le harnais s'authentifie auprès du MCP Studi'OS.",
+  failed: "La connexion au MCP Studi'OS a échoué. Vérifiez que le serveur est joignable et que ce poste est toujours enrôlé, puis réessayez.",
+};
 
 export const STATE_LABELS: Record<HarnessState, string> = {
   not_detected: "Non installé",

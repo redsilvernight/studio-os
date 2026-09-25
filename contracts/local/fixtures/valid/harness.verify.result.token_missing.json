@@ -1,0 +1,12 @@
+{
+  "data": {
+    "adapter_id": "harness-alpha-adapter",
+    "details": {
+      "reason": "token_missing"
+    },
+    "error": null,
+    "mcp_url": "https://studio.example/mcp",
+    "state": "token_missing"
+  },
+  "model": "HarnessVerifyResult"
+}
