@@ -23,7 +23,7 @@ from studio_api.services import provisioning as provisioning_service
 
 TEST_DATABASE_URL = os.environ.get(
     "STUDIO_TEST_DATABASE_URL",
-    "postgresql+asyncpg://studio:studio@localhost:5432/studio_os_test",
+    "postgresql+asyncpg://studio:studio@127.0.0.1:5432/studio_os_test",
 )
 
 
@@ -57,7 +57,7 @@ class FakeContext(Context[dict[str, Any], Any]):
         return self._fake_headers
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def engine() -> AsyncIterator[AsyncEngine]:
     test_engine = create_async_engine(TEST_DATABASE_URL)
     yield test_engine

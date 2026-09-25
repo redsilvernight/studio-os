@@ -48,7 +48,7 @@ from tests.api.test_roadmaps_api import DOCUMENT
 
 TEST_DATABASE_URL = os.environ.get(
     "STUDIO_TEST_DATABASE_URL",
-    "postgresql+asyncpg://studio:studio@localhost:5432/studio_os_test",
+    "postgresql+asyncpg://studio:studio@127.0.0.1:5432/studio_os_test",
 )
 
 
