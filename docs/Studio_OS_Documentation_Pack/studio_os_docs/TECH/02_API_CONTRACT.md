@@ -54,7 +54,9 @@ ressource rattachee a un projet.
 
 ### Project members (DEC-0100, additif — role `admin`)
 - GET /projects/{project_id}/members — liste des memberships
-  (`project_id`, `user_id`, `granted_by_user_id` nullable, `created_at`).
+  (`project_id`, `user_id`, `granted_by_user_id` nullable, `created_at`,
+  plus `user_display_name` / `user_email` nullables — additif, tache
+  ac1b9a28 — egalement renvoyes par le `PUT`).
 - PUT /projects/{project_id}/members/{user_id} — accorde l'acces : `201`
   + membership creee au premier octroi ; re-accorder un membre existant
   renvoie la membership existante inchangee (`200`, `granted_by_user_id`
@@ -103,6 +105,11 @@ ressource rattachee a un projet.
   refuse ces deux operations a un User `pending` (email non verifie) ;
   `disabled` bloque deja, par DU-0/A, toute machine derivee du User.
 - POST /users (role `admin`, pas de `Idempotency-Key`)
+- GET /users (role `admin`, additif, tache ac1b9a28) — annuaire pour choisir
+  un membre : `q` optionnel (≤200 caracteres, sous-chaine insensible a la
+  casse sur `display_name` ou `email`, jokers `%`/`_` pris litteralement),
+  `limit` 1–200 (defaut 50) ; tri par nom puis e-mail ; reponse `list[User]`,
+  jamais de hash. Non-admin : `403`.
 
 Le tout premier `User` (admin) et le tout premier `Machine` sont crees
 hors-bande par la CLI serveur `studio-admin` (DEC-0011) — aucun endpoint

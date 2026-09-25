@@ -7246,6 +7246,100 @@
    }
   },
   "/api/v1/users": {
+   "get": {
+    "tags": [
+     "users"
+    ],
+    "summary": "List Users",
+    "description": "Admin user directory, used to pick who to add to a project. Requires the admin role: any other role gets `403 forbidden` before any lookup. `q` filters on a case-insensitive substring of the display name or email; results are sorted by display name then email and capped by `limit`.",
+    "operationId": "list_users_api_v1_users_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "q",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "maxLength": 200
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Q"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 200,
+       "minimum": 1,
+       "default": 50,
+       "title": "Limit"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/User"
+         },
+         "title": "Response List Users Api V1 Users Get"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
    "post": {
     "tags": [
      "users"
@@ -7253,15 +7347,20 @@
     "summary": "Create User",
     "description": "Provision a new user with a role (`admin`, `developer`, `agent`, or `readonly` \u2014 the role alone decides what the user's machines may do). Requires the admin role. Emails are unique: reusing one fails with 409. Deliberately not replayable: no `Idempotency-Key`. The very first (admin) user is created out of band, never through this endpoint.",
     "operationId": "create_user_api_v1_users_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
     "requestBody": {
+     "required": true,
      "content": {
       "application/json": {
        "schema": {
         "$ref": "#/components/schemas/UserCreate"
        }
       }
-     },
-     "required": true
+     }
     },
     "responses": {
      "201": {
@@ -7308,12 +7407,7 @@
        }
       }
      }
-    },
-    "security": [
-     {
-      "MachineBearer": []
-     }
-    ]
+    }
    }
   },
   "/api/v1/projects/{project_id}/roadmaps": {
@@ -14179,6 +14273,28 @@
       "type": "string",
       "format": "date-time",
       "title": "Created At"
+     },
+     "user_display_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "User Display Name"
+     },
+     "user_email": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "User Email"
      }
     },
     "additionalProperties": false,
@@ -14189,7 +14305,7 @@
      "created_at"
     ],
     "title": "ProjectMember",
-    "description": "A User's access to a project: granted or removed, never\nmodified \u2014 hence no `version`. `granted_by_user_id` is null only for the\nmigration backfill."
+    "description": "A User's access to a project: granted or removed, never\nmodified \u2014 hence no `version`. `granted_by_user_id` is null only for the\nmigration backfill. `user_display_name` and `user_email` are read-only\nconveniences resolved from the member's User."
    },
    "ProjectState": {
     "properties": {

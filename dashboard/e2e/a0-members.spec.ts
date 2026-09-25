@@ -1,8 +1,9 @@
 /**
  * A0 — onglet Membres du workspace projet (browser, API stubbée avec état) :
- * un admin liste, ajoute (201 puis 200 « déjà membre ») et retire (204,
- * confirmation) ; un UUID invalide est refusé sans appel ; un non-admin voit
- * une note, sans aucun appel aux routes membres. Zéro erreur page ni CSP.
+ * un admin recherche un utilisateur par nom ou e-mail (annuaire GET /users),
+ * l'ajoute (201), le voit ensuite « Déjà membre » et le retire (204,
+ * confirmation) ; un non-admin voit une note, sans aucun appel aux routes
+ * membres ni à l'annuaire. Zéro erreur page ni CSP.
  */
 import { expect, test, type Page, type Route } from "@playwright/test";
 
@@ -25,9 +26,24 @@ const PROJECT = {
 const b64url = (value: string): string => Buffer.from(value).toString("base64url");
 const jwt = (role: string): string => `${b64url('{"alg":"none"}')}.${b64url(JSON.stringify({ sub: ADMIN, role }))}.sig`;
 
+const USERS = [
+  { id: ADMIN, display_name: "Ada Admin", email: "ada@example.test" },
+  { id: DEV, display_name: "Dora Dev", email: "dora@example.test" },
+].map((u) => ({ ...u, role: "developer", created_at: PROJECT.created_at, updated_at: PROJECT.created_at, version: 1 }));
+
+interface Member {
+  project_id: string;
+  user_id: string;
+  granted_by_user_id: string | null;
+  created_at: string;
+  user_display_name?: string;
+  user_email?: string;
+}
+
 interface Stub {
-  members: Array<{ project_id: string; user_id: string; granted_by_user_id: string | null; created_at: string }>;
+  members: Member[];
   memberCalls: string[];
+  searches: string[];
 }
 
 function apiStub(role: string, stub: Stub) {
@@ -37,6 +53,15 @@ function apiStub(role: string, stub: Stub) {
     const json = (status: number, body?: unknown): Promise<void> =>
       route.fulfill({ status, contentType: "application/json", body: body === undefined ? "" : JSON.stringify(body) });
     if (url.endsWith("/api/v1/auth/token")) return json(200, { access_token: jwt(role), token_type: "bearer" });
+    const parsed = new URL(url);
+    if (parsed.pathname.endsWith("/api/v1/users") && request.method() === "GET") {
+      const q = (parsed.searchParams.get("q") ?? "").toLowerCase();
+      stub.searches.push(q);
+      return json(
+        200,
+        USERS.filter((u) => u.display_name.toLowerCase().includes(q) || u.email.includes(q)),
+      );
+    }
     const member = /\/api\/v1\/projects\/[^/]+\/members(?:\/([^/?]+))?/.exec(url);
     if (member !== null) {
       stub.memberCalls.push(`${request.method()} ${member[1] ?? ""}`.trim());
@@ -45,7 +70,15 @@ function apiStub(role: string, stub: Stub) {
       if (request.method() === "PUT" && userId !== undefined) {
         const existing = stub.members.find((m) => m.user_id === userId);
         if (existing !== undefined) return json(200, existing);
-        const created = { project_id: P1, user_id: userId, granted_by_user_id: ADMIN, created_at: "2026-09-25T10:00:00Z" };
+        const u = USERS.find((x) => x.id === userId);
+        const created: Member = {
+          project_id: P1,
+          user_id: userId,
+          granted_by_user_id: ADMIN,
+          created_at: "2026-09-25T10:00:00Z",
+          user_display_name: u?.display_name,
+          user_email: u?.email,
+        };
         stub.members.push(created);
         return json(201, created);
       }
@@ -85,28 +118,31 @@ function watchErrors(page: Page): { csp: string[]; fatal: Error[] } {
 test.describe("A0 membres du projet", () => {
   test("admin : liste, ajout, ré-ajout sans effet, retrait confirmé", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    const stub: Stub = { members: [], memberCalls: [] };
+    const stub: Stub = { members: [], memberCalls: [], searches: [] };
     await login(page, "admin", stub);
     const panel = page.locator("#workspace-panel");
     await expect(page.locator('[data-ws-tab="members"]')).toHaveAttribute("aria-selected", "true");
     await expect(panel).toContainText("Aucun membre");
 
-    const input = panel.locator('input[name="user_id"]');
-    await input.fill("pas-un-uuid");
-    await panel.locator("[data-grant] button[type=submit]").click();
-    await expect(panel.locator("[data-grant-msg]")).toContainText("UUID");
-    expect(stub.memberCalls.filter((c) => c.startsWith("PUT"))).toHaveLength(0);
-
-    await input.fill(DEV);
-    await panel.locator("[data-grant] button[type=submit]").click();
+    const search = panel.locator("[data-user-search]");
+    await search.locator('input[name="q"]').fill("dora@");
+    await search.locator("button[type=submit]").click();
+    await expect(search.locator("[data-candidates] li")).toHaveCount(1);
+    expect(stub.searches).toEqual(["dora@"]);
+    await search.locator(`[data-grant-user="${DEV}"]`).click();
     await expect(panel.locator("[data-msg]")).toHaveText("Membre ajouté.");
     await expect(panel.locator("tbody tr")).toHaveCount(1);
-    await expect(panel.locator("tbody")).toContainText(DEV);
+    await expect(panel.locator("tbody")).toContainText("Dora Dev");
+    await expect(panel.locator("tbody")).toContainText("dora@example.test");
 
-    await panel.locator('input[name="user_id"]').fill(DEV);
-    await panel.locator("[data-grant] button[type=submit]").click();
-    await expect(panel.locator("[data-msg]")).toHaveText("Déjà membre : accès inchangé.");
-    await expect(panel.locator("tbody tr")).toHaveCount(1);
+    // Recherche vide : tout l'annuaire, le membre déjà présent n'est plus ajoutable.
+    await panel.locator("[data-user-search] button[type=submit]").click();
+    const candidates = panel.locator("[data-candidates] li");
+    await expect(candidates).toHaveCount(2);
+    await expect(candidates.filter({ hasText: "Dora Dev" })).toContainText("Déjà membre");
+    await expect(panel.locator(`[data-grant-user="${DEV}"]`)).toHaveCount(0);
+    await expect(panel.locator(`[data-grant-user="${ADMIN}"]`)).toHaveCount(1);
+    expect(stub.memberCalls.filter((c) => c.startsWith("PUT"))).toEqual([`PUT ${DEV}`]);
 
     page.once("dialog", (dialog) => void dialog.accept());
     await panel.locator(`[data-revoke="${DEV}"]`).click();
@@ -119,12 +155,13 @@ test.describe("A0 membres du projet", () => {
 
   test("non-admin : note explicite, aucun appel aux routes membres", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
-    const stub: Stub = { members: [], memberCalls: [] };
+    const stub: Stub = { members: [], memberCalls: [], searches: [] };
     await login(page, "developer", stub);
     const panel = page.locator("#workspace-panel");
     await expect(panel).toContainText("réservée au rôle admin");
-    await expect(panel.locator("[data-grant]")).toHaveCount(0);
+    await expect(panel.locator("[data-user-search]")).toHaveCount(0);
     expect(stub.memberCalls).toEqual([]);
+    expect(stub.searches).toEqual([]);
     expect(csp).toEqual([]);
     expect(fatal).toEqual([]);
   });

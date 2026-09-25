@@ -2,8 +2,8 @@
  * A0 — Project members (DEC-0100, TECH/02). Admin-only on the server:
  * a non-admin gets 403 on every call, whatever the project id.
  *
- * - GET /projects/{id}/members lists the memberships (ids only — there is no
- *   user directory endpoint, so the UI shows and grants by user UUID).
+ * - GET /projects/{id}/members lists the memberships with each member's name
+ *   and email; GET /users (admin directory) finds who to add.
  * - PUT /projects/{id}/members/{user_id}: 201 created, 200 already a member
  *   (the original grant is kept). No Idempotency-Key: the PUT is idempotent.
  * - DELETE: 204, idempotent; closes the user's open streams on the project.
@@ -14,6 +14,14 @@ import { ApiError, parseErrorBody } from "./api";
 import type { components } from "./openapi-schema";
 
 export type ProjectMember = components["schemas"]["ProjectMember"];
+export type DirectoryUser = components["schemas"]["User"];
+
+/** Admin directory: case-insensitive match on display name or email. */
+export async function searchUsers(client: StudioClient, query: string, limit = 20): Promise<DirectoryUser[]> {
+  const result = await client.GET("/api/v1/users", { params: { query: { q: query, limit } } });
+  if (result.response.ok && result.data !== undefined) return result.data;
+  throw new ApiError(parseErrorBody(result.response.status, result.error));
+}
 
 export async function listMembers(client: StudioClient, projectId: string): Promise<ProjectMember[]> {
   const result = await client.GET("/api/v1/projects/{project_id}/members", {
