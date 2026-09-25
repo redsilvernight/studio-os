@@ -7,7 +7,15 @@ from uuid import UUID
 
 import httpx
 from studio_contracts.ai_work import AIWorkLog
-from studio_contracts.auth import Agent, AgentCreate, HeartbeatRequest, HeartbeatResponse, Machine
+from studio_contracts.auth import (
+    Agent,
+    AgentCreate,
+    HeartbeatRequest,
+    HeartbeatResponse,
+    Machine,
+    MachineCreate,
+    MachineCreated,
+)
 from studio_contracts.builds import (
     Build,
     BuildStatus,
@@ -147,6 +155,20 @@ class StudioApiClient:
 
     async def get_own_machine(self) -> Machine:
         response = await self._request("GET", "/api/v1/machines/me")
+        return Machine.model_validate(response.json())
+
+    async def create_machine(self, machine_in: MachineCreate) -> MachineCreated:
+        """Never retried: a replay would mint a second credential. The returned
+        credential is shown once; the caller hands it to its single destination."""
+        response = await self._request(
+            "POST", "/api/v1/machines", json=machine_in.model_dump(mode="json")
+        )
+        return MachineCreated.model_validate(response.json())
+
+    async def revoke_machine(self, machine_id: UUID) -> Machine:
+        response = await self._request(
+            "POST", f"/api/v1/machines/{machine_id}/revoke", idempotent=True
+        )
         return Machine.model_validate(response.json())
 
     async def list_agents(self) -> list[Agent]:

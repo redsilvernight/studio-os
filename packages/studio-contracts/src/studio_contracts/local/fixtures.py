@@ -72,6 +72,7 @@ from studio_contracts.local.handshake import (
 )
 from studio_contracts.local.harness import (
     ChangeKind,
+    ChangeScope,
     HarnessApplyRequest,
     HarnessApplyResult,
     HarnessChange,
@@ -877,6 +878,14 @@ def _harness_plan() -> HarnessPlan:
                 summary="Register the rules file",
                 before_hash=sha("index-v1"),
                 after_hash=sha("index-v2"),
+            ),
+            HarnessChange(
+                change_id="chg-3",
+                kind=ChangeKind.CREATE,
+                target=".config/harness-alpha/config.json",
+                scope=ChangeScope.USER,
+                summary="Declare Studio OS with a dedicated credential",
+                after_hash=sha("entry-v1"),
             ),
         ],
         plan_hash=sha("plan-0001"),

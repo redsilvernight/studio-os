@@ -58,6 +58,9 @@ un test échoue si l'export diverge des builders Python.
   muter la configuration du harness. `VerifyState` : `unconfigured`,
   `configured`, `token_missing` (configuration en place, aucun jeton machine
   disponible ; sans `error`, ajout additif DEC-0104), `verified`, `failed`.
+  Ajouts additifs DEC-0104 §2 : `HarnessChange.scope` (`workspace` par défaut
+  | `user`, cible alors relative au home) et `HarnessPreviewRequest.renew`
+  (défaut `false` : renouvelle l'identifiant dédié de l'outil).
 - **Daemon / outbox** : partition d'outbox = sha256(origine, profil, machine) ;
   verrou d'instance = sha256(origine, profil). Rejeu sous une autre identité
   refusé (`IDENTITY_MISMATCH`).

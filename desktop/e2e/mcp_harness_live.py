@@ -17,11 +17,13 @@ from uuid import UUID
 import asyncpg
 from studio_client.harness.backup import BackupStore
 from studio_client.harness.claude_code import ClaudeCodeAdapter
+from studio_client.harness.credentials import ApiCredentialProvisioner, CredentialStore
 from studio_client.harness.registry import HarnessRegistry
 from studio_client.harness.service import HarnessService, WorkspaceInfo
 from studio_contracts.local.harness import (
     HarnessApplyRequest,
     HarnessPreviewRequest,
+    HarnessRollbackRequest,
     HarnessVerifyRequest,
     VerifyState,
 )
@@ -58,6 +60,21 @@ async def token_exists(database_url: str, token: str) -> bool:
         )
     finally:
         await connection.close()
+
+
+class _GateToken:
+    """The gate machine's credential, standing in for the Desktop keyring."""
+
+    def __init__(self, token: str) -> None:
+        self._token = token
+
+    def get_token(self, origin: str) -> str:
+        return self._token
+
+
+def user_config_token(user_config: dict) -> str:
+    header = user_config["mcpServers"]["studio-os"]["headers"]["Authorization"]
+    return header.removeprefix("Bearer ")
 
 
 def main() -> int:
@@ -112,17 +129,30 @@ def main() -> int:
             root = Path(temporary)
             workspace = root / "workspace"
             workspace.mkdir()
+            home = root / "home"
+            home.mkdir()
+            # The tool's user config lands in an isolated home, never the real one.
             harness_env = {
-                **os.environ,
-                "STUDIO_MCP_MACHINE_TOKEN": info["machine_token"],
+                key: value
+                for key, value in os.environ.items()
+                if key.upper() not in {"CLAUDE_CONFIG_DIR", "STUDIO_MCP_MACHINE_TOKEN"}
             }
+            harness_env.update(HOME=str(home), USERPROFILE=str(home))
+            adapter = ClaudeCodeAdapter()
             service = HarnessService(
-                HarnessRegistry([ClaudeCodeAdapter()]),
+                HarnessRegistry([adapter]),
                 BackupStore(root / "backups"),
                 lambda workspace_id: WorkspaceInfo(
-                    workspace_id, workspace, MCP_URL, workspace_id == WORKSPACE_ID
+                    workspace_id,
+                    workspace,
+                    MCP_URL,
+                    workspace_id == WORKSPACE_ID,
+                    server_origin=info["api"],
                 ),
+                credentials=CredentialStore(root / "credentials.json"),
+                provisioner=ApiCredentialProvisioner(lambda: _GateToken(info["machine_token"])),
                 env=lambda: harness_env,
+                home=lambda: home,
                 probe_cwd=workspace,
             )
             preview = service.preview(
@@ -147,6 +177,13 @@ def main() -> int:
                 )
             print("PASS harness.verify VERIFIED against real MCP HTTP", flush=True)
 
+            # The entry exactly as the tool reads it, handed over in memory: the
+            # credential is written to no second file.
+            user_config = json.loads((home / ".claude.json").read_text(encoding="utf-8"))
+            mcp_config = json.dumps(
+                {"mcpServers": {"studio-os": user_config["mcpServers"]["studio-os"]}}
+            )
+
             prompt = (
                 "Call the studio-os MCP tool studio_prepare_context exactly once with "
                 "project='desktop-gate', objective='P12 live Claude Code validation', "
@@ -159,7 +196,7 @@ def main() -> int:
                     "-p",
                     prompt,
                     "--mcp-config",
-                    str(workspace / ".mcp.json"),
+                    mcp_config,
                     "--strict-mcp-config",
                     "--allowedTools",
                     "mcp__studio-os__studio_prepare_context",
@@ -173,7 +210,7 @@ def main() -> int:
                     "0.50",
                 ],
                 cwd=workspace,
-                env=harness_env,
+                env={k: v for k, v in os.environ.items() if k != "STUDIO_MCP_MACHINE_TOKEN"},
                 capture_output=True,
                 text=True,
                 timeout=240,
@@ -187,6 +224,16 @@ def main() -> int:
             if "studio_prepare_context" not in transcript or "P12_MCP_OK" not in transcript:
                 raise RuntimeError("Claude Code transcript lacks the required MCP call/result")
             print("PASS Claude Code invoked studio_prepare_context through MCP", flush=True)
+            if applied.rollback_id is None:
+                raise RuntimeError("harness apply returned no rollback id")
+            service.rollback(
+                HarnessRollbackRequest(rollback_id=applied.rollback_id, confirmed=True)
+            )
+            if __import__("asyncio").run(
+                token_exists(mcp_env["STUDIO_DATABASE_URL"], user_config_token(user_config))
+            ):
+                raise RuntimeError("the tool credential survived its rollback")
+            print("PASS rollback removed the entry and revoked the tool machine", flush=True)
         return 0
     finally:
         if mcp is not None:

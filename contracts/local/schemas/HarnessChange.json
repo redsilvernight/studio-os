@@ -8,10 +8,18 @@
       ],
       "title": "ChangeKind",
       "type": "string"
+    },
+    "ChangeScope": {
+      "enum": [
+        "workspace",
+        "user"
+      ],
+      "title": "ChangeScope",
+      "type": "string"
     }
   },
   "additionalProperties": false,
-  "description": "One file-level change of a plan. Hashes and a short summary describe it;\nfile content is deliberately absent so that a plan can be shown, logged and\ndiffed without ever exposing a credential a config file might hold.",
+  "description": "One file-level change of a plan. Hashes and a short summary describe it;\nfile content is deliberately absent so that a plan can be shown, logged and\ndiffed without ever exposing a credential a config file might hold.\n\n`target` is relative to the workspace, or to the user's home directory when\n`scope` is `user` (the tool's own configuration, DEC-0104 §2). A user-scope\nchange describes one entry of that file and its hashes are computed on the\nentry with every credential masked.",
   "properties": {
     "after_hash": {
       "anyOf": [
@@ -46,6 +54,10 @@
     },
     "kind": {
       "$ref": "#/$defs/ChangeKind"
+    },
+    "scope": {
+      "$ref": "#/$defs/ChangeScope",
+      "default": "workspace"
     },
     "summary": {
       "maxLength": 200,

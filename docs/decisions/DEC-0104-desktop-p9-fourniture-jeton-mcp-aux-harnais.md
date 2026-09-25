@@ -1,6 +1,6 @@
 ---
 id: DEC-0104
-title: 'Desktop P9 : fourniture du jeton machine aux harnais par credential helper, état token_missing'
+title: 'Desktop P9 : un identifiant Studi''OS dédié par couple poste + outil d''IA, état token_missing'
 status: proposed
 date: '2026-09-24'
 superseded_by: null
@@ -31,40 +31,60 @@ capability optionnelle `harness.verify`. Aucun consommateur existant n'appelait
 `harness.verify` ; un Dashboard plus ancien qui l'appellerait rejetterait la
 valeur inconnue à la validation de schéma (fail-closed), sans fausse réussite.
 
-## Partie 2 — mécanisme de fourniture (proposé, non implémenté)
+## Partie 2 — identifiant dédié par couple poste + outil (appliquée)
 
-Recommandation : **credential helper**, le jeton reste dans le trousseau de l'OS
-(`KeyringTokenStore`, service `studio-os`, clé = origine serveur).
+Remplace la recommandation « credential helper / relais » initiale (et la
+décision serveur DEC-0116 qui la détaillait) : abandonnées, la première pour
+ses inconnues Windows (shell, `PATH`, approbation de confiance d'un helper
+versionné) et le coût d'un processus par connexion, le second pour la surface
+d'un relais local.
 
-- Claude Code : l'entrée `.mcp.json` utilise `headersHelper:
-  "studio-client mcp-headers"` au lieu de `headers` avec `${…}`. La commande
-  lit `CLAUDE_CODE_MCP_SERVER_URL`, résout le jeton pour `origin_of(url)` et écrit
-  `{"Authorization":"Bearer …"}` sur stdout ; jamais de journalisation, erreur
-  sans secret sur stderr. Aucun chemin ni argument propre à l'utilisateur dans le
-  fichier du dépôt.
-- OpenCode (pas de helper, seulement `{env:}`/`{file:}`) : entrée `type: "local"`
-  lançant `studio-client mcp-relay <url>`, relais stdio → HTTP qui ajoute le
-  Bearer lu dans le trousseau. Livrable dans un second temps.
-- `verify()` cesse de lire l'environnement du daemon : helper introuvable →
-  `failed` (`reason=helper_not_found`) ; pas de jeton dans le trousseau →
-  `token_missing` ; sinon exécution du helper et appel MCP réel.
+- **Une machine Studi'OS par couple poste + outil**, nommée
+  `<POSTE> · <Outil>` (ex. « FLO-LAPTOP · Claude Code »), créée par Desktop au
+  nom de son propriétaire via l'API avec le credential Desktop lu dans le
+  trousseau. Le credential Desktop n'est **jamais** transmis à un outil.
+- **Droits V1** : ceux du propriétaire, avec l'isolation par projet existante.
+- **Stockage** : le credential de l'outil n'existe en clair que dans la
+  configuration utilisateur du harnais (`~/.claude.json` pour Claude Code,
+  `~/.config/opencode/opencode.json[c]` pour OpenCode), en en-tête
+  `Authorization: Bearer …`. Jamais dans le dépôt, les aperçus, diffs,
+  résultats, erreurs, journaux, diagnostics ni sauvegardes (entrée masquée
+  partout ailleurs). Amende DEC-0024 §3 pour ce seul cas.
+- **Écriture** : Claude Code par sa CLI officielle (`claude mcp add-json
+  --scope user` / `claude mcp remove --scope user`) ; le credential transite
+  donc par l'argv de ce processus enfant, jamais par un journal. OpenCode par
+  édition JSONC préservant le reste du fichier.
+- **Migration** : les entrées projet `${STUDIO_MCP_MACHINE_TOKEN}` /
+  `{env:STUDIO_MCP_MACHINE_TOKEN}` sont retirées du `.mcp.json` /
+  `opencode.json[c]` du dépôt (fichier supprimé s'il ne contenait qu'elles) ;
+  une entrée projet étrangère nommée `studio-os` est un conflit signalé, jamais
+  écrasée.
+- **Registre local non secret** (`credentials.json` du daemon) : id, nom et
+  empreinte de la machine de chaque outil, et révocations en attente si le
+  serveur est injoignable (rejouées ensuite). Aucun credential.
+- **Renouvellement** (`HarnessPreviewRequest.renew=true`) : nouvelle machine,
+  puis écriture de la config, puis révocation de l'ancienne.
+- **Suppression / restauration** : retrait de l'entrée, puis révocation.
+- **`verify()`** ne lit plus l'environnement du daemon : entrée qui référence
+  une variable d'environnement → `token_missing` (`reason=token_reference`) ;
+  entrée sans Bearer → `token_missing` ; entrée absente → `unconfigured` ;
+  sinon appel MCP réel avec le credential de la config ; 401 → `failed`
+  (`reason=mcp_unauthorized`).
+
+Contrat local `studio.local/v1` : ajouts optionnels `HarnessChange.scope`
+(`workspace` | `user`, cible relative au home pour `user`) et
+`HarnessPreviewRequest.renew` (défaut `false`) ; additifs.
 
 Options rejetées :
 
-- **Variable d'environnement utilisateur (HKCU)** : jeton en clair lisible par
-  tout processus de l'utilisateur et visible dans les dumps d'environnement,
-  propagé seulement aux processus lancés après `WM_SETTINGCHANGE`, une seule
-  origine, copie périmée après rotation ou révocation.
-- **Proxy MCP local dans le daemon** : tout processus local pourrait utiliser le
-  jeton via le port, sauf secret local supplémentaire ; découverte du port ;
-  le daemon devient un point de défaillance unique.
+- **Credential helper (`headersHelper`) + relais stdio OpenCode** : voir
+  ci-dessus.
+- **Réutiliser le credential Desktop** : un outil compromis obtiendrait
+  l'identité du poste ; pas de révocation par outil.
+- **Variable d'environnement utilisateur (HKCU)** : jeton lisible par tout
+  processus de l'utilisateur, propagation tardive, copie périmée après rotation.
+- **Proxy MCP local dans le daemon** : tout processus local pourrait utiliser
+  le jeton via le port ; point de défaillance unique.
 
 Contrat Auth/Sync (`TECH/04_AUTH_SYNC_CONTRACT.md`) inchangé : le MCP reçoit
-toujours le Bearer du jeton machine (DEC-0023/DEC-0024).
-
-Questions ouvertes avant implémentation : lancement de `headersHelper` sous
-Windows (shell utilisé, `studio-client` sur le `PATH` de l'installation Desktop
-ou scope local `~/.claude.json` avec chemin absolu) ; approbation de confiance
-exigée par Claude Code pour un helper dans un `.mcp.json` versionné (à signaler
-dans l'UI) ; coût de lancement d'un processus Python par connexion ; choix du
-SDK pour le relais OpenCode.
+toujours le Bearer d'un jeton machine (DEC-0023/DEC-0024).

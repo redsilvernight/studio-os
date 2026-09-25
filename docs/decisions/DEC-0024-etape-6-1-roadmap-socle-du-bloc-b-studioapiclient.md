@@ -68,7 +68,10 @@ TECH/02 et TECH/04) avant implementation. Retenu :
    clair pour le token, jamais de DPAPI/chiffrement maison. Un enrolement se
    fait hors-bande (`studio-admin machine create` cote serveur, ou
    `POST /machines` par une machine admin) puis colle-une-fois localement —
-   pas d'auto-enrolement.
+   pas d'auto-enrolement. **Amendement DEC-0104 §2** : exception limitée aux
+   outils d'IA — l'identifiant dédié d'un outil est stocké en clair dans la seule
+   configuration utilisateur de ce harnais ; le token machine de Desktop reste
+   dans `keyring`.
 4. **Configuration** : `pydantic-settings`, prefixe `STUDIO_CLIENT_`, sans
    `env_file` partage avec le serveur (le `.env` du depot est celui du
    Bloc A). Precedence argument explicite > env > fichier TOML optionnel >

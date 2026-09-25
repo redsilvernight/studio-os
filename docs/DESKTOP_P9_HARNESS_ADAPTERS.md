@@ -2,21 +2,17 @@
 
 Base : `origin/desktop/integration` `4b8aad17f1b08840d68ea54d171231dc2f874d58` (P0→P8).
 Contrats P1 (`studio.local/v1`) utilisés tels quels : les commandes
-`harness.detect/status/preview/apply/rollback` existaient déjà. **Aucune
-modification de contrat** ; seul le bundle Dashboard des schémas locaux a été
-étendu (`gen-local-contracts.mjs`).
+`harness.detect/status/preview/apply/rollback` existaient déjà. Ajouts
+additifs ultérieurs : `harness.verify` / `token_missing` (DEC-0104 §1),
+`HarnessChange.scope` et `HarnessPreviewRequest.renew` (DEC-0104 §2).
 
 **Règle absolue.** Studi'OS ne gère ni modèle, ni abonnement, ni clé de
 fournisseur. P9 ne demande, ne stocke, ne lit ni ne modifie jamais
 `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, une clé OpenCode Go, un jeton de modèle ou
-un compte Claude/OpenAI. Il configure uniquement *harnais → MCP Studi'OS*. Le
-jeton Studi'OS n'est jamais écrit : les fichiers ne contiennent qu'une
-**référence** à la variable d'environnement `STUDIO_MCP_MACHINE_TOKEN`.
-
-> **Écart connu (DEC-0104, proposée).** Aucun code de Desktop ne fournit encore
-> cette variable au harnais : sans action manuelle, le harnais envoie le texte
-> `${STUDIO_MCP_MACHINE_TOKEN}` et le MCP refuse l'appel (`unauthenticated`).
-> `harness.verify` le signale par l'état `token_missing`. Voir § « Jeton ».
+un compte Claude/OpenAI. Il configure uniquement *harnais → MCP Studi'OS*.
+Chaque couple poste + outil reçoit **son propre identifiant Studi'OS**
+(DEC-0104 §2), écrit uniquement dans la configuration utilisateur de l'outil ;
+le credential Desktop ne quitte jamais le trousseau. Voir § « Identifiant dédié ».
 
 ## Audit : CURRENT / TARGET / GAP
 
@@ -33,15 +29,20 @@ jeton Studi'OS n'est jamais écrit : les fichiers ne contiennent qu'une
 Scope réel de la configuration MCP (audité sur Claude Code 2.1.272 et
 OpenCode 1.18.31) :
 
-- **Claude Code** : fichier de projet `.mcp.json` à la racine du dossier de
-  travail, clé `mcpServers`. Le scope utilisateur (`~/.claude.json`) n'est pas
-  touché : il mélange de l'état applicatif et des comptes.
-- **OpenCode** : `opencode.json` ou `opencode.jsonc` à la racine du dossier de
-  travail, clé `mcp`. Le fichier global (`~/.config/opencode/`) n'est pas
-  touché : il porte les fournisseurs et clés de modèles.
+- **Claude Code** : entrée `studio-os` au scope utilisateur (`~/.claude.json`,
+  clé `mcpServers`), écrite et retirée **uniquement par la CLI officielle**
+  (`claude mcp add-json|remove --scope user`) : le fichier mélange état
+  applicatif et comptes, Studi'OS ne l'édite pas lui-même. Le `.mcp.json` du
+  projet n'est touché que pour en retirer l'ancienne entrée par référence.
+- **OpenCode** : entrée `studio-os` dans le fichier global
+  `~/.config/opencode/opencode.json[c]` (clé `mcp`), par édition JSONC non
+  destructive (fournisseurs et clés de modèles conservés octet pour octet).
+  `opencode.json[c]` du projet : seule l'ancienne entrée par référence est
+  retirée.
 
 Aucun balayage du disque : les seuls chemins possibles sont des noms de fichiers
-fixes sous la racine d'un dossier de travail que Studi'OS connaît déjà.
+fixes sous la racine d'un dossier de travail que Studi'OS connaît déjà, ou sous
+le home de l'utilisateur (`HarnessChange.scope = user`, cible relative au home).
 
 ## Architecture
 
@@ -73,6 +74,8 @@ adaptateurs.
 | `.../harness/probe.py` | Recherche d'exécutable et sonde de version bornée |
 | `.../harness/backup.py` | Sauvegardes locales, rétention, restauration |
 | `.../harness/service.py` | Aperçu / application / rollback, plans en mémoire |
+| `.../harness/credentials.py` | Création/révocation des machines par outil, registre local non secret |
+| `.../harness/redaction.py` | Masquage de l'entrée `studio-os` (plans, hashs, sauvegardes, journaux) |
 | `dashboard/src/harnessApi.ts`, `views/integrations.ts` | Client typé et écran |
 | `tests/harness/` | Tests (unitaires sur système de fichiers temporaire, sécurité, pont, exécutables réels) |
 | `dashboard/e2e/harness-p9.spec.ts` | Scénarios navigateur (Web propre, Desktop simulé) |
@@ -153,56 +156,63 @@ précédente reste dans la sauvegarde.
 - Une sauvegarde est la copie fidèle du fichier de l'utilisateur, qui peut donc
   contenir ses propres réglages ou clés (ex. un fournisseur dans `opencode.jsonc`) :
   elle reste locale (dossier en mode 0700 là où l'OS le permet), jamais envoyée,
-  jamais journalisée. P9 n'ajoute lui-même aucun secret : seul le nom de la
-  variable `STUDIO_MCP_MACHINE_TOKEN` est écrit.
+  jamais journalisée. Côté configuration utilisateur de l'outil, seule l'entrée
+  `studio-os` **masquée** est sauvegardée (`redaction.py`), jamais le fichier
+  ni l'identifiant Studi'OS.
 
 ## Formes écrites
 
-Claude Code (`.mcp.json`) :
+Claude Code (`~/.claude.json`, via `claude mcp add-json --scope user`) :
 
 ```json
 {"mcpServers": {"studio-os": {"type": "http", "url": "<origine>/mcp",
-  "headers": {"Authorization": "Bearer ${STUDIO_MCP_MACHINE_TOKEN}"}}}}
+  "headers": {"Authorization": "Bearer <identifiant de l'outil>"}}}}
 ```
 
-OpenCode (`opencode.json[c]`) :
+OpenCode (`~/.config/opencode/opencode.json[c]`) :
 
 ```json
 {"mcp": {"studio-os": {"type": "remote", "url": "<origine>/mcp", "enabled": true,
-  "headers": {"Authorization": "Bearer {env:STUDIO_MCP_MACHINE_TOKEN}"}}}}
+  "headers": {"Authorization": "Bearer <identifiant de l'outil>"}}}}
 ```
 
-`<origine>` est l'origine serveur configurée dans Desktop.
+`<origine>` est l'origine serveur configurée dans Desktop. Aucun fichier du
+dépôt ne reçoit d'entrée `studio-os`.
 
-## Jeton
+## Identifiant dédié (DEC-0104 §2)
 
-État réel : le jeton machine vit dans le trousseau de l'OS (`KeyringTokenStore`,
-service `studio-os`, clé = origine). **Rien ne le copie aujourd'hui dans
-l'environnement du harnais** : ni Desktop, ni le daemon, ni `studio-client`. Le
-harnais ne s'authentifie que s'il est lancé depuis un environnement où
-`STUDIO_MCP_MACHINE_TOKEN` est défini manuellement (contournement, non
-recommandé de façon persistante : un jeton en variable utilisateur est lisible
-par tout processus de la session).
+- **Création** : à l'application, Desktop crée via l'API, avec son propre
+  credential lu dans le trousseau, une machine `<POSTE> · <Outil>` (ex.
+  « FLO-LAPTOP · Claude Code ») appartenant au même propriétaire (droits V1 du
+  propriétaire, isolation par projet). Le credential renvoyé n'est écrit que dans
+  la configuration utilisateur de l'outil.
+- **Jamais ailleurs** : ni plan, ni diff, ni résultat, ni erreur, ni journal, ni
+  diagnostic, ni sauvegarde. Seule exception technique : pour Claude Code, il
+  transite par l'argv du processus enfant `claude mcp add-json` (jamais
+  journalisé).
+- **Registre local** (`credentials.json`, données du daemon) : id, nom et
+  empreinte de la machine de chaque outil, révocations en attente si le serveur
+  est injoignable (rejouées plus tard). Aucun credential.
+- **Renouvellement** (« Renouveler l'identifiant », `harness.preview` avec
+  `renew: true`) : nouvelle machine → écriture de la config → révocation de
+  l'ancienne.
+- **Restauration / suppression** : retrait de l'entrée → révocation.
+- **Migration** : une ancienne entrée projet `${STUDIO_MCP_MACHINE_TOKEN}` /
+  `{env:…}` est retirée du fichier du dépôt (supprimé s'il ne contenait
+  qu'elle, sauvegardé sinon). Une entrée projet `studio-os` étrangère est un
+  conflit signalé (`project_entry_conflict`), jamais écrasée.
 
 Vérification (`harness.verify`, action « Vérifier la connexion » de l'écran) :
 
 | État | Sens |
 |---|---|
 | `unconfigured` | pas d'entrée `studio-os` |
-| `token_missing` | entrée en place, aucun jeton disponible : les appels MCP seront refusés |
-| `verified` | `initialize` + `tools/call studio_get_projects` réussis avec le jeton |
-| `failed` | détection en erreur ou appel MCP refusé (`error` renseigné) |
+| `token_missing` | entrée par référence à une variable d'environnement (`reason=token_reference`) ou sans Bearer : à reconfigurer |
+| `verified` | `initialize` + `tools/call studio_get_projects` réussis avec l'identifiant de la config |
+| `failed` | détection en erreur ou appel MCP refusé (`mcp_unauthorized` si révoqué : renouveler) |
 
 `configured` reste dans le contrat pour compatibilité mais n'est plus renvoyé
-par `harness.verify`. Limite : la présence du jeton est lue dans
-l'environnement du daemon, qui n'est pas celui du harnais ; un jeton posé
-seulement dans le terminal qui lance le harnais donne `token_missing` alors que
-le harnais fonctionne.
-
-Mécanisme de fourniture proposé (DEC-0104, non implémenté, en attente
-d'accord) : `headersHelper` Claude Code appelant `studio-client mcp-headers`
-(lecture du trousseau, jamais d'écriture du jeton) et relais stdio
-`studio-client mcp-relay` pour OpenCode.
+par `harness.verify`. Le daemon ne lit jamais `STUDIO_MCP_MACHINE_TOKEN`.
 
 ## Sécurité
 
@@ -221,7 +231,9 @@ secret) et tout contenu est échappé.
 
 Paramètres › **Intégrations IA** (`#/configuration/integrations[/<workspace_uuid>]`) :
 une carte par harnais (état, version, état MCP, fichier géré) ; actions
-Configurer / Reconfigurer / Restaurer ; aperçu affiché avant application ;
+Configurer / Reconfigurer / Vérifier la connexion / Renouveler l'identifiant /
+Restaurer (la restauration révoque l'identifiant de l'outil) ; cible
+utilisateur affichée `~/…` ; aperçu affiché avant application ;
 confirmation avant restauration ; le changement n'est présenté comme appliqué
 qu'après une réponse `configured` sans erreur. Le Dashboard renégocie les
 capacités du pont (`runtime.handshake`) une fois si le daemon a redémarré.
@@ -248,9 +260,10 @@ Aucun changement du domaine serveur, du contrat ni du service n'est requis.
 - Versions réellement sondées : Claude Code 2.1.272, OpenCode 1.18.31.
 - Le pont ne sert pas `workspace.*` : l'écran prend l'identifiant du dossier dans
   la route ou un formulaire (dette : liste de dossiers via le pont).
-- Scope utilisateur/global des deux harnais volontairement non géré.
-- La résolution `${STUDIO_MCP_MACHINE_TOKEN}` / `{env:…}` n'a été éprouvée de
-  bout en bout qu'avec la variable posée à la main (`desktop/e2e/`) ; la
-  fourniture par Desktop n'existe pas (DEC-0104).
+- Identifiant en clair dans la config utilisateur de l'outil (lisible par les
+  processus de l'utilisateur) : compromis assumé par DEC-0104, limité par la
+  révocation par outil.
+- Preuve live `desktop/e2e/mcp_harness_live.py` (identifiant dédié, rollback avec
+  révocation) : exige la gate Postgres.
 - `cargo fmt` / `cargo clippy` : composants non installés dans l'environnement de
   validation.

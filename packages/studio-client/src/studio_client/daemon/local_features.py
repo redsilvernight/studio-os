@@ -48,10 +48,16 @@ from studio_contracts.local.workspace import LocalWorkspaceConfig, WorkspaceScop
 
 from studio_client.harness.backup import BackupStore
 from studio_client.harness.base import system_env
+from studio_client.harness.credentials import (
+    ApiCredentialProvisioner,
+    CredentialProvisioner,
+    CredentialStore,
+)
 from studio_client.harness.registry import HarnessRegistry, default_adapters
 from studio_client.harness.service import (
     HarnessService,
     HarnessServiceError,
+    McpProbe,
     WorkspaceInfo,
 )
 from studio_client.knowledge.errors import KnowledgeError
@@ -271,6 +277,10 @@ class LocalFeatureRegistry:
         harness_backups_root: Path | None = None,
         harness_registry: HarnessRegistry | None = None,
         harness_env: Callable[[], Mapping[str, str]] | None = None,
+        harness_credentials_path: Path | None = None,
+        harness_provisioner: CredentialProvisioner | None = None,
+        harness_home: Callable[[], Path] = Path.home,
+        harness_mcp_probe: McpProbe | None = None,
     ) -> None:
         self._workspace_configs = workspace_configs
         self._cache_root = cache_root
@@ -288,7 +298,13 @@ class LocalFeatureRegistry:
             harness_registry or HarnessRegistry(default_adapters()),
             BackupStore(harness_backups_root or cache_root.parent / "harness-backups"),
             self._harness_workspace,
+            credentials=CredentialStore(
+                harness_credentials_path or cache_root.parent / "harness-credentials.json"
+            ),
+            provisioner=harness_provisioner or ApiCredentialProvisioner(),
             env=harness_env or system_env,
+            home=harness_home,
+            mcp_probe=harness_mcp_probe,
         )
 
     @property
@@ -606,6 +622,7 @@ class LocalFeatureRegistry:
             root=Path(config.roots.workspace_root),
             mcp_url=str(config.profile.server_origin).rstrip("/") + MCP_PATH,
             harness_enabled=config.features.harness,
+            server_origin=str(config.profile.server_origin).rstrip("/"),
         )
 
     def _harness_call(self, workspace_id: UUID | None, call: Callable[[], _T]) -> _T:

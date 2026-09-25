@@ -3,177 +3,75 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from uuid import UUID
 
 import pytest
-from studio_client.harness.backup import BackupStore
 from studio_client.harness.claude_code import ClaudeCodeAdapter
 from studio_client.harness.opencode import OpenCodeAdapter
-from studio_client.harness.registry import HarnessRegistry
-from studio_client.harness.service import HarnessService, WorkspaceInfo
 from studio_contracts.local.harness import (
     HarnessApplyRequest,
     HarnessPreviewRequest,
     HarnessVerifyRequest,
 )
+from studio_contracts.local.workspace import WorkspaceScope
 
-from tests.harness.support import fake_harness_env
-
-MCP_URL = "https://studio.example/mcp"
-MCP_ORIGIN = "https://studio.example"
-WORKSPACE_ID = UUID("11111111-1111-4111-8111-111111111111")
+from tests.harness.support import MCP_URL, WORKSPACE_ID, Rig, make_rig
 
 
-def _make_service(workspace: Path, backups_root: Path, env: dict):
-    def lookup(workspace_id):
-        if workspace_id != WORKSPACE_ID:
-            return None
-        return WorkspaceInfo(workspace_id, workspace, MCP_URL, True)
-
-    return HarnessService(
-        HarnessRegistry([ClaudeCodeAdapter(), OpenCodeAdapter()]),
-        BackupStore(backups_root),
-        lookup,
-        env=lambda: env,
-        probe_cwd=backups_root.parent,
+def _configured(tmp_path: Path, adapter_id: str = "claude-code") -> tuple[Rig, str, list[str]]:
+    """A rig with `adapter_id` configured, its dedicated credential and every
+    result the service produced on the way."""
+    rig = make_rig(tmp_path, mcp_probe=lambda url, token: (None, 200))
+    rig.env["STUDIO_MCP_MACHINE_TOKEN"] = "SECRET-TOKEN-DIAGNOSTICS"
+    seen = [rig.service.detect(WorkspaceScope(workspace_id=WORKSPACE_ID)).model_dump_json()]
+    preview = rig.service.preview(
+        HarnessPreviewRequest(workspace_id=WORKSPACE_ID, adapter_id=adapter_id)
     )
-
-
-def test_35_diagnostics_no_secrets_after_detect(tmp_path: Path):
-    """§35: After detect, diagnostics must not contain tokens."""
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    backups_root = tmp_path / "backups"
-    backups_root.mkdir()
-    env = dict(os.environ)
-    env["STUDIO_MCP_MACHINE_TOKEN"] = "SECRET-TOKEN-DIAGNOSTICS"
-
-    service = _make_service(workspace, backups_root, env)
-
-    from studio_contracts.local.workspace import WorkspaceScope
-
-    result = service.detect(WorkspaceScope(workspace_id=WORKSPACE_ID))
-
-    # Check result JSON doesn't contain token
-    result_json = json.dumps(result.model_dump(mode="json"))
-    assert "SECRET-TOKEN" not in result_json
-
-
-def test_35_diagnostics_no_secrets_after_apply(tmp_path: Path):
-    """§35: After apply, diagnostics must not contain tokens."""
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    backups_root = tmp_path / "backups"
-    backups_root.mkdir()
-    env = fake_harness_env(tmp_path)
-    env["STUDIO_MCP_MACHINE_TOKEN"] = "SECRET-TOKEN-DIAGNOSTICS"
-
-    service = _make_service(workspace, backups_root, env)
-
-    preview = service.preview(
-        HarnessPreviewRequest(workspace_id=WORKSPACE_ID, adapter_id="claude-code")
-    )
-    apply_result = service.apply(
+    applied = rig.service.apply(
         HarnessApplyRequest(plan_id=preview.plan_id, plan_hash=preview.plan_hash, confirmed=True)
     )
-
-    result_json = json.dumps(apply_result.model_dump(mode="json"))
-    assert "SECRET-TOKEN" not in result_json
-
-
-def test_35_diagnostics_no_secrets_after_verify(tmp_path: Path):
-    """§35: After verify, diagnostics must not contain tokens."""
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    backups_root = tmp_path / "backups"
-    backups_root.mkdir()
-    env = fake_harness_env(tmp_path)
-    env["STUDIO_MCP_MACHINE_TOKEN"] = "SECRET-TOKEN-DIAGNOSTICS"
-
-    service = _make_service(workspace, backups_root, env)
-
-    preview = service.preview(
-        HarnessPreviewRequest(workspace_id=WORKSPACE_ID, adapter_id="claude-code")
+    verified = rig.service.verify(
+        HarnessVerifyRequest(workspace_id=WORKSPACE_ID, adapter_id=adapter_id)
     )
-    service.apply(
-        HarnessApplyRequest(plan_id=preview.plan_id, plan_hash=preview.plan_hash, confirmed=True)
-    )
+    seen += [result.model_dump_json() for result in (preview, applied, verified)]
+    [machine_id] = rig.provisioner.active
+    return rig, rig.provisioner.tokens[machine_id], seen
 
-    result = service.verify(
-        HarnessVerifyRequest(workspace_id=WORKSPACE_ID, adapter_id="claude-code")
-    )
-    result_json = json.dumps(result.model_dump(mode="json"))
-    assert "SECRET-TOKEN" not in result_json
+
+def test_35_diagnostics_hold_no_secret(tmp_path: Path):
+    """§35: detect, preview, apply and verify never carry a credential."""
+    _, token, seen = _configured(tmp_path)
+    for text in seen:
+        assert token not in text
+        assert "SECRET-TOKEN" not in text
 
 
 def test_35_diagnostics_no_secrets_in_backups(tmp_path: Path):
     """§35: Backup files must not contain secrets."""
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    backups_root = tmp_path / "backups"
-    backups_root.mkdir()
-    env = fake_harness_env(tmp_path)
-    env["STUDIO_MCP_MACHINE_TOKEN"] = "SECRET-TOKEN-DIAGNOSTICS"
-
-    service = _make_service(workspace, backups_root, env)
-
-    preview = service.preview(
-        HarnessPreviewRequest(workspace_id=WORKSPACE_ID, adapter_id="claude-code")
-    )
-    service.apply(
-        HarnessApplyRequest(plan_id=preview.plan_id, plan_hash=preview.plan_hash, confirmed=True)
-    )
-
-    # Check all backup files
-    for backup_file in backups_root.rglob("*"):
+    rig, token, _ = _configured(tmp_path)
+    for backup_file in rig.backups_root.rglob("*"):
         if backup_file.is_file():
             content = backup_file.read_text(encoding="utf-8", errors="replace")
+            assert token not in content
             assert "SECRET-TOKEN" not in content
 
 
 def test_39_network_confidentiality_no_local_paths_in_mcp_calls(tmp_path: Path):
-    """§39: MCP calls must not send absolute local paths."""
-    # The harness config only contains the MCP URL and token reference
-    # No local paths are sent to the MCP server
-    from studio_client.harness.claude_code import ClaudeCodeAdapter
-    from studio_client.harness.opencode import OpenCodeAdapter
-
+    """§39: the entry a tool sends MCP holds a URL and a credential, no path."""
     for adapter in [ClaudeCodeAdapter(), OpenCodeAdapter()]:
-        entry = adapter.build_entry(MCP_URL)
-        entry_json = json.dumps(entry)
-        # Should not contain absolute paths
+        entry_json = json.dumps(adapter.build_entry(MCP_URL, "sk_dedicated"))
         assert "C:\\" not in entry_json
         assert "/home/" not in entry_json
         assert "/Users/" not in entry_json
-        # Should not contain workspace path
         assert str(tmp_path) not in entry_json
 
 
 def test_39_network_confidentiality_no_config_files_in_mcp_calls(tmp_path: Path):
-    """§39: Harness config files must not be sent to MCP server."""
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    backups_root = tmp_path / "backups"
-    backups_root.mkdir()
-    env = fake_harness_env(tmp_path)
-
-    service = _make_service(workspace, backups_root, env)
-
-    preview = service.preview(
-        HarnessPreviewRequest(workspace_id=WORKSPACE_ID, adapter_id="claude-code")
-    )
-    service.apply(
-        HarnessApplyRequest(plan_id=preview.plan_id, plan_hash=preview.plan_hash, confirmed=True)
-    )
-
-    # The config file stays local
-    config_file = workspace / ".mcp.json"
-    config = json.loads(config_file.read_text(encoding="utf-8"))
-    # Config only has URL and token reference, no file contents
-    assert "mcpServers" in config
-    assert "studio-os" in config["mcpServers"]
-    assert "url" in config["mcpServers"]["studio-os"]
-    assert "headers" in config["mcpServers"]["studio-os"]
+    """§39: the configuration stays local, in the tool's user file only."""
+    rig, _, _ = _configured(tmp_path)
+    entry = rig.user_entry("claude-code")
+    assert entry is not None
+    assert set(entry) == {"type", "url", "headers"}
+    assert not (rig.root / ".mcp.json").exists()
 
 
 def test_40_bridge_security_allowlist_only():
@@ -270,50 +168,29 @@ def test_40_subprocess_security_no_shell(tmp_path: Path):
 
 def test_40_filesystem_security_no_traversal(tmp_path: Path):
     """§40: Config file paths must be fixed, no traversal."""
-    from studio_client.harness.claude_code import ClaudeCodeAdapter
-    from studio_client.harness.opencode import OpenCodeAdapter
-
+    rig = make_rig(tmp_path)
     for adapter in [ClaudeCodeAdapter(), OpenCodeAdapter()]:
-        # candidate_files are fixed, not configurable
-        for candidate in adapter.candidate_files:
+        targets = (*adapter.project_files, adapter.user_target(rig.context))
+        for candidate in targets:
             assert ".." not in candidate
             assert not os.path.isabs(candidate)
             assert "\\" not in candidate
 
 
-def test_40_token_security_no_plaintext_anywhere(tmp_path: Path):
-    """§40: Token must never appear in plaintext in configs, logs, backups, diagnostics."""
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    backups_root = tmp_path / "backups"
-    backups_root.mkdir()
-    env = fake_harness_env(tmp_path)
-    env["STUDIO_MCP_MACHINE_TOKEN"] = "PLAINTEXT-TOKEN-FORBIDDEN"
-
-    service = _make_service(workspace, backups_root, env)
-
-    preview = service.preview(
-        HarnessPreviewRequest(workspace_id=WORKSPACE_ID, adapter_id="claude-code")
-    )
-    apply_result = service.apply(
-        HarnessApplyRequest(plan_id=preview.plan_id, plan_hash=preview.plan_hash, confirmed=True)
-    )
-
-    # Check config file
-    config_file = workspace / ".mcp.json"
-    config_text = config_file.read_text(encoding="utf-8")
-    assert "PLAINTEXT-TOKEN" not in config_text
-    assert "${STUDIO_MCP_MACHINE_TOKEN}" in config_text
-
-    # Check backups
-    for backup in backups_root.rglob("*"):
-        if backup.is_file():
-            content = backup.read_text(encoding="utf-8", errors="replace")
-            assert "PLAINTEXT-TOKEN" not in content
-
-    # Check apply result
-    apply_json = json.dumps(apply_result.model_dump(mode="json"))
-    assert "PLAINTEXT-TOKEN" not in apply_json
+@pytest.mark.parametrize("adapter_id", ["claude-code", "opencode"], ids=["claude", "opencode"])
+def test_40_token_lives_only_in_the_tool_user_config(adapter_id: str, tmp_path: Path):
+    """§40: the dedicated credential is in the tool's user file and nowhere
+    else — not in the workspace, backups or results; never an env reference."""
+    rig, token, seen = _configured(tmp_path, adapter_id)
+    config = rig.claude_config if adapter_id == "claude-code" else rig.opencode_config
+    config_text = config.read_text(encoding="utf-8")
+    assert token in config_text
+    assert "STUDIO_MCP_MACHINE_TOKEN" not in config_text
+    assert "SECRET-TOKEN" not in config_text
+    assert all(token not in text for text in seen)
+    for path in (*rig.root.rglob("*"), *rig.backups_root.rglob("*")):
+        if path.is_file():
+            assert token not in path.read_text(encoding="utf-8", errors="replace")
 
 
 def test_40_no_listener_on_all_interfaces():

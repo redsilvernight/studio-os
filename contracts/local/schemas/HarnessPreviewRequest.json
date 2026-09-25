@@ -1,10 +1,16 @@
 {
   "additionalProperties": false,
+  "description": "`renew` plans a new dedicated credential even when the tool is already\nconfigured; the previous one is revoked once the new one is in place.",
   "properties": {
     "adapter_id": {
       "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
       "title": "Adapter Id",
       "type": "string"
+    },
+    "renew": {
+      "default": false,
+      "title": "Renew",
+      "type": "boolean"
     },
     "workspace_id": {
       "format": "uuid",
