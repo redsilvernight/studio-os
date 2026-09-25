@@ -47,9 +47,10 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     # Instance: role-guarded provisioning, no existing project's data.
     ("POST", "/api/v1/projects"): "instance",
     ("POST", "/api/v1/users"): "instance",
-    ("POST", "/api/v1/machines"): "instance",
-    ("POST", "/api/v1/machines/{machine_id}/revoke"): "instance",
-    # Own: the caller's machine, agents and user-private runtimes.
+    # Own: the caller's machines (self-service, A5 — admin for any User),
+    # agents and user-private runtimes.
+    ("POST", "/api/v1/machines"): "own",
+    ("POST", "/api/v1/machines/{machine_id}/revoke"): "own",
     ("GET", "/api/v1/machines"): "own",
     ("GET", "/api/v1/machines/me"): "own",
     ("GET", "/api/v1/agents"): "own",

@@ -79,10 +79,29 @@ ressource rattachee a un projet.
   a laquelle appartient le credential presente, `status` derive comme dans la
   liste. Toute machine authentifiee peut lire. Sert au daemon local a
   connaitre son propre `id` a partir du seul credential.
-- POST /machines (role `admin` — reponse = `Machine` + `credential` en clair,
-  une seule fois ; pas de `Idempotency-Key`, cf. risque de fuite du credential
-  dans la table d'idempotence)
-- POST /machines/{machine_id}/revoke (role `admin`)
+- POST /machines (A5, additif : libre-service, DU-0/A) — tout principal
+  authentifie (machine ou JWT) dont le role n'est pas `agent` cree une
+  machine dont son propre User est proprietaire. Pour un non-admin, le
+  proprietaire est toujours derive du principal : `owner_user_id` (desormais
+  optionnel) absent ou egal au User appelant ; toute autre valeur repond
+  `403 {"detail": {"error_code": "forbidden", "resource": "machine",
+  "action": "create"}}` sans que le User designe soit jamais recherche (pas
+  d'oracle d'existence). `agent` recoit la meme 403. Seul `admin` designe un
+  autre User (`404` si ce User n'existe pas). La machine creee herite du role
+  et des memberships de son proprietaire (DEC-0100), jamais davantage.
+  Reponse = `Machine` + `credential` en clair, une seule fois ; pas de
+  `Idempotency-Key`, cf. risque de fuite du credential dans la table
+  d'idempotence.
+- POST /machines/{machine_id}/revoke (A5, additif) — le proprietaire
+  (`owner_user_id = principal.user`) ou `admin` ; `agent` recoit `403`. Pour
+  un non-admin, la machine d'un autre User repond `404`, a l'identique d'une
+  machine inexistante (comme `GET /machines`, qui ne la liste jamais).
+  Revoquer la machine appelante elle-meme est permis ; effet immediat.
+- Etat du compte (DU-0/A) : ces deux operations exigent un User actif et
+  verifie. Les etats de compte n'existent pas encore : tout User actuel est
+  provisionne par un admin et repute actif. Le lot qui les introduit (A1/A2)
+  refuse ces deux operations a un User `pending` (email non verifie) ;
+  `disabled` bloque deja, par DU-0/A, toute machine derivee du User.
 - POST /users (role `admin`, pas de `Idempotency-Key`)
 
 Le tout premier `User` (admin) et le tout premier `Machine` sont crees

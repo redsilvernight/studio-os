@@ -58,18 +58,24 @@ admin, developer, agent, readonly.
 ## Provisioning (DEC-0011, DEC-0012)
 L'identite utilisateur d'une requete est derivee de `Machine.owner_user_id` (le
 proprietaire de la machine authentifiee), y compris pour la machine dashboard
-creee lors du login JWT (DEC-0056). Les endpoints `POST /projects`, `POST /machines`,
-`POST /machines/{id}/revoke` et `POST /users` verifient le role de ce
-proprietaire ; cette verification n'est pas retroactivement appliquee aux
-endpoints d'ecriture existants (changement de contrat separe si necessaire).
+creee lors du login JWT (DEC-0056). Les endpoints `POST /projects` et
+`POST /users` verifient le role de ce proprietaire ; cette verification n'est
+pas retroactivement appliquee aux endpoints d'ecriture existants (changement
+de contrat separe si necessaire). `POST /machines` et
+`POST /machines/{id}/revoke` sont en libre-service (A5, DU-0/A) : un User
+cree et revoque ses propres machines, le proprietaire etant toujours derive
+du principal pour un non-admin ; `admin` le fait pour tout User ; `agent`
+jamais (voir `TECH/02_API_CONTRACT.md`, Machines et Users). Une machine
+creee n'augmente jamais les droits de son proprietaire.
 
 Le tout premier `User` (admin) et le tout premier `Machine` n'ont par
 definition aucun token pour s'authentifier : ils sont crees hors-bande par la
 CLI serveur `studio-admin`, executee sur le VPS (racine de confiance = acces
 SSH, deja utilise pour les autres secrets du stack). Aucun endpoint public de
 bootstrap, aucun secret d'environnement dedie. Une fois la premiere machine
-enrolee, tout le reste (nouveau developpeur, nouveau poste) passe par l'API
-normale via `POST /users` / `POST /machines`.
+enrolee, un nouveau developpeur passe par `POST /users` (ou l'inscription
+publique, DU-0/A) et un nouveau poste ou outil d'IA par `POST /machines` en
+libre-service.
 
 ## Synchronisation
 Chaque ecriture offline-safe transporte un UUID stable et, si approprie, une Idempotency-Key. Le serveur garantit qu'un replay identique ne cree pas un doublon.
@@ -213,10 +219,11 @@ Acces projet — regles (DEC-0100 §7-12) :
 
 `readonly` : lecture de l'etat partage des projets accessibles (tous les
 `GET`, `GET /library-locks` inclus, filtres par l'acces projet) plus
-heartbeat, aucune ecriture metier nulle part (tasks, claims, sessions,
-ai-work, decisions, events, transfers, library). `agent` : memes ecritures que
-`developer`, jamais `POST /projects` / `POST /machines` / `POST /users`
-(deja garanti par `require_roles`, `## Provisioning` ci-dessus) ni creation
+heartbeat et libre-service de ses propres machines (A5), aucune ecriture
+metier nulle part (tasks, claims, sessions, ai-work, decisions, events,
+transfers, library). `agent` : memes ecritures que `developer`, jamais
+`POST /projects` / `POST /machines` / `POST /machines/{id}/revoke` /
+`POST /users` (`## Provisioning` ci-dessus) ni creation
 Library en scope studio (provisioning-like, voir ci-dessous). Heartbeat
 est l'exception explicite : ecrit son propre etat (`last_seen_at`) meme sous
 `readonly` — jamais gate par `ensure_can_write`.
