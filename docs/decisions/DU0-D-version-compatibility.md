@@ -42,3 +42,37 @@ reste inchangé. AMEND DEC-0036 et DEC-0056 ; KEEP DEC-0048, DEC-0060,
 DEC-0095 et DEC-0098, toutes références visant les ADR du dépôt. Aucun
 endpoint ou client n'est implémenté dans DU-0. La matrice N/N-1 est livrée
 avec les contrats, clients, fixtures et mocks des deux Blocs dans le même lot.
+
+## Finalisation B2 — politique current / latest / minimum_supported
+
+- `current` : version servie par le serveur N (exposée en C1 via
+  `GET /api/v1/meta/compatibility`, sans donnée sensible).
+- `latest` : dernière release publiée par canal (`beta`, `stable`, manifestes
+  `latest.json` séparés en B5).
+- `minimum_supported` : borne basse acceptée, soit N-1 dans le train de
+  releases ; relevée à N lors d'une rupture (bump de contrat).
+- Fenêtre N-1 : un Desktop N-1 reste accepté mais la mise à jour est
+  recommandée ; en-dessous de N-1 l'accès échoue avant toute mutation
+  (`upgrade_required`), sans fallback silencieux.
+
+## Finalisation B2 — matrice de compatibilité (référence codée)
+
+Référence : `packages/studio-contracts/src/studio_contracts/compatibility.py`
+(`classify`), validée par `tests/contracts/test_version_compatibility.py`.
+`lag` = retard du client sur le serveur N en nombre de releases (0 = N,
+1 = N-1, ≥ 2 = plus ancien). Une rupture est livrée avec N : un client à N
+est donc toujours compatible.
+
+| Type de changement | Client N | Client N-1 | Client < N-1 |
+|---|---|---|---|
+| Additif (sans bump) | compatible | upgrade recommandé | upgrade_required |
+| Rupture API (bump `API_CONTRACT_VERSION`) | compatible | upgrade_required | upgrade_required |
+| Rupture Event (bump `EVENT_SCHEMA_VERSION`) | compatible | upgrade_required | upgrade_required |
+| Rupture protocole local (bump major) | compatible | protocol_incompatible | protocol_incompatible |
+| Rupture auth/session (anciens JWT invalides) | compatible | upgrade_required | upgrade_required |
+
+Axe rebuild : un rebuild du même tag n'est jamais le même artefact. Seul
+l'artefact promu par manifeste (même hash + signatures, DU-0/E) est digne de
+confiance ; tout autre binaire est refusé (`protocol_incompatible`), quel que
+soit son numéro de version. Rupture locale : le handshake refuse côté major,
+jamais de négociation silencieuse.
