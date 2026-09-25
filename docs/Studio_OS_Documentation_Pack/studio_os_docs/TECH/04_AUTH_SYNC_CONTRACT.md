@@ -145,7 +145,7 @@ renvoie la ligne existante sans y toucher.
 ## Autorisation (DEC-0036 amende par DEC-0100 — RUPTURE, `API_CONTRACT_VERSION` 2)
 
 Statut : DEC-0100 acceptee ; enforcement central livre (A0, tache
-00397d8d), gestion des membres a venir (voir `TECH/02_API_CONTRACT.md` en tete).
+00397d8d), gestion des membres livree (tache 0324dbb3, `TECH/02_API_CONTRACT.md`).
 
 Trois niveaux, composes par ET logique (jamais OU) :
 

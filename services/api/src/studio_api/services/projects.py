@@ -4,16 +4,24 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from studio_contracts.auth import Role
 
 from studio_api.db.models.claim import ResourceClaimModel
 from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.project_membership import ProjectMembershipModel
 from studio_api.db.models.task import TaskModel
 from studio_api.db.models.user import UserModel
-from studio_api.services.authz import Principal, ensure_project_access, project_visibility_clause
+from studio_api.services import event_stream
+from studio_api.services.authz import (
+    Principal,
+    ProjectAction,
+    ensure_project_access,
+    forbidden,
+    project_visibility_clause,
+)
 
 
 async def list_projects(session: AsyncSession, principal: Principal) -> list[ProjectModel]:
@@ -97,3 +105,82 @@ async def get_active_claims(
         )
     )
     return list(result.scalars().all())
+
+
+def ensure_members_admin(principal: Principal, action: ProjectAction) -> None:
+    """Granting access is `admin` only, never self-service (DEC-0100). Runs
+    before any lookup: a non-admin gets the same 403 for any project id."""
+    if principal.role != Role.ADMIN:
+        raise forbidden("project_members", action)
+
+
+async def _ensure_project_and_user(
+    session: AsyncSession, project_id: uuid.UUID, user_id: uuid.UUID | None = None
+) -> None:
+    if await session.get(ProjectModel, project_id) is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            detail={"error_code": "not_found", "message": f"project {project_id} not found"},
+        )
+    if user_id is not None and await session.get(UserModel, user_id) is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            detail={"error_code": "not_found", "message": f"user {user_id} not found"},
+        )
+
+
+async def list_members(
+    session: AsyncSession, project_id: uuid.UUID
+) -> list[ProjectMembershipModel]:
+    await _ensure_project_and_user(session, project_id)
+    result = await session.execute(
+        select(ProjectMembershipModel)
+        .where(ProjectMembershipModel.project_id == project_id)
+        .order_by(ProjectMembershipModel.created_at, ProjectMembershipModel.user_id)
+    )
+    return list(result.scalars().all())
+
+
+async def grant_member(
+    session: AsyncSession,
+    project_id: uuid.UUID,
+    user_id: uuid.UUID,
+    *,
+    granted_by_user_id: uuid.UUID,
+) -> tuple[ProjectMembershipModel, bool]:
+    """Returns the membership and whether it was created. Granting an existing
+    member is a no-op: the original `granted_by_user_id` is kept."""
+    await _ensure_project_and_user(session, project_id, user_id)
+    inserted = await session.execute(
+        pg_insert(ProjectMembershipModel)
+        .values(project_id=project_id, user_id=user_id, granted_by_user_id=granted_by_user_id)
+        .on_conflict_do_nothing()
+        .returning(ProjectMembershipModel.user_id)
+    )
+    created = inserted.scalar_one_or_none() is not None
+    await session.commit()
+    membership = await session.get(
+        ProjectMembershipModel, (project_id, user_id), populate_existing=True
+    )
+    assert membership is not None
+    return membership, created
+
+
+async def revoke_member(session: AsyncSession, project_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+    """Idempotent. After the commit, the user's open SSE streams on the
+    project close (in-process signal; other processes rely on the streams'
+    periodic revalidation). Returns whether a membership was removed."""
+    await _ensure_project_and_user(session, project_id, user_id)
+    result = await session.execute(
+        delete(ProjectMembershipModel)
+        .where(
+            ProjectMembershipModel.project_id == project_id,
+            ProjectMembershipModel.user_id == user_id,
+        )
+        .returning(ProjectMembershipModel.user_id)
+    )
+    removed = result.scalar_one_or_none() is not None
+    await session.commit()
+    if removed:
+        event_stream.revoke_access(user_id, project_id)
+    return removed
