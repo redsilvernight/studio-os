@@ -1,9 +1,12 @@
 # Studi'OS — Roadmap Project AI Bootstrap
 
-Statut : **HYDRATÉE — prête pour P0** (aucune phase démarrée)
+Statut : **BROUILLON — différé pendant la roadmap Desktop active**
 Source de référence : [StudiOS_Roadmap_Project_AI_Bootstrap.pdf](StudiOS_Roadmap_Project_AI_Bootstrap.pdf)
 Audit et matrice de réutilisation : [AI_BOOTSTRAP_P0_AUDIT.md](AI_BOOTSTRAP_P0_AUDIT.md)
 Baseline : `origin/master` `83da83c`
+Dernière réconciliation : 2026-09-25 — livraison de la synchronisation des skills
+Library (`studio-client skills check/diff/sync`, tâche `35c2d265`). La roadmap reste
+un brouillon : aucune phase n'est activée et aucune tâche n'est hydratée depuis elle.
 
 Ce document est la version Markdown de travail du PDF (§1–§8, fidèle) suivie de
 l'hydratation par phase (§9) issue de l'audit du code. Le PDF reste la référence
@@ -203,23 +206,31 @@ Objectif PDF : appliquer le plan au dépôt local ; `CLAUDE.md` minimal et proje
 supportées ; jamais d'écrasement silencieux ; adapters existants ; `init`, `check`,
 `diff`/dry-run, `sync`.
 
-- **STATUS** : PARTIEL — `materialize` et adapters existent, agents seulement.
+- **STATUS** : PARTIEL — la projection des skills Library vers Claude/Codex/OpenCode
+  est livrée ; le bootstrap complet d'un projet reste à construire.
 - **EXISTING BUILDING BLOCKS** : protocole `Adapter` (`K/adapters/base.py:111`),
   `materialize` (`base.py:486`, chemins validés, atomique, refus sans `overwrite`),
   adapters claude/opencode/codex, `render_agents_rules_block`
   (`K/canonical.py:264`), `rules sync` (`K/cli.py:679`), `adapters export` (dry-run),
-  `HARNESS_MISMATCH` (`base.py:167`).
-- **FILES/MODULES** : `K/adapters/`, `K/canonical.py`, `K/cli.py`, `K/config.py`.
+  `HARNESS_MISMATCH` (`base.py:167`) ; `skills check/diff/sync` avec manifeste local,
+  écritures atomiques, sauvegardes et protection des modifications locales
+  (`K/skill_sync.py`, tâche `35c2d265`, 2026-09-25).
+- **FILES/MODULES** : `K/adapters/`, `K/canonical.py`, `K/cli.py`, `K/config.py`,
+  `K/skill_sync.py`, `tests/client/test_skill_sync.py`.
 - **REUSE** : adapters et `materialize` ; pattern de bloc `BEGIN/END`.
-- **MISSING** : commandes `init/check/diff/sync` ; bloc géré dans `CLAUDE.md` (et
-  création si absent) ; backup/confirmation ; diff unifié ; rollback ; projection des
-  skills (si retenue) ; enregistrement dépôt↔projet (Desktop P5) ; détection de
-  harnesses (Desktop P9) ; câblage MCP machine-local (AIB-E). `rules sync` écrase
-  toujours le bloc `AGENTS.md` sans backup (`K/cli.py:716`).
+- **MISSING** : commande `init` et commandes `check/diff/sync` portant sur le bundle
+  projet complet (les commandes livrées ne couvrent que les skills studio-scope) ;
+  bloc géré dans `CLAUDE.md` ; diff unifié ; rollback ; projection résolue des rules,
+  AgentDefinitions et workflows par adaptateur ; enregistrement dépôt↔projet
+  (Desktop P5) ; détection de harnesses (Desktop P9) ; câblage MCP machine-local
+  (AIB-E). `rules sync` écrase toujours le bloc `AGENTS.md` sans backup
+  (`K/cli.py:716`).
 - **DEPENDENCIES** : P1, P2, Desktop P5/P9.
 - **RISKS** : écrasement de contenu utilisateur ; fuite de token dans le dépôt ;
   fins de ligne Windows ; logique harness dans le Core ; course avec le daemon.
-- **TEST STRATEGY** : dépôts temporaires — vide ; `CLAUDE.md` utilisateur existant ;
+- **TEST STRATEGY** : la tranche skills possède 21 tests ciblés et ses validations
+  CI/Desktop sont vertes. Pour le bundle complet : dépôts temporaires — vide ;
+  `CLAUDE.md` utilisateur existant ;
   `AGENTS.md` sans marqueurs ; symlink hors racine ; fichier en lecture seule ;
   CRLF ; seconde exécution = 0 écriture ; modèle : `tests/client/test_canonical_p3.py`.
 - **GATE** : tests dorés ; aucun écrasement silencieux ; `adapters check` de la CI
@@ -256,16 +267,21 @@ ne pas recopier `studio-*` ; projet neuf presque vide en local.
 Objectif PDF : détecter absent/obsolète/modifié/incompatible, réutiliser l'anti-drift,
 statut configuré/incomplet/drift/incompatible, `sync` avec aperçu.
 
-- **STATUS** : PARTIEL (contrôle local d'un seul dépôt).
+- **STATUS** : PARTIEL — anti-drift livré pour les skills studio-scope ; contrôle du
+  bundle projet complet encore absent.
 - **EXISTING BUILDING BLOCKS** : `adapters check` (`K/cli.py:600-676`, égalité exacte,
   CRLF normalisé, exit 1) ; CI `ci.yml:124` ; marqueur `studio-managed`
   (`K/adapters/base.py:479`, sans hash) ; `AdapterArtifact.sha256` en mémoire
-  (`base.py:65-70`).
-- **FILES/MODULES** : `K/cli.py`, `K/adapters/base.py`, `K/canonical.py`.
+  (`base.py:65-70`) ; manifeste des skills avec version/hash et états
+  `current/missing/outdated/locally_modified`, plus aperçu `skills diff`, sauvegarde
+  avant écrasement explicite et vérification contre la Library (`K/skill_sync.py`).
+- **FILES/MODULES** : `K/cli.py`, `K/adapters/base.py`, `K/canonical.py`,
+  `K/skill_sync.py`, `tests/client/test_skill_sync.py`.
 - **REUSE** : la commande `check` et sa CI (extension, pas remplacement).
-- **MISSING** : taxonomie d'états ; hash/version dans les marqueurs (AIB-C) ;
-  distinction obsolète/modifié ; check d'un dépôt cible et contre la Library ; aperçu
-  avant `sync`.
+- **MISSING** : étendre la taxonomie, les hash/versions et l'aperçu aux rules,
+  AgentDefinitions, workflows, ressources projet et incompatibilités de harness ;
+  check d'un dépôt cible et du bundle résolu contre la Library ; marqueurs AIB-C dans
+  tous les blocs gérés.
 - **DEPENDENCIES** : P3.
 - **RISKS** : second système anti-drift ; faux positifs (fins de ligne, édition dans un
   bloc géré) ; hash du contenu non déterministe.
