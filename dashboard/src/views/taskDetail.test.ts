@@ -6,6 +6,7 @@
  * DOM-free (vitest, environnement node) : assertions sur les chaînes produites.
  */
 import { describe, expect, it } from "vitest";
+import { resetActorNames, setActorNames } from "../actorNames";
 import {
   aiWorkStatusLabel,
   aiWorkStatusTone,
@@ -171,7 +172,7 @@ describe("taskConflictNotice (409, relecture sans retry)", () => {
 });
 
 describe("prise en charge (claim/release machine)", () => {
-  it("tâche prise : machine indicative, action Libérer", () => {
+  it("tâche prise : nom de machine, identifiant en infobulle, action Libérer", () => {
     const held = {
       ...(baseTask as unknown as Record<string, unknown>),
       claimed_by_machine_id: "abcdef12-3456",
@@ -179,7 +180,12 @@ describe("prise en charge (claim/release machine)", () => {
     const html = taskDetailHtml(data({ task: held }));
     expect(html).toContain("Prise par la machine");
     expect(html).toContain("abcdef12");
+    expect(html).not.toContain("indicatif");
     expect(html).toContain("Libérer");
+    setActorNames([{ id: "abcdef12-3456", display_name: "flo-laptop" }], []);
+    const named = taskDetailHtml(data({ task: held }));
+    expect(named).toContain('title="abcdef12-3456">flo-laptop</span>');
+    resetActorNames();
   });
 
   it("lecture seule : actions désactivées sans disparaître", () => {
@@ -191,13 +197,13 @@ describe("prise en charge (claim/release machine)", () => {
 });
 
 describe("sessions lisibles, jamais de payload", () => {
-  it("état, agent, début/fin, machine indicative", () => {
+  it("état, agent, début/fin, machine", () => {
     const html = taskDetailHtml(data());
     expect(html).toContain("En cours");
     expect(html).toContain("Terminée");
     expect(html).toContain("Agent non renseigné");
-    expect(html).toContain("Agent a1");
-    expect(html).toContain("indicative");
+    expect(html).toContain("Agent <code");
+    expect(html).not.toContain("indicative");
     expect(html).not.toContain("unvalidated");
     expect(html).not.toContain("Machine (unvalidated)");
   });

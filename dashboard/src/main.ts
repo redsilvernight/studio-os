@@ -16,6 +16,7 @@
  * retour à l'écran de connexion.
  */
 import { apiBaseUrl, createApiClient } from "./api";
+import { loadActorNames } from "./actorNames";
 import { resolveApiUrl } from "./config";
 import { clearToken, getToken, hasToken, setToken } from "./auth";
 import { subscribe, uiState } from "./store";
@@ -86,6 +87,7 @@ async function render(): Promise<void> {
   const baseUrl = resolveApiUrl(apiBaseUrl());
   const client = createApiClient(baseUrl);
   const authed = hasToken();
+  if (authed) await loadActorNames(client);
   const staging = document.createElement("main");
   switch (route.name) {
     case "projects":

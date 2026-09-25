@@ -6,6 +6,8 @@
  * model — the display below only labels columns.
  */
 
+import { agentLabel, machineLabel } from "./actorNames";
+
 export type TaskStatus = "created" | "in_progress" | "blocked" | "completed";
 
 export type TaskColumn = "TODO" | "IN PROGRESS" | "BLOCKED" | "DONE";
@@ -88,11 +90,14 @@ export interface TaskClaimHolder {
 export function taskClaimHint(task: TaskClaimHolder): string {
   const machine = task.claimed_by_machine_id ?? null;
   if (machine === null || machine === "") return "Disponible";
-  const short = machine.length > 8 ? `${machine.slice(0, 8)}…` : machine;
   const agent = task.claimed_by_agent_id ?? null;
   if (agent !== null && agent !== "") {
-    const shortAgent = agent.length > 8 ? `${agent.slice(0, 8)}…` : agent;
-    return `Prise · machine ${short} · agent ${shortAgent}`;
+    return `Prise · machine ${machineLabel(machine)} · agent ${agentLabel(agent)}`;
   }
-  return `Prise · machine ${short}`;
+  return `Prise · machine ${machineLabel(machine)}`;
+}
+
+/** Identifiants complets de la prise, pour l'infobulle. */
+export function taskClaimTitle(task: TaskClaimHolder): string {
+  return [task.claimed_by_machine_id, task.claimed_by_agent_id].filter((id) => id !== null && id !== undefined && id !== "").join(" · ");
 }

@@ -63,6 +63,7 @@ import {
 import { formReader } from "./libraryForms";
 import { kindFr, statusLabelFr } from "./library";
 import { uiState } from "../store";
+import { machineLabel, machineRef } from "../actorNames";
 import { CONFIRM_RELEASE_LOCK, describeError, esc, fmtTime, shortId, statusBlock } from "../ui";
 import { dsBadge, dsEmptyState, dsNotify, dsPageHeader, dsSkeleton, focusDsErrorBox, type DsTone } from "../ds/ds";
 // Styles colocalisés : la page reste autonome sans toucher au CSS global.
@@ -225,9 +226,9 @@ export function runtimeMachineOptions(runtimes: RuntimeRegistration[]): string[]
   return [...new Set(runtimes.map((runtime) => runtime.machine_id).filter(nonEmpty))].sort();
 }
 
-function runtimeOptions(values: string[], selected: string, allLabel: string): string {
+function runtimeOptions(values: string[], selected: string, allLabel: string, label: (value: string) => string = shortId): string {
   const first = `<option value=""${selected === "" ? " selected" : ""}>${esc(allLabel)}</option>`;
-  return first + values.map((value) => `<option value="${esc(value)}"${selected === value ? " selected" : ""}>${esc(shortId(value))}</option>`).join("");
+  return first + values.map((value) => `<option value="${esc(value)}"${selected === value ? " selected" : ""}>${esc(label(value))}</option>`).join("");
 }
 
 export function runtimesToolbarHtml(state: RuntimesPageState, runtimes: RuntimeRegistration[], shown: number): string {
@@ -237,7 +238,7 @@ export function runtimesToolbarHtml(state: RuntimesPageState, runtimes: RuntimeR
     `<label class="ds-sr-only" for="settings-runtimes-search">Filtrer les runtimes déjà chargés</label>` +
     `<input class="ds-input" type="search" id="settings-runtimes-search" value="${esc(state.query)}" placeholder="Rechercher par provider, model, harness…" autocomplete="off" /></div>` +
     `<label class="settings-filter"><span>Provider</span><select class="ds-select" id="settings-runtimes-provider">${runtimeOptions(runtimeProviderOptions(runtimes), state.provider, "Tous les providers")}</select></label>` +
-    `<label class="settings-filter"><span>Machine</span><select class="ds-select" id="settings-runtimes-machine">${runtimeOptions(runtimeMachineOptions(runtimes), state.machine, "Toutes les machines")}</select></label>` +
+    `<label class="settings-filter"><span>Machine</span><select class="ds-select" id="settings-runtimes-machine">${runtimeOptions(runtimeMachineOptions(runtimes), state.machine, "Toutes les machines", machineLabel)}</select></label>` +
     `<label class="settings-filter"><span>Statut</span><select class="ds-select" id="settings-runtimes-status">` +
     `<option value="all"${state.status === "all" ? " selected" : ""}>Tous les statuts</option>` +
     `<option value="active"${state.status === "active" ? " selected" : ""}>Actif</option>` +
@@ -253,7 +254,7 @@ export function runtimesToolbarHtml(state: RuntimesPageState, runtimes: RuntimeR
 export function runtimeCardHtml(runtime: RuntimeRegistration): string {
   const machine =
     nonEmpty(runtime.machine_id)
-      ? `<a href="#/machines">Machine ${esc(shortId(runtime.machine_id))}</a>`
+      ? `<a href="#/machines">Machine ${machineRef(runtime.machine_id)}</a>`
       : '<span class="meta">Sans machine (cible distante)</span>';
   const status = dsBadge(runtimeStatusFr(runtime.status), runtimeStatusTone(runtime.status));
   return (
@@ -471,7 +472,7 @@ export function runtimeDetailHtml(runtime: RuntimeRegistration, bindings: Runtim
     `<dl class="settings-refs">` +
     `<div class="settings-ref"><dt>Statut</dt><dd>${dsBadge(runtimeStatusFr(runtime.status), runtimeStatusTone(runtime.status))}</dd></div>` +
     `<div class="settings-ref"><dt>Propriétaire</dt><dd>${esc(shortId(runtime.owner_user_id))}</dd></div>` +
-    `<div class="settings-ref"><dt>Machine</dt><dd>${nonEmpty(runtime.machine_id) ? `<a href="#/machines">Machine ${esc(shortId(runtime.machine_id))}</a>` : '<span class="meta">Sans machine (cible distante)</span>'}</dd></div>` +
+    `<div class="settings-ref"><dt>Machine</dt><dd>${nonEmpty(runtime.machine_id) ? `<a href="#/machines">Machine ${machineRef(runtime.machine_id)}</a>` : '<span class="meta">Sans machine (cible distante)</span>'}</dd></div>` +
     refLine("Provider", runtime.provider_ref) +
     refLine("Model", runtime.model_ref) +
     refLine("Harness", runtime.harness_ref) +
