@@ -18,6 +18,7 @@ import type {
   RoadmapDiff,
   RoadmapDiffChange,
   RoadmapDocument,
+  RoadmapLifecycleTransition,
   RoadmapListItem,
   RoadmapPendingProposal,
   RoadmapPhase,
@@ -27,6 +28,8 @@ import type {
 } from "../roadmapTypes";
 import { agentRef } from "../actorNames";
 import { ApiError } from "../api";
+import { getToken } from "../auth";
+import { decodeJwtRole } from "../creationsApi";
 import { describeError, esc, fmtTime, shortId } from "../ui";
 
 export type RoadmapMode = "plan" | "execution";
@@ -37,6 +40,8 @@ export interface RoadmapViewContext {
   projectName: string;
   /** Roadmap to open (e.g. a proposed one reached from Décisions); omitted = the active one. */
   roadmapId?: string;
+  /** Show lifecycle actions; omitted = demo sources or an admin/developer session token. */
+  canManageLifecycle?: boolean;
 }
 
 const STATUS_LABELS: Record<RoadmapStatus, string> = {
@@ -174,6 +179,69 @@ export function roadmapStepDetailHtml(step: RoadmapStep | null, roadmap: Roadmap
     `</dl></details></aside>`;
 }
 
+const LIFECYCLE_ACTIONS: Record<RoadmapStatus, RoadmapLifecycleTransition[]> = {
+  draft: ["activate", "archive"],
+  proposed: [],
+  active: ["complete", "archive"],
+  completed: ["reopen", "archive"],
+  archived: [],
+};
+
+const LIFECYCLE_LABELS: Record<RoadmapLifecycleTransition, string> = {
+  activate: "Activer",
+  complete: "Clôturer",
+  reopen: "Rouvrir",
+  archive: "Archiver",
+};
+
+const LIFECYCLE_CONFIRM: Record<RoadmapLifecycleTransition, string> = {
+  activate: "Activer cette roadmap ? Elle devient le plan suivi du projet.",
+  complete: "Clôturer cette roadmap ? Elle passe en lecture seule et libère la place pour une autre roadmap active.",
+  reopen: "Rouvrir cette roadmap ? Elle redevient active. Expliquez pourquoi.",
+  archive: "Archiver cette roadmap ? L'archivage est définitif.",
+};
+
+/** Lifecycle controls state; `allowed` is false for roles that cannot transition a roadmap. */
+export interface RoadmapLifecycleView {
+  allowed: boolean;
+  pending?: RoadmapLifecycleTransition | null;
+  errorHtml?: string | null;
+}
+
+export function isRoadmapManagerRole(role: string | null): boolean {
+  return role === "admin" || role === "developer";
+}
+
+/** An `active` roadmap whose steps are all done or skipped but that was never completed. */
+export function roadmapFullyDone(roadmap: Roadmap): boolean {
+  const progress = roadmap.progress;
+  return roadmap.status === "active" && progress !== undefined && progress.total > 0 && progress.done + progress.skipped >= progress.total;
+}
+
+function lifecycleButtonsHtml(roadmap: Roadmap, lifecycle: RoadmapLifecycleView): string {
+  if (!lifecycle.allowed) return "";
+  return LIFECYCLE_ACTIONS[roadmap.status]
+    .map((transition) => `<button class="ds-btn${transition === "archive" ? " ds-btn--danger" : ""}" type="button" data-lifecycle="${transition}">${LIFECYCLE_LABELS[transition]}</button>`)
+    .join("");
+}
+
+export function roadmapLifecycleHtml(roadmap: Roadmap, lifecycle: RoadmapLifecycleView): string {
+  const pending = lifecycle.allowed ? lifecycle.pending ?? null : null;
+  const hint = roadmapFullyDone(roadmap) && pending === null
+    ? `<div class="ds-notice ds-notice--success roadmap-complete-hint" role="status"><div><strong>Toutes les étapes sont terminées.</strong> Clôturez cette roadmap : tant qu'elle reste active, aucune autre ne peut être approuvée.</div>` +
+      (lifecycle.allowed ? `<button class="ds-btn ds-btn--primary" type="button" data-lifecycle="complete">Clôturer la roadmap</button>` : "") + `</div>`
+    : "";
+  if (pending === null) return hint;
+  const comment = pending === "reopen"
+    ? dsField("lifecycle-comment", "Motif de réouverture", `<textarea id="FIELD" data-lifecycle-comment maxlength="2000" placeholder="Obligatoire pour rouvrir."></textarea>`)
+    : "";
+  return `<section class="roadmap-lifecycle-confirm roadmap-no-print" aria-labelledby="roadmap-lifecycle-title">` +
+    `<p id="roadmap-lifecycle-title"><strong>${esc(LIFECYCLE_CONFIRM[pending])}</strong></p>${comment}` +
+    `<div data-lifecycle-error>${lifecycle.errorHtml ?? ""}</div>` +
+    `<div class="roadmap-actions"><button class="ds-btn" type="button" data-lifecycle-cancel>Annuler</button>` +
+    `<button class="ds-btn ${pending === "archive" ? "ds-btn--danger" : "ds-btn--primary"}" type="button" data-lifecycle-confirm="${pending}">Confirmer : ${LIFECYCLE_LABELS[pending]}</button></div></section>`;
+}
+
 function proposalHtml(roadmap: Roadmap, reviewErrorHtml: string | null = null): string {
   if (roadmap.status !== "proposed") return "";
   const steps = allSteps(roadmap);
@@ -295,6 +363,7 @@ export function roadmapShellHtml(
   demo = false,
   proposal: RoadmapPendingProposal | null = null,
   roadmaps: RoadmapListItem[] = [],
+  lifecycle: RoadmapLifecycleView = { allowed: false },
   reviewErrorHtml: string | null = null,
 ): string {
   const progress = percent(roadmap.progress?.ratio);
@@ -308,9 +377,10 @@ export function roadmapShellHtml(
     roadmapSwitcherHtml(roadmap, roadmaps) +
     proposalHtml(roadmap, reviewErrorHtml) +
     (proposal !== null ? revisionProposalHtml(proposal, roadmap) : "") +
+    roadmapLifecycleHtml(roadmap, lifecycle) +
     `<header class="roadmap-header"><div><div class="roadmap-title-line"><h2>${esc(roadmap.title)}</h2>${dsBadge(STATUS_LABELS[roadmap.status], statusTone(roadmap.status))}</div>` +
     `<p>${esc(roadmap.objective?.trim() || "Plan du projet")}</p>${dsProgress(progress, 100, `${progress} % du plan terminé`)}</div>` +
-    `<div class="roadmap-actions roadmap-no-print"><button class="ds-btn" type="button" data-edit-roadmap>Modifier</button><button class="ds-btn" type="button" data-import-json>Importer JSON</button><button class="ds-btn" type="button" data-export-json>Exporter JSON</button><button class="ds-btn ds-btn--primary" type="button" data-export-pdf>Exporter PDF</button></div></header>` +
+    `<div class="roadmap-actions roadmap-no-print">${lifecycleButtonsHtml(roadmap, lifecycle)}<button class="ds-btn" type="button" data-edit-roadmap>Modifier</button><button class="ds-btn" type="button" data-import-json>Importer JSON</button><button class="ds-btn" type="button" data-export-json>Exporter JSON</button><button class="ds-btn ds-btn--primary" type="button" data-export-pdf>Exporter PDF</button></div></header>` +
     `<input class="ds-sr-only" type="file" accept="application/json,.json" aria-label="Choisir un fichier Roadmap JSON" data-import-file>` +
     `<div class="roadmap-reading-tabs roadmap-no-print" role="tablist" aria-label="Lecture de la roadmap"><button class="ds-tab" type="button" role="tab" aria-selected="${mode === "plan"}" data-mode="plan">Plan</button><button class="ds-tab" type="button" role="tab" aria-selected="${mode === "execution"}" data-mode="execution">Exécution</button></div>` +
     `<div class="roadmap-layout"><main class="roadmap-reading" data-roadmap-reading>${plan}</main>${roadmapStepDetailHtml(selected, roadmap)}</div>` +
@@ -406,6 +476,9 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
   let selectedKey: string | null = roadmap?.current_step_key ?? (roadmap === null ? null : allSteps(roadmap)[0]?.key) ?? null;
   let pendingProposal: RoadmapPendingProposal | null = null;
   let roadmaps: RoadmapListItem[] = [];
+  const canManage = ctx.canManageLifecycle ?? (ctx.dataSource.demo === true || isRoadmapManagerRole(decodeJwtRole(getToken())));
+  let pendingLifecycle: RoadmapLifecycleTransition | null = null;
+  let lifecycleErrorHtml: string | null = null;
   let reviewErrorHtml: string | null = null;
   const refreshRoadmaps = async (): Promise<void> => {
     try {
@@ -443,6 +516,7 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
       ctx.dataSource.demo === true,
       roadmap.status === "active" ? pendingProposal : null,
       roadmaps,
+      { allowed: canManage, pending: pendingLifecycle, errorHtml: lifecycleErrorHtml },
       reviewErrorHtml,
     );
     bind();
@@ -558,6 +632,54 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
         paint();
       }
     }));
+    root.querySelectorAll<HTMLButtonElement>("[data-lifecycle]").forEach((button) => button.addEventListener("click", () => {
+      const transition = button.dataset.lifecycle as RoadmapLifecycleTransition | undefined;
+      if (transition === undefined || !(transition in LIFECYCLE_LABELS)) return;
+      pendingLifecycle = transition;
+      lifecycleErrorHtml = null;
+      paint();
+      root.querySelector<HTMLElement>("[data-lifecycle-comment], [data-lifecycle-confirm]")?.focus();
+    }));
+    root.querySelector<HTMLButtonElement>("[data-lifecycle-cancel]")?.addEventListener("click", () => {
+      pendingLifecycle = null;
+      lifecycleErrorHtml = null;
+      paint();
+    });
+    root.querySelector<HTMLButtonElement>("[data-lifecycle-confirm]")?.addEventListener("click", async (event) => {
+      if (roadmap === null || pendingLifecycle === null) return;
+      const transition = pendingLifecycle;
+      const commentField = root.querySelector<HTMLTextAreaElement>("[data-lifecycle-comment]");
+      const comment = commentField?.value.trim() ?? "";
+      const errorBox = root.querySelector<HTMLElement>("[data-lifecycle-error]");
+      if (transition === "reopen" && comment === "") {
+        if (errorBox !== null) errorBox.innerHTML = errorNotice("Motif requis.", "Expliquez pourquoi la roadmap est rouverte.");
+        commentField?.focus();
+        return;
+      }
+      const confirmButton = event.currentTarget as HTMLButtonElement;
+      confirmButton.disabled = true;
+      try {
+        roadmap = await ctx.dataSource.transitionRoadmap(roadmap, transition, comment === "" ? undefined : comment);
+        pendingLifecycle = null;
+        lifecycleErrorHtml = null;
+        await refreshRoadmaps();
+        paint();
+        dsNotify(`Roadmap ${STATUS_LABELS[roadmap.status].toLowerCase()}.`, "success");
+      } catch (error) {
+        lifecycleErrorHtml = errorNotice("Action refusée.", esc(describeError(error)));
+        if (error instanceof ApiError && error.errorCode === "version_conflict") {
+          // Re-read so a retry carries the live version instead of failing again.
+          try {
+            roadmap = (await ctx.dataSource.load(ctx.projectId, roadmap.id)) ?? roadmap;
+          } catch {
+            /* keep the stale copy; the notice already asks for a reload */
+          }
+        }
+        paint();
+        const field = root.querySelector<HTMLTextAreaElement>("[data-lifecycle-comment]");
+        if (field !== null) field.value = comment;
+      }
+    });
     root.querySelectorAll<HTMLButtonElement>("[data-proposal-review]").forEach((button) => button.addEventListener("click", async () => {
       if (roadmap === null || pendingProposal === null) return;
       const raw = button.dataset.proposalReview;
