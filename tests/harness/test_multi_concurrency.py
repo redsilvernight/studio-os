@@ -31,6 +31,12 @@ def _real(adapter: HarnessAdapter) -> bool:
     )
 
 
+def _env() -> dict[str, str]:
+    env = dict(os.environ)
+    env.pop("STUDIO_MCP_MACHINE_TOKEN", None)
+    return env
+
+
 def _make_service(adapter: HarnessAdapter, workspace: Path, backups_root: Path, env: dict):
     def lookup(workspace_id):
         if workspace_id != WORKSPACE_ID:
@@ -58,7 +64,7 @@ def test_a_claude_alone(adapter: HarnessAdapter, tmp_path: Path):
     workspace.mkdir()
     backups_root = tmp_path / "backups"
     backups_root.mkdir()
-    env = dict(os.environ)
+    env = _env()
 
     service = _make_service(adapter, workspace, backups_root, env)
 
@@ -87,7 +93,7 @@ def test_two_harnesses_same_workspace_independent_configs(tmp_path: Path):
     workspace.mkdir()
     backups_root = tmp_path / "backups"
     backups_root.mkdir()
-    env = dict(os.environ)
+    env = _env()
 
     # Configure both
     claude_service = _make_service(ClaudeCodeAdapter(), workspace, backups_root, env)
@@ -142,7 +148,7 @@ def test_no_harnesses_works(tmp_path: Path):
     workspace.mkdir()
     backups_root = tmp_path / "backups"
     backups_root.mkdir()
-    env = dict(os.environ)
+    env = _env()
     # Remove PATH entries that might have harnesses
     env["PATH"] = "C:\\Windows\\System32"
 
@@ -188,7 +194,7 @@ def test_concurrency_preview_then_external_modification_then_apply(tmp_path: Pat
     workspace.mkdir()
     backups_root = tmp_path / "backups"
     backups_root.mkdir()
-    env = dict(os.environ)
+    env = _env()
 
     service = _make_service(ClaudeCodeAdapter(), workspace, backups_root, env)
 
@@ -230,7 +236,7 @@ def test_concurrency_two_operations_same_adapter(tmp_path: Path):
     workspace.mkdir()
     backups_root = tmp_path / "backups"
     backups_root.mkdir()
-    env = dict(os.environ)
+    env = _env()
 
     service = _make_service(ClaudeCodeAdapter(), workspace, backups_root, env)
 
@@ -259,7 +265,7 @@ def test_backups_are_local_only(tmp_path: Path):
     workspace.mkdir()
     backups_root = tmp_path / "backups"
     backups_root.mkdir()
-    env = dict(os.environ)
+    env = _env()
 
     service = _make_service(ClaudeCodeAdapter(), workspace, backups_root, env)
 

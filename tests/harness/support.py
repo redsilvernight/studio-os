@@ -58,6 +58,7 @@ def base_env(*bin_dirs: Path) -> dict[str, str]:
     env["PATH"] = os.pathsep.join(entries)
     env.pop("ANTHROPIC_API_KEY", None)
     env.pop("OPENAI_API_KEY", None)
+    env.pop("STUDIO_MCP_MACHINE_TOKEN", None)
     return env
 
 
