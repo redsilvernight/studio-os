@@ -36,9 +36,9 @@ Pour deux developpeurs, un petit VPS est suffisant pour l'orchestration. Le stoc
    - execute `alembic upgrade head`
    - cree le premier admin et son mot de passe dashboard
    - cree la premiere machine et affiche son token
-3. `docker compose up -d` pour demarrer API/MCP/dashboard/Caddy.
-4. Configurer `STUDIO_JWT_SECRET` (long, aleatoire) et `STUDIO_CORS_ORIGINS` dans
-   `docker/.env`, puis redemarrer le service `api`.
+3. Configurer `STUDIO_JWT_SECRET` (aleatoire, >= 32 octets) et `STUDIO_CORS_ORIGINS`
+   dans `docker/.env` : l'API refuse de demarrer avec le placeholder ou un secret court.
+4. `docker compose up -d` pour demarrer API/MCP/dashboard/Caddy.
 
 ## Utilisateurs suivants
 Aucune inscription publique n'existe : chaque utilisateur est cree par un

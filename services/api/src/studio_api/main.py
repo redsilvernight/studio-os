@@ -182,6 +182,12 @@ def create_app() -> FastAPI:
     setup_middleware(app, settings)
 
     if is_weak_jwt_secret(settings.jwt_secret):
+        if settings.environment == "production":
+            raise RuntimeError(
+                "STUDIO_JWT_SECRET is using a default or short value (< 32 bytes); "
+                "refusing to start in production (set a strong secret, or "
+                "STUDIO_ENVIRONMENT=dev for local development)"
+            )
         logger.warning(
             "STUDIO_JWT_SECRET is using a default or short value (< 32 bytes); "
             "set a strong secret in production"

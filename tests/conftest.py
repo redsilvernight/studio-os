@@ -13,6 +13,10 @@ import asyncpg
 import bcrypt
 import pytest
 
+# The API refuses a weak JWT secret in production (the default environment);
+# set before any test imports studio_api.main, which builds the app on import.
+os.environ.setdefault("STUDIO_ENVIRONMENT", "test")
+
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "contracts" / "fixtures"
 
 DEFAULT_TEST_DATABASE_URL = "postgresql+asyncpg://studio:studio@127.0.0.1:5432/studio_os_test"
