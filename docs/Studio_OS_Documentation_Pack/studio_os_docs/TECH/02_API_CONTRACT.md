@@ -48,7 +48,10 @@ ressource rattachee a un projet.
   DEC-0100) ; liste vide valide pour un compte sans membership.
 - POST /projects (role `admin` ou `developer`, `Idempotency-Key` supporte) —
   le createur (`User` de la machine appelante) devient membre dans la meme
-  transaction.
+  transaction. Slugs uniques globalement et non secrets (DEC-0101) : un slug
+  deja pris repond `409 {"detail": {"error_code": "conflict", "message",
+  "slug"}}`, la meme reponse que l'`apply` d'initialisation — jamais une
+  ecriture, jamais d'id fuit.
 - GET /projects/{project_id} — `403 resource=project` si inaccessible.
 - GET /projects/{project_id}/state — idem.
 
@@ -480,6 +483,9 @@ absente = etat valide. Le serveur ne decide rien : il valide et applique.
   `blocking=true`) — tout probleme bloquant refuse l'apply avant ecriture ;
   ressources optionnelles absentes -> `problems` non bloquants + `skip`.
   `409 actor_not_owned` (`agent_id` declare non rattache a la machine).
+  Slug deja pris par un autre projet (meme invisible de l'appelant) ->
+  `409 {"detail": {"error_code": "conflict", "message", "slug"}}` via le point
+  commun `create_project` (oracle accepte, slugs non secrets, DEC-0101).
 - Permissions : `ensure_can_write` ; creation du projet = `ensure_can_provision`
   (`admin`/`developer`). Idempotence : `Idempotency-Key` + reutilisation par
   slug/titre/clef.
