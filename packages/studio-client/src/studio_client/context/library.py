@@ -100,7 +100,11 @@ class LibraryContextProvider:
     ) -> LibraryFetchResult:
         resources = await self._api.list_library_resources(limit=limit)
         wanted = set(kinds)
-        locks = await self._api.list_library_locks(project_id=project_id)
+        locks = (
+            await self._api.list_library_locks(project_id=project_id)
+            if project_id is not None
+            else []
+        )
         locked_version = {lock.resource_id: lock.locked_version for lock in locks}
 
         visible = [r for r in resources if self._is_applicable(r, project_id)]
