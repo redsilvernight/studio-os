@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     request_id_header: str = "x-request-id"
     rate_limit_requests_per_minute: int = 120
     rate_limit_burst: int = 20
+    # /api/v1/auth/* (login): stricter, always per client IP.
+    auth_rate_limit_requests_per_minute: int = 10
+    auth_rate_limit_burst: int = 5
+    # Comma-separated IPs/CIDRs of reverse proxies (Caddy) whose
+    # X-Forwarded-For is honored. Empty: the header is ignored.
+    trusted_proxies: str = ""
 
     # Logging
     log_format: str = "text"  # "text" or "json"

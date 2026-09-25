@@ -44,6 +44,11 @@ services:
       STUDIO_LOG_LEVEL: ${STUDIO_LOG_LEVEL}
       STUDIO_RATE_LIMIT_REQUESTS_PER_MINUTE: ${STUDIO_RATE_LIMIT_REQUESTS_PER_MINUTE}
       STUDIO_RATE_LIMIT_BURST: ${STUDIO_RATE_LIMIT_BURST}
+      STUDIO_AUTH_RATE_LIMIT_REQUESTS_PER_MINUTE: ${STUDIO_AUTH_RATE_LIMIT_REQUESTS_PER_MINUTE:-10}
+      STUDIO_AUTH_RATE_LIMIT_BURST: ${STUDIO_AUTH_RATE_LIMIT_BURST:-5}
+      # api publishes no port: its only peers are containers of this compose
+      # network (Caddy), so X-Forwarded-For is trusted from private ranges only.
+      STUDIO_TRUSTED_PROXIES: ${STUDIO_TRUSTED_PROXIES:-172.16.0.0/12,192.168.0.0/16,10.0.0.0/8}
     depends_on:
       postgres:
         condition: service_healthy
