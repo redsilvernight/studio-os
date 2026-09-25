@@ -29,7 +29,8 @@ router = APIRouter(prefix="/api/v1/ai-work", tags=["ai-work"])
     description=(
         "List AI work ledger entries, optionally filtered by project or "
         "task, restricted to the caller's accessible projects. A "
-        "`project_id` the caller cannot access answers `403 forbidden`."
+        "`project_id`, or a `task_id` of a project, the caller cannot "
+        "access answers `403 forbidden`."
     ),
     responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
 )

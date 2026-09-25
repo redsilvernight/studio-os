@@ -74,8 +74,8 @@ async def post_event(
     description=(
         "Read recent events, optionally filtered by project, task and "
         "`since` timestamp, restricted to the caller's accessible "
-        "projects (a `project` the caller cannot access answers `403 "
-        "forbidden`). This is "
+        "projects (a `project`, or a `task_id` of a project, the caller "
+        "cannot access answers `403 forbidden`). This is "
         "the polling and catch-up channel: after a disconnect, poll with "
         "`since` to retrieve missed history, then optionally resume live "
         "delivery on `GET /events/stream`."

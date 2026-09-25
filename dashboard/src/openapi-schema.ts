@@ -689,7 +689,7 @@ export interface paths {
         };
         /**
          * List Ai Work
-         * @description List AI work ledger entries, optionally filtered by project or task, restricted to the caller's accessible projects. A `project_id` the caller cannot access answers `403 forbidden`.
+         * @description List AI work ledger entries, optionally filtered by project or task, restricted to the caller's accessible projects. A `project_id`, or a `task_id` of a project, the caller cannot access answers `403 forbidden`.
          */
         get: operations["list_ai_work_api_v1_ai_work_get"];
         put?: never;
@@ -925,7 +925,7 @@ export interface paths {
         };
         /**
          * Get Events
-         * @description Read recent events, optionally filtered by project, task and `since` timestamp, restricted to the caller's accessible projects (a `project` the caller cannot access answers `403 forbidden`). This is the polling and catch-up channel: after a disconnect, poll with `since` to retrieve missed history, then optionally resume live delivery on `GET /events/stream`.
+         * @description Read recent events, optionally filtered by project, task and `since` timestamp, restricted to the caller's accessible projects (a `project`, or a `task_id` of a project, the caller cannot access answers `403 forbidden`). This is the polling and catch-up channel: after a disconnect, poll with `since` to retrieve missed history, then optionally resume live delivery on `GET /events/stream`.
          */
         get: operations["get_events_api_v1_events_get"];
         put?: never;
