@@ -171,7 +171,7 @@ test.describe("UI-9 page Machines", () => {
     // Identité : nom quand disponible, jamais d'UUID en titre.
     await expect(view).toContainText("Machine sans nom enregistré");
     await expect(view.locator(".machines-list")).not.toContainText(M1);
-    await expect(view.locator(".machines-list")).toContainText("aaaaaaaa…");
+    await expect(view.locator(`.machines-list h3[title="${M1}"]`)).toHaveCount(1);
     // Contexte utile, pas de monitoring fictif (le disclaimer d'honnêteté
     // cite CPU/RAM pour dire qu'ils ne sont PAS collectés).
     await expect(view).toContainText("Session en cours");
