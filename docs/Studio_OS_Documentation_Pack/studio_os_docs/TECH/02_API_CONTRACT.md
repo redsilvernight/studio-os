@@ -42,6 +42,17 @@ ressource rattachee a un projet.
   Le JWT obtenu est accepte comme `Authorization: Bearer <jwt>` sur tout endpoint
   `/api/v1` (sauf `/healthz` et `/metrics`). Cet endpoint est lui-meme sans Bearer :
   il est l'exception d'authentification prevue pour le login humain dashboard.
+  Cycle de session (DEC-0110, rupture de la version contractuelle 2) : JWT de
+  15 minutes au plus, sans refresh token, claims `sub`, `machine_id`,
+  `session_id`, `auth_version`, `iat`, `exp`, `type` — `email` et `role`
+  retires ; un JWT emis avant le deploiement est refuse. `TokenResponse` gagne
+  `expires_in` (secondes, additif). Un User desactive ou non verifie recoit le
+  meme `401` qu'un mauvais mot de passe. Validation, revocation et SSE :
+  `TECH/04_AUTH_SYNC_CONTRACT.md`, Cycle de session.
+- GET /auth/me (DEC-0110, additif) — tout principal authentifie (JWT ou token
+  machine). Response `AuthIdentity` : `user_id`, `display_name`, `email`,
+  `role`, `machine_id`. Source d'identite du client a la place des claims
+  retires du JWT ; `401` generique si le principal n'est plus valide.
 
 ### Projects
 - GET /projects — uniquement les projets accessibles (membership ou `admin`,
@@ -102,11 +113,12 @@ ressource rattachee a un projet.
   un non-admin, la machine d'un autre User repond `404`, a l'identique d'une
   machine inexistante (comme `GET /machines`, qui ne la liste jamais).
   Revoquer la machine appelante elle-meme est permis ; effet immediat.
-- Etat du compte (DU-0/A) : ces deux operations exigent un User actif et
-  verifie. Les etats de compte n'existent pas encore : tout User actuel est
-  provisionne par un admin et repute actif. Le lot qui les introduit (A1/A2)
-  refuse ces deux operations a un User `pending` (email non verifie) ;
-  `disabled` bloque deja, par DU-0/A, toute machine derivee du User.
+- Etat du compte (DU-0/A, introduit par A2/DEC-0110) : ces deux operations
+  exigent un User actif et verifie. Un User `pending` (`email_verified_at`
+  nul) ou `disabled` (`disabled_at` pose) n'obtient aucun principal : toutes
+  ses machines et ses JWT recoivent le `401` generique
+  (`TECH/04_AUTH_SYNC_CONTRACT.md`, Cycle de session). Les User existants et
+  ceux crees par `studio-admin`/`POST /users` sont verifies a la creation.
 - POST /users (role `admin`, pas de `Idempotency-Key`)
 - GET /users (role `admin`, additif, tache ac1b9a28) — annuaire pour choisir
   un membre : `q` optionnel (≤200 caracteres, sous-chaine insensible a la

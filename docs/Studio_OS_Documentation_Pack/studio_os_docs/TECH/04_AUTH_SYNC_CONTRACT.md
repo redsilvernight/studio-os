@@ -13,7 +13,7 @@ opaque genere serveur, seul son hash SHA-256 est stocke
 chaque requete authentifiee machine. Revocation = `credential_revoked_at`
 non-null, effective immediatement (pas de rotation/expiration a gerer).
 
-## Authentification humaine dashboard (DASH-4, DEC-0056)
+## Authentification humaine dashboard (DASH-4, DEC-0056 amende par DEC-0110)
 
 En plus du token machine, l'API accepte un JWT court-terme pour les utilisateurs
 humains accedant au dashboard web. Le JWT est obtenu via `POST /auth/token`
@@ -24,7 +24,58 @@ revoque le JWT.
 
 Le mot de passe est gere hors-bande par la CLI serveur `studio-admin set-password`
 (ou `--password` lors du `bootstrap-admin` initial). Aucun endpoint public ne
-permet de changer ou reinitialiser un mot de passe.
+permet de changer ou reinitialiser un mot de passe (le reset en libre-service
+arrive avec l'inscription publique, DU-0/A).
+
+### Cycle de session (DEC-0110, amende DEC-0012/DEC-0036/DEC-0056 — RUPTURE rattachee a `API_CONTRACT_VERSION` 2)
+
+- **Duree** : JWT d'acces HS256 de 15 minutes au plus
+  (`STUDIO_JWT_ACCESS_TOKEN_EXPIRE_MINUTES`, defaut 15 ; une valeur hors
+  1..15 empeche le demarrage du serveur, fail-closed), garde en memoire par
+  le client, sans refresh token. A expiration, le client refait
+  `POST /auth/token`.
+- **Claims** : exactement `sub` (id User), `machine_id` (machine dashboard),
+  `session_id` (UUID aleatoire par login, pour la tracabilite — aucun etat
+  serveur), `auth_version` (entier, copie de `User.auth_version` au login),
+  `iat`, `exp`, `type="access"`. `email` et `role` ne sont plus emis : un
+  client lit son identite via `GET /auth/me`, jamais dans le JWT.
+- **Validation a chaque principal** (HTTP, SSE ; le MCP n'accepte que des
+  tokens machine) : signature et `exp` valides, `type == "access"`, machine
+  existante et non revoquee, `sub == machine.owner_user_id`, User existant,
+  non desactive (`disabled_at` nul), verifie (`email_verified_at` non nul) et
+  `auth_version` du claim egale a `User.auth_version`. Un token machine opaque
+  est refuse si son proprietaire est desactive ou non verifie ; il n'est pas
+  concerne par `auth_version`.
+- **Revocation** : incrementent `User.auth_version`, invalidant immediatement
+  tous les JWT emis pour ce User : changement ou reinitialisation de mot de
+  passe (`studio-admin set-password`, futur reset), desactivation
+  (`studio-admin user disable`), changement de role (toute mutation future de
+  `User.role`), revocation globale (`studio-admin user revoke-sessions`). La
+  desactivation bloque en outre toutes les machines du User tant que
+  `disabled_at` est pose, sans les revoquer definitivement :
+  `studio-admin user enable` efface `disabled_at` et rend les machines de
+  nouveau utilisables (les JWT anterieurs restent invalides).
+- **Echec** : fail-closed, sans retry automatique cote serveur. Tout echec de
+  validation d'un Bearer present repond le `401` generique existant
+  `{"detail": "invalid or revoked machine token"}` — la cause (expiration,
+  revocation, desactivation) n'est pas revelee ; un Bearer absent garde
+  `{"detail": "missing bearer token"}`. Un client qui presentait un JWT
+  traite tout `401` comme une session expiree ou revoquee : il efface le
+  token et renvoie au login avec un message explicite, sans boucle de
+  reconnexion. Un client a token machine (daemon, Desktop) arrete ses appels
+  et signale un credential revoque ou un compte bloque, sans boucle de
+  retry. Un `403` n'est jamais une erreur de session.
+- **Login** : un User desactive, non verifie ou sans mot de passe recoit le
+  meme `401 {"detail": "invalid email or password"}` qu'un mauvais mot de
+  passe (non discriminant).
+- **Identite** : `GET /auth/me` (`TECH/02_API_CONTRACT.md`) remplace la
+  lecture des claims `email`/`role` cote client ; route sans projet, jamais
+  soumise au `403 resource=project`.
+- **SSE** (`GET /events/stream`) : le principal est revalide au plus toutes
+  les 30 secondes, en meme temps que l'acces projet (DEC-0100 §9) ; en cas
+  d'echec le flux est ferme. Le client reconnecte avec un JWT valide.
+- **Cutover** : un JWT emis avant le deploiement (sans `auth_version`) est
+  invalide ; les utilisateurs se reconnectent une fois.
 
 `POST /auth/token` est une exception d'authentification Bearer : il est sans
 `Authorization` (comme `/healthz` et `/metrics`). Une fois le JWT obtenu, il
@@ -75,7 +126,8 @@ SSH, deja utilise pour les autres secrets du stack). Aucun endpoint public de
 bootstrap, aucun secret d'environnement dedie. Une fois la premiere machine
 enrolee, un nouveau developpeur passe par `POST /users` (ou l'inscription
 publique, DU-0/A) et un nouveau poste ou outil d'IA par `POST /machines` en
-libre-service.
+libre-service. Etat et sessions d'un User (A2, DEC-0110) : `studio-admin
+user disable|enable|revoke-sessions` (voir Cycle de session).
 
 ## Synchronisation
 Chaque ecriture offline-safe transporte un UUID stable et, si approprie, une Idempotency-Key. Le serveur garantit qu'un replay identique ne cree pas un doublon.
