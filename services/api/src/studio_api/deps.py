@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Awaitable, Callable
 from typing import Annotated
 
@@ -16,6 +17,7 @@ from studio_api.jwt_auth import decode_access_token
 from studio_api.middleware import AUTHENTICATED_STATE_FLAG
 from studio_api.openapi_meta import machine_bearer_scheme
 from studio_api.security import hash_token
+from studio_api.security_log import security_event
 from studio_api.services.authz import Principal, load_principal
 from studio_api.settings import get_settings
 
@@ -68,6 +70,14 @@ async def get_current_machine(
     if machine is None:
         machine = await resolve_machine(session, token)
     if machine is None:
+        security_event(
+            "auth.bearer",
+            outcome="failure",
+            request=request,
+            level=logging.WARNING,
+            reason="invalid_or_revoked",
+            path=request.url.path,
+        )
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid or revoked machine token")
     # Lets the rate limiter key this token on its own bucket from now on.
     setattr(request.state, AUTHENTICATED_STATE_FLAG, True)
