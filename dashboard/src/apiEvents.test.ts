@@ -44,15 +44,21 @@ describe("observedFetch", () => {
     expect(seen).toEqual(["net"]);
   });
 
-  it("reports an expired session only for a signed-in 401", async () => {
+  it("reports an expired session only for a 401 on the current token", async () => {
     const seen: string[] = [];
+    const bearer = (token: string): RequestInit => ({ headers: { Authorization: `Bearer ${token}` } });
     setApiObserver({ unauthorized: () => seen.push("401") });
     stubFetch(async () => new Response("", { status: 401 }));
-    await observedFetch("https://x.example/a");
+    await observedFetch("https://x.example/a", bearer("t"));
     expect(seen).toEqual([]);
     setToken("t");
-    await observedFetch("https://x.example/a");
-    expect(seen).toEqual(["401"]);
+    await observedFetch("https://x.example/login");
+    expect(seen).toEqual([]);
+    await observedFetch("https://x.example/a", bearer("old"));
+    expect(seen).toEqual([]);
+    await observedFetch("https://x.example/a", bearer("t"));
+    await observedFetch(new Request("https://x.example/b", bearer("t")));
+    expect(seen).toEqual(["401", "401"]);
   });
 
   it("refuses a request the observer rejects: no network call, no reachable signal", async () => {

@@ -25,7 +25,7 @@ const PROJECT = {
 const DENIED = { detail: { error_code: "forbidden", message: "forbidden", resource: "project", action: "read" } };
 
 const b64url = (value: string): string => Buffer.from(value).toString("base64url");
-const jwt = `${b64url('{"alg":"none"}')}.${b64url(JSON.stringify({ sub: USER, role: "developer" }))}.sig`;
+const jwt = `${b64url('{"alg":"none"}')}.${b64url(JSON.stringify({ sub: USER, auth_version: 0 }))}.sig`;
 
 interface Stub {
   projects: unknown[];

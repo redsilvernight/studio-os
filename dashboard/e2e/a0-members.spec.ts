@@ -24,7 +24,7 @@ const PROJECT = {
 };
 
 const b64url = (value: string): string => Buffer.from(value).toString("base64url");
-const jwt = (role: string): string => `${b64url('{"alg":"none"}')}.${b64url(JSON.stringify({ sub: ADMIN, role }))}.sig`;
+const jwt = `${b64url('{"alg":"none"}')}.${b64url(JSON.stringify({ sub: ADMIN, auth_version: 0 }))}.sig`;
 
 const USERS = [
   { id: ADMIN, display_name: "Ada Admin", email: "ada@example.test" },
@@ -52,7 +52,10 @@ function apiStub(role: string, stub: Stub) {
     const url = request.url();
     const json = (status: number, body?: unknown): Promise<void> =>
       route.fulfill({ status, contentType: "application/json", body: body === undefined ? "" : JSON.stringify(body) });
-    if (url.endsWith("/api/v1/auth/token")) return json(200, { access_token: jwt(role), token_type: "bearer" });
+    if (url.endsWith("/api/v1/auth/token")) return json(200, { access_token: jwt, token_type: "bearer", expires_in: 900 });
+    if (url.endsWith("/api/v1/auth/me")) {
+      return json(200, { user_id: ADMIN, display_name: "Ada Admin", email: "ada@example.test", role, machine_id: DEV });
+    }
     const parsed = new URL(url);
     if (parsed.pathname.endsWith("/api/v1/users") && request.method() === "GET") {
       const q = (parsed.searchParams.get("q") ?? "").toLowerCase();

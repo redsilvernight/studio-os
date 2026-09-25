@@ -48,6 +48,9 @@ import { parseRoute } from "./router";
 import { shellHtml, syncAuthState, syncNav } from "./shell";
 import { createRenderGuard } from "./renderGuard";
 import { startRealtimeConnection, type RealtimeConnection } from "./realtime";
+import { setApiObserver } from "./apiEvents";
+import { resetIdentityCache } from "./identityApi";
+import { SESSION_ENDED_NOTICE, createSessionEndHandler } from "./session";
 import type { components } from "./openapi-schema";
 import "./ds/tokens.css";
 import "./ds/components.css";
@@ -407,6 +410,12 @@ function start(): void {
 export function boot(): void {
   const platform = getPlatform();
   if (platform.mode !== "desktop") {
+    setApiObserver({
+      unauthorized: createSessionEndHandler((notice) => {
+        syncRealtimeConnection();
+        mountLogin(notice);
+      }),
+    });
     start();
     return;
   }
@@ -416,8 +425,9 @@ export function boot(): void {
       rerender: () => void render(),
       authExpired: () => {
         clearToken();
+        resetIdentityCache();
         syncRealtimeConnection();
-        mountLogin("Votre session a expiré. Reconnectez-vous pour continuer.");
+        mountLogin(SESSION_ENDED_NOTICE);
       },
     });
     start();
