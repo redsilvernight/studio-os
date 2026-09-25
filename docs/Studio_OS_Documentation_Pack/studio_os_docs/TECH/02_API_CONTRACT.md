@@ -2,9 +2,9 @@
 
 Base: `/api/v1` — version contractuelle `API_CONTRACT_VERSION = 2` (DEC-0100).
 Statut : **DEC-0100 acceptee ; enforcement projet et `GET /machines` /
-`GET /agents` self/admin livres (A0, tache 00397d8d)**, le serveur annonce la
-version 2. Restent a livrer dans A0 : gestion des membres
-(`/projects/{id}/members`) et `GET /api/v1/meta/compatibility`.
+`GET /agents` self/admin livres (A0, tache 00397d8d) ; gestion des membres
+(`/projects/{id}/members`) livree (A0, tache 0324dbb3)**, le serveur annonce la
+version 2. Reste a livrer dans A0 : `GET /api/v1/meta/compatibility`.
 Le prefixe de transport `/api/v1` est conserve ; aucune base `/api/v2` n'est
 creee. La version contractuelle est exposee par le champ
 `api_contract_version` de `GET /api/v1/meta/compatibility` (public, additif,

@@ -4,11 +4,11 @@ from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Request, status
+from fastapi import APIRouter, Depends, Header, Request, Response, status
 from studio_contracts.auth import Role
 from studio_contracts.claims import ResourceClaim
 from studio_contracts.project_state import ProjectState
-from studio_contracts.projects import Project, ProjectCreate
+from studio_contracts.projects import Project, ProjectCreate, ProjectMember
 from studio_contracts.tasks import Task
 
 from studio_api.db.models.user import UserModel
@@ -121,3 +121,67 @@ async def get_project_state(
         active_claims=[ResourceClaim.model_validate(c) for c in claims],
         generated_at=datetime.now(UTC),
     )
+
+
+@router.get(
+    "/{project_id}/members",
+    response_model=list[ProjectMember],
+    description=(
+        "List the users with access to a project. Requires the "
+        "admin role: any other role gets `403 forbidden` before any lookup. "
+        "Unknown project: 404."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
+)
+async def list_project_members(
+    project_id: UUID, session: DbSession, principal: CurrentPrincipal
+) -> list[ProjectMember]:
+    projects_service.ensure_members_admin(principal, "read")
+    members = await projects_service.list_members(session, project_id)
+    return [ProjectMember.model_validate(m) for m in members]
+
+
+@router.put(
+    "/{project_id}/members/{user_id}",
+    response_model=ProjectMember,
+    status_code=status.HTTP_201_CREATED,
+    description=(
+        "Grant a user access to a project (admin only). `201` with the new "
+        "membership; granting an existing member returns it unchanged with "
+        "`200` (the original `granted_by_user_id` is kept). Naturally "
+        "idempotent: no `Idempotency-Key`. Unknown project or user: 404."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
+)
+async def grant_project_member(
+    project_id: UUID,
+    user_id: UUID,
+    response: Response,
+    session: DbSession,
+    principal: CurrentPrincipal,
+) -> ProjectMember:
+    projects_service.ensure_members_admin(principal, "write")
+    membership, created = await projects_service.grant_member(
+        session, project_id, user_id, granted_by_user_id=principal.user.id
+    )
+    if not created:
+        response.status_code = status.HTTP_200_OK
+    return ProjectMember.model_validate(membership)
+
+
+@router.delete(
+    "/{project_id}/members/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    description=(
+        "Remove a user's access to a project (admin only). Idempotent `204`; "
+        "the user's open event streams on this project are closed. Unknown "
+        "project or user: 404."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
+)
+async def revoke_project_member(
+    project_id: UUID, user_id: UUID, session: DbSession, principal: CurrentPrincipal
+) -> Response:
+    projects_service.ensure_members_admin(principal, "write")
+    await projects_service.revoke_member(session, project_id, user_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

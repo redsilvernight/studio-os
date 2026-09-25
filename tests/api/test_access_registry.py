@@ -74,6 +74,17 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
     ("GET", "/api/v1/projects"): (Probe("/api/v1/projects", expect="filtered"),),
     ("GET", "/api/v1/projects/{project_id}"): (Probe("/api/v1/projects/{pid}"),),
     ("GET", "/api/v1/projects/{project_id}/state"): (Probe("/api/v1/projects/{pid}/state"),),
+    ("GET", "/api/v1/projects/{project_id}/members"): (
+        Probe("/api/v1/projects/{pid}/members", expect="role"),
+        Probe(f"/api/v1/projects/{_UNKNOWN}/members", expect="role"),
+    ),
+    ("PUT", "/api/v1/projects/{project_id}/members/{user_id}"): (
+        Probe("/api/v1/projects/{pid}/members/{outsider_user}", expect="role"),
+        Probe(f"/api/v1/projects/{_UNKNOWN}/members/{{outsider_user}}", expect="role"),
+    ),
+    ("DELETE", "/api/v1/projects/{project_id}/members/{user_id}"): (
+        Probe("/api/v1/projects/{pid}/members/{outsider_user}", expect="role"),
+    ),
     ("POST", "/api/v1/projects/initialization/preview"): (
         Probe("/api/v1/projects/initialization/preview", {"$plan": True}, expect="slug"),
     ),
