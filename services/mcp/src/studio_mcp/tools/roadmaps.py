@@ -1,10 +1,12 @@
 """Roadmap MCP tools (Roadmaps P4, DEC-0084/DEC-0087).
 
-Five intention-sized tools — not one per HTTP route (DEC-0046): read the plan
+Six intention-sized tools — not one per HTTP route (DEC-0046): read the plan
 and the current position, propose a structured plan, preview then apply Task
-hydration, and push bounded step progress. No tool activates, approves, rejects
-or archives a roadmap: those are human (provision) transitions, and an agent
-cannot reach them from this surface.
+hydration, push bounded step progress, and apply a lifecycle transition.
+Lifecycle transitions reuse the same closed table (`ROADMAP_TRANSITIONS`) and
+the same authority rule as HTTP (`transition_requires_provision`); only the
+proposal *review* (`POST .../proposals/{n}/review`) stays HTTP-only, and an
+agent cannot reach provisioned transitions without an `admin`/`developer` role.
 
 Every tool is a thin layer over the same P3 service functions the HTTP routes
 use. The concrete interface expected from `studio_api.services.roadmaps` is
@@ -22,6 +24,7 @@ from typing import Any, cast
 from uuid import UUID
 
 from mcp.server.mcpserver import Context
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import roadmap_support
@@ -44,11 +47,13 @@ from studio_contracts.roadmaps import (
     RoadmapRevisionSummary,
     RoadmapStatus,
     RoadmapSummary,
+    RoadmapTransition,
     RoadmapValidationReason,
     Step,
     StepProgressUpdate,
     StepState,
     StepStateOverride,
+    TransitionRequest,
     WriteProvenance,
     roadmap_document_errors,
 )
@@ -481,5 +486,84 @@ async def studio_update_roadmap_step(
         if updated is None:
             return {"error_code": "not_found", "message": f"unknown step: {step_key!r}"}
         return _compact_step(updated, DEFAULT_MAX_CHARS)
+
+    return await run_tool(ctx, _handler)
+
+
+async def studio_transition_roadmap(
+    roadmap_id: str,
+    transition: str,
+    expected_version: int,
+    ctx: Context,
+    comment: str | None = None,
+    agent_id: str | None = None,
+    idempotency_key: str | None = None,
+) -> dict[str, Any]:
+    """Apply a lifecycle transition to a roadmap (closed table
+    `ROADMAP_TRANSITIONS`): `submit`, `approve`, `request_changes`, `reject`,
+    `activate`, `complete`, `reopen`, `archive`. Requires a writer role, and
+    `admin`/`developer` for every transition except `draft -> proposed` and
+    `draft -> archived` (same authority rule as HTTP). `comment` is required
+    for `request_changes`, `reject` and `reopen`. `expected_version` is the
+    roadmap version read beforehand — a stale version is refused with
+    `version_conflict` carrying the live `server_version`, never overwritten.
+    Idempotent: replaying the same `idempotency_key` returns the original
+    result instead of a duplicate."""
+
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
+        parsed = parse_uuid(roadmap_id, "roadmap_id")
+        if isinstance(parsed, dict):
+            return parsed
+        try:
+            parsed_transition = RoadmapTransition(transition)
+        except ValueError:
+            return {
+                "error_code": "invalid_argument",
+                "message": f"unknown transition: {transition!r}",
+            }
+        parsed_agent: UUID | None = None
+        if agent_id is not None:
+            candidate = parse_uuid(agent_id, "agent_id")
+            if isinstance(candidate, dict):
+                return candidate
+            parsed_agent = candidate
+        try:
+            request = TransitionRequest(
+                transition=parsed_transition,
+                expected_version=expected_version,
+                comment=comment,
+                provenance=WriteProvenance(agent_id=parsed_agent),
+            )
+        except ValidationError as exc:
+            return {"error_code": "invalid_argument", "message": str(exc.errors()[0].get("msg"))}
+
+        async def _apply() -> dict[str, Any]:
+            roadmap = await _roadmaps().transition_roadmap(session, principal, parsed, request)
+            return {
+                "id": str(roadmap.id),
+                "title": roadmap.title,
+                "status": roadmap.status.value,
+                "version": roadmap.version,
+                "revision_no": roadmap.revision_no,
+                "approved_revision_no": roadmap.approved_revision_no,
+                "current_step_key": roadmap.current_step_key,
+                "progress": roadmap.progress.model_dump(mode="json"),
+            }
+
+        request_hash = idempotency_service.hash_request(
+            json.dumps(
+                {
+                    "roadmap_id": roadmap_id,
+                    "transition": transition,
+                    "expected_version": expected_version,
+                    "comment": comment,
+                    "agent_id": agent_id,
+                },
+                sort_keys=True,
+            ).encode()
+        )
+        return await idempotency_service.run_idempotent_dict(
+            session, idempotency_key, "MCP studio_transition_roadmap", request_hash, _apply
+        )
 
     return await run_tool(ctx, _handler)

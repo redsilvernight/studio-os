@@ -39,6 +39,7 @@ from studio_mcp.tools.roadmaps import (
     studio_get_roadmap,
     studio_preview_roadmap_hydration,
     studio_propose_roadmap,
+    studio_transition_roadmap,
     studio_update_roadmap_step,
 )
 from studio_mcp.tools.sessions import studio_end_session, studio_get_sessions, studio_start_session
@@ -398,6 +399,20 @@ def create_server() -> MCPServer:
             "state_override_reason, notes and criteria_checked (indices into the step's "
             "acceptance criteria). Progress-type updates are applied directly, even when the "
             "caller is an agent, because they never change the plan's structure or content."
+        ),
+    )
+    server.add_tool(
+        studio_transition_roadmap,
+        name="studio_transition_roadmap",
+        description=(
+            "Apply a lifecycle transition to a roadmap (roadmap_id UUID string, transition "
+            "submit/approve/request_changes/reject/activate/complete/reopen/archive, "
+            "expected_version, optional comment). Requires a writer role, and admin/developer "
+            "for every transition except draft to proposed and draft to archived. Comment is "
+            "required for request_changes, reject and reopen. A stale expected_version fails "
+            "with version_conflict carrying the live server version. Pass idempotency_key "
+            "when retrying a call that may have already succeeded — replaying the same key "
+            "returns the original result instead of a duplicate."
         ),
     )
     server.add_tool(

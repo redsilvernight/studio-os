@@ -61,10 +61,11 @@ token (pas d'attaquant reseau).
 
 ## Etat reel (roadmap etape 5, DEC-0023, UC-3/DEC-0047, P8/DEC-0072)
 
-Le serveur VPS enregistre 42 outils (`services/mcp/src/studio_mcp/` : 29
+Le serveur VPS enregistre 45 outils (`services/mcp/src/studio_mcp/` : 29
 historiques + 5 AI Library P8, section ci-dessous, + `studio_prepare_context`,
 DEC-0080, section « Contexte projet borné », + 7 outils Roadmaps P4/P5,
-DEC-0087, section « Roadmaps et initialisation via MCP »).
+DEC-0087, section « Roadmaps et initialisation via MCP », + 1 transition
+de roadmap `studio_transition_roadmap`).
 Les 3 outils locaux read-only specifies ci-dessous (UC-3, exposition via
 MCP local par poste, DEC-0047) sont en place mais conditionnels au
 fichier de configuration du poste : `studio_memory_search`,
@@ -382,14 +383,16 @@ Outils par intention d'agent (implementation P4/P6, sur les memes services que
 l'API, DEC-0046), pas un outil par endpoint : lire le plan et la position
 courante ; proposer un plan (`RoadmapImport` avec `submit`) ; previsualiser puis
 appliquer l'hydratation ; mettre a jour l'avancement d'une etape
-(`StepProgressUpdate`). Aucun outil MCP n'active, n'approuve ni ne rejette une
-roadmap. `studio_prepare_context` reçoit (P6, DEC-0088, voir « Contexte projet
+(`StepProgressUpdate`) ; appliquer une transition de cycle de vie
+(`studio_transition_roadmap`, table fermee `ROADMAP_TRANSITIONS`, meme
+regle d'autorite que HTTP). Seule la *review* d'une revision de proposition
+reste HTTP-only. `studio_prepare_context` reçoit (P6, DEC-0088, voir « Contexte projet
 borné ») un champ optionnel additif `roadmap` (`RoadmapContext`, borné, absent
 sans roadmap `active`). Budgets et erreurs
 structurees comme les autres outils (DEC-0048, sans version par payload).
 
 ## Roadmaps et initialisation via MCP (P4/P5, DEC-0087) — implementes
-Surface MCP implementee (35 -> 42 outils), sur les memes services que l'API
+Surface MCP implementee (35 -> 45 outils), sur les memes services que l'API
 (DEC-0046). Tout est derive des contrats P1 (`studio.roadmap/v1`) plus le
 nouveau contrat neutre `studio.initialization/v1`.
 - `studio_get_roadmap(project_id, status?, limit, max_chars)` — lecture :
@@ -418,6 +421,16 @@ nouveau contrat neutre `studio.initialization/v1`.
   `criteria_checked`), appliquee directement meme pour un agent (ne change pas
   la structure) ; `expected_version` = version de l'etape lue au prealable
   (concurrence, comme les routes).
+- `studio_transition_roadmap(roadmap_id, transition, expected_version,
+  comment?, agent_id?, idempotency_key?)` — ecriture : `submit`,
+  `approve`, `request_changes`, `reject`, `activate`, `complete`, `reopen`,
+  `archive` sur la table fermee `ROADMAP_TRANSITIONS`, meme regle
+  d'autorite que HTTP (`draft -> proposed` et `draft -> archived` en
+  ecriture simple, tout le reste en `admin`/`developer`) ; `comment`
+  requis pour `request_changes`, `reject` et `reopen` ; `409
+  version_conflict` (avec `server_version`), `active_roadmap_exists`,
+  `invalid_state` ; idempotent par `idempotency_key` ; repond le resume
+  compact (statut + version).
 - `studio_preview_project_initialization(plan)` / `studio_apply_project_
   initialization(plan, idempotency_key?, agent_id?)` — lecture/ecriture sur
   `ProjectInitializationPlan` : projet, roadmap **optionnelle**, tasks,
@@ -427,7 +440,7 @@ nouveau contrat neutre `studio.initialization/v1`.
   l'appelant) -> `{error_code: "conflict", message, slug}` (slugs non
   secrets, oracle accepte, DEC-0101) ; un `error_code` inconnu reste le
   fallback generique `{error_code: "error"}`.
-Aucun de ces outils n'active, n'approuve, ne rejette ni n'archive une roadmap.
+Aucun de ces outils n'approuve une *revision* de proposition.
 HTTP reste la surface canonique (DEC-0046) : la route `POST .../proposals/{n}/review`
 n'a volontairement **aucun** équivalent MCP — le MCP est un sous-ensemble intentionnel,
 verrouillé par `tests/mcp/test_uc2b_tools_metadata.py`. En `mode=proposed`, l'apply crée
