@@ -20,14 +20,18 @@ from studio_api.settings import Settings
 ALGORITHM = "HS256"
 
 DEFAULT_JWT_SECRET = "change-me-in-production"
+# Placeholders shipped in the repo (settings default, docker/.env.example).
+PLACEHOLDER_JWT_SECRETS = frozenset(
+    {DEFAULT_JWT_SECRET, "change-me-to-a-long-random-string-min-32-bytes"}
+)
 MIN_JWT_SECRET_BYTES = 32
 
 
 def is_weak_jwt_secret(secret: str) -> bool:
-    """Default placeholder or shorter than the RFC 7518 section 3.2 minimum
-    for HS256. Warning-only (DEC-0060): refusing to start would break local
-    dev and CI, which intentionally run on the placeholder."""
-    return secret == DEFAULT_JWT_SECRET or len(secret.encode()) < MIN_JWT_SECRET_BYTES
+    """A shipped placeholder or shorter than the RFC 7518 section 3.2 minimum
+    for HS256. Fatal at startup in production, warning-only when
+    STUDIO_ENVIRONMENT is dev/test (local dev and CI run on the placeholder)."""
+    return secret in PLACEHOLDER_JWT_SECRETS or len(secret.encode()) < MIN_JWT_SECRET_BYTES
 
 
 def create_access_token(user: UserModel, machine: MachineModel, settings: Settings) -> str:

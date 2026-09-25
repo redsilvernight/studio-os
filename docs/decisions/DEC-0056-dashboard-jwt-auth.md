@@ -51,7 +51,8 @@ This keeps `auth_role` + ownership as the sole authorization authority
 - A compromised dashboard JWT can be revoked by revoking its machine row,
   without rotating the user's password.
 - The default `STUDIO_JWT_SECRET` must be overridden in production; the API
-   emits a warning if the default is detected at startup.
+   refuses to start with a placeholder or < 32-byte secret unless
+   `STUDIO_ENVIRONMENT` is `dev`/`test` (warning only). Default: `production`.
 
 ## Status
 

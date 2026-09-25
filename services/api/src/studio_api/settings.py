@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -34,6 +36,10 @@ class Settings(BaseSettings):
     # Logging
     log_format: str = "text"  # "text" or "json"
     log_level: str = "INFO"
+
+    # Deployment environment. Fail-closed: anything but an explicit "dev" or
+    # "test" is production, where a weak JWT secret refuses to start.
+    environment: Literal["production", "dev", "test"] = "production"
 
     # Human dashboard JWT (DASH-4)
     jwt_secret: str = "change-me-in-production"

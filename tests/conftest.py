@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, cast
 
 import pytest
+
+# The API refuses a weak JWT secret in production (the default environment);
+# set before any test imports studio_api.main, which builds the app on import.
+os.environ.setdefault("STUDIO_ENVIRONMENT", "test")
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "contracts" / "fixtures"
 
