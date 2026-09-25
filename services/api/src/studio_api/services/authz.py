@@ -127,7 +127,9 @@ def forbidden(resource: str, action: str) -> HTTPException:
     """No confidentiality 404 (TECH/04 Autorisation) — a caller with no
     access to an existing resource gets 403 with this machine-readable
     envelope, never a generic-looking 404 that would let it distinguish
-    "forbidden" from "doesn't exist". Exported (not `_`-private) so a
+    "forbidden" from "doesn't exist". Documented exceptions (User-owned resources: Library
+    User scope, runtime bindings, runtimes, machine revoke) answer 404 on
+    purpose, matching their owner-filtered lists. Exported (not `_`-private) so a
     resource-specific ownership check that needs its own DB lookup (e.g.
     ai-work's agent-derived ownership) can raise the same shape without
     duplicating it."""

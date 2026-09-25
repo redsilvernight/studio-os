@@ -1123,7 +1123,7 @@ export interface paths {
         put?: never;
         /**
          * Create Machine
-         * @description Provision a new machine credential. Requires the admin role. The credential is returned in clear text exactly once — store it immediately, it is never readable again. Deliberately not replayable: no `Idempotency-Key` (a replayable credential creation would persist the secret). The very first machine is created out of band, never through this endpoint.
+         * @description Provision a new machine credential (self-service, A5). Any authenticated caller whose role is not `agent` creates a machine owned by its own User: `owner_user_id` absent or equal to the caller's User. Naming another User requires `admin`, otherwise `403 forbidden` (`resource: machine`, `action: create`) without that User ever being looked up. The new machine inherits its owner's role and project memberships, never more. The credential is returned in clear text exactly once — store it immediately, it is never readable again. Deliberately not replayable: no `Idempotency-Key` (a replayable credential creation would persist the secret). The very first machine is created out of band, never through this endpoint.
          */
         post: operations["create_machine_api_v1_machines_post"];
         delete?: never;
@@ -1163,7 +1163,7 @@ export interface paths {
         put?: never;
         /**
          * Revoke Machine
-         * @description Revoke a machine credential immediately. Requires the admin role. Revocation takes effect on the next request — there is no grace period and no rotation to manage.
+         * @description Revoke a machine credential immediately (self-service, A5): its owner or `admin`. Another User's machine answers 404 for a non-admin, exactly like a nonexistent one, so its existence cannot be inferred (as `GET /machines` never lists it). `agent` never revokes. Revoking the calling machine itself is allowed. Revocation takes effect on the next request — there is no grace period and no rotation to manage.
          */
         post: operations["revoke_machine_api_v1_machines__machine_id__revoke_post"];
         delete?: never;
@@ -2990,13 +2990,16 @@ export interface components {
             /** @default offline */
             status: components["schemas"]["MachineStatus"];
         };
-        /** MachineCreate */
+        /**
+         * MachineCreate
+         * @description `owner_user_id` is optional (A5): absent, the machine belongs to the
+         *     caller's own User. A non-admin may only name itself — the server never
+         *     lets it choose another owner, and never looks that other User up. Only
+         *     `admin` provisions a machine for someone else.
+         */
         MachineCreate: {
-            /**
-             * Owner User Id
-             * Format: uuid
-             */
-            owner_user_id: string;
+            /** Owner User Id */
+            owner_user_id?: string | null;
             /** Display Name */
             display_name: string;
         };
@@ -4145,11 +4148,12 @@ export interface components {
         /**
          * Role
          * @description Account roles, weakest to strongest: `readonly` (reads plus heartbeat
-         *     only, no business writes); `agent` (writes, but never project, machine
-         *     or user provisioning); `developer` (writes, plus project creation);
-         *     `admin` (everything, including machine/user provisioning and work
-         *     review resolution). The role always belongs to the machine owner's
-         *     user, never to a harness, provider, model or profile.
+         *     and self-service of its own machines, no business writes); `agent`
+         *     (writes, but never project, machine or user provisioning); `developer`
+         *     (writes, plus project creation); `admin` (everything, including
+         *     machine/user provisioning for any user and work review resolution).
+         *     The role always belongs to the machine owner's user, never to a
+         *     harness, provider, model or profile.
          * @enum {string}
          */
         Role: "admin" | "developer" | "agent" | "readonly";
@@ -10849,6 +10853,20 @@ export interface operations {
                      *         "resource": "task",
                      *         "action": "write"
                      *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
                      *     }
                      */
                     "application/json": unknown;

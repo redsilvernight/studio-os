@@ -123,7 +123,8 @@ OPENAPI_TAG_DESCRIPTIONS: dict[str, str] = {
         "directly to object storage with the returned URLs."
     ),
     "machines": (
-        "Machine provisioning (privileged role). The very first machine is created out of band."
+        "Machine provisioning: self-service for the caller's own User, "
+        "`admin` for any User. The very first machine is created out of band."
     ),
     "users": "User provisioning (privileged role). The very first user is created out of band.",
     "runtime-bindings": (
