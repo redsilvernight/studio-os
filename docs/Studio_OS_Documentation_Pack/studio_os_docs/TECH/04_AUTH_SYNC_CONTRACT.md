@@ -291,7 +291,11 @@ un rejeu.
 
 403 partout, jamais de 404 de confidentialite (pas de surface
 d'enumeration : UUID v4, pas de lookup par code humain, les listes filtrent
-deja). Enveloppe : `403 {"detail": {"error_code": "forbidden", "resource":
+deja). Exceptions explicites, toutes sur des ressources possedees par un
+User : Library scope User, `GET /runtime-bindings/{id}`, `GET`/revoke
+`/runtimes/{id}` et `POST /machines/{id}/revoke` (A5) repondent `404`
+(ressource d'autrui indiscernable d'une ressource absente), coherent avec les
+listes filtrees par owner. Enveloppe : `403 {"detail": {"error_code": "forbidden", "resource":
 "<project|task|claim|session|ai_work|decision|event|transfer|...>", "action":
 "<write|release|renew|end|update|read>"}}`. `resource: "project"` designe
 toujours un refus d'acces projet (DEC-0100), distinct d'un refus de role ou
