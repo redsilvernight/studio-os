@@ -53,7 +53,8 @@ export function parseRoute(hash: string): Route {
       parts[2] === "tasks" ||
       parts[2] === "claims" ||
       parts[2] === "activity" ||
-      parts[2] === "decisions"
+      parts[2] === "decisions" ||
+      parts[2] === "members"
         ? parts[2]
         : "overview";
     const roadmapId = tab === "roadmap" && parts.length === 4 && parts[3] !== undefined ? decode(parts[3]) : undefined;
