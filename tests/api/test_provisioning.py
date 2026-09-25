@@ -35,6 +35,7 @@ async def test_duplicate_project_slug_conflicts(
         "/api/v1/projects", headers=auth_headers, json={"slug": slug, "name": "Second"}
     )
     assert second.status_code == 409
+    assert second.json()["detail"]["error_code"] == "conflict"
 
 
 async def test_readonly_cannot_create_project(

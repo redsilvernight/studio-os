@@ -379,9 +379,11 @@ def _verdict(name: str, expect: str, result: dict[str, Any], world: dict[str, st
         return "error_code" not in result and not leaks
     if expect == "role":
         return result.get("error_code") == "forbidden"
-    # slug: the preview plans a `create`; apply only fails on slug uniqueness.
+    # slug: the preview plans a `create`; apply only fails on slug uniqueness
+    # with the structured `conflict` code (slugs are non-secret, accepted
+    # oracle) — never a write, never the generic `error` fallback.
     if name.startswith("studio_apply"):
-        return "error_code" in result and not leaks  # never a write
+        return result.get("error_code") == "conflict" and not leaks
     actions = [a for a in result.get("actions", []) if a["section"] == "project"]
     return "error_code" not in result and all(a["action"] == "create" for a in actions)
 

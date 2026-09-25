@@ -55,7 +55,10 @@ class Probe:
       the answer is the same for the world's resource and an unknown id.
     - `slug`: initialization by slug. The preview must not reveal the project
       (it plans a `create`); apply may only hit the global slug uniqueness
-      (`409`), the same answer `POST /projects` gives — never a write."""
+      (`409 {"detail": {"error_code": "conflict"}}`), the same answer
+      `POST /projects` gives — never a write. Slugs are non-secret
+      (accepted oracle): provisioning roles learn that a slug exists, nothing
+      more (no id leaks)."""
 
     path: str
     body: dict[str, Any] | None = None
@@ -622,16 +625,24 @@ async def test_outsider_matrix(
                     response.json()["detail"].get("error_code") == "forbidden"
                 )
             else:  # slug
-                ok = not leaks and (
-                    response.status_code == 409
-                    if method == "POST" and path.endswith("/apply")
-                    else response.status_code == 200
-                    and all(
-                        a["action"] == "create"
-                        for a in response.json()["actions"]
-                        if a["section"] == "project"
+                if method == "POST" and path.endswith("/apply"):
+                    detail = response.json().get("detail", {})
+                    ok = (
+                        not leaks
+                        and response.status_code == 409
+                        and isinstance(detail, dict)
+                        and detail.get("error_code") == "conflict"
                     )
-                )
+                else:
+                    ok = (
+                        not leaks
+                        and response.status_code == 200
+                        and all(
+                            a["action"] == "create"
+                            for a in response.json()["actions"]
+                            if a["section"] == "project"
+                        )
+                    )
             if not ok:
                 failures.append(f"{method} {path} -> {response.status_code} {response.text[:200]}")
     assert not failures, "outsider matrix:\n" + "\n".join(failures)

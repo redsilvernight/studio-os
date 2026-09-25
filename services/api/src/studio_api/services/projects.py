@@ -64,7 +64,19 @@ async def create_project(
     explicitly afterwards."""
     existing = await session.execute(select(ProjectModel).where(ProjectModel.slug == slug))
     if existing.scalar_one_or_none() is not None:
-        raise HTTPException(status.HTTP_409_CONFLICT, "project slug already exists")
+        # Slugs are non-secret (accepted oracle, DEC slug): a non-member with
+        # a provisioning role learns that a slug exists via this 409 — the
+        # same answer `POST /projects` and initialization apply give. The
+        # structured `conflict` code keeps MCP machine-readable (never the
+        # generic `error` fallback of `run_tool` on a plain-string detail).
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={
+                "error_code": "conflict",
+                "message": "project slug already exists",
+                "slug": slug,
+            },
+        )
     project = ProjectModel(slug=slug, name=name, description=description)
     session.add(project)
     await session.flush()
