@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +13,7 @@ from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.user import UserModel
 from studio_api.db.session import get_session
 from studio_api.jwt_auth import decode_access_token
+from studio_api.middleware import AUTHENTICATED_STATE_FLAG
 from studio_api.openapi_meta import machine_bearer_scheme
 from studio_api.security import hash_token
 from studio_api.services.authz import Principal, load_principal
@@ -37,6 +38,7 @@ async def resolve_machine(session: AsyncSession, token: str) -> MachineModel | N
 
 
 async def get_current_machine(
+    request: Request,
     session: DbSession,
     bearer: Annotated[HTTPAuthorizationCredentials | None, Depends(machine_bearer_scheme)] = None,
 ) -> MachineModel:
@@ -47,6 +49,7 @@ async def get_current_machine(
     if token is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "missing bearer token")
 
+    machine: MachineModel | None = None
     # Dashboard JWT: three dot-separated segments, decode to machine id.
     if token.count(".") == 2:
         payload = decode_access_token(token, get_settings())
@@ -59,12 +62,15 @@ async def get_current_machine(
                     machine = await session.get(MachineModel, UUID(machine_id))
                 except ValueError:
                     machine = None
-                if machine is not None and machine.credential_revoked_at is None:
-                    return machine
+                if machine is not None and machine.credential_revoked_at is not None:
+                    machine = None
 
-    machine = await resolve_machine(session, token)
+    if machine is None:
+        machine = await resolve_machine(session, token)
     if machine is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid or revoked machine token")
+    # Lets the rate limiter key this token on its own bucket from now on.
+    setattr(request.state, AUTHENTICATED_STATE_FLAG, True)
     return machine
 
 
