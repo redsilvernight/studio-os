@@ -16,8 +16,8 @@
  *   jamais "Machine 1/2" fabriqué.
  * - Vocabulaire honnête : le déduit parle d'ACTIVITÉ ("Activité récente",
  *   "Aucune activité récente connue"), jamais "En ligne"/"Hors ligne".
- * - Aucune action machine exposée : révocation et création sont des
- *   opérations admin hors interface (constat documenté, pas de bouton).
+ * - Aucune action machine exposée : création et révocation (propriétaire
+ *   ou admin, A5) passent par l'API/CLI, pas de bouton dans cette vue.
  * - Pas de route détail `#/machines/<id>` (aucun endpoint) : liste de
  *   cartes + tiroir DS.
  */
@@ -165,7 +165,7 @@ export function machinesEmptyHtml(): string {
   return dsEmptyState(
     "Aucune machine observée",
     "Une machine est l'environnement enregistré sur lequel le travail s'exécute — à distinguer des agents qui y travaillent. " +
-      "Les machines sont provisionnées par un administrateur hors de cette interface : aucune n'a encore laissé de trace visible pour ce jeton.",
+      "Chaque utilisateur enregistre ses propres machines (ou un administrateur) hors de cette interface : aucune n'a encore laissé de trace visible pour ce jeton.",
   );
 }
 
@@ -248,7 +248,7 @@ export function machineDrawerBodyHtml(
     `<div><dt>Propriétaire</dt><dd>${row.ownerUserId === null ? "Inconnu — lecture canonique indisponible" : esc(shortId(row.ownerUserId))}</dd></div>` +
     `<div><dt>Dernier heartbeat serveur</dt><dd>${row.lastSeenAt === null ? "Indisponible — pas de lecture canonique" : machineTimeHtml(row.lastSeenAt, now)}</dd></div>` +
     `<div><dt>Statut technique</dt><dd><code class="mono">${esc(row.status)}</code> (${row.statusSource === "canonical" ? "canonique" : "déduit"})</dd></div>` +
-    `</dl><p class="ds-list-sub">Révocation : action administrateur, non proposée dans cette interface.</p></details>`;
+    `</dl><p class="ds-list-sub">Révocation : par le propriétaire de la machine ou un administrateur, non proposée dans cette interface.</p></details>`;
 
   return `<h3 class="machine-drawer-title">${esc(machineDisplayTitle(row))}</h3>` + summary + usage + environment + technical;
 }

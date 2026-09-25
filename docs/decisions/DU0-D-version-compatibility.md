@@ -1,6 +1,6 @@
 ---
 title: "DU-0/D — Versions séparées et compatibilité N/N-1"
-status: proposed
+status: active
 server_decision_id: 06d91e71-362b-4905-b0ef-74fd6145d56b
 server_readable_id: DEC-0107
 server_replaces: 0772dd83-e0de-42ca-9fb3-6e99b4f47798 (DEC-0101, superseded)

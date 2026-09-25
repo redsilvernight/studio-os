@@ -1,6 +1,6 @@
 ---
 title: "DU-0/B — JWT court et version de révocation"
-status: proposed
+status: active
 server_decision_id: 4e509c7d-0a0c-4661-b97f-ffcbe916e5b9
 server_readable_id: DEC-0110
 server_replaces: 14905c34-04d6-4803-8723-ed4bb75ae555 (DEC-0105, superseded) ; b02d4215-857b-4b0b-b2fc-a1426a07b57a (DEC-0099, superseded)

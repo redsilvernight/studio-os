@@ -1,6 +1,6 @@
 ---
 title: "DU-0/A — Inscription publique fermée par défaut"
-status: proposed
+status: active
 server_decision_id: bcf92622-8b2a-48fa-bb16-bf345b867489
 server_readable_id: DEC-0109
 server_replaces: 61b0a658-657d-41bc-9114-23c509d4464a (DEC-0104, superseded) ; a4c86edd-a071-40dd-9e76-92af9245c0c8 (DEC-0098 serveur, superseded)

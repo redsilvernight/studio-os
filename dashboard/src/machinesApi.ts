@@ -1,9 +1,9 @@
 /**
  * DASH-4 — Machines / canonical presence.
  *
- * Canonical truth would be `GET /api/v1/machines`, which does NOT exist on the
- * current API (only `POST /machines` and `POST /machines/{id}/revoke`). That
- * probe is attempted once and degrades to `null` on 404/405/501; the view then
+ * Canonical truth is `GET /api/v1/machines` (DEC-0082; self-service
+ * create/revoke by the owner or `admin` since A5). An older API without it is
+ * probed once and degrades to `null` on 404/405/501; the view then
  * builds a clearly-labelled Derived presence from existing reads only:
  * `GET /agents`, `GET /sessions`, `GET /events`. No business logic is
  * duplicated server-side — the dashboard derives a display state, nothing more.

@@ -1,6 +1,6 @@
 ---
 title: "DU-0/E — Distribution Windows à double signature"
-status: proposed
+status: active
 server_decision_id: 4f298c8f-5073-4745-9e1c-ede8835d758f
 server_readable_id: DEC-0108
 server_replaces: 0e19d373-f2d1-4050-b872-9426b17ce601 (DEC-0102, superseded)
