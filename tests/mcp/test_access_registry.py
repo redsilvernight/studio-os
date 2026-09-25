@@ -148,6 +148,9 @@ PROBES: dict[str, tuple[Probe, ...]] = {
     "studio_update_roadmap_step": (
         Probe({"roadmap_id": "{roadmap}", "step_key": "S1", "expected_version": 1, "notes": "x"}),
     ),
+    "studio_transition_roadmap": (
+        Probe({"roadmap_id": "{roadmap}", "transition": "archive", "expected_version": 1}),
+    ),
     "studio_preview_project_initialization": (Probe({"plan": "$plan"}, "slug"),),
     "studio_apply_project_initialization": (Probe({"plan": "$plan"}, "slug"),),
     "studio_get_timeline": (Probe({"project_id": "{pid}"}),),

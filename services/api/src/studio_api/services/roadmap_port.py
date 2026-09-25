@@ -38,6 +38,7 @@ from studio_contracts.roadmaps import (
     RoadmapStatus,
     RoadmapSummary,
     StepProgressUpdate,
+    TransitionRequest,
     WriteProvenance,
 )
 
@@ -114,6 +115,14 @@ class RoadmapServicePort(Protocol):
         roadmap_id: UUID,
         payload: ProposalCreate,
     ) -> RoadmapRevision: ...
+
+    async def transition_roadmap(
+        self,
+        session: AsyncSession,
+        principal: Principal,
+        roadmap_id: UUID,
+        payload: TransitionRequest,
+    ) -> Roadmap: ...
 
     async def list_revisions(
         self,

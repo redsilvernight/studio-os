@@ -50,6 +50,7 @@ MCP_ACCESS: Mapping[str, AccessClass] = {
     "studio_preview_roadmap_hydration": _P,
     "studio_apply_roadmap_hydration": _P,
     "studio_update_roadmap_step": _P,
+    "studio_transition_roadmap": _P,
     "studio_preview_project_initialization": _P,
     "studio_apply_project_initialization": _P,
     "studio_get_timeline": _P,
