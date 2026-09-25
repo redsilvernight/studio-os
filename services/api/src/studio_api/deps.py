@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Awaitable, Callable
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +16,7 @@ from studio_api.db.session import get_session
 from studio_api.jwt_auth import decode_access_token
 from studio_api.openapi_meta import machine_bearer_scheme
 from studio_api.security import hash_token
+from studio_api.security_log import security_event
 from studio_api.services.authz import Principal, load_principal
 from studio_api.settings import get_settings
 
@@ -37,6 +39,7 @@ async def resolve_machine(session: AsyncSession, token: str) -> MachineModel | N
 
 
 async def get_current_machine(
+    request: Request,
     session: DbSession,
     bearer: Annotated[HTTPAuthorizationCredentials | None, Depends(machine_bearer_scheme)] = None,
 ) -> MachineModel:
@@ -64,6 +67,14 @@ async def get_current_machine(
 
     machine = await resolve_machine(session, token)
     if machine is None:
+        security_event(
+            "auth.bearer",
+            outcome="failure",
+            request=request,
+            level=logging.WARNING,
+            reason="invalid_or_revoked",
+            path=request.url.path,
+        )
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid or revoked machine token")
     return machine
 

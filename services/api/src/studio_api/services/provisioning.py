@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.user import UserModel
 from studio_api.security import generate_machine_token, hash_token
+from studio_api.security_log import security_event
 
 
 async def get_user_by_email(session: AsyncSession, email: str) -> UserModel | None:
@@ -132,6 +133,12 @@ async def revoke_machine(session: AsyncSession, machine: MachineModel) -> Machin
         machine.version += 1
         await session.commit()
         await session.refresh(machine)
+        security_event(
+            "credential.machine_revoked",
+            outcome="success",
+            machine_id=machine.id,
+            owner_user_id=machine.owner_user_id,
+        )
     return machine
 
 
@@ -150,6 +157,7 @@ async def set_user_password(session: AsyncSession, email: str, password: str) ->
     user.password_hash = _hash_password(password)
     await session.commit()
     await session.refresh(user)
+    security_event("credential.password_set", outcome="success", user_id=user.id)
     return user
 
 
