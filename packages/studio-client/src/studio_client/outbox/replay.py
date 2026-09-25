@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID
 
@@ -9,9 +10,14 @@ from studio_contracts.events import EventCreate, EventType
 from studio_contracts.local.identity import IdentityBinding
 
 from studio_client.api_client import StudioApiClient
-from studio_client.errors import StudioApiError
+from studio_client.errors import ForbiddenError, StudioApiError
 from studio_client.outbox.models import OutboxTable, PendingRow
-from studio_client.outbox.store import OutboxIdentityError, OutboxStore, transaction
+from studio_client.outbox.store import (
+    PROJECT_ACCESS_DENIED,
+    OutboxIdentityError,
+    OutboxStore,
+    transaction,
+)
 from studio_client.retry import RetryPolicy, is_retryable
 
 logger = logging.getLogger(__name__)
@@ -24,12 +30,35 @@ inventing a call. Rows stay queued untouched until whichever future
 sub-step adds that endpoint defines what a marker replay actually sends."""
 
 
+_PROJECT_PATH_RE = re.compile(r"/projects/([0-9a-fA-F-]{36})(?:/|$|\?)")
+
+
 @dataclass
 class ReplayOutcome:
     succeeded: int = 0
     dead_lettered: int = 0
     stopped_on_transient_error: bool = False
     identity_mismatch: bool = False
+    project_access_denied: list[str] = field(default_factory=list)
+    """Projects whose queued work was dead-lettered by a 403 from project
+    isolation during this pass (deduplicated, `unknown` if not derivable)."""
+
+
+def is_project_access_denied(error: StudioApiError) -> bool:
+    """403 `forbidden` on `resource: project`: the account has no access to
+    the project (or it does not exist). Final: replaying can never succeed."""
+    return isinstance(error, ForbiddenError) and error.details.get("resource") == "project"
+
+
+def _row_project_id(table: OutboxTable, row: PendingRow) -> str | None:
+    candidate = row.extra.get("project_id") or row.payload.get("project_id")
+    if candidate:
+        return str(candidate)
+    if table is OutboxTable.MUTATIONS:
+        match = _PROJECT_PATH_RE.search(str(row.extra.get("path", "")))
+        if match is not None:
+            return match.group(1)
+    return None
 
 
 class OutboxReplayer:
@@ -80,10 +109,25 @@ class OutboxReplayer:
                     outcome.stopped_on_transient_error = True
                     logger.warning("outbox replay paused on transient error", exc_info=True)
                     break
+                reason = str(error)
+                denied_project: str | None = None
+                if is_project_access_denied(error):
+                    denied_project = _row_project_id(table, row) or "unknown"
+                    reason = f"{PROJECT_ACCESS_DENIED} project={denied_project}: {error}"
+                    if denied_project not in outcome.project_access_denied:
+                        outcome.project_access_denied.append(denied_project)
                 with transaction(self._store.connection):
-                    self._store.move_to_dead_letter(table, row.id, str(error))
+                    self._store.move_to_dead_letter(table, row.id, reason)
                 outcome.dead_lettered += 1
-                logger.warning("outbox row dead-lettered", exc_info=True)
+                if denied_project is not None:
+                    logger.warning(
+                        "outbox row %s dead-lettered: this account has no access to project %s "
+                        "(403 forbidden); the row is kept in dead_letter for inspection",
+                        row.id,
+                        denied_project,
+                    )
+                else:
+                    logger.warning("outbox row dead-lettered", exc_info=True)
             else:
                 with transaction(self._store.connection):
                     self._store.mark_succeeded(table, row.id)

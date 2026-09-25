@@ -319,12 +319,15 @@ class DaemonRuntime:
         heartbeat = self._heartbeat
         status = DaemonStatus(state=DaemonRunState.STOPPED)
         outbox_summary: OutboxSummary | None = None
+        denied_count = 0
+        denied_projects: list[str] = []
         if store is not None and self._started_at is not None:
             started_at = self._started_at
             reader = OutboxStore(connect_read_only(self.outbox_path))
             try:
                 pending_count = reader.pending_count()
                 oldest_pending_at = reader.oldest_pending_at()
+                denied_count, denied_projects = reader.project_access_denied_since(started_at)
             finally:
                 reader.connection.close()
             outbox_summary = OutboxSummary(
@@ -375,6 +378,24 @@ class DaemonRuntime:
                     component=ComponentId.DAEMON,
                     retryable=False,
                 )
+        if replay_error is None and denied_count > 0:
+            # Project isolation refused queued work (403, final): the rows sit
+            # in `dead_letter`, never retried — say so instead of "healthy".
+            replay_state = ComponentState.PERMISSION_DENIED
+            replay_condition = RuntimeServiceCondition.ERROR
+            replay_error = LocalError(
+                code=LocalErrorCode.PERMISSION_DENIED,
+                message=(
+                    "Queued work was refused: this account has no access to the project. "
+                    "The entries were moved to the dead-letter queue and will not be retried."
+                ),
+                component=ComponentId.DAEMON,
+                retryable=False,
+                details={
+                    "dead_letters": denied_count,
+                    "project_ids": ",".join(denied_projects)[:256],
+                },
+            )
         return DaemonHealth(
             observed_at=now,
             status=status,

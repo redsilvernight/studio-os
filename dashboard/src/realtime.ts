@@ -20,6 +20,8 @@ export interface RealtimeCallbacks {
   onRefetch: () => void;
   /** Called for each `resource.conflict` event, undebounced. */
   onConflict?: (event: EventEnvelope) => void;
+  /** The stream was refused for good (401/403); live updates stopped. */
+  onDenied?: (status: number) => void;
 }
 
 export interface RealtimeOptions {
@@ -71,6 +73,9 @@ export function startRealtimeConnection(
       if (event === null) return;
       if (event.event_type === "resource.conflict") callbacks.onConflict?.(event);
       scheduleRefetch();
+    },
+    onDenied: (status) => {
+      callbacks.onDenied?.(status);
     },
   });
 

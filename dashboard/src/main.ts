@@ -208,6 +208,29 @@ function showConflictBanner(event: EventEnvelope): void {
   }, 8000);
 }
 
+/** 403 on the live stream: no access to the selected project. Stays visible
+ * (no timer) — the stream will not retry until the project or token changes. */
+function showStreamDeniedBanner(): void {
+  const banner = document.getElementById("conflict-banner");
+  if (banner === null) return;
+  if (conflictBannerTimer !== null) {
+    clearTimeout(conflictBannerTimer);
+    conflictBannerTimer = null;
+  }
+  banner.textContent = "Accès à ce projet refusé : les mises à jour en direct sont arrêtées. Demandez l'accès à un administrateur.";
+  banner.hidden = false;
+  streamDeniedShown = true;
+}
+
+let streamDeniedShown = false;
+
+function clearStreamDeniedBanner(): void {
+  if (!streamDeniedShown) return;
+  streamDeniedShown = false;
+  const banner = document.getElementById("conflict-banner");
+  if (banner !== null) banner.hidden = true;
+}
+
 let realtimeConnection: RealtimeConnection | null = null;
 let realtimeKey: string | null = null;
 
@@ -220,6 +243,7 @@ function syncRealtimeConnection(): void {
   const projectId = uiState.selectedProjectId;
   const key = token !== null && projectId !== null ? `${projectId}::${token}` : null;
   if (key === realtimeKey) return;
+  clearStreamDeniedBanner();
   realtimeConnection?.close();
   realtimeConnection = null;
   realtimeKey = key;
@@ -235,6 +259,10 @@ function syncRealtimeConnection(): void {
       },
       onConflict: (event) => {
         showConflictBanner(event);
+      },
+      onDenied: (status) => {
+        // 401 is already handled by the shell (session expired, apiEvents).
+        if (status === 403) showStreamDeniedBanner();
       },
     },
   );

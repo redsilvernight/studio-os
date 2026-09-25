@@ -396,3 +396,41 @@ def test_errors_never_carry_paths_or_secrets(rig: Rig) -> None:
     assert "SECRET-VALUE" not in text
     statuses = rig.service.detect(WorkspaceScope(workspace_id=WORKSPACE_ID))
     assert str(rig.root) not in statuses.model_dump_json()
+
+
+def _sse(payload: dict[str, object]) -> str:
+    return f"event: message\ndata: {json.dumps(payload)}\n\n"
+
+
+def test_empty_project_list_is_a_verified_connection_without_project_access() -> None:
+    text = _sse({"jsonrpc": "2.0", "id": 2, "result": {"structuredContent": {"projects": []}}})
+    assert service_module.parse_projects_tool_response(text) == (True, None, 0)
+    details = service_module.verified_details(0)
+    assert details["project_count"] == "0"
+    assert details["project_access"] == "none"
+    assert "administrator" in details["hint"]
+
+
+def test_project_list_counts_visible_projects_without_access_hint() -> None:
+    projects = [{"project_id": str(uuid4())}, {"project_id": str(uuid4())}]
+    text = _sse(
+        {"jsonrpc": "2.0", "id": 2, "result": {"structuredContent": {"projects": projects}}}
+    )
+    assert service_module.parse_projects_tool_response(text) == (True, None, 2)
+    assert service_module.verified_details(2) == {
+        "method": "studio_get_projects",
+        "project_count": "2",
+    }
+
+
+def test_projects_tool_error_is_not_a_success() -> None:
+    text = _sse(
+        {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "result": {"structuredContent": {"error_code": "forbidden", "message": "no"}},
+        }
+    )
+    success, error, count = service_module.parse_projects_tool_response(text)
+    assert not success and count is None
+    assert error == "Tool returned error: no"
