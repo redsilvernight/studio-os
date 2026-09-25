@@ -144,8 +144,7 @@ function machineContextLine(row: MachineRow, info: MachineCardInfo): string {
 export function machineCardHtml(row: MachineRow, info: MachineCardInfo, now: number): string {
   return (
     `<li class="ds-list-item machine-row"><div class="grow">` +
-    `<h3 class="ds-list-title">${esc(machineDisplayTitle(row))}</h3>` +
-    `<div class="ds-list-sub"><code class="mono" title="${esc(row.machineId)}">${esc(shortId(row.machineId))}</code></div>` +
+    `<h3 class="ds-list-title" title="${esc(row.machineId)}">${esc(machineDisplayTitle(row))}</h3>` +
     `<div class="ds-list-sub">${machineContextLine(row, info)}</div>` +
     `<div class="ds-list-sub">Dernière activité : ${machineTimeHtml(row.lastActivityAt, now)}</div>` +
     `</div><div class="machine-side">${machineStatusHtml(row)}` +
@@ -203,7 +202,7 @@ export function machineDrawerBodyHtml(
     `<li><a href="#/tasks/${esc(session.task_id)}">Tâche ${esc(shortId(session.task_id))}</a>` +
     ` · démarrée le ${machineTimeHtml(session.started_at, now)}` +
     (session.agent_id !== null && session.agent_id !== undefined && agentById.has(session.agent_id)
-      ? ` · agent <a href="#/agents/${esc(session.agent_id)}">${esc(agentById.get(session.agent_id)?.display_name ?? shortId(session.agent_id))}</a>`
+      ? ` · agent <a href="#/agents/${esc(session.agent_id)}" title="${esc(session.agent_id)}">${esc(agentById.get(session.agent_id)?.display_name ?? shortId(session.agent_id))}</a>`
       : "") +
     `</li>`;
 
