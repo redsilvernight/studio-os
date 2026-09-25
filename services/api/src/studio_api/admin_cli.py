@@ -63,6 +63,18 @@ async def _set_password(email: str, password: str) -> None:
         print(f"password set for {email}")
 
 
+async def _update_user_state(action: str, email: str) -> None:
+    operations = {
+        "disable": provisioning_service.disable_user,
+        "enable": provisioning_service.enable_user,
+        "revoke-sessions": provisioning_service.revoke_user_sessions,
+    }
+    async with get_session_factory()() as session:
+        user = await operations[action](session, email.strip().lower())
+        state = "disabled" if user.disabled_at is not None else "enabled"
+        print(f"{action}: {user.email} ({state}, auth_version={user.auth_version})")
+
+
 async def _create_machine(owner_email: str, display_name: str) -> None:
     async with get_session_factory()() as session:
         owner = await provisioning_service.get_user_by_email(session, owner_email)
@@ -247,6 +259,12 @@ def main() -> None:
     user_create.add_argument("--display-name", required=True)
     user_create.add_argument("--email", required=True)
     user_create.add_argument("--role", required=True, choices=[role.value for role in Role])
+    for action, help_text in (
+        ("disable", "Block the user's sessions and machines until re-enabled"),
+        ("enable", "Re-enable a disabled user"),
+        ("revoke-sessions", "Invalidate every dashboard session of the user"),
+    ):
+        user_sub.add_parser(action, help=help_text).add_argument("--email", required=True)
 
     password_parser = sub.add_parser("set-password", help="Set a user's dashboard password")
     password_parser.add_argument("--email", required=True)
@@ -320,6 +338,8 @@ def main() -> None:
                 print("error: --display-name must not be empty", file=sys.stderr)
                 raise SystemExit(2)
             asyncio.run(_create_user(args.display_name, email, args.role))
+        elif args.command == "user":
+            asyncio.run(_update_user_state(args.user_command, args.email))
         elif args.command == "set-password":
             password = _read_password_from_stdin() if args.password_stdin else args.password
             asyncio.run(_set_password(args.email, password))

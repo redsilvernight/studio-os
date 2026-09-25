@@ -52,7 +52,9 @@ ressource rattachee a un projet.
 - GET /auth/me (DEC-0110, additif) — tout principal authentifie (JWT ou token
   machine). Response `AuthIdentity` : `user_id`, `display_name`, `email`,
   `role`, `machine_id`. Source d'identite du client a la place des claims
-  retires du JWT ; `401` generique si le principal n'est plus valide.
+  retires du JWT ; `401` generique si le principal n'est plus valide. Rate
+  limiting : bucket authentifie ordinaire, pas le bucket strict par IP des
+  autres routes `/api/v1/auth/*`.
 
 ### Projects
 - GET /projects — uniquement les projets accessibles (membership ou `admin`,

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -47,9 +48,9 @@ class Settings(BaseSettings):
     # "test" is production, where a weak JWT secret refuses to start.
     environment: Literal["production", "dev", "test"] = "production"
 
-    # Human dashboard JWT (DASH-4)
+    # Human dashboard JWT (DASH-4, DEC-0110: 15 min at most, out of range refuses to start)
     jwt_secret: str = "change-me-in-production"
-    jwt_access_token_expire_minutes: int = 480
+    jwt_access_token_expire_minutes: int = Field(default=15, ge=1, le=15)
 
     # GitHub integration, Studio Producer (etape 9.1, DEC-0059) — secrets are
     # env-only, never logged, never returned by the API.

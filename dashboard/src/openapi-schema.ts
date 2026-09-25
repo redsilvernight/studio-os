@@ -35,9 +35,29 @@ export interface paths {
         put?: never;
         /**
          * Login
-         * @description Exchange human credentials for a short-lived dashboard JWT.
+         * @description Exchange human credentials for a short-lived dashboard JWT (15 minutes at most, no refresh token). A disabled or unverified account gets the same 401 as a wrong password.
          */
         post: operations["login_api_v1_auth_token_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Identity
+         * @description Identity of the authenticated principal (JWT or machine token): the client's source for email and role, which the JWT no longer carries. Never subject to project access control.
+         */
+        get: operations["get_identity_api_v1_auth_me_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1962,6 +1982,25 @@ export interface components {
              * @default []
              */
             session_overrides: components["schemas"]["SessionRuntimeOverride"][];
+        };
+        /** AuthIdentity */
+        AuthIdentity: {
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** Display Name */
+            display_name: string;
+            /** Email */
+            email: string;
+            /** Role */
+            role: string;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
         };
         /**
          * BindingRelation
@@ -4866,6 +4905,11 @@ export interface components {
              * @default bearer
              */
             token_type: string;
+            /**
+             * Expires In
+             * @description Lifetime of `access_token` in seconds.
+             */
+            expires_in: number;
         };
         /**
          * Transfer
@@ -5341,6 +5385,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_identity_api_v1_auth_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthIdentity"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
                 };
             };
         };

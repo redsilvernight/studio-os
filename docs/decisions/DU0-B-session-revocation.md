@@ -49,7 +49,7 @@ token, middleware, modèle, migration ou écran n'est implémenté dans DU-0.
 La migration `auth_version` sera réversible et livrée avec contrats partagés,
 OpenAPI, clients, fixtures et mocks des deux Blocs dans le même lot.
 
-## Amendement A2 (proposé — serveur DEC-0121 `d03f88a5-f68a-4244-b1bb-8d9b84e2df7e`, tâche 3d774b1e)
+## Amendement A2 (accepté — serveur DEC-0121 `d03f88a5-f68a-4244-b1bb-8d9b84e2df7e`, tâche 3d774b1e)
 
 - `GET /api/v1/auth/me` (additif) renvoie `user_id`, `display_name`, `email`,
   `role`, `machine_id` du principal ; hors contrôle projet. Il remplace la

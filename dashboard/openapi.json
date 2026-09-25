@@ -41,7 +41,7 @@
      "auth"
     ],
     "summary": "Login",
-    "description": "Exchange human credentials for a short-lived dashboard JWT.",
+    "description": "Exchange human credentials for a short-lived dashboard JWT (15 minutes at most, no refresh token). A disabled or unverified account gets the same 401 as a wrong password.",
     "operationId": "login_api_v1_auth_token_post",
     "requestBody": {
      "content": {
@@ -78,6 +78,43 @@
       }
      }
     }
+   }
+  },
+  "/api/v1/auth/me": {
+   "get": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Get Identity",
+    "description": "Identity of the authenticated principal (JWT or machine token): the client's source for email and role, which the JWT no longer carries. Never subject to project access control.",
+    "operationId": "get_identity_api_v1_auth_me_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AuthIdentity"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ]
    }
   },
   "/api/v1/projects": {
@@ -11306,6 +11343,41 @@
     "title": "AgentResolutionRequest",
     "description": "Canonical HTTP (and future MCP) input for full agent resolution\n(P7): which `AgentDefinition` (`stable_key`, kind fixed \u2014\nthe engine only resolves agent definitions), in which project\ncontext, with which ephemeral session overrides. Identity always\ncomes from auth, never from this body. The response is the complete\n`ResolvedAgentDefinition`, never a simplified shape."
    },
+   "AuthIdentity": {
+    "properties": {
+     "user_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "User Id"
+     },
+     "display_name": {
+      "type": "string",
+      "title": "Display Name"
+     },
+     "email": {
+      "type": "string",
+      "title": "Email"
+     },
+     "role": {
+      "type": "string",
+      "title": "Role"
+     },
+     "machine_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Machine Id"
+     }
+    },
+    "type": "object",
+    "required": [
+     "user_id",
+     "display_name",
+     "email",
+     "role",
+     "machine_id"
+    ],
+    "title": "AuthIdentity"
+   },
    "BindingRelation": {
     "type": "string",
     "enum": [
@@ -17802,11 +17874,17 @@
       "type": "string",
       "title": "Token Type",
       "default": "bearer"
+     },
+     "expires_in": {
+      "type": "integer",
+      "title": "Expires In",
+      "description": "Lifetime of `access_token` in seconds."
      }
     },
     "type": "object",
     "required": [
-     "access_token"
+     "access_token",
+     "expires_in"
     ],
     "title": "TokenResponse"
    },

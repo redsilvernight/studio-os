@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { StudioClient } from "./api";
-import { createProject, createTask, decodeJwtRole, decodeJwtSubject, isUuid } from "./creationsApi";
+import { createProject, createTask, decodeJwtSubject, isUuid } from "./creationsApi";
 
 type Fake = Record<"POST", ReturnType<typeof vi.fn>>;
 const fakeClient = (impl: Fake): StudioClient => impl as unknown as StudioClient;
@@ -51,19 +51,6 @@ describe("decodeJwtSubject", () => {
   });
 });
 
-describe("decodeJwtRole", () => {
-  it("reads the role claim out of a dashboard JWT", () => {
-    expect(decodeJwtRole(jwtWith({ sub: "u1", role: "admin" }))).toBe("admin");
-    expect(decodeJwtRole(jwtWith({ sub: "u1", role: "developer" }))).toBe("developer");
-  });
-
-  it("returns null for an opaque machine token, a malformed JWT, or no role claim", () => {
-    expect(decodeJwtRole("opaque-machine-token")).toBeNull();
-    expect(decodeJwtRole("a.b.c")).toBeNull();
-    expect(decodeJwtRole(null)).toBeNull();
-    expect(decodeJwtRole(jwtWith({ sub: "u1" }))).toBeNull();
-  });
-});
 
 describe("isUuid", () => {
   it("accepts UUIDs and rejects anything else", () => {

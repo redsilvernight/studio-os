@@ -83,7 +83,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
        trusted proxy (`STUDIO_TRUSTED_PROXIES`), and then the rightmost hop not
        itself a trusted proxy is used — a spoofed left part is ignored.
 
-    `/api/v1/auth/*` has its own stricter bucket, always keyed on client IP.
+    `/api/v1/auth/*` has its own stricter bucket, always keyed on client IP,
+    except the authenticated identity read `/api/v1/auth/me`.
 
     This is per-process state; a real production deployment with multiple API
     replicas should switch to a shared store. The middleware stays intentionally
@@ -92,6 +93,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     """
 
     AUTH_PATH_PREFIX = "/api/v1/auth/"
+    AUTHENTICATED_AUTH_PATHS = frozenset({"/api/v1/auth/me"})
     MAX_AUTHENTICATED_TOKENS = 10_000
 
     def __init__(
@@ -201,7 +203,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             )
         # Login and other auth endpoints: always per client IP, whatever the
         # bearer, with a stricter budget against credential stuffing.
-        if path.startswith(self.AUTH_PATH_PREFIX):
+        if path.startswith(self.AUTH_PATH_PREFIX) and path not in self.AUTHENTICATED_AUTH_PATHS:
             return await self._dispatch_with_bucket(
                 call_next,
                 request,

@@ -5,11 +5,11 @@ from collections.abc import AsyncIterator
 from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Header, HTTPException, Query, status
+from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from studio_contracts.events import EventCreate, EventEnvelope
 
-from studio_api.deps import CurrentPrincipal, DbSession
+from studio_api.deps import JWT_AUTH_VERSION_STATE, CurrentPrincipal, DbSession
 from studio_api.openapi_meta import (
     RESP_401_UNAUTHORIZED,
     RESP_403_FORBIDDEN,
@@ -140,6 +140,7 @@ async def get_events(
     },
 )
 async def stream_events(
+    request: Request,
     session: DbSession,
     principal: CurrentPrincipal,
     project: UUID = Query(
@@ -167,6 +168,7 @@ async def stream_events(
     events_service.authorize_stream(principal, project)
     machine_id = principal.machine.id
     user_id = principal.user.id
+    jwt_auth_version: int | None = getattr(request.state, JWT_AUTH_VERSION_STATE, None)
 
     async def generate() -> AsyncIterator[bytes]:
         queue = event_stream.subscribe()
@@ -199,7 +201,9 @@ async def stream_events(
                         return
                     continue
                 if time.monotonic() - checked_at >= REVALIDATE_SECONDS:
-                    if not await events_service.stream_access_still_valid(machine_id, project):
+                    if not await events_service.stream_access_still_valid(
+                        machine_id, project, jwt_auth_version
+                    ):
                         return
                     checked_at = time.monotonic()
                 if not isinstance(event, event_stream.StreamEvent):  # KEEPALIVE

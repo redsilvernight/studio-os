@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -94,7 +95,10 @@ async def test_claim_by_second_machine_conflicts(
     assert claimed.json()["status"] == "in_progress"
 
     other_user = UserModel(
-        display_name="Other", email=f"{uuid.uuid4()}@example.test", role="developer"
+        display_name="Other",
+        email=f"{uuid.uuid4()}@example.test",
+        role="developer",
+        email_verified_at=datetime.now(UTC),
     )
     db_session.add(other_user)
     await db_session.flush()
