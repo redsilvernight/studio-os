@@ -46,11 +46,14 @@ async def test_admin_grants_lists_and_revokes(
     assert body["user_id"] == user_id
     assert body["project_id"] == str(project.id)
     assert body["granted_by_user_id"] == await _owner_id(client, admin_auth_headers)
+    assert body["user_email"] and body["user_display_name"]
     assert (await client.get(project_url, headers=auth_headers)).status_code == 200
 
     listed = await client.get(base, headers=admin_auth_headers)
     assert listed.status_code == 200
-    assert [m["user_id"] for m in listed.json()] == [user_id]
+    assert [(m["user_id"], m["user_email"]) for m in listed.json()] == [
+        (user_id, body["user_email"])
+    ]
 
     revoked = await client.delete(f"{base}/{user_id}", headers=admin_auth_headers)
     assert revoked.status_code == 204

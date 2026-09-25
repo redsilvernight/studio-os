@@ -169,14 +169,7 @@ async def _list_project_members(project_ref: str) -> None:
     async with get_session_factory()() as session:
         project = await _resolve_project(session, project_ref)
         members = await projects_service.list_members(session, project.id)
-        users = {
-            u.id: u
-            for u in (
-                await session.execute(
-                    select(UserModel).where(UserModel.id.in_([m.user_id for m in members]))
-                )
-            ).scalars()
-        }
+        users = await provisioning_service.users_by_id(session, {m.user_id for m in members})
     if not members:
         print("no member")
         return

@@ -23,9 +23,12 @@ class ProjectCreate(IdempotentCreate):
 class ProjectMember(ContractModel):
     """A User's access to a project: granted or removed, never
     modified — hence no `version`. `granted_by_user_id` is null only for the
-    migration backfill."""
+    migration backfill. `user_display_name` and `user_email` are read-only
+    conveniences resolved from the member's User."""
 
     project_id: UUID
     user_id: UUID
     granted_by_user_id: UUID | None = None
     created_at: datetime
+    user_display_name: str | None = None
+    user_email: str | None = None

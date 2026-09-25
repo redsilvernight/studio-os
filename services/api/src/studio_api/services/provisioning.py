@@ -18,6 +18,30 @@ async def get_user_by_email(session: AsyncSession, email: str) -> UserModel | No
     return result.scalar_one_or_none()
 
 
+async def list_users(session: AsyncSession, query: str | None, limit: int) -> list[UserModel]:
+    """Case-insensitive substring match on display name or email; `%` and `_`
+    in `query` are literal."""
+    stmt = select(UserModel)
+    needle = (query or "").strip()
+    if needle:
+        pattern = "%" + needle.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        stmt = stmt.where(
+            UserModel.display_name.ilike(pattern, escape="\\")
+            | UserModel.email.ilike(pattern, escape="\\")
+        )
+    result = await session.execute(
+        stmt.order_by(UserModel.display_name, UserModel.email).limit(limit)
+    )
+    return list(result.scalars().all())
+
+
+async def users_by_id(session: AsyncSession, ids: set[uuid.UUID]) -> dict[uuid.UUID, UserModel]:
+    if not ids:
+        return {}
+    result = await session.execute(select(UserModel).where(UserModel.id.in_(ids)))
+    return {user.id: user for user in result.scalars()}
+
+
 async def get_machine(session: AsyncSession, machine_id: uuid.UUID) -> MachineModel | None:
     return await session.get(MachineModel, machine_id)
 

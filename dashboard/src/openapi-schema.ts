@@ -1223,7 +1223,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List Users
+         * @description Admin user directory, used to pick who to add to a project. Requires the admin role: any other role gets `403 forbidden` before any lookup. `q` filters on a case-insensitive substring of the display name or email; results are sorted by display name then email and capped by `limit`.
+         */
+        get: operations["list_users_api_v1_users_get"];
         put?: never;
         /**
          * Create User
@@ -3338,7 +3342,8 @@ export interface components {
          * ProjectMember
          * @description A User's access to a project: granted or removed, never
          *     modified — hence no `version`. `granted_by_user_id` is null only for the
-         *     migration backfill.
+         *     migration backfill. `user_display_name` and `user_email` are read-only
+         *     conveniences resolved from the member's User.
          */
         ProjectMember: {
             /**
@@ -3358,6 +3363,10 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** User Display Name */
+            user_display_name?: string | null;
+            /** User Email */
+            user_email?: string | null;
         };
         /**
          * ProjectState
@@ -11260,6 +11269,70 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_users_api_v1_users_get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"][];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
                      *     }
                      */
                     "application/json": unknown;

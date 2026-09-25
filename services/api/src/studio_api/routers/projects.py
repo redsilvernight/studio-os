@@ -11,6 +11,7 @@ from studio_contracts.project_state import ProjectState
 from studio_contracts.projects import Project, ProjectCreate, ProjectMember
 from studio_contracts.tasks import Task
 
+from studio_api.db.models.project_membership import ProjectMembershipModel
 from studio_api.db.models.user import UserModel
 from studio_api.deps import CurrentPrincipal, DbSession, require_roles
 from studio_api.openapi_meta import (
@@ -22,6 +23,7 @@ from studio_api.openapi_meta import (
 )
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import projects as projects_service
+from studio_api.services import provisioning as provisioning_service
 
 router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
 
@@ -123,6 +125,15 @@ async def get_project_state(
     )
 
 
+def _member_out(membership: ProjectMembershipModel, user: UserModel | None) -> ProjectMember:
+    member = ProjectMember.model_validate(membership)
+    if user is None:
+        return member
+    return member.model_copy(
+        update={"user_display_name": user.display_name, "user_email": user.email}
+    )
+
+
 @router.get(
     "/{project_id}/members",
     response_model=list[ProjectMember],
@@ -138,7 +149,8 @@ async def list_project_members(
 ) -> list[ProjectMember]:
     projects_service.ensure_members_admin(principal, "read")
     members = await projects_service.list_members(session, project_id)
-    return [ProjectMember.model_validate(m) for m in members]
+    users = await provisioning_service.users_by_id(session, {m.user_id for m in members})
+    return [_member_out(m, users.get(m.user_id)) for m in members]
 
 
 @router.put(
@@ -166,7 +178,7 @@ async def grant_project_member(
     )
     if not created:
         response.status_code = status.HTTP_200_OK
-    return ProjectMember.model_validate(membership)
+    return _member_out(membership, await session.get(UserModel, user_id))
 
 
 @router.delete(
