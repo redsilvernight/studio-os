@@ -82,7 +82,7 @@ def test_dogfood_scenario_ia_to_studios_workspace_setup(tmp_path: Path):
         in config["mcpServers"]["studio-os"]["headers"]["Authorization"]
     )
 
-    # Verify without backend -> CONFIGURED (no token in test env for real MCP)
+    # Verify without backend -> TOKEN_MISSING (no token in test env for real MCP)
     # In real dogfood, with token and backend, this would be VERIFIED
     env.pop("STUDIO_MCP_MACHINE_TOKEN", None)
     service_no_token = HarnessService(
@@ -95,7 +95,7 @@ def test_dogfood_scenario_ia_to_studios_workspace_setup(tmp_path: Path):
     result = service_no_token.verify(
         HarnessVerifyRequest(workspace_id=WORKSPACE_ID, adapter_id="claude-code")
     )
-    assert result.state == VerifyState.CONFIGURED
+    assert result.state == VerifyState.TOKEN_MISSING
     assert result.details.get("reason") == "token_missing"
 
 

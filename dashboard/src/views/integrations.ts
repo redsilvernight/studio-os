@@ -15,14 +15,18 @@ import {
   CHANGE_LABELS,
   STATE_LABELS,
   STATE_TONES,
+  VERIFY_MESSAGES,
+  VERIFY_TONES,
   applyHarness,
   detectHarnesses,
   harnessErrorMessage,
   latestRollbackId,
   previewHarness,
   rollbackHarness,
+  verifyHarness,
   type HarnessPlan,
   type HarnessStatus,
+  type HarnessVerifyResult,
 } from "../harnessApi";
 import { esc } from "../ui";
 import { configTabsHtml } from "./configuration";
@@ -38,6 +42,8 @@ export interface IntegrationsView {
   plan?: HarnessPlan;
   /** The harness for which a restore awaits confirmation. */
   confirmRestore?: string;
+  /** The last connection check, for one harness. */
+  verify?: HarnessVerifyResult;
 }
 
 function header(): string {
@@ -127,10 +133,18 @@ function harnessHtml(status: HarnessStatus, view: IntegrationsView): string {
       `<button class="ds-btn ds-btn--danger" type="button" data-action="confirm-restore">Restaurer</button> ` +
       `<button class="ds-btn" type="button" data-action="cancel-restore">Annuler</button></div>`
     : "";
+  const check = view.verify && view.verify.adapter_id === status.adapter_id
+    ? `<p class="integration-verify" data-testid="verify" data-verify="${esc(view.verify.state)}" role="status">` +
+      `${dsBadge(view.verify.state === "verified" ? "Connexion vérifiée" : view.verify.state === "token_missing" ? "Jeton manquant" : "Non vérifié", VERIFY_TONES[view.verify.state])} ` +
+      `${esc(VERIFY_MESSAGES[view.verify.state])}</p>`
+    : "";
   const actions = installed
     ? `<div class="integration-actions">` +
       `<button class="ds-btn ds-btn--primary" type="button" data-action="preview">${configured ? "Reconfigurer" : "Configurer"}</button>` +
-      (configured ? ` <button class="ds-btn" type="button" data-action="restore">Restaurer</button>` : "") +
+      (configured
+        ? ` <button class="ds-btn" type="button" data-action="verify">Vérifier la connexion</button>` +
+          ` <button class="ds-btn" type="button" data-action="restore">Restaurer</button>`
+        : "") +
       `</div>`
     : "";
   return (
@@ -139,6 +153,7 @@ function harnessHtml(status: HarnessStatus, view: IntegrationsView): string {
     `<dl class="settings-rows"><div class="settings-row"><dt>Version</dt><dd>${version}</dd></div>` +
     `<div class="settings-row"><dt>MCP Studi'OS</dt><dd>${configured ? "Configuré" : installed ? "Non configuré" : "—"}</dd></div>${files}</dl>` +
     reason +
+    check +
     actions +
     plan +
     confirm +
@@ -192,6 +207,11 @@ function bind(root: HTMLElement, workspaceId: string, platform: Platform, shown:
     card.querySelector("[data-action=preview]")?.addEventListener("click", () => {
       void previewHarness(platform, workspaceId, adapterId).then((outcome) =>
         outcome.ok ? again({ plan: outcome.value }) : again({ error: harnessErrorMessage(outcome.error) }),
+      );
+    });
+    card.querySelector("[data-action=verify]")?.addEventListener("click", () => {
+      void verifyHarness(platform, workspaceId, adapterId).then((outcome) =>
+        outcome.ok ? again({ verify: outcome.value }) : again({ error: harnessErrorMessage(outcome.error) }),
       );
     });
     card.querySelector("[data-action=cancel-plan]")?.addEventListener("click", () => void again());

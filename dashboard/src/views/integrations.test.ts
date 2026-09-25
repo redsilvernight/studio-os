@@ -5,7 +5,16 @@ import type { BridgeAnswer } from "../platform/contracts";
 import type { HarnessState } from "../platform/generated/local-contracts.generated";
 import { webPlatform } from "../platform/web";
 import { fakeDesktop } from "../testSupport/fakeDesktop";
-import { applyHarness, detectHarnesses, harnessErrorMessage, latestRollbackId, previewHarness, rollbackHarness } from "../harnessApi";
+import {
+  VERIFY_MESSAGES,
+  applyHarness,
+  detectHarnesses,
+  harnessErrorMessage,
+  latestRollbackId,
+  previewHarness,
+  rollbackHarness,
+  verifyHarness,
+} from "../harnessApi";
 import { integrationsHtml, renderIntegrations } from "./integrations";
 
 const WS = "11111111-2222-4333-8444-555555555555";
@@ -45,6 +54,7 @@ interface Rig {
   onApply: () => BridgeAnswer;
   onRollback: () => BridgeAnswer;
   onPreview?: () => BridgeAnswer;
+  onVerify?: () => BridgeAnswer;
 }
 
 function rig(): { platform: ReturnType<typeof fakeDesktop>; state: Rig } {
@@ -69,6 +79,7 @@ function rig(): { platform: ReturnType<typeof fakeDesktop>; state: Rig } {
       if (command === "harness.preview") return state.onPreview ? state.onPreview() : ok(plan(String(payload["adapter_id"])));
       if (command === "harness.apply") return state.onApply();
       if (command === "harness.rollback") return state.onRollback();
+      if (command === "harness.verify" && state.onVerify) return state.onVerify();
       return refused("not_supported");
     }) as never,
   });
@@ -97,6 +108,15 @@ describe("harnessApi", () => {
     buildRequest("harness.preview", { workspace_id: WS, adapter_id: "claude-code" });
     buildRequest("harness.apply", { plan_id: "plan-1", plan_hash: "a".repeat(64), confirmed: true });
     buildRequest("harness.rollback", { rollback_id: latestRollbackId(WS, "claude-code"), confirmed: true });
+    buildRequest("harness.verify", { workspace_id: WS, adapter_id: "claude-code" });
+  });
+
+  it("verifies with the documented command and payload", async () => {
+    const { platform, state } = rig();
+    state.onVerify = () => ok({ adapter_id: "claude-code", state: "verified", mcp_url: "https://studio.example/mcp", error: null, details: {} });
+    const outcome = await verifyHarness(platform, WS, "claude-code");
+    expect(outcome.ok).toBe(true);
+    expect(state.calls).toEqual([{ command: "harness.verify", payload: { workspace_id: WS, adapter_id: "claude-code" } }]);
   });
 
   it("sends the documented commands and nothing else", async () => {
@@ -348,6 +368,58 @@ describe("Settings › Intégrations IA (Desktop)", () => {
     expect(root.querySelector("[data-testid=notice]")).toBeNull();
     expect(root.querySelector("[data-testid=error]")?.textContent).toContain("restauration est refusée");
     expect(card(root, "claude-code").dataset["state"]).toBe("configured");
+  });
+
+  it("offers a connection check only on a configured harness", async () => {
+    const { platform, state } = rig();
+    state.states["claude-code"] = "configured";
+    const root = await mount(platform);
+    expect(card(root, "claude-code").querySelector("[data-action=verify]")).not.toBeNull();
+    expect(card(root, "opencode").querySelector("[data-action=verify]")).toBeNull();
+  });
+
+  it("reports a missing machine token as an actionable warning, never as a success", async () => {
+    const { platform, state } = rig();
+    state.states["claude-code"] = "configured";
+    state.onVerify = () =>
+      ok({ adapter_id: "claude-code", state: "token_missing", mcp_url: "https://studio.example/mcp", error: null, details: { reason: "token_missing" } });
+    const root = await mount(platform);
+    await click(root, "[data-action=verify]");
+    const verify = card(root, "claude-code").querySelector<HTMLElement>("[data-testid=verify]");
+    expect(verify?.dataset["verify"]).toBe("token_missing");
+    expect(verify?.textContent).toContain("Jeton manquant");
+    expect(verify?.textContent).toContain(VERIFY_MESSAGES.token_missing);
+    expect(verify?.textContent).toContain("STUDIO_MCP_MACHINE_TOKEN");
+    expect(verify?.textContent).not.toContain("Connexion vérifiée");
+    expect(verify?.querySelector(".ds-badge--warning")).not.toBeNull();
+    expect(verify?.querySelector(".ds-badge--success")).toBeNull();
+  });
+
+  it("confirms a verified connection", async () => {
+    const { platform, state } = rig();
+    state.states["claude-code"] = "configured";
+    state.onVerify = () => ok({ adapter_id: "claude-code", state: "verified", mcp_url: "https://studio.example/mcp", error: null, details: {} });
+    const root = await mount(platform);
+    await click(root, "[data-action=verify]");
+    expect(card(root, "claude-code").querySelector<HTMLElement>("[data-testid=verify]")?.textContent).toContain("Connexion vérifiée");
+  });
+
+  it("words a failed verification in French without the daemon's text", async () => {
+    const { platform, state } = rig();
+    state.states["claude-code"] = "configured";
+    state.onVerify = () =>
+      ok({
+        adapter_id: "claude-code",
+        state: "failed",
+        mcp_url: "https://studio.example/mcp",
+        error: { code: "internal_error", component: "harness", message: "MCP verification failed: unauthenticated SECRET", retryable: true, correlation_id: null, details: {} },
+        details: { reason: "mcp_call_failed" },
+      });
+    const root = await mount(platform);
+    await click(root, "[data-action=verify]");
+    const text = card(root, "claude-code").querySelector("[data-testid=verify]")?.textContent ?? "";
+    expect(text).toContain(VERIFY_MESSAGES.failed);
+    expect(text).not.toContain("SECRET");
   });
 
   it("shows a clean error when the local assistant is unavailable", async () => {

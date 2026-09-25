@@ -39,6 +39,35 @@ def test_env_token_store_is_read_only_and_fails_on_write():
         store.clear_token("https://example.com")
 
 
+def test_token_missing_is_a_distinct_state_without_error():
+    """TOKEN_MISSING is neither CONFIGURED nor VERIFIED and, like CONFIGURED,
+    reports a condition rather than a failure: it carries no error."""
+    from pydantic import ValidationError
+    from studio_contracts.local.common import ComponentId, LocalError, LocalErrorCode
+    from studio_contracts.local.harness import HarnessVerifyResult, VerifyState
+
+    result = HarnessVerifyResult(
+        adapter_id="claude-code",
+        state=VerifyState.TOKEN_MISSING,
+        mcp_url=MCP_URL,
+        details={"reason": "token_missing"},
+    )
+    assert result.state.value == "token_missing"
+    assert result.state not in (VerifyState.CONFIGURED, VerifyState.VERIFIED)
+    with pytest.raises(ValidationError):
+        HarnessVerifyResult(
+            adapter_id="claude-code",
+            state=VerifyState.TOKEN_MISSING,
+            mcp_url=MCP_URL,
+            error=LocalError(
+                code=LocalErrorCode.INTERNAL_ERROR,
+                message="x",
+                component=ComponentId.HARNESS,
+                retryable=False,
+            ),
+        )
+
+
 def test_env_token_store_respects_origin_binding():
     """EnvTokenStore with ORIGIN_VAR only returns token for matching origin."""
     os.environ["STUDIO_CLIENT_MACHINE_TOKEN"] = "test-token"
@@ -109,7 +138,8 @@ def test_verify_requires_token_for_verified_state(adapter: HarnessAdapter, tmp_p
     """VERIFIED state requires STUDIO_MCP_MACHINE_TOKEN in environment.
 
     This tests Scenario B: harness launched independently without token.
-    Without the token, verify returns CONFIGURED (not VERIFIED)."""
+    Without the token, verify returns TOKEN_MISSING (neither CONFIGURED nor VERIFIED):
+    the harness would send the literal placeholder and be refused."""
     if not _real(adapter):
         pytest.skip(f"{adapter.adapter_id} is not installed on this machine")
 
@@ -146,13 +176,14 @@ def test_verify_requires_token_for_verified_state(adapter: HarnessAdapter, tmp_p
     )
     assert apply_result.state.value == "configured"
 
-    # Verify without token -> CONFIGURED
+    # Verify without token -> TOKEN_MISSING
     from studio_contracts.local.harness import HarnessVerifyRequest, VerifyState
 
     result = service.verify(
         HarnessVerifyRequest(workspace_id=WORKSPACE_ID, adapter_id=adapter.adapter_id)
     )
-    assert result.state == VerifyState.CONFIGURED
+    assert result.state == VerifyState.TOKEN_MISSING
+    assert result.error is None
     assert result.details.get("reason") == "token_missing"
     assert result.mcp_url == MCP_URL
 

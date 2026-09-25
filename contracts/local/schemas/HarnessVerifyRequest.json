@@ -1,6 +1,6 @@
 {
   "additionalProperties": false,
-  "description": "Ask the harness to prove it can reach Studi'OS via MCP. CONFIGURED\nmeans the config file is in place; VERIFIED means a real MCP call\nsucceeded end-to-end (auth + at least one tool call).",
+  "description": "Ask the harness to prove it can reach Studi'OS via MCP. CONFIGURED\nmeans the config file is in place; TOKEN_MISSING means the config is in\nplace but no machine token is available to the harness, so its MCP calls\ncannot authenticate; VERIFIED means a real MCP call succeeded end-to-end\n(auth + at least one tool call).",
   "properties": {
     "adapter_id": {
       "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
