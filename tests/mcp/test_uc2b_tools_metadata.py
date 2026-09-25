@@ -75,6 +75,7 @@ WRITE_TOOLS = {
     "studio_propose_roadmap",
     "studio_apply_roadmap_hydration",
     "studio_update_roadmap_step",
+    "studio_transition_roadmap",
     "studio_apply_project_initialization",
 }
 
@@ -91,7 +92,7 @@ def _by_name(tools: list[Tool]) -> dict[str, Tool]:
 
 
 def test_all_tools_have_external_descriptions(tools: list[Tool]) -> None:
-    assert len(tools) == 45
+    assert len(tools) == 46
     for tool in tools:
         assert tool.description, f"{tool.name} has no description"
         assert len(tool.description) >= 40, f"{tool.name} description is stub-like"
@@ -137,6 +138,7 @@ def test_idempotency_and_event_id_discoverable(tools: list[Tool]) -> None:
         "studio_propose_roadmap",
         "studio_apply_roadmap_hydration",
         "studio_apply_project_initialization",
+        "studio_transition_roadmap",
     ):
         schema = by_name[name].input_schema
         assert "idempotency_key" in schema["properties"], name
@@ -179,6 +181,16 @@ def test_roadmap_proposal_surface_stays_minimal_and_human_gated(tools: list[Tool
         if "roadmap" in name
         and (any(word in name for word in ("approve", "reject")) or "_review" in name)
     ] == []
+    # lifecycle transitions go through the single transition tool, still
+    # human-gated by role (admin/developer except draft writes)
+    assert "studio_transition_roadmap" in by_name
+    transition_schema = by_name["studio_transition_roadmap"].input_schema
+    assert "transition" in transition_schema["properties"]
+    assert "expected_version" in transition_schema["properties"]
+    assert "expected_version" in transition_schema.get("required", [])
+    description = by_name["studio_transition_roadmap"].description or ""
+    assert "admin/developer" in description
+    assert "version_conflict" in description
 
 
 def test_http_fallback_pointers_where_transport_is_partial(tools: list[Tool]) -> None:
