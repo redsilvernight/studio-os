@@ -102,7 +102,12 @@ async def bootstrap_admin(session: AsyncSession, display_name: str, email: str) 
 async def create_user(session: AsyncSession, display_name: str, email: str, role: str) -> UserModel:
     if await get_user_by_email(session, email) is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "email already registered")
-    user = UserModel(display_name=display_name, email=email, role=role)
+    user = UserModel(
+        display_name=display_name,
+        email=email,
+        role=role,
+        email_verified_at=datetime.now(UTC),
+    )
     session.add(user)
     await session.commit()
     await session.refresh(user)
@@ -155,9 +160,53 @@ async def set_user_password(session: AsyncSession, email: str, password: str) ->
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "user not found")
     user.password_hash = _hash_password(password)
+    _revoke_sessions(user)
     await session.commit()
     await session.refresh(user)
     security_event("credential.password_set", outcome="success", user_id=user.id)
+    return user
+
+
+def _revoke_sessions(user: UserModel) -> None:
+    user.auth_version += 1
+    user.version += 1
+
+
+async def _require_user(session: AsyncSession, email: str) -> UserModel:
+    user = await get_user_by_email(session, email)
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "user not found")
+    return user
+
+
+async def revoke_user_sessions(session: AsyncSession, email: str) -> UserModel:
+    user = await _require_user(session, email)
+    _revoke_sessions(user)
+    await session.commit()
+    await session.refresh(user)
+    security_event("credential.sessions_revoked", outcome="success", user_id=user.id)
+    return user
+
+
+async def disable_user(session: AsyncSession, email: str) -> UserModel:
+    user = await _require_user(session, email)
+    if user.disabled_at is None:
+        user.disabled_at = datetime.now(UTC)
+        _revoke_sessions(user)
+        await session.commit()
+        await session.refresh(user)
+        security_event("account.disabled", outcome="success", user_id=user.id)
+    return user
+
+
+async def enable_user(session: AsyncSession, email: str) -> UserModel:
+    user = await _require_user(session, email)
+    if user.disabled_at is not None:
+        user.disabled_at = None
+        user.version += 1
+        await session.commit()
+        await session.refresh(user)
+        security_event("account.enabled", outcome="success", user_id=user.id)
     return user
 
 
@@ -175,6 +224,8 @@ async def verify_user_password(
         _verify_password(password, _DUMMY_PASSWORD_HASH)
         return None
     if not _verify_password(password, password_hash):
+        return None
+    if user is None or not user.is_active:
         return None
     return user
 

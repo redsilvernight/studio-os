@@ -54,6 +54,11 @@ Reponses compactes, champs utiles uniquement, filtres `project`, `task`, `since`
 Chaque outil authentifie l'appelant individuellement (voir
 `TECH/04_AUTH_SYNC_CONTRACT.md` section "Auth MCP") — jamais un secret
 process-wide ni un parametre d'outil. Detail : `docs/DECISIONS.md` DEC-0023.
+Le MCP n'accepte que des tokens machine, jamais un JWT dashboard. Depuis A2
+(DEC-0110, DU-0/A), un token dont le proprietaire est desactive ou non
+verifie est refuse comme un token revoque : erreur `unauthenticated`
+(« invalid or revoked machine token »), sans reveler la cause ; reactiver le
+User rend le token de nouveau utilisable.
 Exception : les outils locaux UC-3 (section ci-dessous, DEC-0047) tournent
 dans un processus stdio lance par le consommateur lui-meme, sans DB ni
 `Principal` serveur — la frontiere de confiance est le processus, pas un

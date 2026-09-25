@@ -53,6 +53,16 @@ DEC-0056), + champs communs mutables. Le mot de passe est optionnel : les
 utilisateurs crees sans mot de passe ne peuvent pas utiliser le login humain
 jusqu'a ce qu'un administrateur execute `studio-admin set-password`.
 
+Etat du compte et session (A2, DEC-0110 — migration Alembic reversible) :
+`auth_version` (int, non nul, defaut 0, incremente par chaque revocation —
+`TECH/04_AUTH_SYNC_CONTRACT.md`, Cycle de session), `disabled_at` (nullable)
+et `email_verified_at` (nullable). Etat derive, non stocke : `disabled` si
+`disabled_at` est pose, sinon `pending` si `email_verified_at` est nul, sinon
+`active`. Backfill : `email_verified_at = created_at` pour tout User
+existant ; la creation par `studio-admin` ou `POST /users` le pose
+immediatement. Aucune table de sessions : `session_id` du JWT n'est pas
+persiste.
+
 ## Machine
 `id`, `owner_user_id` (FK User), `display_name`, `credential_hash` (token
 opaque hashe, jamais le token en clair — DEC-0003 `docs/DECISIONS.md`),

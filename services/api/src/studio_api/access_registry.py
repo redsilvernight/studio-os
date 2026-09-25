@@ -54,6 +54,7 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     ("POST", "/api/v1/machines/{machine_id}/revoke"): "own",
     ("GET", "/api/v1/machines"): "own",
     ("GET", "/api/v1/machines/me"): "own",
+    ("GET", "/api/v1/auth/me"): "own",
     ("GET", "/api/v1/agents"): "own",
     ("POST", "/api/v1/agents"): "own",
     ("POST", "/api/v1/heartbeats"): "own",

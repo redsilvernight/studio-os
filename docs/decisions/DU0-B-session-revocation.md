@@ -48,3 +48,18 @@ DEC-0098. Aucun
 token, middleware, modèle, migration ou écran n'est implémenté dans DU-0.
 La migration `auth_version` sera réversible et livrée avec contrats partagés,
 OpenAPI, clients, fixtures et mocks des deux Blocs dans le même lot.
+
+## Amendement A2 (accepté — serveur DEC-0121 `d03f88a5-f68a-4244-b1bb-8d9b84e2df7e`, tâche 3d774b1e)
+
+- `GET /api/v1/auth/me` (additif) renvoie `user_id`, `display_name`, `email`,
+  `role`, `machine_id` du principal ; hors contrôle projet. Il remplace la
+  lecture des claims `email`/`role` côté client (`decodeJwtRole`, sur lequel
+  s'appuyait DEC-0098) : AMEND DEC-0098 sur ce point.
+- `TokenResponse.expires_in` (secondes, additif).
+- `email_verified_at` et `disabled_at` sont introduits dès A2 ; backfill
+  `email_verified_at = created_at` pour les User existants, pose immédiate
+  à la création par `studio-admin`/`POST /users`.
+- `studio-admin user disable|enable|revoke-sessions` ; `enable` n'incrémente
+  pas `auth_version` (déjà fait par `disable`).
+- Une durée JWT configurée hors 1..15 minutes empêche le démarrage.
+- Contrats : TECH/02, TECH/04, TECH/05, TECH/07.

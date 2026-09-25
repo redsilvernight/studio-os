@@ -42,7 +42,7 @@ function startLiveServer() {
     if (req.method === "OPTIONS") return res.writeHead(204).end();
     res.setHeader("Content-Type", "application/json");
     if (req.url === "/healthz") return res.writeHead(200).end('{"status":"ok"}');
-    if (req.url?.startsWith("/api/v1/auth/token")) return res.writeHead(200).end('{"access_token":"e2e"}');
+    if (req.url?.startsWith("/api/v1/auth/token")) return res.writeHead(200).end('{"access_token":"e2e","token_type":"bearer","expires_in":900}');
     return res.writeHead(200).end("[]");
   });
   return new Promise((r) => server.listen(LIVE_PORT, "127.0.0.1", () => r(server)));

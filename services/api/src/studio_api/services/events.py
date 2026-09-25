@@ -218,17 +218,23 @@ def authorize_stream(principal: Principal, project_id: UUID) -> None:
     ensure_project_access(principal, project_id)
 
 
-async def stream_access_still_valid(machine_id: UUID, project_id: UUID) -> bool:
-    """Periodic revalidation of an open stream (DEC-0100 §9): the request's
-    session is closed for the connection's lifetime, so this reloads the
-    machine, its owner's role and memberships on a short-lived session of
-    its own. A revoked credential or a lost membership closes the stream."""
+async def stream_access_still_valid(
+    machine_id: UUID, project_id: UUID, jwt_auth_version: int | None = None
+) -> bool:
+    """Periodic revalidation of an open stream (DEC-0100 §9, DEC-0110): the
+    request's session is closed for the connection's lifetime, so this
+    reloads the machine, its owner's state, role and memberships on a
+    short-lived session of its own. A revoked credential, a disabled or
+    unverified owner, a revoked JWT session or a lost membership closes the
+    stream."""
     async with get_session_factory()() as session:
         machine = await session.get(MachineModel, machine_id)
         if machine is None or machine.credential_revoked_at is not None:
             return False
         user = await session.get(UserModel, machine.owner_user_id)
-        if user is None:
+        if user is None or not user.is_active:
+            return False
+        if jwt_auth_version is not None and user.auth_version != jwt_auth_version:
             return False
         scope = await load_project_scope(session, user.id, Role(user.role))
     return has_project_access(
