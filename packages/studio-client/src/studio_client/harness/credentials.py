@@ -16,11 +16,11 @@ import contextlib
 import json
 import socket
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 from uuid import UUID
 
 from studio_client.harness.fsafe import FsError, atomic_write
@@ -221,18 +221,18 @@ def _reason(error: BaseException) -> str:
     return "credential_unreachable"
 
 
-def _run[T](coro: object) -> T:
+def _run[T](coro: Coroutine[Any, Any, T]) -> T:
     """Run a coroutine from synchronous code, even when a loop is running on
     this thread (the bridge dispatch is synchronous)."""
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        return asyncio.run(coro)  # type: ignore[arg-type]
+        return asyncio.run(coro)
     result: dict[str, object] = {}
 
     def target() -> None:
         try:
-            result["value"] = asyncio.run(coro)  # type: ignore[arg-type]
+            result["value"] = asyncio.run(coro)
         except BaseException as error:  # noqa: BLE001
             result["error"] = error
 
