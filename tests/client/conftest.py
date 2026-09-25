@@ -29,7 +29,7 @@ from studio_client.tokens import MemoryTokenStore
 
 TEST_DATABASE_URL = os.environ.get(
     "STUDIO_TEST_DATABASE_URL",
-    "postgresql+asyncpg://studio:studio@localhost:5432/studio_os_test",
+    "postgresql+asyncpg://studio:studio@127.0.0.1:5432/studio_os_test",
 )
 
 
@@ -49,7 +49,7 @@ def _clean_client_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("STUDIO_CLIENT_CONFIG_FILE", str(tmp_path / "unused-config.toml"))
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def engine() -> AsyncIterator[AsyncEngine]:
     """Real Postgres per `.claude/rules/database.md`, same isolation
     strategy as `tests/api/conftest.py` and `tests/mcp/conftest.py`."""

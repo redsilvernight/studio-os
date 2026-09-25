@@ -1,13 +1,78 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import os
+import time
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, cast
+from urllib.parse import urlsplit, urlunsplit
 
+import asyncpg
+import bcrypt
 import pytest
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "contracts" / "fixtures"
+
+DEFAULT_TEST_DATABASE_URL = "postgresql+asyncpg://studio:studio@127.0.0.1:5432/studio_os_test"
+TEST_BCRYPT_ROUNDS = 4
+
+_real_gensalt = bcrypt.gensalt
+
+
+def _fast_gensalt(rounds: int = TEST_BCRYPT_ROUNDS, prefix: bytes = b"2b") -> bytes:
+    return _real_gensalt(rounds, prefix)
+
+
+bcrypt.gensalt = _fast_gensalt
+
+
+def _clone_database(url: str, name: str, template: str) -> None:
+    parts = urlsplit(url)
+
+    async def _run() -> None:
+        conn = await asyncpg.connect(
+            host=parts.hostname,
+            port=parts.port,
+            user=parts.username,
+            password=parts.password,
+            database="postgres",
+        )
+        try:
+            await conn.execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
+            for attempt in range(20):
+                try:
+                    await conn.execute(f'CREATE DATABASE "{name}" TEMPLATE "{template}"')
+                    return
+                except asyncpg.ObjectInUseError:
+                    if attempt == 19:
+                        raise
+                    time.sleep(0.25)
+        finally:
+            await conn.close()
+
+    asyncio.run(_run())
+
+
+def _resolve_test_database_url() -> str:
+    """`localhost` costs ~2 s per connection on Windows (IPv6 tried first), so
+    it is pinned to 127.0.0.1. Under pytest-xdist each worker gets its own
+    copy of the configured, migrated test database, cloned fresh at startup."""
+    configured = os.environ.get("STUDIO_TEST_DATABASE_URL")
+    parts = urlsplit(configured or DEFAULT_TEST_DATABASE_URL)
+    if parts.hostname == "localhost":
+        parts = parts._replace(netloc=parts.netloc.replace("@localhost", "@127.0.0.1"))
+    worker = os.environ.get("PYTEST_XDIST_WORKER")
+    if worker and configured:
+        template = parts.path.lstrip("/")
+        name = f"{template}_{worker}"
+        parts = parts._replace(path=f"/{name}")
+        _clone_database(urlunsplit(parts), name, template)
+    return urlunsplit(parts)
+
+
+os.environ["STUDIO_TEST_DATABASE_URL"] = _resolve_test_database_url()
 
 # Users whose name starts with this prefix never receive the automatic grants
 # below: they are the "outsider" of the project isolation tests (DEC-0100).

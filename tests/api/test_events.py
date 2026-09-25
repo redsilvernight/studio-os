@@ -29,7 +29,7 @@ from studio_api.services import provisioning as provisioning_service
 # `get_session_factory()`'s module-level engine cache can be populated by
 # either fixture in whichever order pytest instantiates them.
 os.environ["STUDIO_DATABASE_URL"] = os.environ.get(
-    "STUDIO_TEST_DATABASE_URL", "postgresql+asyncpg://studio:studio@localhost:5432/studio_os_test"
+    "STUDIO_TEST_DATABASE_URL", "postgresql+asyncpg://studio:studio@127.0.0.1:5432/studio_os_test"
 )
 
 
