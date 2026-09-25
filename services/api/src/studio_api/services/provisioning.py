@@ -153,13 +153,20 @@ async def set_user_password(session: AsyncSession, email: str, password: str) ->
     return user
 
 
+_DUMMY_PASSWORD_HASH = _hash_password("studio-os-dummy-password")
+"""Checked against when the email is unknown or has no password, so every
+login attempt pays one bcrypt verification (no user-enumeration by timing)."""
+
+
 async def verify_user_password(
     session: AsyncSession, email: str, password: str
 ) -> UserModel | None:
     user = await get_user_by_email(session, email)
-    if user is None or user.password_hash is None:
+    password_hash = user.password_hash if user is not None else None
+    if password_hash is None:
+        _verify_password(password, _DUMMY_PASSWORD_HASH)
         return None
-    if not _verify_password(password, user.password_hash):
+    if not _verify_password(password, password_hash):
         return None
     return user
 
