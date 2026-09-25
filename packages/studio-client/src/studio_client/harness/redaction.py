@@ -47,7 +47,7 @@ def redact(entry: Any) -> Any:
 
 
 def holds_secret(entry: Any) -> bool:
-    return redact(entry) != entry
+    return bool(redact(entry) != entry)
 
 
 def canonical(entry: Any) -> bytes:

@@ -645,12 +645,12 @@ class HarnessService:
             restored: list[str] = []
             try:
                 if user_action is not None:
-                    entry, original, needs_write = user_action
+                    entry, user_original, needs_write = user_action
                     if needs_write:
-                        if original is None:
+                        if user_original is None:
                             adapter.remove_user_entry(ctx)
                         else:
-                            adapter.write_user_entry(ctx, original)
+                            adapter.write_user_entry(ctx, user_original)
                     restored.append(entry.change_id)
                 for path, data, change_id, needs_write in file_actions:
                     if needs_write:
@@ -758,7 +758,7 @@ class HarnessService:
                 message=_VERIFY_MESSAGES.get(failure, "Studi'OS could not be reached over MCP."),
                 component=ComponentId.HARNESS,
                 retryable=True,
-                details=details,
+                details={key: value for key, value in details.items()},
             ),
             details=details,
         )
