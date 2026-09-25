@@ -82,9 +82,16 @@ export async function enableHarnessFeature(platform: Platform, workspaceId: stri
 /**
  * Asking for a preview is the user's request to connect this folder: a
  * folder whose harness integrations are still off gets them turned on once.
+ * `renew` plans a new dedicated credential for a tool already configured; the
+ * previous one is revoked once the new one is in place (DEC-0104 §2).
  */
-export async function previewHarness(platform: Platform, workspaceId: string, adapterId: string): Promise<HarnessOutcome<HarnessPlan>> {
-  const payload = { workspace_id: workspaceId, adapter_id: adapterId };
+export async function previewHarness(
+  platform: Platform,
+  workspaceId: string,
+  adapterId: string,
+  renew = false,
+): Promise<HarnessOutcome<HarnessPlan>> {
+  const payload = { workspace_id: workspaceId, adapter_id: adapterId, ...(renew ? { renew: true } : {}) };
   const first = await call<HarnessPlan>(platform, "harness.preview", payload);
   if (first.ok || first.error.code !== "feature_disabled") return first;
   const enabled = await enableHarnessFeature(platform, workspaceId);
@@ -123,11 +130,12 @@ export const VERIFY_MESSAGES: Record<VerifyState, string> = {
   unconfigured: "Le harnais n'est pas encore configuré pour Studi'OS.",
   configured: "Configuration en place ; la connexion n'a pas pu être vérifiée.",
   token_missing:
-    "Configuration en place, mais aucun jeton machine n'est fourni au harnais : ses appels au MCP Studi'OS seront refusés. " +
-    "Studi'OS Desktop ne transmet pas encore ce jeton automatiquement. En attendant, lancez le harnais depuis un terminal " +
-    "où la variable STUDIO_MCP_MACHINE_TOKEN contient le jeton de ce poste, puis vérifiez à nouveau.",
-  verified: "Connexion vérifiée : le harnais s'authentifie auprès du MCP Studi'OS.",
-  failed: "La connexion au MCP Studi'OS a échoué. Vérifiez que le serveur est joignable et que ce poste est toujours enrôlé, puis réessayez.",
+    "La configuration de l'outil dépend encore d'une variable d'environnement qu'il ne reçoit pas toujours : ses appels au MCP Studi'OS " +
+    "peuvent être refusés. Reconfigurez-le pour lui donner son propre identifiant Studi'OS, puis vérifiez à nouveau.",
+  verified: "Connexion vérifiée : l'outil s'authentifie auprès du MCP Studi'OS avec son propre identifiant.",
+  failed:
+    "La connexion au MCP Studi'OS a échoué. Vérifiez que le serveur est joignable ; si l'identifiant de l'outil a été révoqué, " +
+    "renouvelez-le, puis réessayez.",
 };
 
 export const STATE_LABELS: Record<HarnessState, string> = {
@@ -175,6 +183,24 @@ const REASONS: Record<string, string> = {
   syntax: "Le fichier de configuration n'est pas valide : rien n'est modifié.",
   workspace_unknown: "Dossier local inconnu de Studi'OS Desktop.",
   adapter_unknown: "Harnais inconnu.",
+  project_entry_conflict:
+    "Le fichier MCP du projet contient une entrée Studi'OS avec un identifiant en clair : retirez-la vous-même, Studi'OS ne la modifie pas.",
+  local_entry_conflict:
+    "Une entrée Studi'OS propre à ce projet existe dans la configuration de l'outil et masquerait la nouvelle : retirez-la (claude mcp remove studio-os --scope local), puis recommencez.",
+  unsupported_config_home: "L'emplacement de la configuration de l'outil n'est pas pris en charge : rien n'est modifié.",
+  unsupported_launcher: "Cet outil est installé d'une manière qui ne permet pas de le configurer sans risque.",
+  credential_forbidden: "Studi'OS a refusé de créer l'identifiant de l'outil : ce poste n'en a pas le droit.",
+  desktop_unauthenticated: "Ce poste n'est plus authentifié auprès de Studi'OS : reconnectez Studi'OS Desktop.",
+  credential_unreachable: "Le serveur Studi'OS est injoignable : aucun identifiant n'a été créé, rien n'est modifié.",
+  credential_server_error: "Le serveur Studi'OS n'a pas pu créer l'identifiant de l'outil : rien n'est modifié.",
+  cli_failed: "L'outil a refusé la configuration : l'identifiant créé a été révoqué, rien n'est modifié.",
+  cli_timeout: "L'outil n'a pas répondu à temps : l'identifiant créé a été révoqué, rien n'est modifié.",
+  cli_not_executable: "L'outil n'a pas pu être lancé : rien n'est modifié.",
+  cli_permission_denied: "Accès refusé au lancement de l'outil : rien n'est modifié.",
+  write_failed: "La configuration n'a pas pu être écrite : rien n'est modifié.",
+  ledger_unwritable: "Le registre local des identifiants n'a pas pu être mis à jour : rien n'est modifié.",
+  backup_corrupt: "La sauvegarde est illisible : elle ne peut pas être restaurée.",
+  workspace_inaccessible: "Le dossier de travail est inaccessible.",
 };
 
 /** A user-facing sentence for a refusal; never raw daemon text, paths or secrets. */
@@ -204,6 +230,27 @@ export const CHANGE_LABELS: Record<string, string> = { create: "Création", modi
 /** Fixed French wording per kind: the daemon's English summary is never displayed. */
 export const CHANGE_DETAILS: Record<string, string> = {
   create: "Le fichier est créé avec l'entrée MCP studio-os.",
-  modify: "L'entrée MCP studio-os est ajoutée ou remplacée ; les autres réglages sont conservés et l'ancien fichier est sauvegardé.",
-  delete: "Le fichier est supprimé ; l'ancien contenu est sauvegardé.",
+  modify: "L'ancienne entrée MCP studio-os du projet est retirée ; les autres réglages sont conservés et l'ancien fichier est sauvegardé.",
+  delete: "Le fichier ne contenait que l'ancienne entrée studio-os : il est supprimé ; l'ancien contenu est sauvegardé.",
 };
+
+/** A change to the tool's own configuration, in the user's home (DEC-0104 §2). */
+export const USER_CHANGE_DETAILS: Record<string, string> = {
+  create:
+    "L'entrée MCP studio-os est ajoutée à la configuration de l'outil, avec un identifiant Studi'OS créé pour lui seul ; cet identifiant n'est jamais affiché.",
+  modify:
+    "L'entrée MCP studio-os de l'outil est remplacée par une entrée portant un nouvel identifiant Studi'OS dédié ; l'ancien est révoqué. Vos autres réglages sont conservés.",
+  delete: "L'entrée MCP studio-os est retirée de la configuration de l'outil et son identifiant est révoqué.",
+};
+
+type ChangeLike = { kind: string; scope?: string | null; target: string };
+
+export function changeDetail(change: ChangeLike): string {
+  const details = change.scope === "user" ? USER_CHANGE_DETAILS : CHANGE_DETAILS;
+  return details[change.kind] ?? "";
+}
+
+/** User-scope targets are relative to the home directory. */
+export function changeTarget(change: ChangeLike): string {
+  return change.scope === "user" ? `~/${change.target}` : change.target;
+}

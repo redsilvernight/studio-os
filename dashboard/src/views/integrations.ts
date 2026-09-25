@@ -11,13 +11,14 @@
 import { getPlatform, type Platform } from "../platform";
 import { dsBadge, dsEmptyState, dsPageHeader } from "../ds/ds";
 import {
-  CHANGE_DETAILS,
   CHANGE_LABELS,
   STATE_LABELS,
   STATE_TONES,
   VERIFY_MESSAGES,
   VERIFY_TONES,
   applyHarness,
+  changeDetail,
+  changeTarget,
   detectHarnesses,
   harnessErrorMessage,
   latestRollbackId,
@@ -103,7 +104,7 @@ function planHtml(status: HarnessStatus, plan: HarnessPlan): string {
   const rows = changes
     .map(
       (change) =>
-        `<li data-change="${esc(change.kind)}"><strong>${esc(CHANGE_LABELS[change.kind] ?? change.kind)}</strong> · <code class="mono">${esc(change.target)}</code><br><span>${esc(CHANGE_DETAILS[change.kind] ?? "")}</span></li>`,
+        `<li data-change="${esc(change.kind)}"><strong>${esc(CHANGE_LABELS[change.kind] ?? change.kind)}</strong> · <code class="mono">${esc(changeTarget(change))}</code><br><span>${esc(changeDetail(change))}</span></li>`,
     )
     .join("");
   return (
@@ -129,7 +130,7 @@ function harnessHtml(status: HarnessStatus, view: IntegrationsView): string {
   const plan = view.plan && view.plan.adapter_id === status.adapter_id ? planHtml(status, view.plan) : "";
   const confirm = view.confirmRestore === status.adapter_id
     ? `<div class="integration-plan" data-testid="restore-confirm" role="alertdialog" aria-label="Confirmer la restauration">` +
-      `<p>Restaurer la configuration précédente de ${esc(status.display_name)} ? Si le fichier a été modifié depuis, la restauration sera refusée.</p>` +
+      `<p>Restaurer la configuration précédente de ${esc(status.display_name)} ? L'identifiant Studi'OS créé pour cet outil sera révoqué. Si un fichier a été modifié depuis, la restauration sera refusée.</p>` +
       `<button class="ds-btn ds-btn--danger" type="button" data-action="confirm-restore">Restaurer</button> ` +
       `<button class="ds-btn" type="button" data-action="cancel-restore">Annuler</button></div>`
     : "";
@@ -143,6 +144,7 @@ function harnessHtml(status: HarnessStatus, view: IntegrationsView): string {
       `<button class="ds-btn ds-btn--primary" type="button" data-action="preview">${configured ? "Reconfigurer" : "Configurer"}</button>` +
       (configured
         ? ` <button class="ds-btn" type="button" data-action="verify">Vérifier la connexion</button>` +
+          ` <button class="ds-btn" type="button" data-action="renew">Renouveler l'identifiant</button>` +
           ` <button class="ds-btn" type="button" data-action="restore">Restaurer</button>`
         : "") +
       `</div>`
@@ -170,7 +172,7 @@ export function integrationsHtml(harnesses: HarnessStatus[], view: IntegrationsV
   return (
     header() +
     `<section class="settings-domain" data-testid="integrations">` +
-    `<p class="settings-intro">Studi'OS ne gère ni modèle, ni abonnement, ni clé de fournisseur : seule la connexion du harnais au MCP Studi'OS est configurée. Le jeton Studi'OS n'est jamais écrit dans les fichiers, seulement référencé.</p>` +
+    `<p class="settings-intro">Studi'OS ne gère ni modèle, ni abonnement, ni clé de fournisseur : seule la connexion du harnais au MCP Studi'OS est configurée. Chaque outil reçoit son propre identifiant Studi'OS, rangé dans sa seule configuration utilisateur et jamais affiché ; les fichiers du projet n'en contiennent aucun.</p>` +
     notice +
     error +
     `<div class="integrations-list">${list}</div></section>`
@@ -206,6 +208,11 @@ function bind(root: HTMLElement, workspaceId: string, platform: Platform, shown:
     const adapterId = card.dataset["harness"] ?? "";
     card.querySelector("[data-action=preview]")?.addEventListener("click", () => {
       void previewHarness(platform, workspaceId, adapterId).then((outcome) =>
+        outcome.ok ? again({ plan: outcome.value }) : again({ error: harnessErrorMessage(outcome.error) }),
+      );
+    });
+    card.querySelector("[data-action=renew]")?.addEventListener("click", () => {
+      void previewHarness(platform, workspaceId, adapterId, true).then((outcome) =>
         outcome.ok ? again({ plan: outcome.value }) : again({ error: harnessErrorMessage(outcome.error) }),
       );
     });

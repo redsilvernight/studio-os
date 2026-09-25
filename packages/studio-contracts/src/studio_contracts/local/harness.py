@@ -94,14 +94,25 @@ class HarnessStatusRequest(LocalContractModel):
 PROTECTED_TARGET_SEGMENTS = frozenset({".git", ".ssh", ".gnupg", ".aws", ".kube"})
 
 
+class ChangeScope(StrEnum):
+    WORKSPACE = "workspace"
+    USER = "user"
+
+
 class HarnessChange(LocalContractModel):
     """One file-level change of a plan. Hashes and a short summary describe it;
     file content is deliberately absent so that a plan can be shown, logged and
-    diffed without ever exposing a credential a config file might hold."""
+    diffed without ever exposing a credential a config file might hold.
+
+    `target` is relative to the workspace, or to the user's home directory when
+    `scope` is `user` (the tool's own configuration, DEC-0104 §2). A user-scope
+    change describes one entry of that file and its hashes are computed on the
+    entry with every credential masked."""
 
     change_id: OpaqueId
     kind: ChangeKind
     target: RelativePath
+    scope: ChangeScope = ChangeScope.WORKSPACE
     summary: ShortText
     before_hash: Sha256Hex | None = None
     after_hash: Sha256Hex | None = None
@@ -121,8 +132,12 @@ class HarnessChange(LocalContractModel):
 
 
 class HarnessPreviewRequest(LocalContractModel):
+    """`renew` plans a new dedicated credential even when the tool is already
+    configured; the previous one is revoked once the new one is in place."""
+
     workspace_id: UUID
     adapter_id: Identifier
+    renew: bool = False
 
 
 class HarnessPlan(LocalContractModel):

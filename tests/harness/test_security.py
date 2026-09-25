@@ -29,6 +29,7 @@ from studio_contracts.local.workspace import WorkspaceScope
 
 from tests.harness.support import (
     CLAUDE_VERSION_LINE,
+    MCP_URL,
     WORKSPACE_ID,
     Rig,
     base_env,
@@ -102,9 +103,14 @@ def test_a_target_below_a_linked_directory_is_refused(rig: Rig, tmp_path: Path) 
     assert refused.value.reason == "symlink"
 
 
-def test_adapters_only_ever_target_their_fixed_files() -> None:
-    assert ClaudeCodeAdapter.candidate_files == (".mcp.json",)
-    assert OpenCodeAdapter.candidate_files == ("opencode.json", "opencode.jsonc")
+def test_adapters_only_ever_target_their_fixed_files(rig: Rig) -> None:
+    assert ClaudeCodeAdapter.project_files == (".mcp.json",)
+    assert OpenCodeAdapter.project_files == ("opencode.json", "opencode.jsonc")
+    assert ClaudeCodeAdapter().user_target(rig.context) == ".claude.json"
+    assert OpenCodeAdapter().user_target(rig.context) in {
+        ".config/opencode/opencode.json",
+        ".config/opencode/opencode.jsonc",
+    }
 
 
 # --- executables ------------------------------------------------------------
@@ -210,10 +216,11 @@ def test_hostile_files_fail_closed_and_are_never_modified(rig: Rig, content: byt
 
 def test_prototype_like_and_odd_keys_are_data_not_behaviour(rig: Rig) -> None:
     (rig.root / ".mcp.json").write_text(
-        '{"__proto__": {"polluted": true}, "constructor": 1, "mcpServers": {"a.b": {}}}'
+        '{"__proto__": {"polluted": true}, "constructor": 1, "mcpServers": {"a.b": {}, '
+        f'"studio-os": {{"type": "http", "url": "{MCP_URL}"}}}}}}'
     )
-    edits = ClaudeCodeAdapter().plan(rig.context)
-    after = edits[0].after.decode()
+    plan = ClaudeCodeAdapter(cli_runner=rig.cli).plan(rig.context)
+    after = plan.workspace_edits[0].after.decode()
     assert '"__proto__"' in after and '"a.b"' in after
 
 
@@ -268,9 +275,10 @@ def test_the_harness_package_never_names_or_reads_provider_credentials() -> None
     assert offenders == []
 
 
-def test_the_only_credential_named_is_a_reference_to_the_studio_token() -> None:
+def test_the_harness_never_reads_a_credential_from_the_environment() -> None:
+    """DEC-0104 §2: each tool gets its own credential, never an inherited one."""
     package = Path(fsafe.__file__).parent
     text = "\n".join(source.read_text(encoding="utf-8") for source in package.glob("*.py"))
-    assert "STUDIO_MCP_MACHINE_TOKEN" in text
+    assert "STUDIO_MCP_MACHINE_TOKEN" not in text
     assert "environ[" not in text
     assert "getenv" not in text.replace("system_env", "")

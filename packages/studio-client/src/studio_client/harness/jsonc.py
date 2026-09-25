@@ -350,6 +350,77 @@ def upsert(
     return text[: final.value.start] + rendered + text[final.value.end :]
 
 
+def _comma_after(text: str, position: int) -> int | None:
+    scan = _Parser(text, comments=True, trailing_commas=True)
+    scan.pos = position
+    scan.skip()
+    return scan.pos if scan.pos < len(text) and text[scan.pos] == "," else None
+
+
+def _line_bounds(text: str, start: int, end: int) -> tuple[int, int]:
+    """Widen [start, end) to whole lines when nothing else shares them."""
+    line_start = text.rfind("\n", 0, start) + 1
+    if text[line_start:start].strip(" \t") == "":
+        start = line_start
+    line_end = text.find("\n", end)
+    line_end = len(text) if line_end == -1 else line_end
+    rest = text[end:line_end].strip(" \t\r")
+    if rest == "" or (rest.startswith("//") and start == line_start):
+        end = min(len(text), line_end + 1)
+    return start, end
+
+
+def remove(
+    text: str,
+    path: Sequence[str],
+    *,
+    comments: bool = False,
+    trailing_commas: bool = False,
+) -> str:
+    """Remove the member at `path`, touching nothing else. Absent is a no-op."""
+    if not path:
+        raise ValueError("path must not be empty")
+    root = parse(text, comments=comments, trailing_commas=trailing_commas)
+    if root.kind != "object":
+        raise JsoncError("unexpected_shape", "the document root must be an object")
+    parent = lookup(root, path[:-1]) if len(path) > 1 else root
+    if parent is None:
+        return text
+    if parent.kind != "object":
+        raise JsoncError("unexpected_shape", "expected an object along the path")
+    index = next((i for i, m in enumerate(parent.members) if m.key == path[-1]), None)
+    if index is None:
+        return text
+    member = parent.members[index]
+    comma = _comma_after(text, member.end)
+    end = member.end if comma is None else comma + 1
+    start, end = _line_bounds(text, member.start, end)
+    result = text[:start] + text[end:]
+    if comma is None and index == len(parent.members) - 1 and index > 0:
+        previous = parent.members[index - 1]
+        previous_comma = _comma_after(result, previous.end)
+        if previous_comma is not None:
+            result = result[:previous_comma] + result[previous_comma + 1 :]
+    return result
+
+
+def verify_removal(
+    before: str,
+    after: str,
+    path: Sequence[str],
+    *,
+    comments: bool = False,
+    trailing_commas: bool = False,
+) -> None:
+    """Prove that `after` is `before` minus exactly the member at `path`."""
+    edited = parse(after, comments=comments, trailing_commas=trailing_commas)
+    if lookup(edited, path) is not None:
+        raise JsoncError("verify_failed", "the entry is still in the edited document")
+    original = to_python(parse(before, comments=comments, trailing_commas=trailing_commas))
+    if _without(to_python(edited), path) != _without(original, path):
+        raise JsoncError("verify_failed", "the edit changed content outside the removed entry")
+
+
 def _without(value: Any, path: Sequence[str]) -> Any:
     if not path:
         return None
