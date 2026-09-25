@@ -205,7 +205,9 @@ Acces projet — regles (DEC-0100 §7-12) :
   enregistrement, jamais par le proprietaire d'une machine.
 - **Creation de projet** : le createur (`principal.user`) recoit une
   membership dans la meme transaction (`POST /projects` et initialisation,
-  HTTP et MCP), `admin` compris.
+  HTTP et MCP), `admin` compris. Slugs projet non secrets (DEC-0101) :
+  un slug deja pris repond `409 conflict`, meme invisible de l'appelant
+  (oracle accepte, reserve aux roles de provisioning).
 - **Attribution** : `admin` uniquement (`/api/v1/projects/{id}/members`,
   `studio-admin project grant|revoke`) ; aucune auto-attribution.
 - **Primitives canoniques** (`studio_api.services.authz`) :

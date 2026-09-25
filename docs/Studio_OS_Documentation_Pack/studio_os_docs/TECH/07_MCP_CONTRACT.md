@@ -423,7 +423,10 @@ nouveau contrat neutre `studio.initialization/v1`.
   `ProjectInitializationPlan` : projet, roadmap **optionnelle**, tasks,
   ressources Library, bindings runtime. `apply` refuse avant toute ecriture si
   un probleme est bloquant ; resume `created/reused/skipped` identique au
-  preview ; replays idempotents.
+  preview ; replays idempotents. Slug deja pris (meme invisible de
+  l'appelant) -> `{error_code: "conflict", message, slug}` (slugs non
+  secrets, oracle accepte, DEC-0101) ; un `error_code` inconnu reste le
+  fallback generique `{error_code: "error"}`.
 Aucun de ces outils n'active, n'approuve, ne rejette ni n'archive une roadmap.
 HTTP reste la surface canonique (DEC-0046) : la route `POST .../proposals/{n}/review`
 n'a volontairement **aucun** équivalent MCP — le MCP est un sous-ensemble intentionnel,
