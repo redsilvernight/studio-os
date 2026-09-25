@@ -99,7 +99,8 @@ class JsonMcpAdapter(HarnessAdapter):
 
     def expected_entry(self, mcp_url: str) -> dict[str, Any]:
         """The redacted entry Studi'OS writes: credential masked."""
-        return redact(self.build_entry(mcp_url, _SAMPLE_TOKEN))
+        entry: dict[str, Any] = redact(self.build_entry(mcp_url, _SAMPLE_TOKEN))
+        return entry
 
     def _version(self, ctx: HarnessContext) -> tuple[str | None, Detection | None]:
         executable = locate_executable(
