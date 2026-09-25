@@ -52,9 +52,7 @@ async def ctx(machine: tuple[MachineModel, str]) -> AsyncIterator[FakeContext]:
     yield FakeContext(headers={"authorization": f"Bearer {token}"})
 
 
-async def _draft(
-    session: AsyncSession, machine: tuple[MachineModel, str], project: ProjectModel
-):
+async def _draft(session: AsyncSession, machine: tuple[MachineModel, str], project: ProjectModel):
     machine_model, _ = machine
     principal = await load_principal(session, machine_model)
     return await roadmaps_service.import_roadmap(
@@ -79,9 +77,7 @@ async def test_transition_success_submit_then_approve(
     assert replay["id"] == submitted["id"]
     assert replay["status"] == "proposed"
 
-    approved = await studio_transition_roadmap(
-        str(draft.id), "approve", submitted["version"], ctx
-    )
+    approved = await studio_transition_roadmap(str(draft.id), "approve", submitted["version"], ctx)
     assert approved["status"] == "active"
     assert approved["version"] == submitted["version"] + 1
 
@@ -135,9 +131,7 @@ async def test_second_activation_conflicts_with_active_roadmap(
     )
     assert submitted.status.value == "proposed"
 
-    result = await studio_transition_roadmap(
-        str(second.id), "approve", submitted.version, ctx
-    )
+    result = await studio_transition_roadmap(str(second.id), "approve", submitted.version, ctx)
     assert result["error_code"] == "active_roadmap_exists"
 
 
