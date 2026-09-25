@@ -168,10 +168,12 @@ describe("timelineHtml nominal", () => {
     expect(html).toContain("<time");
   });
 
-  it("aucune fuite JSON technique : ni payload, ni event_id, ni UUID complet", () => {
+  it("aucune fuite JSON technique : ni payload, ni event_id, UUID complet seulement en infobulle", () => {
+    const visible = html.replace(/\stitle="[^"]*"/g, "");
     expect(html).not.toContain("payload");
     expect(html).not.toContain("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
-    expect(html).not.toContain("11111111-2222-4333-8444-555555555555");
+    expect(visible).not.toContain("11111111-2222-4333-8444-555555555555");
+    expect(html).toContain('title="11111111-2222-4333-8444-555555555555"');
     expect(html).not.toMatch(/[{}]\s*"/);
     expect(html).not.toMatch(/\sstyle\s*=/i);
     expect(html).not.toMatch(/\son[a-z]+\s*=/i);

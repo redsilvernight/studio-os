@@ -25,6 +25,7 @@ import type {
   RoadmapStatus,
   RoadmapStep,
 } from "../roadmapTypes";
+import { agentRef } from "../actorNames";
 import { describeError, esc, fmtTime, shortId } from "../ui";
 
 export type RoadmapMode = "plan" | "execution";
@@ -225,7 +226,7 @@ function diffHtml(diff: RoadmapDiff): string {
 export function revisionProposalHtml(proposal: RoadmapPendingProposal, roadmap: Roadmap): string {
   const { revision, diff } = proposal;
   const author = revision.provenance.actor_type === "agent"
-    ? `Agent ${esc(shortId(revision.provenance.agent_id ?? revision.provenance.actor_id))}`
+    ? `Agent ${agentRef(revision.provenance.agent_id ?? revision.provenance.actor_id)}`
     : `Utilisateur ${esc(shortId(revision.provenance.actor_id))}`;
   const base = revision.base_revision_no ?? "—";
   return `<section class="roadmap-proposal-review" aria-labelledby="roadmap-proposal-review-title">` +
