@@ -105,6 +105,24 @@ export interface StreamOptions {
   signal?: AbortSignal;
 }
 
+/** Non-OK HTTP answer to the stream request; `status` stays typed so the
+ *  live loop can tell a final refusal (401/403) from a transient failure. */
+export class StreamHttpError extends Error {
+  readonly status: number;
+
+  constructor(status: number) {
+    super(`stream HTTP ${status}`);
+    this.name = "StreamHttpError";
+    this.status = status;
+  }
+
+  /** 401 (session) or 403 (no access to this project — project isolation): retrying
+   *  with the same token can never succeed. */
+  get isFinal(): boolean {
+    return this.status === 401 || this.status === 403;
+  }
+}
+
 /** Build the stream URL. `project` is required by the backend. */
 export function streamUrl(baseUrl: string, projectId: string, sinceSeq?: number | null): string {
   const normalized = baseUrl === "" ? "" : baseUrl.replace(/\/+$/, "");
@@ -162,7 +180,7 @@ export async function connectEventStream(
   try {
     const response = await observedFetch(url, { headers, signal: controller.signal });
     if (!response.ok || response.body === null) {
-      throw new Error(`stream HTTP ${response.status}`);
+      throw new StreamHttpError(response.status);
     }
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -204,6 +222,9 @@ export async function connectEventStream(
  */
 export interface LiveStreamCallbacks {
   onMessage: (message: SseMessage) => void;
+  /** The server refused the stream for good (401/403): the loop stops
+   *  instead of retrying forever. A new token or project opens a new loop. */
+  onDenied?: (status: number) => void;
 }
 
 export interface LiveStreamOptions {
@@ -260,6 +281,7 @@ export function openLiveProjectStream(
       currentAbort = abort;
       armWatchdog();
       let errored = false;
+      let deniedStatus: number | null = null;
       const inner = await connectEventStream(
         baseUrl,
         token,
@@ -269,8 +291,9 @@ export function openLiveProjectStream(
             if (message.seq !== null) lastSeq = message.seq;
             callbacks.onMessage(message);
           },
-          onError: () => {
+          onError: (error) => {
             errored = true;
+            if (error instanceof StreamHttpError && error.isFinal) deniedStatus = error.status;
           },
           onClose: () => {
             /* the loop below decides whether/when to reconnect */
@@ -285,6 +308,11 @@ export function openLiveProjectStream(
       clearWatchdog();
       if (inner.lastSeq !== null) lastSeq = inner.lastSeq;
       if (stopped) break;
+      if (deniedStatus !== null) {
+        stopped = true;
+        callbacks.onDenied?.(deniedStatus);
+        break;
+      }
 
       attempt = errored ? attempt + 1 : 0;
       const delay = Math.min(backoffMaxMs, backoffInitialMs * 2 ** attempt);

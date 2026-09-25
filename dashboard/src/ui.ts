@@ -98,7 +98,11 @@ const STATUS_MESSAGES: Record<number, string> = {
   429: "Trop de demandes. Patientez un instant, puis réessayez.",
 };
 
+const PROJECT_ACCESS_DENIED_MESSAGE =
+  "Vous n'avez pas accès à ce projet, ou il n'existe pas. Demandez l'accès à un administrateur.";
+
 function humanMessage(error: ApiError): string {
+  if (error.isProjectAccessDenied) return PROJECT_ACCESS_DENIED_MESSAGE;
   if (error.errorCode !== null && CODE_MESSAGES[error.errorCode] !== undefined) return CODE_MESSAGES[error.errorCode] ?? "";
   if (STATUS_MESSAGES[error.status] !== undefined) return STATUS_MESSAGES[error.status] ?? "";
   if (error.status >= 500) return "Le serveur a rencontré une erreur. Réessayez dans un instant.";

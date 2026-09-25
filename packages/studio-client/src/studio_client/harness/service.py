@@ -550,55 +550,16 @@ class HarnessService:
                                 f"{tool_response.text[:200]}"
                             )
 
-                        # Parse event stream response - check for actual success
-                        # The MCP server may return 200 with an error in the content.
-                        success = False
-                        error_msg = None
-                        for line in tool_response.text.splitlines():
-                            if line.startswith("data: "):
-                                try:
-                                    data = json.loads(line[6:])
-                                except json.JSONDecodeError:
-                                    continue
-                                if not isinstance(data, dict):
-                                    continue
-                                err = data.get("error")
-                                if isinstance(err, dict) and err:
-                                    return False, (
-                                        f"MCP error: {err.get('message', 'unknown')} "
-                                        f"(code: {err.get('code', 'unknown')})"
-                                    )
-                                result = data.get("result")
-                                if not isinstance(result, dict):
-                                    continue
-                                if result.get("isError") is True:
-                                    content = result.get("content")
-                                    first_content = (
-                                        content[0]
-                                        if isinstance(content, list) and content
-                                        else None
-                                    )
-                                    error_msg = (
-                                        first_content.get("text", "Unknown error")
-                                        if isinstance(first_content, dict)
-                                        else "Unknown error"
-                                    )
-                                    break
-                                structured = result.get("structuredContent", {})
-                                if isinstance(structured, dict) and "error_code" in structured:
-                                    error_msg = structured.get(
-                                        "message", structured.get("error_code", "Unknown error")
-                                    )
-                                    break
-                                success = True
-                        if error_msg:
-                            return False, f"Tool returned error: {error_msg}"
-                        if success:
-                            return True, None
-                        return False, f"Tool call returned no result: {tool_response.text[:200]}"
+                        success, error_msg, project_count = parse_projects_tool_response(
+                            tool_response.text
+                        )
+                        if project_count is not None:
+                            observed["project_count"] = project_count
+                        return success, error_msg
                 except Exception as e:
                     return False, str(e)
 
+            observed: dict[str, int] = {}
             success, error_msg = asyncio.run(test_mcp_call())
             if success:
                 return HarnessVerifyResult(
@@ -606,7 +567,7 @@ class HarnessService:
                     state=VerifyState.VERIFIED,
                     mcp_url=info.mcp_url,
                     error=None,
-                    details={"method": "studio_get_projects"},
+                    details=verified_details(observed.get("project_count")),
                 )
             else:
                 return HarnessVerifyResult(
@@ -655,6 +616,78 @@ class HarnessService:
                 "rollback_unknown",
             )
         return record
+
+
+def _projects_in(structured: Mapping[str, object]) -> int | None:
+    projects = structured.get("projects")
+    nested = structured.get("result")
+    if projects is None and isinstance(nested, dict):
+        projects = nested.get("projects")
+    return len(projects) if isinstance(projects, list) else None
+
+
+def parse_projects_tool_response(text: str) -> tuple[bool, str | None, int | None]:
+    """Read the event-stream answer to `studio_get_projects`: (success, error,
+    number of projects the account can see, when the result says so). The
+    MCP server may answer 200 with an error in the content. An empty list is
+    a success: the transport and auth work, the account just has no project
+    access yet (project isolation) — reported separately, never an error."""
+    success = False
+    error_msg: str | None = None
+    project_count: int | None = None
+    for line in text.splitlines():
+        if not line.startswith("data: "):
+            continue
+        try:
+            data = json.loads(line[6:])
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(data, dict):
+            continue
+        err = data.get("error")
+        if isinstance(err, dict) and err:
+            return (
+                False,
+                f"MCP error: {err.get('message', 'unknown')} (code: {err.get('code', 'unknown')})",
+                None,
+            )
+        result = data.get("result")
+        if not isinstance(result, dict):
+            continue
+        if result.get("isError") is True:
+            content = result.get("content")
+            first_content = content[0] if isinstance(content, list) and content else None
+            error_msg = (
+                first_content.get("text", "Unknown error")
+                if isinstance(first_content, dict)
+                else "Unknown error"
+            )
+            break
+        structured = result.get("structuredContent", {})
+        if isinstance(structured, dict) and "error_code" in structured:
+            error_msg = structured.get("message", structured.get("error_code", "Unknown error"))
+            break
+        if isinstance(structured, dict):
+            project_count = _projects_in(structured)
+        success = True
+    if error_msg:
+        return False, f"Tool returned error: {error_msg}", None
+    if success:
+        return True, None, project_count
+    return False, f"Tool call returned no result: {text[:200]}", None
+
+
+def verified_details(project_count: int | None) -> dict[str, str]:
+    details = {"method": "studio_get_projects"}
+    if project_count is not None:
+        details["project_count"] = str(project_count)
+        if project_count == 0:
+            details["project_access"] = "none"
+            details["hint"] = (
+                "Connected, but this account has access to no project yet: "
+                "ask an administrator to grant project access."
+            )
+    return details
 
 
 def latest_rollback_id(workspace_id: UUID, adapter_id: str) -> str:
