@@ -2,8 +2,8 @@ name: Desktop validation
 
 on:
   push:
-    # No PR is needed to validate the Desktop: master and fix/** pushes run it too.
-    branches: [master, "fix/**"]
+    # No PR is needed to validate the Desktop: stable, dev and fix/** pushes run it too.
+    branches: [master, dev, "fix/**"]
     paths:
       - "desktop/**"
       - "dashboard/**"
