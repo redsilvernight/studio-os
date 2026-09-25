@@ -601,7 +601,7 @@ async def test_outsider_matrix(
     monkeypatch.setattr(
         RateLimitMiddleware,
         "_dispatch_with_bucket",
-        lambda _self, request, call_next, *_args, **_kwargs: call_next(request),
+        lambda _self, call_next, request, *_args, **_kwargs: call_next(request),
     )
     world = await _build_world(
         db_session, client, auth_headers, admin_auth_headers, other_auth_headers, other_machine[0]

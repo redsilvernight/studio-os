@@ -16,6 +16,16 @@ import pytest
 # The API refuses a weak JWT secret in production (the default environment);
 # set before any test imports studio_api.main, which builds the app on import.
 os.environ.setdefault("STUDIO_ENVIRONMENT", "test")
+# Every test hits the shared app from the same peer IP, so the default
+# per-process buckets would drain across tests; rate-limit tests build their
+# own Settings with explicit limits.
+for _limit in (
+    "STUDIO_RATE_LIMIT_REQUESTS_PER_MINUTE",
+    "STUDIO_RATE_LIMIT_BURST",
+    "STUDIO_AUTH_RATE_LIMIT_REQUESTS_PER_MINUTE",
+    "STUDIO_AUTH_RATE_LIMIT_BURST",
+):
+    os.environ.setdefault(_limit, "1000000")
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "contracts" / "fixtures"
 
