@@ -69,6 +69,13 @@ describe("P1 contract boundary (no second source of truth)", () => {
     }
   });
 
+  it("enforces minProperties and maxProperties on objects", () => {
+    const schema = { type: "object", minProperties: 1, maxProperties: 2 };
+    expect(validateSchema(schema, { a: 1 })).toEqual([]);
+    expect(validateSchema(schema, {})).not.toEqual([]);
+    expect(validateSchema(schema, { a: 1, b: 2, c: 3 })).not.toEqual([]);
+  });
+
   it("exposes no dangerous primitive in the command table", () => {
     const banned = ["execute_shell", "spawn_process", "read_file", "write_file", "proxy_http", "execute", "run_command"];
     for (const name of banned) expect(knownCommands()).not.toContain(name);

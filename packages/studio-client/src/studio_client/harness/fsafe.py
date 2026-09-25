@@ -98,9 +98,10 @@ def encode_text(text: str, *, bom: bool) -> bytes:
     return _UTF8_BOM + data if bom else data
 
 
-def read_document(path: Path) -> Document | None:
+def read_document(path: Path, *, max_bytes: int = MAX_CONFIG_BYTES) -> Document | None:
     """None when the file does not exist. Raises FsError for anything that is
-    not a small regular UTF-8 file."""
+    not a small regular UTF-8 file. `max_bytes` widens the bound only for a
+    file the editor reads but never rewrites itself."""
     try:
         info = os.lstat(path)
     except FileNotFoundError:
@@ -111,16 +112,16 @@ def read_document(path: Path) -> Document | None:
         raise FsError("symlink", "the file is a symbolic link")
     if not stat.S_ISREG(info.st_mode):
         raise FsError("not_regular", "the target is not a regular file")
-    if info.st_size > MAX_CONFIG_BYTES:
+    if info.st_size > max_bytes:
         raise FsError("too_large", "the file exceeds the size the editor accepts")
     try:
         with open(path, "rb") as handle:
-            raw = handle.read(MAX_CONFIG_BYTES + 1)
+            raw = handle.read(max_bytes + 1)
     except PermissionError as error:
         raise FsError("permission_denied", "the file cannot be read") from error
     except OSError as error:
         raise FsError("io_error", "the file could not be read") from error
-    if len(raw) > MAX_CONFIG_BYTES:
+    if len(raw) > max_bytes:
         raise FsError("too_large", "the file exceeds the size the editor accepts")
     bom = raw.startswith(_UTF8_BOM)
     try:

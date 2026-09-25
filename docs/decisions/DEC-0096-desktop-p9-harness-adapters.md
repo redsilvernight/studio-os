@@ -42,7 +42,9 @@ adaptateur et sans toucher à ce que Studi'OS ne gère pas.
 - Studi'OS ne gère ni modèle, ni abonnement, ni clé de fournisseur : aucun code
   P9 ne nomme, lit, demande ni ne stocke de tel identifiant. Le jeton Studi'OS
   n'est jamais copié : seule une référence à `STUDIO_MCP_MACHINE_TOKEN` est
-  écrite.
+  écrite. **Amendé par DEC-0104 §2** : scope utilisateur de l'outil et
+  identifiant dédié par couple poste + outil, au lieu du scope projet et de la
+  référence.
 - Fail-closed : version inconnue ou trop récente (Claude Code ≠ majeure 2,
   OpenCode ≠ majeure 1), fichier invalide ou sans édition sûre → aucune écriture.
 - Écriture : aperçu sans effet → sauvegarde locale bornée (10 par dossier et

@@ -94,14 +94,25 @@ class HarnessStatusRequest(LocalContractModel):
 PROTECTED_TARGET_SEGMENTS = frozenset({".git", ".ssh", ".gnupg", ".aws", ".kube"})
 
 
+class ChangeScope(StrEnum):
+    WORKSPACE = "workspace"
+    USER = "user"
+
+
 class HarnessChange(LocalContractModel):
     """One file-level change of a plan. Hashes and a short summary describe it;
     file content is deliberately absent so that a plan can be shown, logged and
-    diffed without ever exposing a credential a config file might hold."""
+    diffed without ever exposing a credential a config file might hold.
+
+    `target` is relative to the workspace, or to the user's home directory when
+    `scope` is `user` (the tool's own configuration, DEC-0104 §2). A user-scope
+    change describes one entry of that file and its hashes are computed on the
+    entry with every credential masked."""
 
     change_id: OpaqueId
     kind: ChangeKind
     target: RelativePath
+    scope: ChangeScope = ChangeScope.WORKSPACE
     summary: ShortText
     before_hash: Sha256Hex | None = None
     after_hash: Sha256Hex | None = None
@@ -121,8 +132,12 @@ class HarnessChange(LocalContractModel):
 
 
 class HarnessPreviewRequest(LocalContractModel):
+    """`renew` plans a new dedicated credential even when the tool is already
+    configured; the previous one is revoked once the new one is in place."""
+
     workspace_id: UUID
     adapter_id: Identifier
+    renew: bool = False
 
 
 class HarnessPlan(LocalContractModel):
@@ -189,14 +204,17 @@ class HarnessRollbackResult(LocalContractModel):
 class VerifyState(StrEnum):
     UNCONFIGURED = "unconfigured"
     CONFIGURED = "configured"
+    TOKEN_MISSING = "token_missing"
     VERIFIED = "verified"
     FAILED = "failed"
 
 
 class HarnessVerifyRequest(LocalContractModel):
     """Ask the harness to prove it can reach Studi'OS via MCP. CONFIGURED
-    means the config file is in place; VERIFIED means a real MCP call
-    succeeded end-to-end (auth + at least one tool call)."""
+    means the config file is in place; TOKEN_MISSING means the config is in
+    place but no machine token is available to the harness, so its MCP calls
+    cannot authenticate; VERIFIED means a real MCP call succeeded end-to-end
+    (auth + at least one tool call)."""
 
     workspace_id: UUID
     adapter_id: Identifier
@@ -216,7 +234,11 @@ class HarnessVerifyResult(LocalContractModel):
                 raise ValueError("verified state carries no error")
             if self.mcp_url is None:
                 raise ValueError("verified state requires mcp_url")
-        if self.state in (VerifyState.UNCONFIGURED, VerifyState.CONFIGURED):
+        if self.state in (
+            VerifyState.UNCONFIGURED,
+            VerifyState.CONFIGURED,
+            VerifyState.TOKEN_MISSING,
+        ):
             if self.error is not None:
                 raise ValueError(f"state {self.state.value} carries no error")
         if self.state is VerifyState.FAILED:
