@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime, timedelta
 
 from httpx import AsyncClient
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.task import TaskModel
 from studio_api.db.models.user import UserModel
 from studio_api.security import generate_machine_token, hash_token
 
@@ -207,3 +210,36 @@ async def test_rejected_claim_emits_no_event(
         "task.created",
         "task.started",
     ]
+
+
+async def test_list_tasks_most_recently_updated_first(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    project: ProjectModel,
+    db_session: AsyncSession,
+) -> None:
+    """A task touched last (e.g. just claimed) must lead the first page, not
+    drift past it in Postgres physical order."""
+    ids = []
+    for title in ("old", "claimed", "middle"):
+        created = await client.post(
+            "/api/v1/tasks",
+            headers=auth_headers,
+            json={"project_id": str(project.id), "title": title},
+        )
+        ids.append(uuid.UUID(created.json()["id"]))
+    base = datetime(2026, 1, 1, tzinfo=UTC)
+    for offset_min, task_id in zip((0, 20, 10), ids, strict=True):
+        await db_session.execute(
+            update(TaskModel)
+            .where(TaskModel.id == task_id)
+            .values(updated_at=base + timedelta(minutes=offset_min))
+        )
+    await db_session.flush()
+
+    params = {"project_id": str(project.id)}
+    listing = await client.get("/api/v1/tasks", headers=auth_headers, params=params)
+    assert [t["title"] for t in listing.json()] == ["claimed", "middle", "old"]
+
+    first = await client.get("/api/v1/tasks", headers=auth_headers, params={**params, "limit": 1})
+    assert [t["title"] for t in first.json()] == ["claimed"]

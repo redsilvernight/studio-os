@@ -25,7 +25,15 @@ _STATUS_EVENT_TYPES: dict[str, EventType] = {
 async def list_tasks(
     session: AsyncSession, project_id: uuid.UUID | None = None, limit: int = 100, offset: int = 0
 ) -> list[TaskModel]:
-    stmt = select(TaskModel).limit(limit).offset(offset)
+    # Without ORDER BY, Postgres returns physical order: rows rewritten by an
+    # update (claims → in_progress) drift past the first page, and offset
+    # paging skips or repeats rows. Most recently touched first, id tie-break.
+    stmt = (
+        select(TaskModel)
+        .order_by(TaskModel.updated_at.desc(), TaskModel.id)
+        .limit(limit)
+        .offset(offset)
+    )
     if project_id is not None:
         stmt = stmt.where(TaskModel.project_id == project_id)
     result = await session.execute(stmt)
