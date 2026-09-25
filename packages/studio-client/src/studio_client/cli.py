@@ -816,6 +816,76 @@ def _rules_sync(args: argparse.Namespace, config: ClientConfig | None) -> None:
             print(f"Wrote {path}.")
 
 
+def _skills_command(args: argparse.Namespace, config: ClientConfig) -> None:
+    """Inspect or synchronize active Studio Library skills for local harnesses."""
+    from studio_client.skill_sync import (
+        SkillSyncError,
+        apply_skill_sync,
+        diff_skill_plan,
+        fetch_skill_projections,
+        plan_skill_sync,
+    )
+
+    async def action(client: StudioApiClient) -> Any:
+        return await fetch_skill_projections(client, None, limit=args.library_limit)
+
+    try:
+        projections = _run(config, action)
+        plan = plan_skill_sync(Path(args.home), projections)
+        if args.skills_command == "diff":
+            print(diff_skill_plan(plan), end="")
+            return
+        if args.skills_command == "sync":
+            result = apply_skill_sync(plan, overwrite=args.overwrite)
+            payload = {
+                "skills": len(plan.entries),
+                "written": [str(path) for path in result.written],
+                "backups": [str(path) for path in result.backups],
+                "manifest": str(result.manifest_path),
+            }
+            if args.json:
+                print(json.dumps(payload, indent=2))
+            else:
+                print(
+                    f"synchronized {payload['skills']} skills; "
+                    f"wrote {len(result.written)} files; "
+                    f"created {len(result.backups)} backups"
+                )
+                print(f"manifest: {result.manifest_path}")
+            return
+
+        rows: list[dict[str, Any]] = [
+            {
+                "stable_key": entry.projection.stable_key,
+                "version": entry.projection.version,
+                "targets": [
+                    {
+                        "harness": target.harness,
+                        "path": str(target.path),
+                        "state": target.state,
+                    }
+                    for target in entry.targets
+                ],
+            }
+            for entry in plan.entries
+        ]
+        failures = len(plan.missing) + len(plan.drifted)
+        if args.json:
+            print(json.dumps({"skills": rows, "failures": failures}, indent=2))
+        else:
+            for row in rows:
+                states = ", ".join(
+                    f"{target['harness']}={target['state']}" for target in row["targets"]
+                )
+                print(f"{row['stable_key']} v{row['version']}: {states}")
+            print(f"checked {len(rows)} skills, failures {failures}")
+        if failures:
+            raise SystemExit(1)
+    except SkillSyncError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="studio-client")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -1143,6 +1213,29 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     _add_json_flag(rules_sync)
     rules_sync.set_defaults(func=_rules_sync)
+
+    skills_parser = subparsers.add_parser(
+        "skills", help="Synchronize active Studio Library skills to local AI harnesses."
+    )
+    skills_sub = skills_parser.add_subparsers(dest="skills_command", required=True)
+    for command, help_text in (
+        ("check", "Report missing or drifted local skill projections."),
+        ("diff", "Show the changes needed to synchronize local skills."),
+        ("sync", "Write local skill projections and their manifest."),
+    ):
+        skills_command = skills_sub.add_parser(command, help=help_text)
+        skills_command.add_argument(
+            "--home", default=str(Path.home()), help="User home receiving .agents and .claude."
+        )
+        skills_command.add_argument("--library-limit", type=int, default=100)
+        if command == "sync":
+            skills_command.add_argument(
+                "--overwrite",
+                action="store_true",
+                help="Back up and replace drifted skill files.",
+            )
+        _add_json_flag(skills_command)
+        skills_command.set_defaults(func=_skills_command)
 
     return parser
 
