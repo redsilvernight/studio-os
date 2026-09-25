@@ -24,7 +24,12 @@ function project(id: string) {
   };
 }
 
-async function openRoadmap(page: Page, projectId: string): Promise<void> {
+interface OpenOptions {
+  /** transition -> error_code answered with 409 by the stubbed transitions endpoint. */
+  transitionFailure?: Record<string, string>;
+}
+
+async function openRoadmap(page: Page, projectId: string, options: OpenOptions = {}): Promise<void> {
   await login(page, "#/projects", newCaptured());
   await page.route(new RegExp(`/api/v1/projects/${projectId}/state$`), (route) =>
     route.fulfill({
@@ -160,6 +165,11 @@ async function openRoadmap(page: Page, projectId: string): Promise<void> {
     const body = (route.request().postDataJSON() ?? {}) as { transition?: string };
     const entry = [...served.entries()].find(([, roadmap]) => roadmap.id === roadmapId);
     const current = entry?.[1];
+    const failure = options.transitionFailure?.[body.transition ?? ""];
+    if (failure !== undefined) {
+      await route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ detail: { error_code: failure } }) });
+      return;
+    }
     const transitioned: ApiRoadmap = {
       ...makeRoadmap(projectId, roadmapId, "draft", { title: typeof current?.title === "string" ? current.title : "Plan" }),
       status: body.transition === "approve" ? "active" : body.transition === "reject" ? "archived" : "draft",
@@ -247,6 +257,13 @@ test.describe("Roadmap workspace", () => {
     await page.getByRole("button", { name: "Approuver" }).click();
     await expect(page.locator("span.ds-badge", { hasText: "Active" })).toBeVisible();
     await expect(page.getByText("Décision enregistrée.")).toBeVisible();
+  });
+
+  test("approbation bloquée par une autre roadmap active : erreur visible, statut inchangé", async ({ page }) => {
+    await openRoadmap(page, roadmapFixtureProjectIds.proposed, { transitionFailure: { approve: "active_roadmap_exists" } });
+    await page.getByRole("button", { name: "Approuver" }).click();
+    await expect(page.locator("[data-review-error] [role=alert]")).toContainText("déjà active");
+    await expect(page.locator("span.ds-badge", { hasText: "À examiner" })).toBeVisible();
   });
 
   test("proposition de révision IA : diff, commentaire obligatoire, décision", async ({ page }) => {

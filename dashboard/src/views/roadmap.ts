@@ -26,6 +26,7 @@ import type {
   RoadmapStep,
 } from "../roadmapTypes";
 import { agentRef } from "../actorNames";
+import { ApiError } from "../api";
 import { describeError, esc, fmtTime, shortId } from "../ui";
 
 export type RoadmapMode = "plan" | "execution";
@@ -173,7 +174,7 @@ export function roadmapStepDetailHtml(step: RoadmapStep | null, roadmap: Roadmap
     `</dl></details></aside>`;
 }
 
-function proposalHtml(roadmap: Roadmap): string {
+function proposalHtml(roadmap: Roadmap, reviewErrorHtml: string | null = null): string {
   if (roadmap.status !== "proposed") return "";
   const steps = allSteps(roadmap);
   const taskCount = steps.reduce((total, step) => total + (step.tasks?.length ?? 0), 0);
@@ -182,6 +183,7 @@ function proposalHtml(roadmap: Roadmap): string {
     `<div><p class="roadmap-eyebrow">Proposition à examiner</p><h2 id="roadmap-proposal-title">${esc(roadmap.title)}</h2><p>${esc(roadmap.objective?.trim() || "Aucun objectif résumé.")}</p></div>` +
     `<dl class="roadmap-proposal-summary"><div><dt>Phases</dt><dd>${roadmap.phases?.length ?? 0}</dd></div><div><dt>Étapes</dt><dd>${steps.length}</dd></div><div><dt>Tâches prévues</dt><dd>${taskCount}</dd></div><div><dt>Dépendances</dt><dd>${dependencyCount}</dd></div></dl>` +
     `<div class="roadmap-proposal-change"><strong>Modifications proposées</strong><p>Créer ce plan et ses liens de dépendance. Les tâches restent des unités de travail séparées.</p></div>` +
+    `<div data-review-error>${reviewErrorHtml ?? ""}</div>` +
     `<div class="roadmap-actions"><button class="ds-btn ds-btn--primary" type="button" data-review="approve">Approuver</button>` +
     `<button class="ds-btn" type="button" data-review="request_changes">Demander des changements</button>` +
     `<button class="ds-btn ds-btn--danger" type="button" data-review="reject">Rejeter</button></div></section>`;
@@ -293,6 +295,7 @@ export function roadmapShellHtml(
   demo = false,
   proposal: RoadmapPendingProposal | null = null,
   roadmaps: RoadmapListItem[] = [],
+  reviewErrorHtml: string | null = null,
 ): string {
   const progress = percent(roadmap.progress?.ratio);
   const plan = mode === "plan" ? roadmapPlanHtml(roadmap, selectedKey) : roadmapExecutionHtml(roadmap, selectedKey);
@@ -303,7 +306,7 @@ export function roadmapShellHtml(
   return `<div class="roadmap-view">${roadmapPrintHtml(roadmap)}` +
     demoNote +
     roadmapSwitcherHtml(roadmap, roadmaps) +
-    proposalHtml(roadmap) +
+    proposalHtml(roadmap, reviewErrorHtml) +
     (proposal !== null ? revisionProposalHtml(proposal, roadmap) : "") +
     `<header class="roadmap-header"><div><div class="roadmap-title-line"><h2>${esc(roadmap.title)}</h2>${dsBadge(STATUS_LABELS[roadmap.status], statusTone(roadmap.status))}</div>` +
     `<p>${esc(roadmap.objective?.trim() || "Plan du projet")}</p>${dsProgress(progress, 100, `${progress} % du plan terminé`)}</div>` +
@@ -403,6 +406,16 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
   let selectedKey: string | null = roadmap?.current_step_key ?? (roadmap === null ? null : allSteps(roadmap)[0]?.key) ?? null;
   let pendingProposal: RoadmapPendingProposal | null = null;
   let roadmaps: RoadmapListItem[] = [];
+  let reviewErrorHtml: string | null = null;
+  const refreshRoadmaps = async (): Promise<void> => {
+    try {
+      roadmaps = (await ctx.dataSource.listRoadmaps?.(ctx.projectId)) ?? roadmaps;
+    } catch {
+      /* the switcher keeps its last known list */
+    }
+  };
+  const errorNotice = (title: string, body: string): string =>
+    `<div class="ds-notice ds-notice--danger" role="alert"><strong>${esc(title)}</strong> ${body}</div>`;
   if (roadmap !== null) {
     try {
       pendingProposal = await ctx.dataSource.loadPendingProposal(ctx.projectId, roadmap.id);
@@ -430,6 +443,7 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
       ctx.dataSource.demo === true,
       roadmap.status === "active" ? pendingProposal : null,
       roadmaps,
+      reviewErrorHtml,
     );
     bind();
   };
@@ -517,13 +531,32 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
       downloadText("studio-roadmap.json", serializeRoadmapDocument(roadmapToDocument(roadmap)));
     });
     root.querySelector<HTMLButtonElement>("[data-export-pdf]")?.addEventListener("click", () => window.print());
-    root.querySelectorAll<HTMLButtonElement>("[data-review]").forEach((button) => button.addEventListener("click", async () => {
+    const reviewButtons = [...root.querySelectorAll<HTMLButtonElement>("[data-review]")];
+    reviewButtons.forEach((button) => button.addEventListener("click", async () => {
       if (roadmap === null) return;
       const decision = button.dataset.review;
       if (decision !== "approve" && decision !== "request_changes" && decision !== "reject") return;
-      roadmap = await ctx.dataSource.reviewProposal(ctx.projectId, decision, decision === "request_changes" ? "Modifications demandées depuis l'aperçu." : undefined, roadmap.id);
-      paint();
-      dsNotify("Décision enregistrée.", "success");
+      reviewButtons.forEach((item) => { item.disabled = true; });
+      try {
+        const updated = await ctx.dataSource.reviewProposal(ctx.projectId, decision, decision === "request_changes" ? "Modifications demandées depuis l'aperçu." : undefined, roadmap.id);
+        if (updated === null) throw new Error("Cette roadmap n'est plus à examiner. Rechargez la page.");
+        roadmap = updated;
+        reviewErrorHtml = null;
+        await refreshRoadmaps();
+        paint();
+        dsNotify("Décision enregistrée.", "success");
+      } catch (error) {
+        let body = esc(describeError(error));
+        if (error instanceof ApiError && error.errorCode === "active_roadmap_exists") {
+          const active = roadmaps.find((item) => item.status === "active" && item.id !== roadmap?.id);
+          const link = active === undefined
+            ? "la roadmap active"
+            : `<a href="#/projects/${esc(ctx.projectId)}/roadmap/${esc(active.id)}">${esc(active.title)}</a>`;
+          body = `Une autre roadmap est déjà active dans ce projet. Ouvrez ${link}, clôturez-la ou archivez-la, puis revenez approuver celle-ci. (${esc(describeError(error))})`;
+        }
+        reviewErrorHtml = errorNotice("Décision refusée.", body);
+        paint();
+      }
     }));
     root.querySelectorAll<HTMLButtonElement>("[data-proposal-review]").forEach((button) => button.addEventListener("click", async () => {
       if (roadmap === null || pendingProposal === null) return;

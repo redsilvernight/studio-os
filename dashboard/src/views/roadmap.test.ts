@@ -2,6 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createFixtureRoadmapDataSource } from "../roadmapData";
 import { roadmapFixtureProjectIds } from "../roadmapFixtures";
+import { ApiError, parseErrorBody } from "../api";
 import { roadmapExecutionHtml, roadmapPlanHtml, roadmapPrintHtml, roadmapShellHtml, roadmapStepDetailHtml, roadmapSwitcherHtml, renderRoadmapInto } from "./roadmap";
 import type { RoadmapDataSource } from "../roadmapTypes";
 
@@ -191,5 +192,61 @@ describe("Roadmap switcher and targeted roadmap", () => {
       `#/projects/${proposed.project_id}/roadmap/${proposed.id}`,
     ]);
     expect(links[1]?.getAttribute("aria-current")).toBe("page");
+  });
+});
+
+describe("Roadmap review errors", () => {
+  beforeEach(() => {
+    document.body.innerHTML = `<div id="ds-toast-region"></div><main id="root"></main>`;
+  });
+
+  const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+  const click = (root: HTMLElement, selector: string): void => {
+    const button = root.querySelector<HTMLButtonElement>(selector);
+    expect(button, selector).not.toBeNull();
+    button?.click();
+  };
+
+  async function render(source: RoadmapDataSource, projectId: string): Promise<HTMLElement> {
+    const root = document.getElementById("root") as HTMLElement;
+    await renderRoadmapInto(root, { dataSource: source, projectId, projectName: "P" });
+    return root;
+  }
+
+  it("affiche active_roadmap_exists à l'approbation sans changer le statut", async () => {
+    const fixture = createFixtureRoadmapDataSource();
+    const proposed = (await fixture.load(roadmapFixtureProjectIds.proposed))!;
+    const source: RoadmapDataSource = {
+      ...fixture,
+      listRoadmaps: async () => [
+        { id: "r-old", title: "Ancien plan", status: "active" },
+        { id: proposed.id, title: proposed.title, status: "proposed" },
+      ],
+      reviewProposal: async () => {
+        throw new ApiError(parseErrorBody(409, { detail: { error_code: "active_roadmap_exists" } }));
+      },
+    };
+    const root = await render(source, roadmapFixtureProjectIds.proposed);
+    click(root, '[data-review="approve"]');
+    await flush();
+    const alert = root.querySelector("[data-review-error] [role=alert]");
+    expect(alert?.textContent).toContain("déjà active");
+    expect(alert?.querySelector("a")?.getAttribute("href")).toBe(`#/projects/${roadmapFixtureProjectIds.proposed}/roadmap/r-old`);
+    expect(root.querySelector(".roadmap-title-line")?.textContent).toContain("À examiner");
+    expect(root.querySelector<HTMLButtonElement>('[data-review="approve"]')?.disabled).toBe(false);
+  });
+
+  it("affiche une erreur réseau à l'approbation", async () => {
+    const source: RoadmapDataSource = {
+      ...createFixtureRoadmapDataSource(),
+      reviewProposal: async () => {
+        throw new TypeError("Failed to fetch");
+      },
+    };
+    const root = await render(source, roadmapFixtureProjectIds.proposed);
+    click(root, '[data-review="approve"]');
+    await flush();
+    expect(root.querySelector("[data-review-error] [role=alert]")?.textContent).toContain("Impossible de joindre le serveur");
+    expect(root.querySelector(".roadmap-title-line")?.textContent).toContain("À examiner");
   });
 });
