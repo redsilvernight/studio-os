@@ -17,6 +17,7 @@ import type {
   RoadmapDataSource,
   RoadmapDiff,
   RoadmapDocument,
+  RoadmapLifecycleTransition,
   RoadmapListItem,
   RoadmapPendingProposal,
   RoadmapPhase,
@@ -363,6 +364,21 @@ export function createApiRoadmapDataSource(client: StudioClient): RoadmapDataSou
         }),
       );
       return toViewRoadmap(reviewed);
+    },
+
+    async transitionRoadmap(
+      roadmap: Roadmap,
+      transition: RoadmapLifecycleTransition,
+      comment?: string,
+    ): Promise<Roadmap> {
+      const expectedVersion = roadmap.version ?? (await detail(roadmap.id)).version ?? 0;
+      const transitioned = await unwrap(
+        client.POST("/api/v1/roadmaps/{roadmap_id}/transitions", {
+          params: { path: { roadmap_id: roadmap.id } },
+          body: { transition, expected_version: expectedVersion, comment: comment ?? null },
+        }),
+      );
+      return toViewRoadmap(transitioned);
     },
   };
 }

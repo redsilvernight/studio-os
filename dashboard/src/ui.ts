@@ -73,6 +73,8 @@ const CODE_MESSAGES: Record<string, string> = {
   idempotency_key_in_progress: "Cette demande est déjà en cours de traitement. Patientez un instant.",
   idempotency_key_payload_mismatch: "Cette demande a déjà été envoyée avec un contenu différent. Rechargez la page, puis recommencez.",
   invalid_status_transition: "Ce changement de statut n'est pas autorisé depuis l'état actuel.",
+  invalid_state: "Cette action n'est pas possible dans l'état actuel. Rechargez pour voir le statut à jour.",
+  active_roadmap_exists: "Une autre roadmap est déjà active dans ce projet. Clôturez-la ou archivez-la d'abord.",
   runtime_incompatible: "Le runtime retenu ne satisfait pas les exigences demandées.",
   runtime_not_found: "Runtime introuvable.",
   definition_not_found: "Définition introuvable.",

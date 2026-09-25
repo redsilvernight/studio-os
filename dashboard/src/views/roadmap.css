@@ -313,6 +313,27 @@
   background: var(--ds-warning-soft);
 }
 
+.roadmap-complete-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--ds-space-3);
+}
+
+.roadmap-lifecycle-confirm {
+  display: grid;
+  gap: var(--ds-space-3);
+  padding: var(--ds-space-4) var(--ds-space-6);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  background: var(--ds-surface);
+}
+
+.roadmap-lifecycle-confirm p {
+  margin: 0;
+}
+
 .roadmap-proposal-review-head {
   display: flex;
   align-items: flex-start;
