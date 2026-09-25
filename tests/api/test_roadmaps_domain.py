@@ -199,7 +199,7 @@ async def race(
         )
         machine, token = await provisioning_service.create_machine(setup, user.id, "race-machine")
         project = await projects_service.create_project(
-            setup, f"race-{uuid.uuid4().hex[:8]}", "Race Project", None
+            setup, f"race-{uuid.uuid4().hex[:8]}", "Race Project", None, creator=None
         )
 
     async def _touch() -> None:

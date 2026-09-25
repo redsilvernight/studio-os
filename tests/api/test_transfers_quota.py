@@ -208,7 +208,11 @@ async def test_concurrent_creates_never_exceed_project_quota(
             setup_session, user.id, "quota-race-machine"
         )
         project = await projects_service.create_project(
-            setup_session, f"quota-race-{uuid.uuid4().hex[:8]}", "Quota Race Project", None
+            setup_session,
+            f"quota-race-{uuid.uuid4().hex[:8]}",
+            "Quota Race Project",
+            None,
+            creator=user,
         )
 
     headers = {"Authorization": f"Bearer {token}"}

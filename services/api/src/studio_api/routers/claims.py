@@ -7,7 +7,7 @@ from fastapi import APIRouter, Header, Query, Request, status
 from studio_contracts.claims import ResourceClaim, ResourceClaimCreate
 from studio_contracts.events import EventCreate, EventType
 
-from studio_api.deps import CurrentMachine, CurrentPrincipal, DbSession
+from studio_api.deps import CurrentPrincipal, DbSession
 from studio_api.openapi_meta import (
     IDEMPOTENCY_KEY_DESCRIPTION,
     RESP_401_UNAUTHORIZED,
@@ -18,7 +18,6 @@ from studio_api.openapi_meta import (
 from studio_api.services import claims as claims_service
 from studio_api.services import events as events_service
 from studio_api.services import idempotency as idempotency_service
-from studio_api.services.authz import ensure_can_write
 
 router = APIRouter(prefix="/api/v1/claims", tags=["claims"])
 
@@ -27,14 +26,16 @@ router = APIRouter(prefix="/api/v1/claims", tags=["claims"])
     "",
     response_model=list[ResourceClaim],
     description=(
-        "List resource claims, optionally filtered by project. Any authenticated machine may read."
+        "List resource claims of the caller's accessible projects, optionally "
+        "filtered by project. A `project_id` the caller cannot access (or that "
+        "does not exist) answers `403 forbidden`."
     ),
-    responses={**RESP_401_UNAUTHORIZED},
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
 )
 async def list_claims(
-    session: DbSession, machine: CurrentMachine, project_id: UUID | None = Query(default=None)
+    session: DbSession, principal: CurrentPrincipal, project_id: UUID | None = Query(default=None)
 ) -> list[ResourceClaim]:
-    claims = await claims_service.list_claims(session, project_id=project_id)
+    claims = await claims_service.list_claims(session, principal, project_id=project_id)
     return [ResourceClaim.model_validate(c) for c in claims]
 
 
@@ -61,7 +62,7 @@ async def create_claim(
         default=None, alias="Idempotency-Key", description=IDEMPOTENCY_KEY_DESCRIPTION
     ),
 ) -> ResourceClaim:
-    ensure_can_write(principal, "claim")
+    claims_service.authorize_create(principal, claim_in.project_id)
 
     async def _create() -> ResourceClaim:
         claim = await claims_service.create_claim(

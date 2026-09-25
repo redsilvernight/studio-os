@@ -160,7 +160,7 @@ async def other_auth_headers(other_machine: tuple[MachineModel, str]) -> dict[st
 @pytest_asyncio.fixture
 async def project(db_session: AsyncSession) -> ProjectModel:
     return await projects_service.create_project(
-        db_session, f"proj-{uuid.uuid4().hex[:8]}", "Test Project", None
+        db_session, f"proj-{uuid.uuid4().hex[:8]}", "Test Project", None, creator=None
     )
 
 

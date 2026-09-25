@@ -38,12 +38,14 @@ async def list_machines(
     return [(machine, owner) for machine, owner in result.all()]
 
 
-async def list_active_machines(session: AsyncSession) -> list[MachineModel]:
-    result = await session.execute(
-        select(MachineModel)
-        .where(MachineModel.credential_revoked_at.is_(None))
-        .order_by(MachineModel.created_at)
-    )
+async def list_active_machines(
+    session: AsyncSession, owner_user_id: uuid.UUID | None = None
+) -> list[MachineModel]:
+    """`owner_user_id=None` lists every owner's machines (admin only)."""
+    stmt = select(MachineModel).where(MachineModel.credential_revoked_at.is_(None))
+    if owner_user_id is not None:
+        stmt = stmt.where(MachineModel.owner_user_id == owner_user_id)
+    result = await session.execute(stmt.order_by(MachineModel.created_at))
     return list(result.scalars().all())
 
 

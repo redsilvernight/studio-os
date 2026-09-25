@@ -34,7 +34,7 @@ async def studio_get_ai_work(
     """List AI Work Ledger entries, optionally filtered by project_id/task_id
     (UUID strings)."""
 
-    async def _handler(session: AsyncSession, _principal: Principal) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed_project_id = None
         if project_id is not None:
             parsed = parse_uuid(project_id, "project_id")
@@ -48,7 +48,7 @@ async def studio_get_ai_work(
                 return parsed
             parsed_task_id = parsed
         entries = await ai_work_service.list_ai_work(
-            session, project_id=parsed_project_id, task_id=parsed_task_id
+            session, principal, project_id=parsed_project_id, task_id=parsed_task_id
         )
         return {"ai_work": [_compact_ai_work(w) for w in entries]}
 

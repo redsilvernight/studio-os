@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.ai_work import AIWorkStatus
 from studio_contracts.decisions import DecisionStatus
@@ -25,10 +25,16 @@ from studio_api.services import ai_work as ai_work_service
 from studio_api.services import decisions as decisions_service
 from studio_api.services import events as events_service
 from studio_api.services import github as github_service
+from studio_api.services.authz import (
+    Principal,
+    ensure_project_access,
+    project_visibility_clause,
+)
 
 
 async def get_review_queue(
     session: AsyncSession,
+    principal: Principal,
     project_id: uuid.UUID | None = None,
     conflict_window_hours: int = 24,
 ) -> ReviewQueue:
@@ -39,10 +45,14 @@ async def get_review_queue(
     and `git.pr.opened` events with no `git.pr.merged` yet (DEC-0059).
     Conflicts and PRs have no persisted "still open" state (no
     Conflict/PullRequest table exists) — these are best-effort, time-windowed
-    signals, not resolvable queue entries."""
+    signals, not resolvable queue entries. Restricted to the caller's
+    accessible projects; an inaccessible `project_id` answers 403 before
+    anything is read (DEC-0100 §7)."""
+    if project_id is not None:
+        ensure_project_access(principal, project_id)
     items: list[ReviewQueueItem] = []
 
-    for work in await ai_work_service.list_ai_work(session, project_id=project_id):
+    for work in await ai_work_service.list_ai_work(session, principal, project_id=project_id):
         if work.status == AIWorkStatus.REVIEW_REQUESTED.value:
             items.append(
                 ReviewQueueAIWorkItem(
@@ -55,7 +65,9 @@ async def get_review_queue(
                 )
             )
 
-    for decision in await decisions_service.list_decisions(session, project_id=project_id):
+    for decision in await decisions_service.list_decisions(
+        session, principal, project_id=project_id
+    ):
         if decision.status == DecisionStatus.PROPOSED.value:
             items.append(
                 ReviewQueueDecisionItem(
@@ -72,7 +84,8 @@ async def get_review_queue(
     since = datetime.now(UTC) - timedelta(hours=conflict_window_hours)
     conflict_events = await events_service.list_events(
         session,
-        project_id=str(project_id) if project_id is not None else None,
+        principal,
+        project_id=project_id,
         since=since,
         event_type=EventType.RESOURCE_CONFLICT,
         limit=500,
@@ -91,7 +104,7 @@ async def get_review_queue(
         )
 
     for build in await github_service.list_builds(
-        session, project_id=project_id, status_value="failed", limit=500
+        session, principal, project_id=project_id, status_value="failed", limit=500
     ):
         requested_at = build.completed_at or build.updated_at
         items.append(
@@ -110,14 +123,16 @@ async def get_review_queue(
 
     opened_events = await events_service.list_events(
         session,
-        project_id=str(project_id) if project_id is not None else None,
+        principal,
+        project_id=project_id,
         since=since,
         event_type=EventType.GIT_PR_OPENED,
         limit=500,
     )
     merged_events = await events_service.list_events(
         session,
-        project_id=str(project_id) if project_id is not None else None,
+        principal,
+        project_id=project_id,
         since=since,
         event_type=EventType.GIT_PR_MERGED,
         limit=500,
@@ -144,7 +159,11 @@ async def get_review_queue(
             )
         )
 
-    roadmap_filter = [RoadmapModel.project_id == project_id] if project_id is not None else []
+    roadmap_filter: list[ColumnElement[bool]] = []
+    if project_id is not None:
+        roadmap_filter.append(RoadmapModel.project_id == project_id)
+    elif (visible := project_visibility_clause(principal, RoadmapModel.project_id)) is not None:
+        roadmap_filter.append(visible)
     proposed_roadmaps = (
         (
             await session.execute(

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 from studio_contracts.ai_work import AIWorkLog, AIWorkLogCreate, AIWorkLogUpdate
 
 from studio_api.db.models.ai_work import AIWorkLogModel
-from studio_api.deps import CurrentMachine, CurrentPrincipal, DbSession
+from studio_api.deps import CurrentPrincipal, DbSession
 from studio_api.openapi_meta import (
     IDEMPOTENCY_KEY_DESCRIPTION,
     RESP_401_UNAUTHORIZED,
@@ -19,7 +19,6 @@ from studio_api.openapi_meta import (
 )
 from studio_api.services import ai_work as ai_work_service
 from studio_api.services import idempotency as idempotency_service
-from studio_api.services.authz import ensure_can_write
 
 router = APIRouter(prefix="/api/v1/ai-work", tags=["ai-work"])
 
@@ -29,17 +28,20 @@ router = APIRouter(prefix="/api/v1/ai-work", tags=["ai-work"])
     response_model=list[AIWorkLog],
     description=(
         "List AI work ledger entries, optionally filtered by project or "
-        "task. Any authenticated machine may read."
+        "task, restricted to the caller's accessible projects. A "
+        "`project_id` the caller cannot access answers `403 forbidden`."
     ),
-    responses={**RESP_401_UNAUTHORIZED},
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
 )
 async def list_ai_work(
     session: DbSession,
-    machine: CurrentMachine,
+    principal: CurrentPrincipal,
     project_id: UUID | None = Query(default=None),
     task_id: UUID | None = Query(default=None),
 ) -> list[AIWorkLog]:
-    entries = await ai_work_service.list_ai_work(session, project_id=project_id, task_id=task_id)
+    entries = await ai_work_service.list_ai_work(
+        session, principal, project_id=project_id, task_id=task_id
+    )
     return [AIWorkLog.model_validate(e) for e in entries]
 
 
@@ -72,7 +74,7 @@ async def create_ai_work(
         default=None, alias="Idempotency-Key", description=IDEMPOTENCY_KEY_DESCRIPTION
     ),
 ) -> AIWorkLog:
-    ensure_can_write(principal, "ai_work")
+    ai_work_service.authorize_create(principal, work_in.project_id)
 
     async def _create() -> AIWorkLog:
         return AIWorkLog.model_validate(

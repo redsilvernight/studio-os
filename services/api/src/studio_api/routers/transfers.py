@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Header, HTTPException, Query, Request, status
+from fastapi import APIRouter, Body, Header, Query, Request, status
 from studio_contracts.transfers import (
     DownloadUrlResponse,
     Transfer,
@@ -15,7 +15,7 @@ from studio_contracts.transfers import (
     UploadPartsRefreshResponse,
 )
 
-from studio_api.deps import CurrentMachine, CurrentPrincipal, DbSession
+from studio_api.deps import CurrentPrincipal, DbSession
 from studio_api.openapi_meta import (
     IDEMPOTENCY_KEY_DESCRIPTION,
     RESP_401_UNAUTHORIZED,
@@ -30,7 +30,6 @@ from studio_api.openapi_meta import (
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import projects as projects_service
 from studio_api.services import transfers as transfers_service
-from studio_api.services.authz import ensure_can_write
 from studio_api.settings import get_settings
 from studio_api.storage.provider import get_storage
 
@@ -85,17 +84,15 @@ async def create_transfer(
         default=None, alias="Idempotency-Key", description=IDEMPOTENCY_KEY_DESCRIPTION
     ),
 ) -> Transfer:
-    ensure_can_write(principal, "transfer")
+    # Ahead of the idempotency replay short-circuit (DEC-0036, DEC-0100 §12).
+    transfers_service.authorize_create(principal, transfer_in.project_id)
+    if transfer_in.project_id is None:
+        project_slug = "unscoped"
+    else:
+        project = await projects_service.get_project(session, principal, transfer_in.project_id)
+        project_slug = project.slug
 
     async def _create() -> Transfer:
-        if transfer_in.project_id is None:
-            project_slug = "unscoped"
-        else:
-            project = await projects_service.get_project(session, transfer_in.project_id)
-            if project is None:
-                raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
-            project_slug = project.slug
-
         transfer = await transfers_service.create_transfer(
             session, principal, get_settings(), transfer_in, project_slug
         )
@@ -118,15 +115,18 @@ async def create_transfer(
     description=(
         "Read quota consumption (`consumed_bytes`, `quota_bytes`, "
         "`remaining_bytes`) for a project, or for the unscoped bucket "
-        "when no project is given. Any authenticated machine may read. "
+        "when no project is given. Requires access to the project (or, "
+        "for the unscoped bucket, at least one project), else `403 "
+        "forbidden`. "
         "Call before a large upload to avoid a rejected creation — the "
         "reading is advisory, another upload may still win the race."
     ),
-    responses={**RESP_401_UNAUTHORIZED},
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
 )
 async def get_consumption(
-    session: DbSession, machine: CurrentMachine, project_id: UUID | None = Query(default=None)
+    session: DbSession, principal: CurrentPrincipal, project_id: UUID | None = Query(default=None)
 ) -> TransferConsumption:
+    transfers_service.ensure_transfer_scope(principal, project_id)
     settings = get_settings()
     consumed = await transfers_service.compute_consumption(session, project_id)
     quota = settings.transfer_project_quota_bytes

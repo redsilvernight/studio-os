@@ -8,28 +8,61 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.tasks import TaskCreate, TaskUpdate
 
 from studio_api.db.models.task import TaskModel
-from studio_api.services.authz import Principal, ensure_can_write, ensure_machine_owned
+from studio_api.services.authz import (
+    Principal,
+    ensure_can_write,
+    ensure_machine_owned,
+    ensure_project_access,
+    project_visibility_clause,
+)
 
 
 async def list_tasks(
-    session: AsyncSession, project_id: uuid.UUID | None = None, limit: int = 100, offset: int = 0
+    session: AsyncSession,
+    principal: Principal,
+    project_id: uuid.UUID | None = None,
+    limit: int = 100,
+    offset: int = 0,
 ) -> list[TaskModel]:
     stmt = select(TaskModel).limit(limit).offset(offset)
     if project_id is not None:
+        ensure_project_access(principal, project_id)
         stmt = stmt.where(TaskModel.project_id == project_id)
+    elif (visible := project_visibility_clause(principal, TaskModel.project_id)) is not None:
+        stmt = stmt.where(visible)
     result = await session.execute(stmt)
     return list(result.scalars().all())
 
 
 async def get_task(session: AsyncSession, task_id: uuid.UUID) -> TaskModel | None:
+    """Unscoped lookup for callers that check the project themselves or hand
+    the task to a mutation below (which checks it)."""
     return await session.get(TaskModel, task_id)
+
+
+async def read_task(
+    session: AsyncSession, principal: Principal, task_id: uuid.UUID
+) -> TaskModel | None:
+    """`get_task` for a read surface: a task of an inaccessible project
+    answers the project 403 (DEC-0100 §8)."""
+    task = await session.get(TaskModel, task_id)
+    if task is not None:
+        ensure_project_access(principal, task.project_id)
+    return task
+
+
+def authorize_create(principal: Principal, project_id: uuid.UUID) -> None:
+    """Project then role check of a task creation. Callers run it ahead of the
+    idempotency replay short-circuit (DEC-0036, DEC-0100 §12)."""
+    ensure_project_access(principal, project_id, "write")
+    ensure_can_write(principal, "task")
 
 
 async def add_task(session: AsyncSession, principal: Principal, task_in: TaskCreate) -> TaskModel:
     """`create_task` without the commit (DEC-0084 F1): stages the row and
     flushes so its id exists, leaving the transaction to the caller — used by
     units of work (Roadmap hydration) that must create several Tasks atomically."""
-    ensure_can_write(principal, "task")
+    authorize_create(principal, task_in.project_id)
     task = TaskModel(
         project_id=task_in.project_id, title=task_in.title, description=task_in.description
     )
@@ -54,6 +87,7 @@ async def update_task(
     task_in: TaskUpdate,
     expected_version: int,
 ) -> TaskModel:
+    ensure_project_access(principal, task.project_id, "write")
     ensure_can_write(principal, "task")
     if task.version != expected_version:
         raise HTTPException(
@@ -79,6 +113,7 @@ async def claim_task(
     machine_id: uuid.UUID,
     agent_id: uuid.UUID | None,
 ) -> TaskModel:
+    ensure_project_access(principal, task.project_id, "write")
     ensure_can_write(principal, "task")
     if task.claimed_by_machine_id is not None and task.claimed_by_machine_id != machine_id:
         raise HTTPException(status.HTTP_409_CONFLICT, detail={"error_code": "already_claimed"})
@@ -92,6 +127,7 @@ async def claim_task(
 
 
 async def release_task(session: AsyncSession, principal: Principal, task: TaskModel) -> TaskModel:
+    ensure_project_access(principal, task.project_id, "write")
     ensure_machine_owned(principal, task.claimed_by_machine_id, "task", "release")
     task.claimed_by_machine_id = None
     task.claimed_by_agent_id = None

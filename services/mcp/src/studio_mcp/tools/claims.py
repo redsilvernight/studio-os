@@ -11,7 +11,7 @@ from studio_api.db.models.claim import ResourceClaimModel
 from studio_api.services import claims as claims_service
 from studio_api.services import events as events_service
 from studio_api.services import idempotency as idempotency_service
-from studio_api.services.authz import Principal, ensure_can_write
+from studio_api.services.authz import Principal
 from studio_contracts.claims import ResourceClaimCreate, ResourceType
 from studio_contracts.events import EventCreate, EventType
 
@@ -35,11 +35,11 @@ def _compact_claim(claim: ResourceClaimModel) -> dict[str, Any]:
 async def studio_get_resource_claims(project_id: str, ctx: Context) -> dict[str, Any]:
     """List resource claims for a project (UUID string), any status."""
 
-    async def _handler(session: AsyncSession, _principal: Principal) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed = parse_uuid(project_id, "project_id")
         if isinstance(parsed, dict):
             return parsed
-        claims = await claims_service.list_claims(session, project_id=parsed)
+        claims = await claims_service.list_claims(session, principal, project_id=parsed)
         return {"claims": [_compact_claim(c) for c in claims]}
 
     return await run_tool(ctx, _handler)
@@ -89,7 +89,7 @@ async def studio_claim_resource(
             parsed_agent_id = parsed_agent
         # Ahead of `run_idempotent_dict`'s replay short-circuit — see
         # `routers/tasks.py::create_task` for why (DEC-0036).
-        ensure_can_write(principal, "claim")
+        claims_service.authorize_create(principal, parsed_project)
 
         async def _create() -> dict[str, Any]:
             claim = await claims_service.create_claim(

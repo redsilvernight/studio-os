@@ -65,15 +65,47 @@ async def test_own_machine_requires_authentication(client: AsyncClient) -> None:
     assert response.status_code == 401
 
 
-async def test_readonly_machine_may_list_machines(
+async def test_a_non_admin_lists_only_its_own_users_machines(
     client: AsyncClient,
     readonly_auth_headers: dict[str, str],
+    readonly_machine: tuple[MachineModel, str],
     machine: tuple[MachineModel, str],
+    admin_auth_headers: dict[str, str],
 ) -> None:
-    machine_model, _ = machine
+    """Contract version 2 (DEC-0100): self/admin, never a co-member's machines."""
     response = await client.get("/api/v1/machines", headers=readonly_auth_headers)
     assert response.status_code == 200
-    assert str(machine_model.id) in {row["id"] for row in response.json()}
+    listed = {row["id"] for row in response.json()}
+    assert str(readonly_machine[0].id) in listed
+    assert str(machine[0].id) not in listed
+
+    admin_listed = {
+        row["id"]
+        for row in (await client.get("/api/v1/machines", headers=admin_auth_headers)).json()
+    }
+    assert {str(readonly_machine[0].id), str(machine[0].id)} <= admin_listed
+
+
+async def test_a_non_admin_lists_only_its_own_users_agents(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    other_auth_headers: dict[str, str],
+    admin_auth_headers: dict[str, str],
+) -> None:
+    mine = await client.post("/api/v1/agents", headers=auth_headers, json={"display_name": "a"})
+    theirs = await client.post(
+        "/api/v1/agents", headers=other_auth_headers, json={"display_name": "b"}
+    )
+    assert mine.status_code == theirs.status_code == 201
+
+    listed = {a["id"] for a in (await client.get("/api/v1/agents", headers=auth_headers)).json()}
+    assert mine.json()["id"] in listed
+    assert theirs.json()["id"] not in listed
+
+    admin_listed = {
+        a["id"] for a in (await client.get("/api/v1/agents", headers=admin_auth_headers)).json()
+    }
+    assert {mine.json()["id"], theirs.json()["id"]} <= admin_listed
 
 
 async def test_revoked_machine_is_not_listed(

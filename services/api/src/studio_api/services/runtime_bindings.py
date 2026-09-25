@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, or_, select
+from sqlalchemy import ColumnElement, and_, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.auth import Role
@@ -40,10 +40,16 @@ from studio_api.db.models.runtime import RuntimeBindingModel, RuntimeModel
 from studio_api.services import library as library_service
 from studio_api.services import runtime_registry as registry_service
 from studio_api.services.authz import (
+    ALL_PROJECTS,
     Principal,
+    ProjectAction,
     ensure_can_provision,
     ensure_can_write,
+    ensure_project_access,
+    ensure_shared_access,
     forbidden,
+    has_any_project,
+    has_project_access,
 )
 
 _STORED_LEVELS = {
@@ -69,10 +75,56 @@ def _not_found() -> HTTPException:
 
 def _is_visible(principal: Principal, binding: RuntimeBindingModel) -> bool:
     """`user` bindings are owner-or-admin only (same 404-masking as user
-    library resources); shared levels read like project library resources."""
-    if binding.level != RuntimeLevel.USER.value:
-        return True
-    return principal.role == Role.ADMIN or binding.owner_user_id == principal.user.id
+    library resources); project levels follow their project, the studio
+    default needs at least one project (DEC-0100 §4/§11)."""
+    if binding.level == RuntimeLevel.USER.value:
+        return principal.role == Role.ADMIN or binding.owner_user_id == principal.user.id
+    if binding.project_id is not None:
+        return has_project_access(principal, binding.project_id)
+    return has_any_project(principal)
+
+
+def _ensure_level_scope(
+    principal: Principal, level: str, project_id: UUID | None, action: ProjectAction
+) -> None:
+    """Project level of a binding, checked before the `user`-level 404
+    masking (DEC-0100 §8)."""
+    if level in (RuntimeLevel.USER.value, RuntimeLevel.SESSION.value):
+        return
+    if project_id is not None:
+        ensure_project_access(principal, project_id, action)
+    elif level == RuntimeLevel.STUDIO_DEFAULT.value:
+        ensure_shared_access(principal, action)
+
+
+def authorize_create(principal: Principal, level: RuntimeLevel, project_id: UUID | None) -> None:
+    """Project (or shared-data) then role check of a stored choice, run
+    ahead of the idempotency replay short-circuit (DEC-0036, DEC-0100 §12)."""
+    _ensure_level_scope(principal, level.value, project_id, "write")
+    if level == RuntimeLevel.STUDIO_DEFAULT:
+        ensure_can_provision(principal, "runtime_binding")
+    else:
+        ensure_can_write(principal, "runtime_binding")
+
+
+def _read_clause(principal: Principal) -> ColumnElement[bool] | None:
+    """SQL twin of `_is_visible`; `None` means no filter (admin)."""
+    if principal.role == Role.ADMIN:
+        return None
+    own = and_(
+        RuntimeBindingModel.level == RuntimeLevel.USER.value,
+        RuntimeBindingModel.owner_user_id == principal.user.id,
+    )
+    scope = principal.project_scope
+    if scope is ALL_PROJECTS:
+        return or_(own, RuntimeBindingModel.level != RuntimeLevel.USER.value)
+    if not scope:
+        return own
+    return or_(
+        own,
+        RuntimeBindingModel.project_id.in_(scope),
+        RuntimeBindingModel.level == RuntimeLevel.STUDIO_DEFAULT.value,
+    )
 
 
 async def _checked_target(
@@ -150,6 +202,7 @@ async def create_binding(
 ) -> RuntimeBindingModel:
     """Stores one runtime choice. The owner is always the caller
     (server-derived, never client-supplied)."""
+    authorize_create(principal, data.level, data.project_id)
     if data.level not in _STORED_LEVELS:
         raise _invalid_runtime_binding("ephemeral_level_not_stored")
     if data.target_kind not in _BINDABLE_KINDS:
@@ -199,7 +252,10 @@ async def get_binding(
     """`None` for missing and for another user's private binding alike —
     both map to 404, never a leak."""
     binding = await session.get(RuntimeBindingModel, binding_id)
-    if binding is None or not _is_visible(principal, binding):
+    if binding is None:
+        return None
+    _ensure_level_scope(principal, binding.level, binding.project_id, "read")
+    if not _is_visible(principal, binding):
         return None
     return binding
 
@@ -218,18 +274,14 @@ async def list_bindings(
     if level is not None:
         conditions.append(RuntimeBindingModel.level == level.value)
     if project_id is not None:
+        ensure_project_access(principal, project_id)
         conditions.append(RuntimeBindingModel.project_id == project_id)
     if kind is not None:
         conditions.append(RuntimeBindingModel.target_kind == kind.value)
     if stable_key is not None:
         conditions.append(RuntimeBindingModel.target_stable_key == stable_key)
-    if principal.role != Role.ADMIN:
-        conditions.append(
-            or_(
-                RuntimeBindingModel.level != RuntimeLevel.USER.value,
-                RuntimeBindingModel.owner_user_id == principal.user.id,
-            )
-        )
+    if (visible := _read_clause(principal)) is not None:
+        conditions.append(visible)
     stmt = select(RuntimeBindingModel).order_by(RuntimeBindingModel.created_at.asc())
     if conditions:
         stmt = stmt.where(and_(*conditions))
@@ -242,6 +294,7 @@ async def delete_binding(
     """Release rules mirror project locks: user level by owner-or-admin,
     shared project levels by creator-or-admin, studio default by provision
     roles. The response is snapshotted before deletion."""
+    _ensure_level_scope(principal, binding.level, binding.project_id, "write")
     if binding.level == RuntimeLevel.USER.value:
         ensure_can_write(principal, "runtime_binding")
         if principal.role != Role.ADMIN and binding.owner_user_id != principal.user.id:
@@ -302,7 +355,8 @@ async def load_candidates(
     403) and liveness-checks every stored choice (deleted/revoked machine =
     non-live, never a hard error). Pure selection happens downstream via
     `select_runtime` — this function only loads."""
-
+    if project_id is not None:
+        ensure_project_access(principal, project_id)
     overrides = dict(session_overrides or {})
     candidates: list[RuntimeCandidate] = []
     for key_kind, key_name in keys:
@@ -327,6 +381,8 @@ async def load_candidates(
         (RuntimeLevel.STUDIO_DEFAULT, False),
     ):
         if scoped and project_id is None:
+            continue
+        if level == RuntimeLevel.STUDIO_DEFAULT and not has_any_project(principal):
             continue
         for key_kind, key_name in keys:
             if level == RuntimeLevel.USER:
@@ -368,7 +424,10 @@ async def resolve_runtime(
     project_default > studio_default; within a level the agent key wins over
     its linked model profile key. Inaccessible stored choices (deleted or
     revoked machine) fall through instead of erroring. Compatibility is
-    always reported, never silenced. Pure read, no LLM, no provider call."""
+    always reported, never silenced. Pure read, no LLM, no provider call.
+    An inaccessible `project_id` answers 403 before any read (DEC-0100 §10)."""
+    if project_id is not None:
+        ensure_project_access(principal, project_id)
 
     def _library_failure() -> HTTPException:
         return HTTPException(

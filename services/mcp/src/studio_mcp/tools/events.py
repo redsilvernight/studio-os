@@ -114,19 +114,19 @@ async def studio_get_recent_changes(
     """List recent events, optionally filtered by project_id/task_id (UUID
     strings) and `since` (ISO-8601 timestamp)."""
 
-    async def _handler(session: AsyncSession, _principal: Principal) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed_project_id = None
         if project_id is not None:
             parsed = parse_uuid(project_id, "project_id")
             if isinstance(parsed, dict):
                 return parsed
-            parsed_project_id = str(parsed)
+            parsed_project_id = parsed
         parsed_task_id = None
         if task_id is not None:
             parsed = parse_uuid(task_id, "task_id")
             if isinstance(parsed, dict):
                 return parsed
-            parsed_task_id = str(parsed)
+            parsed_task_id = parsed
         parsed_since = None
         if since is not None:
             try:
@@ -138,6 +138,7 @@ async def studio_get_recent_changes(
                 }
         events = await events_service.list_events(
             session,
+            principal,
             project_id=parsed_project_id,
             task_id=parsed_task_id,
             since=parsed_since,

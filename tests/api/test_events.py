@@ -325,7 +325,7 @@ async def live_project_and_token(
             session, user.id, "stream-test-machine"
         )
         project = await projects_service.create_project(
-            session, f"proj-{uuid.uuid4().hex[:8]}", "Stream Test Project", None
+            session, f"proj-{uuid.uuid4().hex[:8]}", "Stream Test Project", None, creator=None
         )
         user_id, project_id = user.id, project.id
 
