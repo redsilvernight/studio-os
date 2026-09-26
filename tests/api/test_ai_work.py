@@ -234,3 +234,65 @@ async def test_changes_requested_resolution_symmetric_to_approved(
     changes_events = [e for e in events.json() if e["event_type"] == "ai_work.changes_requested"]
     assert len(changes_events) == 1
     assert changes_events[0]["actor_type"] == "user"
+
+
+async def test_create_ai_work_completed_in_one_call_with_idempotent_replay(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    project: ProjectModel,
+    agent: AgentModel,
+) -> None:
+    """Additive create fields: finished work is logged in one POST, and an
+    idempotent replay returns the same entry without duplicating events."""
+    body = {
+        "project_id": str(project.id),
+        "agent_id": str(agent.id),
+        "summary": "Finished work",
+        "status": "completed",
+        "changed_files": ["services/api/src/studio_api/services/ai_work.py"],
+        "tests_run": ["tests/api/test_ai_work.py"],
+    }
+    headers = {**auth_headers, "Idempotency-Key": "ai-work-completed-1"}
+    first = await client.post("/api/v1/ai-work", headers=headers, json=body)
+    second = await client.post("/api/v1/ai-work", headers=headers, json=body)
+    assert first.status_code == 201
+    assert second.json()["id"] == first.json()["id"]
+    entry = first.json()
+    assert entry["status"] == "completed"
+    assert entry["ended_at"] is not None
+    assert entry["changed_files"] == body["changed_files"]
+    assert entry["tests_run"] == body["tests_run"]
+
+    mismatch = await client.post(
+        "/api/v1/ai-work", headers=headers, json={**body, "status": "failed"}
+    )
+    assert mismatch.status_code == 409
+    assert mismatch.json()["detail"]["error_code"] == "idempotency_key_payload_mismatch"
+
+    events = await client.get(
+        "/api/v1/events", headers=auth_headers, params={"project": str(project.id)}
+    )
+    types = [e["event_type"] for e in events.json()]
+    assert types.count("ai_work.started") == 1
+    assert types.count("ai_work.completed") == 1
+
+
+async def test_create_ai_work_refuses_review_resolution_status(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    project: ProjectModel,
+    agent: AgentModel,
+) -> None:
+    for target in ("approved", "changes_requested"):
+        response = await client.post(
+            "/api/v1/ai-work",
+            headers=auth_headers,
+            json={
+                "project_id": str(project.id),
+                "agent_id": str(agent.id),
+                "summary": "Self-approve",
+                "status": target,
+            },
+        )
+        assert response.status_code == 409
+        assert response.json()["detail"]["error_code"] == "invalid_status_transition"

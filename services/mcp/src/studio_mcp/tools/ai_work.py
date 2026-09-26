@@ -66,10 +66,12 @@ async def studio_log_ai_work(
     changed_files: list[str] | None = None,
     tests_run: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Log AI work: creates a new entry when `ai_work_id` is omitted (start of
-    work), or updates the existing entry when given (e.g. to mark it
-    `completed`/`failed` with changed_files/tests_run) — one tool for the
-    whole lifecycle, per TECH/07_MCP_CONTRACT.md."""
+    """Log AI work: creates a new entry when `ai_work_id` is omitted, or
+    updates the existing entry when given — one tool for the whole lifecycle,
+    per TECH/07_MCP_CONTRACT.md. On creation, `status` (default `started`),
+    `changed_files` and `tests_run` are honored, so finished work is logged
+    in one call; `approved`/`changes_requested` are refused. On update,
+    `summary` replaces the stored one and only non-null fields change."""
 
     async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed_agent_id = parse_uuid(agent_id, "agent_id")
@@ -118,6 +120,9 @@ async def studio_log_ai_work(
                 agent_id=parsed_agent_id,
                 machine_id=principal.machine.id,
                 summary=summary,
+                status=parsed_status or AIWorkStatus.STARTED,
+                changed_files=changed_files or [],
+                tests_run=tests_run or [],
             ),
         )
         return _compact_ai_work(work)
