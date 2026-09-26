@@ -129,6 +129,7 @@ export function shellHtml(route: Route, authed: boolean, desktop = false): strin
       <span class="app-topbar-state" id="token-state"></span>
     </header>
     <div id="conflict-banner" class="conflict-banner" role="status" hidden></div>
+    <div id="client-update-banner" class="client-update-banner" role="status" aria-live="polite" hidden></div>
     <main id="view" tabindex="-1"></main>
   </div>
 </div>
