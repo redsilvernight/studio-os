@@ -1,7 +1,7 @@
 ---
 id: DEC-0132
 title: 'B5/T1 — Release candidate publiée par tag desktop-vX.Y.Z'
-status: proposed
+status: accepted
 date: '2026-09-26'
 superseded_by: null
 ---

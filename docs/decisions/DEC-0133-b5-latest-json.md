@@ -1,7 +1,7 @@
 ---
 id: DEC-0133
 title: 'B5/T2 — Manifeste latest.json : génération, schéma versionné, hébergement GitHub Releases'
-status: proposed
+status: accepted
 date: '2026-09-26'
 superseded_by: null
 ---
