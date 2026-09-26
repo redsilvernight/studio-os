@@ -28,6 +28,37 @@ main { padding-top: 12px; display: grid; gap: 12px; }
   font-size: 13px;
 }
 
+.client-update-banner {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--accent, var(--warn));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent, var(--warn)) 12%, var(--panel));
+  color: var(--text);
+  font-size: 13px;
+}
+.client-update-banner[hidden] {
+  display: none;
+}
+
+.client-upgrade-required {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.client-upgrade-required-panel {
+  max-width: 440px;
+  padding: 24px;
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  text-align: center;
+}
+.client-upgrade-required-panel h1 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+
 .health {
   display: flex;
   align-items: center;
