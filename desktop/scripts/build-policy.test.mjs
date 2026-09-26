@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { allowInsecureOrigin, DEFAULT_API_URL, validateBuildApiUrl } from "./lib.mjs";
+
+const hooksPath = join(dirname(fileURLToPath(import.meta.url)), "..", "src-tauri", "installer", "hooks.nsh");
 
 test("the product default remains the loopback development server", () => {
   assert.equal(DEFAULT_API_URL, "http://127.0.0.1:8000");
@@ -53,4 +58,22 @@ test("the storage origin of pre-signed uploads joins connect-src only when given
   // Same origin twice is listed once.
   assert.equal(connect(desktopCsp("https://studio.example", "https://studio.example")).split(" ").length, 5);
   assert.match(overlay({ apiUrl: "https://a.example", storageUrl: "https://s.example" }).app.security.csp, /https:\/\/s\.example/);
+});
+
+test("the NSIS daemon stop never kills outside the install directory (B3)", () => {
+  const hooks = readFileSync(hooksPath, "utf8");
+  // No bare image-name kill: taskkill /IM would stop a developer daemon too.
+  assert.doesNotMatch(hooks, /taskkill\.exe"?\s+\/F\s+\/T\s+\/IM/i);
+  assert.doesNotMatch(hooks, /\/IM\s+studio-daemon\.exe/i);
+  // Path-scoped stop: enumerate with the executable path, match the install
+  // dir prefix case-insensitively, stop by PID only.
+  assert.match(hooks, /ExecutablePath/);
+  assert.match(hooks, /StartsWith\(/);
+  assert.match(hooks, /Stop-Process\s+-Id/);
+  assert.match(hooks, /\$INSTDIR\\sidecar/);
+  // Fixed system binary, never resolved through PATH.
+  assert.match(hooks, /\$SYSDIR\\WindowsPowerShell/);
+  // Both entry points stop the installed daemon, nothing else is added.
+  assert.match(hooks, /NSIS_HOOK_PREINSTALL[\s\S]*StudioStopDaemon/);
+  assert.match(hooks, /NSIS_HOOK_PREUNINSTALL[\s\S]*StudioStopDaemon/);
 });
