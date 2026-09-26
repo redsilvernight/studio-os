@@ -99,7 +99,17 @@ et `%APPDATA%\StudioOS`. Aucun Vault, projet ni dépôt n'est jamais supprimé.
 n'existe et l'UI affiche `not_configured`. Mise à jour à l'initiative de l'utilisateur uniquement.
 Codes d'erreur stables : `not_configured`, `network`, `invalid_metadata`, `invalid_signature`,
 `install_failed`. Un artefact corrompu ou mal signé est rejeté avant installation ; les données ne
-sont pas touchées. Aucune infrastructure de mise à jour de production n'est fournie par P10.
+sont pas touchées.
+
+Depuis B5/T2, le manifeste `latest.json` attendu par l'updater est généré depuis les artefacts
+réels par `desktop/scripts/update-manifest.mjs` : format statique du plugin
+(`version`/`notes`/`pub_date`/`platforms[windows-x86_64]{url,signature}`) complété d'un bloc
+additif et versionné (`schema_version: 1`, `channel` `beta|stable`,
+`artifacts{file,size_bytes,sha256}`) que les clients N-1 ignorent (prouvé par un test Rust de
+l'updater) ; l'URL est l'asset téléchargeable HTTPS d'une release GitHub. Le manifeste est joint à
+la pré-release de tag (B5/T1) et, quand l'updater est compilé dans le build, à la release de canal
+(`desktop-dev` → beta, `desktop-prod` → stable ; DEC-0108). Compiler l'updater dans les canaux et
+baker l'endpoint par canal sur son manifeste reste à B6.
 
 ## 9. Signatures
 

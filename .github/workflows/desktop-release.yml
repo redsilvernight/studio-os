@@ -105,6 +105,11 @@ jobs:
         shell: pwsh
         run: node scripts/release-artifacts.mjs --api-url "$env:STUDIO_DESKTOP_API_URL"
         working-directory: desktop
+      - name: Update feed manifest (latest.json, tag builds only)
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        shell: pwsh
+        run: node scripts/update-manifest.mjs --url-base "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}"
+        working-directory: desktop
       - name: Keep the build outputs as a private workflow artifact
         uses: actions/upload-artifact@v6
         with:
@@ -114,6 +119,7 @@ jobs:
             desktop/src-tauri/target/release/bundle/nsis/*.sig
             desktop/src-tauri/target/release/bundle/nsis/SHA256SUMS.txt
             desktop/src-tauri/target/release/bundle/nsis/provenance.json
+            desktop/src-tauri/target/release/bundle/nsis/latest.json
           retention-days: 14
           if-no-files-found: error
 
