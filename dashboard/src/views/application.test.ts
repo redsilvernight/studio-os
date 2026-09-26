@@ -297,6 +297,23 @@ describe("Settings › Application (Desktop)", () => {
     expect(second.root.querySelector("[data-testid=health-heartbeat]")).toBeNull();
   });
 
+  it("advises updating an older local assistant that misses optional capabilities", async () => {
+    const older = fakeDaemon({ offers: ["daemon.control", "identity.view"] });
+    const { root } = await mount(
+      fakeDesktop({ request: older.request }, { configured: null, applied: "https://studio.example.com", restart_required: false }),
+    );
+    expect(root.querySelector("[data-testid=compatibility]")?.textContent).toBe(
+      "Compatible — mettez à jour l'assistant local pour disposer de toutes les fonctions",
+    );
+    document.body.innerHTML = '<header class="app-topbar"><span id="token-state"></span></header>';
+    resetDesktopShellForTests();
+    const current = fakeDaemon();
+    const again = await mount(
+      fakeDesktop({ request: current.request }, { configured: null, applied: "https://studio.example.com", restart_required: false }),
+    );
+    expect(again.root.querySelector("[data-testid=compatibility]")?.textContent).toBe("Compatible");
+  });
+
   it("shows an incompatible protocol as such", async () => {
     const { root } = await mount(
       fakeDesktop({

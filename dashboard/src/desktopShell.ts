@@ -47,6 +47,8 @@ export interface DesktopShell {
   origin: ServerOriginState | null;
   daemon: DaemonSummary;
   hooks: DesktopShellHooks | null;
+  /** Last handshake advice: the daemon lacks an optional capability entirely. */
+  daemonAdvice?: "update_daemon" | null;
 }
 
 let shell: DesktopShell | null = null;
@@ -116,6 +118,10 @@ async function negotiate(target: DesktopShell): Promise<
     // A refused handshake is a version/capability incompatibility, shown as such.
     return { ok: false, summary: { kind: "error", code: "protocol_incompatible" } };
   }
+  // An older daemon that does not know an optional capability at all:
+  // updating it (not installing a component) restores the feature.
+  target.daemonAdvice =
+    reply.outcome === "compatible_degraded" && reply.remediation === "update_daemon" ? "update_daemon" : null;
   return { ok: true, granted: new Set(reply.granted_capabilities ?? []) };
 }
 

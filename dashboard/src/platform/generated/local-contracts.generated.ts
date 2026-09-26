@@ -4,7 +4,7 @@
 
 export const LOCAL_PROTOCOL = "studio.local/v1" as const;
 export const LOCAL_SCHEMA_VERSION = 1 as const;
-export const LOCAL_CONTRACT_DIGEST = "a0a7c115c5add679327ab67956c1189195bd6fc96c21db63d6bbcfbb8ae17573" as const;
+export const LOCAL_CONTRACT_DIGEST = "097e3726f560969e5a3245c27f0eb4e58116605a93638226843a5dee319dc6ee" as const;
 
 export interface LocalCommandSpec {
   readonly command: string;
