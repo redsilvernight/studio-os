@@ -6,7 +6,7 @@ from enum import StrEnum
 from typing import Annotated, Any, Literal, Self
 from uuid import UUID
 
-from pydantic import Field, TypeAdapter, model_validator
+from pydantic import ConfigDict, Field, TypeAdapter, model_validator
 
 from studio_contracts.local.code_graph import (
     CodeGraphStatus,
@@ -51,7 +51,11 @@ from studio_contracts.local.harness import (
     HarnessVerifyRequest,
     HarnessVerifyResult,
 )
-from studio_contracts.local.identity import IdentityView
+from studio_contracts.local.identity import (
+    IdentityEnrollRequest,
+    IdentityEnrollResult,
+    IdentityView,
+)
 from studio_contracts.local.knowledge import (
     KnowledgeDocument,
     KnowledgeGetDocumentRequest,
@@ -119,6 +123,7 @@ class BridgeCommand(StrEnum):
     DAEMON_RESTART = "daemon.restart"
     DAEMON_HEALTH = "daemon.health"
     IDENTITY_GET_VIEW = "identity.get_view"
+    IDENTITY_ENROLL = "identity.enroll"
     WORKSPACE_VALIDATE = "workspace.validate"
     WORKSPACE_GET_CONFIG = "workspace.get_config"
     WORKSPACE_CONFIRM_ROOTS = "workspace.confirm_roots"
@@ -217,6 +222,13 @@ BRIDGE_COMMANDS: dict[BridgeCommand, CommandSpec] = dict(
             "daemon.health",
         ),
         _spec(BridgeCommand.IDENTITY_GET_VIEW, EmptyPayload, IdentityView, "identity.view"),
+        _spec(
+            BridgeCommand.IDENTITY_ENROLL,
+            IdentityEnrollRequest,
+            IdentityEnrollResult,
+            "identity.enroll",
+            mutating=True,
+        ),
         _spec(
             BridgeCommand.WORKSPACE_VALIDATE,
             WorkspaceValidateRequest,
@@ -380,9 +392,13 @@ class _Envelope(LocalContractModel):
 
 
 class BridgeRequest(_Envelope):
+    # A request may carry the single write-only secret input (DEC-0130): a
+    # validation error must never echo the payload it rejected.
+    model_config = ConfigDict(frozen=True, hide_input_in_errors=True)
+
     kind: Literal["request"] = "request"
     command: BridgeCommand
-    payload: JsonObject = {}
+    payload: JsonObject = Field(default={}, repr=False)
     deadline_ms: int | None = Field(default=None, ge=100, le=LONG_TIMEOUT_MS)
 
     @model_validator(mode="after")
@@ -474,7 +490,9 @@ BridgeMessage = Annotated[
     | BridgeCancel,
     Field(discriminator="kind"),
 ]
-BRIDGE_MESSAGE_ADAPTER: TypeAdapter[BridgeMessage] = TypeAdapter(BridgeMessage)
+BRIDGE_MESSAGE_ADAPTER: TypeAdapter[BridgeMessage] = TypeAdapter(
+    BridgeMessage, config=ConfigDict(hide_input_in_errors=True)
+)
 
 
 def check_capability(command: BridgeCommand, granted: set[str]) -> LocalError | None:

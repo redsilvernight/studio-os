@@ -25,6 +25,7 @@ export const PEER = {
     "harness.read",
     "harness.plan",
     "harness.apply",
+    "identity.enroll",
   ],
   required_capabilities: ["daemon.control", "identity.view"],
   optional_capabilities: [
@@ -40,6 +41,7 @@ export const PEER = {
     "harness.read",
     "harness.plan",
     "harness.apply",
+    "identity.enroll",
   ],
   optional_components: [],
 } as unknown as PeerInfo;

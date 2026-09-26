@@ -8,7 +8,7 @@
  * stocké, aucun chemin complet conservé.
  */
 import { ApiError, apiBaseUrl, createApiClient } from "../api";
-import { hasToken } from "../auth";
+import { getToken, hasToken } from "../auth";
 import { joinUrl } from "../config";
 import { getDesktopShell, refreshDaemon } from "../desktopShell";
 import { daemonLabel } from "../shellStatus";
@@ -539,6 +539,53 @@ async function paintConnexion(
   });
 }
 
+/** A5 (DEC-0130) : message fixe pour chaque refus de `identity.enroll`. */
+export function enrollErrorMessage(error: LocalError): string {
+  const reason = (error.details as Record<string, unknown> | undefined)?.["reason"];
+  if (reason === "session_expired") return "Votre session a expiré : reconnectez-vous à l'étape « Connexion », puis réessayez.";
+  if (reason === "forbidden") return "Ce compte ne peut pas enregistrer de poste. Contactez l'administrateur de votre studio.";
+  if (reason === "server_unreachable") return "Serveur injoignable. Vérifiez votre connexion, puis réessayez.";
+  if (reason === "credential_not_stored") {
+    return "Le poste a été créé sur le serveur mais son identifiant n'a pas pu être rangé dans le trousseau : révoquez-le depuis « Postes », puis réessayez.";
+  }
+  if (error.code === "wrong_profile") {
+    return "L'assistant local vise un autre serveur que votre session. Vérifiez l'adresse du serveur, redémarrez l'application puis réessayez.";
+  }
+  if (error.code === "keyring_unavailable") return "Le trousseau du système est indisponible : le poste ne peut pas être enregistré.";
+  if (error.code === "capability_missing" || error.code === "not_supported") {
+    return ENROLL_UPDATE_MESSAGE;
+  }
+  return "L'enregistrement du poste a échoué. Réessayez dans quelques instants.";
+}
+
+const ENROLL_UPDATE_MESSAGE =
+  "L'assistant local de cette version ne sait pas enregistrer le poste. Mettez l'application à jour ou demandez à un administrateur.";
+
+/**
+ * DEC-0130 : la session ne part que vers un démon qui a accordé
+ * `identity.enroll` à l'instant (négociation fraîche : un démon redémarré
+ * oublie ses accords). Un ancien démon ne la reçoit jamais.
+ */
+async function daemonGrantsEnroll(platform: Platform): Promise<boolean> {
+  try {
+    const peer = (await platform.desktopInfo())?.peer;
+    if (!peer) return false;
+    const answer = await platform.request("runtime.handshake", { peer });
+    if (!answer.ok) return false;
+    const reply = answer.response.payload as { outcome?: string; granted_capabilities?: string[] };
+    return (
+      (reply.outcome === "compatible" || reply.outcome === "compatible_degraded") &&
+      (reply.granted_capabilities ?? []).includes("identity.enroll")
+    );
+  } catch {
+    return false;
+  }
+}
+
+function enrollMachineName(): string {
+  return `Studi'OS Desktop · ${new Date().toISOString().slice(0, 10)}`;
+}
+
 async function paintVerification(
   root: HTMLElement,
   platform: Platform,
@@ -553,13 +600,27 @@ async function paintVerification(
   session.identity = view;
   session.identityError = error;
   const machineReady = error === null;
+  const secretStatus = view?.secrets?.[0]?.status;
+  // A5 : sans credential (ou révoqué), le poste s'enregistre lui-même avec la
+  // session de l'étape « Connexion » ; aucun admin, aucun jeton affiché.
+  const canEnroll =
+    view !== null && (secretStatus === "absent" || secretStatus === "revoked") && (await daemonGrantsEnroll(platform));
+  const enrollHtml = !canEnroll
+    ? view !== null && (secretStatus === "absent" || secretStatus === "revoked")
+      ? `<p class="settings-intro" data-testid="enroll-unavailable">${esc(ENROLL_UPDATE_MESSAGE)}</p>`
+      : ""
+    : hasToken()
+      ? `<div class="settings-actions" data-testid="enroll-machine"><button class="ds-btn ds-btn--primary" type="button" data-action="enroll">Enregistrer ce poste</button></div>`
+      : `<p class="settings-intro" data-testid="enroll-needs-login">Connectez-vous à l'étape « Connexion » pour enregistrer ce poste.</p>`;
   const body =
     errorHtml(session.error) +
+    noticeHtml(session.notice) +
     `<dl class="settings-rows">` +
     `<div class="settings-row"><dt>Assistant local</dt><dd>${esc(daemonText)}</dd></div>` +
     `<div class="settings-row"><dt>Ce poste</dt><dd>${esc(error ?? "Reconnu — prêt à travailler.")}</dd></div>` +
     `</dl>` +
-    (machineReady
+    enrollHtml +
+    (machineReady || canEnroll
       ? ""
       : `<p class="settings-intro">Si une action est nécessaire côté serveur, faites-la valider puis revenez ici avec « Revérifier ».</p>`) +
     navButtons({
@@ -569,6 +630,34 @@ async function paintVerification(
         `<button class="ds-btn ds-btn--primary" type="button" data-action="next" ${machineReady ? "" : "disabled"}>Continuer</button>`,
     });
   root.innerHTML = layout(step, "verification", body);
+  session.notice = null;
+  root.querySelector<HTMLButtonElement>("[data-action=enroll]")?.addEventListener("click", (event) => {
+    const token = getToken();
+    if (view === null || token === null) return;
+    if (!lockButton(event.currentTarget as HTMLButtonElement, "Enregistrement…")) return;
+    void daemonGrantsEnroll(platform)
+      .then((granted) => {
+        if (!granted) return null;
+        return platform.request("identity.enroll", {
+          profile: view.profile,
+          human_session: token,
+          machine_name: enrollMachineName(),
+          replace_existing: secretStatus === "revoked",
+        });
+      })
+      .then((answer) => {
+        if (answer === null) {
+          session.error = ENROLL_UPDATE_MESSAGE;
+        } else if (answer.ok) {
+          const outcome = (answer.response.payload as { outcome?: string }).outcome;
+          session.error = null;
+          session.notice = outcome === "already_enrolled" ? "Ce poste était déjà enregistré." : "Poste enregistré.";
+        } else {
+          session.error = enrollErrorMessage(answer.error);
+        }
+        return again();
+      });
+  });
   root.querySelector("[data-action=recheck]")?.addEventListener("click", () => {
     session.error = null;
     void again();

@@ -23,41 +23,35 @@
     }
   },
   "additionalProperties": false,
-  "description": "The person using the Desktop. Authenticated by a short-lived session\nthat lives in the renderer/dashboard; its credential is part of no local\ncontract except the single, write-only `IdentityEnrollRequest.human_session`\n(DEC-0130).",
+  "description": "Enroll this machine for the human signed in on the Desktop, without an\nadmin (A5 self-service). The daemon checks `profile` against its own server\norigin before any network call, uses `human_session` for exactly one\n`POST /api/v1/machines`, stores the returned credential in the OS keyring\nand forgets the session. Validation errors never echo their input.",
   "properties": {
-    "display_name": {
+    "human_session": {
+      "maxLength": 4096,
+      "minLength": 16,
+      "pattern": "^[A-Za-z0-9._~+/=-]+$",
+      "title": "Human Session",
+      "type": "string"
+    },
+    "machine_name": {
       "maxLength": 200,
       "minLength": 1,
-      "title": "Display Name",
+      "title": "Machine Name",
       "type": "string"
     },
     "profile": {
       "$ref": "#/$defs/ProfileRef"
     },
-    "session_expires_at": {
-      "anyOf": [
-        {
-          "format": "date-time",
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Session Expires At"
-    },
-    "user_id": {
-      "format": "uuid",
-      "title": "User Id",
-      "type": "string"
+    "replace_existing": {
+      "default": false,
+      "title": "Replace Existing",
+      "type": "boolean"
     }
   },
   "required": [
-    "user_id",
-    "display_name",
-    "profile"
+    "profile",
+    "human_session",
+    "machine_name"
   ],
-  "title": "HumanIdentity",
+  "title": "IdentityEnrollRequest",
   "type": "object"
 }

@@ -1,0 +1,12 @@
+{
+  "data": {
+    "human_session": "not a session value at all",
+    "machine_name": "dev-workstation",
+    "profile": {
+      "profile_id": "default",
+      "server_origin": "https://studio.example.test"
+    }
+  },
+  "model": "IdentityEnrollRequest",
+  "reason": "the human session only holds token characters"
+}
