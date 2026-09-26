@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from importlib.metadata import PackageNotFoundError, version
 from types import TracebackType
 from typing import Any, cast
 from uuid import UUID
@@ -48,6 +49,13 @@ from studio_client.config import ClientConfig
 from studio_client.errors import StudioApiError, TransportError, error_from_response
 from studio_client.retry import RetryPolicy, is_retryable, sleep
 from studio_client.tokens import KeyringTokenStore, TokenStore, origin_of, resolve_token
+
+CLIENT_FAMILY = "daemon"
+
+try:
+    CLIENT_VERSION: str = version("studio-client")
+except PackageNotFoundError:  # pragma: no cover - src layouts without metadata
+    CLIENT_VERSION = "0.1.0"
 
 
 class StudioApiClient:
@@ -112,6 +120,8 @@ class StudioApiClient:
         stable `event_id` embedded in `json`. Without it, a POST/PATCH/DELETE
         is never retried: a silent retry would risk creating a duplicate."""
         headers = dict(extra_headers or {})
+        headers.setdefault("X-Studio-Client", CLIENT_FAMILY)
+        headers.setdefault("X-Studio-Client-Version", CLIENT_VERSION)
         if authenticated:
             headers.update(self._auth_header())
         can_retry = idempotent or method.upper() in {"GET", "HEAD"}

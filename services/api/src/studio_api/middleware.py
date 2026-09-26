@@ -16,11 +16,63 @@ from typing import Any
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from studio_contracts.version import CLIENT_FAMILIES, CLIENT_HEADER, VERSION_HEADER
 
+from studio_api.compat import check_client, family_latest, family_minimum
 from studio_api.observability import MetricsMiddleware
 from studio_api.settings import Settings
 
 logger = logging.getLogger(__name__)
+
+
+class ClientVersionGuardMiddleware(BaseHTTPMiddleware):
+    """C1 compatibility gate: a client declaring a build below the family
+    minimum gets 426 `client_upgrade_required` with an update invitation.
+
+    Pass-through by design for everything else — missing headers (pre-C1
+    clients), unknown families and unparsable versions never block, so an
+    N-1 client keeps working untouched. Skips the unauthenticated probes
+    and the signed GitHub webhook.
+    """
+
+    _SKIP_PATHS = {"/healthz", "/metrics", "/version", "/api/v1/github/webhook"}
+
+    def __init__(self, app: Any, settings: Settings) -> None:
+        super().__init__(app)
+        self._settings = settings
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        if request.url.path in self._SKIP_PATHS or not request.url.path.startswith("/api/v1"):
+            return await call_next(request)
+        client = (request.headers.get(CLIENT_HEADER) or "").lower()
+        if client not in CLIENT_FAMILIES:
+            return await call_next(request)
+        client_version = request.headers.get(VERSION_HEADER)
+        if check_client(client, client_version, self._settings):
+            return await call_next(request)
+        import json
+
+        minimum = str(family_minimum(self._settings, client))
+        latest = str(family_latest(self._settings, client))
+        return Response(
+            content=json.dumps(
+                {
+                    "detail": {
+                        "error_code": "client_upgrade_required",
+                        "client": client,
+                        "client_version": client_version,
+                        "minimum_supported": minimum,
+                        "latest": latest,
+                        "message": (
+                            "This client version is no longer supported. "
+                            "Please update to the latest release."
+                        ),
+                    }
+                }
+            ),
+            status_code=426,
+            media_type="application/json",
+        )
 
 
 class RequestIdMiddleware(BaseHTTPMiddleware):
@@ -110,7 +162,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return f"ip:{host}"
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        if request.url.path in {"/healthz", "/metrics"}:
+        if request.url.path in {"/healthz", "/metrics", "/version"}:
             return await call_next(request)
 
         # The GitHub webhook has its own bucket (DEC-0059): it carries no
@@ -183,6 +235,7 @@ def setup_middleware(app: FastAPI, settings: Settings) -> None:
 
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(RequestIdMiddleware, header_name=settings.request_id_header)
+    app.add_middleware(ClientVersionGuardMiddleware, settings=settings)
     app.add_middleware(
         RateLimitMiddleware,
         requests_per_minute=settings.rate_limit_requests_per_minute,
