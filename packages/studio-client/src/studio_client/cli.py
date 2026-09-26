@@ -92,16 +92,17 @@ def _print_models(models: list[BaseModel], *, as_json: bool) -> None:
 
 async def _with_client(
     config: ClientConfig, action: Callable[[StudioApiClient], Awaitable[Any]]
-) -> Any:
+) -> tuple[Any, StudioApiClient]:
     async with StudioApiClient(config, KeyringTokenStore()) as client:
-        return await action(client)
+        result = await action(client)
+        return result, client
 
 
 def _run(config: ClientConfig, action: Callable[[StudioApiClient], Awaitable[Any]]) -> Any:
     """Every subcommand's single entry into async code — `StudioApiClient`
     is async-only, but the CLI itself is a synchronous argparse program."""
     try:
-        return asyncio.run(_with_client(config, action))
+        result, client = asyncio.run(_with_client(config, action))
     except MissingMachineToken as exc:
         print(str(exc), file=sys.stderr)
         raise SystemExit(1) from None
@@ -109,6 +110,10 @@ def _run(config: ClientConfig, action: Callable[[StudioApiClient], Awaitable[Any
         label = exc.error_code or exc.message
         print(f"error: {label} ({exc.status_code})", file=sys.stderr)
         raise SystemExit(1) from None
+    if client.update_recommended:
+        latest = client.latest_version or "the latest release"
+        print(f"note: client {latest} is available; update recommended.", file=sys.stderr)
+    return result
 
 
 def login(argv: Sequence[str] | None = None) -> int:

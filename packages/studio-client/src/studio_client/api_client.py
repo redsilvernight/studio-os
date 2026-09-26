@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from importlib.metadata import PackageNotFoundError, version
 from types import TracebackType
 from typing import Any, cast
 from uuid import UUID
@@ -43,11 +44,19 @@ from studio_contracts.transfers import (
     UploadPartsRefreshRequest,
     UploadPartsRefreshResponse,
 )
+from studio_contracts.version import VersionInfo
 
 from studio_client.config import ClientConfig
 from studio_client.errors import StudioApiError, TransportError, error_from_response
 from studio_client.retry import RetryPolicy, is_retryable, sleep
 from studio_client.tokens import KeyringTokenStore, TokenStore, origin_of, resolve_token
+
+CLIENT_FAMILY = "daemon"
+
+try:
+    CLIENT_VERSION: str = version("studio-client")
+except PackageNotFoundError:  # pragma: no cover - src layouts without metadata
+    CLIENT_VERSION = "0.1.0"
 
 
 class StudioApiClient:
@@ -77,6 +86,15 @@ class StudioApiClient:
             verify=config.verify_tls,
             transport=transport,
         )
+        # Server advisory (C1): the newest build the server still recommends
+        # upgrading to, refreshed from every `/api/v1` response. Never blocks:
+        # the mandatory case (build below the minimum) is the 426 error instead.
+        self.latest_version: str | None = None
+
+    @property
+    def update_recommended(self) -> bool:
+        """True once the server flagged this build inside its grace window."""
+        return self.latest_version is not None
 
     async def __aenter__(self) -> StudioApiClient:
         return self
@@ -112,6 +130,8 @@ class StudioApiClient:
         stable `event_id` embedded in `json`. Without it, a POST/PATCH/DELETE
         is never retried: a silent retry would risk creating a duplicate."""
         headers = dict(extra_headers or {})
+        headers.setdefault("X-Studio-Client", CLIENT_FAMILY)
+        headers.setdefault("X-Studio-Client-Version", CLIENT_VERSION)
         if authenticated:
             headers.update(self._auth_header())
         can_retry = idempotent or method.upper() in {"GET", "HEAD"}
@@ -129,6 +149,7 @@ class StudioApiClient:
                 error = TransportError(f"transport error calling {method} {path}")
             else:
                 if response.status_code < 400:
+                    self._note_update_advisory(response)
                     return response
                 error = error_from_response(response)
 
@@ -141,9 +162,20 @@ class StudioApiClient:
             await sleep(self._retry_policy.delay_for(attempt))
             attempt += 1
 
+    def _note_update_advisory(self, response: httpx.Response) -> None:
+        if response.headers.get("x-studio-client-update") == "recommended":
+            self.latest_version = response.headers.get("x-studio-client-latest") or "unknown"
+
     async def healthz(self) -> dict[str, str]:
         response = await self._request("GET", "/healthz", authenticated=False)
         return cast(dict[str, str], response.json())
+
+    async def server_version(self) -> VersionInfo:
+        """Unauthenticated compatibility probe (C1) — the API contract version,
+        the server build and, per client family, the oldest served and the
+        newest known build. Safe to call before any credential exists."""
+        response = await self._request("GET", "/version", authenticated=False)
+        return VersionInfo.model_validate(response.json())
 
     async def list_projects(self) -> list[Project]:
         response = await self._request("GET", "/api/v1/projects")
