@@ -47,7 +47,8 @@ ressource rattachee a un projet.
   `session_id`, `auth_version`, `iat`, `exp`, `type` — `email` et `role`
   retires ; un JWT emis avant le deploiement est refuse. `TokenResponse` gagne
   `expires_in` (secondes, additif). Un User desactive ou non verifie recoit le
-  meme `401` qu'un mauvais mot de passe. Validation, revocation et SSE :
+  meme `401` qu'un mauvais mot de passe. L'e-mail est compare sans tenir
+  compte de la casse ni des espaces de bord (A3, normalisation). Validation, revocation et SSE :
   `TECH/04_AUTH_SYNC_CONTRACT.md`, Cycle de session.
 - GET /auth/me (DEC-0110, additif) — tout principal authentifie (JWT ou token
   machine). Response `AuthIdentity` : `user_id`, `display_name`, `email`,
@@ -121,12 +122,39 @@ ressource rattachee a un projet.
   ses machines et ses JWT recoivent le `401` generique
   (`TECH/04_AUTH_SYNC_CONTRACT.md`, Cycle de session). Les User existants et
   ceux crees par `studio-admin`/`POST /users` sont verifies a la creation.
-- POST /users (role `admin`, pas de `Idempotency-Key`)
+- POST /users (role `admin`, pas de `Idempotency-Key`) — e-mail stocke
+  normalise (`strip().lower()`, A3) et unique sans tenir compte de la casse :
+  une variante de casse d'un e-mail existant repond `409`.
 - GET /users (role `admin`, additif, tache ac1b9a28) — annuaire pour choisir
   un membre : `q` optionnel (≤200 caracteres, sous-chaine insensible a la
   casse sur `display_name` ou `email`, jokers `%`/`_` pris litteralement),
   `limit` 1–200 (defaut 50) ; tri par nom puis e-mail ; reponse `list[User]`,
   jamais de hash. Non-admin : `403`.
+- `User` gagne (A3, additif) `status` (`pending|active|disabled`, derive,
+  jamais stocke), `email_verified_at` et `disabled_at` (nullables).
+
+### Administration des comptes (A3, additif — role `admin`)
+- POST /users/{user_id}/disable — desactive (idempotent) : `auth_version`
+  incremente (tous les JWT meurent), machines du User refusees tant que
+  `disabled_at` est pose, flux SSE ouverts revalides immediatement. Reponse
+  `User`.
+- POST /users/{user_id}/enable — leve la desactivation (idempotent) ; les JWT
+  anterieurs restent invalides, les machines refonctionnent. Un User non
+  verifie reste `pending`. Reponse `User`.
+- POST /users/{user_id}/revoke-sessions — incremente `auth_version` (tous les
+  JWT du User), sans toucher aux tokens machine. Reponse `User`.
+- GET /users/{user_id}/memberships — projets accessibles au User
+  (`list[ProjectMember]`, plus ancien d'abord) ; l'acces se donne/retire par
+  `PUT`/`DELETE /projects/{project_id}/members/{user_id}`.
+- Regles communes : non-admin `403 forbidden` avant toute recherche ; User
+  inconnu `404 {"detail": {"error_code": "not_found"}}`. Aucun endpoint ne
+  permet de modifier son propre compte : cibler soi-meme (ces trois POST et
+  `PUT`/`DELETE /projects/{project_id}/members/{user_id}`) repond `403
+  {"detail": {"error_code": "self_modification_forbidden", "resource":
+  "user", "action": ...}}` avant toute recherche — rupture de la version
+  contractuelle 2 pour `PUT`/`DELETE members` (un admin ne pouvait jusque-la
+  s'accorder/retirer un acces, sans effet puisque sa portee est globale).
+  Aucun endpoint ne modifie `User.role`.
 
 Le tout premier `User` (admin) et le tout premier `Machine` sont crees
 hors-bande par la CLI serveur `studio-admin` (DEC-0011) — aucun endpoint

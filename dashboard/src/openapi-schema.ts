@@ -158,13 +158,13 @@ export interface paths {
         get?: never;
         /**
          * Grant Project Member
-         * @description Grant a user access to a project (admin only). `201` with the new membership; granting an existing member returns it unchanged with `200` (the original `granted_by_user_id` is kept). Naturally idempotent: no `Idempotency-Key`. Unknown project or user: 404.
+         * @description Grant a user access to a project (admin only). `201` with the new membership; granting an existing member returns it unchanged with `200` (the original `granted_by_user_id` is kept). Naturally idempotent: no `Idempotency-Key`. Granting yourself: `403 self_modification_forbidden`. Unknown project or user: 404.
          */
         put: operations["grant_project_member_api_v1_projects__project_id__members__user_id__put"];
         post?: never;
         /**
          * Revoke Project Member
-         * @description Remove a user's access to a project (admin only). Idempotent `204`; the user's open event streams on this project are closed. Unknown project or user: 404.
+         * @description Remove a user's access to a project (admin only). Idempotent `204`; the user's open event streams on this project are closed. Removing yourself: `403 self_modification_forbidden`. Unknown project or user: 404.
          */
         delete: operations["revoke_project_member_api_v1_projects__project_id__members__user_id__delete"];
         options?: never;
@@ -1245,15 +1245,95 @@ export interface paths {
         };
         /**
          * List Users
-         * @description Admin user directory, used to pick who to add to a project. Requires the admin role: any other role gets `403 forbidden` before any lookup. `q` filters on a case-insensitive substring of the display name or email; results are sorted by display name then email and capped by `limit`.
+         * @description Admin user directory, used to pick who to add to a project. Requires the admin role: any other role gets `403 forbidden` before any lookup. `q` filters on a case-insensitive substring of the display name or email; results are sorted by display name then email and capped by `limit`. Each User carries its derived account `status` (`pending`, `active`, `disabled`).
          */
         get: operations["list_users_api_v1_users_get"];
         put?: never;
         /**
          * Create User
-         * @description Provision a new user with a role (`admin`, `developer`, `agent`, or `readonly` — the role alone decides what the user's machines may do). Requires the admin role. Emails are unique: reusing one fails with 409. Deliberately not replayable: no `Idempotency-Key`. The very first (admin) user is created out of band, never through this endpoint.
+         * @description Provision a new user with a role (`admin`, `developer`, `agent`, or `readonly` — the role alone decides what the user's machines may do). Requires the admin role. The email is stored trimmed and lower-cased and is unique regardless of case: reusing one fails with 409. Deliberately not replayable: no `Idempotency-Key`. The very first (admin) user is created out of band, never through this endpoint.
          */
         post: operations["create_user_api_v1_users_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{user_id}/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Disable User
+         * @description Disable an account (admin only; idempotent). Every JWT of the User is revoked (`auth_version` bumped), every machine it owns is refused while it stays disabled, and its open event streams close. Targeting your own account: `403 {error_code: self_modification_forbidden}`, checked before any lookup. Unknown user: 404.
+         */
+        post: operations["disable_user_api_v1_users__user_id__disable_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{user_id}/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enable User
+         * @description Lift a deactivation (admin only; idempotent). Earlier JWTs stay invalid; the User's machines work again. An account whose email is not verified stays `pending`: activation requires verification. Targeting your own account: `403 {error_code: self_modification_forbidden}`, checked before any lookup. Unknown user: 404.
+         */
+        post: operations["enable_user_api_v1_users__user_id__enable_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{user_id}/revoke-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke User Sessions
+         * @description Revoke every dashboard session (JWT) of a User (admin only): `auth_version` is bumped, machine tokens are untouched. Targeting your own account: `403 {error_code: self_modification_forbidden}`, checked before any lookup. Unknown user: 404.
+         */
+        post: operations["revoke_user_sessions_api_v1_users__user_id__revoke_sessions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{user_id}/memberships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List User Memberships
+         * @description Projects a User can access (admin only), oldest grant first. Access is granted or removed with `PUT`/`DELETE /projects/{project_id}/members/{user_id}`. Unknown user: 404.
+         */
+        get: operations["list_user_memberships_api_v1_users__user_id__memberships_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1911,6 +1991,15 @@ export interface components {
          * @enum {string}
          */
         AIWorkStatus: "started" | "completed" | "failed" | "review_requested" | "approved" | "changes_requested";
+        /**
+         * AccountStatus
+         * @description Derived, never stored: `disabled` when `disabled_at` is set, else
+         *     `pending` while `email_verified_at` is null, else `active`. Only an
+         *     `active` account gets a principal; the state is orthogonal to project
+         *     access.
+         * @enum {string}
+         */
+        AccountStatus: "pending" | "active" | "disabled";
         /**
          * Agent
          * @description Provenance identity attached to one machine: who did the work, for
@@ -5159,7 +5248,11 @@ export interface components {
              */
             expires_at: string;
         };
-        /** User */
+        /**
+         * User
+         * @description `email` is normalized (trimmed, lower-case) and unique regardless of
+         *     case.
+         */
         User: {
             /**
              * Created At
@@ -5183,6 +5276,12 @@ export interface components {
             /** Email */
             email: string;
             role: components["schemas"]["Role"];
+            /** @default active */
+            status: components["schemas"]["AccountStatus"];
+            /** Email Verified At */
+            email_verified_at?: string | null;
+            /** Disabled At */
+            disabled_at?: string | null;
         };
         /**
          * UserCreate
@@ -11512,6 +11611,314 @@ export interface operations {
                      *         "resource": "task",
                      *         "action": "write"
                      *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    disable_user_api_v1_users__user_id__disable_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    enable_user_api_v1_users__user_id__enable_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_user_sessions_api_v1_users__user_id__revoke_sessions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_user_memberships_api_v1_users__user_id__memberships_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectMember"][];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
                      *     }
                      */
                     "application/json": unknown;

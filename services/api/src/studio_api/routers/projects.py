@@ -161,7 +161,8 @@ async def list_project_members(
         "Grant a user access to a project (admin only). `201` with the new "
         "membership; granting an existing member returns it unchanged with "
         "`200` (the original `granted_by_user_id` is kept). Naturally "
-        "idempotent: no `Idempotency-Key`. Unknown project or user: 404."
+        "idempotent: no `Idempotency-Key`. Granting yourself: `403 "
+        "self_modification_forbidden`. Unknown project or user: 404."
     ),
     responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
 )
@@ -173,6 +174,7 @@ async def grant_project_member(
     principal: CurrentPrincipal,
 ) -> ProjectMember:
     projects_service.ensure_members_admin(principal, "write")
+    provisioning_service.ensure_not_self(principal.user, user_id, "grant_access")
     membership, created = await projects_service.grant_member(
         session, project_id, user_id, granted_by_user_id=principal.user.id
     )
@@ -186,8 +188,9 @@ async def grant_project_member(
     status_code=status.HTTP_204_NO_CONTENT,
     description=(
         "Remove a user's access to a project (admin only). Idempotent `204`; "
-        "the user's open event streams on this project are closed. Unknown "
-        "project or user: 404."
+        "the user's open event streams on this project are closed. Removing "
+        "yourself: `403 self_modification_forbidden`. Unknown project or "
+        "user: 404."
     ),
     responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
 )
@@ -195,5 +198,6 @@ async def revoke_project_member(
     project_id: UUID, user_id: UUID, session: DbSession, principal: CurrentPrincipal
 ) -> Response:
     projects_service.ensure_members_admin(principal, "write")
+    provisioning_service.ensure_not_self(principal.user, user_id, "revoke_access")
     await projects_service.revoke_member(session, project_id, user_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

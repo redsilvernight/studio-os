@@ -47,7 +47,10 @@ et `Transfer` sont des journaux append-only : pas de `version` (jamais
 modifies apres creation, seulement des transitions de statut explicites).
 
 ## User
-`id`, `display_name`, `email` (unique), `role` (`admin|developer|agent|readonly`,
+`id`, `display_name`, `email` (normalise `strip().lower()`, unique sans
+tenir compte de la casse : index unique `uq_users_email_lower` sur
+`lower(email)`, migration A3 `0016` reversible avec preflight bloquant sur
+les doublons), `role` (`admin|developer|agent|readonly`,
 `TECH/04_AUTH_SYNC_CONTRACT.md`), `password_hash` (nullable, bcrypt, DASH-4
 DEC-0056), + champs communs mutables. Le mot de passe est optionnel : les
 utilisateurs crees sans mot de passe ne peuvent pas utiliser le login humain

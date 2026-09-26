@@ -113,16 +113,19 @@ async def test_non_admin_is_forbidden_before_lookup(
 
 
 async def test_unknown_project_or_user_is_404_for_admin(
-    client: AsyncClient, admin_auth_headers: dict[str, str], project: ProjectModel
+    client: AsyncClient,
+    admin_auth_headers: dict[str, str],
+    machine: tuple[MachineModel, str],
+    project: ProjectModel,
 ) -> None:
-    admin = await _owner_id(client, admin_auth_headers)
+    user_id = machine[0].owner_user_id
     unknown_list = await client.get(
         f"/api/v1/projects/{UNKNOWN}/members", headers=admin_auth_headers
     )
     assert unknown_list.status_code == 404
     for method in ("PUT", "DELETE"):
         unknown_project = await client.request(
-            method, f"/api/v1/projects/{UNKNOWN}/members/{admin}", headers=admin_auth_headers
+            method, f"/api/v1/projects/{UNKNOWN}/members/{user_id}", headers=admin_auth_headers
         )
         assert unknown_project.status_code == 404
         unknown_user = await client.request(

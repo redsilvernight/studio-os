@@ -28,11 +28,28 @@ class MachineStatus(StrEnum):
     OFFLINE = "offline"
 
 
+class AccountStatus(StrEnum):
+    """Derived, never stored: `disabled` when `disabled_at` is set, else
+    `pending` while `email_verified_at` is null, else `active`. Only an
+    `active` account gets a principal; the state is orthogonal to project
+    access."""
+
+    PENDING = "pending"
+    ACTIVE = "active"
+    DISABLED = "disabled"
+
+
 class User(VersionedModel):
+    """`email` is normalized (trimmed, lower-case) and unique regardless of
+    case."""
+
     id: UUID
     display_name: str
     email: str
     role: Role
+    status: AccountStatus = AccountStatus.ACTIVE
+    email_verified_at: datetime | None = None
+    disabled_at: datetime | None = None
 
 
 class Machine(VersionedModel):

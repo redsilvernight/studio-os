@@ -27,6 +27,7 @@ export interface MembersContext {
   projectId: string;
   authed: boolean;
   isAdmin: boolean;
+  selfId?: string | null;
 }
 
 export const CONFIRM_REVOKE_MEMBER =
@@ -49,14 +50,19 @@ function grantedByCell(grantedBy: string | null | undefined, members: ProjectMem
   return known !== undefined ? esc(memberLabel(known)) : idCell(grantedBy);
 }
 
-function rowsHtml(members: ProjectMember[]): string {
+function revokeCell(m: ProjectMember, selfId: string | null): string {
+  if (m.user_id === selfId) return `<span class="ds-list-sub">Votre compte</span>`;
+  return `<button type="button" class="ds-btn ds-btn--sm" data-revoke="${esc(m.user_id)}" aria-label="Retirer ${esc(memberLabel(m))} du projet">Retirer</button>`;
+}
+
+function rowsHtml(members: ProjectMember[], selfId: string | null): string {
   return members
     .map(
       (m) =>
         `<tr><td>${userCell(m.user_display_name, m.user_email, m.user_id)}</td>` +
         `<td>${grantedByCell(m.granted_by_user_id, members)}</td>` +
         `<td>${esc(fmtTime(m.created_at))}</td>` +
-        `<td class="actions"><button type="button" class="ds-btn ds-btn--sm" data-revoke="${esc(m.user_id)}" aria-label="Retirer ${esc(memberLabel(m))} du projet">Retirer</button></td></tr>`,
+        `<td class="actions">${revokeCell(m, selfId)}</td></tr>`,
     )
     .join("");
 }
@@ -77,12 +83,18 @@ function searchFormHtml(): string {
 }
 
 /** Résultats de recherche : bouton « Ajouter », ou « Déjà membre ». */
-export function candidatesHtml(users: DirectoryUser[], memberIds: ReadonlySet<string>): string {
+export function candidatesHtml(
+  users: DirectoryUser[],
+  memberIds: ReadonlySet<string>,
+  selfId: string | null = null,
+): string {
   if (users.length === 0) return `<p class="ds-list-sub">Aucun utilisateur trouvé.</p>`;
   const items = users
     .map((u) => {
       const action = memberIds.has(u.id)
         ? `<span class="ds-list-sub">Déjà membre</span>`
+        : u.id === selfId
+          ? `<span class="ds-list-sub">Votre compte</span>`
         : `<button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-grant-user="${esc(u.id)}" aria-label="Ajouter ${esc(u.display_name)} au projet">Ajouter</button>`;
       return `<li class="members-candidate"><div>${userCell(u.display_name, u.email, u.id)}</div>${action}</li>`;
     })
@@ -102,11 +114,11 @@ export function membersRestrictedHtml(): string {
   );
 }
 
-export function membersPanelHtml(members: ProjectMember[]): string {
+export function membersPanelHtml(members: ProjectMember[], selfId: string | null = null): string {
   const table =
     members.length === 0
       ? dsEmptyState("Aucun membre", "Personne n'a encore accès à ce projet, hormis les administrateurs.")
-      : `<div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">Membres du projet</caption><thead><tr><th scope="col">Utilisateur</th><th scope="col">Accordé par</th><th scope="col">Depuis</th><th scope="col">Actions</th></tr></thead><tbody>${rowsHtml(members)}</tbody></table></div>`;
+      : `<div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">Membres du projet</caption><thead><tr><th scope="col">Utilisateur</th><th scope="col">Accordé par</th><th scope="col">Depuis</th><th scope="col">Actions</th></tr></thead><tbody>${rowsHtml(members, selfId)}</tbody></table></div>`;
   return panelHtml(
     `${members.length} membre(s) · les administrateurs accèdent à tous les projets`,
     `${table}<div class="members-grant">${dsSectionHeader("Ajouter un membre")}${searchFormHtml()}</div>` +
@@ -127,7 +139,7 @@ export async function renderMembersInto(root: HTMLElement, ctx: MembersContext):
   };
   try {
     const members = await listMembers(ctx.client, ctx.projectId);
-    root.innerHTML = membersPanelHtml(members);
+    root.innerHTML = membersPanelHtml(members, ctx.selfId ?? null);
     bind(root, ctx, new Set(members.map((m) => m.user_id)), reload);
   } catch (error) {
     root.innerHTML = panelHtml(
@@ -193,7 +205,7 @@ function bind(
     searchUsers(ctx.client, query)
       .then((users) => {
         if (msg !== null) msg.textContent = "";
-        if (results !== null) results.innerHTML = candidatesHtml(users, memberIds);
+        if (results !== null) results.innerHTML = candidatesHtml(users, memberIds, ctx.selfId ?? null);
         bindCandidates();
       })
       .catch((error: unknown) => fail(describeError(error)))

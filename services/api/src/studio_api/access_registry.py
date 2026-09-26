@@ -48,6 +48,10 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     ("POST", "/api/v1/projects"): "instance",
     ("GET", "/api/v1/users"): "instance",
     ("POST", "/api/v1/users"): "instance",
+    ("POST", "/api/v1/users/{user_id}/disable"): "instance",
+    ("POST", "/api/v1/users/{user_id}/enable"): "instance",
+    ("POST", "/api/v1/users/{user_id}/revoke-sessions"): "instance",
+    ("GET", "/api/v1/users/{user_id}/memberships"): "instance",
     # Own: the caller's machines (self-service, A5 — admin for any User),
     # agents and user-private runtimes.
     ("POST", "/api/v1/machines"): "own",

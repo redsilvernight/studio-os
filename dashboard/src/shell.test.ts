@@ -27,6 +27,7 @@ describe("shellNavGroups (UI-2)", () => {
       "#/graphs/knowledge",
       "#/transfers",
       "#/machines",
+      "#/accounts",
       "#/inspector",
     ]);
   });

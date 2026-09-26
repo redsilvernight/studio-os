@@ -153,6 +153,17 @@ async def list_members(
     return list(result.scalars().all())
 
 
+async def list_user_memberships(
+    session: AsyncSession, user_id: uuid.UUID
+) -> list[ProjectMembershipModel]:
+    result = await session.execute(
+        select(ProjectMembershipModel)
+        .where(ProjectMembershipModel.user_id == user_id)
+        .order_by(ProjectMembershipModel.created_at, ProjectMembershipModel.project_id)
+    )
+    return list(result.scalars().all())
+
+
 async def grant_member(
     session: AsyncSession,
     project_id: uuid.UUID,
