@@ -54,7 +54,7 @@ jobs:
           WINDOWS_CERT_THUMBPRINT: ${{ secrets.WINDOWS_CERT_THUMBPRINT }}
           WINDOWS_SIGN_PFX_BASE64: ${{ secrets.WINDOWS_SIGN_PFX_BASE64 }}
           WINDOWS_SIGN_PASSWORD: ${{ secrets.WINDOWS_SIGN_PASSWORD }}
-      - name: Report Authenticode signatures (DEC-0129: unsigned is accepted)
+      - name: "Report Authenticode signatures (DEC-0129: unsigned is accepted)"
         run: node scripts/windows-signing.mjs --verify --dir src-tauri/target/release/bundle/nsis
         working-directory: desktop
       - name: Install, launch, upgrade and uninstall
