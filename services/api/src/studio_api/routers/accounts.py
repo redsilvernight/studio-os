@@ -56,7 +56,11 @@ class EmailField(BaseModel):
     )
 
 
-class RegisterRequest(EmailField):
+class TokenBody(BaseModel):
+    token: str = Field(..., min_length=16, max_length=256)
+
+
+class VerifyEmailRequest(TokenBody):
     password: NewPassword
     display_name: str = Field(..., min_length=1, max_length=100)
 
@@ -67,10 +71,6 @@ class RegisterRequest(EmailField):
         if not stripped:
             raise ValueError("display_name must not be blank")
         return stripped
-
-
-class TokenBody(BaseModel):
-    token: str = Field(..., min_length=16, max_length=256)
 
 
 class ResetPasswordRequest(TokenBody):
@@ -186,16 +186,16 @@ _TOKEN_ERRORS: ErrorResponses = {
     response_model=AcceptedResponse,
     status_code=status.HTTP_202_ACCEPTED,
     description=(
-        "Public self-registration, only when the instance enables it. Creates a "
-        "`pending` `readonly` User without any project membership and e-mails a "
-        "single-use verification link; the account cannot log in before it is "
-        "verified. The answer is identical whether or not the address already "
-        "has an account."
+        "Public self-registration, only when the instance enables it. Body: the "
+        "address only. Creates a `pending` `readonly` User without password nor "
+        "project membership and e-mails a single-use verification link; the "
+        "password and display name are chosen when that link is consumed. The "
+        "answer is identical whether or not the address already has an account."
     ),
     responses={**_UNAVAILABLE_REGISTRATION, **_KEY_ERRORS},
 )
 async def register(
-    payload: RegisterRequest,
+    payload: EmailField,
     request: Request,
     background: BackgroundTasks,
     idempotency_key: str | None = Header(
@@ -215,9 +215,7 @@ async def register(
         "POST /auth/register",
         background,
         sender,
-        lambda: accounts_service.register(
-            session, settings, payload.email, payload.password, payload.display_name
-        ),
+        lambda: accounts_service.register(session, settings, payload.email),
     )
 
 
@@ -260,14 +258,15 @@ async def resend_verification(
     "/auth/verify-email",
     response_model=AccountActionResponse,
     description=(
-        "Consume a verification secret: the account becomes `active` with the "
-        "password chosen when that link was issued. Replaying the same secret "
-        "returns the same result."
+        "Consume a verification secret and activate the pending account with the "
+        "password and display name given here; every other verification link of "
+        "the account stops working. Replaying the same body returns the same "
+        "result."
     ),
     responses={**_UNAVAILABLE_REGISTRATION, **_TOKEN_ERRORS},
 )
 async def verify_email(
-    payload: TokenBody,
+    payload: VerifyEmailRequest,
     request: Request,
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
@@ -279,7 +278,9 @@ async def verify_email(
         settings,
         payload.token,
         "POST /auth/verify-email",
-        lambda: accounts_service.verify_email(session, payload.token),
+        lambda: accounts_service.verify_email(
+            session, payload.token, payload.password, payload.display_name
+        ),
     )
 
 

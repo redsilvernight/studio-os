@@ -123,7 +123,7 @@
      "auth"
     ],
     "summary": "Register",
-    "description": "Public self-registration, only when the instance enables it. Creates a `pending` `readonly` User without any project membership and e-mails a single-use verification link; the account cannot log in before it is verified. The answer is identical whether or not the address already has an account.",
+    "description": "Public self-registration, only when the instance enables it. Body: the address only. Creates a `pending` `readonly` User without password nor project membership and e-mails a single-use verification link; the password and display name are chosen when that link is consumed. The answer is identical whether or not the address already has an account.",
     "operationId": "register_api_v1_auth_register_post",
     "parameters": [
      {
@@ -150,7 +150,7 @@
      "content": {
       "application/json": {
        "schema": {
-        "$ref": "#/components/schemas/RegisterRequest"
+        "$ref": "#/components/schemas/EmailField"
        }
       }
      }
@@ -265,13 +265,13 @@
      "auth"
     ],
     "summary": "Verify Email",
-    "description": "Consume a verification secret: the account becomes `active` with the password chosen when that link was issued. Replaying the same secret returns the same result.",
+    "description": "Consume a verification secret and activate the pending account with the password and display name given here; every other verification link of the account stops working. Replaying the same body returns the same result.",
     "operationId": "verify_email_api_v1_auth_verify_email_post",
     "requestBody": {
      "content": {
       "application/json": {
        "schema": {
-        "$ref": "#/components/schemas/TokenBody"
+        "$ref": "#/components/schemas/VerifyEmailRequest"
        }
       }
      },
@@ -15304,38 +15304,6 @@
     "title": "ProvenanceSource",
     "description": "Where a resolved element came from (structured, never prose)."
    },
-   "RegisterRequest": {
-    "properties": {
-     "email": {
-      "type": "string",
-      "maxLength": 254,
-      "minLength": 3,
-      "pattern": "^[^@\\s]+@[^@\\s]+$",
-      "title": "Email",
-      "examples": [
-       "ada@example.com"
-      ]
-     },
-     "password": {
-      "type": "string",
-      "title": "Password",
-      "description": "12 characters to 72 UTF-8 bytes."
-     },
-     "display_name": {
-      "type": "string",
-      "maxLength": 100,
-      "minLength": 1,
-      "title": "Display Name"
-     }
-    },
-    "type": "object",
-    "required": [
-     "email",
-     "password",
-     "display_name"
-    ],
-    "title": "RegisterRequest"
-   },
    "Reorder": {
     "properties": {
      "ordered_keys": {
@@ -18704,21 +18672,6 @@
     ],
     "title": "TimelineDay"
    },
-   "TokenBody": {
-    "properties": {
-     "token": {
-      "type": "string",
-      "maxLength": 256,
-      "minLength": 16,
-      "title": "Token"
-     }
-    },
-    "type": "object",
-    "required": [
-     "token"
-    ],
-    "title": "TokenBody"
-   },
    "TokenRequest": {
     "properties": {
      "email": {
@@ -19486,6 +19439,34 @@
      "type"
     ],
     "title": "ValidationError"
+   },
+   "VerifyEmailRequest": {
+    "properties": {
+     "token": {
+      "type": "string",
+      "maxLength": 256,
+      "minLength": 16,
+      "title": "Token"
+     },
+     "password": {
+      "type": "string",
+      "title": "Password",
+      "description": "12 characters to 72 UTF-8 bytes."
+     },
+     "display_name": {
+      "type": "string",
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Display Name"
+     }
+    },
+    "type": "object",
+    "required": [
+     "token",
+     "password",
+     "display_name"
+    ],
+    "title": "VerifyEmailRequest"
    },
    "VersionOrigin": {
     "type": "string",

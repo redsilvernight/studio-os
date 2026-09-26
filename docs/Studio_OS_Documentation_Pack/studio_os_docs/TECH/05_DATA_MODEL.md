@@ -70,14 +70,13 @@ persiste.
 Secret de compte a usage unique : `id`, `user_id` (FK `users`, `ON DELETE
 CASCADE`), `purpose` (`email_verification` | `password_reset`), `token_hash`
 (SHA-256 du secret aleatoire de 256 bits, unique ; le secret n'est jamais
-stocke), `created_at`, `expires_at`, `consumed_at` (nullable), `password_hash`
-(nullable, verification seulement : bcrypt du mot de passe choisi a
-l'inscription, applique au User quand ce lien precis est consomme). Index
+stocke), `created_at`, `expires_at`, `consumed_at` (nullable). Index
 `(user_id, purpose)`. Emettre un secret fait expirer les secrets non consommes
 de meme usage ; la consommation est un `UPDATE` conditionnel
 (`consumed_at IS NULL AND expires_at > now()`). Un User auto-inscrit est cree
-`readonly`, `pending` (`email_verified_at` nul, `password_hash` nul), sans
-membership.
+`readonly`, `pending` (`email_verified_at` nul, `password_hash` nul,
+`display_name` provisoire = partie locale de l'adresse), sans membership ; mot
+de passe et nom sont poses a la verification.
 
 ## Machine
 `id`, `owner_user_id` (FK User), `display_name`, `credential_hash` (token

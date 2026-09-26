@@ -75,7 +75,7 @@ export interface paths {
         put?: never;
         /**
          * Register
-         * @description Public self-registration, only when the instance enables it. Creates a `pending` `readonly` User without any project membership and e-mails a single-use verification link; the account cannot log in before it is verified. The answer is identical whether or not the address already has an account.
+         * @description Public self-registration, only when the instance enables it. Body: the address only. Creates a `pending` `readonly` User without password nor project membership and e-mails a single-use verification link; the password and display name are chosen when that link is consumed. The answer is identical whether or not the address already has an account.
          */
         post: operations["register_api_v1_auth_register_post"];
         delete?: never;
@@ -115,7 +115,7 @@ export interface paths {
         put?: never;
         /**
          * Verify Email
-         * @description Consume a verification secret: the account becomes `active` with the password chosen when that link was issued. Replaying the same secret returns the same result.
+         * @description Consume a verification secret and activate the pending account with the password and display name given here; every other verification link of the account stops working. Replaying the same body returns the same result.
          */
         post: operations["verify_email_api_v1_auth_verify_email_post"];
         delete?: never;
@@ -3722,21 +3722,6 @@ export interface components {
          * @enum {string}
          */
         ProvenanceSource: "active_pointer" | "project_lock" | "version_pin" | "runtime_binding" | "session_override";
-        /** RegisterRequest */
-        RegisterRequest: {
-            /**
-             * Email
-             * @example ada@example.com
-             */
-            email: string;
-            /**
-             * Password
-             * @description 12 characters to 72 UTF-8 bytes.
-             */
-            password: string;
-            /** Display Name */
-            display_name: string;
-        };
         /**
          * Reorder
          * @description Atomic reorder: the complete ordered list of sibling keys. It must be
@@ -5172,11 +5157,6 @@ export interface components {
             /** Events */
             events: components["schemas"]["EventEnvelope"][];
         };
-        /** TokenBody */
-        TokenBody: {
-            /** Token */
-            token: string;
-        };
         /** TokenRequest */
         TokenRequest: {
             /**
@@ -5497,6 +5477,18 @@ export interface components {
             /** Context */
             ctx?: Record<string, never>;
         };
+        /** VerifyEmailRequest */
+        VerifyEmailRequest: {
+            /** Token */
+            token: string;
+            /**
+             * Password
+             * @description 12 characters to 72 UTF-8 bytes.
+             */
+            password: string;
+            /** Display Name */
+            display_name: string;
+        };
         /**
          * VersionOrigin
          * @description How an effective version was picked: P2 shadowing selection yields
@@ -5739,7 +5731,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["RegisterRequest"];
+                "application/json": components["schemas"]["EmailField"];
             };
         };
         responses: {
@@ -5850,7 +5842,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["TokenBody"];
+                "application/json": components["schemas"]["VerifyEmailRequest"];
             };
         };
         responses: {

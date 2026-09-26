@@ -5,6 +5,12 @@ an e-mail goes out is decided here, the response never says. Secrets are
 256-bit random values; only their SHA-256 is stored (`account_tokens`), and
 the plaintext exists only in the e-mail handed back to the caller for
 background delivery.
+
+Registration only asks for an address: the password and display name are
+chosen when the verification link is consumed, by whoever holds the mailbox.
+A stranger who registers someone else's address therefore never knows the
+password of the account the owner activates, and never writes text into an
+e-mail sent to that owner.
 """
 
 from __future__ import annotations
@@ -46,9 +52,13 @@ def new_account_secret() -> str:
 
 
 def keyed_request_hash(body: bytes, settings: Settings) -> str:
-    """Idempotency fingerprint of a body that carries a password: keyed, so
-    the stored hash cannot be brute-forced offline into the password."""
-    return hmac.new(settings.jwt_secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
+    """Idempotency fingerprint of a body that may carry a password: keyed
+    (with a key derived from, not equal to, the JWT secret), so the stored
+    hash cannot be brute-forced offline into the password."""
+    key = hashlib.sha256(
+        b"studio-os/account-request-hash/v1:" + settings.jwt_secret.encode("utf-8")
+    ).digest()
+    return hmac.new(key, body, hashlib.sha256).hexdigest()
 
 
 async def _issue(
@@ -57,7 +67,6 @@ async def _issue(
     purpose: str,
     ttl: timedelta,
     cooldown: timedelta,
-    password_hash: str | None = None,
 ) -> IssuedToken | None:
     """New secret for `user`, expiring the outstanding ones of the same
     purpose. None (silently) inside the cooldown after the previous one."""
@@ -71,16 +80,7 @@ async def _issue(
     last_created = latest.scalar_one_or_none()
     if last_created is not None and now - last_created < cooldown:
         return None
-    await session.execute(
-        update(AccountTokenModel)
-        .where(
-            AccountTokenModel.user_id == user.id,
-            AccountTokenModel.purpose == purpose,
-            AccountTokenModel.consumed_at.is_(None),
-            AccountTokenModel.expires_at > now,
-        )
-        .values(expires_at=now)
-    )
+    await _expire_outstanding(session, user.id, purpose)
     secret = new_account_secret()
     session.add(
         AccountTokenModel(
@@ -89,10 +89,23 @@ async def _issue(
             token_hash=hash_token(secret),
             created_at=now,
             expires_at=now + ttl,
-            password_hash=password_hash,
         )
     )
     return IssuedToken(user=user, secret=secret)
+
+
+async def _expire_outstanding(session: AsyncSession, user_id: uuid.UUID, purpose: str) -> None:
+    now = datetime.now(UTC)
+    await session.execute(
+        update(AccountTokenModel)
+        .where(
+            AccountTokenModel.user_id == user_id,
+            AccountTokenModel.purpose == purpose,
+            AccountTokenModel.consumed_at.is_(None),
+            AccountTokenModel.expires_at > now,
+        )
+        .values(expires_at=now)
+    )
 
 
 async def _consume(session: AsyncSession, secret: str, purpose: str) -> AccountTokenModel | None:
@@ -123,10 +136,6 @@ def _invalid_token() -> HTTPException:
     )
 
 
-def _verification_ttl(settings: Settings) -> timedelta:
-    return timedelta(minutes=settings.email_verification_ttl_minutes)
-
-
 def _cooldown(settings: Settings) -> timedelta:
     return timedelta(seconds=settings.account_email_cooldown_seconds)
 
@@ -138,11 +147,12 @@ def verification_email(settings: Settings, issued: IssuedToken) -> OutgoingEmail
         to=issued.user.email,
         subject="Studio OS — confirmez votre adresse e-mail",
         body=(
-            f"Bonjour {issued.user.display_name},\n\n"
-            "Pour activer votre compte Studio OS, ouvrez ce lien :\n\n"
+            "Bonjour,\n\n"
+            "Une inscription à Studio OS a été demandée pour cette adresse. Pour "
+            "activer le compte et choisir votre mot de passe, ouvrez ce lien :\n\n"
             f"{link}\n\n"
-            f"Il expire dans {hours} h et ne fonctionne qu'une fois. Si vous n'avez pas "
-            "demandé de compte, ignorez ce message.\n"
+            f"Il expire dans {hours} h et ne fonctionne qu'une fois. Si vous n'avez "
+            "rien demandé, ignorez ce message : aucun compte ne sera activé.\n"
         ),
         kind="email_verification",
     )
@@ -154,8 +164,8 @@ def password_reset_email(settings: Settings, issued: IssuedToken) -> OutgoingEma
         to=issued.user.email,
         subject="Studio OS — réinitialisation du mot de passe",
         body=(
-            f"Bonjour {issued.user.display_name},\n\n"
-            "Pour choisir un nouveau mot de passe, ouvrez ce lien :\n\n"
+            "Bonjour,\n\n"
+            "Pour choisir un nouveau mot de passe Studio OS, ouvrez ce lien :\n\n"
             f"{link}\n\n"
             f"Il expire dans {settings.password_reset_ttl_minutes} min et ne fonctionne "
             "qu'une fois. Toutes vos sessions seront fermées. Si vous n'avez rien "
@@ -165,18 +175,29 @@ def password_reset_email(settings: Settings, issued: IssuedToken) -> OutgoingEma
     )
 
 
-async def register(
-    session: AsyncSession, settings: Settings, email: str, password: str, display_name: str
+async def _send_verification(
+    session: AsyncSession, settings: Settings, user: UserModel
 ) -> list[OutgoingEmail]:
-    """Creates a `pending` readonly User without membership, or re-sends the
-    verification of a still-pending one. An active or disabled address gets
-    nothing. The password hash always costs one bcrypt round (timing)."""
-    password_hash = provisioning_service.hash_password(password)
+    issued = await _issue(
+        session,
+        user,
+        AccountTokenPurpose.EMAIL_VERIFICATION,
+        timedelta(minutes=settings.email_verification_ttl_minutes),
+        _cooldown(settings),
+    )
+    await session.commit()
+    return [verification_email(settings, issued)] if issued is not None else []
+
+
+async def register(session: AsyncSession, settings: Settings, email: str) -> list[OutgoingEmail]:
+    """Creates a `pending` readonly User without membership nor password, or
+    re-sends the verification of a still-pending one. An active or disabled
+    address gets nothing."""
     normalized = provisioning_service.normalize_email(email)
     user = await provisioning_service.get_user_by_email(session, normalized)
     if user is None:
         user = UserModel(
-            display_name=display_name,
+            display_name=normalized.split("@", 1)[0],
             email=normalized,
             role=SELF_REGISTERED_ROLE,
             email_verified_at=None,
@@ -185,23 +206,14 @@ async def register(
         try:
             await session.flush()
         except IntegrityError:
-            # Concurrent registration of the same address: the winner owns it.
             await session.rollback()
             return []
     elif user.status != "pending":
         security_event("account.register", outcome="ignored", email_digest=email_digest(normalized))
         return []
-    issued = await _issue(
-        session,
-        user,
-        AccountTokenPurpose.EMAIL_VERIFICATION,
-        _verification_ttl(settings),
-        _cooldown(settings),
-        password_hash=password_hash,
-    )
-    await session.commit()
+    messages = await _send_verification(session, settings, user)
     security_event("account.register", outcome="success", email_digest=email_digest(normalized))
-    return [verification_email(settings, issued)] if issued is not None else []
+    return messages
 
 
 async def resend_verification(
@@ -210,40 +222,27 @@ async def resend_verification(
     user = await provisioning_service.get_user_by_email(session, email)
     if user is None or user.status != "pending":
         return []
-    latest = await session.execute(
-        select(AccountTokenModel.password_hash)
-        .where(
-            AccountTokenModel.user_id == user.id,
-            AccountTokenModel.purpose == AccountTokenPurpose.EMAIL_VERIFICATION,
-        )
-        .order_by(AccountTokenModel.created_at.desc())
-        .limit(1)
-    )
-    issued = await _issue(
-        session,
-        user,
-        AccountTokenPurpose.EMAIL_VERIFICATION,
-        _verification_ttl(settings),
-        _cooldown(settings),
-        password_hash=latest.scalar_one_or_none(),
-    )
-    await session.commit()
-    return [verification_email(settings, issued)] if issued is not None else []
+    return await _send_verification(session, settings, user)
 
 
-async def verify_email(session: AsyncSession, secret: str) -> dict[str, str]:
+async def verify_email(
+    session: AsyncSession, secret: str, password: str, display_name: str
+) -> dict[str, str]:
+    """Consumes the secret and activates the still-pending account with the
+    password and display name chosen now. Every other verification link of
+    the account stops working."""
+    password_hash = provisioning_service.hash_password(password)
     token = await _consume(session, secret, AccountTokenPurpose.EMAIL_VERIFICATION)
-    if token is None:
+    user = await session.get(UserModel, token.user_id) if token is not None else None
+    if user is None or user.status != "pending":
         await session.rollback()
         security_event("account.email_verified", outcome="failure")
         raise _invalid_token()
-    user = await session.get(UserModel, token.user_id)
-    assert user is not None
-    if user.email_verified_at is None:
-        user.email_verified_at = datetime.now(UTC)
-        if token.password_hash is not None:
-            user.password_hash = token.password_hash
-        user.version += 1
+    user.email_verified_at = datetime.now(UTC)
+    user.password_hash = password_hash
+    user.display_name = display_name
+    user.version += 1
+    await _expire_outstanding(session, user.id, AccountTokenPurpose.EMAIL_VERIFICATION)
     await session.commit()
     security_event("account.email_verified", outcome="success", user_id=user.id)
     return {"status": "verified"}
@@ -284,18 +283,11 @@ async def reset_password(session: AsyncSession, secret: str, new_password: str) 
         raise _invalid_token()
     user = await session.get(UserModel, token.user_id)
     assert user is not None
-    await _apply_new_password(session, user, password_hash)
+    _apply_new_password(user, password_hash)
     if user.email_verified_at is None:
         user.email_verified_at = datetime.now(UTC)
-    await session.execute(
-        update(AccountTokenModel)
-        .where(
-            AccountTokenModel.user_id == user.id,
-            AccountTokenModel.purpose == AccountTokenPurpose.PASSWORD_RESET,
-            AccountTokenModel.consumed_at.is_(None),
-        )
-        .values(expires_at=datetime.now(UTC))
-    )
+        await _expire_outstanding(session, user.id, AccountTokenPurpose.EMAIL_VERIFICATION)
+    await _expire_outstanding(session, user.id, AccountTokenPurpose.PASSWORD_RESET)
     await session.commit()
     event_stream.revalidate_user(user.id)
     security_event("credential.password_reset", outcome="success", user_id=user.id)
@@ -319,13 +311,13 @@ async def change_password(
                 "message": "the current password is incorrect",
             },
         )
-    await _apply_new_password(session, user, provisioning_service.hash_password(new_password))
+    _apply_new_password(user, provisioning_service.hash_password(new_password))
     await session.commit()
     event_stream.revalidate_user(user.id)
     security_event("credential.password_changed", outcome="success", user_id=user.id)
     return {"status": "password_changed"}
 
 
-async def _apply_new_password(session: AsyncSession, user: UserModel, password_hash: str) -> None:
+def _apply_new_password(user: UserModel, password_hash: str) -> None:
     user.password_hash = password_hash
     provisioning_service.revoke_sessions_in_place(user)

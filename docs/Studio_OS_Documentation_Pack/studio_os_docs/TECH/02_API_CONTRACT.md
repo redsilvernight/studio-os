@@ -66,18 +66,22 @@ que l'adresse existe ou non ; les e-mails partent apres la reponse.
   `resend-verification` et `verify-email` repondent
   `404 {"detail": {"error_code": "registration_unavailable"}}` ; les comptes
   existants ne sont pas affectes.
-- POST /auth/register — body `email`, `password` (12 caracteres a 72 octets
-  UTF-8), `display_name` ; `Idempotency-Key` obligatoire
+- POST /auth/register — body `email` seul ; `Idempotency-Key` obligatoire
   (`400 idempotency_key_required`). Cree un User `readonly`, `pending`, sans
-  membership ; tout autre champ (role, etat, projet, membership) est ignore.
-  Une adresse deja `active` ou `disabled` ne recoit rien ; une adresse encore
-  `pending` recoit un nouveau lien. Le mot de passe est applique au clic sur
-  le lien emis pour cette demande.
+  mot de passe ni membership ; tout autre champ (mot de passe, role, etat,
+  projet, membership) est ignore. Une adresse deja `active` ou `disabled` ne
+  recoit rien ; une adresse encore `pending` recoit un nouveau lien (les
+  precedents expirent). Le mot de passe et le nom sont choisis a la
+  verification, par le detenteur de la boite : un tiers qui inscrit l'adresse
+  d'autrui n'en connait jamais le mot de passe et n'ecrit aucun texte dans
+  l'e-mail envoye.
 - POST /auth/resend-verification — body `email` ; `Idempotency-Key`
   obligatoire. Nouveau lien pour un compte `pending` ; les liens precedents
   expirent.
-- POST /auth/verify-email — body `token` ; `200 {"status": "verified"}`,
-  le compte devient `active`. Secret inconnu, expire ou deja consomme :
+- POST /auth/verify-email — body `token`, `password` (12 caracteres a 72
+  octets UTF-8), `display_name` ; `200 {"status": "verified"}`, le compte
+  `pending` devient `active` et ses autres liens de verification expirent.
+  Secret inconnu, expire, deja consomme ou compte non `pending` :
   `400 invalid_or_expired_token`.
 - POST /auth/forgot-password — body `email` ; `Idempotency-Key` obligatoire.
   Lien de reinitialisation pour un compte non `disabled`. Disponible quel que
@@ -100,7 +104,8 @@ que l'adresse existe ou non ; les e-mails partent apres la reponse.
   d'origine sans seconde consommation ; un corps different pour le meme secret
   repond `409 idempotency_key_payload_mismatch`. Le hash de requete stocke
   pour ces routes et pour `register` est un HMAC (le corps contient un mot de
-  passe) et la reponse stockee ne contient aucun secret.
+  passe ; cle derivee du secret JWT, jamais egale) et la reponse stockee ne
+  contient aucun secret.
 
 ### Projects
 - GET /projects — uniquement les projets accessibles (membership ou `admin`,

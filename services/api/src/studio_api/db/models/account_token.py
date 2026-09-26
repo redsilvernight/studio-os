@@ -32,11 +32,6 @@ class AccountTokenModel(UUIDPKMixin, Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    # Verification only: bcrypt hash of the password chosen at registration.
-    # Applied to the User when *this* link is consumed, so a stranger who
-    # registered the same address first never ends up knowing the password
-    # of the account the owner verifies (pre-account-takeover).
-    password_hash: Mapped[str | None] = mapped_column(nullable=True)
 
 
 Index("ix_account_tokens_user_purpose", AccountTokenModel.user_id, AccountTokenModel.purpose)

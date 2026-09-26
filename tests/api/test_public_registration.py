@@ -104,13 +104,19 @@ def _key() -> dict[str, str]:
     return {"Idempotency-Key": str(uuid.uuid4())}
 
 
-async def _register(
-    client: AsyncClient, email: str, password: str = PASSWORD, **extra: object
-) -> tuple[int, dict[str, object]]:
+async def _register(client: AsyncClient, email: str, **extra: object) -> tuple[int, object]:
     response = await client.post(
-        "/api/v1/auth/register",
-        json={"email": email, "password": password, "display_name": "Ada", **extra},
-        headers=_key(),
+        "/api/v1/auth/register", json={"email": email, **extra}, headers=_key()
+    )
+    return response.status_code, response.json()
+
+
+async def _verify(
+    client: AsyncClient, secret: str, password: str = PASSWORD, display_name: str = "Ada"
+) -> tuple[int, object]:
+    response = await client.post(
+        "/api/v1/auth/verify-email",
+        json={"token": secret, "password": password, "display_name": display_name},
     )
     return response.status_code, response.json()
 
@@ -134,9 +140,12 @@ async def test_closed_by_default_every_registration_route_is_unavailable(
 ) -> None:
     assert Settings().public_registration_enabled is False
     for path, body in (
-        ("/api/v1/auth/register", {"email": _email(), "password": PASSWORD, "display_name": "A"}),
+        ("/api/v1/auth/register", {"email": _email()}),
         ("/api/v1/auth/resend-verification", {"email": active_user.email}),
-        ("/api/v1/auth/verify-email", {"token": "x" * 43}),
+        (
+            "/api/v1/auth/verify-email",
+            {"token": "x" * 43, "password": PASSWORD, "display_name": "A"},
+        ),
     ):
         response = await client.post(path, json=body, headers=_key())
         assert response.status_code == 404, path
@@ -206,17 +215,30 @@ async def test_register_verify_then_login(
 
     secret = outbox.last_secret(email)
     assert "/verify-email#token=" in outbox.to(email)[0].body
-    verified = await client.post("/api/v1/auth/verify-email", json={"token": secret})
-    assert verified.status_code == 200, verified.text
-    assert verified.json() == {"status": "verified"}
+    assert await _verify(client, secret, display_name="  Ada Lovelace ") == (
+        200,
+        {"status": "verified"},
+    )
+    await db_session.refresh(user)
+    assert (user.status, user.display_name) == ("active", "Ada Lovelace")
     assert await _login(client, email, PASSWORD) == 200
 
-    replay = await client.post("/api/v1/auth/verify-email", json={"token": secret})
-    assert (replay.status_code, replay.json()) == (200, {"status": "verified"})
+    replay = await _verify(client, secret, display_name="  Ada Lovelace ")
+    assert replay == (200, {"status": "verified"})
+    other_password = await _verify(client, secret, OTHER_PASSWORD, "  Ada Lovelace ")
+    assert other_password[0] == 409
+    assert await _login(client, email, PASSWORD) == 200
 
-    unknown = await client.post("/api/v1/auth/verify-email", json={"token": "y" * 43})
-    assert unknown.status_code == 400
-    assert unknown.json()["detail"]["error_code"] == "invalid_or_expired_token"
+    unknown = await _verify(client, "y" * 43)
+    assert unknown == (
+        400,
+        {
+            "detail": {
+                "error_code": "invalid_or_expired_token",
+                "message": "this link is invalid, expired or already used",
+            }
+        },
+    )
 
 
 async def test_self_registered_account_gets_no_privilege_by_field_injection(
@@ -226,6 +248,8 @@ async def test_self_registered_account_gets_no_privilege_by_field_injection(
     status_code, _ = await _register(
         client,
         email,
+        password=PASSWORD,
+        display_name="Mallory",
         role="admin",
         status="active",
         email_verified_at="2026-01-01T00:00:00Z",
@@ -239,7 +263,18 @@ async def test_self_registered_account_gets_no_privilege_by_field_injection(
     user = await provisioning_service.get_user_by_email(db_session, email)
     assert user is not None
     assert (user.role, user.status, user.auth_version) == ("readonly", "pending", 0)
-    await client.post("/api/v1/auth/verify-email", json={"token": outbox.last_secret(email)})
+    assert user.password_hash is None
+    injected = await client.post(
+        "/api/v1/auth/verify-email",
+        json={
+            "token": outbox.last_secret(email),
+            "password": PASSWORD,
+            "display_name": "Ada",
+            "role": "admin",
+            "project_id": str(uuid.uuid4()),
+        },
+    )
+    assert injected.status_code == 200
     await db_session.refresh(user)
     assert (user.role, user.status) == ("readonly", "active")
     memberships = await db_session.execute(
@@ -267,7 +302,7 @@ async def test_register_answers_the_same_for_existing_and_new_addresses(
     active_user: UserModel,
 ) -> None:
     new = await _register(client, _email())
-    existing = await _register(client, active_user.email.upper(), OTHER_PASSWORD)
+    existing = await _register(client, active_user.email.upper())
     assert new == existing == (202, {"status": "accepted"})
     assert outbox.to(active_user.email) == []
     await db_session.refresh(active_user)
@@ -290,31 +325,40 @@ async def test_resend_only_reaches_pending_accounts(
     assert len(outbox.to(email)) == 2
     assert outbox.to(active_user.email) == []
 
-    stale = await client.post("/api/v1/auth/verify-email", json={"token": first})
-    assert stale.status_code == 400
-    fresh = await client.post(
-        "/api/v1/auth/verify-email", json={"token": outbox.last_secret(email)}
-    )
-    assert fresh.status_code == 200
+    assert (await _verify(client, first))[0] == 400
+    assert (await _verify(client, outbox.last_secret(email)))[0] == 200
     assert await _login(client, email, PASSWORD) == 200
 
 
-async def test_the_owner_link_sets_the_owner_password(
+async def test_a_stranger_registering_an_address_never_knows_its_password(
+    client: AsyncClient, db_session: AsyncSession, open_instance: Settings, outbox: Outbox
+) -> None:
+    email = _email()
+    await _register(client, email, password="stranger password!!", display_name="<a href=x>")
+    user = await provisioning_service.get_user_by_email(db_session, email)
+    assert user is not None and user.password_hash is None
+    stranger_mail = outbox.to(email)[0].body
+    assert "<a href" not in stranger_mail and "stranger" not in stranger_mail
+    stranger_link = outbox.last_secret(email)
+
+    await _register(client, email)
+    owner_link = outbox.last_secret(email)
+    assert (await _verify(client, stranger_link, "stranger password!!"))[0] == 400
+    assert (await _verify(client, owner_link))[0] == 200
+    assert await _login(client, email, "stranger password!!") == 401
+    assert await _login(client, email, PASSWORD) == 200
+
+
+async def test_an_active_account_cannot_be_verified_again(
     client: AsyncClient, open_instance: Settings, outbox: Outbox
 ) -> None:
     email = _email()
-    await _register(client, email, "stranger password!!")
-    stranger_link = outbox.last_secret(email)
-    await _register(client, email, PASSWORD)
-    owner_link = outbox.last_secret(email)
-
-    assert (
-        await client.post("/api/v1/auth/verify-email", json={"token": stranger_link})
-    ).status_code == 400
-    assert (
-        await client.post("/api/v1/auth/verify-email", json={"token": owner_link})
-    ).status_code == 200
-    assert await _login(client, email, "stranger password!!") == 401
+    await _register(client, email)
+    first = outbox.last_secret(email)
+    assert (await _verify(client, first))[0] == 200
+    await client.post("/api/v1/auth/resend-verification", json={"email": email}, headers=_key())
+    assert len(outbox.to(email)) == 1
+    assert (await _verify(client, first, OTHER_PASSWORD))[0] == 409
     assert await _login(client, email, PASSWORD) == 200
 
 
@@ -339,7 +383,7 @@ async def test_register_resend_forgot_require_an_idempotency_key(
     client: AsyncClient, open_instance: Settings, active_user: UserModel
 ) -> None:
     for path, body in (
-        ("/api/v1/auth/register", {"email": _email(), "password": PASSWORD, "display_name": "A"}),
+        ("/api/v1/auth/register", {"email": _email()}),
         ("/api/v1/auth/resend-verification", {"email": _email()}),
         ("/api/v1/auth/forgot-password", {"email": active_user.email}),
     ):
@@ -353,7 +397,7 @@ async def test_register_replay_creates_nothing_more(
 ) -> None:
     email = _email()
     headers = _key()
-    body = {"email": email, "password": PASSWORD, "display_name": "Ada"}
+    body = {"email": email}
     first = await client.post("/api/v1/auth/register", json=body, headers=headers)
     replay = await client.post("/api/v1/auth/register", json=body, headers=headers)
     assert (first.status_code, first.json()) == (replay.status_code, replay.json())
@@ -366,9 +410,7 @@ async def test_register_replay_creates_nothing_more(
     )
     assert tokens.scalar_one() == 1
 
-    mismatch = await client.post(
-        "/api/v1/auth/register", json={**body, "display_name": "Eve"}, headers=headers
-    )
+    mismatch = await client.post("/api/v1/auth/register", json={"email": _email()}, headers=headers)
     assert mismatch.status_code == 409
     assert mismatch.json()["detail"]["error_code"] == "idempotency_key_payload_mismatch"
 
@@ -408,8 +450,7 @@ async def test_secrets_are_hashed_single_use_expiring_and_never_logged(
         .where(AccountTokenModel.id == rows[0].id)
         .values(expires_at=datetime.now(UTC) - timedelta(seconds=1))
     )
-    expired = await client.post("/api/v1/auth/verify-email", json={"token": secret})
-    assert expired.status_code == 400
+    assert (await _verify(client, secret))[0] == 400
 
     await client.post("/api/v1/auth/resend-verification", json={"email": email}, headers=_key())
     fresh = outbox.last_secret(email)
@@ -504,11 +545,19 @@ async def test_reset_verifies_a_pending_account(
 
 
 async def test_new_passwords_follow_the_policy(
-    client: AsyncClient, open_instance: Settings
+    client: AsyncClient, open_instance: Settings, outbox: Outbox
 ) -> None:
+    email = _email()
+    await _register(client, email)
+    secret = outbox.last_secret(email)
     for password in ("short", "é" * 37):
-        status_code, _ = await _register(client, _email(), password)
-        assert status_code == 422
+        assert (await _verify(client, secret, password))[0] == 422
+        reset = await client.post(
+            "/api/v1/auth/reset-password", json={"token": secret, "new_password": password}
+        )
+        assert reset.status_code == 422
+    assert (await _verify(client, secret, display_name="   "))[0] == 422
+    assert (await _verify(client, secret))[0] == 200
 
 
 async def test_change_password_requires_the_current_one_and_revokes_sessions(

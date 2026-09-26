@@ -38,7 +38,6 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("consumed_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("password_hash", sa.String(), nullable=True),
     )
     op.create_index("ix_account_tokens_user_purpose", "account_tokens", ["user_id", "purpose"])
 
