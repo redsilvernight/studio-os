@@ -968,6 +968,13 @@ def build_fixtures() -> list[LocalFixture]:
         daemon_peer(code_graph_state=ComponentState.NOT_INSTALLED, drop=frozenset()),
         correlation_id=CORRELATION,
     )
+    # An older daemon that does not know an optional capability at all: the
+    # remedy is updating it, not installing a component.
+    fixtures["runtime.handshake.compatible_daemon_update"] = negotiate(
+        request,
+        daemon_peer(drop=frozenset({"daemon.health"})),
+        correlation_id=CORRELATION,
+    )
     fixtures["runtime.handshake.daemon_too_old"] = negotiate(
         _handshake_request(desktop_peer(_range((2, 0), (2, 1)))),
         daemon_peer(),
