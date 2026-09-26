@@ -181,8 +181,13 @@ Prend `paths` (liste, non vide, plafonnee a 50), plus `resource_type` et
 `ttl_seconds` communs et un `task_id` optionnel ; renvoie une reponse compacte
 `{"claims": [...], "conflicts": [...]}` ou `conflicts` est le sous-ensemble des
 claims crees qui chevauche un claim actif. Idempotent sous
-`MCP studio_claim_resources` (DEC-0027). La liberation ciblee par `task_id`
-reste du ressort de la tache W1 (`studio_handoff`), pas de cet outil.
+`MCP studio_claim_resources` (DEC-0027) : une fois le premier appel abouti, un
+rejeu identique renvoie le lot d'origine au lieu de dupliquer. Les claims
+etant valides un par un (comme pour `studio_claim_resource`), un echec en
+milieu de lot peut laisser les claims deja valides en place ; la cle est
+alors liberee et un nouvel appel identique repart du lot complet. La
+liberation ciblee par `task_id` reste du ressort de la tache W1
+(`studio_handoff`), pas de cet outil.
 
 **Outils exemptes, et pourquoi** : `studio_claim_task` (deja protege par
 `already_claimed`, jamais une seconde ressource), `studio_release_task` /
@@ -432,7 +437,7 @@ sans roadmap `active`). Budgets et erreurs
 structurees comme les autres outils (DEC-0048, sans version par payload).
 
 ## Roadmaps et initialisation via MCP (P4/P5, DEC-0087) — implementes
-Surface MCP implementee (35 -> 46 outils), sur les memes services que l'API
+Surface MCP implementee (35 -> 47 outils), sur les memes services que l'API
 (DEC-0046). Tout est derive des contrats P1 (`studio.roadmap/v1`) plus le
 nouveau contrat neutre `studio.initialization/v1`.
 - `studio_get_roadmap(project_id, status?, limit, max_chars)` — lecture :

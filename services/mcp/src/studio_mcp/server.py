@@ -199,8 +199,8 @@ def create_server() -> MCPServer:
             "overlap still emits a resource.conflict event). All paths share the same "
             "resource_type, ttl_seconds and optional task_id. "
             "Pass idempotency_key when retrying a call that may have already succeeded — "
-            "replaying the same key+arguments returns the original batch instead of a "
-            "duplicate and never re-emits the conflict events."
+            "once the first call completed, replaying the same key+arguments returns the "
+            "original batch instead of a duplicate and never re-emits the conflict events."
         ),
     )
     server.add_tool(

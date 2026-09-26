@@ -162,10 +162,13 @@ async def studio_claim_resources(
     that overlaps another active claim. All paths share the same
     `resource_type`, `ttl_seconds` and optional `task_id`. Pass a
     caller-generated `idempotency_key` when this call might be retried —
-    replaying the same key with the same arguments returns the original batch
-    instead of creating duplicates (and never re-emits the conflict events);
-    the same key with different arguments fails with
-    `idempotency_key_payload_mismatch` (DEC-0027)."""
+    once the first call completed, replaying the same key with the same
+    arguments returns the original batch instead of creating duplicates (and
+    never re-emits the conflict events); the same key with different arguments
+    fails with `idempotency_key_payload_mismatch` (DEC-0027). Like
+    `studio_claim_resource`, each claim is committed as it is created, so a
+    failure part-way through the batch can leave the already-committed claims
+    in place."""
 
     async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed_project = parse_uuid(project_id, "project_id")
