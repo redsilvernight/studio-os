@@ -34,15 +34,29 @@ function killApp() {
   spawnSync("taskkill", ["/IM", "studio-desktop.exe", "/T", "/F"], { stdio: "ignore" });
 }
 
+// A5: what the "studio server" saw and answers for the onboarding journey.
+const SESSION_TOKEN = "e2e-a5-session-token";
+const a5 = { registers: [], projects: [], urls: [] };
+
 function startLiveServer() {
   const server = createServer((req, res) => {
     res.setHeader("Access-Control-Allow-Origin", APP_ORIGIN);
-    res.setHeader("Access-Control-Allow-Headers", "authorization,content-type");
+    res.setHeader("Access-Control-Allow-Headers", "authorization,content-type,idempotency-key");
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
     if (req.method === "OPTIONS") return res.writeHead(204).end();
     res.setHeader("Content-Type", "application/json");
+    a5.urls.push(`${req.method} ${req.url}`);
     if (req.url === "/healthz") return res.writeHead(200).end('{"status":"ok"}');
-    if (req.url?.startsWith("/api/v1/auth/token")) return res.writeHead(200).end('{"access_token":"e2e","token_type":"bearer","expires_in":900}');
+    if (req.url?.startsWith("/api/v1/auth/token")) return res.writeHead(200).end(JSON.stringify({ access_token: SESSION_TOKEN, token_type: "bearer", expires_in: 900 }));
+    if (req.url === "/api/v1/auth/register" && req.method === "POST") {
+      a5.registers.push({ key: req.headers["idempotency-key"] ?? null, auth: req.headers.authorization ?? null });
+      return res.writeHead(202).end('{"status":"accepted"}');
+    }
+    if (req.url === "/api/v1/auth/me") {
+      return res.writeHead(200).end(JSON.stringify({ user_id: "aaaaaaaa-0000-4111-8111-00000000a5a5", display_name: "Ada", email: "ada@example.test", role: "readonly", machine_id: null }));
+    }
+    if (req.url === "/api/v1/projects") return res.writeHead(200).end(JSON.stringify(a5.projects));
+    if (req.url === "/api/v1/review-queue") return res.writeHead(200).end('{"items":[]}');
     return res.writeHead(200).end("[]");
   });
   return new Promise((r) => server.listen(LIVE_PORT, "127.0.0.1", () => r(server)));
@@ -196,6 +210,24 @@ async function main() {
     }, LIVE_ORIGIN);
     check("csp.new_origin_allowed_after_relaunch", reach === 200, `fetch ${LIVE_ORIGIN}/healthz -> ${reach}`);
 
+    // ---- 4b. A5: account creation from the Desktop login, on the applied origin
+    await page.click("a[data-account-action=register]");
+    await page.waitForSelector('[data-testid=account-screen][data-screen="register"]', { timeout: 10_000 });
+    await page.fill("input[name=email]", "ada@example.test");
+    await page.click("[data-testid=account-screen] form button[type=submit]");
+    const sent = await page
+      .waitForSelector('[data-testid=account-screen][data-screen="sent"]', { timeout: 15_000 })
+      .then(() => true)
+      .catch(() => false);
+    check(
+      "a5.register_from_desktop",
+      sent && a5.registers.length === 1 && Boolean(a5.registers[0].key) && a5.registers[0].auth === null,
+      `sent screen: ${sent}; server saw ${JSON.stringify(a5.registers)}`,
+    );
+    await page.click("[data-testid=account-screen] a[data-action=login]");
+    const backToLogin = await page.waitForSelector("#login-form", { timeout: 10_000 }).then(() => true).catch(() => false);
+    check("a5.back_to_login", backToLogin, "« Retour à la connexion » shows the login form again");
+
     // ---- 5. server reachable: the shell reflects the real supervisor state (sidecar shipped or not)
     const sidecarState = (await invoke(page, "desktop_info", {})).value?.sidecar?.state;
     const sidecarShipped = sidecarState !== "unavailable";
@@ -206,6 +238,24 @@ async function main() {
     if (!sidecarShipped) await page.waitForFunction(() => /Assistant local indisponible/.test(document.querySelector("#shell-status")?.textContent ?? ""), null, { timeout: 20_000 }).catch(() => undefined);
     const pill = await page.textContent("#shell-status");
     check("status.daemon_unavailable_pill", /Assistant local indisponible/.test(pill ?? "") === !sidecarShipped, `sidecar ${sidecarState}; pill: ${pill?.trim()}`);
+
+    // ---- 5b. A5: active account without project waits, then reaches the dashboard
+    await page.evaluate(() => {
+      location.hash = "#/";
+    });
+    const waiting = await page.waitForSelector("[data-testid=awaiting-access]", { timeout: 15_000 }).then(() => true).catch(() => false);
+    check("a5.awaiting_access", waiting, "Accueil shows « En attente d'accès » for a readonly account without project");
+    a5.projects = [{ id: "11111111-2222-4333-8444-5555555555a5", slug: "phare", name: "Jeu Phare", description: null, archived: false, created_at: "2026-09-01T10:00:00Z", updated_at: "2026-09-10T10:00:00Z", version: 1 }];
+    await page.click("[data-testid=awaiting-access-recheck]").catch(() => undefined);
+    const granted = await page
+      .waitForFunction(() => document.querySelector("[data-testid=awaiting-access]") === null && document.querySelector("#view") !== null, null, { timeout: 15_000 })
+      .then(() => true)
+      .catch(() => false);
+    const viewText = (await page.textContent("#view").catch(() => ""))?.replace(/\s+/g, " ").slice(0, 160);
+    check("a5.access_granted_dashboard", granted, `after recheck: view « ${viewText} »; last requests ${a5.urls.slice(-8).join(", ")}`);
+    const stored = await page.evaluate(() => JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }));
+    const leaked = stored.includes(SESSION_TOKEN) || messages.some((m) => m.includes(SESSION_TOKEN));
+    check("a5.no_token_in_storage_or_console", !leaked, "session token absent from localStorage, sessionStorage and console");
 
     // ---- 6. Settings > Application, Desktop mode
     await page.evaluate(() => {
