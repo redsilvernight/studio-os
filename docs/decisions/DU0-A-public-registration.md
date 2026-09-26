@@ -75,3 +75,28 @@ même lot.
   contrainte, pas la casse d'origine) ; préflight bloquant sur les doublons.
   Son exécution sur une instance réelle exige un accord explicite, donné par\n  l'utilisateur le 2026-09-26 avec l'acceptation de DEC-0122.
 - Contrats : TECH/02, TECH/04, TECH/05.
+
+## Amendement A4 (accepté — serveur DEC-0128 `65ddfa48-bf06-497f-a97b-03712e5eb6a7`, tâches 7e9b8172 / bf9c4d6e / 7898c5ec / 4f5c0616)
+
+- `register` ne reçoit que l'adresse ; mot de passe et `display_name` sont
+  choisis à `verify-email` par le détenteur de la boîte. Motif : revue
+  contract-guardian — lier le mot de passe à l'inscription permettait une
+  pré-prise de compte (un tiers inscrit l'adresse, la victime active le compte
+  avec le mot de passe du tiers) et laissait un tiers écrire du texte dans
+  l'e-mail envoyé. Un compte non `pending` ne peut plus être « re-vérifié ».
+- La récupération (`forgot-password`/`reset-password`) ne dépend pas du flag
+  d'inscription : elle est disponible dès qu'un backend e-mail est configuré
+  (`STUDIO_EMAIL_BACKEND` ≠ `disabled`), sinon `404 password_recovery_unavailable`.
+  Un reset réussi rend `active` un compte `pending` (la boîte est prouvée).
+- `POST /auth/change-password` (additif, principal authentifié, mot de passe
+  courant exigé) ; reset et changement révoquent toutes les sessions via
+  `auth_version` (A2).
+- Fournisseur e-mail : `disabled` | `file` (dev) | `smtp`, secrets en
+  environnement uniquement ; l'API refuse de démarrer sur une configuration
+  incohérente (inscription sans backend, `file` en production, base URL non
+  HTTPS avec inscription ouverte).
+- Limites connues, acceptées : écart de temps de réponse (écritures DB) entre
+  adresse connue et inconnue sur `register`/`forgot` — le corps est identique
+  et l'e-mail part après la réponse ; un crash entre le commit métier et la
+  complétion de la clé d'idempotence peut, après reprise (30 s), envoyer un
+  second e-mail.

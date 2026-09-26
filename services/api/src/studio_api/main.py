@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from studio_api.middleware import setup_middleware
 from studio_api.observability import configure_logging
 from studio_api.routers import (
+    accounts,
     agents,
     ai_work,
     auth,
@@ -175,6 +176,7 @@ def create_app() -> FastAPI:
     )
 
     from studio_api.jwt_auth import is_weak_jwt_secret
+    from studio_api.mailer import email_settings_problems
     from studio_api.settings import get_settings
 
     settings = get_settings()
@@ -193,9 +195,14 @@ def create_app() -> FastAPI:
             "set a strong secret in production"
         )
 
+    email_problems = email_settings_problems(settings)
+    if email_problems:
+        raise RuntimeError("invalid e-mail / registration settings: " + "; ".join(email_problems))
+
     app.include_router(health.router)
     app.include_router(metrics.router)
     app.include_router(auth.router, prefix="/api/v1")
+    app.include_router(accounts.router, prefix="/api/v1")
     app.include_router(projects.router)
     app.include_router(tasks.router)
     app.include_router(sessions.router)

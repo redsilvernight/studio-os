@@ -46,6 +46,17 @@ services:
       STUDIO_RATE_LIMIT_BURST: ${STUDIO_RATE_LIMIT_BURST}
       STUDIO_AUTH_RATE_LIMIT_REQUESTS_PER_MINUTE: ${STUDIO_AUTH_RATE_LIMIT_REQUESTS_PER_MINUTE:-10}
       STUDIO_AUTH_RATE_LIMIT_BURST: ${STUDIO_AUTH_RATE_LIMIT_BURST:-5}
+      # Public registration and account e-mails (A4, DEC-0109): closed and
+      # disabled unless docker/.env says otherwise; OFF until the C4 gate.
+      STUDIO_PUBLIC_REGISTRATION_ENABLED: ${STUDIO_PUBLIC_REGISTRATION_ENABLED:-false}
+      STUDIO_PUBLIC_BASE_URL: ${STUDIO_PUBLIC_BASE_URL:-https://${DASHBOARD_DOMAIN}}
+      STUDIO_EMAIL_BACKEND: ${STUDIO_EMAIL_BACKEND:-disabled}
+      STUDIO_EMAIL_FROM: ${STUDIO_EMAIL_FROM:-}
+      STUDIO_SMTP_HOST: ${STUDIO_SMTP_HOST:-}
+      STUDIO_SMTP_PORT: ${STUDIO_SMTP_PORT:-587}
+      STUDIO_SMTP_SECURITY: ${STUDIO_SMTP_SECURITY:-starttls}
+      STUDIO_SMTP_USERNAME: ${STUDIO_SMTP_USERNAME:-}
+      STUDIO_SMTP_PASSWORD: ${STUDIO_SMTP_PASSWORD:-}
       # api publishes no port: its only peers are containers of this compose
       # network (Caddy), so X-Forwarded-For is trusted from private ranges only.
       STUDIO_TRUSTED_PROXIES: ${STUDIO_TRUSTED_PROXIES:-172.16.0.0/12,192.168.0.0/16,10.0.0.0/8}

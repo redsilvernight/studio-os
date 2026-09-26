@@ -26,13 +26,13 @@ _PASSWORD = "correct-horse-battery"
 def bcrypt_checks(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     """Records every bcrypt verification the login performs."""
     calls: list[str] = []
-    real = provisioning_service._verify_password
+    real = provisioning_service.check_password
 
     def _spy(password: str, password_hash: str) -> bool:
         calls.append(password_hash)
         return real(password, password_hash)
 
-    monkeypatch.setattr(provisioning_service, "_verify_password", _spy)
+    monkeypatch.setattr(provisioning_service, "check_password", _spy)
     return calls
 
 
@@ -78,15 +78,15 @@ async def test_dummy_hash_never_authenticates(db_session: AsyncSession) -> None:
 
 
 def test_dummy_hash_has_the_real_cost() -> None:
-    real_cost = provisioning_service._hash_password("x").split("$")[2]
+    real_cost = provisioning_service.hash_password("x").split("$")[2]
     assert provisioning_service._DUMMY_PASSWORD_HASH.split("$")[2] == real_cost
 
 
 def test_no_public_route_can_reveal_a_duplicate() -> None:
-    """Public writes are login and the signed webhook only: no unauthenticated
-    creation route exists that could answer "already registered". A new public
-    route (e.g. self-registration) must be reviewed for anti-enumeration and
-    added here deliberately."""
+    """Public writes are login, the signed webhook and the A4 registration /
+    recovery routes, whose answers never depend on the address
+    (tests/api/test_public_registration.py). A new public route must be
+    reviewed for anti-enumeration and added here deliberately."""
     public_writes = {
         (method, path)
         for (method, path), access in HTTP_ACCESS.items()
@@ -95,4 +95,9 @@ def test_no_public_route_can_reveal_a_duplicate() -> None:
     assert public_writes == {
         ("POST", "/api/v1/auth/token"),
         ("POST", "/api/v1/github/webhook"),
+        ("POST", "/api/v1/auth/register"),
+        ("POST", "/api/v1/auth/resend-verification"),
+        ("POST", "/api/v1/auth/verify-email"),
+        ("POST", "/api/v1/auth/forgot-password"),
+        ("POST", "/api/v1/auth/reset-password"),
     }

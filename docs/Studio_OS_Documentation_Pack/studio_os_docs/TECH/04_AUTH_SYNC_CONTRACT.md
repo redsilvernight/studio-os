@@ -23,9 +23,13 @@ revocation) continue de s'executer sur cette machine : revoquer la machine
 revoque le JWT.
 
 Le mot de passe est gere hors-bande par la CLI serveur `studio-admin set-password`
-(ou `--password` lors du `bootstrap-admin` initial). Aucun endpoint public ne
-permet de changer ou reinitialiser un mot de passe (le reset en libre-service
-arrive avec l'inscription publique, DU-0/A).
+(ou `--password` lors du `bootstrap-admin` initial). Depuis A4 (DEC-0109,
+additif) : `POST /auth/change-password` (principal authentifie, mot de passe
+courant exige), `POST /auth/forgot-password` + `POST /auth/reset-password`
+(lien e-mail a usage unique, des qu'un backend e-mail est configure) et, si le
+flag d'instance `STUDIO_PUBLIC_REGISTRATION_ENABLED` est actif, l'inscription
+publique `register`/`resend-verification`/`verify-email` — contrat complet :
+`TECH/02_API_CONTRACT.md`, Inscription publique et recuperation de compte.
 
 ### Cycle de session (DEC-0110, amende DEC-0012/DEC-0036/DEC-0056 — RUPTURE rattachee a `API_CONTRACT_VERSION` 2)
 
@@ -48,7 +52,8 @@ arrive avec l'inscription publique, DU-0/A).
   concerne par `auth_version`.
 - **Revocation** : incrementent `User.auth_version`, invalidant immediatement
   tous les JWT emis pour ce User : changement ou reinitialisation de mot de
-  passe (`studio-admin set-password`, futur reset), desactivation
+  passe (`studio-admin set-password`, `POST /auth/change-password`,
+  `POST /auth/reset-password`), desactivation
   (`studio-admin user disable`), changement de role (toute mutation future de
   `User.role`), revocation globale (`studio-admin user revoke-sessions`). La
   desactivation bloque en outre toutes les machines du User tant que
