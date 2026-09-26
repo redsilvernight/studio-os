@@ -695,7 +695,7 @@ export interface paths {
         put?: never;
         /**
          * Create Ai Work
-         * @description Log a unit of AI work. Requires a writer role. `agent_id` must reference an agent attached to the caller's own authenticated machine (register one with `POST /agents` first) — a foreign or unknown agent fails with `409 actor_not_owned`, never a silent cross-machine attribution. `agent_profile`, `harness`, `provider` and `model` are optional open-string observability metadata: any value is accepted, none is required, none affects authorization. Accepts `Idempotency-Key` for safe retries.
+         * @description Log a unit of AI work. Requires a writer role. `agent_id` must reference an agent attached to the caller's own authenticated machine (register one with `POST /agents` first) — a foreign or unknown agent fails with `409 actor_not_owned`, never a silent cross-machine attribution. `agent_profile`, `harness`, `provider` and `model` are optional open-string observability metadata: any value is accepted, none is required, none affects authorization. `status` (default `started`), `changed_files` and `tests_run` are optional: already finished work can be logged in one call (a `completed`/`failed` status sets `ended_at`); `approved` or changes requested are never a valid initial status and fail with `409 invalid_status_transition`. Accepts `Idempotency-Key` for safe retries.
          */
         post: operations["create_ai_work_api_v1_ai_work_post"];
         delete?: never;
@@ -1779,7 +1779,13 @@ export interface components {
             /** Model */
             model?: string | null;
         };
-        /** AIWorkLogCreate */
+        /**
+         * AIWorkLogCreate
+         * @description `status`, `changed_files` and `tests_run` are optional additive
+         *     fields so work already finished can be logged in one call: a terminal
+         *     status sets `ended_at`. `approved`/`changes_requested` are never a valid
+         *     initial status (they only exit `review_requested`).
+         */
         AIWorkLogCreate: {
             /** Task Id */
             task_id?: string | null;
@@ -1797,6 +1803,18 @@ export interface components {
             machine_id?: string | null;
             /** Summary */
             summary: string;
+            /** @default started */
+            status: components["schemas"]["AIWorkStatus"];
+            /**
+             * Changed Files
+             * @default []
+             */
+            changed_files: string[];
+            /**
+             * Tests Run
+             * @default []
+             */
+            tests_run: string[];
             /** Agent Profile */
             agent_profile?: string | null;
             /** Harness */
@@ -8585,7 +8603,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Provenance mismatch: the referenced agent identity is unknown or attached to another machine. Register an agent for the caller's own authenticated machine first (`POST /agents`), then reference it. Never silently attributed across machines. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). */
+            /** @description Provenance mismatch: the referenced agent identity is unknown or attached to another machine. Register an agent for the caller's own authenticated machine first (`POST /agents`), then reference it. Never silently attributed across machines. Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). Invalid review transition: resolving a work entry to `approved` (or requesting changes) requires a privileged role and is only possible from `review_requested` — nobody approves their own work. Move the entry to `review_requested` first, then have a privileged reviewer resolve it. */
             409: {
                 headers: {
                     [name: string]: unknown;

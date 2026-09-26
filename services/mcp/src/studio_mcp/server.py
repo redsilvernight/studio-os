@@ -300,7 +300,12 @@ def create_server() -> MCPServer:
         description=(
             "Log AI work: creates a new work ledger entry when ai_work_id is "
             "omitted, or updates the existing entry (status/changed_files/tests_run) "
-            "when given. Requires a writer role. New entries must reference an agent attached to "
+            "when given. On creation, status (default started), changed_files and "
+            "tests_run are honored, so finished work can be logged in one call "
+            "(completed/failed sets ended_at); approved/changes_requested are refused "
+            "with invalid_status_transition. On update, summary replaces the stored "
+            "summary and only non-null fields change. Requires a writer role. "
+            "New entries must reference an agent attached to "
             "the caller's own machine — register one first via studio_register_agent "
             "(or HTTP POST /api/v1/agents); a foreign or unknown agent fails with "
             "actor_not_owned. Updating is limited to the owning machine's entries, and resolving "
