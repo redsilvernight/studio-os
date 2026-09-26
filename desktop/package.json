@@ -20,6 +20,7 @@
     "test:signing": "node --test scripts/windows-signing.test.mjs",
     "test:release-artifacts": "node --test scripts/release-artifacts.test.mjs",
     "test:update-manifest": "node --test scripts/update-manifest.test.mjs",
+    "test:version": "node --test scripts/version.test.mjs",
     "test:e2e": "node scripts/e2e.mjs",
     "test:e2e:shell": "node scripts/e2e-shell.mjs",
     "test:install": "node scripts/install-test.mjs",

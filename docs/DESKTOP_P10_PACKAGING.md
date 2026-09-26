@@ -108,8 +108,16 @@ additif et versionné (`schema_version: 1`, `channel` `beta|stable`,
 `artifacts{file,size_bytes,sha256}`) que les clients N-1 ignorent (prouvé par un test Rust de
 l'updater) ; l'URL est l'asset téléchargeable HTTPS d'une release GitHub. Le manifeste est joint à
 la pré-release de tag (B5/T1) et, quand l'updater est compilé dans le build, à la release de canal
-(`desktop-dev` → beta, `desktop-prod` → stable ; DEC-0108). Compiler l'updater dans les canaux et
-baker l'endpoint par canal sur son manifeste reste à B6.
+(`desktop-dev` → beta, `desktop-prod` → stable ; DEC-0108).
+
+Depuis B6 (DEC-0134), un build de canal est versionné `<canonique>-<canal>.<run_number>`
+(`version.mjs --channel-build`) et, quand l'environnement GitHub du canal porte la clé updater,
+compile l'updater avec l'endpoint `releases/download/desktop-<canal>/latest.json`. Après
+publication, la release précédente du canal est installée puis mise à jour depuis l'application
+(`install-test.mjs --upgrade-from`) : réseau coupé et téléchargement interrompu refusés sans
+toucher N, puis N → N+1 réel avec données, vault et identifiants intacts. Pendant l'installation
+l'UI désactive le bouton et annonce le redémarrage ; un téléchargement interrompu propose de
+réessayer sans nouvelle recherche.
 
 ## 9. Signatures
 

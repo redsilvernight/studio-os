@@ -182,9 +182,18 @@ describe("Settings › Application (Desktop)", () => {
     expect(status()).toContain("dernière version");
     await click("check-update");
     expect(status()).toContain("0.2.0");
-    await click("install-update");
+    const button = root.querySelector<HTMLButtonElement>("[data-action=install-update]");
+    button?.click();
+    // While downloading: no second click, and the restart is announced.
+    expect(button?.disabled).toBe(true);
+    expect(root.querySelector("[data-testid=update-progress]")?.textContent).toContain("redémarrera");
+    await flush();
     expect(installUpdate).toHaveBeenCalledTimes(1);
     expect(root.querySelector("[data-testid=update-error]")?.textContent).toContain("injoignable");
+    // An interrupted download stays pending: a retry is offered without a new check.
+    expect(root.querySelector("[data-action=install-update]")?.textContent).toContain("Réessayer");
+    await click("install-update");
+    expect(installUpdate).toHaveBeenCalledTimes(2);
     await click("check-update");
     expect(root.querySelector("[data-testid=update-error]")?.textContent).toContain("signature");
     expect(root.querySelector("[data-action=install-update]")).toBeNull();
