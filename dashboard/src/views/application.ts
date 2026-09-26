@@ -98,6 +98,8 @@ export interface DesktopSection {
   connection: ConnectionSnapshot;
   daemon: DaemonSummary;
   compatibility: CompatibilityState;
+  /** The daemon misses optional capabilities that only an update brings. */
+  daemonUpdateAdvised?: boolean;
   status: ShellStatus;
 }
 
@@ -134,7 +136,10 @@ function sidecarLabel(info: DesktopInfo): string {
   }
 }
 
-function compatibilityLabel(state: CompatibilityState): string {
+function compatibilityLabel(state: CompatibilityState, daemonUpdateAdvised = false): string {
+  if (state === "ok" && daemonUpdateAdvised) {
+    return "Compatible — mettez à jour l'assistant local pour disposer de toutes les fonctions";
+  }
   if (state === "ok") return "Compatible";
   if (state === "incompatible") return "Incompatible — mettez à jour l'application";
   return "Non vérifiée";
@@ -193,7 +198,7 @@ function assistantSectionHtml(section: DesktopSection, info: DesktopInfo | null)
     `<section class="settings-domain" data-testid="daemon-section"><h2>Assistant local</h2>` +
     `<dl class="settings-refs">` +
     row("État", `<span data-testid="daemon-state" data-attention="${attention}">${esc(daemonLabel(section.daemon))}</span>`) +
-    row("Compatibilité", `<span data-testid="compatibility">${esc(compatibilityLabel(section.compatibility))}</span>`) +
+    row("Compatibilité", `<span data-testid="compatibility">${esc(compatibilityLabel(section.compatibility, section.daemonUpdateAdvised))}</span>`) +
     (info ? row("Processus", esc(sidecarLabel(info))) : "") +
     healthRows +
     `</dl>` +
@@ -343,6 +348,7 @@ function sectionOf(shell: DesktopShell, origin: ServerOriginState | null): Deskt
     connection,
     daemon: shell.daemon,
     compatibility: shell.compatibility,
+    daemonUpdateAdvised: shell.daemonAdvice === "update_daemon",
     status: summarizeShellStatus({
       connection,
       daemon: shell.daemon,

@@ -51,6 +51,7 @@ from studio_contracts.local.handshake import (
     CompatibilityOutcome,
     HandshakeRequest,
     HandshakeResponse,
+    Remediation,
     negotiate,
 )
 from studio_contracts.local.identity import (
@@ -234,6 +235,27 @@ class TestHandshake:
         assert degraded == {"code_graph.graph", "code_graph.index", "code_graph.read"}
         assert not degraded & set(response.granted_capabilities)
         assert "knowledge.read" in response.granted_capabilities
+
+    def test_degraded_component_asks_for_the_component(self) -> None:
+        response: HandshakeResponse = _model("runtime.handshake.compatible_degraded")
+        assert response.missing_optional == []
+        assert response.remediation is Remediation.INSTALL_OPTIONAL_COMPONENT
+
+    def test_capability_unknown_to_the_daemon_asks_for_a_daemon_update(self) -> None:
+        response: HandshakeResponse = _model("runtime.handshake.compatible_daemon_update")
+        assert response.outcome is CompatibilityOutcome.COMPATIBLE_DEGRADED
+        assert response.missing_optional == ["daemon.health"]
+        assert response.degraded == []
+        assert response.remediation is Remediation.UPDATE_DAEMON
+
+    def test_missing_capability_wins_over_a_degraded_component(self) -> None:
+        request = HandshakeRequest(peer=fixtures.desktop_peer())
+        daemon = fixtures.daemon_peer(
+            code_graph_state=ComponentState.NOT_INSTALLED, drop=frozenset({"daemon.health"})
+        )
+        response = negotiate(request, daemon)
+        assert response.degraded and response.missing_optional
+        assert response.remediation is Remediation.UPDATE_DAEMON
 
     def test_optional_component_never_breaks_compatibility(self) -> None:
         request = HandshakeRequest(peer=fixtures.desktop_peer())
