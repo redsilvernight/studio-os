@@ -220,18 +220,25 @@ Soldé par B3 :
   URLs pré-signées + httpx). Sidecar : 73 Mo → 38,9 Mo mesurés ; binaire gelé
   vérifié par handshake `compatible`.
 
-Procédure de release (manuelle, hors P10) :
+Procédure de release (par tag, sans étape locale — B5) :
 
 1. Signature : rien à faire (DEC-0129, non signé assumé). Si un certificat arrive un jour,
    le stocker dans les secrets `desktop-release` (`WINDOWS_CERT_THUMBPRINT` ou
    `WINDOWS_SIGN_PFX_BASE64` + `WINDOWS_SIGN_PASSWORD`, voir §9) et poser
    `STUDIO_REQUIRE_AUTHENTICODE=1` dans le workflow.
 2. Générer la paire minisign hors dépôt ; publier la clé publique via `STUDIO_UPDATER_PUBKEY`.
-3. Lancer `desktop-release.yml` (déclenchement manuel, secrets de l'environnement `desktop-release`) :
-   build Tauri (minisign ; Authenticode pendant le build si un certificat existe un jour)
-   → `windows-signing.mjs --verify` (rapport, `--require` seulement avec certificat)
-   → `test:install` → `SHA256SUMS.txt` + `provenance.json`.
-4. Publier l'installateur et le manifeste de mise à jour ; le workflow ne publie rien.
+   L'environnement `desktop-release` porte aussi les variables `STUDIO_DESKTOP_API_URL`
+   et, si besoin, `STUDIO_DESKTOP_STORAGE_URL` (origines compilées dans le bundle).
+3. Créer et pousser un tag `desktop-vX.Y.Z` égal à la version canonique
+   (`desktop/package.json`). Le tag est le seul déclencheur d'une publication.
+4. `desktop-release.yml` construit et vérifie le candidat — gate tag = version,
+   `npm run version:check`, build Tauri (minisign ; Authenticode pendant le build si
+   un certificat existe un jour), `windows-signing.mjs --verify` (rapport, `--require`
+   seulement avec certificat), `test:install`, `SHA256SUMS.txt` + `provenance.json` —
+   puis le **publie** en pré-release GitHub du tag (`--prerelease --latest=false`) :
+   aucune étape locale. Un `workflow_dispatch` ne fait que construire le candidat privé,
+   sans publier. La promotion beta→stable passe par le manifeste `latest.json`, jamais
+   par un rebuild (DEC-0108).
 
 Canaux non signés (`desktop-channels.yml`, DEC-0129) : chaque push touchant le Desktop remplace la
 release de son canal. `deploy/flo-laptop` → tag `desktop-prod` (release « Latest ») ;
