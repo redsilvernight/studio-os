@@ -61,10 +61,10 @@ def test_all_api_v1_operations_require_bearer_and_healthz_is_exempt() -> None:
     assert operations, "expected documented operations"
     for (method, path), operation in operations.items():
         security = operation.get("security", [])
-        if path in ("/healthz", "/api/v1/auth/token", "/api/v1/github/webhook"):
-            # /healthz and POST /auth/token predate this step; the GitHub
-            # webhook is the deliberate HMAC-signed exception (etape 9.1,
-            # DEC-0059) — Bearer-exempt, never unauthenticated.
+        if path in ("/healthz", "/version", "/api/v1/auth/token", "/api/v1/github/webhook"):
+            # /healthz, GET /version and POST /auth/token predate this step;
+            # the GitHub webhook is the deliberate HMAC-signed exception
+            # (etape 9.1, DEC-0059) — Bearer-exempt, never unauthenticated.
             assert security in ([], None), f"{method} {path} must stay unauthenticated"
         else:
             assert path.startswith("/api/v1"), f"unexpected public path: {path}"
