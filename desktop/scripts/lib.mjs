@@ -16,6 +16,23 @@ export const overlayPath = join(buildDir, "tauri.overlay.json");
 export const DEFAULT_API_URL = "http://127.0.0.1:8000";
 export const ALLOW_INSECURE_ORIGIN_ENV = "STUDIO_DESKTOP_ALLOW_INSECURE_ORIGIN";
 
+/**
+ * Build channels. `prod` must keep the identity of tauri.conf.json so existing
+ * installs keep upgrading in place; `dataDir` mirrors the Python client
+ * (`studio_client.config.default_config_path`) and the Desktop diagnostics.
+ */
+export const CHANNELS = {
+  prod: { productName: "Studio OS Desktop", identifier: "dev.studio-os.desktop", dataDir: "StudioOS" },
+  dev: { productName: "Studio OS Desktop Dev", identifier: "dev.studio-os.desktop-dev", dataDir: "StudioOS-Dev" },
+};
+
+/** The channel of this build or test run: `--channel`, else STUDIO_DESKTOP_CHANNEL, else `prod`. */
+export function buildChannel(env = process.env) {
+  const channel = arg("--channel", env.STUDIO_DESKTOP_CHANNEL ?? "prod");
+  if (!(channel in CHANNELS)) throw new Error(`unknown channel: ${channel} (expected ${Object.keys(CHANNELS).join(", ")})`);
+  return channel;
+}
+
 export function allowInsecureOrigin(env = process.env) {
   return env[ALLOW_INSECURE_ORIGIN_ENV] === "1";
 }

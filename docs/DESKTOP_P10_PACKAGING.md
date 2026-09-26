@@ -80,9 +80,9 @@ reconstructibles.
 
 Le shell attache un daemon sain déjà présent ou en démarre un seul ; il le supervise avec un
 redémarrage borné et l'arrête à la fermeture (fermeture normale vérifiée : 0 processus restant).
-Le hook NSIS exécute `taskkill /F /T /IM studio-daemon.exe` avant installation et désinstallation
-pour libérer les fichiers. **Limite documentée** : il tue tout `studio-daemon.exe` de l'utilisateur,
-y compris un daemon de développement.
+Le hook NSIS arrête (`taskkill /F /T /PID`) avant installation et désinstallation le seul
+`studio-daemon.exe` dont l'exécutable est sous le dossier d'installation, pour libérer les fichiers ;
+un daemon d'un autre canal ou de développement n'est pas touché.
 
 ## 7. Désinstallation
 
@@ -188,7 +188,6 @@ Dette connue (P11/P12) :
   contrôle Code Graph / Knowledge / workspace local au niveau de l'application installée ; les états
   Graphify absent/incompatible sont couverts par les tests Python du provider.
 - L'export de diagnostics ne liste pas les composants optionnels (Graphify, Git).
-- Le crochet NSIS `taskkill /IM studio-daemon.exe` arrête aussi un daemon de développement de l'utilisateur.
 - `botocore` n'est pas élagué du sidecar (gain de taille possible) ; pas de fichier `LICENSE` à la racine.
 
 Procédure de release (manuelle, hors P10) :
@@ -197,6 +196,14 @@ Procédure de release (manuelle, hors P10) :
 2. Générer la paire minisign hors dépôt ; publier la clé publique via `STUDIO_UPDATER_PUBKEY`.
 3. Lancer `desktop-release.yml` (déclenchement manuel, secrets de l'environnement `desktop-release`).
 4. Publier l'installateur et le manifeste de mise à jour ; le workflow ne publie rien.
+
+Canaux non signés (`desktop-channels.yml`) : chaque push touchant le Desktop remplace la release de
+son canal. `deploy/flo-laptop` → tag `desktop-prod` (release « Latest ») ; `dev` → tag `desktop-dev`
+(pre-release, `--channel dev`). Les origines API/stockage viennent des variables
+`STUDIO_DESKTOP_API_URL` / `STUDIO_DESKTOP_STORAGE_URL` des environnements GitHub `desktop-prod` et
+`desktop-dev`. Le canal Dev s'installe à côté de Prod : identifiant `dev.studio-os.desktop-dev`,
+produit « Studio OS Desktop Dev », données `%APPDATA%\StudioOS-Dev` (`STUDIO_CLIENT_CHANNEL=dev`
+transmis au daemon), serveur MCP `studio-os-dev` dans les configurations des outils.
 
 ## 16. Mesures
 

@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
-from studio_client.config import ClientConfig, default_config_path
+from studio_client.config import ClientConfig, client_channel, default_config_path
 
 
 def test_requires_api_base_url() -> None:
@@ -67,6 +67,23 @@ def test_missing_toml_file_is_silently_ignored(
 
 def test_default_config_path_is_platform_specific() -> None:
     assert default_config_path().name == "config.toml"
+
+
+def test_dev_channel_keeps_its_own_data_folder(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("STUDIO_CLIENT_CHANNEL", raising=False)
+    assert client_channel() == "prod"
+    stable = default_config_path().parent
+    monkeypatch.setenv("STUDIO_CLIENT_CHANNEL", "dev")
+    assert client_channel() == "dev"
+    dev = default_config_path().parent
+    assert dev != stable
+    assert dev.parent == stable.parent
+    assert dev.name.lower() == f"{stable.name.lower()}-dev"
+
+
+def test_unknown_channel_is_the_stable_one(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("STUDIO_CLIENT_CHANNEL", "staging")
+    assert client_channel() == "prod"
 
 
 def test_defaults_cover_idempotency_reclaim_window() -> None:

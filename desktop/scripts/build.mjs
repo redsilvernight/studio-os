@@ -1,6 +1,6 @@
 // Reproducible Desktop build.
 //
-//   node scripts/build.mjs [--api-url <origin>] [--storage-url <origin>] [--sidecar] [--installer]
+//   node scripts/build.mjs [--api-url <origin>] [--storage-url <origin>] [--channel prod|dev] [--sidecar] [--installer]
 //
 // Without --installer: the bare executable (`--no-bundle`, `bundle.active` false).
 // With --installer: also freezes the daemon and produces the NSIS per-user
@@ -18,7 +18,7 @@
 //    and writes its third-party inventory (fails on an undeclared/unreviewed license);
 // 4. compiles the shell with `tauri build --no-bundle` (or `--bundles nsis` with --installer).
 import { join } from "node:path";
-import { ALLOW_INSECURE_ORIGIN_ENV, allowInsecureOrigin, arg, dashboardDir, dashboardOut, DEFAULT_API_URL, desktopDir, flag, overlayPath, runOrFail, tauriCli, validateBuildApiUrl, viteCli } from "./lib.mjs";
+import { ALLOW_INSECURE_ORIGIN_ENV, allowInsecureOrigin, arg, buildChannel, dashboardDir, dashboardOut, DEFAULT_API_URL, desktopDir, flag, overlayPath, runOrFail, tauriCli, validateBuildApiUrl, viteCli } from "./lib.mjs";
 
 const insecureOriginAllowed = allowInsecureOrigin();
 const apiUrl = validateBuildApiUrl(
@@ -29,6 +29,7 @@ const storageArg = arg("--storage-url", process.env.STUDIO_DESKTOP_STORAGE_URL);
 const storageUrl = storageArg ? validateBuildApiUrl(storageArg, insecureOriginAllowed) : undefined;
 const installer = flag("--installer");
 const sidecar = flag("--sidecar") || installer;
+const channel = buildChannel();
 const node = process.execPath;
 
 await runOrFail(node, [join(desktopDir, "scripts", "check-prereqs.mjs"), ...(sidecar ? ["--sidecar"] : [])]);
@@ -40,7 +41,7 @@ await runOrFail(node, [viteCli(), "build", "--outDir", dashboardOut, "--emptyOut
   env: { VITE_STUDIO_API_URL: apiUrl },
 });
 
-const cfg = [join(desktopDir, "scripts", "make-config.mjs"), "--api-url", apiUrl];
+const cfg = [join(desktopDir, "scripts", "make-config.mjs"), "--api-url", apiUrl, "--channel", channel];
 if (storageUrl) cfg.push("--storage-url", storageUrl);
 if (sidecar) cfg.push("--sidecar");
 if (installer) cfg.push("--installer");
@@ -58,6 +59,7 @@ console.log(`\n▶ Tauri build (${tauriArgs.slice(1).join(" ")})`);
 await runOrFail(node, [tauriCli(), ...tauriArgs, "--config", overlayPath], {
   env: {
     STUDIO_DESKTOP_API_URL: apiUrl,
+    STUDIO_DESKTOP_CHANNEL: channel,
     [ALLOW_INSECURE_ORIGIN_ENV]: insecureOriginAllowed ? "1" : "0",
   },
 });

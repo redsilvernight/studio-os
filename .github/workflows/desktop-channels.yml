@@ -1,0 +1,114 @@
+name: Desktop channels
+
+# Two living GitHub releases of the unsigned Desktop installer, each replaced
+# by every new build of its branch:
+#   deploy/flo-laptop -> tag `desktop-prod`, release marked Latest (stable, in use);
+#   dev               -> tag `desktop-dev`, pre-release, installs side by side
+#                        with Prod (own identity and data, `--channel dev`).
+# The API / storage origins baked into each build come from the variables of
+# the matching GitHub environment (`desktop-prod`, `desktop-dev`), so no
+# deployment address lives in the code. Unsigned: SmartScreen / Smart App
+# Control may warn or block. Signed builds stay in desktop-release.yml.
+
+on:
+  push:
+    branches: [dev, "deploy/flo-laptop"]
+    paths:
+      - "desktop/**"
+      - "dashboard/**"
+      - "packages/studio-client/**"
+      - "packages/studio-code-graph/**"
+      - "packages/studio-contracts/**"
+      - "packages/studio-workspaces/**"
+      - "uv.lock"
+      - ".github/workflows/desktop-channels.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-channel-${{ github.ref_name }}
+  cancel-in-progress: true
+
+env:
+  UV_LOCKED: "1"
+
+jobs:
+  installer:
+    if: github.ref_name == 'dev' || github.ref_name == 'deploy/flo-laptop'
+    runs-on: windows-latest
+    timeout-minutes: 60
+    environment: ${{ github.ref_name == 'dev' && 'desktop-dev' || 'desktop-prod' }}
+    env:
+      STUDIO_DESKTOP_CHANNEL: ${{ github.ref_name == 'dev' && 'dev' || 'prod' }}
+      STUDIO_DESKTOP_API_URL: ${{ vars.STUDIO_DESKTOP_API_URL }}
+      STUDIO_DESKTOP_STORAGE_URL: ${{ vars.STUDIO_DESKTOP_STORAGE_URL }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Refuse a build without its origins
+        shell: pwsh
+        run: |
+          if (-not $env:STUDIO_DESKTOP_API_URL) { "::error title=config::STUDIO_DESKTOP_API_URL is not set on the environment"; exit 1 }
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Sync workspace
+        run: uv sync --all-packages
+      - name: Install Node dependencies
+        run: |
+          npm ci
+          npm ci --prefix ../dashboard
+        working-directory: desktop
+      - name: Build the unsigned installer of this channel
+        shell: pwsh
+        run: |
+          $build = @("scripts/build.mjs", "--installer", "--channel", $env:STUDIO_DESKTOP_CHANNEL, "--api-url", $env:STUDIO_DESKTOP_API_URL)
+          if ($env:STUDIO_DESKTOP_STORAGE_URL) { $build += @("--storage-url", $env:STUDIO_DESKTOP_STORAGE_URL) }
+          node @build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        working-directory: desktop
+      - name: Install, launch, upgrade and uninstall
+        run: npm run test:install
+        working-directory: desktop
+      - name: Annotate failing install checks
+        if: failure()
+        run: node scripts/annotate-results.mjs install-test-results.json
+        working-directory: desktop
+      - name: Replace the channel release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          trap { "::error title=publish::$($_.Exception.Message)"; exit 1 }
+          $channel = $env:STUDIO_DESKTOP_CHANNEL
+          $label = if ($channel -eq "dev") { "Dev" } else { "Prod" }
+          $tag = "desktop-$channel"
+          $version = (Get-Content desktop/package.json | ConvertFrom-Json).version
+          $short = "${{ github.sha }}".Substring(0, 7)
+          $source = Get-ChildItem desktop/src-tauri/target/release/bundle/nsis/*.exe | Select-Object -First 1
+          $asset = Join-Path $env:RUNNER_TEMP "StudiOS-Setup-$channel.exe"
+          Copy-Item $source.FullName $asset
+          $hash = (Get-FileHash $asset -Algorithm SHA256).Hash.ToLower()
+          $notes = @(
+            "Studi'OS Desktop $label $version, built from ${{ github.ref_name }} at ${{ github.sha }} and checked by npm run test:install.",
+            "",
+            "API: $env:STUDIO_DESKTOP_API_URL",
+            "SHA-256: $hash",
+            "",
+            "Unsigned build: SmartScreen / Smart App Control may warn or block it. This release is replaced by the next build of ${{ github.ref_name }}."
+          ) -join "`n"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            $out = gh release delete $tag --cleanup-tag --yes 2>&1
+            if ($LASTEXITCODE -ne 0) { "::error title=gh release delete::$(($out | Out-String).Trim() -replace "`r?`n", " ")"; exit 1 }
+          }
+          if (git ls-remote --tags origin "refs/tags/$tag") { git push -q origin ":refs/tags/$tag" }
+          $flags = if ($channel -eq "dev") { @("--prerelease", "--latest=false") } else { @("--latest") }
+          $out = gh release create $tag $asset --target "${{ github.sha }}" --title "Studi'OS Desktop $label $version ($short)" --notes $notes @flags 2>&1
+          if ($LASTEXITCODE -ne 0) { "::error title=gh release create::$(($out | Out-String).Trim() -replace "`r?`n", " ")"; exit 1 }
+          "Published $tag ($hash)" >> $env:GITHUB_STEP_SUMMARY
