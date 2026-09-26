@@ -250,8 +250,10 @@ async function main() {
       check("launch.diagnostics_export_written_and_redacted", exported.ok && exportedFiles.length === 1 && !exportedText.includes(appData) && !/token|password|secret/i.test(exportedText.replace(/"[^"]*(?:token|password|secret)[^"]*"\s*:\s*"?\[redacted\]"?/gi, "")), `${exportFile}; ${exportedFiles.length} file(s), no raw home path`);
       const upd = await invoke(page, "check_for_update", {});
       if (process.env.STUDIO_UPDATER_ENDPOINT) {
-        // Updater compiled in: the check answers (or fails as a network fault), never crashes.
-        const answered = (upd.ok && ["up_to_date", "available"].includes(upd.value?.state)) || upd.code === "network";
+        // Updater compiled in: the check answers with a status or a structured error, never
+        // crashes. Before this build is published the channel feed may be absent (404 ->
+        // invalid_metadata); the feed itself is proven after publication (--upgrade-from).
+        const answered = (upd.ok && ["up_to_date", "available"].includes(upd.value?.state)) || ["network", "invalid_metadata"].includes(upd.code);
         check("launch.updater_configured_answers", answered, JSON.stringify(upd));
       } else {
         check("launch.updater_not_configured_in_dev_installer", upd.ok && upd.value?.state === "not_configured", JSON.stringify(upd));
