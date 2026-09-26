@@ -12,7 +12,11 @@ from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.transfer import TransferModel
 from studio_api.services import provisioning as provisioning_service
 from studio_mcp.tools.ai_work import studio_log_ai_work
-from studio_mcp.tools.claims import studio_claim_resource, studio_release_resource
+from studio_mcp.tools.claims import (
+    studio_claim_resource,
+    studio_claim_resources,
+    studio_release_resource,
+)
 from studio_mcp.tools.decisions import studio_add_decision
 from studio_mcp.tools.sessions import studio_end_session, studio_start_session
 from studio_mcp.tools.tasks import studio_claim_task, studio_create_task, studio_release_task
@@ -43,6 +47,15 @@ async def test_readonly_cannot_claim_resource_via_mcp(
 ) -> None:
     result = await studio_claim_resource(
         str(project.id), "src/foo.py", "file", 60, readonly_auth_ctx
+    )
+    assert result["error_code"] == "forbidden"
+
+
+async def test_readonly_cannot_claim_resources_via_mcp(
+    readonly_auth_ctx: FakeContext, project: ProjectModel
+) -> None:
+    result = await studio_claim_resources(
+        str(project.id), ["src/foo.py", "src/bar.py"], "file", 60, readonly_auth_ctx
     )
     assert result["error_code"] == "forbidden"
 

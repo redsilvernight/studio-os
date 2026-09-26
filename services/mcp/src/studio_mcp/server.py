@@ -18,6 +18,7 @@ from studio_mcp.tools.ai_work import studio_get_ai_work, studio_log_ai_work
 from studio_mcp.tools.builds import studio_get_builds, studio_request_producer_job
 from studio_mcp.tools.claims import (
     studio_claim_resource,
+    studio_claim_resources,
     studio_get_resource_claims,
     studio_release_resource,
 )
@@ -185,6 +186,21 @@ def create_server() -> MCPServer:
             "Pass idempotency_key when retrying a call that may have already succeeded — "
             "replaying the same key+arguments returns the original claim instead of a "
             "duplicate and never re-emits the conflict event."
+        ),
+    )
+    server.add_tool(
+        studio_claim_resources,
+        name="studio_claim_resources",
+        description=(
+            "Soft-lock several resource paths (file/folder) for the caller's machine in one call, "
+            "with the same warn-only semantics as studio_claim_resource — a claim warns, it never "
+            "blocks a Git operation or a file write. Requires a writer role. Returns one compact "
+            "batch: every created claim, plus the subset that overlaps another active claim (each "
+            "overlap still emits a resource.conflict event). All paths share the same "
+            "resource_type, ttl_seconds and optional task_id. "
+            "Pass idempotency_key when retrying a call that may have already succeeded — "
+            "replaying the same key+arguments returns the original batch instead of a "
+            "duplicate and never re-emits the conflict events."
         ),
     )
     server.add_tool(
