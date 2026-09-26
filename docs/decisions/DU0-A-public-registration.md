@@ -76,7 +76,7 @@ même lot.
   Son exécution sur une instance réelle exige un accord explicite, donné par\n  l'utilisateur le 2026-09-26 avec l'acceptation de DEC-0122.
 - Contrats : TECH/02, TECH/04, TECH/05.
 
-## Amendement A4 (proposé — serveur DEC-0128 `65ddfa48-bf06-497f-a97b-03712e5eb6a7`, tâches 7e9b8172 / bf9c4d6e / 7898c5ec / 4f5c0616)
+## Amendement A4 (accepté — serveur DEC-0128 `65ddfa48-bf06-497f-a97b-03712e5eb6a7`, tâches 7e9b8172 / bf9c4d6e / 7898c5ec / 4f5c0616)
 
 - `register` ne reçoit que l'adresse ; mot de passe et `display_name` sont
   choisis à `verify-email` par le détenteur de la boîte. Motif : revue
