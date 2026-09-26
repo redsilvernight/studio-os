@@ -7,6 +7,7 @@ Docker Compose deployment.
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 import uuid
@@ -50,8 +51,6 @@ class ClientVersionGuardMiddleware(BaseHTTPMiddleware):
         client_version = request.headers.get(VERSION_HEADER)
         if check_client(client, client_version, self._settings):
             return await call_next(request)
-        import json
-
         minimum = str(family_minimum(self._settings, client))
         latest = str(family_latest(self._settings, client))
         return Response(
