@@ -9,18 +9,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BridgeAnswer } from "../platform/contracts";
 import { fakeDesktop } from "../testSupport/fakeDesktop";
 import { ApiError } from "../api";
-import { setToken } from "../auth";
+import { clearToken, setToken } from "../auth";
+import { resetIdentityCache } from "../identityApi";
 import { ONBOARDING_STORAGE_KEY, saveOnboardingState } from "./state";
 import { emptySession, projectSlugFromName, renderOnboarding, revalidate } from "./view";
 
 const api = vi.hoisted(() => ({
   GET: vi.fn(),
+  POST: vi.fn(),
   createProject: vi.fn(),
 }));
 
 vi.mock("../api", async (importOriginal) => {
   const original = await importOriginal<typeof import("../api")>();
-  return { ...original, createApiClient: () => ({ GET: api.GET }) };
+  return { ...original, createApiClient: () => ({ GET: api.GET, POST: api.POST }) };
 });
 
 vi.mock("../creationsApi", async (importOriginal) => {
@@ -59,7 +61,9 @@ beforeEach(() => {
   document.body.innerHTML = "";
   globalThis.localStorage.removeItem(ONBOARDING_STORAGE_KEY);
   api.GET.mockReset();
+  api.POST.mockReset();
   api.createProject.mockReset();
+  resetIdentityCache();
   setToken("session-token");
 });
 
@@ -124,7 +128,7 @@ describe("step « Projet »", () => {
     expect(root.querySelector("[data-testid=onboarding-error]")?.textContent).toContain("déjà ce nom");
     expect(root.querySelector<HTMLButtonElement>("[data-testid=project-create-form] button[type=submit]")!.disabled).toBe(false);
     // Conflict -> the list is fetched again so the existing project can be picked.
-    expect(api.GET).toHaveBeenCalledTimes(2);
+    expect(api.GET.mock.calls.filter((call) => call[0] === "/api/v1/projects")).toHaveLength(2);
   });
 
   it("refuses a name without any letter or digit without calling the server", async () => {
@@ -330,5 +334,80 @@ describe("resume after an app restart", () => {
     expect(root.querySelector("[data-testid=onboarding-step]")?.getAttribute("data-step")).toBe("memoire");
     expect(root.textContent).toContain("Mémoire désactivée");
     expect(root.querySelector("[data-testid=onboarding-error]")).toBeNull();
+  });
+});
+
+describe("A5 — compte auto-inscrit dans l'assistant", () => {
+  const byPath = (me: unknown, projects: () => unknown[]) =>
+    async (path: string) =>
+      path === "/api/v1/auth/me"
+        ? { response: { ok: true }, data: me }
+        : { response: { ok: true }, data: projects() };
+
+  it("« Projet » : un compte readonly sans projet attend l'accès, sans formulaire de création", async () => {
+    let projects: unknown[] = [];
+    api.GET.mockImplementation(byPath({ role: "readonly" }, () => projects));
+    const root = mount();
+    await renderOnboarding(root, fakeDesktop(), emptySession({ schema: 1, status: "in_progress", current: "projet" }));
+    expect(root.querySelector("[data-testid=onboarding-awaiting-access]")?.textContent).toContain("En attente d'accès");
+    expect(root.querySelector("[data-testid=project-create-form]")).toBeNull();
+    expect(root.querySelector<HTMLButtonElement>("[data-action=next]")!.disabled).toBe(true);
+
+    projects = [{ id: PROJECT, slug: "jeu", name: "Jeu" }];
+    root.querySelector<HTMLButtonElement>("[data-action=reload-projects]")!.click();
+    await tick(10);
+    expect(root.querySelector("[data-testid=onboarding-awaiting-access]")).toBeNull();
+    expect(root.querySelector("[data-testid=project-list]")?.textContent).toContain("Jeu");
+  });
+
+  it("« Projet » : un developer sans projet garde la création", async () => {
+    api.GET.mockImplementation(byPath({ role: "developer" }, () => []));
+    const root = mount();
+    await renderOnboarding(root, fakeDesktop(), emptySession({ schema: 1, status: "in_progress", current: "projet" }));
+    expect(root.querySelector("[data-testid=onboarding-awaiting-access]")).toBeNull();
+    expect(root.querySelector("[data-testid=project-create-form]")).not.toBeNull();
+  });
+
+  it("« Connexion » : créer un compte sur le serveur configuré puis revenir à la connexion", async () => {
+    clearToken();
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("offline"));
+    api.POST.mockResolvedValue({ response: new Response(null, { status: 202 }) });
+    const root = mount();
+    await renderOnboarding(root, fakeDesktop(), emptySession({ schema: 1, status: "in_progress", current: "connexion" }));
+    const host = root.querySelector<HTMLElement>("[data-testid=onboarding-login]")!;
+    host.querySelector<HTMLAnchorElement>("a[data-account-action=register]")!.click();
+    expect(host.querySelector("[data-screen=register]")).not.toBeNull();
+    // L'adresse serveur reste celle de l'étape : aucune seconde saisie.
+    expect(host.querySelector("#server-origin-input, #login-server-input")).toBeNull();
+
+    host.querySelector<HTMLInputElement>("input[name=email]")!.value = "ada@example.com";
+    host.querySelector<HTMLFormElement>("form")!.dispatchEvent(new Event("submit", { cancelable: true }));
+    await tick(10);
+    expect(api.POST.mock.calls[0]![0]).toBe("/api/v1/auth/register");
+    expect(host.querySelector("[data-screen=sent]")).not.toBeNull();
+    expect(host.querySelector("[data-testid=onboarding-verify-hint]")).not.toBeNull();
+
+    host.querySelector<HTMLAnchorElement>("a[data-action=login]")!.click();
+    expect(host.querySelector("#login-form")).not.toBeNull();
+    expect(host.querySelector("[data-testid=login-account-links]")).not.toBeNull();
+    fetchSpy.mockRestore();
+  });
+
+  it("« Connexion » : inscriptions fermées = écran explicite dans l'assistant", async () => {
+    clearToken();
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("offline"));
+    api.POST.mockResolvedValue({
+      response: new Response(null, { status: 404 }),
+      error: { detail: { error_code: "registration_unavailable" } },
+    });
+    const root = mount();
+    await renderOnboarding(root, fakeDesktop(), emptySession({ schema: 1, status: "in_progress", current: "connexion" }));
+    const host = root.querySelector<HTMLElement>("[data-testid=onboarding-login]")!;
+    host.querySelector<HTMLAnchorElement>("a[data-account-action=register]")!.click();
+    host.querySelector<HTMLInputElement>("input[name=email]")!.value = "ada@example.com";
+    host.querySelector<HTMLFormElement>("form")!.dispatchEvent(new Event("submit", { cancelable: true }));
+    await tick(10);
+    expect(host.querySelector("[data-screen=failure-registration_unavailable]")?.textContent).toContain("Inscriptions fermées");
+    fetchSpy.mockRestore();
   });
 });

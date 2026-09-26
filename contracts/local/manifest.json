@@ -535,6 +535,10 @@
     },
     {
       "model": "HandshakeResponse",
+      "name": "runtime.handshake.compatible_daemon_update"
+    },
+    {
+      "model": "HandshakeResponse",
       "name": "runtime.handshake.compatible_degraded"
     },
     {

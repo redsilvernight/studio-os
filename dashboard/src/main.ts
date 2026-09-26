@@ -45,6 +45,9 @@ import { renderInspector } from "./views/inspector";
 import { renderDesignSystem } from "./views/designSystem";
 import { renderNotFound } from "./views/notFound";
 import { loginOverlayHtml, renderLogin } from "./login";
+import { PUBLIC_HASH, publicHashScreen, readAccountLink, scrubbedPath } from "./accountLink";
+import { renderPublicAccount, type PublicScreen } from "./views/publicAccount";
+import { probeProjectAccess, renderAwaitingAccess, type ProjectAccess } from "./views/awaitingAccess";
 import { getPlatform } from "./platform";
 import { getDesktopShell, paintShellStatus, prepareDesktop, setDesktopHooks } from "./desktopShell";
 import { parseRoute } from "./router";
@@ -73,6 +76,18 @@ const fixtureRoadmapDataSource = createFixtureRoadmapDataSource();
 const renderGuard = createRenderGuard();
 let shellListenersMounted = false;
 
+// Only a granted access is remembered (per token): « none » is re-asked on
+// every landing render so a newly added membership shows up at once.
+let grantedForToken: string | null = null;
+
+async function projectAccess(client: ReturnType<typeof createApiClient>): Promise<ProjectAccess> {
+  const token = getToken();
+  if (token !== null && token === grantedForToken) return "granted";
+  const access = await probeProjectAccess(client);
+  if (access === "granted") grantedForToken = token;
+  return access;
+}
+
 async function render(): Promise<void> {
   const my = renderGuard.next();
   const route = parseRoute(location.hash);
@@ -94,7 +109,13 @@ async function render(): Promise<void> {
   const authed = hasToken();
   if (authed) await loadActorNames(client);
   const staging = document.createElement("main");
-  switch (route.name) {
+  // A5 : un compte actif sans aucun projet voit « En attente d'accès » à
+  // l'Accueil plutôt qu'un tableau de bord vide (#/projects garde l'état
+  // vide explicite A0).
+  const awaiting = authed && route.name === "dashboard" && (await projectAccess(client)) === "none";
+  if (awaiting) {
+    renderAwaitingAccess(staging, () => void render());
+  } else switch (route.name) {
     case "projects":
       await renderProjects(staging, { client, authed });
       break;
@@ -390,11 +411,51 @@ function mountLogin(notice?: string): void {
       syncRealtimeConnection();
       mountShell();
     },
-    { notice, desktop: getDesktopShell() !== null, onServerChange: () => void mountLogin() },
+    {
+      notice,
+      desktop: getDesktopShell() !== null,
+      onServerChange: () => void mountLogin(),
+      onAccountAction: (action) => {
+        history.replaceState(null, "", PUBLIC_HASH[action]);
+        mountPublic({ name: action });
+      },
+    },
   );
 }
 
+/** A5 : écrans publics (inscription, vérification, récupération), sans token. */
+function mountPublic(screen: PublicScreen): void {
+  const app = document.getElementById("app");
+  if (app === null) throw new Error("#app missing");
+  renderPublicAccount(app, screen, {
+    client: createApiClient(resolveApiUrl(apiBaseUrl())),
+    go: mountPublic,
+    toLogin: () => {
+      if (publicHashScreen(location.hash) !== null) history.replaceState(null, "", location.pathname);
+      mountLogin();
+    },
+  });
+}
+
+/** Emailed link or shareable pre-login address: mounted instead of the login. */
+function publicEntry(): PublicScreen | null {
+  const link = readAccountLink(location.pathname, location.hash);
+  if (link !== null) {
+    // The secret leaves the address bar and history before anything else.
+    history.replaceState(null, "", scrubbedPath(location.pathname));
+    if (link.token === null) return { name: "failure", kind: "invalid_or_expired_token", flow: link.kind };
+    return link.kind === "verify" ? { name: "verify", token: link.token } : { name: "reset", token: link.token };
+  }
+  const screen = publicHashScreen(location.hash);
+  return screen !== null && !hasToken() ? { name: screen } : null;
+}
+
 function start(): void {
+  const entry = publicEntry();
+  if (entry !== null) {
+    mountPublic(entry);
+    return;
+  }
   // Sans compte, l'écran de connexion couvre tout — sauf au premier lancement
   // Desktop, où l'assistant embarque sa propre connexion (étape « Connexion »).
   const desktop = getDesktopShell() !== null;
