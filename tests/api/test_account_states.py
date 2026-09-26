@@ -12,6 +12,7 @@ from httpx import AsyncClient
 from sqlalchemy import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from studio_api.access_registry import iter_operations
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.user import UserModel
@@ -60,12 +61,18 @@ async def test_emails_are_normalized_and_unique_regardless_of_case(
 
     duplicate = await client.post(
         "/api/v1/users",
-        json={"display_name": "Norma 2", "email": f"{local.upper()}@EXAMPLE.test", "role": "readonly"},
+        json={
+            "display_name": "Norma 2",
+            "email": f"{local.upper()}@EXAMPLE.test",
+            "role": "readonly",
+        },
         headers=admin_auth_headers,
     )
     assert duplicate.status_code == 409
 
-    found = await provisioning_service.get_user_by_email(db_session, f" {local.upper()}@example.TEST")
+    found = await provisioning_service.get_user_by_email(
+        db_session, f" {local.upper()}@example.TEST"
+    )
     assert found is not None and str(found.id) == created.json()["id"]
     await provisioning_service.set_user_password(db_session, f"{local}@EXAMPLE.test", _PASSWORD)
     await _login(client, f" {local.upper()}@Example.Test ")
@@ -113,9 +120,7 @@ async def test_admin_disable_blocks_everything_until_enable(
     jwt_headers = await _login(client, user.email)
     queue = event_stream.subscribe()
     try:
-        disabled = await client.post(
-            f"/api/v1/users/{user.id}/disable", headers=admin_auth_headers
-        )
+        disabled = await client.post(f"/api/v1/users/{user.id}/disable", headers=admin_auth_headers)
         assert disabled.status_code == 200, disabled.text
         assert disabled.json()["status"] == "disabled"
         assert queue.get_nowait() == event_stream.UserRevalidation(user_id=user.id)
@@ -175,6 +180,7 @@ async def test_admin_revoke_sessions_keeps_machine_tokens(
     assert (await client.get("/api/v1/auth/me", headers=_bearer(token))).status_code == 200
 
 
+@pytest.mark.isolation
 async def test_admin_lists_a_users_memberships(
     client: AsyncClient,
     db_session: AsyncSession,
@@ -219,14 +225,11 @@ async def test_state_actions_are_admin_only_and_404_on_unknown(
 
 
 def _mutating_user_targeted_routes() -> list[tuple[str, str]]:
-    routes: list[tuple[str, str]] = []
-    for route in app.routes:
-        path = getattr(route, "path", "")
-        methods = getattr(route, "methods", None) or set()
-        if "{user_id}" not in path:
-            continue
-        routes.extend((method, path) for method in sorted(methods - {"GET", "HEAD", "OPTIONS"}))
-    return routes
+    return sorted(
+        (method, path)
+        for method, path in set(iter_operations(app))
+        if "{user_id}" in path and method != "GET"
+    )
 
 
 def test_every_user_targeted_mutation_is_covered() -> None:
@@ -239,9 +242,7 @@ def test_every_user_targeted_mutation_is_covered() -> None:
     }
     assert not [
         (method, path)
-        for method, path in (
-            (m, getattr(r, "path", "")) for r in app.routes for m in getattr(r, "methods", ())
-        )
+        for method, path in iter_operations(app)
         if re.fullmatch(r"/api/v1/(users|auth)(/.*)?", path) and method in {"PATCH", "PUT"}
     ]
 
@@ -279,6 +280,7 @@ async def test_no_endpoint_modifies_the_callers_own_account(
     assert (await client.get("/api/v1/auth/me", headers=admin_auth_headers)).status_code == 200
 
 
+@pytest.mark.isolation
 async def test_active_verified_account_without_membership_sees_an_empty_state(
     client: AsyncClient, db_session: AsyncSession, project: ProjectModel
 ) -> None:

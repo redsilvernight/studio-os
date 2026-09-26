@@ -17,7 +17,7 @@ import type { components } from "../openapi-schema";
 import { dsBadge, dsEmptyState, dsSectionHeader, dsSkeleton } from "../ds/ds";
 import { taskStatusLabel, taskStatusTone } from "../taskStatus";
 import { describeError, esc, fmtTime } from "../ui";
-import { isAdminIdentity } from "../identityApi";
+import { fetchIdentity } from "../identityApi";
 import { renderActivityInto } from "./activity";
 import { renderClaimsInto } from "./claims";
 import { renderDecisionsV2 as renderDecisions } from "./decisionsV2";
@@ -263,8 +263,14 @@ export async function renderProjectDetail(
     return;
   }
   if (tab === "members") {
-    const isAdmin = await isAdminIdentity(ctx.client);
-    await renderMembersInto(panel, { client: ctx.client, projectId: project.id, authed: ctx.authed, isAdmin });
+    const identity = await fetchIdentity(ctx.client);
+    await renderMembersInto(panel, {
+      client: ctx.client,
+      projectId: project.id,
+      authed: ctx.authed,
+      isAdmin: identity?.role === "admin",
+      selfId: identity?.user_id ?? null,
+    });
     return;
   }
   const intro = document.createElement("p");

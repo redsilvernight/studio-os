@@ -67,9 +67,7 @@ async def list_machines(
         UserModel, MachineModel.owner_user_id == UserModel.id
     )
     if owner_email is not None:
-        stmt = stmt.where(
-            func.lower(UserModel.email) == func.lower(normalize_email(owner_email))
-        )
+        stmt = stmt.where(func.lower(UserModel.email) == func.lower(normalize_email(owner_email)))
     stmt = stmt.order_by(MachineModel.created_at)
     result = await session.execute(stmt)
     return [(machine, owner) for machine, owner in result.all()]

@@ -57,3 +57,21 @@ implémenté dans DU-0.
 Les migrations futures doivent être réversibles et tester l'ordre de rollback
 applicatif ; contrats, OpenAPI, clients, fixtures et mocks A/B changent dans le
 même lot.
+
+## Amendement A3 (proposé — serveur DEC-0122 `668fc649-0c1f-43b4-b3fb-12dcbb4e3535`, tâches f1c0664c / 4cb7a6bd)
+
+- Administration HTTP des comptes, rôle `admin` : `POST /api/v1/users/{id}/disable|enable|revoke-sessions`
+  et `GET /api/v1/users/{id}/memberships` (additifs), en plus de la CLI
+  `studio-admin user …` prévue par DEC-0110.
+- Aucun endpoint ne permet à un User de modifier son propre rôle, état ou accès :
+  cibler soi-même répond `403 self_modification_forbidden` avant toute recherche,
+  y compris `PUT`/`DELETE /projects/{id}/members/{user_id}` (rupture rattachée à
+  `API_CONTRACT_VERSION=2`). Aucun endpoint ne modifie `User.role`.
+- `User` expose `status` dérivé (`pending|active|disabled`), `email_verified_at`,
+  `disabled_at` (additif).
+- E-mails normalisés `strip().lower()`, uniques sans casse (index sur
+  `lower(email)`). La migration `0016` réécrit les e-mails existants en
+  minuscules : transformation **irréversible** (le downgrade restaure la
+  contrainte, pas la casse d'origine) ; préflight bloquant sur les doublons.
+  Son exécution sur une instance réelle exige un accord explicite.
+- Contrats : TECH/02, TECH/04, TECH/05.

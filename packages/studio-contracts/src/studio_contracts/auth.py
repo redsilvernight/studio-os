@@ -29,10 +29,10 @@ class MachineStatus(StrEnum):
 
 
 class AccountStatus(StrEnum):
-    """Derived, never stored (DU-0/A): `disabled` when `disabled_at` is set,
-    else `pending` while `email_verified_at` is null, else `active`. Only an
+    """Derived, never stored: `disabled` when `disabled_at` is set, else
+    `pending` while `email_verified_at` is null, else `active`. Only an
     `active` account gets a principal; the state is orthogonal to project
-    access (DEC-0100)."""
+    access."""
 
     PENDING = "pending"
     ACTIVE = "active"

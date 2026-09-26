@@ -127,7 +127,13 @@ bootstrap, aucun secret d'environnement dedie. Une fois la premiere machine
 enrolee, un nouveau developpeur passe par `POST /users` (ou l'inscription
 publique, DU-0/A) et un nouveau poste ou outil d'IA par `POST /machines` en
 libre-service. Etat et sessions d'un User (A2, DEC-0110) : `studio-admin
-user disable|enable|revoke-sessions` (voir Cycle de session).
+user disable|enable|revoke-sessions` (voir Cycle de session), et en HTTP
+pour `admin` : `POST /users/{user_id}/disable|enable|revoke-sessions` (A3,
+`TECH/02_API_CONTRACT.md`). Aucun endpoint ne permet a un User de modifier
+son propre role, etat ou acces projet (`403 self_modification_forbidden`).
+L'etat du compte (`pending|active|disabled`) est orthogonal a l'acces
+projet : un compte actif sans membership est valide et voit des collections
+vides.
 
 ## Synchronisation
 Chaque ecriture offline-safe transporte un UUID stable et, si approprie, une Idempotency-Key. Le serveur garantit qu'un replay identique ne cree pas un doublon.
@@ -261,7 +267,13 @@ Acces projet — regles (DEC-0100 §7-12) :
   un slug deja pris repond `409 conflict`, meme invisible de l'appelant
   (oracle accepte, reserve aux roles de provisioning).
 - **Attribution** : `admin` uniquement (`/api/v1/projects/{id}/members`,
-  `studio-admin project grant|revoke`) ; aucune auto-attribution.
+  `studio-admin project grant|revoke`) ; aucune auto-attribution. Depuis A3
+  (rupture de la version 2), `PUT`/`DELETE /projects/{id}/members/{user_id}`
+  ciblant l'appelant lui-meme repondent `403 {"detail": {"error_code":
+  "self_modification_forbidden", "resource": "user", "action":
+  "grant_access|revoke_access"}}` avant toute recherche, comme les actions
+  d'etat `POST /users/{user_id}/...` (`TECH/02_API_CONTRACT.md`,
+  Administration des comptes).
 - **Primitives canoniques** (`studio_api.services.authz`) :
   `ensure_project_access(principal, project_id, action)`,
   `project_visibility_clause(principal, column)` et resolution

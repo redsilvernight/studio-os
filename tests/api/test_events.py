@@ -476,6 +476,32 @@ async def test_stream_does_not_republish_an_idempotent_replay(
     assert seq_b > seq_a
 
 
+async def test_stream_closes_at_once_when_the_owner_is_disabled(
+    live_client: AsyncClient,
+    live_project_and_token: tuple[ProjectModel, MachineModel, str],
+) -> None:
+    project, machine_model, token = live_project_and_token
+
+    async def _drain(lines: AsyncIterator[str]) -> None:
+        async for _line in lines:
+            pass
+
+    async with live_client.stream(
+        "GET",
+        "/api/v1/events/stream",
+        headers={"Authorization": f"Bearer {token}"},
+        params={"project": str(project.id)},
+    ) as stream:
+        assert stream.status_code == 200
+        drained = asyncio.create_task(_drain(stream.aiter_lines()))
+        await asyncio.sleep(0.2)
+        async with get_session_factory()() as session:
+            owner = await session.get(UserModel, machine_model.owner_user_id)
+            assert owner is not None
+            await provisioning_service.disable_user(session, owner.email)
+        await asyncio.wait_for(drained, 5)
+
+
 async def test_stream_requires_authentication(client: AsyncClient, project: ProjectModel) -> None:
     response = await client.get("/api/v1/events/stream", params={"project": str(project.id)})
     assert response.status_code == 401

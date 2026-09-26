@@ -16,6 +16,7 @@ const user = (id: string, display_name: string, email: string): DirectoryUser =>
   display_name,
   email,
   role: "developer",
+  status: "active",
   created_at: "2026-09-25T10:00:00Z",
   updated_at: "2026-09-25T10:00:00Z",
   version: 1,
@@ -76,6 +77,20 @@ describe("onglet Membres", () => {
     expect(html).toContain("Aucun membre");
     expect(html).toContain("Rechercher un utilisateur");
     expect(html).toContain('name="q"');
+  });
+});
+
+describe("auto-ciblage (A3)", () => {
+  it("ne propose ni de s'ajouter ni de se retirer soi-même", () => {
+    const candidates = candidatesHtml([user(ADMIN, "Ada Admin", "ada@example.test")], new Set(), ADMIN);
+    expect(candidates).toContain("Votre compte");
+    expect(candidates).not.toContain(`data-grant-user="${ADMIN}"`);
+    const panel = membersPanelHtml(
+      [{ project_id: P, user_id: ADMIN, granted_by_user_id: null, created_at: "2026-09-25T10:00:00Z" }],
+      ADMIN,
+    );
+    expect(panel).toContain("Votre compte");
+    expect(panel).not.toContain(`data-revoke="${ADMIN}"`);
   });
 });
 

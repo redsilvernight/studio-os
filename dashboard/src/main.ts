@@ -28,6 +28,7 @@ import { renderTaskDetail } from "./views/taskDetail";
 import { renderTasksInto } from "./views/tasks";
 import { renderAgentDetail, renderAgents } from "./views/agents";
 import { renderMachines } from "./views/machines";
+import { renderAccounts } from "./views/accounts";
 import { renderDecisionsV2 as renderDecisions } from "./views/decisionsV2";
 import { renderTransfers } from "./views/transfers";
 import { renderLibrary, renderLibraryDetail } from "./views/library";
@@ -128,6 +129,9 @@ async function render(): Promise<void> {
       break;
     case "machines":
       await renderMachines(staging, { client, baseUrl, authed });
+      break;
+    case "accounts":
+      await renderAccounts(staging, { client, authed });
       break;
     case "decisions":
       await renderDecisions(staging, { client, authed });

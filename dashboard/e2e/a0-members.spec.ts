@@ -29,7 +29,7 @@ const jwt = `${b64url('{"alg":"none"}')}.${b64url(JSON.stringify({ sub: ADMIN, a
 const USERS = [
   { id: ADMIN, display_name: "Ada Admin", email: "ada@example.test" },
   { id: DEV, display_name: "Dora Dev", email: "dora@example.test" },
-].map((u) => ({ ...u, role: "developer", created_at: PROJECT.created_at, updated_at: PROJECT.created_at, version: 1 }));
+].map((u) => ({ ...u, role: "developer", status: "active", created_at: PROJECT.created_at, updated_at: PROJECT.created_at, version: 1 }));
 
 interface Member {
   project_id: string;
@@ -70,6 +70,10 @@ function apiStub(role: string, stub: Stub) {
       stub.memberCalls.push(`${request.method()} ${member[1] ?? ""}`.trim());
       const userId = member[1];
       if (request.method() === "GET") return json(200, stub.members);
+      if (userId === ADMIN) {
+        const action = request.method() === "PUT" ? "grant_access" : "revoke_access";
+        return json(403, { detail: { error_code: "self_modification_forbidden", resource: "user", action } });
+      }
       if (request.method() === "PUT" && userId !== undefined) {
         const existing = stub.members.find((m) => m.user_id === userId);
         if (existing !== undefined) return json(200, existing);
@@ -144,7 +148,8 @@ test.describe("A0 membres du projet", () => {
     await expect(candidates).toHaveCount(2);
     await expect(candidates.filter({ hasText: "Dora Dev" })).toContainText("Déjà membre");
     await expect(panel.locator(`[data-grant-user="${DEV}"]`)).toHaveCount(0);
-    await expect(panel.locator(`[data-grant-user="${ADMIN}"]`)).toHaveCount(1);
+    await expect(panel.locator(`[data-grant-user="${ADMIN}"]`)).toHaveCount(0);
+    await expect(candidates.filter({ hasText: "Ada Admin" })).toContainText("Votre compte");
     expect(stub.memberCalls.filter((c) => c.startsWith("PUT"))).toEqual([`PUT ${DEV}`]);
 
     page.once("dialog", (dialog) => void dialog.accept());
