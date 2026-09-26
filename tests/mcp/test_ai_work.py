@@ -162,3 +162,46 @@ async def test_log_ai_work_review_resolution_is_admin_only_and_actor_type_user(
     approved_events = [e for e in events if e.event_type == EventType.AI_WORK_APPROVED.value]
     assert len(approved_events) == 1
     assert approved_events[0].actor_type == "user"
+
+
+async def test_log_ai_work_create_honors_status_and_lists(
+    db_session: AsyncSession,
+    auth_ctx: FakeContext,
+    project: ProjectModel,
+    agent: AgentModel,
+) -> None:
+    """Finished work is logged in one call: status, changed_files and
+    tests_run given on creation are persisted, never silently dropped."""
+    created = await studio_log_ai_work(
+        str(project.id),
+        "Done in one call",
+        str(agent.id),
+        auth_ctx,
+        status="completed",
+        changed_files=["services/mcp/src/studio_mcp/tools/ai_work.py"],
+        tests_run=["tests/mcp/test_ai_work.py"],
+    )
+    assert created["status"] == "completed"
+    assert created["ended_at"] is not None
+    assert created["changed_files"] == ["services/mcp/src/studio_mcp/tools/ai_work.py"]
+    assert created["tests_run"] == ["tests/mcp/test_ai_work.py"]
+
+    events = await events_service.list_events(db_session, project_id=str(project.id))
+    work_id = uuid.UUID(created["id"])
+    by_type = {e.event_type: e for e in events}
+    for event_type in (EventType.AI_WORK_STARTED, EventType.AI_WORK_COMPLETED):
+        assert by_type[event_type.value].id == _derive_event_id(work_id, event_type)
+
+
+async def test_log_ai_work_create_refuses_review_resolution_status(
+    auth_ctx: FakeContext, project: ProjectModel, agent: AgentModel
+) -> None:
+    """A review resolution only exits `review_requested` (DEC-0041): nobody
+    self-approves by creating an entry already resolved."""
+    for target in ("approved", "changes_requested"):
+        result = await studio_log_ai_work(
+            str(project.id), "Self-approve", str(agent.id), auth_ctx, status=target
+        )
+        assert result["error_code"] == "invalid_status_transition"
+    listing = await studio_get_ai_work(auth_ctx, project_id=str(project.id))
+    assert listing["ai_work"] == []

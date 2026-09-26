@@ -55,12 +55,19 @@ async def list_ai_work(
         "cross-machine attribution. `agent_profile`, `harness`, `provider` "
         "and `model` are optional open-string observability metadata: any "
         "value is accepted, none is required, none affects authorization. "
+        "`status` (default `started`), `changed_files` and `tests_run` are "
+        "optional: already finished work can be logged in one call (a "
+        "`completed`/`failed` status sets `ended_at`); `approved` or "
+        "changes requested are never a valid initial status and fail with "
+        "`409 invalid_status_transition`. "
         "Accepts `Idempotency-Key` for safe retries."
     ),
     responses={
         **RESP_401_UNAUTHORIZED,
         **RESP_403_FORBIDDEN,
-        **merge_conflict(RESP_409_ACTOR_NOT_OWNED, RESP_409_IDEMPOTENCY),
+        **merge_conflict(
+            RESP_409_ACTOR_NOT_OWNED, RESP_409_IDEMPOTENCY, RESP_409_REVIEW_TRANSITION
+        ),
     },
 )
 async def create_ai_work(
