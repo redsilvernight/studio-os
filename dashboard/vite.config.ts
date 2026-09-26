@@ -1,5 +1,10 @@
+import { readFileSync } from "node:fs";
 import { defineConfig, loadEnv } from "vite";
 import { buildDashboardCsp, CSP_REPORT_ONLY_HEADER } from "./csp-policy";
+
+const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as {
+  version: string;
+};
 
 // Vite never puts `.env`/`.env.local` into `process.env` while evaluating the
 // config, so `loadEnv` is required for `VITE_STUDIO_API_PROXY` to actually
@@ -10,6 +15,8 @@ export default defineConfig(({ mode }) => {
     env.VITE_STUDIO_API_PROXY || process.env.VITE_STUDIO_API_PROXY || "http://localhost:8000";
 
   return {
+    // C1: the version this bundle declares to the API (`X-Studio-Client-Version`).
+    define: { __STUDIO_CLIENT_VERSION__: JSON.stringify(pkg.version) },
     server: {
       port: 5173,
       proxy: {

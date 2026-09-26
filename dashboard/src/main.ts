@@ -16,6 +16,7 @@
  * retour à l'écran de connexion.
  */
 import { apiBaseUrl, createApiClient } from "./api";
+import { showClientUpdateAdvisory, showClientUpgradeRequired as showUpgradeRequired } from "./clientUpgradeUi";
 import { loadActorNames } from "./actorNames";
 import { resolveApiUrl } from "./config";
 import { clearToken, getToken, hasToken, setToken } from "./auth";
@@ -482,6 +483,10 @@ export function boot(): void {
         syncRealtimeConnection();
         mountLogin(notice);
       }),
+      // Web Dashboard: no connection monitor, but the C1 compatibility surfaces
+      // must still work (advisory banner, blocking screen on 426).
+      clientUpdate: (latest) => showClientUpdateAdvisory(latest),
+      upgradeRequired: (info) => showUpgradeRequired(info),
     });
     start();
     return;

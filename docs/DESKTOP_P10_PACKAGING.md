@@ -124,6 +124,11 @@ Secrets CI (environnement `desktop-release`, dormants sans certificat) :
 le PFX l'emporte sur le thumbprint) ; optionnels : `WINDOWS_SIGN_TIMESTAMP_URL`,
 `WINDOWS_SIGN_DIGEST_ALGORITHM`.
 
+La rotation planifiée, la perte et la compromission des deux familles de clés
+sont traitées dans `docs/DESKTOP_B4_KEY_RUNBOOK.md`. Une rotation minisign exige
+une version-pont signée par l'ancienne clé ; changer directement les deux secrets
+rendrait les clients existants incapables d'accepter la nouvelle release.
+
 ## 10. Autostart, tray, réseau
 
 - Pas de tray : fermer la fenêtre arrête le shell et le daemon. Pas d'autostart imposé.

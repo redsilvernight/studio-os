@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import ipaddress
+import json
 import logging
 import time
 import uuid
@@ -18,11 +19,75 @@ from typing import Any
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from studio_contracts.version import (
+    CLIENT_FAMILIES,
+    CLIENT_HEADER,
+    CLIENT_STATUS_RECOMMENDED,
+    LATEST_HEADER,
+    UPDATE_HEADER,
+    VERSION_HEADER,
+)
 
+from studio_api.compat import check_client, client_status, family_latest, family_minimum
 from studio_api.observability import MetricsMiddleware
 from studio_api.settings import Settings
 
 logger = logging.getLogger(__name__)
+
+
+class ClientVersionGuardMiddleware(BaseHTTPMiddleware):
+    """C1 compatibility gate: a client declaring a build below the family
+    minimum gets 426 `client_upgrade_required` with an update invitation.
+
+    A client inside the grace window — at least the minimum, below the newest
+    release — is served normally and flagged with an additive advisory header
+    (`X-Studio-Client-Update: recommended`), never blocked. Pass-through by
+    design for everything else — missing headers (pre-C1 clients), unknown
+    families and unparsable versions never block, so an N-1 client keeps
+    working untouched. Skips the unauthenticated probes and the signed GitHub
+    webhook.
+    """
+
+    _SKIP_PATHS = {"/healthz", "/metrics", "/version", "/api/v1/github/webhook"}
+
+    def __init__(self, app: Any, settings: Settings) -> None:
+        super().__init__(app)
+        self._settings = settings
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        if request.url.path in self._SKIP_PATHS or not request.url.path.startswith("/api/v1"):
+            return await call_next(request)
+        client = (request.headers.get(CLIENT_HEADER) or "").lower()
+        if client not in CLIENT_FAMILIES:
+            return await call_next(request)
+        client_version = request.headers.get(VERSION_HEADER)
+        if check_client(client, client_version, self._settings):
+            response = await call_next(request)
+            if client_status(client, client_version, self._settings) == CLIENT_STATUS_RECOMMENDED:
+                response.headers[UPDATE_HEADER] = CLIENT_STATUS_RECOMMENDED
+                response.headers[LATEST_HEADER] = str(family_latest(self._settings, client))
+            return response
+        minimum = str(family_minimum(self._settings, client))
+        latest = str(family_latest(self._settings, client))
+        return Response(
+            content=json.dumps(
+                {
+                    "detail": {
+                        "error_code": "client_upgrade_required",
+                        "client": client,
+                        "client_version": client_version,
+                        "minimum_supported": minimum,
+                        "latest": latest,
+                        "message": (
+                            "This client version is no longer supported. "
+                            "Please update to the latest release."
+                        ),
+                    }
+                }
+            ),
+            status_code=426,
+            media_type="application/json",
+        )
 
 
 class RequestIdMiddleware(BaseHTTPMiddleware):
@@ -184,7 +249,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         path = request.url.path
-        if path in {"/healthz", "/metrics"}:
+        if path in {"/healthz", "/metrics", "/version"}:
             return await call_next(request)
 
         # The GitHub webhook has its own bucket (DEC-0059): it carries no
@@ -267,11 +332,16 @@ def setup_middleware(app: FastAPI, settings: Settings) -> None:
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],
-            expose_headers=[settings.request_id_header],
+            expose_headers=[
+                settings.request_id_header,
+                UPDATE_HEADER,
+                LATEST_HEADER,
+            ],
         )
 
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(RequestIdMiddleware, header_name=settings.request_id_header)
+    app.add_middleware(ClientVersionGuardMiddleware, settings=settings)
     app.add_middleware(
         RateLimitMiddleware,
         requests_per_minute=settings.rate_limit_requests_per_minute,
