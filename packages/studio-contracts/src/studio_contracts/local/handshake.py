@@ -286,9 +286,18 @@ def negotiate(
         granted_capabilities=granted,
         missing_optional=missing_optional,
         degraded=degraded,
-        remediation=(
-            Remediation.INSTALL_OPTIONAL_COMPONENT
-            if outcome is CompatibilityOutcome.COMPATIBLE_DEGRADED
-            else Remediation.NONE
-        ),
+        remediation=_degraded_remediation(degraded, missing_optional),
     )
+
+
+def _degraded_remediation(
+    degraded: list[DegradedFeature], missing_optional: list[str]
+) -> Remediation:
+    """A capability the daemon does not offer at all (no optional component
+    provides it) means an older daemon: update it. Only a component that is
+    present but not ready is fixed by installing/enabling that component."""
+    if missing_optional:
+        return Remediation.UPDATE_DAEMON
+    if degraded:
+        return Remediation.INSTALL_OPTIONAL_COMPONENT
+    return Remediation.NONE
