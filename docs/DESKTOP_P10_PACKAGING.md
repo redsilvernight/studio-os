@@ -211,6 +211,14 @@ Procédure de release (manuelle, hors P10) :
 3. Lancer `desktop-release.yml` (déclenchement manuel, secrets de l'environnement `desktop-release`).
 4. Publier l'installateur et le manifeste de mise à jour ; le workflow ne publie rien.
 
+Depuis B3, le workflow génère `SHA256SUMS.txt` (GNU `sha256sum -c`) et
+`provenance.json` (`studio.release-provenance/v1` : commit, tag, dirty,
+versions Desktop/daemon, origine API, outillage) via
+`desktop/scripts/release-artifacts.mjs`, et les joint à l'artefact privé :
+deux builds du même tag sont fonctionnellement équivalents quand leurs hashes
+coïncident pour une provenance identique. Aucun secret n'y figure (garanti par
+`test:release-artifacts`).
+
 ## 16. Mesures
 
 | Élément | Taille |
