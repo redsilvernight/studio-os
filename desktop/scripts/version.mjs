@@ -7,11 +7,19 @@
 //   node scripts/version.mjs --sync     # rewrite the synced carriers from the
 //                                       # canonical version (independent ones
 //                                       # are never touched)
+//   node scripts/version.mjs --channel-build <prod|dev> <n>
+//                                       # CI only: stamp a channel build as
+//                                       # <major.minor.patch>-<channel>.<n>, then sync
 //
 // Canonical: desktop/package.json "version". Synced carriers: the Rust crate
 // (the Desktop version reported by the shell and used by Tauri/NSIS, since
-// tauri.conf.json deliberately has no "version") and the daemon's
-// DAEMON_VERSION. Cargo.lock follows the crate on the next cargo run.
+// tauri.conf.json deliberately has no "version"), its Cargo.lock entry (so
+// `--locked` cargo runs accept a stamped build) and the daemon's DAEMON_VERSION.
+//
+// B6: every channel build gets a strictly increasing version so the updater of
+// the installed build N sees build N+1 (`0.1.0-dev.41` < `0.1.0-dev.42` <
+// `0.1.0`, numeric pre-release identifiers compare numerically). NSIS only
+// reads the build metadata, so a pre-release is accepted by the bundler.
 //
 // Independent versions (declared below, never synced): the dashboard SPA is
 // deployed with the server stack, not inside the Desktop bundle, so
@@ -38,6 +46,11 @@ const syncedCarriers = [
     name: "src-tauri/Cargo.toml [package] version",
     file: cargoFile,
     pattern: /(\[package\][^[]*?\nversion\s*=\s*")([^"]+)(")/,
+  },
+  {
+    name: "src-tauri/Cargo.lock studio-desktop version",
+    file: join(tauriDir, "Cargo.lock"),
+    pattern: /(\nname = "studio-desktop"\r?\nversion = ")([^"]+)(")/,
   },
   {
     name: "daemon service.py DAEMON_VERSION",
@@ -94,17 +107,38 @@ export function checkIndependentVersions() {
   }));
 }
 
+/** The version of channel build `n`: the canonical release, pre-release `<channel>.<n>`. */
+export function channelBuildVersion(canonical, channel, n) {
+  if (!["prod", "dev"].includes(channel)) throw new Error(`unknown build channel: ${channel}`);
+  if (!/^[1-9]\d*$/.test(String(n))) throw new Error(`build number must be a positive integer: ${n}`);
+  const base = /^(\d+\.\d+\.\d+)/.exec(canonical)?.[1];
+  if (!base) throw new Error(`canonical version is not semver: ${canonical}`);
+  return `${base}-${channel}.${n}`;
+}
+
+function syncCarriers(expected) {
+  for (const carrier of syncedCarriers) {
+    const { text, value } = read(carrier);
+    if (value !== expected) {
+      writeFileSync(carrier.file, text.replace(carrier.pattern, `$1${expected}$3`));
+      console.log(`${carrier.name}: ${value} -> ${expected}`);
+    }
+  }
+  console.log(`versions synced to ${expected}`);
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const expected = canonicalVersion();
-  if (flag("--sync")) {
-    for (const carrier of syncedCarriers) {
-      const { text, match, value } = read(carrier);
-      if (value !== expected) {
-        writeFileSync(carrier.file, text.replace(carrier.pattern, `$1${expected}$3`));
-        console.log(`${carrier.name}: ${value} -> ${expected}`);
-      }
-    }
-    console.log(`versions synced to ${expected}`);
+  const stamp = process.argv.indexOf("--channel-build");
+  if (stamp !== -1) {
+    const version = channelBuildVersion(expected, process.argv[stamp + 1], process.argv[stamp + 2]);
+    const file = join(desktopDir, "package.json");
+    const text = readFileSync(file, "utf8");
+    writeFileSync(file, text.replace(/("version"\s*:\s*")([^"]+)(")/, `$1${version}$3`));
+    console.log(`channel build: ${expected} -> ${version}`);
+    syncCarriers(version);
+  } else if (flag("--sync")) {
+    syncCarriers(expected);
   } else if (flag("--check")) {
     const rows = checkVersions();
     const drift = rows.filter((r) => r.actual !== r.expected);

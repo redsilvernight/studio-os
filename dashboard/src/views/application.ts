@@ -210,8 +210,13 @@ function assistantSectionHtml(section: DesktopSection, info: DesktopInfo | null)
 }
 
 function updateMessage(form: ApplicationFormState): string {
-  if (form.updateError) return `<p class="state error" role="alert" data-testid="update-error">${esc(form.updateError)}</p>`;
+  const error = form.updateError ? `<p class="state error" role="alert" data-testid="update-error">${esc(form.updateError)}</p>` : "";
   const status = form.update;
+  // An interrupted download keeps the verified release pending: offer a retry.
+  if (error && status?.state === "available") {
+    return error + `<button class="ds-btn ds-btn--primary" type="button" data-action="install-update">Réessayer l'installation de la version ${esc(status.version)}</button>`;
+  }
+  if (error) return error;
   if (!status) return "";
   if (status.state === "not_configured") {
     return `<p class="settings-intro" data-testid="update-status">Les mises à jour automatiques ne sont pas activées dans cette version de l'application.</p>`;
@@ -393,10 +398,10 @@ export async function renderApplication(
     await refreshDaemon(shell).catch(() => undefined);
   }
   root.innerHTML = applicationPageHtml("desktop", info, failure, shell ? sectionOf(shell, origin) : null, form, diag);
-  if (shell) bindActions(root, platform, shell);
+  if (shell) bindActions(root, platform, shell, form);
 }
 
-function bindActions(root: HTMLElement, platform: Platform, shell: DesktopShell): void {
+function bindActions(root: HTMLElement, platform: Platform, shell: DesktopShell, form: ApplicationFormState): void {
   const again = (form: ApplicationFormState = {}): Promise<void> => renderApplication(root, platform, form);
   root.querySelector<HTMLFormElement>("[data-testid=server-origin-form]")?.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -448,9 +453,23 @@ function bindActions(root: HTMLElement, platform: Platform, shell: DesktopShell)
       keepOpen(result.ok ? { update: result.status } : { updateError: updateErrorMessage(result.code) }),
     );
   });
-  root.querySelector("[data-action=install-update]")?.addEventListener("click", () => {
+  const install = root.querySelector<HTMLButtonElement>("[data-action=install-update]");
+  install?.addEventListener("click", () => {
+    // Download and verification take a while; a second click would find no
+    // pending release. On success the application exits and the installer
+    // restarts it, so only a failure comes back here.
+    install.disabled = true;
+    install.textContent = "Téléchargement et vérification…";
+    install.insertAdjacentHTML(
+      "afterend",
+      `<p class="settings-intro" role="status" data-testid="update-progress">La mise à jour est vérifiée avant d'être installée ; l'application redémarrera d'elle-même.</p>`,
+    );
     void platform.installUpdate().then((result) => {
-      if (!result.ok) return keepOpen({ updateError: updateErrorMessage(result.code) });
+      if (!result.ok) {
+        // Only an interrupted download leaves the release pending for a retry.
+        const update = result.code === "network" ? form.update : undefined;
+        return keepOpen({ update, updateError: updateErrorMessage(result.code) });
+      }
       return undefined;
     });
   });
