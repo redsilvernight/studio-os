@@ -79,7 +79,7 @@ jobs:
         if: failure()
         run: node scripts/annotate-results.mjs install-test-results.json
         working-directory: desktop
-      - name: Replace the channel release
+      - name: Update the channel release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
@@ -102,13 +102,21 @@ jobs:
             "",
             "Unsigned build: SmartScreen / Smart App Control may warn or block it. This release is replaced by the next build of ${{ github.ref_name }}."
           ) -join "`n"
+          function Invoke-Checked([string] $step, [scriptblock] $command) {
+            $out = & $command 2>&1
+            if ($LASTEXITCODE -ne 0) { "::error title=${step}::$(($out | Out-String).Trim() -replace "`r?`n", " ")"; exit 1 }
+          }
+          $title = "Studi'OS Desktop $label $version ($short)"
+          $flags = if ($channel -eq "dev") { @("--prerelease", "--latest=false") } else { @("--latest") }
+          # Never delete before publishing: a failed step must leave the previous
+          # release downloadable. The tag is moved with git first, so a refusal
+          # stops here with git's own reason and nothing else changed.
+          Invoke-Checked "git push tag" { git push -q -f origin "${{ github.sha }}:refs/tags/$tag" }
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) {
-            $out = gh release delete $tag --cleanup-tag --yes 2>&1
-            if ($LASTEXITCODE -ne 0) { "::error title=gh release delete::$(($out | Out-String).Trim() -replace "`r?`n", " ")"; exit 1 }
+            Invoke-Checked "gh release upload" { gh release upload $tag $asset --clobber }
+            Invoke-Checked "gh release edit" { gh release edit $tag --title $title --notes $notes @flags }
+          } else {
+            Invoke-Checked "gh release create" { gh release create $tag $asset --verify-tag --title $title --notes $notes @flags }
           }
-          if (git ls-remote --tags origin "refs/tags/$tag") { git push -q origin ":refs/tags/$tag" }
-          $flags = if ($channel -eq "dev") { @("--prerelease", "--latest=false") } else { @("--latest") }
-          $out = gh release create $tag $asset --target "${{ github.sha }}" --title "Studi'OS Desktop $label $version ($short)" --notes $notes @flags 2>&1
-          if ($LASTEXITCODE -ne 0) { "::error title=gh release create::$(($out | Out-String).Trim() -replace "`r?`n", " ")"; exit 1 }
           "Published $tag ($hash)" >> $env:GITHUB_STEP_SUMMARY
