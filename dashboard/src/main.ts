@@ -16,6 +16,8 @@
  * retour à l'écran de connexion.
  */
 import { apiBaseUrl, createApiClient } from "./api";
+import { setApiObserver } from "./apiEvents";
+import { showClientUpdateAdvisory, showClientUpgradeRequired as showUpgradeRequired } from "./clientUpgradeUi";
 import { loadActorNames } from "./actorNames";
 import { resolveApiUrl } from "./config";
 import { clearToken, getToken, hasToken, setToken } from "./auth";
@@ -381,6 +383,12 @@ function start(): void {
 export function boot(): void {
   const platform = getPlatform();
   if (platform.mode !== "desktop") {
+    // Web Dashboard: no connection monitor, but the C1 compatibility surfaces
+    // must still work (advisory banner, blocking screen on 426).
+    setApiObserver({
+      clientUpdate: (latest) => showClientUpdateAdvisory(latest),
+      upgradeRequired: (info) => showUpgradeRequired(info),
+    });
     start();
     return;
   }

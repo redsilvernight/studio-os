@@ -17,9 +17,16 @@ from typing import Any
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-from studio_contracts.version import CLIENT_FAMILIES, CLIENT_HEADER, VERSION_HEADER
+from studio_contracts.version import (
+    CLIENT_FAMILIES,
+    CLIENT_HEADER,
+    CLIENT_STATUS_RECOMMENDED,
+    LATEST_HEADER,
+    UPDATE_HEADER,
+    VERSION_HEADER,
+)
 
-from studio_api.compat import check_client, family_latest, family_minimum
+from studio_api.compat import check_client, client_status, family_latest, family_minimum
 from studio_api.observability import MetricsMiddleware
 from studio_api.settings import Settings
 
@@ -30,10 +37,13 @@ class ClientVersionGuardMiddleware(BaseHTTPMiddleware):
     """C1 compatibility gate: a client declaring a build below the family
     minimum gets 426 `client_upgrade_required` with an update invitation.
 
-    Pass-through by design for everything else — missing headers (pre-C1
-    clients), unknown families and unparsable versions never block, so an
-    N-1 client keeps working untouched. Skips the unauthenticated probes
-    and the signed GitHub webhook.
+    A client inside the grace window — at least the minimum, below the newest
+    release — is served normally and flagged with an additive advisory header
+    (`X-Studio-Client-Update: recommended`), never blocked. Pass-through by
+    design for everything else — missing headers (pre-C1 clients), unknown
+    families and unparsable versions never block, so an N-1 client keeps
+    working untouched. Skips the unauthenticated probes and the signed GitHub
+    webhook.
     """
 
     _SKIP_PATHS = {"/healthz", "/metrics", "/version", "/api/v1/github/webhook"}
@@ -50,7 +60,11 @@ class ClientVersionGuardMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         client_version = request.headers.get(VERSION_HEADER)
         if check_client(client, client_version, self._settings):
-            return await call_next(request)
+            response = await call_next(request)
+            if client_status(client, client_version, self._settings) == CLIENT_STATUS_RECOMMENDED:
+                response.headers[UPDATE_HEADER] = CLIENT_STATUS_RECOMMENDED
+                response.headers[LATEST_HEADER] = str(family_latest(self._settings, client))
+            return response
         minimum = str(family_minimum(self._settings, client))
         latest = str(family_latest(self._settings, client))
         return Response(
@@ -229,7 +243,11 @@ def setup_middleware(app: FastAPI, settings: Settings) -> None:
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],
-            expose_headers=[settings.request_id_header],
+            expose_headers=[
+                settings.request_id_header,
+                UPDATE_HEADER,
+                LATEST_HEADER,
+            ],
         )
 
     app.add_middleware(SecurityHeadersMiddleware)

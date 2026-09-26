@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from starlette.applications import Starlette
+from starlette.responses import JSONResponse
+from starlette.routing import Route
 from studio_api import compat
 from studio_api.main import app
+from studio_api.middleware import ClientVersionGuardMiddleware
 from studio_api.settings import Settings
 
 
@@ -46,6 +50,68 @@ def test_check_client_ignores_unknown_family() -> None:
     assert compat.check_client("toaster", "0.0.1", settings) is True
     assert compat.check_client("daemon", "0.1.0", settings) is True
     assert compat.check_client("daemon", "0.0.1", settings) is False
+
+
+def test_client_status_recommended_only_inside_grace_window() -> None:
+    settings = Settings(daemon_minimum_version="1.0.0", daemon_latest_version="2.0.0")
+    assert compat.client_status("daemon", "1.0.0", settings) == "recommended"
+    assert compat.client_status("daemon", "1.9.9", settings) == "recommended"
+    assert compat.client_status("daemon", "2.0.0", settings) == "current"
+    assert compat.client_status("daemon", "2.1.0", settings) == "current"
+
+
+def test_client_status_is_silent_when_undeclared() -> None:
+    settings = Settings(daemon_minimum_version="1.0.0", daemon_latest_version="2.0.0")
+    assert compat.client_status(None, "1.0.0", settings) == "current"
+    assert compat.client_status("toaster", "1.0.0", settings) == "current"
+    assert compat.client_status("daemon", None, settings) == "current"
+    assert compat.client_status("daemon", "dev", settings) == "current"
+
+
+def _guarded_app(settings: Settings) -> Starlette:
+    async def ping(request: object) -> JSONResponse:
+        return JSONResponse({"ok": True})
+
+    inner = Starlette(routes=[Route("/api/v1/ping", ping)])
+    inner.add_middleware(ClientVersionGuardMiddleware, settings=settings)
+    return inner
+
+
+@pytest.mark.asyncio
+async def test_advisory_header_marks_the_grace_window() -> None:
+    settings = Settings(daemon_minimum_version="1.0.0", daemon_latest_version="2.0.0")
+    transport = ASGITransport(app=_guarded_app(settings))
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/api/v1/ping", headers=_headers("daemon", "1.5.0"))
+
+    assert response.status_code == 200
+    assert response.headers["x-studio-client-update"] == "recommended"
+    assert response.headers["x-studio-client-latest"] == "2.0.0"
+
+
+@pytest.mark.asyncio
+async def test_advisory_header_absent_when_current_or_undeclared() -> None:
+    settings = Settings(daemon_minimum_version="1.0.0", daemon_latest_version="2.0.0")
+    transport = ASGITransport(app=_guarded_app(settings))
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        current = await client.get("/api/v1/ping", headers=_headers("daemon", "2.0.0"))
+        undeclared = await client.get("/api/v1/ping")
+        silent = await client.get("/api/v1/ping", headers=_headers("daemon", "dev"))
+
+    for response in (current, undeclared, silent):
+        assert response.status_code == 200
+        assert "x-studio-client-update" not in response.headers
+
+
+@pytest.mark.asyncio
+async def test_mandatory_below_minimum_is_a_426() -> None:
+    settings = Settings(daemon_minimum_version="1.0.0", daemon_latest_version="2.0.0")
+    transport = ASGITransport(app=_guarded_app(settings))
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/api/v1/ping", headers=_headers("daemon", "0.9.0"))
+
+    assert response.status_code == 426
+    assert response.json()["detail"]["error_code"] == "client_upgrade_required"
 
 
 @pytest.mark.asyncio
