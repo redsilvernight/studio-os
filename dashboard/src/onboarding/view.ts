@@ -25,6 +25,8 @@ import {
   type HarnessStatus,
 } from "../harnessApi";
 import { loginOverlayHtml, renderLogin } from "../login";
+import { fetchIdentity } from "../identityApi";
+import { renderPublicAccount, type PublicAccountDeps, type PublicScreen } from "../views/publicAccount";
 import { getPlatform, type Platform } from "../platform";
 import type {
   IdentityView,
@@ -498,11 +500,34 @@ async function paintConnexion(
   });
   const loginHost = root.querySelector("[data-testid=onboarding-login]");
   if (loginHost && !authed) {
-    renderLogin(loginHost as HTMLElement, () => {
-      session.notice = "Connecté.";
-      session.error = null;
-      void again();
-    });
+    const host = loginHost as HTMLElement;
+    // A5 : création de compte et récupération dans l'assistant, sur l'adresse
+    // serveur déjà configurée ci-dessus (apiBaseUrl, aucune seconde saisie).
+    const showLogin = (): void =>
+      renderLogin(
+        host,
+        () => {
+          session.notice = "Connecté.";
+          session.error = null;
+          void again();
+        },
+        { onAccountAction: (action) => showAccount({ name: action }) },
+      );
+    const deps: PublicAccountDeps = {
+      client: createApiClient(apiBaseUrl()),
+      go: (screen) => showAccount(screen),
+      toLogin: showLogin,
+    };
+    const showAccount = (screen: PublicScreen): void => {
+      renderPublicAccount(host, screen, deps);
+      if (screen.name === "sent" && screen.flow !== "forgot") {
+        host.querySelector(".login-box .state")?.insertAdjacentHTML(
+          "afterend",
+          `<p class="meta" data-testid="onboarding-verify-hint">Ouvrez le lien dans votre navigateur, puis revenez ici pour vous connecter.</p>`,
+        );
+      }
+    };
+    showLogin();
   }
   root.querySelector("[data-action=prev]")?.addEventListener("click", () => {
     go(session, previousStep("connexion") ?? "bienvenue");
@@ -593,6 +618,15 @@ async function paintProjet(
     }
   }
   const list = session.projects ?? [];
+  // A5 : seuls admin et developer créent un projet (POST /projects). Un compte
+  // auto-inscrit (readonly) sans projet attend qu'un administrateur l'ajoute.
+  // Rôle lu seulement quand la liste est vide : sinon rien ne change.
+  const role =
+    session.projectsError === null && list.length === 0
+      ? (await fetchIdentity(createApiClient(apiBaseUrl())))?.role
+      : undefined;
+  const canCreate = typeof role !== "string" || role === "admin" || role === "developer";
+  const awaiting = !canCreate;
   const cards = list
     .map(
       (project) =>
@@ -605,12 +639,17 @@ async function paintProjet(
     noticeHtml(session.notice) +
     (session.projectsError
       ? `<div class="settings-actions"><button class="ds-btn" type="button" data-action="reload-projects">Recharger la liste</button></div>`
-      : list.length === 0
-        ? `<p class="settings-intro">Aucun projet sur le serveur : créez-le ci-dessous.</p>`
-        : `<ul class="ds-list" data-testid="project-list">${cards}</ul>`) +
-    `<form class="settings-server-form" data-testid="project-create-form">` +
-    `<label class="settings-field">Nom du nouveau projet<input id="project-name-input" name="project_name" type="text" autocomplete="off" maxlength="80" /></label>` +
-    `<div class="settings-actions"><button class="ds-btn" type="submit">Créer</button></div></form>` +
+      : awaiting
+        ? `<div data-testid="onboarding-awaiting-access"><p class="settings-intro"><strong>En attente d'accès.</strong> Votre compte est actif, mais aucun projet ne vous est encore attribué. Un administrateur de votre studio doit vous ajouter comme membre d'un projet.</p>` +
+          `<div class="settings-actions"><button class="ds-btn" type="button" data-action="reload-projects">Vérifier à nouveau</button></div></div>`
+        : list.length === 0
+          ? `<p class="settings-intro">Aucun projet sur le serveur : créez-le ci-dessous.</p>`
+          : `<ul class="ds-list" data-testid="project-list">${cards}</ul>`) +
+    (canCreate
+      ? `<form class="settings-server-form" data-testid="project-create-form">` +
+        `<label class="settings-field">Nom du nouveau projet<input id="project-name-input" name="project_name" type="text" autocomplete="off" maxlength="80" /></label>` +
+        `<div class="settings-actions"><button class="ds-btn" type="submit">Créer</button></div></form>`
+      : "") +
     navButtons({
       prev: previousStep("projet"),
       extra: `<button class="ds-btn ds-btn--primary" type="button" data-action="next" ${session.state.projectId ? "" : "disabled"}>Continuer</button>`,
