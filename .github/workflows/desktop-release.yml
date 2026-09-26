@@ -3,6 +3,12 @@ name: Desktop release build (manual)
 # Builds a signed installer and its updater artifacts; it never publishes a
 # GitHub release or an update feed. Publishing stays a separate, human step
 # (docs/DESKTOP_P10_PACKAGING.md, "Release procedure").
+#
+# B4 signing order (fail-closed): Authenticode is applied DURING `tauri build`
+# via the bundle.windows overlay (WINDOWS_CERT_THUMBPRINT or PFX import), so
+# the minisign updater signatures cover the final signed bytes; the verify
+# step then refuses any unsigned executable. STUDIO_REQUIRE_AUTHENTICODE=1
+# makes a missing certificate a hard failure instead of a silent unsigned build.
 on:
   workflow_dispatch:
     inputs:
@@ -44,6 +50,13 @@ jobs:
           STUDIO_UPDATER_ENDPOINT: ${{ secrets.STUDIO_UPDATER_ENDPOINT }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          WINDOWS_CERT_THUMBPRINT: ${{ secrets.WINDOWS_CERT_THUMBPRINT }}
+          WINDOWS_SIGN_PFX_BASE64: ${{ secrets.WINDOWS_SIGN_PFX_BASE64 }}
+          WINDOWS_SIGN_PASSWORD: ${{ secrets.WINDOWS_SIGN_PASSWORD }}
+          STUDIO_REQUIRE_AUTHENTICODE: "1"
+      - name: Verify Authenticode signatures (fail-closed)
+        run: node scripts/windows-signing.mjs --verify --require --dir src-tauri/target/release/bundle/nsis
+        working-directory: desktop
       - name: Install, launch, upgrade and uninstall
         run: npm run test:install
         working-directory: desktop
