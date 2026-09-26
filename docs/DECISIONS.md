@@ -125,4 +125,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0102 | Tasks : emission serveur des evenements task.* a chaque ecriture | accepted | [decisions/DEC-0102-emission-serveur-evenements-task.md](decisions/DEC-0102-emission-serveur-evenements-task.md) |
 | DEC-0103 | Isolation projet minimale : membership User→Project, rôle = quoi, membership = où | accepted | [decisions/DEC-0103-isolation-projet-membership-user.md](decisions/DEC-0103-isolation-projet-membership-user.md) |
 | DEC-0104 | Desktop P9 : un identifiant Studi'OS dédié par couple poste + outil d'IA, état token_missing | proposed | [decisions/DEC-0104-desktop-p9-fourniture-jeton-mcp-aux-harnais.md](decisions/DEC-0104-desktop-p9-fourniture-jeton-mcp-aux-harnais.md) |
-| DEC-0105 | Oracle slug projet accepté : slugs non secrets, 409 conflict structuré | proposed | [decisions/DEC-0105-slug-oracle-accepte.md](decisions/DEC-0105-slug-oracle-accepte.md) |
+| DEC-0105 | Oracle slug projet accepté : slugs non secrets, 409 conflict structuré | accepted | [decisions/DEC-0105-slug-oracle-accepte.md](decisions/DEC-0105-slug-oracle-accepte.md) |
