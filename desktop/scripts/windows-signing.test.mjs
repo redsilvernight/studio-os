@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import test from "node:test";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   collectSignTargets,
@@ -88,6 +90,20 @@ test("sign targets collect every .exe recursively and nothing else", () => {
 
 test("a missing target directory fails closed", () => {
   assert.throws(() => collectSignTargets([join(tmpdir(), "studio-sign-targets-does-not-exist")]), /missing/);
+});
+
+test("verify without --require reports instead of failing (DEC-0129)", () => {
+  if (process.platform === "win32") return; // needs signtool + real binaries; CI Windows covers it
+  const dir = mkdtempSync(join(tmpdir(), "studio-sign-report-"));
+  try {
+    writeFileSync(join(dir, "setup.exe"), "a");
+    const cli = join(dirname(fileURLToPath(import.meta.url)), "windows-signing.mjs");
+    const report = execFileSync(process.execPath, [cli, "--verify", "--dir", dir], { encoding: "utf8" });
+    assert.match(report, /SKIP/);
+    assert.throws(() => execFileSync(process.execPath, [cli, "--verify", "--require", "--dir", dir], { stdio: "pipe" }));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("the Tauri overlay carries the signing block only when configured", async () => {

@@ -109,21 +109,23 @@ sont pas touchées. Aucune infrastructure de mise à jour de production n'est fo
 - **Signature de mise à jour** (minisign) : prouve l'authenticité de l'artefact de mise à jour.
   La clé privée reste hors dépôt (`TAURI_SIGNING_PRIVATE_KEY[_PASSWORD]`) ; aucune clé n'est générée
   ni committée.
-- **Signature de code Windows** (Authenticode, B4) : appliquée **pendant** `tauri build` via
-  l'overlay `bundle.windows` (`desktop/scripts/make-config.mjs` + `windows-signing.mjs`) —
-  `certificateThumbprint`, `digestAlgorithm` (sha256 par défaut), `timestampUrl` (RFC3161,
-  horodatage obligatoire). L'ordre est intentionnel : signer après le build invaliderait les
-  signatures minisign qui couvrent les binaires finaux. Sans certificat configuré, l'installateur
-  reste **non signé** (cas dev, SmartScreen avertit) ; avec `STUDIO_REQUIRE_AUTHENTICODE=1`
-  (workflow `desktop-release.yml`), un certificat manquant est une erreur fatale, jamais un
-  build silencieux non signé. `node scripts/windows-signing.mjs --verify --require` refuse tout
-  `.exe` livré sans signature de chaîne valide (`signtool verify /pa`).
-  Certificat de production : toujours un prérequis humain externe (B1), aucun secret au dépôt.
+- **Signature de code Windows** (Authenticode, B4) : **pas de certificat** (DEC-0129,
+  coût refusé, aucune alternative gratuite). L'installateur est distribué **non signé** :
+  SmartScreen avertit, Smart App Control peut bloquer — assumé. La confiance repose sur
+  minisign (update altérée ou mal signée refusée avant installation) + `SHA256SUMS.txt` /
+  `provenance.json` par release. La plomberie (`desktop/scripts/windows-signing.mjs`,
+  overlay `bundle.windows`, gate `--verify`) reste **dormante** : si un certificat arrive un
+  jour, il suffit de renseigner les secrets CI et de poser `STUDIO_REQUIRE_AUTHENTICODE=1`
+  (alors, certificat manquant = erreur fatale, et `--verify --require` refuse tout `.exe`
+  sans signature de chaîne valide). En attendant, la vérification est en mode rapport et
+  un build non signé passe. Ordre le jour venu : signer **pendant** `tauri build` (jamais
+  après, sinon les signatures minisign qui couvrent les binaires finaux seraient invalidées).
 
-Secrets CI (environnement `desktop-release`) : `WINDOWS_CERT_THUMBPRINT` (SHA1 du certificat
-dans `Cert:\CurrentUser\My`), ou `WINDOWS_SIGN_PFX_BASE64` + `WINDOWS_SIGN_PASSWORD` (le PFX
-est importé par `build.mjs`, le PFX l'emporte sur le thumbprint) ; optionnels :
-`WINDOWS_SIGN_TIMESTAMP_URL`, `WINDOWS_SIGN_DIGEST_ALGORITHM`.
+Secrets CI (environnement `desktop-release`, dormants sans certificat) :
+`WINDOWS_CERT_THUMBPRINT` (SHA1 du certificat dans `Cert:\CurrentUser\My`), ou
+`WINDOWS_SIGN_PFX_BASE64` + `WINDOWS_SIGN_PASSWORD` (le PFX est importé par `build.mjs`,
+le PFX l'emporte sur le thumbprint) ; optionnels : `WINDOWS_SIGN_TIMESTAMP_URL`,
+`WINDOWS_SIGN_DIGEST_ALGORITHM`.
 
 ## 10. Autostart, tray, réseau
 
@@ -218,8 +220,10 @@ Soldé par B3 :
 
 Procédure de release (manuelle, hors P10) :
 
-1. Stocker le certificat de code dans les secrets `desktop-release` (`WINDOWS_CERT_THUMBPRINT`
-   ou `WINDOWS_SIGN_PFX_BASE64` + `WINDOWS_SIGN_PASSWORD`, voir §9).
+1. Signature : rien à faire (DEC-0129, non signé assumé). Si un certificat arrive un jour,
+   le stocker dans les secrets `desktop-release` (`WINDOWS_CERT_THUMBPRINT` ou
+   `WINDOWS_SIGN_PFX_BASE64` + `WINDOWS_SIGN_PASSWORD`, voir §9) et poser
+   `STUDIO_REQUIRE_AUTHENTICODE=1` dans le workflow.
 2. Générer la paire minisign hors dépôt ; publier la clé publique via `STUDIO_UPDATER_PUBKEY`.
 3. Lancer `desktop-release.yml` (déclenchement manuel, secrets de l'environnement `desktop-release`) :
    build Tauri (Authenticode + minisign dans le bon ordre) → `windows-signing.mjs --verify --require`

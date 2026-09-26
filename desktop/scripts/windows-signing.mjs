@@ -17,9 +17,11 @@
 //   STUDIO_REQUIRE_AUTHENTICODE=1 fail-closed: build and verify refuse to
 //                                produce/accept an unsigned installer.
 //
-// Local dev: with none of the above set, the installer stays unsigned and the
-// build logs it; SmartScreen will warn. That is expected (see §9 of
-// docs/DESKTOP_P10_PACKAGING.md).
+// No certificate (DEC-0129: refused on cost, no free alternative): the installer
+// stays unsigned and the build logs it; SmartScreen will warn. That is the
+// accepted distribution model — trust comes from minisign + SHA256SUMS +
+// provenance (see §9 of docs/DESKTOP_P10_PACKAGING.md). The signing path below
+// stays dormant until a certificate is ever configured.
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -196,8 +198,10 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     for (const r of results) console.log(`${r.ok ? "SIGNED " : "UNSIGNED"}  ${r.file}${r.ok ? "" : `  (${r.detail})`}`);
     const bad = results.filter((r) => !r.ok);
     if (bad.length > 0) {
+      // DEC-0129: unsigned distribution is the accepted default, so report-only
+      // unless --require (or STUDIO_REQUIRE_AUTHENTICODE=1) demands signatures.
       console.error(`${bad.length}/${results.length} file(s) without a valid Authenticode signature`);
-      process.exit(1);
+      process.exit(required ? 1 : 0);
     }
     console.log(`all ${results.length} executable(s) carry a valid Authenticode signature`);
   } else {
