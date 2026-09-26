@@ -84,13 +84,28 @@ async def create_ai_work(
                 "message": "agent_id must be an agent attached to the authenticated machine",
             },
         )
+    if work_in.status in _REVIEW_RESOLUTIONS:
+        # A review resolution only exits `review_requested` (DEC-0041): a
+        # fresh entry has no such state, so nobody can self-approve on create.
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={
+                "error_code": "invalid_status_transition",
+                "message": f"cannot create an entry with status {work_in.status.value!r}",
+            },
+        )
+    now = datetime.now(UTC)
     work = AIWorkLogModel(
         task_id=work_in.task_id,
         project_id=work_in.project_id,
         agent_id=work_in.agent_id,
         machine_id=work_in.machine_id,
         summary=work_in.summary,
-        started_at=datetime.now(UTC),
+        status=work_in.status.value,
+        changed_files=work_in.changed_files,
+        tests_run=work_in.tests_run,
+        started_at=now,
+        ended_at=now if work_in.status in (AIWorkStatus.COMPLETED, AIWorkStatus.FAILED) else None,
         agent_profile=work_in.agent_profile,
         harness=work_in.harness,
         provider=work_in.provider,
@@ -99,7 +114,12 @@ async def create_ai_work(
     session.add(work)
     await session.commit()
     await session.refresh(work)
+    # `ai_work.started` always opens the lifecycle; a non-initial status adds
+    # its own event, as if a PATCH had followed (same deterministic ids).
     await _emit_ai_work_event(session, work, EventType.AI_WORK_STARTED, "agent", work.agent_id)
+    status_event = _STATUS_EVENT_TYPES.get(work_in.status)
+    if status_event is not None:
+        await _emit_ai_work_event(session, work, status_event, "agent", work.agent_id)
     return work
 
 
