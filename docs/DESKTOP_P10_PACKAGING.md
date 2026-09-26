@@ -109,9 +109,23 @@ sont pas touchées. Aucune infrastructure de mise à jour de production n'est fo
 - **Signature de mise à jour** (minisign) : prouve l'authenticité de l'artefact de mise à jour.
   La clé privée reste hors dépôt (`TAURI_SIGNING_PRIVATE_KEY[_PASSWORD]`) ; aucune clé n'est générée
   ni committée.
-- **Signature de code Windows** (Authenticode) : **non appliquée**. L'installateur produit est un
-  **installateur de développement non signé** ; Windows SmartScreen peut l'avertir. P10 ne prétend
-  pas satisfaire SmartScreen. Un certificat de production est un prérequis de release (§15).
+- **Signature de code Windows** (Authenticode, B4) : **pas de certificat** (DEC-0129,
+  coût refusé, aucune alternative gratuite). L'installateur est distribué **non signé** :
+  SmartScreen avertit, Smart App Control peut bloquer — assumé. La confiance repose sur
+  minisign (update altérée ou mal signée refusée avant installation) + `SHA256SUMS.txt` /
+  `provenance.json` par release. La plomberie (`desktop/scripts/windows-signing.mjs`,
+  overlay `bundle.windows`, gate `--verify`) reste **dormante** : si un certificat arrive un
+  jour, il suffit de renseigner les secrets CI et de poser `STUDIO_REQUIRE_AUTHENTICODE=1`
+  (alors, certificat manquant = erreur fatale, et `--verify --require` refuse tout `.exe`
+  sans signature de chaîne valide). En attendant, la vérification est en mode rapport et
+  un build non signé passe. Ordre le jour venu : signer **pendant** `tauri build` (jamais
+  après, sinon les signatures minisign qui couvrent les binaires finaux seraient invalidées).
+
+Secrets CI (environnement `desktop-release`, dormants sans certificat) :
+`WINDOWS_CERT_THUMBPRINT` (SHA1 du certificat dans `Cert:\CurrentUser\My`), ou
+`WINDOWS_SIGN_PFX_BASE64` + `WINDOWS_SIGN_PASSWORD` (le PFX est importé par `build.mjs`,
+le PFX l'emporte sur le thumbprint) ; optionnels : `WINDOWS_SIGN_TIMESTAMP_URL`,
+`WINDOWS_SIGN_DIGEST_ALGORITHM`.
 
 ## 10. Autostart, tray, réseau
 
@@ -182,7 +196,7 @@ d'installateur antérieur réel.
 
 ## 15. Limites et procédure de release
 
-Limites : installateur non signé (Authenticode) ; WebView2 requis (bootstrapper embarqué) ;
+Limites : installateur dev non signé sans certificat (Authenticode, voir §9) ; WebView2 requis (bootstrapper embarqué) ;
 les identifiants du Gestionnaire d'identifiants Windows ne sont pas effacés à la désinstallation
 (suppression manuelle des entrées `StudioOS`) ; pas de tray ; pas d'installation par machine.
 
@@ -206,9 +220,14 @@ Soldé par B3 :
 
 Procédure de release (manuelle, hors P10) :
 
-1. Fournir un certificat de signature de code et l'appliquer à l'installateur.
+1. Signature : rien à faire (DEC-0129, non signé assumé). Si un certificat arrive un jour,
+   le stocker dans les secrets `desktop-release` (`WINDOWS_CERT_THUMBPRINT` ou
+   `WINDOWS_SIGN_PFX_BASE64` + `WINDOWS_SIGN_PASSWORD`, voir §9) et poser
+   `STUDIO_REQUIRE_AUTHENTICODE=1` dans le workflow.
 2. Générer la paire minisign hors dépôt ; publier la clé publique via `STUDIO_UPDATER_PUBKEY`.
-3. Lancer `desktop-release.yml` (déclenchement manuel, secrets de l'environnement `desktop-release`).
+3. Lancer `desktop-release.yml` (déclenchement manuel, secrets de l'environnement `desktop-release`) :
+   build Tauri (Authenticode + minisign dans le bon ordre) → `windows-signing.mjs --verify --require`
+   → `test:install` → `SHA256SUMS.txt` + `provenance.json`.
 4. Publier l'installateur et le manifeste de mise à jour ; le workflow ne publie rien.
 
 Depuis B3, le workflow génère `SHA256SUMS.txt` (GNU `sha256sum -c`) et

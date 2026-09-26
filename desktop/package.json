@@ -17,6 +17,7 @@
     "dev": "node scripts/dev.mjs",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "test:build-policy": "node --test scripts/build-policy.test.mjs",
+    "test:signing": "node --test scripts/windows-signing.test.mjs",
     "test:release-artifacts": "node --test scripts/release-artifacts.test.mjs",
     "test:e2e": "node scripts/e2e.mjs",
     "test:e2e:shell": "node scripts/e2e-shell.mjs",

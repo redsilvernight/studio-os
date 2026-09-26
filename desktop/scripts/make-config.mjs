@@ -12,6 +12,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { allowInsecureOrigin, arg, buildDir, dashboardDir, DEFAULT_API_URL, flag, overlayPath, tauriDir, validateBuildApiUrl } from "./lib.mjs";
+import { windowsSigningFromEnv } from "./windows-signing.mjs";
 
 const { buildDashboardCsp } = await import(pathToFileURL(join(dashboardDir, "csp-policy.ts")).href);
 
@@ -36,8 +37,12 @@ export const SIDECAR_RESOURCE = { "../.build/sidecar/dist/studio-daemon/": "side
  * `installer`: switch the bundler on (NSIS, per-user, see tauri.conf.json).
  * `updater`: `{ pubkey, endpoint }` - only then is the update mechanism present;
  *   the public key is baked in and the artifacts are signed by the build.
+ * `signing`: `{ certificateThumbprint, digestAlgorithm, timestampUrl }` (B4) -
+ *   Authenticode is applied by Tauri DURING the build, so the minisign updater
+ *   signatures cover the final signed bytes. Deep-merged over the base
+ *   `bundle.windows` (NSIS) block; absent when no certificate is configured.
  */
-export function overlay({ apiUrl, storageUrl, sidecar, installer = false, updater }) {
+export function overlay({ apiUrl, storageUrl, sidecar, installer = false, updater, signing }) {
   const out = { app: { security: { csp: desktopCsp(apiUrl, storageUrl) } } };
   const bundle = {};
   if (sidecar) bundle.resources = SIDECAR_RESOURCE;
@@ -49,6 +54,7 @@ export function overlay({ apiUrl, storageUrl, sidecar, installer = false, update
     bundle.createUpdaterArtifacts = true;
     out.plugins = { updater: { pubkey: updater.pubkey.trim(), endpoints: [url.href], requireSignedVersion: true } };
   }
+  if (signing) bundle.windows = { ...signing };
   if (Object.keys(bundle).length) out.bundle = bundle;
   return out;
 }
@@ -77,7 +83,10 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     );
     const storageArg = arg("--storage-url", process.env.STUDIO_DESKTOP_STORAGE_URL);
     const storageUrl = storageArg ? validateBuildApiUrl(storageArg, allowInsecureOrigin()) : undefined;
-    const out = overlay({ apiUrl, storageUrl, sidecar: flag("--sidecar"), installer: flag("--installer"), updater: updaterFromEnv() });
+    const signing = windowsSigningFromEnv();
+    if (signing) console.log(`Authenticode: Tauri will sign with thumbprint ${signing.certificateThumbprint.slice(0, 8)}… (${signing.digestAlgorithm}, ${signing.timestampUrl})`);
+    else console.log("Authenticode: no certificate configured — installer will be unsigned");
+    const out = overlay({ apiUrl, storageUrl, sidecar: flag("--sidecar"), installer: flag("--installer"), updater: updaterFromEnv(), signing });
     mkdirSync(buildDir, { recursive: true });
     writeFileSync(overlayPath, JSON.stringify(out, null, 2) + "\n");
     console.log(`wrote ${overlayPath}`);
