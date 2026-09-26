@@ -1,7 +1,7 @@
 # DEC-0126 — Licence du dépôt : Apache-2.0 + inventaire tiers embarqué
 
-Statut : `proposed` (choix humain exprimé en session B3 du 2026-09-26, en attente
-de validation — le statut fichier et le statut serveur sont identiques).
+Statut : `accepted` (choix humain exprimé en session B3 du 2026-09-26, accepté
+le 2026-09-26 — fichier et serveur alignés).
 
 ## Décision
 
