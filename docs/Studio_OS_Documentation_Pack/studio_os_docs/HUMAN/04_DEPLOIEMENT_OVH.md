@@ -41,8 +41,10 @@ Pour deux developpeurs, un petit VPS est suffisant pour l'orchestration. Le stoc
 4. `docker compose up -d` pour demarrer API/MCP/dashboard/Caddy.
 
 ## Utilisateurs suivants
-Aucune inscription publique n'existe : chaque utilisateur est cree par un
-administrateur sur le serveur. Depuis la racine du depot :
+L'inscription publique (A4, DEC-0109) reste fermee
+(`STUDIO_PUBLIC_REGISTRATION_ENABLED=false`, defaut) sur toute instance exposee
+jusqu'au gate C4 : chaque utilisateur est cree par un administrateur sur le
+serveur. Depuis la racine du depot :
 
     ./register-user.sh
 
@@ -83,6 +85,13 @@ Distinction a retenir :
   `studio-admin set-password --email ... --password-stdin` (le secret passe par
   stdin, jamais par les arguments de processus). `--password ...` reste accepte
   pour compatibilite.
+- E-mails de compte (A4) : `STUDIO_EMAIL_BACKEND=smtp` avec `STUDIO_EMAIL_FROM`,
+  `STUDIO_SMTP_HOST`, `STUDIO_SMTP_PORT`, `STUDIO_SMTP_SECURITY`
+  (`starttls`|`tls`|`none`) et, si le relais l'exige, `STUDIO_SMTP_USERNAME` /
+  `STUDIO_SMTP_PASSWORD` dans `docker/.env` uniquement. Active la recuperation de
+  mot de passe (`forgot`/`reset`) ; `STUDIO_PUBLIC_BASE_URL` (defaut
+  `https://${DASHBOARD_DOMAIN}`) sert aux liens. Une configuration incoherente
+  empeche l'API de demarrer.
 - Rotation du secret JWT : changer `STUDIO_JWT_SECRET` et redemarrer `api` invalide
   les sessions actives ; les utilisateurs doivent se reconnecter.
 
