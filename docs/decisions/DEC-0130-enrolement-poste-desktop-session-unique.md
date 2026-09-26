@@ -1,7 +1,7 @@
 # DEC-0130 — Enrôlement du poste Desktop : une seule entrée secrète sur le pont local (amende DEC-0093)
 
-Statut : `proposed` (option choisie par l'humain en session du 2026-09-26 ;
-fichier et serveur alignés sur `proposed` jusqu'à accord explicite).
+Statut : `accepted` (option choisie puis acceptée explicitement par l'humain
+le 2026-09-26 ; fichier et serveur alignés).
 
 ## Contexte
 
