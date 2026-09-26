@@ -45,11 +45,19 @@ class AIWorkLog(ContractModel):
 
 
 class AIWorkLogCreate(IdempotentCreate):
+    """`status`, `changed_files` and `tests_run` are optional additive
+    fields so work already finished can be logged in one call: a terminal
+    status sets `ended_at`. `approved`/`changes_requested` are never a valid
+    initial status (they only exit `review_requested`)."""
+
     task_id: UUID | None = None
     project_id: UUID
     agent_id: UUID
     machine_id: UUID | None = None
     summary: str
+    status: AIWorkStatus = AIWorkStatus.STARTED
+    changed_files: list[str] = []
+    tests_run: list[str] = []
     agent_profile: str | None = None
     harness: str | None = None
     provider: str | None = None
