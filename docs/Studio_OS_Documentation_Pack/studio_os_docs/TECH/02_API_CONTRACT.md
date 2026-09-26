@@ -27,11 +27,11 @@ ressource rattachee a un projet.
 - JSON UTF-8.
 - IDs internes UUID.
 - IDs lisibles possibles pour Task/Decision/Transfer.
-- `Idempotency-Key` supporte sur creations rejouables (tasks, claims, decisions, transfers, sessions, ai-work, projects, agents — CC-1/DEC-0045 — plus producer-jobs et github-integration, etape 9.1/DEC-0059, library resources/versions/activations/deprecations/locks, P1/DEC-0064, runtime-bindings P4, runtimes register/update P6 — P7/DEC-0071) — meme cle + meme endpoint renvoie la reponse d'origine plutot que de recreer, y compris sous requetes concurrentes reelles : une seule ressource metier est creee pour une paire (cle, endpoint) donnee tant que la creation reste sous le seuil de reclamation d'une reservation abandonnee (limite connue documentee dans DEC-0015, non couverte par un jeton de fencing dans cette etape). Rejouer la meme cle avec un corps de requete different (hash du corps different) est une erreur client explicite `409 {"error_code": "idempotency_key_payload_mismatch"}`, jamais un rejeu silencieux de la premiere reponse ni une seconde ressource (DEC-0015). `POST /events` fait exception : c'est `event_id` (genere client-side) qui joue ce role, pas ce header — voir `TECH/04_AUTH_SYNC_CONTRACT.md`. `POST /machines` et `POST /users` sont volontairement exclus (actions administratives, interactives, jamais rejouees via la queue offline — DEC-0011/DEC-0012 ; un `Idempotency-Key` sur `POST /machines` persisterait le credential en clair dans la table d'idempotence). `PUT`/`DELETE /projects/{id}/members/{user_id}` (DEC-0103) : N/A — naturellement idempotents par la cle `(project_id, user_id)` ; re-accorder conserve le `granted_by_user_id` d'origine. Lectures pures (`GET`, `POST /resolutions`, `POST /runtimes/{id}/revoke`, `DELETE /runtime-bindings/{id}`, `DELETE /library-locks/{id}`) : N/A — revoke/suppressions sont naturellement idempotents, la resolution ne persiste rien.
+- `Idempotency-Key` supporte sur creations rejouables (tasks, claims, decisions, transfers, sessions, ai-work, projects, agents — CC-1/DEC-0045 — plus producer-jobs et github-integration, etape 9.1/DEC-0059, library resources/versions/activations/deprecations/locks, P1/DEC-0064, runtime-bindings P4, runtimes register/update P6 — P7/DEC-0071 ; obligatoire sur `POST /auth/register`, `/auth/resend-verification` et `/auth/forgot-password`, A4/DEC-0109) — meme cle + meme endpoint renvoie la reponse d'origine plutot que de recreer, y compris sous requetes concurrentes reelles : une seule ressource metier est creee pour une paire (cle, endpoint) donnee tant que la creation reste sous le seuil de reclamation d'une reservation abandonnee (limite connue documentee dans DEC-0015, non couverte par un jeton de fencing dans cette etape). Rejouer la meme cle avec un corps de requete different (hash du corps different) est une erreur client explicite `409 {"error_code": "idempotency_key_payload_mismatch"}`, jamais un rejeu silencieux de la premiere reponse ni une seconde ressource (DEC-0015). `POST /events` fait exception : c'est `event_id` (genere client-side) qui joue ce role, pas ce header — voir `TECH/04_AUTH_SYNC_CONTRACT.md`. `POST /machines` et `POST /users` sont volontairement exclus (actions administratives, interactives, jamais rejouees via la queue offline — DEC-0011/DEC-0012 ; un `Idempotency-Key` sur `POST /machines` persisterait le credential en clair dans la table d'idempotence). `PUT`/`DELETE /projects/{id}/members/{user_id}` (DEC-0103) : N/A — naturellement idempotents par la cle `(project_id, user_id)` ; re-accorder conserve le `granted_by_user_id` d'origine. Lectures pures (`GET`, `POST /resolutions`, `POST /runtimes/{id}/revoke`, `DELETE /runtime-bindings/{id}`, `DELETE /library-locks/{id}`) : N/A — revoke/suppressions sont naturellement idempotents, la resolution ne persiste rien.
 - Pagination: `limit`, `offset` ou curseur selon endpoint.
 - Dates ISO 8601 UTC.
 - Ecriture mutable sur un objet existant (`PATCH`) : header `If-Match-Version` avec la `version` lue par le client ; 409 + version serveur courante en cas de conflit (`TECH/04_AUTH_SYNC_CONTRACT.md`).
-- Authentification : header `Authorization: Bearer <machine-token>` sur tout endpoint sous `/api/v1` (sauf `/healthz`, `/metrics`, `POST /auth/token` et `POST /github/webhook` — ce dernier est signe HMAC `X-Hub-Signature-256`, jamais Bearer) — voir `TECH/04_AUTH_SYNC_CONTRACT.md`. Le dashboard humain obtient un JWT court-terme via `POST /auth/token` (DASH-4, DEC-0056) et le presente ensuite comme `Authorization: Bearer <jwt>`.
+- Authentification : header `Authorization: Bearer <machine-token>` sur tout endpoint sous `/api/v1` (sauf `/healthz`, `/metrics`, `POST /auth/token`, les routes publiques d'inscription et de recuperation A4 et `POST /github/webhook` — ce dernier est signe HMAC `X-Hub-Signature-256`, jamais Bearer) — voir `TECH/04_AUTH_SYNC_CONTRACT.md`. Le dashboard humain obtient un JWT court-terme via `POST /auth/token` (DASH-4, DEC-0056) et le presente ensuite comme `Authorization: Bearer <jwt>`.
 - Autorisation (DEC-0036, durcissement documente sur des endpoints existants — meme categorie que DEC-0025) : au-dela de l'authentification, certains endpoints peuvent desormais repondre `403 {"detail": {"error_code": "forbidden", "resource": ..., "action": ...}}` a une machine authentifiee mais insuffisamment autorisee (role `readonly`, machine non proprietaire d'une ressource deja possedee, ou — cas particulier des Transfers, seule categorie ou une lecture peut aussi etre concernee — appelant hors sender/recipient/diffusion/admin) — voir `TECH/04_AUTH_SYNC_CONTRACT.md` section Autorisation pour la matrice complete. Concerne, en ecriture : `POST /tasks`, `PATCH /tasks/{id}`, `POST /tasks/{id}/claim`, `POST /tasks/{id}/release`, `POST /claims`, `POST /claims/{id}/renew`, `DELETE /claims/{id}`, `POST /sessions`, `PATCH /sessions/{id}/end`, `POST /ai-work`, `PATCH /ai-work/{id}`, `POST /decisions`, `POST /events`, `POST /agents` (CC-1/DEC-0045 : `readonly` -> `403`, sans ownership — creation sans ressource preexistante), `POST /transfers`, `POST /transfers/{id}/upload/initiate`, `POST /transfers/{id}/upload/refresh-parts` (DEC-0037),   `POST /transfers/{id}/upload/complete`, `DELETE /transfers/{id}`, `POST /library`, `POST /library/{id}/versions`, `POST /library/{id}/activate`, `POST /library/{id}/deprecate`, `POST /library-locks`, `DELETE /library-locks/{id}` (P1/DEC-0063 : creation Studio = `admin`/`developer`, mutations = machine owner ou `admin`, mainlevee de lock = createur ou `admin`), `POST /runtime-bindings`, `DELETE /runtime-bindings/{id}` (P4/P7 : ecriture `user`/`project` tout writer, `studio_default` `admin`/`developer`, mainlevee = createur ou `admin`), `POST /runtimes`, `PATCH /runtimes/{id}`, `POST /runtimes/{id}/revoke` (P6/P7 : owner-ou-`admin`), `POST /machines`, `POST /machines/{id}/revoke` (A5 : libre-service du proprietaire, `agent` refuse ; le refus porte l'enveloppe `forbidden` objet et non plus la chaine `insufficient role` ; revoke d'une machine d'autrui = `404`, comme une machine absente) ; en lecture (Transfers, regle de visibilite silencieuse, et `GET /library/{id}` en scope User, qui repond `404` et non `403` face a un non-owner pour ne pas reveler l'existence, DEC-0063 precision 1, meme regle pour `GET /runtime-bindings/{id}` et `GET /runtimes/{id}` — P7/DEC-0071) : `GET /transfers/{id}`, `POST /transfers/{id}/download-url`. Un client existant qui n'utilisait jusque-la que des roles/machines proprietaires n'observe aucun changement de comportement de role/ownership. Depuis la version contractuelle 2 (DEC-0103), toute route rattachee a un projet (lecture comprise) peut en outre repondre `403 resource=project` ; ce `403` n'est jamais une erreur d'authentification et un client ne doit pas deconnecter l'utilisateur sur ce motif.
 - Enveloppe reelle d'une erreur machine-readable (`error_code` present dans ce document, ex. `413`/`507`/`409 idempotency_key_payload_mismatch`) : `{"detail": {"error_code": "...", ...}}` — FastAPI enveloppe systematiquement `HTTPException.detail`, jamais `{"error_code": "..."}` a plat. Une erreur sans `error_code` (401/403/404 génériques) renvoie `{"detail": "<message>"}`, une simple chaine. `studio_contracts.common.ErrorResponse`/`VersionConflictError` ne sont utilises par aucun code serveur actuel — clarification documentaire (DEC-0024), pas un changement de comportement.
 
@@ -56,6 +56,51 @@ ressource rattachee a un projet.
   retires du JWT ; `401` generique si le principal n'est plus valide. Rate
   limiting : bucket authentifie ordinaire, pas le bucket strict par IP des
   autres routes `/api/v1/auth/*`.
+
+### Inscription publique et recuperation de compte (A4, DU-0/A / DEC-0109, additif)
+Routes sans Bearer (sauf `change-password`), bucket strict par IP de
+`/api/v1/auth/*`. Les reponses `202` sont toujours `{"status": "accepted"}`,
+que l'adresse existe ou non ; les e-mails partent apres la reponse.
+- Flag d'instance `STUDIO_PUBLIC_REGISTRATION_ENABLED` (defaut `false`, OFF sur
+  toute instance exposee jusqu'au gate C4). Ferme, `register`,
+  `resend-verification` et `verify-email` repondent
+  `404 {"detail": {"error_code": "registration_unavailable"}}` ; les comptes
+  existants ne sont pas affectes.
+- POST /auth/register — body `email`, `password` (12 caracteres a 72 octets
+  UTF-8), `display_name` ; `Idempotency-Key` obligatoire
+  (`400 idempotency_key_required`). Cree un User `readonly`, `pending`, sans
+  membership ; tout autre champ (role, etat, projet, membership) est ignore.
+  Une adresse deja `active` ou `disabled` ne recoit rien ; une adresse encore
+  `pending` recoit un nouveau lien. Le mot de passe est applique au clic sur
+  le lien emis pour cette demande.
+- POST /auth/resend-verification — body `email` ; `Idempotency-Key`
+  obligatoire. Nouveau lien pour un compte `pending` ; les liens precedents
+  expirent.
+- POST /auth/verify-email — body `token` ; `200 {"status": "verified"}`,
+  le compte devient `active`. Secret inconnu, expire ou deja consomme :
+  `400 invalid_or_expired_token`.
+- POST /auth/forgot-password — body `email` ; `Idempotency-Key` obligatoire.
+  Lien de reinitialisation pour un compte non `disabled`. Disponible quel que
+  soit le flag, des qu'un backend e-mail est configure, sinon
+  `404 password_recovery_unavailable` (idem pour `reset-password`).
+- POST /auth/reset-password — body `token`, `new_password` ;
+  `200 {"status": "password_reset"}`. Revoque toutes les sessions
+  (`auth_version`, TECH/04) ; un compte `pending` devient `active`.
+- POST /auth/change-password — principal authentifie ; body
+  `current_password`, `new_password` ; `200 {"status": "password_changed"}`
+  ou `400 invalid_current_password`. Revoque toutes les sessions, y compris
+  celle de l'appelant.
+- Secrets : 256 bits aleatoires, seul leur SHA-256 est stocke, typés
+  (`email_verification`/`password_reset`), expirants (24 h / 30 min par
+  defaut), consommes une seule fois par un `UPDATE` conditionnel. Liens
+  `<STUDIO_PUBLIC_BASE_URL>/verify-email#token=…` et `/reset-password#token=…`
+  (fragment : jamais envoye a un serveur ni journalise).
+- `verify-email`/`reset-password` n'utilisent pas `Idempotency-Key` : le hash
+  du secret en tient lieu. Un rejeu identique renvoie le resultat terminal
+  d'origine sans seconde consommation ; un corps different pour le meme secret
+  repond `409 idempotency_key_payload_mismatch`. Le hash de requete stocke
+  pour ces routes et pour `register` est un HMAC (le corps contient un mot de
+  passe) et la reponse stockee ne contient aucun secret.
 
 ### Projects
 - GET /projects — uniquement les projets accessibles (membership ou `admin`,

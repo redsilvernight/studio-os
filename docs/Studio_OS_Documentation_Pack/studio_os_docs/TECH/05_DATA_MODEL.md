@@ -66,6 +66,19 @@ existant ; la creation par `studio-admin` ou `POST /users` le pose
 immediatement. Aucune table de sessions : `session_id` du JWT n'est pas
 persiste.
 
+## AccountToken (A4, DEC-0109 — migration Alembic `0017`, additive et reversible)
+Secret de compte a usage unique : `id`, `user_id` (FK `users`, `ON DELETE
+CASCADE`), `purpose` (`email_verification` | `password_reset`), `token_hash`
+(SHA-256 du secret aleatoire de 256 bits, unique ; le secret n'est jamais
+stocke), `created_at`, `expires_at`, `consumed_at` (nullable), `password_hash`
+(nullable, verification seulement : bcrypt du mot de passe choisi a
+l'inscription, applique au User quand ce lien precis est consomme). Index
+`(user_id, purpose)`. Emettre un secret fait expirer les secrets non consommes
+de meme usage ; la consommation est un `UPDATE` conditionnel
+(`consumed_at IS NULL AND expires_at > now()`). Un User auto-inscrit est cree
+`readonly`, `pending` (`email_verified_at` nul, `password_hash` nul), sans
+membership.
+
 ## Machine
 `id`, `owner_user_id` (FK User), `display_name`, `credential_hash` (token
 opaque hashe, jamais le token en clair — DEC-0003 `docs/DECISIONS.md`),

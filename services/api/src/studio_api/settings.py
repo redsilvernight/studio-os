@@ -52,6 +52,34 @@ class Settings(BaseSettings):
     jwt_secret: str = "change-me-in-production"
     jwt_access_token_expire_minutes: int = Field(default=15, ge=1, le=15)
 
+    # Public registration (A4, DEC-0109): closed by default. OFF on every
+    # exposed instance until the C4 gate; enabling it in production also
+    # requires the SMTP e-mail backend (checked at startup).
+    public_registration_enabled: bool = False
+    # Base URL of the dashboard, used to build the links sent by e-mail
+    # (`<base>/verify-email#token=…`, `<base>/reset-password#token=…`).
+    public_base_url: str = "http://localhost:5173"
+    email_verification_ttl_minutes: int = Field(default=24 * 60, ge=5, le=7 * 24 * 60)
+    password_reset_ttl_minutes: int = Field(default=30, ge=5, le=24 * 60)
+    # Minimum delay between two e-mails of the same kind to one User
+    # (resend / forgot flooding); extra requests get the same 202, silently.
+    account_email_cooldown_seconds: int = Field(default=60, ge=0)
+
+    # Outgoing e-mail (A4). "disabled": nothing is sent and password recovery
+    # is unavailable; "file": each message is written as .eml under
+    # `email_file_dir` (local dev, never production); "smtp": real delivery.
+    # Secrets are env-only, never logged, never returned by the API.
+    email_backend: Literal["disabled", "file", "smtp"] = "disabled"
+    email_from: str | None = None
+    email_file_dir: str = ".studio-mail"
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    # "starttls" (port 587), "tls" (implicit, port 465) or "none" (local relay only).
+    smtp_security: Literal["starttls", "tls", "none"] = "starttls"
+    smtp_timeout_seconds: float = 10.0
+
     # GitHub integration, Studio Producer (etape 9.1, DEC-0059) — secrets are
     # env-only, never logged, never returned by the API.
     github_webhook_secret: str | None = None

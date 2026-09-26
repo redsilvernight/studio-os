@@ -117,6 +117,381 @@
     ]
    }
   },
+  "/api/v1/auth/register": {
+   "post": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Register",
+    "description": "Public self-registration, only when the instance enables it. Creates a `pending` `readonly` User without any project membership and e-mails a single-use verification link; the account cannot log in before it is verified. The answer is identical whether or not the address already has an account.",
+    "operationId": "register_api_v1_auth_register_post",
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Required. Caller-generated unique value per intended request: replaying the same key with the identical body returns the original response without sending a second e-mail; a different body is `409 idempotency_key_payload_mismatch`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Required. Caller-generated unique value per intended request: replaying the same key with the identical body returns the original response without sending a second e-mail; a different body is `409 idempotency_key_payload_mismatch`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RegisterRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "202": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AcceptedResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "`registration_unavailable`: public registration is closed."
+     },
+     "400": {
+      "description": "`idempotency_key_required`."
+     },
+     "409": {
+      "description": "`idempotency_key_payload_mismatch` / `idempotency_key_in_progress`."
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/auth/resend-verification": {
+   "post": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Resend Verification",
+    "description": "Send a new verification link to a still-pending account (earlier links stop working). Same answer for any address.",
+    "operationId": "resend_verification_api_v1_auth_resend_verification_post",
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Required. Caller-generated unique value per intended request: replaying the same key with the identical body returns the original response without sending a second e-mail; a different body is `409 idempotency_key_payload_mismatch`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Required. Caller-generated unique value per intended request: replaying the same key with the identical body returns the original response without sending a second e-mail; a different body is `409 idempotency_key_payload_mismatch`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/EmailField"
+       }
+      }
+     }
+    },
+    "responses": {
+     "202": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AcceptedResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "`registration_unavailable`: public registration is closed."
+     },
+     "400": {
+      "description": "`idempotency_key_required`."
+     },
+     "409": {
+      "description": "`idempotency_key_payload_mismatch` / `idempotency_key_in_progress`."
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/auth/verify-email": {
+   "post": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Verify Email",
+    "description": "Consume a verification secret: the account becomes `active` with the password chosen when that link was issued. Replaying the same secret returns the same result.",
+    "operationId": "verify_email_api_v1_auth_verify_email_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/TokenBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AccountActionResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "`registration_unavailable`: public registration is closed."
+     },
+     "400": {
+      "description": "`invalid_or_expired_token`: unknown, expired or already used."
+     },
+     "409": {
+      "description": "`idempotency_key_payload_mismatch`: same secret, different body."
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/auth/forgot-password": {
+   "post": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Forgot Password",
+    "description": "E-mail a single-use password reset link. Same answer for any address; a disabled account gets nothing.",
+    "operationId": "forgot_password_api_v1_auth_forgot_password_post",
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Required. Caller-generated unique value per intended request: replaying the same key with the identical body returns the original response without sending a second e-mail; a different body is `409 idempotency_key_payload_mismatch`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Required. Caller-generated unique value per intended request: replaying the same key with the identical body returns the original response without sending a second e-mail; a different body is `409 idempotency_key_payload_mismatch`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/EmailField"
+       }
+      }
+     }
+    },
+    "responses": {
+     "202": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AcceptedResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "`password_recovery_unavailable`: no e-mail backend configured."
+     },
+     "400": {
+      "description": "`idempotency_key_required`."
+     },
+     "409": {
+      "description": "`idempotency_key_payload_mismatch` / `idempotency_key_in_progress`."
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/auth/reset-password": {
+   "post": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Reset Password",
+    "description": "Consume a reset secret and set a new password; every session and JWT of the account is revoked. Replaying the same body returns the same result.",
+    "operationId": "reset_password_api_v1_auth_reset_password_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ResetPasswordRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AccountActionResponse"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "`password_recovery_unavailable`: no e-mail backend configured."
+     },
+     "400": {
+      "description": "`invalid_or_expired_token`: unknown, expired or already used."
+     },
+     "409": {
+      "description": "`idempotency_key_payload_mismatch`: same secret, different body."
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/auth/change-password": {
+   "post": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Change Password",
+    "description": "Change the caller's password (current password required). Every session and JWT of the account is revoked, including the caller's: log in again.",
+    "operationId": "change_password_api_v1_auth_change_password_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ChangePasswordRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AccountActionResponse"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "`invalid_current_password`."
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ]
+   }
+  },
   "/api/v1/projects": {
    "get": {
     "tags": [
@@ -11500,6 +11875,36 @@
     "title": "AIWorkStatus",
     "description": "Work entry lifecycle. `approved` and `changes_requested` are the only\nvalid exits from `review_requested`, and only a privileged role may set\nthem \u2014 never the owning agent or machine (nobody approves their own\nwork)."
    },
+   "AcceptedResponse": {
+    "properties": {
+     "status": {
+      "type": "string",
+      "title": "Status",
+      "description": "Always `accepted`, whether or not an e-mail was sent.",
+      "default": "accepted"
+     }
+    },
+    "type": "object",
+    "title": "AcceptedResponse"
+   },
+   "AccountActionResponse": {
+    "properties": {
+     "status": {
+      "type": "string",
+      "title": "Status",
+      "examples": [
+       "verified",
+       "password_reset",
+       "password_changed"
+      ]
+     }
+    },
+    "type": "object",
+    "required": [
+     "status"
+    ],
+    "title": "AccountActionResponse"
+   },
    "AccountStatus": {
     "type": "string",
     "enum": [
@@ -12001,6 +12406,26 @@
     "title": "CapabilitySource",
     "description": "Where registered capabilities come from (P6 registry).\n\nP6 MVP only ever stores `declared` (explicitly registered, no discovery,\nno detection, no adapter report). The enum \u2014 not a closed vendor list \u2014\nis the extension point for future `detected` / `adapter-reported`\nsources; any other value is fail-closed until its semantics are defined."
    },
+   "ChangePasswordRequest": {
+    "properties": {
+     "current_password": {
+      "type": "string",
+      "maxLength": 288,
+      "title": "Current Password"
+     },
+     "new_password": {
+      "type": "string",
+      "title": "New Password",
+      "description": "12 characters to 72 UTF-8 bytes."
+     }
+    },
+    "type": "object",
+    "required": [
+     "current_password",
+     "new_password"
+    ],
+    "title": "ChangePasswordRequest"
+   },
    "ClaimStatus": {
     "type": "string",
     "enum": [
@@ -12292,6 +12717,25 @@
      "expires_at"
     ],
     "title": "DownloadUrlResponse"
+   },
+   "EmailField": {
+    "properties": {
+     "email": {
+      "type": "string",
+      "maxLength": 254,
+      "minLength": 3,
+      "pattern": "^[^@\\s]+@[^@\\s]+$",
+      "title": "Email",
+      "examples": [
+       "ada@example.com"
+      ]
+     }
+    },
+    "type": "object",
+    "required": [
+     "email"
+    ],
+    "title": "EmailField"
    },
    "EventCreate": {
     "properties": {
@@ -14860,6 +15304,38 @@
     "title": "ProvenanceSource",
     "description": "Where a resolved element came from (structured, never prose)."
    },
+   "RegisterRequest": {
+    "properties": {
+     "email": {
+      "type": "string",
+      "maxLength": 254,
+      "minLength": 3,
+      "pattern": "^[^@\\s]+@[^@\\s]+$",
+      "title": "Email",
+      "examples": [
+       "ada@example.com"
+      ]
+     },
+     "password": {
+      "type": "string",
+      "title": "Password",
+      "description": "12 characters to 72 UTF-8 bytes."
+     },
+     "display_name": {
+      "type": "string",
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Display Name"
+     }
+    },
+    "type": "object",
+    "required": [
+     "email",
+     "password",
+     "display_name"
+    ],
+    "title": "RegisterRequest"
+   },
    "Reorder": {
     "properties": {
      "ordered_keys": {
@@ -14888,6 +15364,27 @@
     ],
     "title": "Reorder",
     "description": "Atomic reorder: the complete ordered list of sibling keys. It must be\na permutation of the current siblings (`422 invalid_roadmap`,\n`invalid_reorder`); the roadmap version is checked and bumped."
+   },
+   "ResetPasswordRequest": {
+    "properties": {
+     "token": {
+      "type": "string",
+      "maxLength": 256,
+      "minLength": 16,
+      "title": "Token"
+     },
+     "new_password": {
+      "type": "string",
+      "title": "New Password",
+      "description": "12 characters to 72 UTF-8 bytes."
+     }
+    },
+    "type": "object",
+    "required": [
+     "token",
+     "new_password"
+    ],
+    "title": "ResetPasswordRequest"
    },
    "ResolvedAgent": {
     "properties": {
@@ -18206,6 +18703,21 @@
      "events"
     ],
     "title": "TimelineDay"
+   },
+   "TokenBody": {
+    "properties": {
+     "token": {
+      "type": "string",
+      "maxLength": 256,
+      "minLength": 16,
+      "title": "Token"
+     }
+    },
+    "type": "object",
+    "required": [
+     "token"
+    ],
+    "title": "TokenBody"
    },
    "TokenRequest": {
     "properties": {

@@ -161,11 +161,11 @@ async def revoke_machine(session: AsyncSession, machine: MachineModel) -> Machin
     return machine
 
 
-def _hash_password(password: str) -> str:
+def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
-def _verify_password(password: str, password_hash: str) -> bool:
+def check_password(password: str, password_hash: str) -> bool:
     return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
 
 
@@ -173,15 +173,15 @@ async def set_user_password(session: AsyncSession, email: str, password: str) ->
     user = await get_user_by_email(session, email)
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "user not found")
-    user.password_hash = _hash_password(password)
-    _revoke_sessions(user)
+    user.password_hash = hash_password(password)
+    revoke_sessions_in_place(user)
     await session.commit()
     await session.refresh(user)
     security_event("credential.password_set", outcome="success", user_id=user.id)
     return user
 
 
-def _revoke_sessions(user: UserModel) -> None:
+def revoke_sessions_in_place(user: UserModel) -> None:
     user.auth_version += 1
     user.version += 1
 
@@ -219,7 +219,7 @@ def ensure_not_self(actor: UserModel, target_user_id: uuid.UUID, action: str) ->
 
 
 async def revoke_sessions_of(session: AsyncSession, user: UserModel) -> UserModel:
-    _revoke_sessions(user)
+    revoke_sessions_in_place(user)
     await session.commit()
     await session.refresh(user)
     event_stream.revalidate_user(user.id)
@@ -233,7 +233,7 @@ async def disable_account(session: AsyncSession, user: UserModel) -> UserModel:
     are revalidated at once."""
     if user.disabled_at is None:
         user.disabled_at = datetime.now(UTC)
-        _revoke_sessions(user)
+        revoke_sessions_in_place(user)
         await session.commit()
         await session.refresh(user)
         event_stream.revalidate_user(user.id)
@@ -265,7 +265,7 @@ async def enable_user(session: AsyncSession, email: str) -> UserModel:
     return await enable_account(session, await _require_user(session, email))
 
 
-_DUMMY_PASSWORD_HASH = _hash_password("studio-os-dummy-password")
+_DUMMY_PASSWORD_HASH = hash_password("studio-os-dummy-password")
 """Checked against when the email is unknown or has no password, so every
 login attempt pays one bcrypt verification (no user-enumeration by timing)."""
 
@@ -276,9 +276,9 @@ async def verify_user_password(
     user = await get_user_by_email(session, email)
     password_hash = user.password_hash if user is not None else None
     if password_hash is None:
-        _verify_password(password, _DUMMY_PASSWORD_HASH)
+        check_password(password, _DUMMY_PASSWORD_HASH)
         return None
-    if not _verify_password(password, password_hash):
+    if not check_password(password, password_hash):
         return None
     if user is None or not user.is_active:
         return None

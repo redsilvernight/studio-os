@@ -1,5 +1,6 @@
 """Import every model so `Base.metadata` is complete for Alembic autogenerate."""
 
+from studio_api.db.models.account_token import AccountTokenModel
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.ai_work import AIWorkLogModel
 from studio_api.db.models.base import Base
@@ -34,6 +35,7 @@ from studio_api.db.models.work_session import WorkSessionModel
 __all__ = [
     "Base",
     "UserModel",
+    "AccountTokenModel",
     "MachineModel",
     "AgentModel",
     "ProjectModel",

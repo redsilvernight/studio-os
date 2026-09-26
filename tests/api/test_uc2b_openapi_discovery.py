@@ -56,15 +56,30 @@ def test_bearer_security_scheme_is_declared() -> None:
     assert "healthz" in scheme.get("description", "")
 
 
+_BEARER_EXEMPT = frozenset(
+    {
+        "/healthz",
+        "/api/v1/auth/token",
+        "/api/v1/github/webhook",
+        "/api/v1/auth/register",
+        "/api/v1/auth/resend-verification",
+        "/api/v1/auth/verify-email",
+        "/api/v1/auth/forgot-password",
+        "/api/v1/auth/reset-password",
+    }
+)
+
+
 def test_all_api_v1_operations_require_bearer_and_healthz_is_exempt() -> None:
     operations = _operations()
     assert operations, "expected documented operations"
     for (method, path), operation in operations.items():
         security = operation.get("security", [])
-        if path in ("/healthz", "/api/v1/auth/token", "/api/v1/github/webhook"):
+        if path in _BEARER_EXEMPT:
             # /healthz and POST /auth/token predate this step; the GitHub
             # webhook is the deliberate HMAC-signed exception (etape 9.1,
-            # DEC-0059) — Bearer-exempt, never unauthenticated.
+            # DEC-0059) — Bearer-exempt, never unauthenticated. The A4
+            # registration/recovery routes are public by design (DEC-0109).
             assert security in ([], None), f"{method} {path} must stay unauthenticated"
         else:
             assert path.startswith("/api/v1"), f"unexpected public path: {path}"

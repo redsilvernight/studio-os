@@ -64,6 +64,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register
+         * @description Public self-registration, only when the instance enables it. Creates a `pending` `readonly` User without any project membership and e-mails a single-use verification link; the account cannot log in before it is verified. The answer is identical whether or not the address already has an account.
+         */
+        post: operations["register_api_v1_auth_register_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/resend-verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resend Verification
+         * @description Send a new verification link to a still-pending account (earlier links stop working). Same answer for any address.
+         */
+        post: operations["resend_verification_api_v1_auth_resend_verification_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/verify-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Email
+         * @description Consume a verification secret: the account becomes `active` with the password chosen when that link was issued. Replaying the same secret returns the same result.
+         */
+        post: operations["verify_email_api_v1_auth_verify_email_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/forgot-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Forgot Password
+         * @description E-mail a single-use password reset link. Same answer for any address; a disabled account gets nothing.
+         */
+        post: operations["forgot_password_api_v1_auth_forgot_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Password
+         * @description Consume a reset secret and set a new password; every session and JWT of the account is revoked. Replaying the same body returns the same result.
+         */
+        post: operations["reset_password_api_v1_auth_reset_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/change-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change Password
+         * @description Change the caller's password (current password required). Every session and JWT of the account is revoked, including the caller's: log in again.
+         */
+        post: operations["change_password_api_v1_auth_change_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects": {
         parameters: {
             query?: never;
@@ -1991,6 +2111,25 @@ export interface components {
          * @enum {string}
          */
         AIWorkStatus: "started" | "completed" | "failed" | "review_requested" | "approved" | "changes_requested";
+        /** AcceptedResponse */
+        AcceptedResponse: {
+            /**
+             * Status
+             * @description Always `accepted`, whether or not an e-mail was sent.
+             * @default accepted
+             */
+            status: string;
+        };
+        /** AccountActionResponse */
+        AccountActionResponse: {
+            /**
+             * Status
+             * @example verified
+             * @example password_reset
+             * @example password_changed
+             */
+            status: string;
+        };
         /**
          * AccountStatus
          * @description Derived, never stored: `disabled` when `disabled_at` is set, else
@@ -2230,6 +2369,16 @@ export interface components {
          * @enum {string}
          */
         CapabilitySource: "declared";
+        /** ChangePasswordRequest */
+        ChangePasswordRequest: {
+            /** Current Password */
+            current_password: string;
+            /**
+             * New Password
+             * @description 12 characters to 72 UTF-8 bytes.
+             */
+            new_password: string;
+        };
         /**
          * ClaimStatus
          * @description A claim past `expires_at` is not active regardless of stored status.
@@ -2365,6 +2514,14 @@ export interface components {
              * Format: date-time
              */
             expires_at: string;
+        };
+        /** EmailField */
+        EmailField: {
+            /**
+             * Email
+             * @example ada@example.com
+             */
+            email: string;
         };
         /**
          * EventCreate
@@ -3565,6 +3722,21 @@ export interface components {
          * @enum {string}
          */
         ProvenanceSource: "active_pointer" | "project_lock" | "version_pin" | "runtime_binding" | "session_override";
+        /** RegisterRequest */
+        RegisterRequest: {
+            /**
+             * Email
+             * @example ada@example.com
+             */
+            email: string;
+            /**
+             * Password
+             * @description 12 characters to 72 UTF-8 bytes.
+             */
+            password: string;
+            /** Display Name */
+            display_name: string;
+        };
         /**
          * Reorder
          * @description Atomic reorder: the complete ordered list of sibling keys. It must be
@@ -3577,6 +3749,16 @@ export interface components {
             /** Expected Roadmap Version */
             expected_roadmap_version: number;
             provenance?: components["schemas"]["WriteProvenance"];
+        };
+        /** ResetPasswordRequest */
+        ResetPasswordRequest: {
+            /** Token */
+            token: string;
+            /**
+             * New Password
+             * @description 12 characters to 72 UTF-8 bytes.
+             */
+            new_password: string;
         };
         /** ResolvedAgent */
         ResolvedAgent: {
@@ -4990,6 +5172,11 @@ export interface components {
             /** Events */
             events: components["schemas"]["EventEnvelope"][];
         };
+        /** TokenBody */
+        TokenBody: {
+            /** Token */
+            token: string;
+        };
         /** TokenRequest */
         TokenRequest: {
             /**
@@ -5536,6 +5723,339 @@ export interface operations {
                      *     }
                      */
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    register_api_v1_auth_register_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required. Caller-generated unique value per intended request: replaying the same key with the identical body returns the original response without sending a second e-mail; a different body is `409 idempotency_key_payload_mismatch`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcceptedResponse"];
+                };
+            };
+            /** @description `idempotency_key_required`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `registration_unavailable`: public registration is closed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resend_verification_api_v1_auth_resend_verification_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required. Caller-generated unique value per intended request: replaying the same key with the identical body returns the original response without sending a second e-mail; a different body is `409 idempotency_key_payload_mismatch`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailField"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcceptedResponse"];
+                };
+            };
+            /** @description `idempotency_key_required`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `registration_unavailable`: public registration is closed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_email_api_v1_auth_verify_email_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TokenBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountActionResponse"];
+                };
+            };
+            /** @description `invalid_or_expired_token`: unknown, expired or already used. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `registration_unavailable`: public registration is closed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `idempotency_key_payload_mismatch`: same secret, different body. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    forgot_password_api_v1_auth_forgot_password_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required. Caller-generated unique value per intended request: replaying the same key with the identical body returns the original response without sending a second e-mail; a different body is `409 idempotency_key_payload_mismatch`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailField"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcceptedResponse"];
+                };
+            };
+            /** @description `idempotency_key_required`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `password_recovery_unavailable`: no e-mail backend configured. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_password_api_v1_auth_reset_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountActionResponse"];
+                };
+            };
+            /** @description `invalid_or_expired_token`: unknown, expired or already used. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `password_recovery_unavailable`: no e-mail backend configured. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `idempotency_key_payload_mismatch`: same secret, different body. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_password_api_v1_auth_change_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangePasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountActionResponse"];
+                };
+            };
+            /** @description `invalid_current_password`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
