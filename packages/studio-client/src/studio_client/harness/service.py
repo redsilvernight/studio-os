@@ -737,18 +737,18 @@ class HarnessService:
                 mcp_url=info.mcp_url,
                 details={"reason": "token_missing"},
             )
-        failure, status = self._mcp_probe(info.mcp_url, token)
+        failure, observed = self._mcp_probe(info.mcp_url, token)
         token = None
         if failure is None:
             return HarnessVerifyResult(
                 adapter_id=adapter.adapter_id,
                 state=VerifyState.VERIFIED,
                 mcp_url=info.mcp_url,
-                details=verified_details(status),
+                details=verified_details(observed),
             )
         details = {"reason": failure}
-        if status is not None:
-            details["http_status"] = str(status)
+        if observed is not None:
+            details["http_status"] = str(observed)
         return HarnessVerifyResult(
             adapter_id=adapter.adapter_id,
             state=VerifyState.FAILED,
