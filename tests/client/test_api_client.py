@@ -10,6 +10,7 @@ from studio_client.api_client import StudioApiClient
 from studio_client.config import ClientConfig
 from studio_client.errors import (
     AuthenticationError,
+    ClientUpgradeRequiredError,
     ConflictError,
     ForbiddenError,
     NotFoundError,
@@ -480,3 +481,95 @@ async def test_release_claim_handles_204_no_content() -> None:
         _config(), _token_store(), transport=httpx.MockTransport(handler)
     ) as client:
         await client.release_claim(uuid4())
+
+
+async def test_advisory_header_refreshes_the_update_note() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=[],
+            headers={
+                "x-studio-client-update": "recommended",
+                "x-studio-client-latest": "2.0.0",
+            },
+        )
+
+    async with StudioApiClient(
+        _config(), _token_store(), transport=httpx.MockTransport(handler)
+    ) as client:
+        assert client.update_recommended is False
+        await client.list_projects()
+        assert client.update_recommended is True
+        assert client.latest_version == "2.0.0"
+
+
+async def test_absent_advisory_leaves_the_client_silent() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=[])
+
+    async with StudioApiClient(
+        _config(), _token_store(), transport=httpx.MockTransport(handler)
+    ) as client:
+        await client.list_projects()
+        assert client.update_recommended is False
+        assert client.latest_version is None
+
+
+async def test_426_raises_upgrade_required_without_retrying() -> None:
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        return httpx.Response(
+            426,
+            json={
+                "detail": {
+                    "error_code": "client_upgrade_required",
+                    "client": "daemon",
+                    "client_version": "0.0.1",
+                    "minimum_supported": "0.1.0",
+                    "latest": "0.2.0",
+                    "message": "This client version is no longer supported.",
+                }
+            },
+        )
+
+    async with StudioApiClient(
+        _config(max_attempts=5), _token_store(), transport=httpx.MockTransport(handler)
+    ) as client:
+        with pytest.raises(ClientUpgradeRequiredError) as excinfo:
+            await client.list_projects()
+
+    error = excinfo.value
+    assert error.status_code == 426
+    assert error.client == "daemon"
+    assert error.minimum_supported == "0.1.0"
+    assert error.latest == "0.2.0"
+    assert len(calls) == 1
+
+
+async def test_server_version_probe_is_unauthenticated() -> None:
+    seen: dict[str, str] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["path"] = request.url.path
+        seen["authorization"] = request.headers.get("authorization", "")
+        return httpx.Response(
+            200,
+            json={
+                "api_version": "1",
+                "server_version": "0.1.0",
+                "minimum_supported": {"desktop": "0.1.0", "daemon": "0.1.0", "dashboard": "0.1.0"},
+                "latest": {"desktop": "0.2.0", "daemon": "0.2.0", "dashboard": "0.2.0"},
+            },
+        )
+
+    async with StudioApiClient(
+        _config(), _token_store(), transport=httpx.MockTransport(handler)
+    ) as client:
+        info = await client.server_version()
+
+    assert seen["path"] == "/version"
+    assert seen["authorization"] == ""
+    assert info.api_version == "1"
+    assert info.latest["daemon"] == "0.2.0"

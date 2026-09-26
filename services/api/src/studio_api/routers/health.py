@@ -10,7 +10,7 @@ router = APIRouter(tags=["health"])
     description=(
         "Liveness probe. Needs no credential and carries no security "
         "requirement — one of the unauthenticated operations, alongside "
-        "`GET /metrics` and the human dashboard login `POST /auth/token`. "
+        "`GET /version`, `GET /metrics` and the human dashboard login `POST /auth/token`. "
         'Answers `{"status": "ok"}` when the service is up; use it before '
         "authenticating anything else."
     ),

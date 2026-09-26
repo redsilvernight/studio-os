@@ -38,6 +38,7 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     # Public: unauthenticated probes, login, signed webhook, API docs.
     ("GET", "/healthz"): "public",
     ("GET", "/metrics"): "public",
+    ("GET", "/version"): "public",
     ("POST", "/api/v1/auth/token"): "public",
     ("POST", "/api/v1/auth/register"): "public",
     ("POST", "/api/v1/auth/resend-verification"): "public",

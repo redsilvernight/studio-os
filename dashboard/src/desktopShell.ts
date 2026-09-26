@@ -9,6 +9,8 @@
  */
 import { apiBaseUrl } from "./api";
 import { setApiObserver } from "./apiEvents";
+import { setClientFamily } from "./clientIdentity";
+import { showClientUpdateAdvisory, showClientUpgradeRequired as showUpgradeRequired } from "./clientUpgradeUi";
 import { joinUrl } from "./config";
 import { createConnectionMonitor, type ConnectionMonitor, type ConnectionSnapshot } from "./connection";
 import type { DesktopInfo, Platform, ServerOriginState } from "./platform";
@@ -174,6 +176,7 @@ export async function refreshDaemon(target: DesktopShell | null = shell): Promis
  */
 export async function prepareDesktop(platform: Platform): Promise<DesktopShell | null> {
   if (platform.mode !== "desktop") return null;
+  setClientFamily("desktop");
   const monitor = createConnectionMonitor({
     probe: probeHealth,
     schedule: (callback, delay) => {
@@ -213,6 +216,8 @@ export async function prepareDesktop(platform: Platform): Promise<DesktopShell |
     reachable: () => monitor.reportReachable(),
     networkError: () => monitor.reportNetworkError(),
     unauthorized: () => monitor.reportUnauthorized(),
+    clientUpdate: (latest) => showClientUpdateAdvisory(latest),
+    upgradeRequired: (info) => showUpgradeRequired(info),
   });
   void monitor.check().then(() => refreshDaemon(created));
   return created;
