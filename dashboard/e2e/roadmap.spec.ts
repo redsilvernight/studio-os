@@ -27,15 +27,12 @@ function project(id: string) {
 interface OpenOptions {
   /** transition -> error_code answered with 409 by the stubbed transitions endpoint. */
   transitionFailure?: Record<string, string>;
-  /** Sign in with a JWT carrying this role (lifecycle actions need admin/developer). */
+  /** Identity role answered by /auth/me (lifecycle actions need admin/developer). */
   role?: string;
 }
 
-const b64url = (value: string): string => Buffer.from(value).toString("base64url");
-const roleToken = (role: string): string => `${b64url('{"alg":"none"}')}.${b64url(JSON.stringify({ role }))}.e2e`;
-
 async function openRoadmap(page: Page, projectId: string, options: OpenOptions = {}): Promise<void> {
-  await login(page, "#/projects", newCaptured(), options.role === undefined ? {} : { accessToken: roleToken(options.role) });
+  await login(page, "#/projects", newCaptured(), options.role === undefined ? {} : { role: options.role });
   await page.route(new RegExp(`/api/v1/projects/${projectId}/state$`), (route) =>
     route.fulfill({
       status: 200,

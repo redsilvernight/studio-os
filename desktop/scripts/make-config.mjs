@@ -1,6 +1,6 @@
 // Derives the build-specific Tauri config overlay (never hand-edited).
 //
-//   node scripts/make-config.mjs [--api-url <origin>] [--storage-url <origin>] [--sidecar] [--installer]   # write .build/tauri.overlay.json
+//   node scripts/make-config.mjs [--api-url <origin>] [--storage-url <origin>] [--channel prod|dev] [--sidecar] [--installer]   # write .build/tauri.overlay.json
 //   node scripts/make-config.mjs --check                            # base config CSP is in sync
 //
 // The Content-Security-Policy is built from the Dashboard's own policy module
@@ -11,7 +11,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { allowInsecureOrigin, arg, buildDir, dashboardDir, DEFAULT_API_URL, flag, overlayPath, tauriDir, validateBuildApiUrl } from "./lib.mjs";
+import { allowInsecureOrigin, arg, buildChannel, buildDir, CHANNELS, dashboardDir, DEFAULT_API_URL, flag, overlayPath, tauriDir, validateBuildApiUrl } from "./lib.mjs";
 import { windowsSigningFromEnv } from "./windows-signing.mjs";
 
 const { buildDashboardCsp } = await import(pathToFileURL(join(dashboardDir, "csp-policy.ts")).href);
@@ -29,6 +29,14 @@ export function desktopCsp(apiUrl, storageUrl) {
   return buildDashboardCsp({ connectExtra: extra }).replace("frame-ancestors 'self'", "frame-ancestors 'none'");
 }
 
+export const CHANNEL_HOOKS_FILE = "installer-hooks.nsh";
+
+/** Channel-specific NSIS hooks: the base hooks with the channel's data folder. */
+export function channelHooks(channel) {
+  const hooks = join(tauriDir, "installer", "hooks.nsh").replaceAll("/", "\\");
+  return `!define STUDIO_DATA_DIR "${CHANNELS[channel].dataDir}"\n!include "${hooks}"\n`;
+}
+
 /** The frozen daemon folder, relative to src-tauri (so nothing absolute is written). */
 export const SIDECAR_RESOURCE = { "../.build/sidecar/dist/studio-daemon/": "sidecar/" };
 
@@ -37,16 +45,27 @@ export const SIDECAR_RESOURCE = { "../.build/sidecar/dist/studio-daemon/": "side
  * `installer`: switch the bundler on (NSIS, per-user, see tauri.conf.json).
  * `updater`: `{ pubkey, endpoint }` - only then is the update mechanism present;
  *   the public key is baked in and the artifacts are signed by the build.
- * `signing`: `{ certificateThumbprint, digestAlgorithm, timestampUrl }` (B4) -
- *   Authenticode is applied by Tauri DURING the build, so the minisign updater
- *   signatures cover the final signed bytes. Deep-merged over the base
- *   `bundle.windows` (NSIS) block; absent when no certificate is configured.
+ * `channel`: `prod` keeps the base identity; `dev` installs side by side
+ *   (own identifier, product name, install folder and daemon data folder).
+ * `signing`: `{ certificateThumbprint, digestAlgorithm, timestampUrl }` (B4,
+ *   dormant per DEC-0129) - Authenticode is applied by Tauri DURING the build,
+ *   so the minisign updater signatures cover the final signed bytes. Merged
+ *   into `bundle.windows` without overwriting the channel's `nsis` block;
+ *   absent when no certificate is configured.
  */
-export function overlay({ apiUrl, storageUrl, sidecar, installer = false, updater, signing }) {
+export function overlay({ apiUrl, storageUrl, sidecar, installer = false, updater, channel = "prod", signing }) {
   const out = { app: { security: { csp: desktopCsp(apiUrl, storageUrl) } } };
   const bundle = {};
   if (sidecar) bundle.resources = SIDECAR_RESOURCE;
   if (installer) bundle.active = true;
+  const identity = CHANNELS[channel];
+  if (identity === undefined) throw new Error(`unknown channel: ${channel}`);
+  if (channel !== "prod") {
+    out.productName = identity.productName;
+    out.identifier = identity.identifier;
+    bundle.shortDescription = identity.productName;
+    bundle.windows = { nsis: { installerHooks: `../.build/${CHANNEL_HOOKS_FILE}` } };
+  }
   if (updater) {
     const url = new URL(updater.endpoint);
     if (url.protocol !== "https:") throw new Error(`updater endpoint must be https: ${updater.endpoint}`);
@@ -54,7 +73,7 @@ export function overlay({ apiUrl, storageUrl, sidecar, installer = false, update
     bundle.createUpdaterArtifacts = true;
     out.plugins = { updater: { pubkey: updater.pubkey.trim(), endpoints: [url.href], requireSignedVersion: true } };
   }
-  if (signing) bundle.windows = { ...signing };
+  if (signing) bundle.windows = { ...(bundle.windows ?? {}), ...signing };
   if (Object.keys(bundle).length) out.bundle = bundle;
   return out;
 }
@@ -83,11 +102,13 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     );
     const storageArg = arg("--storage-url", process.env.STUDIO_DESKTOP_STORAGE_URL);
     const storageUrl = storageArg ? validateBuildApiUrl(storageArg, allowInsecureOrigin()) : undefined;
+    const channel = buildChannel();
     const signing = windowsSigningFromEnv();
     if (signing) console.log(`Authenticode: Tauri will sign with thumbprint ${signing.certificateThumbprint.slice(0, 8)}… (${signing.digestAlgorithm}, ${signing.timestampUrl})`);
-    else console.log("Authenticode: no certificate configured — installer will be unsigned");
-    const out = overlay({ apiUrl, storageUrl, sidecar: flag("--sidecar"), installer: flag("--installer"), updater: updaterFromEnv(), signing });
+    else console.log("Authenticode: no certificate configured — installer will be unsigned (DEC-0129)");
+    const out = overlay({ apiUrl, storageUrl, sidecar: flag("--sidecar"), installer: flag("--installer"), updater: updaterFromEnv(), channel, signing });
     mkdirSync(buildDir, { recursive: true });
+    if (channel !== "prod") writeFileSync(join(buildDir, CHANNEL_HOOKS_FILE), channelHooks(channel));
     writeFileSync(overlayPath, JSON.stringify(out, null, 2) + "\n");
     console.log(`wrote ${overlayPath}`);
   }

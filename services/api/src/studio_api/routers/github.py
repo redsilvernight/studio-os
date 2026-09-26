@@ -12,7 +12,7 @@ from studio_contracts.builds import (
     GitHubWebhookResult,
 )
 
-from studio_api.deps import CurrentMachine, CurrentPrincipal, DbSession
+from studio_api.deps import CurrentPrincipal, DbSession
 from studio_api.openapi_meta import (
     IDEMPOTENCY_KEY_DESCRIPTION,
     RESP_400_WEBHOOK_MALFORMED,
@@ -166,6 +166,7 @@ async def create_github_integration(
                 "message": "body project_id must match the path project_id",
             },
         )
+    github_service.authorize_integration_write(principal, project_id)
 
     async def _create() -> GitHubIntegration:
         integration = await github_service.create_integration(session, principal, integration_in)
@@ -185,13 +186,16 @@ async def create_github_integration(
 @router.get(
     "/api/v1/projects/{project_id}/github-integration",
     response_model=GitHubIntegration,
-    description="Read a project's GitHub wiring. Any authenticated machine may read.",
-    responses={**RESP_401_UNAUTHORIZED, **RESP_404_NOT_FOUND},
+    description=(
+        "Read a project's GitHub wiring. A project the caller cannot access "
+        "answers `403 forbidden`."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
 )
 async def get_github_integration(
-    project_id: UUID, session: DbSession, machine: CurrentMachine
+    project_id: UUID, session: DbSession, principal: CurrentPrincipal
 ) -> GitHubIntegration:
-    integration = await github_service.get_integration_by_project(session, project_id)
+    integration = await github_service.get_integration_for(session, principal, project_id)
     if integration is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "github integration not found")
     return GitHubIntegration.model_validate(integration)
@@ -212,7 +216,7 @@ async def update_github_integration(
     session: DbSession,
     principal: CurrentPrincipal,
 ) -> GitHubIntegration:
-    integration = await github_service.get_integration_by_project(session, project_id)
+    integration = await github_service.get_integration_for(session, principal, project_id, "write")
     if integration is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "github integration not found")
     updated = await github_service.update_integration(

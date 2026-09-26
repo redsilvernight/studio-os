@@ -13,7 +13,7 @@ opaque genere serveur, seul son hash SHA-256 est stocke
 chaque requete authentifiee machine. Revocation = `credential_revoked_at`
 non-null, effective immediatement (pas de rotation/expiration a gerer).
 
-## Authentification humaine dashboard (DASH-4, DEC-0056)
+## Authentification humaine dashboard (DASH-4, DEC-0056 amende par DEC-0110)
 
 En plus du token machine, l'API accepte un JWT court-terme pour les utilisateurs
 humains accedant au dashboard web. Le JWT est obtenu via `POST /auth/token`
@@ -24,7 +24,58 @@ revoque le JWT.
 
 Le mot de passe est gere hors-bande par la CLI serveur `studio-admin set-password`
 (ou `--password` lors du `bootstrap-admin` initial). Aucun endpoint public ne
-permet de changer ou reinitialiser un mot de passe.
+permet de changer ou reinitialiser un mot de passe (le reset en libre-service
+arrive avec l'inscription publique, DU-0/A).
+
+### Cycle de session (DEC-0110, amende DEC-0012/DEC-0036/DEC-0056 — RUPTURE rattachee a `API_CONTRACT_VERSION` 2)
+
+- **Duree** : JWT d'acces HS256 de 15 minutes au plus
+  (`STUDIO_JWT_ACCESS_TOKEN_EXPIRE_MINUTES`, defaut 15 ; une valeur hors
+  1..15 empeche le demarrage du serveur, fail-closed), garde en memoire par
+  le client, sans refresh token. A expiration, le client refait
+  `POST /auth/token`.
+- **Claims** : exactement `sub` (id User), `machine_id` (machine dashboard),
+  `session_id` (UUID aleatoire par login, pour la tracabilite — aucun etat
+  serveur), `auth_version` (entier, copie de `User.auth_version` au login),
+  `iat`, `exp`, `type="access"`. `email` et `role` ne sont plus emis : un
+  client lit son identite via `GET /auth/me`, jamais dans le JWT.
+- **Validation a chaque principal** (HTTP, SSE ; le MCP n'accepte que des
+  tokens machine) : signature et `exp` valides, `type == "access"`, machine
+  existante et non revoquee, `sub == machine.owner_user_id`, User existant,
+  non desactive (`disabled_at` nul), verifie (`email_verified_at` non nul) et
+  `auth_version` du claim egale a `User.auth_version`. Un token machine opaque
+  est refuse si son proprietaire est desactive ou non verifie ; il n'est pas
+  concerne par `auth_version`.
+- **Revocation** : incrementent `User.auth_version`, invalidant immediatement
+  tous les JWT emis pour ce User : changement ou reinitialisation de mot de
+  passe (`studio-admin set-password`, futur reset), desactivation
+  (`studio-admin user disable`), changement de role (toute mutation future de
+  `User.role`), revocation globale (`studio-admin user revoke-sessions`). La
+  desactivation bloque en outre toutes les machines du User tant que
+  `disabled_at` est pose, sans les revoquer definitivement :
+  `studio-admin user enable` efface `disabled_at` et rend les machines de
+  nouveau utilisables (les JWT anterieurs restent invalides).
+- **Echec** : fail-closed, sans retry automatique cote serveur. Tout echec de
+  validation d'un Bearer present repond le `401` generique existant
+  `{"detail": "invalid or revoked machine token"}` — la cause (expiration,
+  revocation, desactivation) n'est pas revelee ; un Bearer absent garde
+  `{"detail": "missing bearer token"}`. Un client qui presentait un JWT
+  traite tout `401` comme une session expiree ou revoquee : il efface le
+  token et renvoie au login avec un message explicite, sans boucle de
+  reconnexion. Un client a token machine (daemon, Desktop) arrete ses appels
+  et signale un credential revoque ou un compte bloque, sans boucle de
+  retry. Un `403` n'est jamais une erreur de session.
+- **Login** : un User desactive, non verifie ou sans mot de passe recoit le
+  meme `401 {"detail": "invalid email or password"}` qu'un mauvais mot de
+  passe (non discriminant).
+- **Identite** : `GET /auth/me` (`TECH/02_API_CONTRACT.md`) remplace la
+  lecture des claims `email`/`role` cote client ; route sans projet, jamais
+  soumise au `403 resource=project`.
+- **SSE** (`GET /events/stream`) : le principal est revalide au plus toutes
+  les 30 secondes, en meme temps que l'acces projet (DEC-0103 §9) ; en cas
+  d'echec le flux est ferme. Le client reconnecte avec un JWT valide.
+- **Cutover** : un JWT emis avant le deploiement (sans `auth_version`) est
+  invalide ; les utilisateurs se reconnectent une fois.
 
 `POST /auth/token` est une exception d'authentification Bearer : il est sans
 `Authorization` (comme `/healthz` et `/metrics`). Une fois le JWT obtenu, il
@@ -58,18 +109,31 @@ admin, developer, agent, readonly.
 ## Provisioning (DEC-0011, DEC-0012)
 L'identite utilisateur d'une requete est derivee de `Machine.owner_user_id` (le
 proprietaire de la machine authentifiee), y compris pour la machine dashboard
-creee lors du login JWT (DEC-0056). Les endpoints `POST /projects`, `POST /machines`,
-`POST /machines/{id}/revoke` et `POST /users` verifient le role de ce
-proprietaire ; cette verification n'est pas retroactivement appliquee aux
-endpoints d'ecriture existants (changement de contrat separe si necessaire).
+creee lors du login JWT (DEC-0056). Les endpoints `POST /projects` et
+`POST /users` verifient le role de ce proprietaire ; cette verification n'est
+pas retroactivement appliquee aux endpoints d'ecriture existants (changement
+de contrat separe si necessaire). `POST /machines` et
+`POST /machines/{id}/revoke` sont en libre-service (A5, DU-0/A) : un User
+cree et revoque ses propres machines, le proprietaire etant toujours derive
+du principal pour un non-admin ; `admin` le fait pour tout User ; `agent`
+jamais (voir `TECH/02_API_CONTRACT.md`, Machines et Users). Une machine
+creee n'augmente jamais les droits de son proprietaire.
 
 Le tout premier `User` (admin) et le tout premier `Machine` n'ont par
 definition aucun token pour s'authentifier : ils sont crees hors-bande par la
 CLI serveur `studio-admin`, executee sur le VPS (racine de confiance = acces
 SSH, deja utilise pour les autres secrets du stack). Aucun endpoint public de
 bootstrap, aucun secret d'environnement dedie. Une fois la premiere machine
-enrolee, tout le reste (nouveau developpeur, nouveau poste) passe par l'API
-normale via `POST /users` / `POST /machines`.
+enrolee, un nouveau developpeur passe par `POST /users` (ou l'inscription
+publique, DU-0/A) et un nouveau poste ou outil d'IA par `POST /machines` en
+libre-service. Etat et sessions d'un User (A2, DEC-0110) : `studio-admin
+user disable|enable|revoke-sessions` (voir Cycle de session), et en HTTP
+pour `admin` : `POST /users/{user_id}/disable|enable|revoke-sessions` (A3,
+`TECH/02_API_CONTRACT.md`). Aucun endpoint ne permet a un User de modifier
+son propre role, etat ou acces projet (`403 self_modification_forbidden`).
+L'etat du compte (`pending|active|disabled`) est orthogonal a l'acces
+projet : un compte actif sans membership est valide et voit des collections
+vides.
 
 ## Synchronisation
 Chaque ecriture offline-safe transporte un UUID stable et, si approprie, une Idempotency-Key. Le serveur garantit qu'un replay identique ne cree pas un doublon.
@@ -142,11 +206,14 @@ jamais l'event original : la validation ci-dessus s'applique a l'identite de
 l'appelant courant avant `create_event`, dont le court-circuit d'idempotence
 renvoie la ligne existante sans y toucher.
 
-## Autorisation (DEC-0036, additif — roadmap etape 7 P1-2)
+## Autorisation (DEC-0036 amende par DEC-0103 — RUPTURE, `API_CONTRACT_VERSION` 2)
 
-Deux niveaux, tous deux derives de champs existants (aucune nouvelle table) :
+Statut : DEC-0103 acceptee ; enforcement central livre (A0, tache
+00397d8d), gestion des membres livree (tache 0324dbb3, `TECH/02_API_CONTRACT.md`).
 
-- **Role transverse** : `User.role` du proprietaire (`Machine.owner_user_id`)
+Trois niveaux, composes par ET logique (jamais OU) :
+
+- **Role transverse** (quoi) : `User.role` du proprietaire (`Machine.owner_user_id`)
   de la machine authentifiee — `admin`/`developer`/`agent`/`readonly`
   (`## Roles minimum` ci-dessus). Charge une seule fois par requete/appel
   MCP dans `studio_api.services.authz.Principal{machine, user, role}`
@@ -156,14 +223,73 @@ Deux niveaux, tous deux derives de champs existants (aucune nouvelle table) :
   machine/un user — `Task.claimed_by_machine_id`, `ResourceClaim.claimed_by_machine_id`,
   `WorkSession.machine_id`, `AIWorkLog.agent_id` (via `Agent.machine_id` —
   `AIWorkLog.machine_id` est nullable), `Transfer.sender_user_id` /
-  `recipient_user_id`. Jamais une ACL projet separee.
+  `recipient_user_id`.
+- **Acces projet** (ou, DEC-0103) : table `project_memberships(project_id,
+  user_id)`. Le `User` est l'identite porteuse : une `Machine` herite des
+  memberships de son `owner_user_id`, un `Agent` n'en a jamais en propre et
+  opere via sa machine. `admin` a une portee globale (`project_scope = ALL`)
+  et contourne ce controle ; tout autre role (`agent` compris) n'accede qu'aux
+  projets dont il est membre. `Principal` porte `project_scope`, charge une
+  fois par requete/appel MCP (`ALL` ou ensemble d'identifiants). Chemins
+  serveur de confiance sans `Principal` (webhook GitHub, Producer,
+  `resource.conflict`) : exemptes explicitement.
 
-`readonly` : lecture totale de l'etat partage (tous les `GET`, `GET
-/library-locks` inclus) plus
-heartbeat, aucune ecriture metier nulle part (tasks, claims, sessions,
-ai-work, decisions, events, transfers, library). `agent` : memes ecritures que
-`developer`, jamais `POST /projects` / `POST /machines` / `POST /users`
-(deja garanti par `require_roles`, `## Provisioning` ci-dessus) ni creation
+Acces projet — regles (DEC-0103 §7-12) :
+
+- **Ressource rattachee a un projet**, accedee directement ou via son parent
+  (`task`, `roadmap`, `build`, `session`→task, version Library→definition,
+  claim, decision, event, ai-work, review, timeline, transfer, lock/binding
+  Project) : projet inaccessible → `403 {"detail": {"error_code":
+  "forbidden", "resource": "project", "action": "read|write"}}`. Ce controle
+  passe avant tout `404` non-oracle existant (Library User, resolution),
+  avant le controle d'ownership et avant le court-circuit d'idempotence /
+  la deduplication `event_id`.
+- **Collections** : filtrage silencieux aux projets accessibles
+  (`project_visibility_clause`), sans compter les elements invisibles.
+  `GET /projects` ne renvoie que les projets accessibles. Un filtre
+  `?project_id=` inaccessible **ou** inexistant repond `403` (pas d'oracle
+  d'existence).
+- **Donnees sans projet** (`project_id` nul : decisions globales, Library et
+  bindings Studio, transferts sans projet) : lisibles seulement par `admin`
+  ou par un User ayant au moins une membership.
+- **Ressources propres** (profil, machines, agents, runtimes, Library User,
+  transferts dont il est emetteur/destinataire) : toujours visibles de leur
+  proprietaire, avec ou sans membership. Un compte actif a 0 membership est
+  valide et ne voit que celles-ci.
+- **Co-membership non transitive** : une membership ne donne jamais acces aux
+  ressources globales d'un co-membre (`GET /machines`, `GET /agents` deviennent
+  self/admin en version 2 — rupture, `TECH/02_API_CONTRACT.md`). Une session n'est visible que via `session → task → project`
+  ; l'activite d'equipe est filtree par le `project_id` propre de chaque
+  enregistrement, jamais par le proprietaire d'une machine.
+- **Creation de projet** : le createur (`principal.user`) recoit une
+  membership dans la meme transaction (`POST /projects` et initialisation,
+  HTTP et MCP), `admin` compris. Slugs projet non secrets (DEC-0105) :
+  un slug deja pris repond `409 conflict`, meme invisible de l'appelant
+  (oracle accepte, reserve aux roles de provisioning).
+- **Attribution** : `admin` uniquement (`/api/v1/projects/{id}/members`,
+  `studio-admin project grant|revoke`) ; aucune auto-attribution. Depuis A3
+  (rupture de la version 2), `PUT`/`DELETE /projects/{id}/members/{user_id}`
+  ciblant l'appelant lui-meme repondent `403 {"detail": {"error_code":
+  "self_modification_forbidden", "resource": "user", "action":
+  "grant_access|revoke_access"}}` avant toute recherche, comme les actions
+  d'etat `POST /users/{user_id}/...` (`TECH/02_API_CONTRACT.md`,
+  Administration des comptes).
+- **Primitives canoniques** (`studio_api.services.authz`) :
+  `ensure_project_access(principal, project_id, action)`,
+  `project_visibility_clause(principal, column)` et resolution
+  parent→projet. Aucune decision d'autorisation dans les routers ni les
+  handlers MCP.
+- **Inventaire fail-closed** : toute route HTTP et tout outil MCP est classe
+  `project|instance|own|public` ; une route/un outil non classe fait echouer
+  la CI.
+
+`readonly` : lecture de l'etat partage des projets accessibles (tous les
+`GET`, `GET /library-locks` inclus, filtres par l'acces projet) plus
+heartbeat et libre-service de ses propres machines (A5), aucune ecriture
+metier nulle part (tasks, claims, sessions, ai-work, decisions, events,
+transfers, library). `agent` : memes ecritures que `developer`, jamais
+`POST /projects` / `POST /machines` / `POST /machines/{id}/revoke` /
+`POST /users` (`## Provisioning` ci-dessus) ni creation
 Library en scope studio (provisioning-like, voir ci-dessous). Heartbeat
 est l'exception explicite : ecrit son propre etat (`last_seen_at`) meme sous
 `readonly` — jamais gate par `ensure_can_write`.
@@ -176,11 +302,12 @@ Ownership (au-dela du role transverse — la machine proprietaire, ou un
 createur `owner_user_id`, renseigne depuis l'appelant a la creation),
 `DELETE /library-locks/{id}` (utilisateur createur ou `admin`). Une
 ressource pas encore possedee (`claimed_by_machine_id` nul) reste ouverte a
-tout ecrivain passe le role transverse.
+tout ecrivain passe le role transverse et l'acces projet.
 
-Regle Library (P1, DEC-0063 — aucune ACL projet, aucune table
-supplementaire) : lecture Studio/Project ouverte a toute machine
-authentifiee ; lecture User restreinte au owner ou `admin`, tout autre
+Regle Library (P1, DEC-0063 amende par DEC-0103) : lecture Project
+composee avec l'acces projet (membres ou `admin`) ; lecture Studio reservee a
+`admin` ou a un User ayant au moins une membership (donnee sans projet, voir
+ci-dessus) ; lecture User restreinte au owner ou `admin`, tout autre
 acces direct repondant `404` et non `403` (aucune surface — get, liste,
 recherche, resolution, erreur, compteur, metadonnee — ne doit reveler
 l'existence d'une ressource User d'autrui) ; creation Studio exige
@@ -203,7 +330,12 @@ projet) :
 | lecture (liste/metadonnees/download-url) | oui | oui | oui | oui |
 | ecriture (upload/initiate, upload/refresh-parts, upload/complete, delete) | oui | non | non | oui |
 
-`GET /transfers` filtre silencieusement sur ces 4 conditions
+Un transfert rattache a un projet exige **en plus** l'acces a ce projet (ET
+logique) : une diffusion projet n'est visible que des membres (et `admin`) ;
+emetteur ou destinataire non membre → `403 resource=project`.
+
+`GET /transfers` filtre silencieusement sur ces 4 conditions (composees avec
+`project_visibility_clause` quand `project_id` est renseigne)
 (`transfer_visibility_clause`) au lieu de 403 — une liste ne revele jamais
 l'existence d'une ressource interdite. Chaque `GET`/action sur un transfert
 precis (`GET /{id}`, `download-url`, `upload/*`, `DELETE`) applique
@@ -215,17 +347,28 @@ mutantes elles-memes (`principal` en premier argument apres `session`),
 jamais dans les routers HTTP ni les handlers MCP separement — garantit la
 parite HTTP/MCP sans dupliquer la logique
 (`services/mcp/src/studio_mcp/errors.py::run_tool` charge le `Principal`
-juste apres l'authentification machine, avant d'appeler le handler). Le
-controle de role s'execute **avant** le court-circuit d'idempotence
+juste apres l'authentification machine, avec son `project_scope`, avant
+d'appeler le handler). Les services de lecture recoivent aussi le
+`Principal`. Les controles de role et d'acces projet s'executent **avant** le
+court-circuit d'idempotence
 (`run_idempotent`/`create_event`), pour qu'un appelant non autorise ne
 puisse jamais consommer ou observer la reponse deja stockee d'un tiers via
 un rejeu.
 
 403 partout, jamais de 404 de confidentialite (pas de surface
 d'enumeration : UUID v4, pas de lookup par code humain, les listes filtrent
-deja). Enveloppe : `403 {"detail": {"error_code": "forbidden", "resource":
-"<task|claim|session|ai_work|decision|event|transfer|...>", "action":
-"<write|release|renew|end|update|read>"}}`.
+deja). Exceptions explicites, toutes sur des ressources possedees par un
+User : Library scope User, `GET /runtime-bindings/{id}`, `GET`/revoke
+`/runtimes/{id}` et `POST /machines/{id}/revoke` (A5) repondent `404`
+(ressource d'autrui indiscernable d'une ressource absente), coherent avec les
+listes filtrees par owner. Enveloppe : `403 {"detail": {"error_code": "forbidden", "resource":
+"<project|task|claim|session|ai_work|decision|event|transfer|...>", "action":
+"<write|release|renew|end|update|read>"}}`. `resource: "project"` designe
+toujours un refus d'acces projet (DEC-0103), distinct d'un refus de role ou
+d'ownership ; un client ne doit pas le traiter comme une erreur
+d'authentification (pas de deconnexion). SSE : `403` avant l'ouverture du
+flux, et flux ferme des que l'acces est retire (revalidation a chaque
+keep-alive/evenement, TTL ≤ 30 s).
 
 Cote client (`packages/studio-client`), un `403` reste dans la meme
 categorie `ForbiddenError` que le reste de ce document (jamais rejouable,

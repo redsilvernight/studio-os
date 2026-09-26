@@ -20,9 +20,10 @@ from pathlib import Path
 
 from studio_contracts.local.harness import ChangeKind
 
+from studio_client.config import client_channel
 from studio_client.harness.fsafe import Document, sha256_hex
 
-STUDIO_MCP_SERVER_NAME = "studio-os"
+STUDIO_MCP_SERVER_NAME = "studio-os-dev" if client_channel() == "dev" else "studio-os"
 
 
 class DetectionState(StrEnum):

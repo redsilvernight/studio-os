@@ -21,20 +21,22 @@ const MAX_LOG_TAIL: u64 = 256 * 1024;
 const MAX_EXPORTS_KEPT: usize = 5;
 
 /// The daemon data root, resolved exactly as the Python client does:
-/// `%APPDATA%\StudioOS` on Windows, `$XDG_CONFIG_HOME/studio-os` elsewhere.
+/// `%APPDATA%\StudioOS` on Windows, `$XDG_CONFIG_HOME/studio-os` elsewhere,
+/// with a `-Dev` / `-dev` suffix for the development channel.
 pub fn daemon_data_dir() -> Option<PathBuf> {
+    let dev = crate::info::dev_channel();
     if cfg!(windows) {
         let base = std::env::var_os("APPDATA")
             .filter(|v| !v.is_empty())
             .map(PathBuf::from)
             .or_else(dirs::config_dir)?;
-        Some(base.join("StudioOS"))
+        Some(base.join(if dev { "StudioOS-Dev" } else { "StudioOS" }))
     } else {
         let base = std::env::var_os("XDG_CONFIG_HOME")
             .filter(|v| !v.is_empty())
             .map(PathBuf::from)
             .or_else(|| dirs::home_dir().map(|h| h.join(".config")))?;
-        Some(base.join("studio-os"))
+        Some(base.join(if dev { "studio-os-dev" } else { "studio-os" }))
     }
 }
 

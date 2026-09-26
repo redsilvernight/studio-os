@@ -33,7 +33,7 @@ async def studio_get_review_queue(
     notifications surface: there is no separate notifications tool. Clients
     must tolerate an unknown kind."""
 
-    async def _handler(session: AsyncSession, _principal: Principal) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed_project_id = None
         if project_id is not None:
             parsed = parse_uuid(project_id, "project_id")
@@ -43,7 +43,7 @@ async def studio_get_review_queue(
         kwargs: dict[str, Any] = {"project_id": parsed_project_id}
         if conflict_window_hours is not None:
             kwargs["conflict_window_hours"] = conflict_window_hours
-        queue = await review_queue_service.get_review_queue(session, **kwargs)
+        queue = await review_queue_service.get_review_queue(session, principal, **kwargs)
         return _compact_review_queue(queue)
 
     return await run_tool(ctx, _handler)

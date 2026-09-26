@@ -57,16 +57,23 @@ from studio_api.db.models.roadmap import (
     RoadmapStepModel,
 )
 from studio_api.services import roadmap_hydration as hydration_service
-from studio_api.services.authz import Principal, ensure_can_provision, ensure_can_write
+from studio_api.services.authz import (
+    Principal,
+    ensure_can_provision,
+    ensure_can_write,
+    ensure_project_access,
+)
 from studio_api.services.roadmap_support import (
     PendingEvent,
     ResolvedProvenance,
     add_revision,
+    authorize_roadmap_create,
     build_document,
     build_summary,
     check_version,
     compute_diff,
     content_changed,
+    ensure_roadmap_access,
     finish,
     finish_result,
     guard_write,
@@ -98,11 +105,13 @@ async def _require_project(session: AsyncSession, project_id: uuid.UUID) -> Proj
 # --- reads ---
 async def list_roadmaps(
     session: AsyncSession,
+    principal: Principal,
     project_id: uuid.UUID,
     roadmap_status: RoadmapStatus | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> list[RoadmapSummary]:
+    ensure_project_access(principal, project_id)
     if await session.get(ProjectModel, project_id) is None:
         raise not_found("project")
     stmt = (
@@ -118,19 +127,19 @@ async def list_roadmaps(
     return [build_summary(await load_tree(session, row)) for row in rows]
 
 
-async def get_roadmap(session: AsyncSession, roadmap_id: uuid.UUID) -> Roadmap:
-    roadmap = await session.get(RoadmapModel, roadmap_id)
-    if roadmap is None:
-        raise not_found()
+async def get_roadmap(
+    session: AsyncSession, principal: Principal, roadmap_id: uuid.UUID
+) -> Roadmap:
+    roadmap = await ensure_roadmap_access(session, principal, roadmap_id)
     return await read_roadmap(session, roadmap)
 
 
-async def export_roadmap(session: AsyncSession, roadmap_id: uuid.UUID) -> RoadmapDocument:
+async def export_roadmap(
+    session: AsyncSession, principal: Principal, roadmap_id: uuid.UUID
+) -> RoadmapDocument:
     """Neutral `studio.roadmap/v1` document of the current state. Stamps are
     informative only; the document carries no id, status or provenance."""
-    roadmap = await session.get(RoadmapModel, roadmap_id)
-    if roadmap is None:
-        raise not_found()
+    roadmap = await ensure_roadmap_access(session, principal, roadmap_id)
     document = build_document(await load_tree(session, roadmap))
     return document.model_copy(
         update={"exported_at": datetime.now(UTC), "revision_no": roadmap.revision_no}
@@ -171,7 +180,7 @@ def _created_event(roadmap: RoadmapModel) -> PendingEvent:
 async def create_roadmap(
     session: AsyncSession, principal: Principal, payload: RoadmapCreate
 ) -> Roadmap:
-    ensure_can_write(principal, "roadmap")
+    authorize_roadmap_create(principal, payload.project_id)
     prov = await resolve_provenance(session, principal, payload.provenance)
     await _require_project(session, payload.project_id)
     roadmap = _new_roadmap(
@@ -245,7 +254,7 @@ async def import_roadmap(
 ) -> Roadmap:
     """Create a `draft` (or a `proposed` roadmap with `submit`) from a neutral
     document, atomically. The document is validated before any write."""
-    ensure_can_write(principal, "roadmap")
+    authorize_roadmap_create(principal, payload.project_id)
     prov = await resolve_provenance(session, principal, payload.provenance)
     errors = roadmap_document_errors(payload.document)
     if errors:
@@ -392,6 +401,7 @@ async def transition_roadmap(
     approve, reject, complete, reopen or archive an approved plan). Activating
     an already `active` roadmap is a successful no-op."""
     roadmap = await lock_roadmap(session, roadmap_id)
+    ensure_project_access(principal, roadmap.project_id, "write")
     ensure_can_write(principal, "roadmap")
     current = RoadmapStatus(roadmap.status)
     transition = payload.transition
@@ -499,13 +509,13 @@ def _revision_provenance(revision: RoadmapRevisionModel) -> ResolvedProvenance:
 
 async def list_revisions(
     session: AsyncSession,
+    principal: Principal,
     roadmap_id: uuid.UUID,
     kind: RevisionKind | None = None,
     revision_status: RevisionStatus | None = None,
 ) -> list[RoadmapRevisionSummary]:
     """Revision history, newest first; content is omitted (see `get_revision`)."""
-    if await session.get(RoadmapModel, roadmap_id) is None:
-        raise not_found()
+    await ensure_roadmap_access(session, principal, roadmap_id)
     stmt = (
         select(RoadmapRevisionModel)
         .where(RoadmapRevisionModel.roadmap_id == roadmap_id)
@@ -520,10 +530,9 @@ async def list_revisions(
 
 
 async def get_revision(
-    session: AsyncSession, roadmap_id: uuid.UUID, revision_no: int
+    session: AsyncSession, principal: Principal, roadmap_id: uuid.UUID, revision_no: int
 ) -> RoadmapRevision:
-    if await session.get(RoadmapModel, roadmap_id) is None:
-        raise not_found()
+    await ensure_roadmap_access(session, principal, roadmap_id)
     row = await _revision_row(session, roadmap_id, revision_no)
     if row is None:
         raise reference_not_found("revision")
@@ -585,12 +594,11 @@ async def create_proposal(
 
 
 async def proposal_diff(
-    session: AsyncSession, roadmap_id: uuid.UUID, revision_no: int
+    session: AsyncSession, principal: Principal, roadmap_id: uuid.UUID, revision_no: int
 ) -> RoadmapDiff:
     """Diff between the proposal's base revision and the proposal, by `key`
     (P8.3). Computed at read time; never stored."""
-    if await session.get(RoadmapModel, roadmap_id) is None:
-        raise not_found()
+    await ensure_roadmap_access(session, principal, roadmap_id)
     revision = await _proposal_row(session, roadmap_id, revision_no)
     if revision is None:
         raise reference_not_found("revision")
@@ -618,6 +626,7 @@ async def review_proposal(
     a base revision that moved meanwhile is `409 base_revision_stale` and the
     agent must re-propose (P8.6). The other decisions only record the review."""
     roadmap = await lock_roadmap(session, roadmap_id)
+    ensure_project_access(principal, roadmap.project_id, "write")
     ensure_can_write(principal, "roadmap")
     ensure_can_provision(principal, "roadmap")
     revision = await _proposal_row(session, roadmap_id, revision_no)
@@ -678,10 +687,10 @@ async def review_proposal(
 
 
 async def preview_hydration(
-    session: AsyncSession, roadmap_id: uuid.UUID, payload: HydrationRequest
+    session: AsyncSession, principal: Principal, roadmap_id: uuid.UUID, payload: HydrationRequest
 ) -> HydrationResult:
     """Read-only hydration preview; see `roadmap_hydration.preview_hydration`."""
-    return await hydration_service.preview_hydration(session, roadmap_id, payload)
+    return await hydration_service.preview_hydration(session, principal, roadmap_id, payload)
 
 
 async def apply_hydration(
@@ -717,7 +726,7 @@ async def submit_roadmap(
 ) -> None:
     """`draft -> proposed` through the canonical `submit` transition; any other
     status is left untouched (a replay never re-submits or reopens a roadmap)."""
-    current = await get_roadmap(session, roadmap_id)
+    current = await get_roadmap(session, principal, roadmap_id)
     if current.status is not RoadmapStatus.DRAFT:
         return
     await transition_roadmap(

@@ -20,7 +20,8 @@
 import type { StudioClient } from "../api";
 import { ApiError, parseErrorBody } from "../api";
 import { getToken } from "../auth";
-import { decodeJwtRole, decodeJwtSubject, isUuid } from "../creationsApi";
+import { decodeJwtSubject, isUuid } from "../creationsApi";
+import { isAdminIdentity } from "../identityApi";
 import {
   dsBadge,
   dsEmptyState,
@@ -473,7 +474,7 @@ export async function renderDecisionsV2(root: HTMLElement, ctx: DecisionsContext
   const reviewError = reviewResult.status === "rejected" ? describeError(reviewResult.reason) : undefined;
   const decisions = decisionsResult.status === "fulfilled" ? decisionsResult.value : [];
   const decisionsError = decisionsResult.status === "rejected" ? describeError(decisionsResult.reason) : undefined;
-  const isAdmin = decodeJwtRole(getToken()) === "admin";
+  const isAdmin = await isAdminIdentity(ctx.client);
 
   // Rendu initial avec onglets
   root.innerHTML =

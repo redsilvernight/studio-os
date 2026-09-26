@@ -30,11 +30,24 @@ describe("parseErrorBody", () => {
 });
 
 describe("ApiError", () => {
-  it("flags 401/403 as auth errors", () => {
+  it("flags only 401 as an auth error; 403 is a refused right", () => {
     const base = { errorCode: null as string | null, message: "x", serverVersion: null };
     expect(new ApiError({ status: 401, ...base }).isAuth).toBe(true);
-    expect(new ApiError({ status: 403, errorCode: "forbidden", message: "x", serverVersion: null }).isAuth).toBe(true);
+    const forbidden = new ApiError({ status: 403, errorCode: "forbidden", message: "x", serverVersion: null });
+    expect(forbidden.isAuth).toBe(false);
+    expect(forbidden.isForbidden).toBe(true);
     expect(new ApiError({ status: 404, ...base }).isAuth).toBe(false);
+  });
+
+  it("recognises a project-isolation 403 from its structured detail", () => {
+    const denied = new ApiError(
+      parseErrorBody(403, { detail: { error_code: "forbidden", resource: "project", action: "read" } }),
+    );
+    expect(denied.isProjectAccessDenied).toBe(true);
+    expect(denied.isAuth).toBe(false);
+    const role = new ApiError(parseErrorBody(403, { detail: { error_code: "forbidden", resource: "user", action: "update" } }));
+    expect(role.isProjectAccessDenied).toBe(false);
+    expect(new ApiError(parseErrorBody(403, { detail: "insufficient role" })).isProjectAccessDenied).toBe(false);
   });
 
   it("carries server_version from version_conflict bodies", () => {

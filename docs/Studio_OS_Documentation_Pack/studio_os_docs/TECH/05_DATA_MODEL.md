@@ -1,7 +1,7 @@
 # Modele de donnees v1
 
 ## Entites principales
-Studio, User, Machine, Agent, Project, MachineProjectConfig, Task, WorkSession, ResourceClaim, Decision, AIWorkLog, Event, Transfer, TransferPart(optional), Notification, Build, Recording, RecordingMarker, MarketingCandidate, LibraryResource, LibraryResourceVersion, LibraryResourceLink, LibraryProjectLock.
+Studio, User, Machine, Agent, Project, ProjectMembership, MachineProjectConfig, Task, WorkSession, ResourceClaim, Decision, AIWorkLog, Event, Transfer, TransferPart(optional), Notification, Build, Recording, RecordingMarker, MarketingCandidate, LibraryResource, LibraryResourceVersion, LibraryResourceLink, LibraryProjectLock.
 
 Statut : les entites Phase 1 ci-dessous (User, Machine, Agent, Project, Task,
 WorkSession, ResourceClaim, Decision, AIWorkLog, Event, Transfer) ont un
@@ -30,6 +30,8 @@ nullabilite est **breaking** et suit `.claude/skills/contract-change`
 (cf. `.claude/rules/contracts.md`).
 
 ## Relations clefs
+- User N-N Project via ProjectMembership (DEC-0103) ; Machine et Agent n'en
+  portent jamais en propre (heritage via `Machine.owner_user_id`).
 - Project 1-N Task.
 - Task 1-N WorkSession / Decision / AIWorkLog / Transfer / Event.
 - Machine 1-N Heartbeats / sessions / agents.
@@ -45,11 +47,24 @@ et `Transfer` sont des journaux append-only : pas de `version` (jamais
 modifies apres creation, seulement des transitions de statut explicites).
 
 ## User
-`id`, `display_name`, `email` (unique), `role` (`admin|developer|agent|readonly`,
+`id`, `display_name`, `email` (normalise `strip().lower()`, unique sans
+tenir compte de la casse : index unique `uq_users_email_lower` sur
+`lower(email)`, migration A3 `0016` reversible avec preflight bloquant sur
+les doublons), `role` (`admin|developer|agent|readonly`,
 `TECH/04_AUTH_SYNC_CONTRACT.md`), `password_hash` (nullable, bcrypt, DASH-4
 DEC-0056), + champs communs mutables. Le mot de passe est optionnel : les
 utilisateurs crees sans mot de passe ne peuvent pas utiliser le login humain
 jusqu'a ce qu'un administrateur execute `studio-admin set-password`.
+
+Etat du compte et session (A2, DEC-0110 — migration Alembic reversible) :
+`auth_version` (int, non nul, defaut 0, incremente par chaque revocation —
+`TECH/04_AUTH_SYNC_CONTRACT.md`, Cycle de session), `disabled_at` (nullable)
+et `email_verified_at` (nullable). Etat derive, non stocke : `disabled` si
+`disabled_at` est pose, sinon `pending` si `email_verified_at` est nul, sinon
+`active`. Backfill : `email_verified_at = created_at` pour tout User
+existant ; la creation par `studio-admin` ou `POST /users` le pose
+immediatement. Aucune table de sessions : `session_id` du JWT n'est pas
+persiste.
 
 ## Machine
 `id`, `owner_user_id` (FK User), `display_name`, `credential_hash` (token
@@ -71,6 +86,33 @@ jamais lues par l'autorisation.
 ## Project
 `id`, `slug` (unique), `name`, `description` (nullable), `archived` (bool,
 defaut false), + champs communs mutables.
+
+## ProjectMembership (DEC-0103, additif — migration Alembic reversible)
+Table `project_memberships` : `project_id` (FK Project, `ON DELETE CASCADE`),
+`user_id` (FK User, `ON DELETE CASCADE`), `granted_by_user_id` (FK User,
+nullable, `ON DELETE SET NULL`), `created_at`. Cle primaire `(project_id,
+user_id)`. Pas de niveau par projet en V1 (le role global `User.role` reste
+seul juge du « quoi ») ; pas de `version` : une membership est accordee ou
+retiree, jamais modifiee.
+
+- `granted_by_user_id` nul **uniquement** pour le backfill systeme de la
+  migration ; toute attribution applicative (`PUT
+  /projects/{id}/members/{user_id}`, `studio-admin project grant`) enregistre
+  l'admin qui l'accorde.
+- Creation de projet : la membership du createur est inseree dans la meme
+  transaction que le `Project` (flush, jamais de commit interne au service).
+- Migration : preflight bloquant (chaque `Machine` a un `owner_user_id`
+  valide, aucun orphelin), puis backfill de chaque couple (User existant ×
+  Project existant), ensemble exact des couples archive. Downgrade = suppression
+  de la table.
+
+Regles de lecture des `project_id` nullables (`Decision`, `Event`,
+`Transfer`, `LibraryResource` scope studio/user, bindings) : `project_id`
+renseigne → acces projet requis (membership ou `admin`) ; `project_id` nul →
+donnee partagee sans projet, lisible par `admin` ou par un User ayant au moins
+une membership, sauf ressource propre (Transfer emetteur/destinataire,
+Library User, runtimes, bindings User) dont la regle existante s'applique
+seule (`TECH/04_AUTH_SYNC_CONTRACT.md` section Autorisation).
 
 ## Task
 `id`, `readable_id` (nullable, unique — ID lisible optionnel a cote de l'UUID

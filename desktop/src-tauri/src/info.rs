@@ -8,6 +8,12 @@ use serde_json::{json, Value};
 pub const PRODUCT: &str = "Studi'OS Desktop";
 pub const DESKTOP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// `dev` builds install side by side with the stable one: own identifier,
+/// install folder and daemon data (`STUDIO_DESKTOP_CHANNEL` at build time).
+pub fn dev_channel() -> bool {
+    option_env!("STUDIO_DESKTOP_CHANNEL") == Some("dev")
+}
+
 /// What the Desktop really speaks in P2: daemon status and identity view.
 /// More capabilities are declared by the phase that implements them, never
 /// ahead of time (negotiation is by capability, not by wishful thinking).

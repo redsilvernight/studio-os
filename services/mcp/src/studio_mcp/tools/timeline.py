@@ -36,7 +36,7 @@ async def studio_get_timeline(
     history, not an actionable signal (see studio_get_review_queue for
     that). `since` is an ISO-8601 timestamp."""
 
-    async def _handler(session: AsyncSession, _principal: Principal) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed_project_id = parse_uuid(project_id, "project_id")
         if isinstance(parsed_project_id, dict):
             return parsed_project_id
@@ -52,7 +52,9 @@ async def studio_get_timeline(
         kwargs: dict[str, Any] = {"since": parsed_since}
         if limit is not None:
             kwargs["limit"] = limit
-        timeline = await timeline_service.get_timeline(session, parsed_project_id, **kwargs)
+        timeline = await timeline_service.get_timeline(
+            session, principal, parsed_project_id, **kwargs
+        )
         return _compact_timeline(timeline)
 
     return await run_tool(ctx, _handler)

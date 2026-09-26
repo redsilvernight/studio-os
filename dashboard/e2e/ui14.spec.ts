@@ -524,11 +524,11 @@ test.describe("UI-14 modales, drawers, onglets", () => {
     await login(page, `#/projects/${P1}`);
     const view = page.locator("#view");
     const tabs = view.locator('[role="tab"]');
-    await expect(tabs).toHaveCount(6);
+    await expect(tabs).toHaveCount(7);
     const panel = view.locator("#workspace-panel");
     await expect(panel).toHaveAttribute("role", "tabpanel");
     await expect(panel).toHaveAttribute("aria-labelledby", "ws-tab-overview");
-    for (const [index, id] of ["overview", "roadmap", "tasks", "claims", "activity", "decisions"].entries()) {
+    for (const [index, id] of ["overview", "roadmap", "tasks", "claims", "activity", "decisions", "members"].entries()) {
       await expect(tabs.nth(index)).toHaveAttribute("id", `ws-tab-${id}`);
       await expect(tabs.nth(index)).toHaveAttribute("aria-controls", "workspace-panel");
     }
@@ -537,7 +537,7 @@ test.describe("UI-14 modales, drawers, onglets", () => {
     await page.keyboard.press("ArrowRight");
     await expect(tabs.nth(1)).toBeFocused();
     await page.keyboard.press("End");
-    await expect(tabs.nth(5)).toBeFocused();
+    await expect(tabs.nth(6)).toBeFocused();
     await page.keyboard.press("Home");
     await expect(tabs.nth(0)).toBeFocused();
     await page.keyboard.press("ArrowRight");

@@ -25,6 +25,20 @@ describe("describeError", () => {
     expect(text).not.toContain("expected_version");
   });
 
+  it("distingue un refus d'accès projet (403 isolation) d'un droit manquant", () => {
+    const project = new ApiError({
+      status: 403,
+      errorCode: "forbidden",
+      message: "forbidden (HTTP 403)",
+      serverVersion: null,
+      details: { error_code: "forbidden", resource: "project", action: "read" },
+    });
+    expect(describeError(project)).toContain("pas accès à ce projet");
+    expect(describeError(project)).toContain("HTTP 403 · forbidden");
+    expect(describeError(apiError(403, "forbidden"))).toContain("droits nécessaires");
+    expect(describeError(apiError(403, "forbidden"))).not.toContain("session");
+  });
+
   it("traduit les codes métier connus sans masquer le code", () => {
     expect(describeError(apiError(409, "already_claimed"))).toContain("déjà prise en charge");
     expect(describeError(apiError(409, "already_claimed"))).toContain("already_claimed");

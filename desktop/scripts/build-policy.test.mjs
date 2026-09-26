@@ -60,20 +60,59 @@ test("the storage origin of pre-signed uploads joins connect-src only when given
   assert.match(overlay({ apiUrl: "https://a.example", storageUrl: "https://s.example" }).app.security.csp, /https:\/\/s\.example/);
 });
 
-test("the NSIS daemon stop never kills outside the install directory (B3)", () => {
+test("the NSIS daemon stop never kills outside the install directory (B3, channel-era hooks)", () => {
   const hooks = readFileSync(hooksPath, "utf8");
   // No bare image-name kill: taskkill /IM would stop a developer daemon too.
-  assert.doesNotMatch(hooks, /taskkill\.exe"?\s+\/F\s+\/T\s+\/IM/i);
   assert.doesNotMatch(hooks, /\/IM\s+studio-daemon\.exe/i);
+  assert.doesNotMatch(hooks, /taskkill[^/]*\/IM/i);
   // Path-scoped stop: enumerate with the executable path, match the install
-  // dir prefix case-insensitively, stop by PID only.
+  // dir prefix case-insensitively, stop by PID only (Stop-Process -Id or
+  // taskkill /PID — the channel-era hooks use the latter).
   assert.match(hooks, /ExecutablePath/);
   assert.match(hooks, /StartsWith\(/);
-  assert.match(hooks, /Stop-Process\s+-Id/);
-  assert.match(hooks, /\$INSTDIR\\sidecar/);
-  // Fixed system binary, never resolved through PATH.
-  assert.match(hooks, /\$SYSDIR\\WindowsPowerShell/);
+  assert.match(hooks, /(\/PID|Stop-Process\s+-Id)/);
+  assert.match(hooks, /\$INSTDIR/);
+  // Fixed system binaries, never resolved through PATH.
+  assert.match(hooks, /(\$SYSDIR\\WindowsPowerShell|SystemRoot)/);
   // Both entry points stop the installed daemon, nothing else is added.
   assert.match(hooks, /NSIS_HOOK_PREINSTALL[\s\S]*StudioStopDaemon/);
   assert.match(hooks, /NSIS_HOOK_PREUNINSTALL[\s\S]*StudioStopDaemon/);
+});
+
+test("the prod channel keeps the base identity so installs upgrade in place", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const { overlay } = await import("./make-config.mjs");
+  const { CHANNELS, tauriDir } = await import("./lib.mjs");
+  const base = JSON.parse(readFileSync(join(tauriDir, "tauri.conf.json"), "utf8"));
+  assert.equal(CHANNELS.prod.productName, base.productName);
+  assert.equal(CHANNELS.prod.identifier, base.identifier);
+  const out = overlay({ apiUrl: "https://a.example", installer: true });
+  assert.equal(out.identifier, undefined);
+  assert.equal(out.productName, undefined);
+  assert.equal(out.bundle.windows, undefined);
+});
+
+test("the dev channel installs side by side with its own identity and data", async () => {
+  const { channelHooks, CHANNEL_HOOKS_FILE, overlay } = await import("./make-config.mjs");
+  const { CHANNELS } = await import("./lib.mjs");
+  const out = overlay({ apiUrl: "http://127.0.0.1:8000", installer: true, channel: "dev" });
+  assert.equal(out.identifier, CHANNELS.dev.identifier);
+  assert.equal(out.productName, CHANNELS.dev.productName);
+  assert.notEqual(out.identifier, CHANNELS.prod.identifier);
+  assert.equal(out.bundle.windows.nsis.installerHooks, `../.build/${CHANNEL_HOOKS_FILE}`);
+  const hooks = channelHooks("dev");
+  assert.match(hooks, /^!define STUDIO_DATA_DIR "StudioOS-Dev"\n!include ".+\\installer\\hooks\.nsh"\n$/);
+  assert.throws(() => overlay({ apiUrl: "https://a.example", channel: "staging" }), /unknown channel/);
+});
+
+test("signing merges into bundle.windows without dropping the channel nsis block (B4)", async () => {
+  const { overlay } = await import("./make-config.mjs");
+  const { windowsSigningFromEnv } = await import("./windows-signing.mjs");
+  const signing = windowsSigningFromEnv({
+    WINDOWS_CERT_THUMBPRINT: "A1B2C3D4E5F60718293A4B5C6D7E8F9012345678",
+  });
+  const out = overlay({ apiUrl: "https://a.example", installer: true, channel: "dev", signing });
+  assert.equal(out.bundle.windows.certificateThumbprint, "A1B2C3D4E5F60718293A4B5C6D7E8F9012345678");
+  assert.match(out.bundle.windows.nsis.installerHooks, /installer-hooks\.nsh$/);
 });

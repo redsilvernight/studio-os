@@ -107,7 +107,7 @@ describe("prepareDesktop", () => {
     setDesktopHooks({ rerender: vi.fn(), authExpired });
     setToken("t");
     stubFetch(async () => new Response("", { status: 401 }));
-    await observedFetch("https://x.example/api");
+    await observedFetch("https://x.example/api", { headers: { Authorization: "Bearer t" } });
     expect(authExpired).toHaveBeenCalledTimes(1);
     expect(currentStatus()?.reason).toBe("auth_expired");
   });

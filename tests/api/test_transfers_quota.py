@@ -29,7 +29,7 @@ from studio_api.services import transfers as transfers_service
 
 TEST_DATABASE_URL = os.environ.get(
     "STUDIO_TEST_DATABASE_URL",
-    "postgresql+asyncpg://studio:studio@localhost:5432/studio_os_test",
+    "postgresql+asyncpg://studio:studio@127.0.0.1:5432/studio_os_test",
 )
 
 
@@ -208,7 +208,11 @@ async def test_concurrent_creates_never_exceed_project_quota(
             setup_session, user.id, "quota-race-machine"
         )
         project = await projects_service.create_project(
-            setup_session, f"quota-race-{uuid.uuid4().hex[:8]}", "Quota Race Project", None
+            setup_session,
+            f"quota-race-{uuid.uuid4().hex[:8]}",
+            "Quota Race Project",
+            None,
+            creator=user,
         )
 
     headers = {"Authorization": f"Bearer {token}"}

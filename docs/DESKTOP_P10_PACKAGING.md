@@ -81,12 +81,9 @@ reconstructibles.
 
 Le shell attache un daemon sain déjà présent ou en démarre un seul ; il le supervise avec un
 redémarrage borné et l'arrête à la fermeture (fermeture normale vérifiée : 0 processus restant).
-Le hook NSIS arrête, avant installation et désinstallation, uniquement le
-`studio-daemon.exe` dont le chemin d'exécutable est sous `$INSTDIR\sidecar\`
-(énumération `Get-CimInstance Win32_Process`, arrêt par PID ; B3) : un daemon
-de développement (ou toute autre copie hors installation) n'est jamais touché.
-En cas d'échec d'énumération, rien n'est tué (fail-closed) : l'installation
-signale alors des fichiers verrouillés au lieu d'arrêter le mauvais processus.
+Le hook NSIS arrête (`taskkill /F /T /PID`) avant installation et désinstallation le seul
+`studio-daemon.exe` dont l'exécutable est sous le dossier d'installation, pour libérer les fichiers ;
+un daemon d'un autre canal ou de développement n'est pas touché.
 
 ## 7. Désinstallation
 
@@ -196,7 +193,7 @@ d'installateur antérieur réel.
 
 ## 15. Limites et procédure de release
 
-Limites : installateur dev non signé sans certificat (Authenticode, voir §9) ; WebView2 requis (bootstrapper embarqué) ;
+Limites : installateur non signé sans certificat (Authenticode, voir §9, DEC-0129) ; WebView2 requis (bootstrapper embarqué) ;
 les identifiants du Gestionnaire d'identifiants Windows ne sont pas effacés à la désinstallation
 (suppression manuelle des entrées `StudioOS`) ; pas de tray ; pas d'installation par machine.
 
@@ -226,9 +223,19 @@ Procédure de release (manuelle, hors P10) :
    `STUDIO_REQUIRE_AUTHENTICODE=1` dans le workflow.
 2. Générer la paire minisign hors dépôt ; publier la clé publique via `STUDIO_UPDATER_PUBKEY`.
 3. Lancer `desktop-release.yml` (déclenchement manuel, secrets de l'environnement `desktop-release`) :
-   build Tauri (Authenticode + minisign dans le bon ordre) → `windows-signing.mjs --verify --require`
+   build Tauri (minisign ; Authenticode pendant le build si un certificat existe un jour)
+   → `windows-signing.mjs --verify` (rapport, `--require` seulement avec certificat)
    → `test:install` → `SHA256SUMS.txt` + `provenance.json`.
 4. Publier l'installateur et le manifeste de mise à jour ; le workflow ne publie rien.
+
+Canaux non signés (`desktop-channels.yml`, DEC-0129) : chaque push touchant le Desktop remplace la
+release de son canal. `deploy/flo-laptop` → tag `desktop-prod` (release « Latest ») ;
+`dev` → tag `desktop-dev` (pre-release, `--channel dev`). Les origines API/stockage viennent des
+variables `STUDIO_DESKTOP_API_URL` / `STUDIO_DESKTOP_STORAGE_URL` des environnements GitHub
+`desktop-prod` et `desktop-dev`. Le canal Dev s'installe à côté de Prod : identifiant
+`dev.studio-os.desktop-dev`, produit « Studio OS Desktop Dev », données `%APPDATA%\StudioOS-Dev`
+(`STUDIO_CLIENT_CHANNEL=dev` transmis au daemon), serveur MCP `studio-os-dev` dans les
+configurations des outils.
 
 Depuis B3, le workflow génère `SHA256SUMS.txt` (GNU `sha256sum -c`) et
 `provenance.json` (`studio.release-provenance/v1` : commit, tag, dirty,

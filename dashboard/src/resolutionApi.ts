@@ -45,6 +45,10 @@ export interface ResolutionErrorView {
    *  binding — the UI states this explicitly. */
   noFallback: boolean;
   isAuth: boolean;
+  /** 403: valid session, refused right (never shown as an auth error). */
+  forbidden: boolean;
+  /** 403 from project isolation (no access to the project). */
+  projectAccessDenied: boolean;
   notFound: boolean;
 }
 
@@ -77,6 +81,8 @@ export function resolutionErrorView(error: unknown): ResolutionErrorView {
       unsatisfied: stringList(details["unsatisfied"]),
       noFallback: code === "runtime_incompatible",
       isAuth: error.isAuth,
+      forbidden: error.isForbidden,
+      projectAccessDenied: error.isProjectAccessDenied,
       notFound: error.status === 404,
     };
   }
@@ -91,6 +97,8 @@ export function resolutionErrorView(error: unknown): ResolutionErrorView {
     unsatisfied: [],
     noFallback: false,
     isAuth: false,
+    forbidden: false,
+    projectAccessDenied: false,
     notFound: false,
   };
 }
