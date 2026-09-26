@@ -48,6 +48,18 @@ class Settings(BaseSettings):
     # "test" is production, where a weak JWT secret refuses to start.
     environment: Literal["production", "dev", "test"] = "production"
 
+    # C1 version negotiation: oldest served and newest known client build
+    # per family. Raised by ops without a redeploy; clients below the
+    # minimum get 426 client_upgrade_required, clients without headers
+    # (pre-C1) keep working untouched.
+    api_version: str = "1"
+    desktop_minimum_version: str = "0.1.0"
+    daemon_minimum_version: str = "0.1.0"
+    dashboard_minimum_version: str = "0.1.0"
+    desktop_latest_version: str = "0.1.0"
+    daemon_latest_version: str = "0.1.0"
+    dashboard_latest_version: str = "0.1.0"
+
     # Human dashboard JWT (DASH-4, DEC-0110: 15 min at most, out of range refuses to start)
     jwt_secret: str = "change-me-in-production"
     jwt_access_token_expire_minutes: int = Field(default=15, ge=1, le=15)

@@ -7,6 +7,7 @@
  * build) this is a transparent `fetch`.
  */
 import { getToken } from "./auth";
+import { advisoryLatest, parseUpgradeRequired, type UpgradeInfo } from "./clientCompatibility";
 
 export interface ApiObserver {
   /**
@@ -21,6 +22,10 @@ export interface ApiObserver {
   networkError?(): void;
   /** A signed-in session was refused (HTTP 401). */
   unauthorized?(): void;
+  /** The server says a newer client build is recommended (C1 grace window). */
+  clientUpdate?(latest: string): void;
+  /** The server refused this build outright (426 client_upgrade_required). */
+  upgradeRequired?(info: UpgradeInfo): void;
 }
 
 let observer: ApiObserver | null = null;
@@ -64,5 +69,21 @@ export const observedFetch: typeof fetch = async (input, init) => {
   }
   observer?.reachable?.();
   if (response.status === 401 && refusedCurrentSession(input, init)) observer?.unauthorized?.();
+  const headers = response.headers;
+  const latest = headers ? advisoryLatest(headers) : null;
+  if (latest !== null) observer?.clientUpdate?.(latest);
+  if (response.status === 426 && typeof response.clone === "function") {
+    // The structured detail lives in the body; a clone avoids consuming the
+    // caller's stream. A malformed body simply yields no blocking screen.
+    try {
+      const body: unknown = await response.clone().json();
+      const detail = (body as { detail?: { error_code?: unknown } } | null)?.detail;
+      const code = typeof detail?.error_code === "string" ? detail.error_code : null;
+      const info = parseUpgradeRequired(code, detail);
+      if (info !== null) observer?.upgradeRequired?.(info);
+    } catch {
+      // Non-JSON body: nothing to display.
+    }
+  }
   return response;
 };
