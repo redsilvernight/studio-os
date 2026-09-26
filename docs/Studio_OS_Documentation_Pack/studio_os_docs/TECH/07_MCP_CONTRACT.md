@@ -11,6 +11,7 @@ studio_claim_task
 studio_release_task
 studio_get_resource_claims
 studio_claim_resource
+studio_claim_resources
 studio_release_resource
 studio_get_decisions
 studio_add_decision
@@ -67,12 +68,13 @@ token (pas d'attaquant reseau).
 
 ## Etat reel (roadmap etape 5, DEC-0023, UC-3/DEC-0047, P8/DEC-0072)
 
-Le serveur VPS enregistre 46 outils (`services/mcp/src/studio_mcp/` : 29
+Le serveur VPS enregistre 47 outils (`services/mcp/src/studio_mcp/` : 29
 historiques + 5 AI Library P8, section ci-dessous, + `studio_prepare_context`,
 DEC-0080, section « Contexte projet borné », + 7 outils Roadmaps P4/P5,
 DEC-0087, section « Roadmaps et initialisation via MCP », +
 `studio_register_agent`, DEC-0101, section « Enregistrement d'Agent », +
-`studio_transition_roadmap`, section « Roadmaps et initialisation via MCP »).
+`studio_transition_roadmap`, section « Roadmaps et initialisation via MCP », +
+`studio_claim_resources`, pose par lot, section « Claims par lot » ci-dessous).
 Les 3 outils locaux read-only specifies ci-dessous (UC-3, exposition via
 MCP local par poste, DEC-0047) sont en place mais conditionnels au
 fichier de configuration du poste : `studio_memory_search`,
@@ -161,7 +163,7 @@ pour l'appelant (appel one-shot).
 **idempotency_key (DEC-0027)** : un sous-ensemble d'outils createurs de
 ressource accepte desormais un parametre optionnel `idempotency_key` (str) —
 `studio_create_task`, `studio_add_decision`, `studio_claim_resource`,
-`studio_start_session`. Reutilise le meme coeur atomique
+`studio_claim_resources`, `studio_start_session`. Reutilise le meme coeur atomique
 (`services/api/src/studio_api/services/idempotency.py::run_idempotent_dict`)
 que `Idempotency-Key` HTTP, sous un espace `endpoint` distinct
 (`"MCP <nom_outil>"`, jamais `"METHOD /path"`) — une meme valeur de cle
@@ -170,6 +172,22 @@ deux ressources, choix delibere puisque, par construction (DEC-0024), les
 deux chemins ne sont jamais censes rejouer la meme intention. Rejouer la
 meme cle avec les memes arguments renvoie la ressource d'origine ; la meme
 cle avec des arguments differents echoue `idempotency_key_payload_mismatch`.
+
+**Claims par lot — `studio_claim_resources` (tache W3, additif/DEC-0048)** :
+variante « par lot » de `studio_claim_resource`, meme service
+(`claims.create_claim`, DEC-0005) et meme semantique warn-only (un claim ne
+bloque jamais Git ni une ecriture ; un chevauchement emet `resource.conflict`).
+Prend `paths` (liste, non vide, plafonnee a 50), plus `resource_type` et
+`ttl_seconds` communs et un `task_id` optionnel ; renvoie une reponse compacte
+`{"claims": [...], "conflicts": [...]}` ou `conflicts` est le sous-ensemble des
+claims crees qui chevauche un claim actif. Idempotent sous
+`MCP studio_claim_resources` (DEC-0027) : une fois le premier appel abouti, un
+rejeu identique renvoie le lot d'origine au lieu de dupliquer. Les claims
+etant valides un par un (comme pour `studio_claim_resource`), un echec en
+milieu de lot peut laisser les claims deja valides en place ; la cle est
+alors liberee et un nouvel appel identique repart du lot complet. La
+liberation ciblee par `task_id` reste du ressort de la tache W1
+(`studio_handoff`), pas de cet outil.
 
 **Outils exemptes, et pourquoi** : `studio_claim_task` (deja protege par
 `already_claimed`, jamais une seconde ressource), `studio_release_task` /
@@ -419,7 +437,7 @@ sans roadmap `active`). Budgets et erreurs
 structurees comme les autres outils (DEC-0048, sans version par payload).
 
 ## Roadmaps et initialisation via MCP (P4/P5, DEC-0087) — implementes
-Surface MCP implementee (35 -> 46 outils), sur les memes services que l'API
+Surface MCP implementee (35 -> 47 outils), sur les memes services que l'API
 (DEC-0046). Tout est derive des contrats P1 (`studio.roadmap/v1`) plus le
 nouveau contrat neutre `studio.initialization/v1`.
 - `studio_get_roadmap(project_id, status?, limit, max_chars)` — lecture :

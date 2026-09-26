@@ -90,6 +90,16 @@ PROBES: dict[str, tuple[Probe, ...]] = {
             }
         ),
     ),
+    "studio_claim_resources": (
+        Probe(
+            {
+                "project_id": "{pid}",
+                "paths": ["x.py", "y.py"],
+                "resource_type": "file",
+                "ttl_seconds": 60,
+            }
+        ),
+    ),
     "studio_release_resource": (Probe({"claim_id": "{claim}"}),),
     "studio_get_decisions": (Probe({"project_id": "{pid}"}), Probe({}, "filtered")),
     "studio_add_decision": (Probe({"title": "x", "body": "x", "project_id": "{pid}"}),),

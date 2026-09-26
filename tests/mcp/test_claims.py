@@ -3,6 +3,7 @@ from __future__ import annotations
 from studio_api.db.models.project import ProjectModel
 from studio_mcp.tools.claims import (
     studio_claim_resource,
+    studio_claim_resources,
     studio_get_resource_claims,
     studio_release_resource,
 )
@@ -38,6 +39,74 @@ async def test_overlapping_claim_emits_conflict_event(
     changes = await studio_get_recent_changes(auth_ctx, project_id=str(project.id))
     conflicts = [e for e in changes["events"] if e["event_type"] == "resource.conflict"]
     assert len(conflicts) == 1
+
+
+async def test_claim_resources_claims_every_path(
+    auth_ctx: FakeContext, project: ProjectModel
+) -> None:
+    paths = ["a/one.py", "b/two.py", "c/three.py"]
+    result = await studio_claim_resources(str(project.id), paths, "file", 600, auth_ctx)
+    assert [c["resource_path"] for c in result["claims"]] == paths
+    assert all(c["status"] == "active" for c in result["claims"])
+    assert result["conflicts"] == []
+
+
+async def test_claim_resources_rejects_empty_paths(
+    auth_ctx: FakeContext, project: ProjectModel
+) -> None:
+    result = await studio_claim_resources(str(project.id), [], "file", 600, auth_ctx)
+    assert result["error_code"] == "invalid_argument"
+
+
+async def test_claim_resources_rejects_too_many_paths(
+    auth_ctx: FakeContext, project: ProjectModel
+) -> None:
+    paths = [f"src/f{i}.py" for i in range(51)]
+    result = await studio_claim_resources(str(project.id), paths, "file", 600, auth_ctx)
+    assert result["error_code"] == "invalid_argument"
+
+
+async def test_claim_resources_rejects_unknown_resource_type(
+    auth_ctx: FakeContext, project: ProjectModel
+) -> None:
+    result = await studio_claim_resources(str(project.id), ["a.py"], "bogus", 600, auth_ctx)
+    assert result["error_code"] == "invalid_argument"
+
+
+async def test_claim_resources_reports_conflict_and_emits_one_event(
+    auth_ctx: FakeContext, other_auth_ctx: FakeContext, project: ProjectModel
+) -> None:
+    await studio_claim_resource(str(project.id), "shared/core.py", "file", 600, other_auth_ctx)
+
+    result = await studio_claim_resources(
+        str(project.id), ["shared/core.py", "own/new.py"], "file", 600, auth_ctx
+    )
+    assert len(result["claims"]) == 2
+    assert [c["resource_path"] for c in result["conflicts"]] == ["shared/core.py"]
+
+    changes = await studio_get_recent_changes(auth_ctx, project_id=str(project.id))
+    conflicts = [e for e in changes["events"] if e["event_type"] == "resource.conflict"]
+    assert len(conflicts) == 1
+
+
+async def test_claim_resources_idempotency_key_replay_creates_no_duplicate(
+    auth_ctx: FakeContext, project: ProjectModel
+) -> None:
+    """DEC-0027: a replayed batch call returns the original claims and never
+    creates a second set."""
+    paths = ["scenes/a.tscn", "scenes/b.tscn"]
+    first = await studio_claim_resources(
+        str(project.id), paths, "file", 600, auth_ctx, idempotency_key="mcp-batch-1"
+    )
+    second = await studio_claim_resources(
+        str(project.id), paths, "file", 600, auth_ctx, idempotency_key="mcp-batch-1"
+    )
+    assert [c["id"] for c in second["claims"]] == [c["id"] for c in first["claims"]]
+
+    listing = await studio_get_resource_claims(str(project.id), auth_ctx)
+    for path in paths:
+        matches = [c for c in listing["claims"] if c["resource_path"] == path]
+        assert len(matches) == 1
 
 
 async def test_get_resource_claims_lists_claim(

@@ -31,6 +31,7 @@ MCP_ACCESS: Mapping[str, AccessClass] = {
     "studio_release_task": _P,
     "studio_get_resource_claims": _P,
     "studio_claim_resource": _P,
+    "studio_claim_resources": _P,
     "studio_release_resource": _P,
     "studio_get_decisions": _P,
     "studio_add_decision": _P,
