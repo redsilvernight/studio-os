@@ -184,6 +184,13 @@ consommateur purement MCP materialise son `Agent` via HTTP ; `studio_log_ai_work
 applique la meme regle d'ownership `actor_not_owned` que le chemin HTTP,
 le service etant partage (DEC-0005/DEC-0036).
 
+**`studio_log_ai_work` — creation et mise a jour (tache c5c20c90)** : sans
+`ai_work_id`, `status` (defaut `started`), `changed_files` et `tests_run`
+sont appliques a la creation (parite `POST /ai-work`, meme service) ;
+`approved`/`changes_requested` y sont refuses (`invalid_status_transition`).
+Avec `ai_work_id`, seuls les champs non nuls changent, mais `summary`
+(requis) remplace toujours le resume stocke : repasser le resume complet.
+
 ## Review Queue et notifications (sous-etape 8.4/8.5, DEC-0049/DEC-0051)
 
 `studio_get_review_queue` (lecture seule) agrege le travail IA en

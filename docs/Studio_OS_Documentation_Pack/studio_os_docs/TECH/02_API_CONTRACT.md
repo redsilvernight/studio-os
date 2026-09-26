@@ -186,7 +186,16 @@ public de bootstrap, pas de secret d'environnement dedie.
 - POST /ai-work — `AIWorkLogCreate` accepte, en plus de `summary`, les
   champs optionnels `agent_profile`, `harness`, `provider`, `model` (UC-5,
   additif, memes regles que sur `Agent` : chaines ouvertes d'observabilite,
-  defaut `null`, jamais des entrees d'autorisation).
+  defaut `null`, jamais des entrees d'autorisation). Additif (tache
+  c5c20c90) : `status` (defaut `started`), `changed_files` et `tests_run`
+  (defaut `[]`) sont aussi acceptes a la creation, pour journaliser en un
+  appel un travail deja termine — `completed`/`failed` renseigne
+  `ended_at`, et l'evenement `ai_work.started` est suivi de l'evenement du
+  statut (`ai_work.completed`, etc., memes identifiants deterministes que
+  `PATCH`). `approved`/`changes_requested` ne sont jamais un statut initial :
+  `409 invalid_status_transition` (DEC-0041, on ne s'auto-approuve pas). Un
+  client qui omet ces champs n'observe aucun changement. `Idempotency-Key`
+  inchange : ces champs font partie du corps hache.
 - PATCH /ai-work/{id}
 - GET /ai-work
 
