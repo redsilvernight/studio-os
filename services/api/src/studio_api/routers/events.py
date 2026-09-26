@@ -200,6 +200,15 @@ async def stream_events(
                     if event.user_id == user_id and event.project_id == project:
                         return
                     continue
+                if isinstance(event, event_stream.UserRevalidation):
+                    if event.user_id != user_id:
+                        continue
+                    if not await events_service.stream_access_still_valid(
+                        machine_id, project, jwt_auth_version
+                    ):
+                        return
+                    checked_at = time.monotonic()
+                    continue
                 if time.monotonic() - checked_at >= REVALIDATE_SECONDS:
                     if not await events_service.stream_access_still_valid(
                         machine_id, project, jwt_auth_version

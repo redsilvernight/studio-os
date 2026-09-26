@@ -37,6 +37,18 @@ class AccessRevoked:
     project_id: UUID
 
 
+@dataclass(frozen=True)
+class UserRevalidation:
+    """Internal, never persisted signal (DEC-0110, A3): the state or sessions
+    of `user_id` changed; each of its streams revalidates its principal now
+    instead of waiting for the periodic check."""
+
+    user_id: UUID
+
+
+StreamSignal = StreamEvent | AccessRevoked | UserRevalidation
+
+
 _subscribers: set[asyncio.Queue[object]] = set()
 
 
@@ -50,7 +62,7 @@ def unsubscribe(queue: asyncio.Queue[object]) -> None:
     _subscribers.discard(queue)
 
 
-def publish(event: StreamEvent | AccessRevoked) -> None:
+def publish(event: StreamSignal) -> None:
     """In-process fan-out only (DEC-0018) — a single `api` replica, per
     docker/docker-compose.yml. A subscriber too slow to drain its queue is
     disconnected rather than blocking every other subscriber or growing
@@ -70,9 +82,15 @@ def revoke_access(user_id: UUID, project_id: UUID) -> None:
     publish(AccessRevoked(user_id=user_id, project_id=project_id))
 
 
+def revalidate_user(user_id: UUID) -> None:
+    """Called after a User is disabled or its sessions revoked, after the
+    commit."""
+    publish(UserRevalidation(user_id=user_id))
+
+
 async def receive(
     queue: asyncio.Queue[object], timeout: float | None = None
-) -> StreamEvent | AccessRevoked | _Keepalive | None:
+) -> StreamSignal | _Keepalive | None:
     """Returns the next item, `KEEPALIVE` when nothing arrived within
     `timeout` seconds, or `None` once this subscriber has been disconnected
     for falling behind (see `publish`)."""
@@ -82,5 +100,5 @@ async def receive(
         return KEEPALIVE
     if item is _CLOSED:
         return None
-    assert isinstance(item, StreamEvent | AccessRevoked)
+    assert isinstance(item, StreamEvent | AccessRevoked | UserRevalidation)
     return item
