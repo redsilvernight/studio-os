@@ -13,9 +13,29 @@ export interface paths {
         };
         /**
          * Healthz
-         * @description Liveness probe. Needs no credential and carries no security requirement — one of the unauthenticated operations, alongside `GET /metrics` and the human dashboard login `POST /auth/token`. Answers `{"status": "ok"}` when the service is up; use it before authenticating anything else.
+         * @description Liveness probe. Needs no credential and carries no security requirement — one of the unauthenticated operations, alongside `GET /version`, `GET /metrics` and the human dashboard login `POST /auth/token`. Answers `{"status": "ok"}` when the service is up; use it before authenticating anything else.
          */
         get: operations["healthz_healthz_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Version
+         * @description Compatibility probe. Needs no credential — one of the unauthenticated operations, alongside `GET /healthz` and `GET /metrics`. Reports the API contract version, the running server build, and per client family the oldest build still served (`minimum_supported`) with the newest known build (`latest`). Old clients ignore it safely.
+         */
+        get: operations["version_version_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5085,6 +5105,33 @@ export interface components {
             /** Context */
             ctx?: Record<string, never>;
         };
+        /** VersionInfo */
+        VersionInfo: {
+            /**
+             * Api Version
+             * @description API contract major version.
+             */
+            api_version: string;
+            /**
+             * Server Version
+             * @description Running server build version.
+             */
+            server_version: string;
+            /**
+             * Minimum Supported
+             * @description Oldest client build per family the server still serves.
+             */
+            minimum_supported: {
+                [key: string]: string;
+            };
+            /**
+             * Latest
+             * @description Newest known client build per family.
+             */
+            latest: {
+                [key: string]: string;
+            };
+        };
         /**
          * VersionOrigin
          * @description How an effective version was picked: P2 shadowing selection yields
@@ -5237,6 +5284,42 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+        };
+    };
+    version_version_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Version negotiation snapshot. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "api_version": "1",
+                     *       "server_version": "0.1.0",
+                     *       "minimum_supported": {
+                     *         "desktop": "0.1.0",
+                     *         "daemon": "0.1.0",
+                     *         "dashboard": "0.1.0"
+                     *       },
+                     *       "latest": {
+                     *         "desktop": "0.1.0",
+                     *         "daemon": "0.1.0",
+                     *         "dashboard": "0.1.0"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["VersionInfo"];
                 };
             };
         };

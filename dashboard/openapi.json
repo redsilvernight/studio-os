@@ -2,7 +2,7 @@
  "openapi": "3.1.0",
  "info": {
   "title": "Studio OS API",
-  "description": "Shared coordination API for Studio OS projects: tasks, resource claims, work sessions, decisions, AI work logs, events, and file transfer metadata. Every operation under `/api/v1` requires machine authentication (`Authorization: Bearer <machine-token>`, provisioned out of band) except `GET /healthz`, `GET /metrics` and the human dashboard login `POST /auth/token`. File bytes never flow through this API \u2014 transfers exchange metadata and short-lived signed URLs only, uploads and downloads go directly to object storage. Replayable creations accept `Idempotency-Key`; concurrent updates use `If-Match-Version`; permission refusals answer `403 forbidden` and are final.",
+  "description": "Shared coordination API for Studio OS projects: tasks, resource claims, work sessions, decisions, AI work logs, events, and file transfer metadata. Every operation under `/api/v1` requires machine authentication (`Authorization: Bearer <machine-token>`, provisioned out of band) except `GET /healthz`, `GET /metrics`, `GET /version` and the human dashboard login `POST /auth/token`. File bytes never flow through this API \u2014 transfers exchange metadata and short-lived signed URLs only, uploads and downloads go directly to object storage. Replayable creations accept `Idempotency-Key`; concurrent updates use `If-Match-Version`; permission refusals answer `403 forbidden` and are final.",
   "version": "1"
  },
  "paths": {
@@ -12,7 +12,7 @@
      "health"
     ],
     "summary": "Healthz",
-    "description": "Liveness probe. Needs no credential and carries no security requirement \u2014 one of the unauthenticated operations, alongside `GET /metrics` and the human dashboard login `POST /auth/token`. Answers `{\"status\": \"ok\"}` when the service is up; use it before authenticating anything else.",
+    "description": "Liveness probe. Needs no credential and carries no security requirement \u2014 one of the unauthenticated operations, alongside `GET /version`, `GET /metrics` and the human dashboard login `POST /auth/token`. Answers `{\"status\": \"ok\"}` when the service is up; use it before authenticating anything else.",
     "operationId": "healthz_healthz_get",
     "responses": {
      "200": {
@@ -28,6 +28,42 @@
         },
         "example": {
          "status": "ok"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/version": {
+   "get": {
+    "tags": [
+     "version"
+    ],
+    "summary": "Version",
+    "description": "Compatibility probe. Needs no credential \u2014 one of the unauthenticated operations, alongside `GET /healthz` and `GET /metrics`. Reports the API contract version, the running server build, and per client family the oldest build still served (`minimum_supported`) with the newest known build (`latest`). Old clients ignore it safely.",
+    "operationId": "version_version_get",
+    "responses": {
+     "200": {
+      "description": "Version negotiation snapshot.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/VersionInfo"
+        },
+        "example": {
+         "api_version": "1",
+         "server_version": "0.1.0",
+         "minimum_supported": {
+          "desktop": "0.1.0",
+          "daemon": "0.1.0",
+          "dashboard": "0.1.0"
+         },
+         "latest": {
+          "desktop": "0.1.0",
+          "daemon": "0.1.0",
+          "dashboard": "0.1.0"
+         }
         }
        }
       }
@@ -17707,6 +17743,44 @@
     ],
     "title": "ValidationError"
    },
+   "VersionInfo": {
+    "properties": {
+     "api_version": {
+      "type": "string",
+      "title": "Api Version",
+      "description": "API contract major version."
+     },
+     "server_version": {
+      "type": "string",
+      "title": "Server Version",
+      "description": "Running server build version."
+     },
+     "minimum_supported": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "type": "object",
+      "title": "Minimum Supported",
+      "description": "Oldest client build per family the server still serves."
+     },
+     "latest": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "type": "object",
+      "title": "Latest",
+      "description": "Newest known client build per family."
+     }
+    },
+    "type": "object",
+    "required": [
+     "api_version",
+     "server_version",
+     "minimum_supported",
+     "latest"
+    ],
+    "title": "VersionInfo"
+   },
    "VersionOrigin": {
     "type": "string",
     "enum": [
@@ -18006,7 +18080,11 @@
  "tags": [
   {
    "name": "health",
-   "description": "Liveness, metrics and dashboard login probes (unauthenticated)."
+   "description": "Liveness, metrics, version and dashboard login probes (unauthenticated)."
+  },
+  {
+   "name": "version",
+   "description": "Compatibility probe: API contract version, server build, and per client family the oldest build still served with the newest known build (unauthenticated)."
   },
   {
    "name": "projects",

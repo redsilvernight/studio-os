@@ -45,6 +45,33 @@ class ConflictError(StudioApiError):
     is a business conflict the caller must resolve, never a retry target."""
 
 
+class ClientUpgradeRequiredError(StudioApiError):
+    """426 `client_upgrade_required` — this client build is below the
+    server's family minimum. Never retryable: retrying the same build
+    just gets the same verdict. Callers surface the update invitation
+    (`minimum_supported`, `latest`) instead of retrying."""
+
+    @property
+    def client(self) -> str | None:
+        value = self.details.get("client")
+        return str(value) if value is not None else None
+
+    @property
+    def client_version(self) -> str | None:
+        value = self.details.get("client_version")
+        return str(value) if value is not None else None
+
+    @property
+    def minimum_supported(self) -> str | None:
+        value = self.details.get("minimum_supported")
+        return str(value) if value is not None else None
+
+    @property
+    def latest(self) -> str | None:
+        value = self.details.get("latest")
+        return str(value) if value is not None else None
+
+
 class QuotaError(StudioApiError):
     """413 `transfer_too_large` / 507 `quota_exceeded`."""
 
@@ -90,6 +117,7 @@ _STATUS_TO_ERROR: dict[int, type[StudioApiError]] = {
     404: NotFoundError,
     409: ConflictError,
     413: QuotaError,
+    426: ClientUpgradeRequiredError,
     507: QuotaError,
 }
 
