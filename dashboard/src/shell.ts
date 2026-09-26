@@ -73,6 +73,7 @@ export function shellNavGroups(route: Route, desktop = false): ShellNavGroup[] {
       items: [
         { href: "#/transfers", label: "Transferts", icon: "transfers", active: is("transfers") },
         { href: "#/machines", label: "Machines", icon: "machines", active: is("machines") },
+        { href: "#/accounts", label: "Comptes", icon: "agents", active: is("accounts") },
       ],
     },
     {

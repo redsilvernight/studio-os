@@ -42,7 +42,7 @@ from studio_client.tokens import TokenStore
 # before `get_session_factory()`'s module-level engine cache can be
 # populated by anything else.
 os.environ["STUDIO_DATABASE_URL"] = os.environ.get(
-    "STUDIO_TEST_DATABASE_URL", "postgresql+asyncpg://studio:studio@localhost:5432/studio_os_test"
+    "STUDIO_TEST_DATABASE_URL", "postgresql+asyncpg://studio:studio@127.0.0.1:5432/studio_os_test"
 )
 
 
@@ -425,7 +425,7 @@ async def _create_committed_project_and_token() -> tuple[uuid.UUID, uuid.UUID, u
             session, user.id, "cli-test-machine"
         )
         project = await projects_service.create_project(
-            session, f"proj-{uuid.uuid4().hex[:8]}", "CLI Test Project", None
+            session, f"proj-{uuid.uuid4().hex[:8]}", "CLI Test Project", None, creator=None
         )
     await db_api_session.reset_engine()
     return user.id, project.id, machine_model.id, token

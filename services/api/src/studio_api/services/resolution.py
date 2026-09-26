@@ -80,7 +80,7 @@ async def _load_node(
     private rows as 404); any missing or invisible dependency maps to the
     public `definition_not_found`, exactly like P2's depth-1 check."""
 
-    resource = await library_service.get_resource(session, principal, resource_id)
+    resource = await library_service.find_readable_resource(session, principal, resource_id)
     if resource is None:
         raise _definition_not_found()
     row = await _version_row(session, resource.id, version_number)
@@ -91,7 +91,9 @@ async def _load_node(
     )
     bindings: list[NodeBinding] = []
     for link in (await session.execute(link_stmt)).scalars().all():
-        target = await library_service.get_resource(session, principal, link.to_resource_id)
+        target = await library_service.find_readable_resource(
+            session, principal, link.to_resource_id
+        )
         if target is None:
             raise _definition_not_found()
         if await _version_row(session, target.id, link.to_version) is None:

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "studio-os": {
+      "type": "http",
+      "url": "https://flo-laptop.tailf61f85.ts.net/mcp",
+      "headers": {
+        "Authorization": "Bearer ${STUDIO_MCP_MACHINE_TOKEN}"
+      }
+    }
+  }
+}

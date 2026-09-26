@@ -287,6 +287,15 @@ export function resolutionFailureHtml(view: ResolutionErrorView, resolved: Resol
       `<div>La ressource n'existe pas, ou elle n'est pas visible pour ce jeton. Le serveur ne révèle jamais laquelle.</div></div>`
     );
   }
+  if (view.projectAccessDenied) {
+    return (
+      `<div class="ds-notice ds-notice--danger" role="alert"><strong>Accès au projet refusé · HTTP 403</strong>` +
+      `<div>Votre compte n'a pas accès à ce projet, ou il n'existe pas. Demandez l'accès à un administrateur.</div></div>`
+    );
+  }
+  if (view.forbidden) {
+    return `<div class="ds-notice ds-notice--danger" role="alert"><strong>Accès refusé · HTTP 403</strong><div>${esc(view.message)}</div></div>`;
+  }
   if (view.isAuth) {
     return `<div class="ds-notice ds-notice--danger" role="alert"><strong>Non autorisé · HTTP ${view.status}</strong><div>${esc(view.message)}</div></div>`;
   }

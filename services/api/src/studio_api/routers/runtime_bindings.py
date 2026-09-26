@@ -21,7 +21,6 @@ from studio_api.openapi_meta import (
 )
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import runtime_bindings as bindings_service
-from studio_api.services.authz import ensure_can_write
 
 router = APIRouter(prefix="/api/v1/runtime-bindings", tags=["runtime-bindings"])
 
@@ -32,9 +31,11 @@ router = APIRouter(prefix="/api/v1/runtime-bindings", tags=["runtime-bindings"])
     description=(
         "List stored runtime choices, optionally filtered. Another user's "
         "`user`-level bindings are filtered out before exposure — "
-        "collections never count, list, or hint at them."
+        "collections never count, list, or hint at them. Project levels "
+        "need their project, the studio default at least one project; a "
+        "`project_id` the caller cannot access answers `403 forbidden`."
     ),
-    responses={**RESP_401_UNAUTHORIZED},
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
 )
 async def list_runtime_bindings(
     session: DbSession,
@@ -85,7 +86,7 @@ async def create_runtime_binding(
         default=None, alias="Idempotency-Key", description=IDEMPOTENCY_KEY_DESCRIPTION
     ),
 ) -> RuntimeBinding:
-    ensure_can_write(principal, "runtime_binding")
+    bindings_service.authorize_create(principal, binding_in.level, binding_in.project_id)
 
     async def _create() -> RuntimeBinding:
         binding = await bindings_service.create_binding(session, principal, binding_in)

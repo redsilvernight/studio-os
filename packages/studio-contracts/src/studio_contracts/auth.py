@@ -9,11 +9,12 @@ from studio_contracts.common import ContractModel, IdempotentCreate, VersionedMo
 
 class Role(StrEnum):
     """Account roles, weakest to strongest: `readonly` (reads plus heartbeat
-    only, no business writes); `agent` (writes, but never project, machine
-    or user provisioning); `developer` (writes, plus project creation);
-    `admin` (everything, including machine/user provisioning and work
-    review resolution). The role always belongs to the machine owner's
-    user, never to a harness, provider, model or profile."""
+    and self-service of its own machines, no business writes); `agent`
+    (writes, but never project, machine or user provisioning); `developer`
+    (writes, plus project creation); `admin` (everything, including
+    machine/user provisioning for any user and work review resolution).
+    The role always belongs to the machine owner's user, never to a
+    harness, provider, model or profile."""
 
     ADMIN = "admin"
     DEVELOPER = "developer"
@@ -27,11 +28,28 @@ class MachineStatus(StrEnum):
     OFFLINE = "offline"
 
 
+class AccountStatus(StrEnum):
+    """Derived, never stored: `disabled` when `disabled_at` is set, else
+    `pending` while `email_verified_at` is null, else `active`. Only an
+    `active` account gets a principal; the state is orthogonal to project
+    access."""
+
+    PENDING = "pending"
+    ACTIVE = "active"
+    DISABLED = "disabled"
+
+
 class User(VersionedModel):
+    """`email` is normalized (trimmed, lower-case) and unique regardless of
+    case."""
+
     id: UUID
     display_name: str
     email: str
     role: Role
+    status: AccountStatus = AccountStatus.ACTIVE
+    email_verified_at: datetime | None = None
+    disabled_at: datetime | None = None
 
 
 class Machine(VersionedModel):
@@ -93,7 +111,12 @@ class UserCreate(ContractModel):
 
 
 class MachineCreate(ContractModel):
-    owner_user_id: UUID
+    """`owner_user_id` is optional (A5): absent, the machine belongs to the
+    caller's own User. A non-admin may only name itself — the server never
+    lets it choose another owner, and never looks that other User up. Only
+    `admin` provisions a machine for someone else."""
+
+    owner_user_id: UUID | None = None
     display_name: str
 
 

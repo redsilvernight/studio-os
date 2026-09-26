@@ -28,8 +28,6 @@ import type {
 } from "../roadmapTypes";
 import { agentRef } from "../actorNames";
 import { ApiError } from "../api";
-import { getToken } from "../auth";
-import { decodeJwtRole } from "../creationsApi";
 import { describeError, esc, fmtTime, shortId } from "../ui";
 
 export type RoadmapMode = "plan" | "execution";
@@ -40,7 +38,7 @@ export interface RoadmapViewContext {
   projectName: string;
   /** Roadmap to open (e.g. a proposed one reached from Décisions); omitted = the active one. */
   roadmapId?: string;
-  /** Show lifecycle actions; omitted = demo sources or an admin/developer session token. */
+  /** Show lifecycle actions (admin/developer identity from `/auth/me`); omitted = demo sources only. */
   canManageLifecycle?: boolean;
 }
 
@@ -476,7 +474,7 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
   let selectedKey: string | null = roadmap?.current_step_key ?? (roadmap === null ? null : allSteps(roadmap)[0]?.key) ?? null;
   let pendingProposal: RoadmapPendingProposal | null = null;
   let roadmaps: RoadmapListItem[] = [];
-  const canManage = ctx.canManageLifecycle ?? (ctx.dataSource.demo === true || isRoadmapManagerRole(decodeJwtRole(getToken())));
+  const canManage = ctx.canManageLifecycle ?? ctx.dataSource.demo === true;
   let pendingLifecycle: RoadmapLifecycleTransition | null = null;
   let lifecycleErrorHtml: string | null = null;
   let reviewErrorHtml: string | null = null;

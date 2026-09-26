@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Header, Query, Request, status
 from studio_contracts.decisions import Decision, DecisionCreate
 
-from studio_api.deps import CurrentMachine, CurrentPrincipal, DbSession
+from studio_api.deps import CurrentPrincipal, DbSession
 from studio_api.openapi_meta import (
     IDEMPOTENCY_KEY_DESCRIPTION,
     RESP_401_UNAUTHORIZED,
@@ -16,7 +16,6 @@ from studio_api.openapi_meta import (
 )
 from studio_api.services import decisions as decisions_service
 from studio_api.services import idempotency as idempotency_service
-from studio_api.services.authz import ensure_can_write
 
 router = APIRouter(prefix="/api/v1/decisions", tags=["decisions"])
 
@@ -25,15 +24,17 @@ router = APIRouter(prefix="/api/v1/decisions", tags=["decisions"])
     "",
     response_model=list[Decision],
     description=(
-        "List recorded decisions, optionally filtered by project. Any "
-        "authenticated machine may read."
+        "List recorded decisions of the caller's accessible projects, plus "
+        "global (project-less) decisions for a caller with at least one "
+        "project, optionally filtered by project. A `project_id` the caller "
+        "cannot access answers `403 forbidden`."
     ),
-    responses={**RESP_401_UNAUTHORIZED},
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
 )
 async def list_decisions(
-    session: DbSession, machine: CurrentMachine, project_id: UUID | None = Query(default=None)
+    session: DbSession, principal: CurrentPrincipal, project_id: UUID | None = Query(default=None)
 ) -> list[Decision]:
-    decisions = await decisions_service.list_decisions(session, project_id=project_id)
+    decisions = await decisions_service.list_decisions(session, principal, project_id=project_id)
     return [Decision.model_validate(d) for d in decisions]
 
 
@@ -58,7 +59,7 @@ async def create_decision(
         default=None, alias="Idempotency-Key", description=IDEMPOTENCY_KEY_DESCRIPTION
     ),
 ) -> Decision:
-    ensure_can_write(principal, "decision")
+    decisions_service.authorize_create(principal, decision_in.project_id)
 
     async def _create() -> Decision:
         return Decision.model_validate(

@@ -1,0 +1,3 @@
+[mcp_servers.studio-os]
+url = "https://flo-laptop.tailf61f85.ts.net/mcp"
+bearer_token_env_var = "STUDIO_MCP_MACHINE_TOKEN"

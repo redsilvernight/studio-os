@@ -29,6 +29,7 @@ import { renderTaskDetail } from "./views/taskDetail";
 import { renderTasksInto } from "./views/tasks";
 import { renderAgentDetail, renderAgents } from "./views/agents";
 import { renderMachines } from "./views/machines";
+import { renderAccounts } from "./views/accounts";
 import { renderDecisionsV2 as renderDecisions } from "./views/decisionsV2";
 import { renderTransfers } from "./views/transfers";
 import { renderLibrary, renderLibraryDetail } from "./views/library";
@@ -49,6 +50,9 @@ import { parseRoute } from "./router";
 import { shellHtml, syncAuthState, syncNav } from "./shell";
 import { createRenderGuard } from "./renderGuard";
 import { startRealtimeConnection, type RealtimeConnection } from "./realtime";
+import { setApiObserver } from "./apiEvents";
+import { resetIdentityCache } from "./identityApi";
+import { SESSION_ENDED_NOTICE, createSessionEndHandler } from "./session";
 import type { components } from "./openapi-schema";
 import "./ds/tokens.css";
 import "./ds/components.css";
@@ -127,6 +131,9 @@ async function render(): Promise<void> {
       break;
     case "machines":
       await renderMachines(staging, { client, baseUrl, authed });
+      break;
+    case "accounts":
+      await renderAccounts(staging, { client, authed });
       break;
     case "decisions":
       await renderDecisions(staging, { client, authed });
@@ -210,6 +217,29 @@ function showConflictBanner(event: EventEnvelope): void {
   }, 8000);
 }
 
+/** 403 on the live stream: no access to the selected project. Stays visible
+ * (no timer) — the stream will not retry until the project or token changes. */
+function showStreamDeniedBanner(): void {
+  const banner = document.getElementById("conflict-banner");
+  if (banner === null) return;
+  if (conflictBannerTimer !== null) {
+    clearTimeout(conflictBannerTimer);
+    conflictBannerTimer = null;
+  }
+  banner.textContent = "Accès à ce projet refusé : les mises à jour en direct sont arrêtées. Demandez l'accès à un administrateur.";
+  banner.hidden = false;
+  streamDeniedShown = true;
+}
+
+let streamDeniedShown = false;
+
+function clearStreamDeniedBanner(): void {
+  if (!streamDeniedShown) return;
+  streamDeniedShown = false;
+  const banner = document.getElementById("conflict-banner");
+  if (banner !== null) banner.hidden = true;
+}
+
 let realtimeConnection: RealtimeConnection | null = null;
 let realtimeKey: string | null = null;
 
@@ -222,6 +252,7 @@ function syncRealtimeConnection(): void {
   const projectId = uiState.selectedProjectId;
   const key = token !== null && projectId !== null ? `${projectId}::${token}` : null;
   if (key === realtimeKey) return;
+  clearStreamDeniedBanner();
   realtimeConnection?.close();
   realtimeConnection = null;
   realtimeKey = key;
@@ -237,6 +268,10 @@ function syncRealtimeConnection(): void {
       },
       onConflict: (event) => {
         showConflictBanner(event);
+      },
+      onDenied: (status) => {
+        // 401 is already handled by the shell (session expired, apiEvents).
+        if (status === 403) showStreamDeniedBanner();
       },
     },
   );
@@ -381,6 +416,12 @@ function start(): void {
 export function boot(): void {
   const platform = getPlatform();
   if (platform.mode !== "desktop") {
+    setApiObserver({
+      unauthorized: createSessionEndHandler((notice) => {
+        syncRealtimeConnection();
+        mountLogin(notice);
+      }),
+    });
     start();
     return;
   }
@@ -390,8 +431,9 @@ export function boot(): void {
       rerender: () => void render(),
       authExpired: () => {
         clearToken();
+        resetIdentityCache();
         syncRealtimeConnection();
-        mountLogin("Votre session a expiré. Reconnectez-vous pour continuer.");
+        mountLogin(SESSION_ENDED_NOTICE);
       },
     });
     start();

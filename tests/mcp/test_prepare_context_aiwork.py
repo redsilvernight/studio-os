@@ -85,7 +85,7 @@ async def _log(
 
 async def _project(db_session) -> ProjectModel:
     return await projects_service.create_project(
-        db_session, f"ctx-{uuid.uuid4().hex[:8]}", "Context Project", None
+        db_session, f"ctx-{uuid.uuid4().hex[:8]}", "Context Project", None, creator=None
     )
 
 
@@ -193,12 +193,14 @@ async def test_agent_a_to_b_handoff_resumes_from_one_call(
     assert any("NEXT update the dashboard TTL label" in e["summary"] for e in result["ai_work"])
     assert any(d["title"] == "TTL index over expires_at" for d in result["decisions"])
 
-    events = await events_service.list_events(db_session, project_id=str(project.id))
+    events = await events_service.list_events(db_session, principal, project_id=str(project.id))
     kinds = {e.event_type for e in events}
     assert "session.started" in kinds and "session.ended" in kinds
 
     # Ending twice is the documented harmless no-op: same timestamp, no new event.
     second_end = await sessions_service.end_session(db_session, principal, work_session.id)
     assert second_end.ended_at == first_end.ended_at
-    events_after = await events_service.list_events(db_session, project_id=str(project.id))
+    events_after = await events_service.list_events(
+        db_session, principal, project_id=str(project.id)
+    )
     assert sum(1 for e in events_after if e.event_type == "session.ended") == 1

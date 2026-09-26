@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.decision import DecisionModel
 from studio_api.services import decisions as decisions_service
 from studio_api.services import idempotency as idempotency_service
-from studio_api.services.authz import Principal, ensure_can_write
+from studio_api.services.authz import Principal
 from studio_contracts.decisions import DecisionCreate
 
 from studio_mcp.errors import run_tool
@@ -31,14 +31,16 @@ def _compact_decision(decision: DecisionModel) -> dict[str, Any]:
 async def studio_get_decisions(ctx: Context, project_id: str | None = None) -> dict[str, Any]:
     """List decisions, optionally filtered by project_id (UUID string)."""
 
-    async def _handler(session: AsyncSession, _principal: Principal) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed_project_id = None
         if project_id is not None:
             parsed = parse_uuid(project_id, "project_id")
             if isinstance(parsed, dict):
                 return parsed
             parsed_project_id = parsed
-        decisions = await decisions_service.list_decisions(session, project_id=parsed_project_id)
+        decisions = await decisions_service.list_decisions(
+            session, principal, project_id=parsed_project_id
+        )
         return {"decisions": [_compact_decision(d) for d in decisions]}
 
     return await run_tool(ctx, _handler)
@@ -75,7 +77,7 @@ async def studio_add_decision(
             parsed_task_id = parsed
         # Ahead of `run_idempotent_dict`'s replay short-circuit — see
         # `routers/tasks.py::create_task` for why (DEC-0036).
-        ensure_can_write(principal, "decision")
+        decisions_service.authorize_create(principal, parsed_project_id)
 
         async def _create() -> dict[str, Any]:
             decision = await decisions_service.create_decision(

@@ -35,6 +35,7 @@ async def test_duplicate_project_slug_conflicts(
         "/api/v1/projects", headers=auth_headers, json={"slug": slug, "name": "Second"}
     )
     assert second.status_code == 409
+    assert second.json()["detail"]["error_code"] == "conflict"
 
 
 async def test_readonly_cannot_create_project(
@@ -63,21 +64,6 @@ async def test_bootstrap_admin_rejects_second_admin(db_session: AsyncSession) ->
             db_session, "Second Admin", f"{uuid.uuid4()}@example.test"
         )
     assert exc_info.value.status_code == 409
-
-
-async def test_non_admin_cannot_create_machine(
-    client: AsyncClient, auth_headers: dict[str, str], machine: tuple[MachineModel, str]
-) -> None:
-    owner_machine, _ = machine
-    response = await client.post(
-        "/api/v1/machines",
-        headers=auth_headers,
-        json={
-            "owner_user_id": str(owner_machine.owner_user_id),
-            "display_name": "second-machine",
-        },
-    )
-    assert response.status_code == 403
 
 
 async def test_admin_creates_and_revokes_machine(

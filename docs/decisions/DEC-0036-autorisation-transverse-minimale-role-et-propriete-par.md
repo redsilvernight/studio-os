@@ -187,3 +187,19 @@ Tests modifies/ajoutes : `tests/api/test_authz.py` (nouveau),
 
 Validation `studio-tester` et `contract-guardian` : voir rapports separes
 dans la session.
+
+## Amendement — DEC-0103 (2026-09-24, acceptee ; serveur DEC-0103)
+
+Conserve : role transverse, ownership par ressource, regle Transfer, controle
+avant le court-circuit d'idempotence, `403` sans `404` de confidentialite.
+Remplace : « sans nouvelle table » et « jamais une ACL projet separee » — un
+troisieme niveau, l'acces projet par `project_memberships`, se compose par ET
+logique avec les deux autres. Contrats : `TECH/02` et `TECH/04` (rupture,
+`API_CONTRACT_VERSION` 2). Effectif a la livraison du lot d'implementation A0.
+
+## Amendements
+
+(Acceptés le 2026-09-25 ; le détail fait foi dans le fichier cité.)
+
+- DU0-B (`DU0-B-session-revocation.md`, DEC-0110) : révocation de session par `auth_version`.
+- DU0-D (`DU0-D-version-compatibility.md`, DEC-0107) : compatibilité de version du contrat 2.

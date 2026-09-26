@@ -28,7 +28,7 @@ from studio_api.services import provisioning as provisioning_service
 
 TEST_DATABASE_URL = os.environ.get(
     "STUDIO_TEST_DATABASE_URL",
-    "postgresql+asyncpg://studio:studio@localhost:5432/studio_os_test",
+    "postgresql+asyncpg://studio:studio@127.0.0.1:5432/studio_os_test",
 )
 
 
@@ -94,7 +94,11 @@ async def test_concurrent_same_key_creates_exactly_one_task(
             setup_session, user.id, "concurrency-test-machine"
         )
         project = await projects_service.create_project(
-            setup_session, f"concurrency-{uuid.uuid4().hex[:8]}", "Concurrency Test Project", None
+            setup_session,
+            f"concurrency-{uuid.uuid4().hex[:8]}",
+            "Concurrency Test Project",
+            None,
+            creator=None,
         )
 
     headers = {**{"Authorization": f"Bearer {token}"}, "Idempotency-Key": str(uuid.uuid4())}
@@ -160,7 +164,11 @@ async def test_same_key_different_payload_is_rejected_not_replayed(
             setup_session, user.id, "hash-mismatch-test-machine"
         )
         project = await projects_service.create_project(
-            setup_session, f"hashmismatch-{uuid.uuid4().hex[:8]}", "Hash Mismatch Project", None
+            setup_session,
+            f"hashmismatch-{uuid.uuid4().hex[:8]}",
+            "Hash Mismatch Project",
+            None,
+            creator=None,
         )
 
     key = str(uuid.uuid4())
@@ -222,7 +230,7 @@ async def test_failed_creation_releases_key_for_a_clean_retry(
         )
         taken_slug = f"taken-{uuid.uuid4().hex[:8]}"
         existing_project = await projects_service.create_project(
-            setup_session, taken_slug, "Existing Project", None
+            setup_session, taken_slug, "Existing Project", None, creator=None
         )
 
     key = str(uuid.uuid4())
@@ -287,7 +295,11 @@ async def test_stale_pending_reservation_is_reclaimed_after_a_crash(
             setup_session, user.id, "reclaim-test-machine"
         )
         project = await projects_service.create_project(
-            setup_session, f"reclaim-{uuid.uuid4().hex[:8]}", "Reclaim Test Project", None
+            setup_session,
+            f"reclaim-{uuid.uuid4().hex[:8]}",
+            "Reclaim Test Project",
+            None,
+            creator=None,
         )
 
     key = str(uuid.uuid4())
