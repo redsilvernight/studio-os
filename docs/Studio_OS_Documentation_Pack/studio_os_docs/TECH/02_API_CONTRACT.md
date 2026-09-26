@@ -27,6 +27,12 @@ Base: `/api/v1`
   "latest", "message"}}` avec invitation a mettre a jour. Absents, famille
   inconnue ou version illisible : la requete passe (les clients pre-C1
   continuent de fonctionner, y compris sur les flux d'auth).
+- Fenetre de grace (C1, additif) : un client declare entre le minimum et la
+  derniere version connue est servi normalement et marque sur la reponse par
+  les headers `X-Studio-Client-Update: recommended` +
+  `X-Studio-Client-Latest: <version>` (non bloquant, affichage cote client ;
+  exposes en CORS). Aucun header quand le client est a jour, non declare,
+  famille inconnue ou version illisible.
 ### Auth (DASH-4, DEC-0056)
 - POST /auth/token — body `TokenRequest` (`email`, `password`); response `TokenResponse`
   (`access_token`, `token_type=bearer`). Retourne `401` sur mauvais identifiants.

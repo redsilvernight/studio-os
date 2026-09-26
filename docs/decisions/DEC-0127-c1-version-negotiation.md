@@ -17,10 +17,16 @@ avec invitation à mettre à jour, flux d'auth inclus. Absence de headers,
 famille inconnue ou version illisible = pass-through, les clients pré-C1
 continuent de fonctionner sans modification.
 
-Le client Python (`studio-client`, famille `daemon`) envoie ses headers
-sur chaque appel ; `426` est mappé à `ClientUpgradeRequiredError`,
-jamais retenté. Changement classé additif : nouvel endpoint, nouveaux
-headers optionnels, nouveau code d'erreur uniquement sur déclaration
-explicite d'un vieux build. `TECH/02_API_CONTRACT.md` mis à jour dans
-le même changement. L'affichage côté clients (recommandé vs obligatoire)
-et la matrice de tests N-1/N relèvent des deux autres tâches C1.
+Fenêtre de grâce (obligatoire vs recommandé) : un build déclaré entre le
+minimum et la dernière version connue est **servi normalement** et marqué
+sur la réponse par `X-Studio-Client-Update: recommended` +
+`X-Studio-Client-Latest` (exposés en CORS), jamais bloqué. Le client
+affiche alors un bandeau non bloquant (dashboard/Desktop) ou une note
+stderr (CLI) ; seul le 426 déclenche l'écran bloquant. Le client Python
+(`studio-client`, famille `daemon`) envoie ses headers sur chaque appel,
+expose `update_recommended`/`latest_version` et `server_version()`, et
+mappe `426` à `ClientUpgradeRequiredError`, jamais retenté.
+
+Aucune promesse de signature de code : la distribution Windows est non
+signée (DEC-0129), l'écran de mise à jour n'évoque donc jamais
+Authenticode — la confiance vient des signatures minisign de l'updater.

@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from importlib.metadata import PackageNotFoundError, version
 
-from studio_contracts.version import CLIENT_FAMILIES
+from studio_contracts.version import (
+    CLIENT_FAMILIES,
+    CLIENT_STATUS_CURRENT,
+    CLIENT_STATUS_RECOMMENDED,
+)
 
 try:
     SERVER_VERSION: str = version("studio-api")
@@ -62,3 +66,27 @@ def check_client(client: str | None, client_version: str | None, settings: objec
     if not client or client.lower() not in CLIENT_FAMILIES:
         return True
     return is_supported(client_version, family_minimum(settings, client.lower()))
+
+
+def client_status(client: str | None, client_version: str | None, settings: object) -> str:
+    """Advisory verdict for a supported (or undeclared) client.
+
+    `recommended` means the declared build is served but a newer release
+    exists (grace window: still fully functional, only a non-blocking
+    nudge). Anything unreadable/undeclared is `current` — silence, never a
+    false alarm. The mandatory case is not represented here: it is the 426.
+    """
+    if not client or client.lower() not in CLIENT_FAMILIES or not client_version:
+        return CLIENT_STATUS_CURRENT
+    family = client.lower()
+    latest = family_latest(settings, family)
+    minimum = family_minimum(settings, family)
+    if not latest:
+        return CLIENT_STATUS_CURRENT
+    parsed = parse_version(client_version)
+    newest = parse_version(latest)
+    if parsed is None or newest is None:
+        return CLIENT_STATUS_CURRENT
+    if is_supported(client_version, minimum) and parsed < newest:
+        return CLIENT_STATUS_RECOMMENDED
+    return CLIENT_STATUS_CURRENT

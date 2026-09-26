@@ -6,6 +6,11 @@ CLIENT_FAMILIES: tuple[str, ...] = ("desktop", "daemon", "dashboard")
 
 CLIENT_HEADER = "X-Studio-Client"
 VERSION_HEADER = "X-Studio-Client-Version"
+UPDATE_HEADER = "X-Studio-Client-Update"
+LATEST_HEADER = "X-Studio-Client-Latest"
+
+CLIENT_STATUS_CURRENT = "current"
+CLIENT_STATUS_RECOMMENDED = "recommended"
 
 
 class VersionInfo(BaseModel):

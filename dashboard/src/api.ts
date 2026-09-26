@@ -11,6 +11,7 @@ import createClient, { type Middleware } from "openapi-fetch";
 import type { paths } from "./openapi-schema";
 import { getToken } from "./auth";
 import { observedFetch } from "./apiEvents";
+import { clientNegotiationHeaders } from "./clientIdentity";
 import { getServerOriginOverride } from "./runtimeConfig";
 
 export interface ApiErrorDetails {
@@ -49,6 +50,9 @@ const bearer: Middleware = {
     const token = getToken();
     if (token !== null) {
       request.headers.set("Authorization", `Bearer ${token}`);
+    }
+    for (const [name, value] of Object.entries(clientNegotiationHeaders())) {
+      request.headers.set(name, value);
     }
     return request;
   },
