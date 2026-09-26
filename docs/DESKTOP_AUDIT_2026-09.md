@@ -61,7 +61,9 @@ de sécurité du poste non modifiable par un agent).
 
 ## Reprise
 
-- Installateur de la version corrigée : pré-release `desktop-flo-laptop-*` publiée par
-  `.github/workflows/desktop-installer-flo-laptop.yml` (branche `deploy/flo-laptop` uniquement).
+- Installateur de la version corrigée : produit et publié par
+  `.github/workflows/desktop-channels.yml` (canal `prod`, branche `deploy/flo-laptop`).
+  Le workflow `desktop-installer-flo-laptop.yml` (deploy-only) a été supprimé —
+  B5/T3, DEC-0098 : aucune feature uniquement sur `deploy/*`.
 - Suite suggérée : HTTPS pour le stockage, puis rebuild du Desktop avec `--storage-url` ;
   décider de la signature de code (certificat) avant toute distribution hors du poste.
