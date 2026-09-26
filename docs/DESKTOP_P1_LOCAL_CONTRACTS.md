@@ -55,7 +55,12 @@ un test échoue si l'export diverge des builders Python.
   `knowledge.init` : seul `workspace_id` est adressable, aucune saisie de chemin.
   Il ajoute aussi `harness.verify` sous la capability optionnelle homonyme afin
   de prouver une connexion MCP réelle (authentification et appel d'outil), sans
-  muter la configuration du harness.
+  muter la configuration du harness. `VerifyState` : `unconfigured`,
+  `configured`, `token_missing` (configuration en place, aucun jeton machine
+  disponible ; sans `error`, ajout additif DEC-0104), `verified`, `failed`.
+  Ajouts additifs DEC-0104 §2 : `HarnessChange.scope` (`workspace` par défaut
+  | `user`, cible alors relative au home) et `HarnessPreviewRequest.renew`
+  (défaut `false` : renouvelle l'identifiant dédié de l'outil).
 - **Daemon / outbox** : partition d'outbox = sha256(origine, profil, machine) ;
   verrou d'instance = sha256(origine, profil). Rejeu sous une autre identité
   refusé (`IDENTITY_MISMATCH`).

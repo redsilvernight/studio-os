@@ -1,5 +1,5 @@
 ---
-id: DEC-0100
+id: DEC-0103
 title: 'Isolation projet minimale : membership User→Project, rôle = quoi, membership = où'
 status: accepted
 date: '2026-09-24'
@@ -10,7 +10,7 @@ server_replaces: d31c16ea-06f1-481c-a701-7c06845dd426 (DEC-0097 serveur, superse
 source: docs/DU0_AUTH_PROJECT_DATA_AUDIT.md
 ---
 
-# DEC-0100 — Isolation projet minimale : membership User→Project
+# DEC-0103 — Isolation projet minimale : membership User→Project
 
 Gate DU-0 de la roadmap « Desktop Distribution, Updates & Public Registration »
 (tâche `d0e23fe3`). Préalable à toute inscription publique. Acceptée (serveur DEC-0103), non

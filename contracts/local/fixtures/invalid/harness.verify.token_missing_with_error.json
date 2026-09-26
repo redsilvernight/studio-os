@@ -1,0 +1,20 @@
+{
+  "data": {
+    "adapter_id": "harness-alpha-adapter",
+    "details": {
+      "reason": "token_missing"
+    },
+    "error": {
+      "code": "internal_error",
+      "component": "harness",
+      "correlation_id": null,
+      "details": {},
+      "message": "x",
+      "retryable": false
+    },
+    "mcp_url": "https://studio.example/mcp",
+    "state": "token_missing"
+  },
+  "model": "HarnessVerifyResult",
+  "reason": "a missing token is a condition, not a failure: it carries no error"
+}

@@ -21,6 +21,7 @@ studio_get_sessions
 studio_get_teammate_activity
 studio_start_session
 studio_end_session
+studio_register_agent
 studio_log_ai_work
 studio_get_ai_work
 studio_get_review_queue
@@ -66,11 +67,12 @@ token (pas d'attaquant reseau).
 
 ## Etat reel (roadmap etape 5, DEC-0023, UC-3/DEC-0047, P8/DEC-0072)
 
-Le serveur VPS enregistre 45 outils (`services/mcp/src/studio_mcp/` : 29
+Le serveur VPS enregistre 46 outils (`services/mcp/src/studio_mcp/` : 29
 historiques + 5 AI Library P8, section ci-dessous, + `studio_prepare_context`,
 DEC-0080, section « Contexte projet borné », + 7 outils Roadmaps P4/P5,
-DEC-0087, section « Roadmaps et initialisation via MCP », + 1 transition
-de roadmap `studio_transition_roadmap`).
+DEC-0087, section « Roadmaps et initialisation via MCP », +
+`studio_register_agent`, DEC-0101, section « Enregistrement d'Agent », +
+`studio_transition_roadmap`, section « Roadmaps et initialisation via MCP »).
 Les 3 outils locaux read-only specifies ci-dessous (UC-3, exposition via
 MCP local par poste, DEC-0047) sont en place mais conditionnels au
 fichier de configuration du poste : `studio_memory_search`,
@@ -178,11 +180,24 @@ optimiste via `expected_version`, deja protegee), `studio_log_ai_work`
 (semantique create-ou-update ambigue pour une seule cle — hors perimetre de
 DEC-0027, a trancher separement si un besoin reel de replay apparait).
 
-**Enregistrement d'Agent (CC-1/DEC-0045)** : HTTP-only (`POST /agents`,
-`TECH/02`) — aucun outil `studio_register_agent` n'existe a ce jour. Un
-consommateur purement MCP materialise son `Agent` via HTTP ; `studio_log_ai_work`
-applique la meme regle d'ownership `actor_not_owned` que le chemin HTTP,
-le service etant partage (DEC-0005/DEC-0036).
+**Enregistrement d'Agent (CC-1/DEC-0045, DEC-0101 additif)** : `POST /agents`
+(`TECH/02`) et `studio_register_agent` partagent le meme service
+(`agents.create_agent`, DEC-0005). Les deux chemins derivent `machine_id`
+de la machine authentifiee (DEC-0035, jamais fourni par le client),
+exigent `ensure_can_write` avant le court-circuit d'idempotence (DEC-0036),
+et rejouent sous des namespaces distincts (`POST /agents` vs
+`MCP studio_register_agent`, DEC-0024/DEC-0027 — jamais la meme intention).
+`studio_log_ai_work` applique la meme regle d'ownership `actor_not_owned`
+sur les deux chemins. L'enregistrement ne confere aucun droit (CC-1) ;
+`display_name` requis, `agent_kind`/`agent_profile`/`harness`/`provider`/
+`model` optionnels (chaines ouvertes d'observabilite, TECH/02).
+
+**`studio_log_ai_work` — creation et mise a jour (tache c5c20c90)** : sans
+`ai_work_id`, `status` (defaut `started`), `changed_files` et `tests_run`
+sont appliques a la creation (parite `POST /ai-work`, meme service) ;
+`approved`/`changes_requested` y sont refuses (`invalid_status_transition`).
+Avec `ai_work_id`, seuls les champs non nuls changent, mais `summary`
+(requis) remplace toujours le resume stocke : repasser le resume complet.
 
 **`studio_log_ai_work` — creation et mise a jour (tache c5c20c90)** : sans
 `ai_work_id`, `status` (defaut `started`), `changed_files` et `tests_run`
@@ -283,7 +298,7 @@ seconde taxonomie ; aucun `version`/`schema_version` en payload
 (DEC-0048) ; overrides session valides comme des choix stockes,
 gagnants selon P4, jamais persists.
 
-Acces projet (DEC-0100, rupture semantique, schemas inchanges) : tout
+Acces projet (DEC-0103, rupture semantique, schemas inchanges) : tout
 outil MCP applique les memes gardes que HTTP, dans les services partages
 (DEC-0046 §4) — `run_tool` injecte le `Principal` avec son
 `project_scope`. `studio_prepare_context`, `studio_discover_definitions` et
@@ -331,12 +346,12 @@ Sélection = liens structurels + recouvrement lexical exact avec l'objectif,
 jamais de recherche sémantique ni de LLM. Mêmes règles d'accès que les
 outils de lecture composés (Library `user` d'autrui invisible, Library
 Studio réservée à `admin` ou à un User ayant au moins une membership).
-Accès projet (DEC-0100, rupture sémantique, schémas inchangés) : `project_id`
+Accès projet (DEC-0103, rupture sémantique, schémas inchangés) : `project_id`
 inaccessible (ni membership ni `admin`) ou inexistant →
 `{error_code: "forbidden", resource: "project", action: "read"}` **avant
 toute lecture** ; un `task_id` rattaché à un projet inaccessible →
 même refus `forbidden` / `resource: "project"` (remplace l'ancien
-`not_found` inter-projet, DEC-0100 §8/§10 : UUID v4, pas d'oracle
+`not_found` inter-projet, DEC-0103 §8/§10 : UUID v4, pas d'oracle
 exploitable) ; un `task_id` inexistant, ou rattaché à un autre projet
 accessible, reste `not_found`. Section AI Work (P2) — `ai_work` : entrées de travail pertinentes pour la
 reprise, bornées à `limit`, tranche dédiée de 15 % de `max_chars` sur le même
@@ -404,7 +419,7 @@ sans roadmap `active`). Budgets et erreurs
 structurees comme les autres outils (DEC-0048, sans version par payload).
 
 ## Roadmaps et initialisation via MCP (P4/P5, DEC-0087) — implementes
-Surface MCP implementee (35 -> 45 outils), sur les memes services que l'API
+Surface MCP implementee (35 -> 46 outils), sur les memes services que l'API
 (DEC-0046). Tout est derive des contrats P1 (`studio.roadmap/v1`) plus le
 nouveau contrat neutre `studio.initialization/v1`.
 - `studio_get_roadmap(project_id, status?, limit, max_chars)` — lecture :
@@ -450,7 +465,7 @@ nouveau contrat neutre `studio.initialization/v1`.
   un probleme est bloquant ; resume `created/reused/skipped` identique au
   preview ; replays idempotents. Slug deja pris (meme invisible de
   l'appelant) -> `{error_code: "conflict", message, slug}` (slugs non
-  secrets, oracle accepte, DEC-0101) ; un `error_code` inconnu reste le
+  secrets, oracle accepte, DEC-0105) ; un `error_code` inconnu reste le
   fallback generique `{error_code: "error"}`.
 Aucun de ces outils n'approuve une *revision* de proposition.
 HTTP reste la surface canonique (DEC-0046) : la route `POST .../proposals/{n}/review`

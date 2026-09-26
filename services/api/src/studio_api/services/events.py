@@ -38,7 +38,7 @@ async def resolve_event_identity(
     role write-gate (DEC-0036: `readonly` never writes shared state) is
     checked here too, ahead of that same idempotent short-circuit, so a
     replay by an unauthorized caller can never consume/observe a third
-    party's stored response. The project write check (DEC-0100 §12) runs
+    party's stored response. The project write check (DEC-0103 §12) runs
     first, for the same reason and so an inaccessible project's `event_id`
     replay never reveals whether it exists.
 
@@ -201,7 +201,7 @@ async def list_events(
         stmt = stmt.where(visible)
     if task_id is not None:
         # A task of an inaccessible project answers the project 403, not an
-        # empty listing (DEC-0100 §8); an unknown task filters to nothing.
+        # empty listing (DEC-0103 §8); an unknown task filters to nothing.
         await tasks_service.read_task(session, principal, _as_uuid(task_id))
         stmt = stmt.where(EventModel.task_id == task_id)
     if since is not None:
@@ -214,14 +214,14 @@ async def list_events(
 
 def authorize_stream(principal: Principal, project_id: UUID) -> None:
     """Opening check of `GET /events/stream`, run before the response starts
-    so an inaccessible project is a plain 403 (DEC-0100 §9)."""
+    so an inaccessible project is a plain 403 (DEC-0103 §9)."""
     ensure_project_access(principal, project_id)
 
 
 async def stream_access_still_valid(
     machine_id: UUID, project_id: UUID, jwt_auth_version: int | None = None
 ) -> bool:
-    """Periodic revalidation of an open stream (DEC-0100 §9, DEC-0110): the
+    """Periodic revalidation of an open stream (DEC-0103 §9, DEC-0110): the
     request's session is closed for the connection's lifetime, so this
     reloads the machine, its owner's state, role and memberships on a
     short-lived session of its own. A revoked credential, a disabled or

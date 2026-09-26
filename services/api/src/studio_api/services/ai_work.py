@@ -80,7 +80,7 @@ async def list_ai_work(
         stmt = stmt.where(visible)
     if task_id is not None:
         # A task of an inaccessible project answers the project 403, not an
-        # empty listing (DEC-0100 §8); an unknown task filters to nothing.
+        # empty listing (DEC-0103 §8); an unknown task filters to nothing.
         await tasks_service.read_task(session, principal, task_id)
         stmt = stmt.where(AIWorkLogModel.task_id == task_id)
     result = await session.execute(stmt)
@@ -89,7 +89,7 @@ async def list_ai_work(
 
 def authorize_create(principal: Principal, project_id: uuid.UUID) -> None:
     """Project then role check of an AI work entry creation, run ahead of the
-    idempotency replay short-circuit (DEC-0036, DEC-0100 §12)."""
+    idempotency replay short-circuit (DEC-0036, DEC-0103 §12)."""
     ensure_project_access(principal, project_id, "write")
     ensure_can_write(principal, "ai_work")
 

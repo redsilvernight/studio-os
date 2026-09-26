@@ -8,7 +8,7 @@ Ce lot est exclusivement architectural. Aucun endpoint, modèle, migration,
 rate limiter, écran, updater, certificat, secret ou workflow de publication
 n'a été implémenté.
 
-## A. DEC-0100 — isolation projet
+## A. DEC-0103 — isolation projet
 
 **Current.** L'API applique rôle global et ownership, sans ACL projet. La
 membership binaire User→Project est le plus petit modèle cohérent : le rôle
@@ -33,7 +33,7 @@ supersession.
 `19922554-bcd8-498f-9a14-7dab87916bf2` (`readable_id=DEC-0103`), **proposed**,
 corps resynchronisé. Elle remplace `d31c16ea-06f1-481c-a701-7c06845dd426`
 (`DEC-0097` serveur, désormais **superseded**). ADR :
-`docs/decisions/DEC-0100-isolation-projet-membership-user.md`.
+`docs/decisions/DEC-0103-isolation-projet-membership-user.md`.
 
 ## B. Inscription publique
 
@@ -96,7 +96,7 @@ store atomique partagé avant scale-out.
 ces nouveaux statuts sont breaking et rattachés à API contract 2. Event
 inchangé. DEC-0060 AMEND. Proposition UUID
 `df4d6d3b-5682-4ee1-8460-410ebaf4c102`, `readable_id=DEC-0106`, **proposed** ;
-remplace `a4b001d3-…` (`DEC-0100` serveur, superseded).
+remplace `a4b001d3-…` (`DEC-0103` serveur, superseded).
 ADR : `docs/decisions/DU0-C-trusted-proxy-rate-limiting.md`.
 
 ## E. Version et compatibilité
@@ -109,7 +109,7 @@ La troisième est recommandée.
 
 **Recommandation.** Séparer Desktop/server/API/Event/local protocol ; exposer
 plus tard `GET /api/v1/meta/compatibility` public ; serveur N compatible Desktop N et N-1
-selon matrice CI. API passe à 2 pour DEC-0100, Event reste 1. `403` projet est
+selon matrice CI. API passe à 2 pour DEC-0103, Event reste 1. `403` projet est
 terminal pour lectures, outbox et SSE.
 
 **Impacts.** Metadata additif, API contract 2 breaking sous `/api/v1` (aucune
@@ -159,7 +159,7 @@ révoquer définitivement ; enveloppe `{"detail":{...}}` pour les erreurs à
 d'échec seulement ; refus MCP `forbidden` dans l'enveloppe TECH/07 ;
 `409 idempotency_key_payload_mismatch` sans secret stocké. Points ouverts
 pour l'humain : `403` sur UUID de projet inexistant pour un non-admin
-(DEC-0100 §8) ; DU0-C pourrait AMEND DEC-0056 (429 sur `/auth/token`).
+(DEC-0103 §8) ; DU0-C pourrait AMEND DEC-0056 (429 sur `/auth/token`).
 
 Contrats touchés : TECH/02 API, TECH/04 Auth/Sync, TECH/05 Data Model, TECH/07
 MCP et, par notes de lecture/SSE seulement, TECH/03 Event. L'enveloppe Event
@@ -207,7 +207,7 @@ Avant de clore DU-0, un administrateur humain doit :
    (`6e458e81-e8d8-4934-8ccb-fac0c5ea0855`, base 1), identique à la
    révision 3 hormis les UUID A/B du critère DU0 ;
 4. identifier chaque décision par son UUID. Seules les anciennes propositions
-   serveur DEC-0097, DEC-0098 et DEC-0100 collisionnaient avec des ADR du
+   serveur DEC-0097, DEC-0098 et DEC-0103 collisionnaient avec des ADR du
    dépôt ; DEC-0103…0108 n'ont aucune collision.
 
 ## J. Statut DU-0
@@ -230,7 +230,7 @@ aucun push n'ont été effectués. Claims de ressources et de tâches DU-0 libé
 sessions DU-0 fermées ; tâches DU-0 laissées `blocked`, non claimées.
 
 Note d'identifiants : collisions réelles seulement pour les anciennes
-propositions serveur DEC-0097, DEC-0098 et DEC-0100 avec les ADR du dépôt du
-même numéro. DEC-0099, DEC-0101 et DEC-0102 n'avaient pas de collision. Les
+propositions serveur DEC-0097, DEC-0098 et DEC-0103 avec les ADR du dépôt du
+même numéro. DEC-0099, DEC-0105 et DEC-0102 n'avaient pas de collision. Les
 fichiers DU-0 portent l'UUID serveur canonique ; aucun fichier historique n'a
 été écrasé.

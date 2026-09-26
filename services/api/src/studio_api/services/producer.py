@@ -203,7 +203,7 @@ async def get_producer_job(
 
 def authorize_request(principal: Principal, project_id: UUID) -> None:
     """Project then role check of a job request, run ahead of the
-    idempotency replay short-circuit (DEC-0036, DEC-0100 §12)."""
+    idempotency replay short-circuit (DEC-0036, DEC-0103 §12)."""
     ensure_project_access(principal, project_id, "write")
     ensure_can_write(principal, "producer_job")
 

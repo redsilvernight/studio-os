@@ -2,7 +2,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createFixtureRoadmapDataSource } from "../roadmapData";
 import { roadmapFixtureProjectIds } from "../roadmapFixtures";
-import { roadmapExecutionHtml, roadmapPlanHtml, roadmapPrintHtml, roadmapShellHtml, roadmapStepDetailHtml, roadmapSwitcherHtml, renderRoadmapInto } from "./roadmap";
+import { ApiError, parseErrorBody } from "../api";
+import { isRoadmapManagerRole, roadmapExecutionHtml, roadmapFullyDone, roadmapLifecycleHtml, roadmapPlanHtml, roadmapPrintHtml, roadmapShellHtml, roadmapStepDetailHtml, roadmapSwitcherHtml, renderRoadmapInto } from "./roadmap";
 import type { RoadmapDataSource } from "../roadmapTypes";
 
 describe("Roadmap workspace", () => {
@@ -191,5 +192,136 @@ describe("Roadmap switcher and targeted roadmap", () => {
       `#/projects/${proposed.project_id}/roadmap/${proposed.id}`,
     ]);
     expect(links[1]?.getAttribute("aria-current")).toBe("page");
+  });
+});
+
+describe("Roadmap lifecycle and review errors", () => {
+  beforeEach(() => {
+    document.body.innerHTML = `<div id="ds-toast-region"></div><main id="root"></main>`;
+  });
+
+  const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+  const click = (root: HTMLElement, selector: string): void => {
+    const button = root.querySelector<HTMLButtonElement>(selector);
+    expect(button, selector).not.toBeNull();
+    button?.click();
+  };
+
+  async function render(source: RoadmapDataSource, projectId: string, canManageLifecycle?: boolean): Promise<HTMLElement> {
+    const root = document.getElementById("root") as HTMLElement;
+    await renderRoadmapInto(root, { dataSource: source, projectId, projectName: "P", canManageLifecycle });
+    return root;
+  }
+
+  it("clôture une roadmap active après confirmation", async () => {
+    const root = await render(createFixtureRoadmapDataSource(), roadmapFixtureProjectIds.active);
+    click(root, '[data-lifecycle="complete"]');
+    expect(root.textContent).toContain("Clôturer cette roadmap ?");
+    click(root, "[data-lifecycle-confirm]");
+    await flush();
+    expect(root.querySelector(".roadmap-title-line")?.textContent).toContain("Terminée");
+    expect(root.querySelector('[data-lifecycle="reopen"]')).not.toBeNull();
+  });
+
+  it("exige un motif pour rouvrir, puis rouvre", async () => {
+    const source = createFixtureRoadmapDataSource();
+    const transition = vi.spyOn(source, "transitionRoadmap");
+    const root = await render(source, roadmapFixtureProjectIds.completed);
+    click(root, '[data-lifecycle="reopen"]');
+    click(root, "[data-lifecycle-confirm]");
+    await flush();
+    expect(root.textContent).toContain("Motif requis");
+    expect(transition).not.toHaveBeenCalled();
+    (root.querySelector("[data-lifecycle-comment]") as HTMLTextAreaElement).value = "Étape oubliée";
+    click(root, "[data-lifecycle-confirm]");
+    await flush();
+    expect(transition).toHaveBeenCalledWith(expect.objectContaining({ status: "completed" }), "reopen", "Étape oubliée");
+    expect(root.querySelector(".roadmap-title-line")?.textContent).toContain("Active");
+  });
+
+  it("annuler referme la confirmation sans rien envoyer", async () => {
+    const source = createFixtureRoadmapDataSource();
+    const transition = vi.spyOn(source, "transitionRoadmap");
+    const root = await render(source, roadmapFixtureProjectIds.active);
+    click(root, '[data-lifecycle="archive"]');
+    click(root, "[data-lifecycle-cancel]");
+    expect(root.querySelector(".roadmap-lifecycle-confirm")).toBeNull();
+    expect(transition).not.toHaveBeenCalled();
+  });
+
+  it("affiche un 409 de transition et relit la roadmap sur version_conflict", async () => {
+    const fixture = createFixtureRoadmapDataSource();
+    const load = vi.fn(fixture.load);
+    const source: RoadmapDataSource = {
+      ...fixture,
+      load,
+      transitionRoadmap: async () => {
+        throw new ApiError(parseErrorBody(409, { detail: { error_code: "version_conflict", server_version: 9 } }));
+      },
+    };
+    const root = await render(source, roadmapFixtureProjectIds.active);
+    load.mockClear();
+    click(root, '[data-lifecycle="complete"]');
+    click(root, "[data-lifecycle-confirm]");
+    await flush();
+    expect(root.querySelector("[data-lifecycle-error] [role=alert]")?.textContent).toContain("version_conflict");
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(root.querySelector(".roadmap-title-line")?.textContent).toContain("Active");
+  });
+
+  it("masque les actions de cycle de vie sans rôle admin/developer", async () => {
+    const root = await render(createFixtureRoadmapDataSource(), roadmapFixtureProjectIds.active, false);
+    expect(root.querySelector("[data-lifecycle]")).toBeNull();
+    expect(isRoadmapManagerRole("developer")).toBe(true);
+    expect(isRoadmapManagerRole("agent")).toBe(false);
+    expect(isRoadmapManagerRole(null)).toBe(false);
+  });
+
+  it("signale une roadmap active à 100 % et propose de la clôturer", async () => {
+    const roadmap = (await createFixtureRoadmapDataSource().load(roadmapFixtureProjectIds.active))!;
+    const done = { ...roadmap, progress: { done: 3, total: 4, skipped: 1, ratio: 1 } };
+    expect(roadmapFullyDone(done)).toBe(true);
+    expect(roadmapFullyDone(roadmap)).toBe(false);
+    const html = roadmapLifecycleHtml(done, { allowed: true });
+    expect(html).toContain("Toutes les étapes sont terminées");
+    expect(html).toContain('data-lifecycle="complete"');
+    expect(roadmapLifecycleHtml(done, { allowed: false })).not.toContain("data-lifecycle=");
+  });
+
+  it("affiche active_roadmap_exists à l'approbation sans changer le statut", async () => {
+    const fixture = createFixtureRoadmapDataSource();
+    const proposed = (await fixture.load(roadmapFixtureProjectIds.proposed))!;
+    const source: RoadmapDataSource = {
+      ...fixture,
+      listRoadmaps: async () => [
+        { id: "r-old", title: "Ancien plan", status: "active" },
+        { id: proposed.id, title: proposed.title, status: "proposed" },
+      ],
+      reviewProposal: async () => {
+        throw new ApiError(parseErrorBody(409, { detail: { error_code: "active_roadmap_exists" } }));
+      },
+    };
+    const root = await render(source, roadmapFixtureProjectIds.proposed);
+    click(root, '[data-review="approve"]');
+    await flush();
+    const alert = root.querySelector("[data-review-error] [role=alert]");
+    expect(alert?.textContent).toContain("déjà active");
+    expect(alert?.querySelector("a")?.getAttribute("href")).toBe(`#/projects/${roadmapFixtureProjectIds.proposed}/roadmap/r-old`);
+    expect(root.querySelector(".roadmap-title-line")?.textContent).toContain("À examiner");
+    expect(root.querySelector<HTMLButtonElement>('[data-review="approve"]')?.disabled).toBe(false);
+  });
+
+  it("affiche une erreur réseau à l'approbation", async () => {
+    const source: RoadmapDataSource = {
+      ...createFixtureRoadmapDataSource(),
+      reviewProposal: async () => {
+        throw new TypeError("Failed to fetch");
+      },
+    };
+    const root = await render(source, roadmapFixtureProjectIds.proposed);
+    click(root, '[data-review="approve"]');
+    await flush();
+    expect(root.querySelector("[data-review-error] [role=alert]")?.textContent).toContain("Impossible de joindre le serveur");
+    expect(root.querySelector(".roadmap-title-line")?.textContent).toContain("À examiner");
   });
 });

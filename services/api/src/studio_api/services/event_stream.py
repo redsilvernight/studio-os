@@ -11,7 +11,7 @@ _QUEUE_MAXSIZE = 256
 _CLOSED = object()
 
 KEEPALIVE_SECONDS = 10.0
-"""Idle interval after which `receive` returns `KEEPALIVE` (DEC-0100 §9)."""
+"""Idle interval after which `receive` returns `KEEPALIVE` (DEC-0103 §9)."""
 
 
 class _Keepalive:
@@ -30,7 +30,7 @@ class StreamEvent:
 
 @dataclass(frozen=True)
 class AccessRevoked:
-    """Internal, never persisted signal (DEC-0100 §9): `user_id` lost its
+    """Internal, never persisted signal (DEC-0103 §9): `user_id` lost its
     membership of `project_id`; every stream of that pair closes."""
 
     user_id: UUID

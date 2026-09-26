@@ -37,6 +37,7 @@ import {
   statusColumn,
   TASK_COLUMNS,
   taskClaimHint,
+  taskClaimTitle,
   taskStatusLabel,
   taskStatusTone,
   type TaskStatus,
@@ -200,7 +201,8 @@ function taskListRowHtml(task: Task, options: TasksRenderOptions): string {
     const name = options.projectNames?.[task.project_id] ?? null;
     meta.push(`<span class="task-project">${esc(name === null || name === "" ? "Projet inconnu" : name)}</span>`);
   }
-  meta.push(esc(taskClaimHint(task)));
+  const claimTitle = taskClaimTitle(task);
+  meta.push(claimTitle === "" ? esc(taskClaimHint(task)) : `<span title="${esc(claimTitle)}">${esc(taskClaimHint(task))}</span>`);
   const excerpt = taskDescriptionExcerpt(task);
   return `<li class="ds-list-item task-row"><div class="grow task-main">` +
     `<div class="task-head"><div class="ds-list-title"><a href="#/tasks/${esc(task.id)}">${esc(task.title)}</a></div>` +

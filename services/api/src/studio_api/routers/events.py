@@ -20,7 +20,7 @@ from studio_api.services import events as events_service
 
 REVALIDATE_SECONDS = 20.0
 """Membership revalidation period of an open stream. Checked on every item,
-at worst one keep-alive late: bounded by 20 + 10 s (DEC-0100 §9: ≤ 30 s)."""
+at worst one keep-alive late: bounded by 20 + 10 s (DEC-0103 §9: ≤ 30 s)."""
 
 router = APIRouter(prefix="/api/v1/events", tags=["events"])
 
@@ -164,7 +164,7 @@ async def stream_events(
     parsed_last_event_id = _parse_last_event_id(last_event_id)
     cursor = parsed_last_event_id if parsed_last_event_id is not None else since_seq
     # Before the response starts: an inaccessible project is a plain 403,
-    # never an opened-then-closed stream (DEC-0100 §9).
+    # never an opened-then-closed stream (DEC-0103 §9).
     events_service.authorize_stream(principal, project)
     machine_id = principal.machine.id
     user_id = principal.user.id

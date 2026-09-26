@@ -84,7 +84,7 @@ async def create_transfer(
         default=None, alias="Idempotency-Key", description=IDEMPOTENCY_KEY_DESCRIPTION
     ),
 ) -> Transfer:
-    # Ahead of the idempotency replay short-circuit (DEC-0036, DEC-0100 §12).
+    # Ahead of the idempotency replay short-circuit (DEC-0036, DEC-0103 §12).
     transfers_service.authorize_create(principal, transfer_in.project_id)
     if transfer_in.project_id is None:
         project_slug = "unscoped"

@@ -72,7 +72,7 @@ async def test_a_non_admin_lists_only_its_own_users_machines(
     machine: tuple[MachineModel, str],
     admin_auth_headers: dict[str, str],
 ) -> None:
-    """Contract version 2 (DEC-0100): self/admin, never a co-member's machines."""
+    """Contract version 2 (DEC-0103): self/admin, never a co-member's machines."""
     response = await client.get("/api/v1/machines", headers=readonly_auth_headers)
     assert response.status_code == 200
     listed = {row["id"] for row in response.json()}

@@ -1,6 +1,6 @@
 """Role × account state × project access over MCP and the SSE revalidation
 (A3, task 0e337d4b): an inactive account has no principal (`unauthenticated`,
-stream closed); an active one is filtered by project access (DEC-0100)."""
+stream closed); an active one is filtered by project access (DEC-0103)."""
 
 from __future__ import annotations
 

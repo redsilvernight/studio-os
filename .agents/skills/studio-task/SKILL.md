@@ -9,7 +9,8 @@ description: Run a unit of work through existing Studi'OS primitives (task, clai
 
 1. Find work: `studio_get_active_tasks` / `studio_get_project_state` / `studio_get_task`.
 2. Take it: `studio_claim_task` (+ `studio_claim_resource` for paths, `studio_start_session`
-   for traceability). Pass a stable `idempotency_key` (UUID) on every replayable creation.
+   with the harness `agent_id` for traceability). Pass a stable `idempotency_key` (UUID) on
+   every replayable creation. Then the task branch per the `studio-git-flow` skill.
 3. Do the work locally.
 4. Persist state: `studio_update_task` with `expected_version`.
    On 409 `version_conflict`, reread (`server_version` in the error), merge, retry —

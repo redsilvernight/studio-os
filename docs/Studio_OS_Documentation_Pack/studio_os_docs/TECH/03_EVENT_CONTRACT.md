@@ -17,7 +17,7 @@
 }
 ```
 
-Acces en lecture (DEC-0100, NEUTRE pour ce contrat : enveloppe et
+Acces en lecture (DEC-0103, NEUTRE pour ce contrat : enveloppe et
 `schema_version` inchanges) : la livraison d'un event — `GET /events`
 (polling) comme `GET /events/stream` (SSE) — suit l'acces au projet de
 l'event (`project_id`) : membership du User appelant ou role `admin`.
@@ -101,4 +101,17 @@ documentees (ignorables) : `roadmap_id`, `revision_no`, `status`,
 de revision — et sur `approved`/`changes_requested`/`rejected`), `base_revision_no`,
 `comment` (sur les decisions de relecture) ; `roadmap.hydrated` -> `counts`
 (`create`/`reuse`/`skip`). Aucun couplage au Git Watcher : la progression se lit dans les
-Tasks, jamais dans `task.created`/`project.created` (declares mais non emis).
+Tasks, jamais dans `task.*`/`project.created` (`project.created` declare mais non emis).
+
+## Emission serveur Tasks
+Les ecritures de Task (HTTP et MCP, meme service) emettent leur evenement dans
+la meme transaction que l'etat (`stage_event`), diffuse apres commit sur le flux
+SSE du projet : `task.created` (creation unitaire ; l'hydratation de Roadmap
+n'emet que `roadmap.hydrated`), `task.started` (claim), `task.updated`
+(release, ou update sans changement de statut), `task.started`/`task.blocked`/
+`task.completed` (update qui change le statut vers `in_progress`/`blocked`/
+`completed`). Un re-claim par la meme machine reemet `task.started`
+(`previous_status=in_progress`). Un refus (409, 403) n'emet rien. `actor_type="agent"` si
+l'`agent_id` du claim (ou de la Task) est rattache a la machine appelante,
+sinon `user`. Cles `payload` documentees (ignorables) : `status`, `version`,
+`transition` (`created|claimed|released|updated`), `previous_status`.

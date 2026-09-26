@@ -1,5 +1,5 @@
 /**
- * Membres d'un projet (onglet du workspace, A0 / DEC-0100).
+ * Membres d'un projet (onglet du workspace, A0 / DEC-0103).
  *
  * - Liste : GET /projects/{id}/members, avec le nom et l'e-mail de chaque
  *   membre. Ajout : recherche dans l'annuaire admin (GET /users, nom ou

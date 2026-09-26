@@ -1,4 +1,4 @@
-"""Project isolation, lot 1 (DEC-0100 / server DEC-0103): memberships, the
+"""Project isolation, lot 1 (DEC-0103 / server DEC-0103): memberships, the
 principal's project scope and the `/projects` surface. Deny by default: these
 tests run without the automatic backfill grants (`isolation` marker)."""
 
@@ -57,7 +57,7 @@ async def test_creator_becomes_member_with_provenance(
 async def test_admin_creator_is_member_too(
     client: AsyncClient, admin_auth_headers: dict[str, str], db_session: AsyncSession
 ) -> None:
-    """A later demotion keeps the admin's access consistent (DEC-0100 §5)."""
+    """A later demotion keeps the admin's access consistent (DEC-0103 §5)."""
     project = await _create(client, admin_auth_headers)
     rows = (
         await db_session.execute(

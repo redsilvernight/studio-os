@@ -364,14 +364,14 @@ async def get_integration_for(
     session: AsyncSession, principal: Principal, project_id: UUID, action: ProjectAction = "read"
 ) -> GitHubIntegrationModel | None:
     """`get_integration_by_project` behind the project check, so an
-    inaccessible project never reveals whether it is wired (DEC-0100 §8)."""
+    inaccessible project never reveals whether it is wired (DEC-0103 §8)."""
     ensure_project_access(principal, project_id, action)
     return await get_integration_by_project(session, project_id)
 
 
 def authorize_integration_write(principal: Principal, project_id: UUID) -> None:
     """Project then role check of a wiring write, run ahead of the
-    idempotency replay short-circuit (DEC-0036, DEC-0100 §12)."""
+    idempotency replay short-circuit (DEC-0036, DEC-0103 §12)."""
     ensure_project_access(principal, project_id, "write")
     ensure_can_provision(principal, "github_integration")
 

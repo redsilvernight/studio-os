@@ -72,6 +72,7 @@ from studio_contracts.local.handshake import (
 )
 from studio_contracts.local.harness import (
     ChangeKind,
+    ChangeScope,
     HarnessApplyRequest,
     HarnessApplyResult,
     HarnessChange,
@@ -79,6 +80,8 @@ from studio_contracts.local.harness import (
     HarnessPlan,
     HarnessState,
     HarnessStatus,
+    HarnessVerifyResult,
+    VerifyState,
 )
 from studio_contracts.local.identity import (
     HumanIdentity,
@@ -876,6 +879,14 @@ def _harness_plan() -> HarnessPlan:
                 before_hash=sha("index-v1"),
                 after_hash=sha("index-v2"),
             ),
+            HarnessChange(
+                change_id="chg-3",
+                kind=ChangeKind.CREATE,
+                target=".config/harness-alpha/config.json",
+                scope=ChangeScope.USER,
+                summary="Declare Studio OS with a dedicated credential",
+                after_hash=sha("entry-v1"),
+            ),
         ],
         plan_hash=sha("plan-0001"),
         created_at=NOW,
@@ -1372,6 +1383,18 @@ def build_fixtures() -> list[LocalFixture]:
         rollback_id="rb-0001",
         state=HarnessState.CONFIGURED,
     )
+    fixtures["harness.verify.result.token_missing"] = HarnessVerifyResult(
+        adapter_id="harness-alpha-adapter",
+        state=VerifyState.TOKEN_MISSING,
+        mcp_url="https://studio.example/mcp",
+        details={"reason": "token_missing"},
+    )
+    fixtures["harness.verify.result.verified"] = HarnessVerifyResult(
+        adapter_id="harness-alpha-adapter",
+        state=VerifyState.VERIFIED,
+        mcp_url="https://studio.example/mcp",
+        details={"method": "studio_get_projects"},
+    )
 
     fixtures["publication.plan.preview"] = _publication_plan()
     fixtures["publication.result.published"] = PublicationResult(
@@ -1676,6 +1699,18 @@ def build_invalid_fixtures() -> list[InvalidFixture]:
             "HarnessApplyRequest",
             _with("harness.apply.request", unconfirmed),
             "apply requires explicit confirmation",
+        ),
+        InvalidFixture(
+            "harness.verify.token_missing_with_error",
+            "HarnessVerifyResult",
+            _with(
+                "harness.verify.result.token_missing",
+                add_field(
+                    "error",
+                    _dump(error(LocalErrorCode.INTERNAL_ERROR, ComponentId.HARNESS, "x")),
+                ),
+            ),
+            "a missing token is a condition, not a failure: it carries no error",
         ),
         InvalidFixture(
             "publication.publish_unconfirmed",

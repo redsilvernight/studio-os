@@ -30,7 +30,7 @@ nullabilite est **breaking** et suit `.claude/skills/contract-change`
 (cf. `.claude/rules/contracts.md`).
 
 ## Relations clefs
-- User N-N Project via ProjectMembership (DEC-0100) ; Machine et Agent n'en
+- User N-N Project via ProjectMembership (DEC-0103) ; Machine et Agent n'en
   portent jamais en propre (heritage via `Machine.owner_user_id`).
 - Project 1-N Task.
 - Task 1-N WorkSession / Decision / AIWorkLog / Transfer / Event.
@@ -87,7 +87,7 @@ jamais lues par l'autorisation.
 `id`, `slug` (unique), `name`, `description` (nullable), `archived` (bool,
 defaut false), + champs communs mutables.
 
-## ProjectMembership (DEC-0100, additif — migration Alembic reversible)
+## ProjectMembership (DEC-0103, additif — migration Alembic reversible)
 Table `project_memberships` : `project_id` (FK Project, `ON DELETE CASCADE`),
 `user_id` (FK User, `ON DELETE CASCADE`), `granted_by_user_id` (FK User,
 nullable, `ON DELETE SET NULL`), `created_at`. Cle primaire `(project_id,

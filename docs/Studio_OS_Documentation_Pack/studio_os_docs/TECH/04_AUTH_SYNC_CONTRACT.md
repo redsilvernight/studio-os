@@ -72,7 +72,7 @@ arrive avec l'inscription publique, DU-0/A).
   lecture des claims `email`/`role` cote client ; route sans projet, jamais
   soumise au `403 resource=project`.
 - **SSE** (`GET /events/stream`) : le principal est revalide au plus toutes
-  les 30 secondes, en meme temps que l'acces projet (DEC-0100 §9) ; en cas
+  les 30 secondes, en meme temps que l'acces projet (DEC-0103 §9) ; en cas
   d'echec le flux est ferme. Le client reconnecte avec un JWT valide.
 - **Cutover** : un JWT emis avant le deploiement (sans `auth_version`) est
   invalide ; les utilisateurs se reconnectent une fois.
@@ -206,9 +206,9 @@ jamais l'event original : la validation ci-dessus s'applique a l'identite de
 l'appelant courant avant `create_event`, dont le court-circuit d'idempotence
 renvoie la ligne existante sans y toucher.
 
-## Autorisation (DEC-0036 amende par DEC-0100 — RUPTURE, `API_CONTRACT_VERSION` 2)
+## Autorisation (DEC-0036 amende par DEC-0103 — RUPTURE, `API_CONTRACT_VERSION` 2)
 
-Statut : DEC-0100 acceptee ; enforcement central livre (A0, tache
+Statut : DEC-0103 acceptee ; enforcement central livre (A0, tache
 00397d8d), gestion des membres livree (tache 0324dbb3, `TECH/02_API_CONTRACT.md`).
 
 Trois niveaux, composes par ET logique (jamais OU) :
@@ -224,7 +224,7 @@ Trois niveaux, composes par ET logique (jamais OU) :
   `WorkSession.machine_id`, `AIWorkLog.agent_id` (via `Agent.machine_id` —
   `AIWorkLog.machine_id` est nullable), `Transfer.sender_user_id` /
   `recipient_user_id`.
-- **Acces projet** (ou, DEC-0100) : table `project_memberships(project_id,
+- **Acces projet** (ou, DEC-0103) : table `project_memberships(project_id,
   user_id)`. Le `User` est l'identite porteuse : une `Machine` herite des
   memberships de son `owner_user_id`, un `Agent` n'en a jamais en propre et
   opere via sa machine. `admin` a une portee globale (`project_scope = ALL`)
@@ -234,7 +234,7 @@ Trois niveaux, composes par ET logique (jamais OU) :
   serveur de confiance sans `Principal` (webhook GitHub, Producer,
   `resource.conflict`) : exemptes explicitement.
 
-Acces projet — regles (DEC-0100 §7-12) :
+Acces projet — regles (DEC-0103 §7-12) :
 
 - **Ressource rattachee a un projet**, accedee directement ou via son parent
   (`task`, `roadmap`, `build`, `session`→task, version Library→definition,
@@ -263,7 +263,7 @@ Acces projet — regles (DEC-0100 §7-12) :
   enregistrement, jamais par le proprietaire d'une machine.
 - **Creation de projet** : le createur (`principal.user`) recoit une
   membership dans la meme transaction (`POST /projects` et initialisation,
-  HTTP et MCP), `admin` compris. Slugs projet non secrets (DEC-0101) :
+  HTTP et MCP), `admin` compris. Slugs projet non secrets (DEC-0105) :
   un slug deja pris repond `409 conflict`, meme invisible de l'appelant
   (oracle accepte, reserve aux roles de provisioning).
 - **Attribution** : `admin` uniquement (`/api/v1/projects/{id}/members`,
@@ -304,7 +304,7 @@ createur `owner_user_id`, renseigne depuis l'appelant a la creation),
 ressource pas encore possedee (`claimed_by_machine_id` nul) reste ouverte a
 tout ecrivain passe le role transverse et l'acces projet.
 
-Regle Library (P1, DEC-0063 amende par DEC-0100) : lecture Project
+Regle Library (P1, DEC-0063 amende par DEC-0103) : lecture Project
 composee avec l'acces projet (membres ou `admin`) ; lecture Studio reservee a
 `admin` ou a un User ayant au moins une membership (donnee sans projet, voir
 ci-dessus) ; lecture User restreinte au owner ou `admin`, tout autre
@@ -364,7 +364,7 @@ User : Library scope User, `GET /runtime-bindings/{id}`, `GET`/revoke
 listes filtrees par owner. Enveloppe : `403 {"detail": {"error_code": "forbidden", "resource":
 "<project|task|claim|session|ai_work|decision|event|transfer|...>", "action":
 "<write|release|renew|end|update|read>"}}`. `resource: "project"` designe
-toujours un refus d'acces projet (DEC-0100), distinct d'un refus de role ou
+toujours un refus d'acces projet (DEC-0103), distinct d'un refus de role ou
 d'ownership ; un client ne doit pas le traiter comme une erreur
 d'authentification (pas de deconnexion). SSE : `403` avant l'ouverture du
 flux, et flux ferme des que l'acces est retire (revalidation a chaque

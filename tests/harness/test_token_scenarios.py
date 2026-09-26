@@ -1,33 +1,25 @@
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
-from uuid import UUID
 
 import pytest
-from studio_client.harness.backup import BackupStore
-from studio_client.harness.base import HarnessAdapter
 from studio_client.harness.claude_code import ClaudeCodeAdapter
 from studio_client.harness.opencode import OpenCodeAdapter
-from studio_client.harness.probe import locate_executable
-from studio_client.harness.registry import HarnessRegistry
-from studio_client.harness.service import HarnessService, WorkspaceInfo
 from studio_client.tokens import (
     EnvTokenStore,
     MissingMachineToken,
     resolve_token,
 )
+from studio_contracts.local.harness import (
+    HarnessApplyRequest,
+    HarnessPreviewRequest,
+    HarnessVerifyRequest,
+    VerifyState,
+)
 
-from tests.harness.support import fake_harness_env
-
-MCP_URL = "https://studio.example/mcp"
-WORKSPACE_ID = UUID("11111111-1111-4111-8111-111111111111")
-
-
-def _real(adapter: HarnessAdapter) -> bool:
-    return (
-        locate_executable(adapter.executable_names, path_env=os.environ.get("PATH", "")) is not None
-    )
+from tests.harness.support import MCP_URL, WORKSPACE_ID, Rig, make_rig
 
 
 def test_env_token_store_is_read_only_and_fails_on_write():
@@ -37,6 +29,35 @@ def test_env_token_store_is_read_only_and_fails_on_write():
         store.set_token("https://example.com", "token")
     with pytest.raises(NotImplementedError):
         store.clear_token("https://example.com")
+
+
+def test_token_missing_is_a_distinct_state_without_error():
+    """TOKEN_MISSING is neither CONFIGURED nor VERIFIED and, like CONFIGURED,
+    reports a condition rather than a failure: it carries no error."""
+    from pydantic import ValidationError
+    from studio_contracts.local.common import ComponentId, LocalError, LocalErrorCode
+    from studio_contracts.local.harness import HarnessVerifyResult
+
+    result = HarnessVerifyResult(
+        adapter_id="claude-code",
+        state=VerifyState.TOKEN_MISSING,
+        mcp_url=MCP_URL,
+        details={"reason": "token_missing"},
+    )
+    assert result.state.value == "token_missing"
+    assert result.state not in (VerifyState.CONFIGURED, VerifyState.VERIFIED)
+    with pytest.raises(ValidationError):
+        HarnessVerifyResult(
+            adapter_id="claude-code",
+            state=VerifyState.TOKEN_MISSING,
+            mcp_url=MCP_URL,
+            error=LocalError(
+                code=LocalErrorCode.INTERNAL_ERROR,
+                message="x",
+                component=ComponentId.HARNESS,
+                retryable=False,
+            ),
+        )
 
 
 def test_env_token_store_respects_origin_binding():
@@ -102,131 +123,76 @@ def test_resolve_token_raises_when_missing():
         resolve_token("https://example.com", stores=[EmptyStore()])
 
 
-@pytest.mark.parametrize(
-    "adapter", [ClaudeCodeAdapter(), OpenCodeAdapter()], ids=["claude", "opencode"]
-)
-def test_verify_requires_token_for_verified_state(adapter: HarnessAdapter, tmp_path: Path):
-    """VERIFIED state requires STUDIO_MCP_MACHINE_TOKEN in environment.
-
-    This tests Scenario B: harness launched independently without token.
-    Without the token, verify returns CONFIGURED (not VERIFIED)."""
-    if not _real(adapter):
-        pytest.skip(f"{adapter.adapter_id} is not installed on this machine")
-
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    backups_root = tmp_path / "backups"
-    backups_root.mkdir()
-    env = dict(os.environ)
-    # Ensure NO token in environment
-    env.pop("STUDIO_MCP_MACHINE_TOKEN", None)
-    env.pop("STUDIO_CLIENT_MACHINE_TOKEN", None)
-
-    def lookup(workspace_id):
-        if workspace_id != WORKSPACE_ID:
-            return None
-        return WorkspaceInfo(workspace_id, workspace, MCP_URL, True)
-
-    service = HarnessService(
-        HarnessRegistry([adapter]),
-        BackupStore(backups_root),
-        lookup,
-        env=lambda: env,
-        probe_cwd=tmp_path,
+def _configure(rig: Rig, adapter_id: str) -> None:
+    preview = rig.service.preview(
+        HarnessPreviewRequest(workspace_id=WORKSPACE_ID, adapter_id=adapter_id)
     )
-
-    # Apply config first
-    from studio_contracts.local.harness import HarnessApplyRequest, HarnessPreviewRequest
-
-    preview = service.preview(
-        HarnessPreviewRequest(workspace_id=WORKSPACE_ID, adapter_id=adapter.adapter_id)
-    )
-    apply_result = service.apply(
+    rig.service.apply(
         HarnessApplyRequest(plan_id=preview.plan_id, plan_hash=preview.plan_hash, confirmed=True)
     )
-    assert apply_result.state.value == "configured"
 
-    # Verify without token -> CONFIGURED
-    from studio_contracts.local.harness import HarnessVerifyRequest, VerifyState
 
-    result = service.verify(
-        HarnessVerifyRequest(workspace_id=WORKSPACE_ID, adapter_id=adapter.adapter_id)
+def _verify(rig: Rig, adapter_id: str):
+    return rig.service.verify(
+        HarnessVerifyRequest(workspace_id=WORKSPACE_ID, adapter_id=adapter_id)
     )
-    assert result.state == VerifyState.CONFIGURED
-    assert result.details.get("reason") == "token_missing"
+
+
+@pytest.mark.parametrize("adapter_id", ["claude-code", "opencode"], ids=["claude", "opencode"])
+def test_an_env_reference_left_by_an_older_setup_is_token_missing(
+    adapter_id: str, tmp_path: Path
+) -> None:
+    """Scenario B: an entry that still relies on an environment variable the
+    tool may not have is TOKEN_MISSING — neither CONFIGURED nor VERIFIED."""
+    rig = make_rig(tmp_path, mcp_probe=lambda url, token: pytest.fail("never probed"))
+    if adapter_id == "claude-code":
+        path, container = rig.claude_config, "mcpServers"
+        reference = "Bearer ${STUDIO_MCP_MACHINE_TOKEN}"
+    else:
+        path, container = rig.opencode_config, "mcp"
+        reference = "Bearer {env:STUDIO_MCP_MACHINE_TOKEN}"
+        path.parent.mkdir(parents=True)
+    entry = {"type": "http", "url": MCP_URL, "headers": {"Authorization": reference}}
+    path.write_text(json.dumps({container: {"studio-os": entry}}), encoding="utf-8")
+    result = _verify(rig, adapter_id)
+    assert result.state is VerifyState.TOKEN_MISSING
+    assert result.error is None
+    assert result.details.get("reason") == "token_reference"
     assert result.mcp_url == MCP_URL
 
 
-@pytest.mark.parametrize(
-    "adapter", [ClaudeCodeAdapter(), OpenCodeAdapter()], ids=["claude", "opencode"]
-)
-def test_verify_returns_configured_without_backend(adapter: HarnessAdapter, tmp_path: Path):
-    """Even with token, VERIFIED requires a real MCP backend.
-
-    This tests that CONFIGURED != VERIFIED - VERIFIED means actual MCP call succeeded."""
-    if not _real(adapter):
-        pytest.skip(f"{adapter.adapter_id} is not installed on this machine")
-
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    backups_root = tmp_path / "backups"
-    backups_root.mkdir()
-    env = dict(os.environ)
-    # Set a fake token
-    env["STUDIO_MCP_MACHINE_TOKEN"] = "fake-token-for-testing"
-
-    def lookup(workspace_id):
-        if workspace_id != WORKSPACE_ID:
-            return None
-        return WorkspaceInfo(workspace_id, workspace, MCP_URL, True)
-
-    service = HarnessService(
-        HarnessRegistry([adapter]),
-        BackupStore(backups_root),
-        lookup,
-        env=lambda: env,
-        probe_cwd=tmp_path,
-    )
-
-    # Apply config
-    from studio_contracts.local.harness import HarnessApplyRequest, HarnessPreviewRequest
-
-    preview = service.preview(
-        HarnessPreviewRequest(workspace_id=WORKSPACE_ID, adapter_id=adapter.adapter_id)
-    )
-    apply_result = service.apply(
-        HarnessApplyRequest(plan_id=preview.plan_id, plan_hash=preview.plan_hash, confirmed=True)
-    )
-    assert apply_result.state.value == "configured"
-
-    # Verify with token but no backend -> FAILED (not VERIFIED)
-    from studio_contracts.local.harness import HarnessVerifyRequest, VerifyState
-
-    result = service.verify(
-        HarnessVerifyRequest(workspace_id=WORKSPACE_ID, adapter_id=adapter.adapter_id)
-    )
-    # Should be FAILED because MCP call to fake URL fails
-    assert result.state == VerifyState.FAILED
+@pytest.mark.parametrize("adapter_id", ["claude-code", "opencode"], ids=["claude", "opencode"])
+def test_configured_is_not_verified_without_a_backend(adapter_id: str, tmp_path: Path) -> None:
+    """CONFIGURED != VERIFIED: VERIFIED means an MCP call succeeded."""
+    rig = make_rig(tmp_path, mcp_probe=lambda url, token: ("mcp_unreachable", None))
+    _configure(rig, adapter_id)
+    result = _verify(rig, adapter_id)
+    assert result.state is VerifyState.FAILED
     assert result.mcp_url == MCP_URL
     assert result.error is not None
+    assert result.details == {"reason": "mcp_unreachable"}
 
 
-def test_no_token_in_config_file():
-    """The harness config file must never contain the actual token, only the reference."""
-    from studio_client.harness.claude_code import ClaudeCodeAdapter
-    from studio_client.harness.opencode import OpenCodeAdapter
+@pytest.mark.parametrize("adapter_id", ["claude-code", "opencode"], ids=["claude", "opencode"])
+def test_a_refused_credential_is_reported_without_the_credential(
+    adapter_id: str, tmp_path: Path
+) -> None:
+    rig = make_rig(tmp_path, mcp_probe=lambda url, token: ("mcp_unauthorized", 401))
+    _configure(rig, adapter_id)
+    [machine_id] = rig.provisioner.active
+    result = _verify(rig, adapter_id)
+    assert result.state is VerifyState.FAILED
+    assert result.details == {"reason": "mcp_unauthorized", "http_status": "401"}
+    assert rig.provisioner.tokens[machine_id] not in result.model_dump_json()
 
-    for adapter in [ClaudeCodeAdapter(), OpenCodeAdapter()]:
-        entry = adapter.build_entry("https://studio.example/mcp")
-        # Check that the entry contains a reference, not a value
-        if adapter.adapter_id == "claude-code":
-            auth = entry.get("headers", {}).get("Authorization", "")
-            assert "${STUDIO_MCP_MACHINE_TOKEN}" in auth
-            assert "Bearer ${STUDIO_MCP_MACHINE_TOKEN}" == auth
-        else:  # opencode
-            auth = entry.get("headers", {}).get("Authorization", "")
-            assert "{env:STUDIO_MCP_MACHINE_TOKEN}" in auth
-            assert "Bearer {env:STUDIO_MCP_MACHINE_TOKEN}" == auth
+
+def test_the_entry_carries_the_dedicated_credential_itself():
+    """DEC-0104 §2: a tool launched on its own must authenticate, so its entry
+    holds its own credential rather than a reference to an environment variable."""
+    for adapter in (ClaudeCodeAdapter(), OpenCodeAdapter()):
+        entry = adapter.build_entry(MCP_URL, "sk_dedicated")
+        assert entry["headers"] == {"Authorization": "Bearer sk_dedicated"}
+        assert "STUDIO_MCP_MACHINE_TOKEN" not in json.dumps(entry)
 
 
 def test_daemon_identity_view_reports_token_status(tmp_path: Path):
@@ -250,65 +216,27 @@ def test_daemon_identity_view_reports_token_status(tmp_path: Path):
     assert view.secrets[0].status in (SecretStatus.ABSENT, SecretStatus.KEYRING_UNAVAILABLE)
 
 
-def test_token_never_logged_or_in_diagnostics(tmp_path: Path):
-    """Verify that diagnostics and logs never contain the actual token."""
-    from studio_client.harness.backup import BackupStore
-    from studio_client.harness.claude_code import ClaudeCodeAdapter
-    from studio_client.harness.registry import HarnessRegistry
-    from studio_client.harness.service import HarnessService, WorkspaceInfo
-
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    backups_root = tmp_path / "backups"
-    backups_root.mkdir()
-    env = fake_harness_env(tmp_path)
-    env["STUDIO_MCP_MACHINE_TOKEN"] = "SECRET-TOKEN-VALUE-12345"
-
-    def lookup(workspace_id):
-        if workspace_id != WORKSPACE_ID:
-            return None
-        return WorkspaceInfo(workspace_id, workspace, MCP_URL, True)
-
-    service = HarnessService(
-        HarnessRegistry([ClaudeCodeAdapter()]),
-        BackupStore(backups_root),
-        lookup,
-        env=lambda: env,
-        probe_cwd=tmp_path,
-    )
-
-    from studio_contracts.local.harness import (
-        HarnessApplyRequest,
-        HarnessPreviewRequest,
-        HarnessVerifyRequest,
-    )
-
-    preview = service.preview(
+def test_token_only_ever_lives_in_the_tool_config(tmp_path: Path):
+    """The dedicated credential is in the target file and nowhere else: not in
+    the workspace, backups, ledger, plan, apply or verify results."""
+    rig = make_rig(tmp_path, mcp_probe=lambda url, token: (None, 200))
+    rig.env["STUDIO_MCP_MACHINE_TOKEN"] = "SECRET-TOKEN-VALUE-12345"
+    preview = rig.service.preview(
         HarnessPreviewRequest(workspace_id=WORKSPACE_ID, adapter_id="claude-code")
     )
-    service.apply(
+    applied = rig.service.apply(
         HarnessApplyRequest(plan_id=preview.plan_id, plan_hash=preview.plan_hash, confirmed=True)
     )
+    verified = _verify(rig, "claude-code")
+    [machine_id] = rig.provisioner.active
+    token = rig.provisioner.tokens[machine_id]
 
-    # Check config file doesn't contain token
-    config_file = workspace / ".mcp.json"
-    config_text = config_file.read_text(encoding="utf-8")
-    assert "SECRET-TOKEN" not in config_text
-    assert "${STUDIO_MCP_MACHINE_TOKEN}" in config_text
-
-    # Check backup doesn't contain token
-    for backup_file in backups_root.rglob("*"):
-        if backup_file.is_file():
-            backup_text = backup_file.read_text(encoding="utf-8", errors="replace")
-            assert "SECRET-TOKEN" not in backup_text
-
-    # Check verify result doesn't contain token
-    result = service.verify(
-        HarnessVerifyRequest(workspace_id=WORKSPACE_ID, adapter_id="claude-code")
-    )
-    result_json = result.model_dump_json()
-    assert "SECRET-TOKEN" not in result_json
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    assert token in rig.claude_config.read_text(encoding="utf-8")
+    assert "SECRET-TOKEN" not in rig.claude_config.read_text(encoding="utf-8")
+    for result in (preview, applied, verified):
+        assert token not in result.model_dump_json()
+    for root in (rig.root, rig.backups_root, tmp_path / "state"):
+        for path in root.rglob("*"):
+            if path.is_file():
+                assert token not in path.read_text(encoding="utf-8", errors="replace"), path
+    assert all(token not in " ".join(call) for call in rig.cli.calls)

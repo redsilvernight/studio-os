@@ -1,7 +1,7 @@
 """Role × account state × project access over HTTP (A3, task 0e337d4b).
 
 The account state decides whether a principal exists at all (machine token
-and dashboard login); project access (DEC-0100) only applies to an active
+and dashboard login); project access (DEC-0103) only applies to an active
 account and stays independent of the state."""
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""Fail-closed MCP tool registry and generated outsider matrix (DEC-0100 §12).
+"""Fail-closed MCP tool registry and generated outsider matrix (DEC-0103 §12).
 
 Mirror of `tests/api/test_access_registry.py` for the MCP surface: every
 registered tool is classified in `MCP_ACCESS`, every `project` tool has an

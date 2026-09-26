@@ -58,7 +58,7 @@ async def list_decisions(
 ) -> list[DecisionModel]:
     """Unfiltered: the accessible projects' decisions plus the global
     (project-less) ones, the latter only for a Principal with at least one
-    project (DEC-0100 §4/§7)."""
+    project (DEC-0103 §4/§7)."""
     stmt = select(DecisionModel)
     if project_id is not None:
         ensure_project_access(principal, project_id)
@@ -80,7 +80,7 @@ def _ensure_decision_scope(
 
 def authorize_create(principal: Principal, project_id: uuid.UUID | None) -> None:
     """Project (or shared-data) then role check of a decision creation, run
-    ahead of the idempotency replay short-circuit (DEC-0036, DEC-0100 §12)."""
+    ahead of the idempotency replay short-circuit (DEC-0036, DEC-0103 §12)."""
     _ensure_decision_scope(principal, project_id, "write")
     ensure_can_write(principal, "decision")
 

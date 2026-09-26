@@ -25,7 +25,7 @@ from studio_api.services.authz import (
 
 
 async def list_projects(session: AsyncSession, principal: Principal) -> list[ProjectModel]:
-    """Only the projects the caller may access (DEC-0100 §7)."""
+    """Only the projects the caller may access (DEC-0103 §7)."""
     query = select(ProjectModel).where(ProjectModel.archived.is_(False))
     visible = project_visibility_clause(principal, ProjectModel.id)
     if visible is not None:
@@ -59,7 +59,7 @@ async def create_project(
 ) -> ProjectModel:
     """Common creation point of `POST /projects` and initialization (HTTP and
     MCP). The creator's membership is written in the same commit as the
-    project (DEC-0100 §5) — an admin included, so a later demotion keeps
+    project (DEC-0103 §5) — an admin included, so a later demotion keeps
     access consistent. `creator=None` only for the operator CLI, which grants
     explicitly afterwards."""
     existing = await session.execute(select(ProjectModel).where(ProjectModel.slug == slug))
@@ -120,7 +120,7 @@ async def get_active_claims(
 
 
 def ensure_members_admin(principal: Principal, action: ProjectAction) -> None:
-    """Granting access is `admin` only, never self-service (DEC-0100). Runs
+    """Granting access is `admin` only, never self-service (DEC-0103). Runs
     before any lookup: a non-admin gets the same 403 for any project id."""
     if principal.role != Role.ADMIN:
         raise forbidden("project_members", action)

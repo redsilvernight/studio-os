@@ -1,4 +1,4 @@
-"""Project isolation, lot 2 (DEC-0100 / server DEC-0103): every project-scoped
+"""Project isolation, lot 2 (DEC-0103 / server DEC-0103): every project-scoped
 surface refuses a non-member with the same 403 as a nonexistent project, and
 collections are silently filtered. Deny by default (`isolation` marker)."""
 

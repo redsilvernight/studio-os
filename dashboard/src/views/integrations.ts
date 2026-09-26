@@ -11,18 +11,23 @@
 import { getPlatform, type Platform } from "../platform";
 import { dsBadge, dsEmptyState, dsPageHeader } from "../ds/ds";
 import {
-  CHANGE_DETAILS,
   CHANGE_LABELS,
   STATE_LABELS,
   STATE_TONES,
+  VERIFY_MESSAGES,
+  VERIFY_TONES,
   applyHarness,
+  changeDetail,
+  changeTarget,
   detectHarnesses,
   harnessErrorMessage,
   latestRollbackId,
   previewHarness,
   rollbackHarness,
+  verifyHarness,
   type HarnessPlan,
   type HarnessStatus,
+  type HarnessVerifyResult,
 } from "../harnessApi";
 import { esc } from "../ui";
 import { configTabsHtml } from "./configuration";
@@ -38,6 +43,8 @@ export interface IntegrationsView {
   plan?: HarnessPlan;
   /** The harness for which a restore awaits confirmation. */
   confirmRestore?: string;
+  /** The last connection check, for one harness. */
+  verify?: HarnessVerifyResult;
 }
 
 function header(): string {
@@ -97,7 +104,7 @@ function planHtml(status: HarnessStatus, plan: HarnessPlan): string {
   const rows = changes
     .map(
       (change) =>
-        `<li data-change="${esc(change.kind)}"><strong>${esc(CHANGE_LABELS[change.kind] ?? change.kind)}</strong> · <code class="mono">${esc(change.target)}</code><br><span>${esc(CHANGE_DETAILS[change.kind] ?? "")}</span></li>`,
+        `<li data-change="${esc(change.kind)}"><strong>${esc(CHANGE_LABELS[change.kind] ?? change.kind)}</strong> · <code class="mono">${esc(changeTarget(change))}</code><br><span>${esc(changeDetail(change))}</span></li>`,
     )
     .join("");
   return (
@@ -123,14 +130,23 @@ function harnessHtml(status: HarnessStatus, view: IntegrationsView): string {
   const plan = view.plan && view.plan.adapter_id === status.adapter_id ? planHtml(status, view.plan) : "";
   const confirm = view.confirmRestore === status.adapter_id
     ? `<div class="integration-plan" data-testid="restore-confirm" role="alertdialog" aria-label="Confirmer la restauration">` +
-      `<p>Restaurer la configuration précédente de ${esc(status.display_name)} ? Si le fichier a été modifié depuis, la restauration sera refusée.</p>` +
+      `<p>Restaurer la configuration précédente de ${esc(status.display_name)} ? L'identifiant Studi'OS créé pour cet outil sera révoqué. Si un fichier a été modifié depuis, la restauration sera refusée.</p>` +
       `<button class="ds-btn ds-btn--danger" type="button" data-action="confirm-restore">Restaurer</button> ` +
       `<button class="ds-btn" type="button" data-action="cancel-restore">Annuler</button></div>`
+    : "";
+  const check = view.verify && view.verify.adapter_id === status.adapter_id
+    ? `<p class="integration-verify" data-testid="verify" data-verify="${esc(view.verify.state)}" role="status">` +
+      `${dsBadge(view.verify.state === "verified" ? "Connexion vérifiée" : view.verify.state === "token_missing" ? "Jeton manquant" : "Non vérifié", VERIFY_TONES[view.verify.state])} ` +
+      `${esc(VERIFY_MESSAGES[view.verify.state])}</p>`
     : "";
   const actions = installed
     ? `<div class="integration-actions">` +
       `<button class="ds-btn ds-btn--primary" type="button" data-action="preview">${configured ? "Reconfigurer" : "Configurer"}</button>` +
-      (configured ? ` <button class="ds-btn" type="button" data-action="restore">Restaurer</button>` : "") +
+      (configured
+        ? ` <button class="ds-btn" type="button" data-action="verify">Vérifier la connexion</button>` +
+          ` <button class="ds-btn" type="button" data-action="renew">Renouveler l'identifiant</button>` +
+          ` <button class="ds-btn" type="button" data-action="restore">Restaurer</button>`
+        : "") +
       `</div>`
     : "";
   return (
@@ -139,6 +155,7 @@ function harnessHtml(status: HarnessStatus, view: IntegrationsView): string {
     `<dl class="settings-rows"><div class="settings-row"><dt>Version</dt><dd>${version}</dd></div>` +
     `<div class="settings-row"><dt>MCP Studi'OS</dt><dd>${configured ? "Configuré" : installed ? "Non configuré" : "—"}</dd></div>${files}</dl>` +
     reason +
+    check +
     actions +
     plan +
     confirm +
@@ -155,7 +172,7 @@ export function integrationsHtml(harnesses: HarnessStatus[], view: IntegrationsV
   return (
     header() +
     `<section class="settings-domain" data-testid="integrations">` +
-    `<p class="settings-intro">Studi'OS ne gère ni modèle, ni abonnement, ni clé de fournisseur : seule la connexion du harnais au MCP Studi'OS est configurée. Le jeton Studi'OS n'est jamais écrit dans les fichiers, seulement référencé.</p>` +
+    `<p class="settings-intro">Studi'OS ne gère ni modèle, ni abonnement, ni clé de fournisseur : seule la connexion du harnais au MCP Studi'OS est configurée. Chaque outil reçoit son propre identifiant Studi'OS, rangé dans sa seule configuration utilisateur et jamais affiché ; les fichiers du projet n'en contiennent aucun.</p>` +
     notice +
     error +
     `<div class="integrations-list">${list}</div></section>`
@@ -192,6 +209,16 @@ function bind(root: HTMLElement, workspaceId: string, platform: Platform, shown:
     card.querySelector("[data-action=preview]")?.addEventListener("click", () => {
       void previewHarness(platform, workspaceId, adapterId).then((outcome) =>
         outcome.ok ? again({ plan: outcome.value }) : again({ error: harnessErrorMessage(outcome.error) }),
+      );
+    });
+    card.querySelector("[data-action=renew]")?.addEventListener("click", () => {
+      void previewHarness(platform, workspaceId, adapterId, true).then((outcome) =>
+        outcome.ok ? again({ plan: outcome.value }) : again({ error: harnessErrorMessage(outcome.error) }),
+      );
+    });
+    card.querySelector("[data-action=verify]")?.addEventListener("click", () => {
+      void verifyHarness(platform, workspaceId, adapterId).then((outcome) =>
+        outcome.ok ? again({ verify: outcome.value }) : again({ error: harnessErrorMessage(outcome.error) }),
       );
     });
     card.querySelector("[data-action=cancel-plan]")?.addEventListener("click", () => void again());

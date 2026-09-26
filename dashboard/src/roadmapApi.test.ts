@@ -272,6 +272,29 @@ describe("createApiRoadmapDataSource.reviewProposal", () => {
   });
 });
 
+describe("createApiRoadmapDataSource.transitionRoadmap", () => {
+  it("sends the lifecycle transition with the version held by the view", async () => {
+    const GET = vi.fn();
+    const POST = vi.fn().mockResolvedValue(ok({ ...DETAIL, status: "active", version: 8 }));
+    const source = createApiRoadmapDataSource(fakeClient({ ...emptyFake(), GET, POST }));
+    const view = toViewRoadmap({ ...DETAIL, status: "completed", version: 7 } as never);
+    const roadmap = await source.transitionRoadmap(view, "reopen", "Étape oubliée");
+    expect(roadmap.status).toBe("active");
+    expect(GET).not.toHaveBeenCalled();
+    expect(POST).toHaveBeenCalledWith("/api/v1/roadmaps/{roadmap_id}/transitions", {
+      params: { path: { roadmap_id: "r1" } },
+      body: { transition: "reopen", expected_version: 7, comment: "Étape oubliée" },
+    });
+  });
+
+  it("keeps a 409 structured for the view", async () => {
+    const POST = vi.fn().mockResolvedValue(fail(409, { detail: { error_code: "invalid_state" } }));
+    const source = createApiRoadmapDataSource(fakeClient({ ...emptyFake(), POST }));
+    const view = toViewRoadmap({ ...DETAIL, version: 7 } as never);
+    await expect(source.transitionRoadmap(view, "complete")).rejects.toMatchObject({ errorCode: "invalid_state" });
+  });
+});
+
 describe("createApiRoadmapDataSource with a targeted roadmap", () => {
   const PROPOSED = { ...SUMMARY, id: "r9", title: "Bootstrap", status: "proposed" };
 

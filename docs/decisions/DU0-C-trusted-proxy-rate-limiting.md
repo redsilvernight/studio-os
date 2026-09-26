@@ -3,7 +3,7 @@ title: "DU-0/C — Proxy de confiance et anti-abus par étages"
 status: active
 server_decision_id: df4d6d3b-5682-4ee1-8460-410ebaf4c102
 server_readable_id: DEC-0106
-server_replaces: a4b001d3-217c-4e80-b72a-ed2f869f3259 (DEC-0100 serveur, superseded ; collisionnait avec l'ADR du dépôt DEC-0100)
+server_replaces: a4b001d3-217c-4e80-b72a-ed2f869f3259 (DEC-0103 serveur, superseded ; collisionnait avec l'ADR du dépôt DEC-0103)
 ---
 
 # DU-0/C — Proxy de confiance et anti-abus par étages

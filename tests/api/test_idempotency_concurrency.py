@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from studio_api.db.models.event import EventModel
 from studio_api.db.models.idempotency import IdempotencyKeyModel, IdempotencyStatus
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
@@ -132,6 +133,9 @@ async def test_concurrent_same_key_creates_exactly_one_task(
     finally:
         async with session_factory() as cleanup_session:
             await cleanup_session.execute(
+                delete(EventModel).where(EventModel.project_id == project.id)
+            )
+            await cleanup_session.execute(
                 delete(TaskModel).where(TaskModel.project_id == project.id)
             )
             await cleanup_session.execute(
@@ -194,6 +198,9 @@ async def test_same_key_different_payload_is_rejected_not_replayed(
         assert len(tasks) == 1
     finally:
         async with session_factory() as cleanup_session:
+            await cleanup_session.execute(
+                delete(EventModel).where(EventModel.project_id == project.id)
+            )
             await cleanup_session.execute(
                 delete(TaskModel).where(TaskModel.project_id == project.id)
             )
@@ -326,6 +333,9 @@ async def test_stale_pending_reservation_is_reclaimed_after_a_crash(
         assert len(tasks) == 1
     finally:
         async with session_factory() as cleanup_session:
+            await cleanup_session.execute(
+                delete(EventModel).where(EventModel.project_id == project.id)
+            )
             await cleanup_session.execute(
                 delete(TaskModel).where(TaskModel.project_id == project.id)
             )

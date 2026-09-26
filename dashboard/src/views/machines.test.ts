@@ -150,7 +150,7 @@ describe("machinesPageHtml nominal", () => {
   });
 
   it("ne met jamais l'UUID en titre principal", () => {
-    const titles = [...html.matchAll(/<h3 class="ds-list-title">(.*?)<\/h3>/g)].map((m) => m[1] ?? "");
+    const titles = [...html.matchAll(/<h3 class="ds-list-title"[^>]*>(.*?)<\/h3>/g)].map((m) => m[1] ?? "");
     expect(titles).toHaveLength(2);
     expect(titles[0]).toContain("Poste de Flo");
     expect(titles[1]).toContain("Machine sans nom enregistré");
@@ -158,7 +158,7 @@ describe("machinesPageHtml nominal", () => {
       expect(title).not.toContain(M1);
       expect(title).not.toContain(M2);
     }
-    expect(html).toContain(M1.slice(0, 8));
+    expect(html).toContain(`title="${M1}"`);
   });
 
   it("activité déduite honnête, source visible, jamais couleur seule", () => {

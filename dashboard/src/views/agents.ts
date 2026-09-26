@@ -42,6 +42,7 @@ import {
   dsSkeleton,
   dsStatus,
 } from "../ds/ds";
+import { machineName, machineRef } from "../actorNames";
 import { describeError, esc, fmtTime, shortId } from "../ui";
 // Styles colocalisés : la page reste autonome sans toucher au CSS global.
 import "./agents.css";
@@ -181,7 +182,7 @@ export function agentCardHtml(
     `</div></div>` +
     `<div class="agent-signal" role="status">${agentSignalHtml(activity)}</div>` +
     `${agentWorkSummaryHtml(agent, activity, sessions, aiWork, tasks, names)}` +
-    `<p class="ds-list-sub">Exécuté sur la machine <a href="#/machines"><code class="mono" title="${esc(agent.machine_id ?? "")}">${esc(shortId(agent.machine_id))}</code></a> · <a href="#/agents/${esc(agent.id)}">Ouvrir la fiche</a></p>` +
+    `<p class="ds-list-sub">Exécuté sur la machine <a href="#/machines">${machineRef(agent.machine_id)}</a> · <a href="#/agents/${esc(agent.id)}">Ouvrir la fiche</a></p>` +
     `${declaredTechHtml(agent)}` +
     `</li>`
   );
@@ -387,8 +388,8 @@ export function agentDetailHtml(
       : `<ul class="ds-list">${ownSessions.map((session) => sessionRowHtml(session, names)).join("")}</ul>`) +
     `</div></section>` +
     `<section class="ds-panel" aria-label="Environnement"><header><h2>Environnement</h2></header><div class="body">` +
-    `<p>Exécuté sur la machine <a href="#/machines"><code class="mono" title="${esc(agent.machine_id ?? "")}">${esc(shortId(agent.machine_id))}</code></a>.</p>` +
-    `<p class="ds-list-sub">Le nom de cette machine n'est pas connu du tableau de bord. L'agent n'est pas une sous-catégorie de la machine — voir <a href="#/machines">Machines</a> pour l'environnement d'exécution.</p>` +
+    `<p>Exécuté sur la machine <a href="#/machines">${machineRef(agent.machine_id)}</a>.</p>` +
+    `<p class="ds-list-sub">${machineName(agent.machine_id) === undefined ? "Le nom de cette machine n'est pas connu du tableau de bord. " : ""}L'agent n'est pas une sous-catégorie de la machine — voir <a href="#/machines">Machines</a> pour l'environnement d'exécution.</p>` +
     `<p class="ds-list-sub">Aucune définition d'agent n'est associée : la nature déclarée est une simple étiquette libre, sans lien avec la <a href="#/library/agent-definitions">Bibliothèque</a>. Aucune configuration runtime détaillée ici : voir <a href="#/configuration/runtimes">Paramètres</a>.</p>` +
     `</div></section>` +
     `<details class="library-tech"><summary>Informations techniques</summary><dl class="library-tech-list">` +

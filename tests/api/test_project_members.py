@@ -1,4 +1,4 @@
-"""Project members administration (DEC-0100, task 0324dbb3): admin-only
+"""Project members administration (DEC-0103, task 0324dbb3): admin-only
 `/projects/{id}/members` and `studio-admin project grant|revoke|members`.
 Deny by default: no automatic backfill grants (`isolation` marker)."""
 

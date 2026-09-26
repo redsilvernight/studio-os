@@ -14,6 +14,7 @@
 import type { StudioClient } from "../api";
 import { createClaim, listClaims, releaseClaim, renewClaim, type ResourceClaim } from "../claimsApi";
 import { dsBadge, dsEmptyState, dsField, dsSectionHeader, focusDsErrorBox } from "../ds/ds";
+import { machineRef } from "../actorNames";
 import { describeError, esc, fmtTime, idCell } from "../ui";
 
 export interface ClaimsContext {
@@ -51,7 +52,7 @@ function rowsHtml(claims: ResourceClaim[], authed: boolean): string {
       const state = claimLiveliness(c, now);
       return (
         `<tr><td><code class="mono">${esc(c.resource_path)}</code></td><td>${esc(RESOURCE_TYPE_LABEL[c.resource_type] ?? c.resource_type)}</td>` +
-        `<td>${idCell(c.claimed_by_machine_id)}</td><td>${idCell(c.task_id)}</td>` +
+        `<td>${machineRef(c.claimed_by_machine_id)}</td><td>${idCell(c.task_id)}</td>` +
         `<td>${dsBadge(LIVELINESS_LABEL[state], LIVELINESS_TONE[state])}</td>` +
         `<td>Expire le ${fmtTime(c.expires_at)}<br /><span class="ds-list-sub">durée ${c.ttl_seconds} s</span></td>` +
         `<td class="actions"><button type="button" class="ds-btn ds-btn--sm" data-renew="${esc(c.id)}" aria-label="Renouveler la réservation ${esc(c.resource_path)}" ${authed ? "" : "disabled"}>Renouveler</button>` +

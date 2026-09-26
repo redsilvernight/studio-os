@@ -1,5 +1,5 @@
 ---
-id: DEC-0101
+id: DEC-0105
 title: 'Oracle slug projet accepté : slugs non secrets, 409 conflict structuré'
 status: proposed
 date: '2026-09-25'
@@ -9,7 +9,7 @@ server_readable_id: DEC-0118
 source: task 81307c39 (résiduel 4e7351d0, registre fail-closed)
 ---
 
-# DEC-0101 — Oracle d'existence de slug projet : accepté, slugs non secrets
+# DEC-0105 — Oracle d'existence de slug projet : accepté, slugs non secrets
 
 ## Problème
 

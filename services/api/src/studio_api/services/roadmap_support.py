@@ -261,7 +261,7 @@ async def ensure_roadmap_access(
     action: ProjectAction = "read",
 ) -> RoadmapModel:
     """Load a roadmap (404 when absent) and check its project level
-    (DEC-0100 §7): an inaccessible project answers 403 before anything of the
+    (DEC-0103 §7): an inaccessible project answers 403 before anything of the
     roadmap is returned."""
     roadmap = await session.get(RoadmapModel, roadmap_id)
     if roadmap is None:
@@ -274,7 +274,7 @@ async def authorize_roadmap_write(
     session: AsyncSession, principal: Principal, roadmap_id: uuid.UUID
 ) -> None:
     """Project then role check of a roadmap mutation, run ahead of the
-    idempotency replay short-circuit (DEC-0036, DEC-0100 §12)."""
+    idempotency replay short-circuit (DEC-0036, DEC-0103 §12)."""
     await ensure_roadmap_access(session, principal, roadmap_id, "write")
     ensure_can_write(principal, "roadmap")
 

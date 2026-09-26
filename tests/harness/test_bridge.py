@@ -3,16 +3,26 @@ from __future__ import annotations
 import json
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import pytest
 from studio_client.daemon.local_features import LocalFeatureRegistry
 from studio_client.daemon.service import BridgeService
+from studio_client.harness.claude_code import ClaudeCodeAdapter
+from studio_client.harness.opencode import OpenCodeAdapter
+from studio_client.harness.registry import HarnessRegistry
 from studio_contracts.local.workspace import LocalFeatures
 
-from tests.harness.support import CLAUDE_VERSION_LINE, base_env, install_fake
+from tests.harness.support import (
+    CLAUDE_VERSION_LINE,
+    OPENCODE_CONFIG,
+    FakeClaudeCli,
+    FakeProvisioner,
+    base_env,
+    install_fake,
+)
 from tests.integration_wave2.conftest import (
     DESKTOP_CAPABILITIES,
     WORKSPACE_ID,
@@ -31,8 +41,11 @@ MCP_URL = "https://studio.example/mcp"
 class Bridge:
     service: BridgeService
     root: Path
+    home: Path
     backups: Path
     env: dict[str, str]
+    provisioner: FakeProvisioner
+    probes: list[tuple[str, str]] = field(default_factory=list)
 
     def call(self, command: str, payload: dict[str, Any]) -> dict[str, Any]:
         return self.service.handle_line(bridge_request(command, payload))
@@ -55,11 +68,17 @@ class Bridge:
         result = self.ok("harness.detect", SCOPE)
         return {item["adapter_id"]: item["state"] for item in result["harnesses"]}
 
+    @property
+    def claude_config(self) -> Path:
+        return self.home / ".claude.json"
+
 
 @contextmanager
 def _make_bridge(tmp_path: Path, *, harness: bool, harnesses: bool = True) -> Iterator[Bridge]:
     root = tmp_path / "ws"
     root.mkdir()
+    home = tmp_path / "home"
+    home.mkdir()
     bin_dir = tmp_path / "bin"
     if harnesses:
         install_fake(bin_dir, "claude", CLAUDE_VERSION_LINE)
@@ -67,13 +86,27 @@ def _make_bridge(tmp_path: Path, *, harness: bool, harnesses: bool = True) -> It
     else:
         bin_dir.mkdir()
     env = base_env(bin_dir)
+    provisioner = FakeProvisioner()
+    probes: list[tuple[str, str]] = []
+
+    def probe(url: str, token: str) -> tuple[str | None, int | None]:
+        probes.append((url, token))
+        return None, 200
+
     workspace = build_workspace(root, knowledge=False, code_graph=False)
     config = workspace.config.model_copy(update={"features": LocalFeatures(harness=harness)})
     registry = LocalFeatureRegistry(
         workspace_configs=lambda profile: [config] if config.profile == profile else [],
         cache_root=tmp_path / "cache",
         harness_backups_root=tmp_path / "backups",
+        harness_registry=HarnessRegistry(
+            [ClaudeCodeAdapter(cli_runner=FakeClaudeCli(home)), OpenCodeAdapter()]
+        ),
         harness_env=lambda: env,
+        harness_credentials_path=tmp_path / "state" / "harness-credentials.json",
+        harness_provisioner=provisioner,
+        harness_home=lambda: home,
+        harness_mcp_probe=probe,
     )
     controller_ = controller(tmp_path, registry)
     registry.start(controller_._profile())
@@ -81,7 +114,7 @@ def _make_bridge(tmp_path: Path, *, harness: bool, harnesses: bool = True) -> It
         service = BridgeService(controller_)
         answer = negotiate(service, [*DESKTOP_CAPABILITIES, *HARNESS_CAPABILITIES])
         assert answer["payload"]["outcome"] == "compatible", answer["payload"]
-        yield Bridge(service, workspace.root, tmp_path / "backups", env)
+        yield Bridge(service, workspace.root, home, tmp_path / "backups", env, provisioner, probes)
     finally:
         registry.stop()
 
@@ -99,6 +132,7 @@ def test_handshake_advertises_and_grants_the_harness_capabilities(tmp_path: Path
     registry = LocalFeatureRegistry(
         workspace_configs=lambda profile: [workspace.config],
         cache_root=tmp_path / "cache",
+        harness_home=lambda: tmp_path,
     )
     controller_ = controller(tmp_path, registry)
     registry.start(controller_._profile())
@@ -121,6 +155,8 @@ def test_harness_commands_need_their_capability(tmp_path: Path) -> None:
     registry = LocalFeatureRegistry(
         workspace_configs=lambda profile: [workspace.config],
         cache_root=tmp_path / "cache",
+        harness_env=lambda: base_env(tmp_path / "no-bin"),
+        harness_home=lambda: tmp_path,
     )
     controller_ = controller(tmp_path, registry)
     registry.start(controller_._profile())
@@ -174,64 +210,76 @@ def test_a_list_and_detect_over_the_bridge(bridge: Bridge) -> None:
 def test_b_preview_writes_nothing(bridge: Bridge) -> None:
     plan = bridge.preview("claude-code")
     assert [change["kind"] for change in plan["changes"]] == ["create"]
-    assert plan["changes"][0]["target"] == ".mcp.json"
+    assert plan["changes"][0]["target"] == ".claude.json"
+    assert plan["changes"][0]["scope"] == "user"
     assert not (bridge.root / ".mcp.json").exists()
+    assert list(bridge.home.iterdir()) == []
+    assert bridge.provisioner.created == []
     assert not bridge.backups.exists() or not any(bridge.backups.rglob("*.bak"))
 
 
-def test_c_apply_writes_on_the_temp_workspace(bridge: Bridge) -> None:
+def test_c_apply_provisions_and_writes_the_user_config(bridge: Bridge) -> None:
     result = bridge.apply(bridge.preview("claude-code"))
     assert result["state"] == "configured"
     assert result["rollback_id"]
-    data = json.loads((bridge.root / ".mcp.json").read_text(encoding="utf-8"))
+    data = json.loads(bridge.claude_config.read_text(encoding="utf-8"))
     assert data["mcpServers"]["studio-os"]["url"] == MCP_URL
+    assert len(bridge.provisioner.active) == 1
+    assert not (bridge.root / ".mcp.json").exists()
     assert bridge.states()["claude-code"] == "configured"
 
 
 def test_d_second_apply_is_idempotent(bridge: Bridge) -> None:
     bridge.apply(bridge.preview("claude-code"))
-    before = (bridge.root / ".mcp.json").read_bytes()
+    before = bridge.claude_config.read_bytes()
     backups = sorted(bridge.backups.rglob("manifest.json"))
     plan = bridge.preview("claude-code")
     assert plan["changes"] == []
-    assert (bridge.root / ".mcp.json").read_bytes() == before
+    assert bridge.claude_config.read_bytes() == before
     assert sorted(bridge.backups.rglob("manifest.json")) == backups
+    assert len(bridge.provisioner.created) == 1
 
 
 def test_e_other_servers_are_preserved(bridge: Bridge) -> None:
-    (bridge.root / "opencode.json").write_text(
+    path = bridge.home / OPENCODE_CONFIG
+    path.parent.mkdir(parents=True)
+    path.write_text(
         json.dumps({"mcp": {"other": {"type": "local", "command": ["x"]}}, "theme": "dark"}),
         encoding="utf-8",
     )
     bridge.apply(bridge.preview("opencode"))
-    data = json.loads((bridge.root / "opencode.json").read_text(encoding="utf-8"))
+    data = json.loads(path.read_text(encoding="utf-8"))
     assert data["mcp"]["other"] == {"type": "local", "command": ["x"]}
     assert data["theme"] == "dark"
     assert "studio-os" in data["mcp"]
 
 
-def test_f_rollback_restores_the_original(bridge: Bridge) -> None:
+def test_f_rollback_restores_the_original_and_revokes(bridge: Bridge) -> None:
     original = json.dumps({"mcpServers": {"other": {"command": "x"}}}, indent=2)
-    (bridge.root / ".mcp.json").write_text(original, encoding="utf-8")
+    bridge.claude_config.write_text(original, encoding="utf-8")
     applied = bridge.apply(bridge.preview("claude-code"))
     rolled = bridge.ok(
         "harness.rollback", {"rollback_id": applied["rollback_id"], "confirmed": True}
     )
     assert rolled["state"] == "detected"
-    assert (bridge.root / ".mcp.json").read_text(encoding="utf-8") == original
+    data = json.loads(bridge.claude_config.read_text(encoding="utf-8"))
+    assert data["mcpServers"] == {"other": {"command": "x"}}
+    assert bridge.provisioner.active == []
 
 
 def test_g_rollback_conflict_after_a_user_edit(bridge: Bridge) -> None:
     applied = bridge.apply(bridge.preview("claude-code"))
-    path = bridge.root / ".mcp.json"
-    edited = path.read_text(encoding="utf-8").replace("{", '{"mine": 1,', 1)
-    path.write_text(edited, encoding="utf-8")
+    data = json.loads(bridge.claude_config.read_text(encoding="utf-8"))
+    data["mcpServers"]["studio-os"]["url"] = "https://mine.example/mcp"
+    edited = json.dumps(data)
+    bridge.claude_config.write_text(edited, encoding="utf-8")
     answer = bridge.call(
         "harness.rollback", {"rollback_id": applied["rollback_id"], "confirmed": True}
     )
     assert answer["kind"] == "error"
     assert answer["error"]["details"]["reason"] == "rollback_conflict"
-    assert path.read_text(encoding="utf-8") == edited
+    assert bridge.claude_config.read_text(encoding="utf-8") == edited
+    assert len(bridge.provisioner.active) == 1
 
 
 def test_h_invalid_configuration_fails_closed(bridge: Bridge) -> None:
@@ -257,25 +305,45 @@ def test_absent_harnesses_are_reported_not_detected(tmp_path: Path) -> None:
 
 
 def test_verify_unconfigured_before_apply(bridge: Bridge) -> None:
-    """verify returns UNCONFIGURED when the harness is not yet applied."""
     result = bridge.call("harness.verify", {**SCOPE, "adapter_id": "claude-code"})
     assert result["kind"] != "error", result
     assert result["payload"]["state"] == "unconfigured"
     assert result["payload"]["adapter_id"] == "claude-code"
     assert result["payload"]["mcp_url"] is None
     assert result["payload"]["error"] is None
+    assert bridge.probes == []
 
 
-def test_verify_configured_after_apply(bridge: Bridge) -> None:
-    """verify returns CONFIGURED after apply (without token, no VERIFIED)."""
+def test_verify_calls_studio_with_the_dedicated_credential(bridge: Bridge) -> None:
     bridge.apply(bridge.preview("claude-code"))
     result = bridge.call("harness.verify", {**SCOPE, "adapter_id": "claude-code"})
     assert result["kind"] != "error", result
-    assert result["payload"]["state"] == "configured"
-    assert result["payload"]["adapter_id"] == "claude-code"
+    assert result["payload"]["state"] == "verified"
     assert result["payload"]["mcp_url"] == MCP_URL
-    assert result["payload"]["error"] is None
-    assert result["payload"]["details"]["reason"] == "token_missing"
+    [(url, token)] = bridge.probes
+    [machine_id] = bridge.provisioner.active
+    assert url == MCP_URL and token == bridge.provisioner.tokens[machine_id]
+    assert token not in json.dumps(result)
+
+
+def test_verify_reports_an_env_reference_as_token_missing(bridge: Bridge) -> None:
+    bridge.claude_config.write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "studio-os": {
+                        "type": "http",
+                        "url": MCP_URL,
+                        "headers": {"Authorization": "Bearer ${STUDIO_MCP_MACHINE_TOKEN}"},
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    result = bridge.ok("harness.verify", {**SCOPE, "adapter_id": "claude-code"})
+    assert result["state"] == "token_missing"
+    assert bridge.probes == []
 
 
 def test_j_no_provider_credential_is_involved(bridge: Bridge) -> None:
@@ -288,8 +356,12 @@ def test_j_no_provider_credential_is_involved(bridge: Bridge) -> None:
     ]
     applied = bridge.apply(bridge.preview("claude-code"))
     answers.append(applied)
-    assert "SECRET-VALUE" not in json.dumps(answers)
-    assert "SECRET-VALUE" not in (bridge.root / ".mcp.json").read_text(encoding="utf-8")
+    [machine_id] = bridge.provisioner.active
+    token = bridge.provisioner.tokens[machine_id]
+    dumped = json.dumps(answers)
+    assert "SECRET-VALUE" not in dumped and token not in dumped
+    assert "SECRET-VALUE" not in bridge.claude_config.read_text(encoding="utf-8")
     for file in bridge.backups.rglob("*"):
         if file.is_file():
-            assert "SECRET-VALUE" not in file.read_text(encoding="utf-8", errors="replace")
+            text = file.read_text(encoding="utf-8", errors="replace")
+            assert "SECRET-VALUE" not in text and token not in text

@@ -55,7 +55,7 @@ _LIBRARY_EVENT_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "studio-os:library")
 
 def _can_read(principal: Principal, resource: LibraryResourceModel) -> bool:
     """User definitions are owner-or-admin only (DEC-0063); Project ones
-    follow their project, Studio ones need at least one project (DEC-0100
+    follow their project, Studio ones need at least one project (DEC-0103
     §4/§11, composed by AND)."""
     if resource.scope == "user":
         return principal.role == Role.ADMIN or resource.owner_user_id == principal.user.id
@@ -79,7 +79,7 @@ def ensure_resource_scope(
     principal: Principal, resource: LibraryResourceModel, action: ProjectAction = "read"
 ) -> None:
     """Project level of a definition, checked before the User-scope 404
-    masking (DEC-0100 §8): Project scope needs its project, Studio scope
+    masking (DEC-0103 §8): Project scope needs its project, Studio scope
     at least one project; User scope keeps its owner-or-admin rule."""
     _ensure_scope_access(principal, resource.project_id, resource.scope == "user", action)
 
@@ -114,7 +114,7 @@ async def get_resource(
     """Returns `None` for a missing row and for a User-scope row the caller
     may not see — both map to 404 so no surface leaks another user's
     private existence (DEC-0063 precision 1). A definition of an
-    inaccessible project answers 403 first (DEC-0100 §8)."""
+    inaccessible project answers 403 first (DEC-0103 §8)."""
     resource = await session.get(LibraryResourceModel, resource_id)
     if resource is None:
         return None
@@ -356,7 +356,7 @@ async def _emit_library_event(
 
 def authorize_write(principal: Principal, resource: LibraryResourceModel) -> None:
     """Project then role check of a definition mutation, run ahead of the
-    idempotency replay short-circuit (DEC-0036, DEC-0100 §12)."""
+    idempotency replay short-circuit (DEC-0036, DEC-0103 §12)."""
     ensure_resource_scope(principal, resource, "write")
     ensure_can_write(principal, "library")
 
@@ -638,7 +638,7 @@ async def list_locks(
     session: AsyncSession, principal: Principal, project_id: UUID | None = None
 ) -> list[LibraryProjectLockModel]:
     """Open to `readonly` (TECH/04): no write gate here. A lock follows its
-    project (DEC-0100 §11) and locks on unreadable resources are filtered
+    project (DEC-0103 §11) and locks on unreadable resources are filtered
     out like the resources themselves (DEC-0063 precision 1)."""
     stmt = select(LibraryProjectLockModel).join(
         LibraryResourceModel,
@@ -705,7 +705,7 @@ async def set_lock(
 
 def authorize_lock(principal: Principal, project_id: UUID) -> None:
     """Project then role check of a lock creation, run ahead of the
-    idempotency replay short-circuit (DEC-0036, DEC-0100 §12)."""
+    idempotency replay short-circuit (DEC-0036, DEC-0103 §12)."""
     ensure_project_access(principal, project_id, "write")
     ensure_can_write(principal, "library")
 
@@ -772,7 +772,7 @@ async def resolve_definition(
     effective version (project lock, else active). Pure read: open to every
     authenticated role, and identical inputs always yield identical outputs.
     No endpoint exposes this in P2. An inaccessible `project_id` answers
-    403 before any read (DEC-0100 §10)."""
+    403 before any read (DEC-0103 §10)."""
     if project_id is not None:
         ensure_project_access(principal, project_id)
     try:

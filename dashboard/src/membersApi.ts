@@ -1,5 +1,5 @@
 /**
- * A0 — Project members (DEC-0100, TECH/02). Admin-only on the server:
+ * A0 — Project members (DEC-0103, TECH/02). Admin-only on the server:
  * a non-admin gets 403 on every call, whatever the project id.
  *
  * - GET /projects/{id}/members lists the memberships with each member's name

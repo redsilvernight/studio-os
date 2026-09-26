@@ -111,6 +111,11 @@
       "reason": "apply requires explicit confirmation"
     },
     {
+      "model": "HarnessVerifyResult",
+      "name": "harness.verify.token_missing_with_error",
+      "reason": "a missing token is a condition, not a failure: it carries no error"
+    },
+    {
       "model": "PublicationPublishRequest",
       "name": "publication.publish_unconfirmed",
       "reason": "publication requires explicit confirmation"
@@ -427,6 +432,14 @@
     {
       "model": "HarnessStatus",
       "name": "harness.status.not_detected"
+    },
+    {
+      "model": "HarnessVerifyResult",
+      "name": "harness.verify.result.token_missing"
+    },
+    {
+      "model": "HarnessVerifyResult",
+      "name": "harness.verify.result.verified"
     },
     {
       "model": "IdentityView",

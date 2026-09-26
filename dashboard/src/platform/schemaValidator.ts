@@ -1,6 +1,6 @@
 /**
  * Minimal JSON Schema validator for the keyword subset the P1 export uses
- * (type, enum, const, pattern, min/max*, items, properties, required,
+ * (type, enum, const, pattern, min/max* incl. min/maxProperties, items, properties, required,
  * additionalProperties, anyOf, $ref to local $defs, format date-time/uuid).
  *
  * It validates the generated bridge schemas at the Desktop boundary. An
@@ -28,9 +28,11 @@ const KNOWN = new Set([
   "items",
   "maxItems",
   "maxLength",
+  "maxProperties",
   "maximum",
   "minItems",
   "minLength",
+  "minProperties",
   "minimum",
   "pattern",
   "properties",
@@ -145,6 +147,13 @@ function check(root: Schema, schema: Schema, value: unknown, path: string, out: 
   if (isObject(value)) {
     const props = isObject(schema.properties) ? schema.properties : {};
     const required = Array.isArray(schema.required) ? (schema.required as string[]) : [];
+    const count = Object.keys(value).length;
+    if (typeof schema.minProperties === "number" && count < schema.minProperties) {
+      out.push({ path, message: "has too few fields" });
+    }
+    if (typeof schema.maxProperties === "number" && count > schema.maxProperties) {
+      out.push({ path, message: "has too many fields" });
+    }
     for (const key of required) {
       if (!(key in value)) out.push({ path: `${path}.${key}`, message: "is required" });
     }

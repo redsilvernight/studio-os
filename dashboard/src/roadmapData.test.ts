@@ -2,6 +2,18 @@ import { describe, expect, it } from "vitest";
 import { createFixtureRoadmapDataSource } from "./roadmapData";
 import { contractRoadmapDocuments, roadmapFixtureProjectIds } from "./roadmapFixtures";
 
+describe("fixture roadmap lifecycle", () => {
+  it("applique le sous-ensemble cycle de vie de la table serveur", async () => {
+    const source = createFixtureRoadmapDataSource();
+    const active = (await source.load(roadmapFixtureProjectIds.active))!;
+    const completed = await source.transitionRoadmap(active, "complete");
+    expect(completed.status).toBe("completed");
+    await expect(source.transitionRoadmap(completed, "reopen")).rejects.toThrow(/comment/);
+    await expect(source.transitionRoadmap(completed, "activate")).rejects.toThrow(/impossible/);
+    await expect(source.transitionRoadmap(completed, "reopen", "Oubli")).resolves.toMatchObject({ status: "active" });
+  });
+});
+
 describe("fixture/session-only roadmap data source", () => {
   it("exposes every documented UI case without an API", async () => {
     const source = createFixtureRoadmapDataSource();

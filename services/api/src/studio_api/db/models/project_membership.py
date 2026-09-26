@@ -11,7 +11,7 @@ from studio_api.db.models.base import Base
 
 
 class ProjectMembershipModel(Base):
-    """Where a User may act (DEC-0100 §1): binary, deny by default. The role
+    """Where a User may act (DEC-0103 §1): binary, deny by default. The role
     says what, the membership says where. `granted_by_user_id` is NULL only
     for the 0014 migration backfill; every application grant keeps who gave
     it (the creator for their own project, an admin otherwise)."""

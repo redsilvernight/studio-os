@@ -64,6 +64,7 @@ WRITE_TOOLS = {
     "studio_supersede_decision",
     "studio_start_session",
     "studio_end_session",
+    "studio_register_agent",
     "studio_log_ai_work",
     "studio_emit_event",
     "studio_create_transfer_metadata",
@@ -91,7 +92,7 @@ def _by_name(tools: list[Tool]) -> dict[str, Tool]:
 
 
 def test_all_tools_have_external_descriptions(tools: list[Tool]) -> None:
-    assert len(tools) == 45
+    assert len(tools) == 46
     for tool in tools:
         assert tool.description, f"{tool.name} has no description"
         assert len(tool.description) >= 40, f"{tool.name} description is stub-like"
@@ -130,6 +131,7 @@ def test_idempotency_and_event_id_discoverable(tools: list[Tool]) -> None:
         "studio_claim_resource",
         "studio_add_decision",
         "studio_start_session",
+        "studio_register_agent",
         "studio_publish_definition",
         "studio_configure_runtime",
         "studio_register_runtime",

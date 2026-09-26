@@ -89,7 +89,7 @@ def _resolve_test_database_url() -> str:
 os.environ["STUDIO_TEST_DATABASE_URL"] = _resolve_test_database_url()
 
 # Users whose name starts with this prefix never receive the automatic grants
-# below: they are the "outsider" of the project isolation tests (DEC-0100).
+# below: they are the "outsider" of the project isolation tests (DEC-0103).
 OUTSIDER_PREFIX = "Outsider"
 
 
@@ -101,7 +101,7 @@ def load_fixture(name: str) -> list[dict[str, object]]:
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line(
         "markers",
-        "isolation: real project isolation — no automatic memberships (DEC-0100)",
+        "isolation: real project isolation — no automatic memberships (DEC-0103)",
     )
 
 

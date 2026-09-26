@@ -1,4 +1,4 @@
-"""Fail-closed access registry of every HTTP operation (DEC-0100 §12).
+"""Fail-closed access registry of every HTTP operation (DEC-0103 §12).
 
 Every mounted route — including the ones hidden from the OpenAPI document —
 must be classified here. `tests/api/test_access_registry.py` fails when a

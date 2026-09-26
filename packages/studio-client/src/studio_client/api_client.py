@@ -7,7 +7,15 @@ from uuid import UUID
 
 import httpx
 from studio_contracts.ai_work import AIWorkLog
-from studio_contracts.auth import HeartbeatRequest, HeartbeatResponse, Machine
+from studio_contracts.auth import (
+    Agent,
+    AgentCreate,
+    HeartbeatRequest,
+    HeartbeatResponse,
+    Machine,
+    MachineCreate,
+    MachineCreated,
+)
 from studio_contracts.builds import (
     Build,
     BuildStatus,
@@ -148,6 +156,54 @@ class StudioApiClient:
     async def get_own_machine(self) -> Machine:
         response = await self._request("GET", "/api/v1/machines/me")
         return Machine.model_validate(response.json())
+
+    async def create_machine(self, machine_in: MachineCreate) -> MachineCreated:
+        """Never retried: a replay would mint a second credential. The returned
+        credential is shown once; the caller hands it to its single destination."""
+        response = await self._request(
+            "POST", "/api/v1/machines", json=machine_in.model_dump(mode="json")
+        )
+        return MachineCreated.model_validate(response.json())
+
+    async def revoke_machine(self, machine_id: UUID) -> Machine:
+        response = await self._request(
+            "POST", f"/api/v1/machines/{machine_id}/revoke", idempotent=True
+        )
+        return Machine.model_validate(response.json())
+
+    async def list_agents(self) -> list[Agent]:
+        response = await self._request("GET", "/api/v1/agents")
+        return [Agent.model_validate(item) for item in response.json()]
+
+    async def register_agent(self, agent_in: AgentCreate, *, idempotency_key: str) -> Agent:
+        response = await self._request(
+            "POST",
+            "/api/v1/agents",
+            json=agent_in.model_dump(mode="json"),
+            extra_headers={"Idempotency-Key": idempotency_key},
+            idempotent=True,
+        )
+        return Agent.model_validate(response.json())
+
+    async def ensure_agent(
+        self, agent_in: AgentCreate, *, idempotency_key: str
+    ) -> tuple[Agent, bool]:
+        """Return `(agent, created)`: the caller's own machine's agent matching
+        `(harness, display_name)`, or register it when absent (CC-1/DEC-0045 —
+        public registration, no authority conferred; DEC-0053 metadata echoed
+        verbatim). Matching stays on this machine's agents only: `GET /agents`
+        lists every machine's identities, and two machines may legitimately
+        share a `display_name`."""
+        machine = await self.get_own_machine()
+        wanted_harness = agent_in.harness or ""
+        for agent in await self.list_agents():
+            if (
+                agent.machine_id == machine.id
+                and (agent.harness or "") == wanted_harness
+                and agent.display_name == agent_in.display_name
+            ):
+                return agent, False
+        return await self.register_agent(agent_in, idempotency_key=idempotency_key), True
 
     async def send_heartbeat(
         self, machine_id: UUID, agent_id: UUID | None = None

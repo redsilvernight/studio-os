@@ -3,7 +3,7 @@ title: "DU-0/D — Versions séparées et compatibilité N/N-1"
 status: active
 server_decision_id: 06d91e71-362b-4905-b0ef-74fd6145d56b
 server_readable_id: DEC-0107
-server_replaces: 0772dd83-e0de-42ca-9fb3-6e99b4f47798 (DEC-0101, superseded)
+server_replaces: 0772dd83-e0de-42ca-9fb3-6e99b4f47798 (DEC-0105, superseded)
 ---
 
 # DU-0/D — Versions séparées et compatibilité N/N-1
@@ -30,7 +30,7 @@ contrat 1 sans politique N/N-1 publique ni version serveur observable.
   versions courantes et bornes supportées, sans information sensible.
 - Le serveur N accepte Desktop N et N-1 selon une matrice testée. Toute autre
   combinaison échoue avant mutation, sans fallback silencieux.
-- DEC-0100 impose API contract 2 ; l'enveloppe Event reste version 1.
+- DEC-0103 impose API contract 2 ; l'enveloppe Event reste version 1.
 - Un `403` projet est terminal : lecture non rejouée, mutation en dead-letter,
   SSE sans boucle de reconnexion tant que l'accès n'est pas restauré.
 

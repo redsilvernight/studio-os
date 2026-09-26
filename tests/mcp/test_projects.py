@@ -43,7 +43,7 @@ async def test_get_project_state_rejects_bad_uuid(auth_ctx: FakeContext) -> None
 async def test_get_project_state_unknown_project_is_forbidden_for_non_admin(
     auth_ctx: FakeContext,
 ) -> None:
-    """No existence oracle (DEC-0100 §3): nonexistent looks like inaccessible."""
+    """No existence oracle (DEC-0103 §3): nonexistent looks like inaccessible."""
     result = await studio_get_project_state("00000000-0000-0000-0000-000000000000", auth_ctx)
     assert result == {"error_code": "forbidden", "resource": "project", "action": "read"}
 

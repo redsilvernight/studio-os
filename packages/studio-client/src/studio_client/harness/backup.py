@@ -33,12 +33,35 @@ _FAILED = "failed"
 
 @dataclass(frozen=True)
 class BackupEntry:
+    """One replaced file (`scope` workspace) or the tool's user-scope entry
+    (`scope` user). For the latter only the *redacted* entry is ever saved, and
+    only when it held no credential (`restorable`); its hashes are those of the
+    redacted entry."""
+
     change_id: str
     target: str
     kind: str
     before_hash: str | None
     after_hash: str | None
     backup_file: str | None
+    scope: str = "workspace"
+    restorable: bool = True
+
+
+@dataclass(frozen=True)
+class BackupItem:
+    """What `begin` saves. `original` is the file (workspace) or the redacted
+    entry (user); `before_hash` is only given for a user entry that is not
+    restorable, so nothing is saved but its identity."""
+
+    change_id: str
+    target: str
+    kind: str
+    original: bytes | None
+    after_hash: str | None
+    scope: str = "workspace"
+    restorable: bool = True
+    before_hash: str | None = None
 
 
 @dataclass
@@ -49,6 +72,8 @@ class BackupRecord:
     created_at: str
     status: str
     entries: list[BackupEntry] = field(default_factory=list)
+    machine_id: str | None = None
+    credential_sha256: str | None = None
 
 
 class BackupError(Exception):
@@ -72,11 +97,10 @@ class BackupStore:
         rollback_id: str,
         workspace_id: UUID,
         adapter_id: str,
-        entries: list[tuple[str, str, str, bytes | None, str | None]],
+        entries: list[BackupItem],
     ) -> BackupRecord:
-        """Copy every original before anything is written. `entries` are
-        (change_id, target, kind, original_bytes | None, after_hash). Raises
-        BackupError when a backup cannot be made: the apply then never starts."""
+        """Copy every original before anything is written. Raises BackupError
+        when a backup cannot be made: the apply then never starts."""
         if ROLLBACK_ID_PATTERN.match(rollback_id) is None:
             raise BackupError("invalid_rollback_id")
         directory = self._adapter_dir(workspace_id, adapter_id) / rollback_id
@@ -89,21 +113,25 @@ class BackupStore:
         )
         try:
             directory.mkdir(mode=0o700, parents=True, exist_ok=False)
-            for index, (change_id, target, kind, original, after_hash) in enumerate(entries):
+            for index, item in enumerate(entries):
                 backup_file: str | None = None
-                if original is not None:
-                    if len(original) > MAX_CONFIG_BYTES:
+                if item.original is not None:
+                    if len(item.original) > MAX_CONFIG_BYTES:
                         raise BackupError("too_large")
                     backup_file = f"{index}.bak"
-                    (directory / backup_file).write_bytes(original)
+                    (directory / backup_file).write_bytes(item.original)
                 record.entries.append(
                     BackupEntry(
-                        change_id=change_id,
-                        target=target,
-                        kind=kind,
-                        before_hash=None if original is None else sha256_hex(original),
-                        after_hash=after_hash,
+                        change_id=item.change_id,
+                        target=item.target,
+                        kind=item.kind,
+                        before_hash=(
+                            item.before_hash if item.original is None else sha256_hex(item.original)
+                        ),
+                        after_hash=item.after_hash,
                         backup_file=backup_file,
+                        scope=item.scope,
+                        restorable=item.restorable,
                     )
                 )
             self._save(directory, record)
@@ -123,6 +151,8 @@ class BackupStore:
             "created_at": record.created_at,
             "status": record.status,
             "entries": [entry.__dict__ for entry in record.entries],
+            "machine_id": record.machine_id,
+            "credential_sha256": record.credential_sha256,
         }
         try:
             atomic_write(directory / _MANIFEST, json.dumps(body, indent=2).encode("utf-8"))
@@ -162,6 +192,8 @@ class BackupStore:
                 created_at=str(body["created_at"]),
                 status=str(body["status"]),
                 entries=[BackupEntry(**entry) for entry in body["entries"]],
+                machine_id=body.get("machine_id"),
+                credential_sha256=body.get("credential_sha256"),
             )
         except (OSError, ValueError, KeyError, TypeError):
             return None

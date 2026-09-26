@@ -30,7 +30,7 @@ ProjectAction = Literal["read", "write"]
 @dataclass(frozen=True)
 class Principal:
     """The three levels authorization is checked against, composed with AND
-    (TECH/04, DEC-0036, DEC-0100): a transverse role (`role`, the owner of the
+    (TECH/04, DEC-0036, DEC-0103): a transverse role (`role`, the owner of the
     authenticated machine), project access (`project_scope`, the owner's
     memberships — `ALL_PROJECTS` for an admin) and, per resource, ownership
     derived from the resource's own existing link to a machine/user.
@@ -45,7 +45,7 @@ class Principal:
 
 
 async def load_principal(session: AsyncSession, machine: MachineModel) -> Principal:
-    """Loaded once per request/tool call (DEC-0100 §12). A Machine inherits its
+    """Loaded once per request/tool call (DEC-0103 §12). A Machine inherits its
     owner's memberships; an Agent never has any of its own."""
     user = await session.get(UserModel, machine.owner_user_id)
     if user is None:
@@ -69,7 +69,7 @@ async def load_project_scope(session: AsyncSession, user_id: uuid.UUID, role: Ro
 
 
 def with_created_project(principal: Principal, project_id: uuid.UUID) -> Principal:
-    """The Principal is loaded once per request (DEC-0100 §12), before a
+    """The Principal is loaded once per request (DEC-0103 §12), before a
     project the request itself creates. Its creator is granted in the same
     commit (§5), so the rest of the request sees that project too."""
     scope = principal.project_scope
@@ -86,7 +86,7 @@ def has_project_access(principal: Principal, project_id: uuid.UUID) -> bool:
 def has_any_project(principal: Principal) -> bool:
     """Shared data without a project (global decisions, Studio Library and
     bindings, project-less transfers) is readable only by an admin or a User
-    with at least one membership (DEC-0100 §4)."""
+    with at least one membership (DEC-0103 §4)."""
     scope = principal.project_scope
     return scope is ALL_PROJECTS or bool(scope)
 
@@ -94,7 +94,7 @@ def has_any_project(principal: Principal) -> bool:
 def ensure_project_access(
     principal: Principal, project_id: uuid.UUID, action: ProjectAction = "read"
 ) -> None:
-    """The canonical project check (DEC-0100 §8/§12). Inaccessible and
+    """The canonical project check (DEC-0103 §8/§12). Inaccessible and
     nonexistent projects answer the same 403 — no existence oracle — so this
     runs before any lookup, idempotency short-circuit or `event_id` dedup."""
     if not has_project_access(principal, project_id):
@@ -109,7 +109,7 @@ def ensure_shared_access(principal: Principal, action: ProjectAction = "read") -
 
 def project_visibility_clause(principal: Principal, column: Any) -> ColumnElement[bool] | None:
     """Filter for listing a project-scoped collection: silently restricted to
-    accessible projects, never counting invisible rows (DEC-0100 §7). `None`
+    accessible projects, never counting invisible rows (DEC-0103 §7). `None`
     means "no filter" (admin). A nullable `project_id` column keeps its
     project-less rows only for a Principal that `has_any_project`."""
     scope = principal.project_scope

@@ -7,6 +7,7 @@
         "before_hash": null,
         "change_id": "chg-1",
         "kind": "create",
+        "scope": "workspace",
         "summary": "Add Studio OS working rules",
         "target": ".studio/harness/rules.md"
       },
@@ -15,8 +16,18 @@
         "before_hash": "ec68d7c2581952ba5cec6a35581e19ff826cc2c6a3d7e70a577fc1f3fde96175",
         "change_id": "chg-2",
         "kind": "modify",
+        "scope": "workspace",
         "summary": "Register the rules file",
         "target": ".studio/harness/index.md"
+      },
+      {
+        "after_hash": "14ebf465b9cf716abef90e6731aacea1ea63bd2cb0e15a55d18cc9d3cc954170",
+        "before_hash": null,
+        "change_id": "chg-3",
+        "kind": "create",
+        "scope": "user",
+        "summary": "Declare Studio OS with a dedicated credential",
+        "target": ".config/harness-alpha/config.json"
       }
     ],
     "created_at": "2026-01-15T12:00:00Z",

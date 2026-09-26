@@ -47,7 +47,7 @@ from studio_api.services.authz import Principal
 
 class RoadmapServicePort(Protocol):
     """Structural contract `studio_api.services.roadmaps` satisfies.
-    Module-level functions, `session` then `principal` (DEC-0100)."""
+    Module-level functions, `session` then `principal` (DEC-0103)."""
 
     async def list_roadmaps(
         self,

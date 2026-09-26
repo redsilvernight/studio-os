@@ -536,6 +536,7 @@ async def studio_transition_roadmap(
             )
         except ValidationError as exc:
             return {"error_code": "invalid_argument", "message": str(exc.errors()[0].get("msg"))}
+        await roadmap_support.authorize_roadmap_write(session, principal, parsed)
 
         async def _apply() -> dict[str, Any]:
             roadmap = await _roadmaps().transition_roadmap(session, principal, parsed, request)

@@ -76,7 +76,7 @@ def _not_found() -> HTTPException:
 def _is_visible(principal: Principal, binding: RuntimeBindingModel) -> bool:
     """`user` bindings are owner-or-admin only (same 404-masking as user
     library resources); project levels follow their project, the studio
-    default needs at least one project (DEC-0100 §4/§11)."""
+    default needs at least one project (DEC-0103 §4/§11)."""
     if binding.level == RuntimeLevel.USER.value:
         return principal.role == Role.ADMIN or binding.owner_user_id == principal.user.id
     if binding.project_id is not None:
@@ -88,7 +88,7 @@ def _ensure_level_scope(
     principal: Principal, level: str, project_id: UUID | None, action: ProjectAction
 ) -> None:
     """Project level of a binding, checked before the `user`-level 404
-    masking (DEC-0100 §8)."""
+    masking (DEC-0103 §8)."""
     if level in (RuntimeLevel.USER.value, RuntimeLevel.SESSION.value):
         return
     if project_id is not None:
@@ -99,7 +99,7 @@ def _ensure_level_scope(
 
 def authorize_create(principal: Principal, level: RuntimeLevel, project_id: UUID | None) -> None:
     """Project (or shared-data) then role check of a stored choice, run
-    ahead of the idempotency replay short-circuit (DEC-0036, DEC-0100 §12)."""
+    ahead of the idempotency replay short-circuit (DEC-0036, DEC-0103 §12)."""
     _ensure_level_scope(principal, level.value, project_id, "write")
     if level == RuntimeLevel.STUDIO_DEFAULT:
         ensure_can_provision(principal, "runtime_binding")
@@ -425,7 +425,7 @@ async def resolve_runtime(
     its linked model profile key. Inaccessible stored choices (deleted or
     revoked machine) fall through instead of erroring. Compatibility is
     always reported, never silenced. Pure read, no LLM, no provider call.
-    An inaccessible `project_id` answers 403 before any read (DEC-0100 §10)."""
+    An inaccessible `project_id` answers 403 before any read (DEC-0103 §10)."""
     if project_id is not None:
         ensure_project_access(principal, project_id)
 

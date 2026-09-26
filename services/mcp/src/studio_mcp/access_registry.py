@@ -1,4 +1,4 @@
-"""Fail-closed access registry of every MCP tool (DEC-0100 §12).
+"""Fail-closed access registry of every MCP tool (DEC-0103 §12).
 
 Same classes as `studio_api.access_registry.AccessClass`. Every tool
 registered by `create_server()` must appear here;
@@ -16,8 +16,9 @@ from studio_api.access_registry import AccessClass
 _P: AccessClass = "project"
 
 MCP_ACCESS: Mapping[str, AccessClass] = {
-    # Own: user-private runtime registry.
+    # Own: user-private runtime registry and the caller's own machine agents.
     "studio_register_runtime": "own",
+    "studio_register_agent": "own",
     # Project: every other tool reads or writes project data (lists filtered).
     "studio_get_projects": _P,
     "studio_get_project_state": _P,

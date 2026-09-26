@@ -78,7 +78,7 @@ async def _ensure_task_project_access(
     session: AsyncSession, principal: Principal, task_id: uuid.UUID | None, action: ProjectAction
 ) -> None:
     """A session has no project of its own: it is visible through
-    session -> task -> project only (DEC-0100 §11). An unknown task has no
+    session -> task -> project only (DEC-0103 §11). An unknown task has no
     project to check; the caller's own not-found handling applies."""
     if task_id is None:
         return
@@ -104,7 +104,7 @@ async def authorize_start(
     session: AsyncSession, principal: Principal, task_id: uuid.UUID | None
 ) -> None:
     """Project (via the task) then role check of a session start, run ahead
-    of the idempotency replay short-circuit (DEC-0036, DEC-0100 §12)."""
+    of the idempotency replay short-circuit (DEC-0036, DEC-0103 §12)."""
     await _ensure_task_project_access(session, principal, task_id, "write")
     ensure_can_write(principal, "session")
 

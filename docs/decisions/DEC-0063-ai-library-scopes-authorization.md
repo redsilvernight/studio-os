@@ -46,7 +46,7 @@ une erreur structuree, jamais un bypass silencieux) > binding User > defaut
 Project > defaut Studio. La resolution elle-meme est P5 ; cette precedence
 est figee ici pour que scopes, bindings et locks restent coherents.
 
-## Amendement — DEC-0100 (2026-09-24, acceptee ; serveur DEC-0103)
+## Amendement — DEC-0103 (2026-09-24, acceptee ; serveur DEC-0103)
 
 Scope Project : lecture composee avec l'acces projet (membership ou `admin`).
 Scope Studio : lecture reservee a `admin` ou a un User ayant au moins une

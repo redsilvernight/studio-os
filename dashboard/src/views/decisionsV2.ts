@@ -39,6 +39,7 @@ import {
   dsAgentBadge,
 } from "../ds/ds";
 import { resolveReview, type ReviewResolution } from "../reviewApi";
+import { agentLabel } from "../actorNames";
 import { describeError, esc, fmtTime, newUuid, shortId } from "../ui";
 import type { components } from "../openapi-schema";
 
@@ -95,7 +96,7 @@ export const PROPOSER_TYPE_LABEL: Record<string, string> = {
 export function reviewQueueItemDetail(item: ReviewQueueItem): string {
   switch (item.kind) {
     case "ai_work_review":
-      return `agent ${shortId(item.agent_id)}`;
+      return `agent ${agentLabel(item.agent_id)}`;
     case "decision_proposal":
       return item.readable_id;
     case "resource_conflict":
@@ -329,7 +330,7 @@ export function decisionHtml(decision: Decision, authed: boolean, isAdmin: boole
     ? `<a href="#/tasks/${esc(decision.task_id)}">${esc(shortId(decision.task_id))}</a>`
     : "—";
   const agentLink = decision.proposed_by_type === "agent"
-    ? `<a href="#/agents/${esc(decision.proposed_by_id)}">${dsAgentBadge(decision.proposed_by_id)}</a>`
+    ? `<a href="#/agents/${esc(decision.proposed_by_id)}" title="${esc(decision.proposed_by_id)}">${dsAgentBadge(agentLabel(decision.proposed_by_id))}</a>`
     : `${esc(proposerLabel)} <code class="mono" title="${esc(decision.proposed_by_id)}">${esc(shortId(decision.proposed_by_id))}</code>`;
 
   const techDetails = `

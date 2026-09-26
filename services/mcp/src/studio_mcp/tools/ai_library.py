@@ -317,7 +317,7 @@ async def studio_publish_definition(
             return resource
 
         try:
-            # Ahead of the idempotency replay short-circuit (DEC-0100 §12).
+            # Ahead of the idempotency replay short-circuit (DEC-0103 §12).
             if action == "create":
                 if scope in {s.value for s in LibraryScope}:
                     library_service.authorize_create(principal, str(scope), parsed_project)

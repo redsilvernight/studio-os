@@ -65,7 +65,7 @@ async def list_claims(
 
 def authorize_create(principal: Principal, project_id: uuid.UUID) -> None:
     """Project then role check of a claim creation. Callers run it ahead of
-    the idempotency replay short-circuit (DEC-0036, DEC-0100 §12)."""
+    the idempotency replay short-circuit (DEC-0036, DEC-0103 §12)."""
     ensure_project_access(principal, project_id, "write")
     ensure_can_write(principal, "claim")
 

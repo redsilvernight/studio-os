@@ -1,4 +1,4 @@
-"""Fail-closed access registry and generated outsider matrix (DEC-0100 §12).
+"""Fail-closed access registry and generated outsider matrix (DEC-0103 §12).
 
 1. Every mounted HTTP operation is classified in `HTTP_ACCESS`; no entry is
    stale.

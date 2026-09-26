@@ -24,6 +24,8 @@ export interface StubOptions {
   reviewQueueFails?: boolean;
   /** GET /tasks répond 401. */
   tasksUnauthorized?: boolean;
+  /** Rôle renvoyé par GET /auth/me (défaut : route non stubbée, aucune identité). */
+  role?: string;
 }
 
 export interface Captured {
@@ -150,6 +152,9 @@ export function apiStub(captured: Captured, options: StubOptions = {}) {
     const json = (status: number, body: unknown): Promise<void> =>
       route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
     if (url.endsWith("/api/v1/auth/token")) return json(200, { access_token: "e2e-token", token_type: "bearer", expires_in: 900 });
+    if (url.endsWith("/api/v1/auth/me") && options.role !== undefined) {
+      return json(200, { user_id: "00000000-0000-4000-8000-0000000000e2", display_name: "E2E", email: "e2e@example.test", role: options.role });
+    }
     if (method === "POST" && url.endsWith("/api/v1/projects")) {
       const status = options.createProjectStatus ?? 201;
       return json(status, status >= 400 ? (options.createProjectError ?? { detail: "erreur" }) : d.project);

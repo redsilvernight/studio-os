@@ -153,7 +153,7 @@ async def _resolve_user(session: AsyncSession, email: str) -> UserModel:
 
 async def _grant_project_member(project_ref: str, email: str, admin_email: str) -> None:
     """The CLI has no authenticated caller: `--admin-email` names the admin
-    recorded as `granted_by_user_id` (DEC-0100, every grant keeps who gave it)."""
+    recorded as `granted_by_user_id` (DEC-0103, every grant keeps who gave it)."""
     async with get_session_factory()() as session:
         project = await _resolve_project(session, project_ref)
         user = await _resolve_user(session, email)

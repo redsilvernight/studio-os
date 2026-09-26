@@ -124,6 +124,7 @@
       "enum": [
         "unconfigured",
         "configured",
+        "token_missing",
         "verified",
         "failed"
       ],

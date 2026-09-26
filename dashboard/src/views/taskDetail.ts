@@ -3,8 +3,8 @@
  *
  * - Vérité : GET /api/v1/tasks/{id}. Compléments en lecture seule :
  *   GET /sessions?task_id, GET /ai-work?task_id, GET /claims?project_id
- *   (filtré côté client sur task_id). `machine_id` n'est PAS vérifié côté
- *   serveur — affiché comme information indicative, jamais comme identité.
+ *   (filtré côté client sur task_id). Machines et agents affichés par leur
+ *   nom (actorNames), identifiant en infobulle.
  * - Sections verticales lisibles : vue générale, modification (PATCH +
  *   If-Match-Version affiché), prise en charge (claim/release machine —
  *   à ne pas confondre avec les réservations de ressources), sessions,
@@ -30,6 +30,7 @@ import {
   dsSkeleton,
 } from "../ds/ds";
 import { taskClaimHint, taskStatusLabel, taskStatusTone } from "../taskStatus";
+import { agentLabel, agentRef, machineRef } from "../actorNames";
 import { describeError, esc, fmtTime, shortId } from "../ui";
 
 export interface TaskDetailContext {
@@ -124,7 +125,7 @@ export function sessionStateLabel(session: SessionRow): { label: string; tone: "
 function claimSectionHtml(task: Task, authed: boolean): string {
   const held = task.claimed_by_machine_id !== null && task.claimed_by_machine_id !== undefined && task.claimed_by_machine_id !== "";
   const stateLine = held
-    ? `<p>Prise par la machine <code class="mono">${esc(shortId(task.claimed_by_machine_id))}</code> (identifiant indicatif).</p>`
+    ? `<p>Prise par la machine ${machineRef(task.claimed_by_machine_id)}${task.claimed_by_agent_id ? ` · agent ${agentRef(task.claimed_by_agent_id)}` : ""}.</p>`
     : `<p>Disponible — personne ne travaille dessus actuellement.</p>`;
   return `<section class="task-detail-section" aria-label="Prise en charge">` +
     `${dsSectionHeader("Prise en charge")}${stateLine}` +
@@ -150,10 +151,10 @@ function sessionsSectionHtml(sessions: SessionRow[] | null): string {
       sessions
         .map((session) => {
           const state = sessionStateLabel(session);
-          const agent = session.agent_id === null || session.agent_id === undefined || session.agent_id === "" ? "Agent non renseigné" : `Agent ${shortId(session.agent_id)}`;
+          const agent = session.agent_id === null || session.agent_id === undefined || session.agent_id === "" ? "Agent non renseigné" : `Agent ${agentRef(session.agent_id)}`;
           return `<li class="ds-list-item"><div class="grow">` +
-            `<div class="ds-list-title">${esc(agent)}</div>` +
-            `<div class="ds-list-sub">Début ${esc(fmtTime(session.started_at))} · ${session.ended_at ? `Fin ${esc(fmtTime(session.ended_at))}` : "toujours active"} · machine ${esc(shortId(session.machine_id))} (indicative)</div>` +
+            `<div class="ds-list-title">${agent}</div>` +
+            `<div class="ds-list-sub">Début ${esc(fmtTime(session.started_at))} · ${session.ended_at ? `Fin ${esc(fmtTime(session.ended_at))}` : "toujours active"} · machine ${machineRef(session.machine_id)}</div>` +
             `</div>${dsBadge(state.label, state.tone)}</li>`;
         })
         .join("") +
@@ -177,7 +178,7 @@ function aiWorkSectionHtml(worklogs: WorkRow[] | null): string {
           if (work.agent_profile !== null && work.agent_profile !== undefined && work.agent_profile !== "") {
             context.push(`Profil ${work.agent_profile}`);
           } else if (work.agent_id !== null && work.agent_id !== undefined && work.agent_id !== "") {
-            context.push(`Agent ${shortId(work.agent_id)}`);
+            context.push(`Agent ${agentLabel(work.agent_id)}`);
           }
           if (work.model !== null && work.model !== undefined && work.model !== "") context.push(work.model);
           const files = work.changed_files?.length ?? 0;
@@ -203,7 +204,7 @@ function techDetailsHtml(task: Task): string {
     `<div><dt>Projet</dt><dd><code class="mono">${esc(task.project_id)}</code></dd></div>` +
     `<div><dt>Version</dt><dd>${task.version}</dd></div>` +
     `<div><dt>Statut interne</dt><dd><code class="mono">${esc(task.status)}</code></dd></div>` +
-    `<div><dt>Machine en charge</dt><dd>${task.claimed_by_machine_id ? `<code class="mono">${esc(task.claimed_by_machine_id)}</code>` : "—"}</dd></div>` +
+    `<div><dt>Machine en charge</dt><dd>${task.claimed_by_machine_id ? machineRef(task.claimed_by_machine_id) : "—"}</dd></div>` +
     `<div><dt>Créée le</dt><dd>${esc(fmtTime(task.created_at))}</dd></div>` +
     `<div><dt>Mise à jour le</dt><dd>${esc(fmtTime(task.updated_at))}</dd></div>` +
     `</dl></details>`;

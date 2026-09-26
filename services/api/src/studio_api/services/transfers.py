@@ -97,7 +97,7 @@ def ensure_transfer_scope(
     principal: Principal, project_id: uuid.UUID | None, action: ProjectAction = "read"
 ) -> None:
     """Project level of a transfer, composed with the sender/recipient level
-    of `ensure_transfer_access` by AND (DEC-0100 §11): a project transfer
+    of `ensure_transfer_access` by AND (DEC-0103 §11): a project transfer
     needs the project, a project-less one needs at least one project."""
     if project_id is None:
         ensure_shared_access(principal, action)
@@ -107,7 +107,7 @@ def ensure_transfer_scope(
 
 def authorize_create(principal: Principal, project_id: uuid.UUID | None) -> None:
     """Project then role check of a transfer creation, run ahead of the
-    idempotency replay short-circuit (DEC-0036, DEC-0100 §12)."""
+    idempotency replay short-circuit (DEC-0036, DEC-0103 §12)."""
     ensure_transfer_scope(principal, project_id, "write")
     ensure_can_write(principal, "transfer")
 

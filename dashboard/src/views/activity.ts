@@ -11,6 +11,7 @@ import type { StudioClient } from "../api";
 import { ApiError, parseErrorBody } from "../api";
 import { dsEmptyState, dsSkeleton } from "../ds/ds";
 import type { components } from "../openapi-schema";
+import { agentLabel, machineLabel } from "../actorNames";
 import { describeError, esc, fmtTime, shortId } from "../ui";
 
 type Timeline = components["schemas"]["Timeline"];
@@ -111,11 +112,11 @@ const ACTOR_LABEL: Record<string, string> = {
   system: "système",
 };
 
-/** Acteur/source : type explicite + identifiant court, jamais d'UUID affiché. */
+/** Acteur/source : type explicite + nom (agent, machine) ou identifiant court, jamais d'UUID affiché. */
 export function timelineEventActor(event: TimelineEvent): string {
   const kind = ACTOR_LABEL[event.actor_type] ?? event.actor_type;
-  const actor = `${kind} ${shortId(event.actor_id)}`;
-  return event.machine_id ? `${actor} · machine ${shortId(event.machine_id)}` : actor;
+  const actor = `${kind} ${event.actor_type === "agent" ? agentLabel(event.actor_id) : shortId(event.actor_id)}`;
+  return event.machine_id ? `${actor} · machine ${machineLabel(event.machine_id)}` : actor;
 }
 
 export function countTimelineEvents(timeline: Timeline): number {
@@ -132,7 +133,7 @@ function eventHtml(event: TimelineEvent): string {
   return `<li class="tl-item"><span class="tl-marker" aria-hidden="true"></span><div class="tl-card">` +
     `<div class="tl-title">${esc(timelineEventLabel(event.event_type))}</div>` +
     `${contextHtml}` +
-    `<div class="tl-meta">${esc(timelineEventActor(event))} · <time datetime="${esc(event.server_timestamp)}">${fmtTime(event.server_timestamp)}</time>${taskHtml === "" ? "" : ` · ${taskHtml}`}</div>` +
+    `<div class="tl-meta"><span title="${esc([event.actor_id, event.machine_id].filter(Boolean).join(" · "))}">${esc(timelineEventActor(event))}</span> · <time datetime="${esc(event.server_timestamp)}">${fmtTime(event.server_timestamp)}</time>${taskHtml === "" ? "" : ` · ${taskHtml}`}</div>` +
     `</div></li>`;
 }
 

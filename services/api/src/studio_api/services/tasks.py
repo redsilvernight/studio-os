@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
+from typing import Any, Literal
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from studio_contracts.events import EventCreate, EventType
 from studio_contracts.tasks import TaskCreate, TaskUpdate
 
+from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.task import TaskModel
+from studio_api.services import events as events_service
 from studio_api.services.authz import (
     Principal,
     ensure_can_write,
@@ -15,6 +20,12 @@ from studio_api.services.authz import (
     ensure_project_access,
     project_visibility_clause,
 )
+
+_STATUS_EVENT_TYPES: dict[str, EventType] = {
+    "in_progress": EventType.TASK_STARTED,
+    "blocked": EventType.TASK_BLOCKED,
+    "completed": EventType.TASK_COMPLETED,
+}
 
 
 async def list_tasks(
@@ -24,7 +35,15 @@ async def list_tasks(
     limit: int = 100,
     offset: int = 0,
 ) -> list[TaskModel]:
-    stmt = select(TaskModel).limit(limit).offset(offset)
+    # Without ORDER BY, Postgres returns physical order: rows rewritten by an
+    # update (claims → in_progress) drift past the first page, and offset
+    # paging skips or repeats rows. Most recently touched first, id tie-break.
+    stmt = (
+        select(TaskModel)
+        .order_by(TaskModel.updated_at.desc(), TaskModel.id)
+        .limit(limit)
+        .offset(offset)
+    )
     if project_id is not None:
         ensure_project_access(principal, project_id)
         stmt = stmt.where(TaskModel.project_id == project_id)
@@ -44,7 +63,7 @@ async def read_task(
     session: AsyncSession, principal: Principal, task_id: uuid.UUID
 ) -> TaskModel | None:
     """`get_task` for a read surface: a task of an inaccessible project
-    answers the project 403 (DEC-0100 §8)."""
+    answers the project 403 (DEC-0103 §8)."""
     task = await session.get(TaskModel, task_id)
     if task is not None:
         ensure_project_access(principal, task.project_id)
@@ -53,9 +72,51 @@ async def read_task(
 
 def authorize_create(principal: Principal, project_id: uuid.UUID) -> None:
     """Project then role check of a task creation. Callers run it ahead of the
-    idempotency replay short-circuit (DEC-0036, DEC-0100 §12)."""
+    idempotency replay short-circuit (DEC-0036, DEC-0103 §12)."""
     ensure_project_access(principal, project_id, "write")
     ensure_can_write(principal, "task")
+
+
+async def _actor(
+    session: AsyncSession, principal: Principal, agent_id: uuid.UUID | None
+) -> tuple[Literal["user", "agent"], uuid.UUID]:
+    if agent_id is not None:
+        agent = await session.get(AgentModel, agent_id)
+        if agent is not None and agent.machine_id == principal.machine.id:
+            return "agent", agent.id
+    return "user", principal.user.id
+
+
+async def _commit_with_event(
+    session: AsyncSession,
+    principal: Principal,
+    task: TaskModel,
+    event_type: EventType,
+    payload: dict[str, Any],
+    agent_id: uuid.UUID | None = None,
+) -> TaskModel:
+    """Commits the task write and its event atomically, then fans the event
+    out to the SSE stream (TECH/03_EVENT_CONTRACT.md, emission serveur Tasks)."""
+    actor_type, actor_id = await _actor(session, principal, agent_id)
+    event = await events_service.stage_event(
+        session,
+        EventCreate(
+            event_id=uuid.uuid4(),
+            event_type=event_type,
+            project_id=task.project_id,
+            task_id=task.id,
+            machine_id=principal.machine.id,
+            actor_type=actor_type,
+            actor_id=actor_id,
+            client_timestamp=datetime.now(UTC),
+            payload={"status": task.status, "version": task.version, **payload},
+        ),
+    )
+    await session.commit()
+    await session.refresh(task)
+    await session.refresh(event)
+    events_service.publish_event(event)
+    return task
 
 
 async def add_task(session: AsyncSession, principal: Principal, task_in: TaskCreate) -> TaskModel:
@@ -75,9 +136,10 @@ async def create_task(
     session: AsyncSession, principal: Principal, task_in: TaskCreate
 ) -> TaskModel:
     task = await add_task(session, principal, task_in)
-    await session.commit()
     await session.refresh(task)
-    return task
+    return await _commit_with_event(
+        session, principal, task, EventType.TASK_CREATED, {"transition": "created"}
+    )
 
 
 async def update_task(
@@ -94,6 +156,7 @@ async def update_task(
             status.HTTP_409_CONFLICT,
             detail={"error_code": "version_conflict", "server_version": task.version},
         )
+    previous_status = task.status
     if task_in.title is not None:
         task.title = task_in.title
     if task_in.description is not None:
@@ -101,9 +164,17 @@ async def update_task(
     if task_in.status is not None:
         task.status = task_in.status.value
     task.version += 1
-    await session.commit()
-    await session.refresh(task)
-    return task
+    event_type = EventType.TASK_UPDATED
+    if task.status != previous_status:
+        event_type = _STATUS_EVENT_TYPES.get(task.status, EventType.TASK_UPDATED)
+    return await _commit_with_event(
+        session,
+        principal,
+        task,
+        event_type,
+        {"transition": "updated", "previous_status": previous_status},
+        agent_id=task.claimed_by_agent_id,
+    )
 
 
 async def claim_task(
@@ -117,21 +188,33 @@ async def claim_task(
     ensure_can_write(principal, "task")
     if task.claimed_by_machine_id is not None and task.claimed_by_machine_id != machine_id:
         raise HTTPException(status.HTTP_409_CONFLICT, detail={"error_code": "already_claimed"})
+    previous_status = task.status
     task.claimed_by_machine_id = machine_id
     task.claimed_by_agent_id = agent_id
     task.status = "in_progress"
     task.version += 1
-    await session.commit()
-    await session.refresh(task)
-    return task
+    return await _commit_with_event(
+        session,
+        principal,
+        task,
+        EventType.TASK_STARTED,
+        {"transition": "claimed", "previous_status": previous_status},
+        agent_id=agent_id,
+    )
 
 
 async def release_task(session: AsyncSession, principal: Principal, task: TaskModel) -> TaskModel:
     ensure_project_access(principal, task.project_id, "write")
     ensure_machine_owned(principal, task.claimed_by_machine_id, "task", "release")
+    agent_id = task.claimed_by_agent_id
     task.claimed_by_machine_id = None
     task.claimed_by_agent_id = None
     task.version += 1
-    await session.commit()
-    await session.refresh(task)
-    return task
+    return await _commit_with_event(
+        session,
+        principal,
+        task,
+        EventType.TASK_UPDATED,
+        {"transition": "released"},
+        agent_id=agent_id,
+    )

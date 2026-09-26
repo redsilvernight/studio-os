@@ -1,4 +1,4 @@
-"""Project isolation (DEC-0100 / server DEC-0103): `project_memberships`.
+"""Project isolation (DEC-0103 / server DEC-0103): `project_memberships`.
 
 Preflight (blocking): every machine must have an existing owner — a machine
 without an owner would silently lose every access. Backfill: every existing

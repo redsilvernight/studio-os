@@ -188,7 +188,7 @@ Tests modifies/ajoutes : `tests/api/test_authz.py` (nouveau),
 Validation `studio-tester` et `contract-guardian` : voir rapports separes
 dans la session.
 
-## Amendement — DEC-0100 (2026-09-24, acceptee ; serveur DEC-0103)
+## Amendement — DEC-0103 (2026-09-24, acceptee ; serveur DEC-0103)
 
 Conserve : role transverse, ownership par ressource, regle Transfer, controle
 avant le court-circuit d'idempotence, `403` sans `404` de confidentialite.

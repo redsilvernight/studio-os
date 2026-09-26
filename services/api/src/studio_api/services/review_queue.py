@@ -47,7 +47,7 @@ async def get_review_queue(
     Conflict/PullRequest table exists) — these are best-effort, time-windowed
     signals, not resolvable queue entries. Restricted to the caller's
     accessible projects; an inaccessible `project_id` answers 403 before
-    anything is read (DEC-0100 §7)."""
+    anything is read (DEC-0103 §7)."""
     if project_id is not None:
         ensure_project_access(principal, project_id)
     items: list[ReviewQueueItem] = []

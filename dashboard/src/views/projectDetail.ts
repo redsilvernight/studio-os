@@ -23,7 +23,7 @@ import { renderClaimsInto } from "./claims";
 import { renderDecisionsV2 as renderDecisions } from "./decisionsV2";
 import { renderMembersInto } from "./members";
 import { renderTasksInto } from "./tasks";
-import { renderRoadmapInto } from "./roadmap";
+import { isRoadmapManagerRole, renderRoadmapInto } from "./roadmap";
 
 type Project = components["schemas"]["Project"];
 type ProjectState = components["schemas"]["ProjectState"];
@@ -241,11 +241,14 @@ export async function renderProjectDetail(
       panel.innerHTML = `<div class="ds-notice ds-notice--danger" role="alert"><strong>Roadmap indisponible.</strong> La source de données n'est pas configurée.</div>`;
       return;
     }
+    const canManageLifecycle =
+      ctx.roadmapDataSource.demo === true || isRoadmapManagerRole((await fetchIdentity(ctx.client))?.role ?? null);
     await renderRoadmapInto(panel, {
       dataSource: ctx.roadmapDataSource,
       projectId: project.id,
       projectName: project.name,
       roadmapId,
+      canManageLifecycle,
     });
     return;
   }
