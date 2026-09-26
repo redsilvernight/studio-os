@@ -9,7 +9,8 @@ description: Close a unit of work with existing Studi'OS primitives so a zero-hi
 
 1. `studio_log_ai_work` (final, with `task_id`): `summary` holds the structured note —
    `DONE` / `STATE` / `CHANGED` / `TESTS` / `NEXT` / `BLOCKERS` — plus `changed_files`
-   and `tests_run`. Keep it under ~800 characters; it is the resume packet, not a report.
+   and `tests_run` (honored on creation too; on update `summary` replaces the stored one).
+   Keep it under ~800 characters; it is the resume packet, not a report.
 2. `studio_release_resource` for each active claim of the task.
 3. `studio_release_task`.
 4. `studio_end_session` for the session, if one was started.
