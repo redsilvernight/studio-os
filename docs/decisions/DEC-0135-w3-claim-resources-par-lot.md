@@ -1,7 +1,7 @@
 ---
 id: DEC-0135
 title: 'W3 — Studio claim_resources : outil MCP distinct pour la pose de claims par lot'
-status: proposed
+status: accepted
 date: '2026-09-27'
 superseded_by: null
 ---
