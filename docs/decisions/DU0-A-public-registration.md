@@ -58,7 +58,7 @@ Les migrations futures doivent être réversibles et tester l'ordre de rollback
 applicatif ; contrats, OpenAPI, clients, fixtures et mocks A/B changent dans le
 même lot.
 
-## Amendement A3 (proposé — serveur DEC-0122 `668fc649-0c1f-43b4-b3fb-12dcbb4e3535`, tâches f1c0664c / 4cb7a6bd)
+## Amendement A3 (accepté — serveur DEC-0122 `668fc649-0c1f-43b4-b3fb-12dcbb4e3535`, tâches f1c0664c / 4cb7a6bd)
 
 - Administration HTTP des comptes, rôle `admin` : `POST /api/v1/users/{id}/disable|enable|revoke-sessions`
   et `GET /api/v1/users/{id}/memberships` (additifs), en plus de la CLI
@@ -73,5 +73,5 @@ même lot.
   `lower(email)`). La migration `0016` réécrit les e-mails existants en
   minuscules : transformation **irréversible** (le downgrade restaure la
   contrainte, pas la casse d'origine) ; préflight bloquant sur les doublons.
-  Son exécution sur une instance réelle exige un accord explicite.
+  Son exécution sur une instance réelle exige un accord explicite, donné par\n  l'utilisateur le 2026-09-26 avec l'acceptation de DEC-0122.
 - Contrats : TECH/02, TECH/04, TECH/05.
