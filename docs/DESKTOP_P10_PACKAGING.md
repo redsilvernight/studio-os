@@ -144,7 +144,7 @@ données), vérifier les mises à jour. L'export ne contient ni jeton, ni mot de
 
 `THIRD_PARTY_INVENTORY.json` (dans `sidecar\`) liste les paquets Python gelés, les crates Rust liées
 et les paquets npm d'exécution avec la licence déclarée. **Ce n'est pas un SBOM certifié ni un avis
-juridique.** Le dépôt ne contient pas de fichier `LICENSE` : à trancher avant diffusion publique.
+juridique.** Le dépôt est publié sous Apache-2.0 (`LICENSE`, DEC-0126).
 Cinq crates MPL-2.0 (`cssparser`, `cssparser-macros`, `dtoa-short`, `option-ext`, `selectors`) sont
 liées statiquement sans modification et revues.
 
