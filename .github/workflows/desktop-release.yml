@@ -1,8 +1,19 @@
-name: Desktop release build (manual)
+name: Desktop release (tag or manual)
 
-# Builds a signed installer and its updater artifacts; it never publishes a
-# GitHub release or an update feed. Publishing stays a separate, human step
-# (docs/DESKTOP_P10_PACKAGING.md, "Release procedure").
+# Builds a signed installer and its updater artifacts, and — when triggered by a
+# `desktop-vX.Y.Z` tag — publishes the release candidate itself. A manual
+# dispatch only builds the private candidate: publishing is opt-in by tag, so a
+# release never needs a local, ad hoc step.
+#
+# Gates before a candidate is accepted: the tag must equal the canonical Desktop
+# version, versions must be coherent, the Authenticode state of every delivered
+# executable is reported (DEC-0129: unsigned is accepted), the installer is
+# really installed/launched/upgraded/uninstalled, and SHA256SUMS.txt +
+# provenance.json are produced. The published release is a GitHub pre-release
+# and is never offered as `Latest`: promotion to stable is a manifest change,
+# never a rebuild (DEC-0108). The API/storage origins baked into a tag build
+# come from the `desktop-release` environment variables, never from a local
+# command line.
 #
 # B4 signing (DEC-0129: no certificate, dormant): Authenticode would be applied
 # DURING `tauri build` via the bundle.windows overlay (WINDOWS_CERT_THUMBPRINT
@@ -14,12 +25,19 @@ on:
   workflow_dispatch:
     inputs:
       api_url:
-        description: "API origin baked into the build"
-        required: true
+        description: "API origin baked into the build (defaults to the desktop-release environment variable)"
+        required: false
         type: string
+  push:
+    tags:
+      - "desktop-v*"
 
 permissions:
   contents: read
+
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   UV_LOCKED: "1"
@@ -29,8 +47,23 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 60
     environment: desktop-release
+    env:
+      STUDIO_DESKTOP_API_URL: ${{ github.event.inputs.api_url || vars.STUDIO_DESKTOP_API_URL }}
+      STUDIO_DESKTOP_STORAGE_URL: ${{ vars.STUDIO_DESKTOP_STORAGE_URL }}
     steps:
       - uses: actions/checkout@v5
+      - name: Refuse a build without its API origin
+        shell: pwsh
+        run: |
+          if (-not $env:STUDIO_DESKTOP_API_URL) { "::error title=config::STUDIO_DESKTOP_API_URL is not set on the desktop-release environment and no api_url input was given"; exit 1 }
+      - name: The tag must be the canonical Desktop version
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        shell: pwsh
+        working-directory: desktop
+        run: |
+          $tag = "${{ github.ref_name }}".Substring("desktop-v".Length)
+          $version = (node scripts/version.mjs).Trim()
+          if ($tag -ne $version) { "::error title=tag-version::tag ${{ github.ref_name }} does not match desktop/package.json $version"; exit 1 }
       - uses: astral-sh/setup-uv@v7
       - uses: actions/setup-node@v5
         with:
@@ -43,8 +76,16 @@ jobs:
           npm ci
           npm ci --prefix ../dashboard
         working-directory: desktop
+      - name: Version coherence gate
+        run: npm run version:check
+        working-directory: desktop
       - name: Build the installer with the update mechanism compiled in
-        run: node scripts/build.mjs --installer --api-url "${{ inputs.api_url }}"
+        shell: pwsh
+        run: |
+          $build = @("scripts/build.mjs", "--installer", "--api-url", $env:STUDIO_DESKTOP_API_URL)
+          if ($env:STUDIO_DESKTOP_STORAGE_URL) { $build += @("--storage-url", $env:STUDIO_DESKTOP_STORAGE_URL) }
+          node @build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         working-directory: desktop
         env:
           STUDIO_UPDATER_PUBKEY: ${{ secrets.STUDIO_UPDATER_PUBKEY }}
@@ -61,7 +102,13 @@ jobs:
         run: npm run test:install
         working-directory: desktop
       - name: Hashes and provenance of the release artifacts
-        run: node scripts/release-artifacts.mjs --api-url "${{ inputs.api_url }}"
+        shell: pwsh
+        run: node scripts/release-artifacts.mjs --api-url "$env:STUDIO_DESKTOP_API_URL"
+        working-directory: desktop
+      - name: Update feed manifest (latest.json, tag builds only)
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        shell: pwsh
+        run: node scripts/update-manifest.mjs --url-base "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}"
         working-directory: desktop
       - name: Keep the build outputs as a private workflow artifact
         uses: actions/upload-artifact@v6
@@ -72,5 +119,59 @@ jobs:
             desktop/src-tauri/target/release/bundle/nsis/*.sig
             desktop/src-tauri/target/release/bundle/nsis/SHA256SUMS.txt
             desktop/src-tauri/target/release/bundle/nsis/provenance.json
+            desktop/src-tauri/target/release/bundle/nsis/latest.json
           retention-days: 14
           if-no-files-found: error
+
+  # Tag builds only: the gated candidate becomes a pre-release GitHub release.
+  # Never deletes before publishing, so a failed step always leaves the previous
+  # release downloadable (same non-destructive pattern as the channels).
+  publish:
+    needs: build-signed
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download the release candidate
+        uses: actions/download-artifact@v6
+        with:
+          name: studio-desktop-release-candidate
+          path: release-candidate
+      - name: Publish the release candidate
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          trap { "::error title=publish::$($_.Exception.Message)"; exit 1 }
+          $tag = "${{ github.ref_name }}"
+          $version = $tag.Substring("desktop-v".Length)
+          $short = "${{ github.sha }}".Substring(0, 7)
+          $assets = @(Get-ChildItem release-candidate -File)
+          if ($assets.Count -eq 0) { "::error title=publish::no release candidate artifact"; exit 1 }
+          $installer = $assets | Where-Object { $_.Extension -eq ".exe" } | Select-Object -First 1
+          if (-not $installer) { "::error title=publish::no installer in the release candidate"; exit 1 }
+          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLower()
+          $notes = @(
+            "Studi'OS Desktop release candidate $version, built from tag $tag at ${{ github.sha }}.",
+            "Gated by the version coherence check, the installer install/upgrade/uninstall test and the signed-artifact verification.",
+            "",
+            "SHA-256: $hash",
+            "",
+            "Unsigned build (DEC-0129): SmartScreen / Smart App Control may warn or block it.",
+            "Pre-release: never offered as Latest. Promotion to stable is a manifest change, never a rebuild (DEC-0108)."
+          ) -join "`n"
+          $title = "Studi'OS Desktop $version (release candidate $short)"
+          $flags = @("--prerelease", "--latest=false")
+          function Invoke-Checked([string] $step, [scriptblock] $command) {
+            $out = & $command 2>&1
+            if ($LASTEXITCODE -ne 0) { "::error title=${step}::$(($out | Out-String).Trim() -replace "`r?`n", " ")"; exit 1 }
+          }
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            Invoke-Checked "gh release upload" { gh release upload $tag @($assets.FullName) --clobber }
+            Invoke-Checked "gh release edit" { gh release edit $tag --title $title --notes $notes @flags }
+          } else {
+            Invoke-Checked "gh release create" { gh release create $tag @($assets.FullName) --verify-tag --title $title --notes $notes @flags }
+          }
+          "Published $tag ($hash)" >> $env:GITHUB_STEP_SUMMARY

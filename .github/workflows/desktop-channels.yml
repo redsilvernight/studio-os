@@ -79,6 +79,11 @@ jobs:
         if: failure()
         run: node scripts/annotate-results.mjs install-test-results.json
         working-directory: desktop
+      - name: Update feed manifest (latest.json, only when the updater is compiled in)
+        if: hashFiles('desktop/src-tauri/target/release/bundle/nsis/*.sig') != ''
+        shell: pwsh
+        run: node scripts/update-manifest.mjs --url-base "https://github.com/${{ github.repository }}/releases/download/desktop-$env:STUDIO_DESKTOP_CHANNEL" --asset-name "StudiOS-Setup-$env:STUDIO_DESKTOP_CHANNEL.exe"
+        working-directory: desktop
       - name: Update the channel release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -94,6 +99,9 @@ jobs:
           $asset = Join-Path $env:RUNNER_TEMP "StudiOS-Setup-$channel.exe"
           Copy-Item $source.FullName $asset
           $hash = (Get-FileHash $asset -Algorithm SHA256).Hash.ToLower()
+          $assets = @($asset)
+          $manifest = "desktop/src-tauri/target/release/bundle/nsis/latest.json"
+          if (Test-Path $manifest) { $assets += (Resolve-Path $manifest).Path }
           $notes = @(
             "Studi'OS Desktop $label $version, built from ${{ github.ref_name }} at ${{ github.sha }} and checked by npm run test:install.",
             "",
@@ -114,9 +122,9 @@ jobs:
           Invoke-Checked "git push tag" { git push -q -f origin "${{ github.sha }}:refs/tags/$tag" }
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) {
-            Invoke-Checked "gh release upload" { gh release upload $tag $asset --clobber }
+            Invoke-Checked "gh release upload" { gh release upload $tag @($assets) --clobber }
             Invoke-Checked "gh release edit" { gh release edit $tag --title $title --notes $notes @flags }
           } else {
-            Invoke-Checked "gh release create" { gh release create $tag $asset --verify-tag --title $title --notes $notes @flags }
+            Invoke-Checked "gh release create" { gh release create $tag @($assets) --verify-tag --title $title --notes $notes @flags }
           }
           "Published $tag ($hash)" >> $env:GITHUB_STEP_SUMMARY
