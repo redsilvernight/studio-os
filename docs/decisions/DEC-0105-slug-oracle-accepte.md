@@ -1,11 +1,12 @@
 ---
 id: DEC-0105
 title: 'Oracle slug projet accepté : slugs non secrets, 409 conflict structuré'
-status: proposed
+status: accepted
 date: '2026-09-25'
 superseded_by: null
-server_decision_id: 52e447d4-6af3-456f-ab91-231ba1eae8c2
-server_readable_id: DEC-0118
+server_decision_id: 3ebb0849-91ac-427e-9f78-7b7a6dd1c4d1
+server_readable_id: DEC-0124
+server_replaces: 52e447d4-6af3-456f-ab91-231ba1eae8c2 (DEC-0118 serveur, superseded ; citait l'ancien fichier DEC-0101)
 source: task 81307c39 (résiduel 4e7351d0, registre fail-closed)
 ---
 

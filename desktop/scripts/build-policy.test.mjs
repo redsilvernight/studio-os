@@ -54,3 +54,30 @@ test("the storage origin of pre-signed uploads joins connect-src only when given
   assert.equal(connect(desktopCsp("https://studio.example", "https://studio.example")).split(" ").length, 5);
   assert.match(overlay({ apiUrl: "https://a.example", storageUrl: "https://s.example" }).app.security.csp, /https:\/\/s\.example/);
 });
+
+test("the prod channel keeps the base identity so installs upgrade in place", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const { overlay } = await import("./make-config.mjs");
+  const { CHANNELS, tauriDir } = await import("./lib.mjs");
+  const base = JSON.parse(readFileSync(join(tauriDir, "tauri.conf.json"), "utf8"));
+  assert.equal(CHANNELS.prod.productName, base.productName);
+  assert.equal(CHANNELS.prod.identifier, base.identifier);
+  const out = overlay({ apiUrl: "https://a.example", installer: true });
+  assert.equal(out.identifier, undefined);
+  assert.equal(out.productName, undefined);
+  assert.equal(out.bundle.windows, undefined);
+});
+
+test("the dev channel installs side by side with its own identity and data", async () => {
+  const { channelHooks, CHANNEL_HOOKS_FILE, overlay } = await import("./make-config.mjs");
+  const { CHANNELS } = await import("./lib.mjs");
+  const out = overlay({ apiUrl: "http://127.0.0.1:8000", installer: true, channel: "dev" });
+  assert.equal(out.identifier, CHANNELS.dev.identifier);
+  assert.equal(out.productName, CHANNELS.dev.productName);
+  assert.notEqual(out.identifier, CHANNELS.prod.identifier);
+  assert.equal(out.bundle.windows.nsis.installerHooks, `../.build/${CHANNEL_HOOKS_FILE}`);
+  const hooks = channelHooks("dev");
+  assert.match(hooks, /^!define STUDIO_DATA_DIR "StudioOS-Dev"\n!include ".+\\installer\\hooks\.nsh"\n$/);
+  assert.throws(() => overlay({ apiUrl: "https://a.example", channel: "staging" }), /unknown channel/);
+});

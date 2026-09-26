@@ -1,6 +1,6 @@
 // Real install / launch / upgrade / uninstall test of the NSIS installer.
 //
-//   node scripts/install-test.mjs [--installer <path>]
+//   node scripts/install-test.mjs [--installer <path>] [--channel prod|dev]
 //
 // Runs the actual per-user installer silently into a throwaway directory, launches
 // the INSTALLED application (offline, daemon data redirected to a throwaway
@@ -16,9 +16,10 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { chromium } from "playwright-core";
-import { arg, buildDir, desktopDir, tauriDir } from "./lib.mjs";
+import { arg, buildChannel, buildDir, CHANNELS, desktopDir, tauriDir } from "./lib.mjs";
 
-const PRODUCT = "Studio OS Desktop";
+const CHANNEL = CHANNELS[buildChannel()];
+const PRODUCT = CHANNEL.productName;
 const UNINSTALL_KEY = `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${PRODUCT}`;
 const CDP_PORT = Number(process.env.STUDIO_E2E_CDP_PORT ?? 9444);
 const APP_ORIGIN = "http://tauri.localhost";
@@ -232,7 +233,7 @@ async function main() {
       check("launch.install_dir_reported", typeof diag?.locations?.install_dir === "string" && diag.locations.install_dir.toLowerCase().includes(PRODUCT.toLowerCase()), String(diag?.locations?.install_dir));
       let stamp = null;
       for (let i = 0; i < 20 && !stamp; i++) {
-        stamp = existsSync(join(appData, "StudioOS", "format.json")) ? JSON.parse(readFileSync(join(appData, "StudioOS", "format.json"), "utf8")) : null;
+        stamp = existsSync(join(appData, CHANNEL.dataDir, "format.json")) ? JSON.parse(readFileSync(join(appData, CHANNEL.dataDir, "format.json"), "utf8")) : null;
         if (!stamp) await sleep(500);
       }
       check("launch.user_data_lives_outside_install_dir", stamp?.format === 1 && !listFiles(instDir).some((f) => /format\.json$/i.test(f)), `format.json ${JSON.stringify(stamp)} under the redirected %APPDATA%, none under the install dir`);
@@ -240,7 +241,7 @@ async function main() {
       check("launch.no_listener_on_all_interfaces", sockets.every((s) => !s.startsWith("0.0.0.0:") && !s.startsWith("[::]:")), sockets.length ? sockets.join(", ") : "no listening socket");
       const exported = await invoke(page, "export_diagnostics", {});
       const exportFile = exported.value?.file ? String(exported.value.file) : "";
-      const exportedDir = join(appData, "StudioOS", "diagnostics");
+      const exportedDir = join(appData, CHANNEL.dataDir, "diagnostics");
       const exportedFiles = existsSync(exportedDir) ? readdirSync(exportedDir) : [];
       const exportedText = exportedFiles.length ? readFileSync(join(exportedDir, exportedFiles[0]), "utf8") : "";
       check("launch.diagnostics_export_written_and_redacted", exported.ok && exportedFiles.length === 1 && !exportedText.includes(appData) && !/token|password|secret/i.test(exportedText.replace(/"[^"]*(?:token|password|secret)[^"]*"\s*:\s*"?\[redacted\]"?/gi, "")), `${exportFile}; ${exportedFiles.length} file(s), no raw home path`);
@@ -256,14 +257,14 @@ async function main() {
     }
 
     // ---- 3. upgrade over an install holding user data ---------------------------
-    writeFileSync(join(appData, "StudioOS", "config.toml"), "# user setting\n");
+    writeFileSync(join(appData, CHANNEL.dataDir, "config.toml"), "# user setting\n");
     writeFileSync(join(vault, "note.md"), "# my note\n");
     writeFileSync(join(instDir, "stale-from-old-build.txt"), "old\n");
-    const before = readFileSync(join(appData, "StudioOS", "format.json"), "utf8");
+    const before = readFileSync(join(appData, CHANNEL.dataDir, "format.json"), "utf8");
     const up = await runSilent(installerPath, ["/S", `/D=${instDir}`]);
     check("upgrade.reinstall_over_existing_exit_zero", up === 0, `exit ${up}`);
     check("upgrade.program_files_replaced", existsSync(exe) && existsSync(join(instDir, "sidecar", "studio-daemon.exe")), "app and sidecar still present after the reinstall");
-    check("upgrade.user_data_preserved", readFileSync(join(appData, "StudioOS", "config.toml"), "utf8") === "# user setting\n" && readFileSync(join(appData, "StudioOS", "format.json"), "utf8") === before, "config.toml and format.json untouched");
+    check("upgrade.user_data_preserved", readFileSync(join(appData, CHANNEL.dataDir, "config.toml"), "utf8") === "# user setting\n" && readFileSync(join(appData, CHANNEL.dataDir, "format.json"), "utf8") === before, "config.toml and format.json untouched");
     check("upgrade.vault_untouched", readFileSync(join(vault, "note.md"), "utf8") === "# my note\n", "vault note intact");
 
     // ---- 4. uninstall (default: keep data) ---------------------------------------
@@ -272,7 +273,7 @@ async function main() {
     const remaining = existsSync(instDir) ? listFiles(instDir).filter((f) => !/uninstall\.exe$/i.test(f) && !/stale-from-old-build\.txt$/i.test(f)) : [];
     check("uninstall.program_files_removed", !existsSync(exe) && !existsSync(join(instDir, "sidecar")) && remaining.length === 0, remaining.length ? `left: ${remaining.slice(0, 5).join(", ")}` : "app and sidecar removed");
     check("uninstall.registry_key_removed", !installedKey(), UNINSTALL_KEY);
-    check("uninstall.user_data_kept_by_default", readFileSync(join(appData, "StudioOS", "config.toml"), "utf8") === "# user setting\n" && existsSync(join(appData, "StudioOS", "format.json")), "daemon data folder kept");
+    check("uninstall.user_data_kept_by_default", readFileSync(join(appData, CHANNEL.dataDir, "config.toml"), "utf8") === "# user setting\n" && existsSync(join(appData, CHANNEL.dataDir, "format.json")), "daemon data folder kept");
     check("uninstall.vault_untouched", readFileSync(join(vault, "note.md"), "utf8") === "# my note\n", "vault note intact");
     check("uninstall.no_process_left", processCount("studio-daemon.exe") === 0 && processCount("studio-desktop.exe") === 0, "no studio process left");
   } finally {

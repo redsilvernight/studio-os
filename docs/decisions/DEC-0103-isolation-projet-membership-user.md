@@ -4,9 +4,9 @@ title: 'Isolation projet minimale : membership User→Project, rôle = quoi, mem
 status: accepted
 date: '2026-09-24'
 superseded_by: null
-server_decision_id: 19922554-bcd8-498f-9a14-7dab87916bf2
-server_readable_id: DEC-0103
-server_replaces: d31c16ea-06f1-481c-a701-7c06845dd426 (DEC-0097 serveur, superseded ; collisionnait avec l'ADR du dépôt DEC-0097)
+server_decision_id: eb2670d0-2598-4b9c-80fb-892ecced3da4
+server_readable_id: DEC-0123
+server_replaces: 19922554-bcd8-498f-9a14-7dab87916bf2 (DEC-0103 serveur, superseded ; citait l'ancien fichier DEC-0100) ; d31c16ea-06f1-481c-a701-7c06845dd426 (DEC-0097 serveur, superseded ; collisionnait avec l'ADR du dépôt DEC-0097)
 source: docs/DU0_AUTH_PROJECT_DATA_AUDIT.md
 ---
 
