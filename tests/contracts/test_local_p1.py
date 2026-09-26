@@ -967,3 +967,101 @@ class TestNeutrality:
     def test_public_type_hints_resolve(self) -> None:
         for model in _all_models():
             typing.get_type_hints(model)
+
+
+class TestEnrollSecretInput:
+    """DEC-0130: `IdentityEnrollRequest.human_session` is the only secret value
+    allowed across the bridge — request-only, masked, never echoed."""
+
+    SESSION = "e2e.enroll-session.XYZSECRETVALUE"
+
+    def _payload(self, **overrides: object) -> dict[str, object]:
+        return {
+            "profile": fixtures.PROFILE.model_dump(mode="json"),
+            "human_session": self.SESSION,
+            "machine_name": "dev-workstation",
+            **overrides,
+        }
+
+    def test_secret_inputs_are_exactly_the_declared_set(self) -> None:
+        from pydantic import SecretStr
+        from studio_contracts.local.identity import SECRET_INPUT_FIELDS
+
+        found = {
+            (model.__name__, field)
+            for model in _all_models()
+            for field, info in model.model_fields.items()
+            if SecretStr in (info.annotation, *typing.get_args(info.annotation))
+        }
+        assert found == set(SECRET_INPUT_FIELDS) == {("IdentityEnrollRequest", "human_session")}
+
+    def test_secret_input_only_in_a_request_never_in_an_answer(self) -> None:
+        from studio_contracts.local.identity import SECRET_INPUT_FIELDS
+
+        holders = {model for model, _ in SECRET_INPUT_FIELDS}
+        requests = {spec.request.__name__ for spec in BRIDGE_COMMANDS.values()}
+        answers = {spec.response.__name__ for spec in BRIDGE_COMMANDS.values()}
+        answers |= {model.__name__ for model in BRIDGE_EVENTS.values()}
+        assert holders <= requests
+        assert not holders & answers
+
+    def test_session_is_masked_in_repr_and_dumps(self) -> None:
+        from studio_contracts.local.identity import IdentityEnrollRequest
+
+        request = IdentityEnrollRequest.model_validate(self._payload())
+        assert request.human_session.get_secret_value() == self.SESSION
+        for text in (repr(request), str(request), request.model_dump_json()):
+            assert self.SESSION not in text
+
+    @pytest.mark.parametrize(
+        "overrides",
+        [
+            {"human_session": "bad shape XYZSECRETVALUE"},
+            {"human_session": "XYZSECRETVALUE" * 400},
+            {"machine_name": "C:/Users/dev"},
+            {"unknown": 1},
+        ],
+    )
+    def test_validation_errors_never_echo_the_session(self, overrides: dict[str, object]) -> None:
+        from studio_contracts.local.identity import IdentityEnrollRequest
+
+        payload = self._payload(**overrides)
+        envelope = {
+            "kind": "request",
+            "message_id": "m-1",
+            "correlation_id": "c-1",
+            "sent_at": "2026-01-01T00:00:00Z",
+            "command": "identity.enroll",
+            "payload": payload,
+        }
+        attempts = (
+            lambda: IdentityEnrollRequest.model_validate(payload),
+            lambda: BridgeRequest.model_validate(envelope),
+            lambda: BRIDGE_MESSAGE_ADAPTER.validate_json(json.dumps(envelope)),
+        )
+        for attempt in attempts:
+            with pytest.raises(ValidationError) as caught:
+                attempt()
+            assert "XYZSECRETVALUE" not in str(caught.value)
+
+    def test_enroll_is_a_mutating_command_behind_its_own_capability(self) -> None:
+        spec = BRIDGE_COMMANDS[BridgeCommand.IDENTITY_ENROLL]
+        assert spec.mutating is True
+        assert spec.capability == "identity.enroll"
+
+
+def test_request_repr_never_shows_the_payload() -> None:
+    request = BridgeRequest.model_validate(
+        {
+            "message_id": "m-1",
+            "correlation_id": "c-1",
+            "sent_at": "2026-01-01T00:00:00Z",
+            "command": "identity.enroll",
+            "payload": {
+                "profile": fixtures.PROFILE.model_dump(mode="json"),
+                "human_session": "e2e.enroll-session.XYZSECRETVALUE",
+                "machine_name": "dev",
+            },
+        }
+    )
+    assert "XYZSECRETVALUE" not in repr(request)

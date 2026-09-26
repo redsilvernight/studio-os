@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, TextIO
 from uuid import uuid4
 
+import httpx
 from pydantic import ValidationError
 from studio_contracts.local.bridge import (
     BridgeCommand,
@@ -58,6 +59,9 @@ from studio_contracts.local.harness import (
     HarnessVerifyRequest,
 )
 from studio_contracts.local.identity import (
+    IdentityEnrollOutcome,
+    IdentityEnrollRequest,
+    IdentityEnrollResult,
     IdentityView,
     ProfileRef,
     SecretKind,
@@ -84,6 +88,7 @@ from studio_workspaces.workspace_bridge import WorkspaceBridge
 
 from studio_client.config import ClientConfig, default_config_path
 from studio_client.daemon.desktop_origin import DesktopOriginError, desktop_client_config
+from studio_client.daemon.enrollment import EnrollmentError, enroll_machine
 from studio_client.daemon.local_features import (
     FEATURE_CAPABILITIES,
     LocalFeatureError,
@@ -99,7 +104,7 @@ from studio_client.daemon.runtime import (
 )
 from studio_client.data_format import DataFormatError, ensure_data_format
 from studio_client.outbox import OutboxIdentityError
-from studio_client.tokens import KeyringTokenStore
+from studio_client.tokens import KeyringTokenStore, TokenStore
 
 DAEMON_VERSION = "0.1.0"
 WORKSPACE_CAPABILITIES: tuple[str, ...] = ("workspace.config",)
@@ -140,6 +145,7 @@ SERVED = frozenset(
         BridgeCommand.DAEMON_RESTART,
         BridgeCommand.DAEMON_HEALTH,
         BridgeCommand.IDENTITY_GET_VIEW,
+        BridgeCommand.IDENTITY_ENROLL,
         BridgeCommand.WORKSPACE_VALIDATE,
         BridgeCommand.WORKSPACE_GET_CONFIG,
         BridgeCommand.WORKSPACE_CONFIRM_ROOTS,
@@ -223,8 +229,12 @@ class DaemonController:
         local_features: LocalFeatureRegistry | None = None,
         workspace_bridge: WorkspaceBridge | None = None,
         machine_resolver: MachineResolver = resolve_machine_id,
+        token_store: TokenStore | None = None,
+        enroll_transport: httpx.BaseTransport | None = None,
     ) -> None:
         self.config = config
+        self._token_store: TokenStore = token_store or KeyringTokenStore("studio-os")
+        self._enroll_transport = enroll_transport
         self.data_root = data_root or default_config_path().parent
         self._machine_resolver = machine_resolver
         self._workspace_source = workspace_source
@@ -376,7 +386,7 @@ class DaemonController:
             profile=profile,
         )
         try:
-            present = KeyringTokenStore("studio-os").get_token(profile.server_origin) is not None
+            present = self._token_store.get_token(profile.server_origin) is not None
             status = SecretStatus.PRESENT if present else SecretStatus.ABSENT
             error = None
             if not present:
@@ -404,6 +414,23 @@ class DaemonController:
                     error=error,
                 )
             ],
+        )
+
+    def enroll(self, request: IdentityEnrollRequest) -> IdentityEnrollResult:
+        """A5 self-service enrollment (DEC-0130): see `daemon.enrollment`."""
+        outcome = enroll_machine(
+            self.config,
+            self._profile(),
+            request,
+            self._token_store,
+            transport=self._enroll_transport,
+        )
+        return IdentityEnrollResult(
+            outcome=IdentityEnrollOutcome.ENROLLED
+            if outcome.machine_id is not None
+            else IdentityEnrollOutcome.ALREADY_ENROLLED,
+            machine_id=outcome.machine_id,
+            view=self.identity_view(),
         )
 
     def close(self, *, persist: bool = False) -> None:
@@ -600,6 +627,8 @@ class BridgeService:
             return self._local_error(request, _workspace_error(error))
         except LocalFeatureError as error:
             return self._local_error(request, error.error)
+        except EnrollmentError as error:
+            return self._local_error(request, error.error)
         except OutboxIdentityError:
             return self._error(
                 request,
@@ -654,6 +683,7 @@ class BridgeService:
                             "daemon.control",
                             "daemon.health",
                             "identity.view",
+                            "identity.enroll",
                             *(
                                 WORKSPACE_CAPABILITIES
                                 if self.controller.workspace_bridge is not None
@@ -673,6 +703,8 @@ class BridgeService:
             return self.controller.health(DaemonHealthRequest.model_validate(request.payload))
         if request.command is BridgeCommand.IDENTITY_GET_VIEW:
             return self.controller.identity_view()
+        if request.command is BridgeCommand.IDENTITY_ENROLL:
+            return self.controller.enroll(IdentityEnrollRequest.model_validate(request.payload))
         if request.command in _WORKSPACE_COMMANDS:
             return self._workspace(request)
         if request.command in _LOCAL_FEATURE_COMMANDS:

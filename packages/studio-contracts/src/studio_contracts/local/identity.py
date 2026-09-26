@@ -1,11 +1,19 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from enum import StrEnum
-from typing import Self
+from typing import Annotated, Self
 from uuid import UUID
 
-from pydantic import model_validator
+from pydantic import (
+    AfterValidator,
+    ConfigDict,
+    Field,
+    SecretStr,
+    WithJsonSchema,
+    model_validator,
+)
 
 from studio_contracts.local.common import (
     ComponentId,
@@ -30,8 +38,9 @@ class ProfileRef(LocalContractModel):
 
 class HumanIdentity(LocalContractModel):
     """The person using the Desktop. Authenticated by a short-lived session
-    that lives in the renderer/dashboard; its credential is never part of any
-    local contract."""
+    that lives in the renderer/dashboard; its credential is part of no local
+    contract except the single, write-only `IdentityEnrollRequest.human_session`
+    (DEC-0130)."""
 
     user_id: UUID
     display_name: ShortText
@@ -159,3 +168,75 @@ def binding_mismatches(entry: IdentityBinding, active: IdentityBinding) -> list[
         if entry_value is not None and entry_value != getattr(active, name):
             mismatched.append(name)
     return mismatched
+
+
+# --- A5 enrollment (DEC-0130, amends DEC-0093) -------------------------------
+
+_SESSION_CHARS = re.compile(r"^[A-Za-z0-9._~+/=-]+$")
+
+
+def _check_session_shape(value: SecretStr) -> SecretStr:
+    # Static message on purpose: a validation error never echoes the value.
+    if _SESSION_CHARS.match(value.get_secret_value()) is None:
+        raise ValueError("human session has an unexpected shape")
+    return value
+
+
+HumanSession = Annotated[
+    SecretStr,
+    Field(min_length=16, max_length=4096),
+    AfterValidator(_check_session_shape),
+    # Plain, closed schema for the renderer's fail-closed validator (no
+    # `writeOnly`/`format` keywords), with the same shape rule as above.
+    WithJsonSchema(
+        {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 4096,
+            "pattern": _SESSION_CHARS.pattern,
+        }
+    ),
+]
+
+SECRET_INPUT_FIELDS: frozenset[tuple[str, str]] = frozenset(
+    {("IdentityEnrollRequest", "human_session")}
+)
+"""The complete set of request fields allowed to carry a secret value across
+the bridge (DEC-0130). Write-only: never in a response, an event, a valid
+fixture, a log or a diagnostic (invalid fixtures hold obvious placeholders
+only); masked by `SecretStr` in every repr and dump."""
+
+
+class IdentityEnrollRequest(LocalContractModel):
+    """Enroll this machine for the human signed in on the Desktop, without an
+    admin (A5 self-service). The daemon checks `profile` against its own server
+    origin before any network call, uses `human_session` for exactly one
+    `POST /api/v1/machines`, stores the returned credential in the OS keyring
+    and forgets the session. Validation errors never echo their input."""
+
+    model_config = ConfigDict(frozen=True, hide_input_in_errors=True)
+
+    profile: ProfileRef
+    human_session: HumanSession
+    machine_name: ShortText
+    replace_existing: bool = False
+
+
+class IdentityEnrollOutcome(StrEnum):
+    ENROLLED = "enrolled"
+    ALREADY_ENROLLED = "already_enrolled"
+
+
+class IdentityEnrollResult(LocalContractModel):
+    """What the renderer learns: the outcome, the new machine id and the
+    refreshed identity view — never the machine credential."""
+
+    outcome: IdentityEnrollOutcome
+    machine_id: UUID | None = None
+    view: IdentityView
+
+    @model_validator(mode="after")
+    def _enrolled_has_machine(self) -> Self:
+        if self.outcome is IdentityEnrollOutcome.ENROLLED and self.machine_id is None:
+            raise ValueError("an enrolled outcome names the new machine")
+        return self

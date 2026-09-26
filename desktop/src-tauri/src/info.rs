@@ -47,12 +47,18 @@ pub const LOCAL_FEATURE_CAPABILITIES: &[&str] = &[
 /// unavailable instead of failing the handshake.
 pub const WORKSPACE_CAPABILITIES: &[&str] = &["workspace.config"];
 
+/// Additive A5 capability (DEC-0130): self-service enrollment of this machine.
+/// Offered but never required: an older daemon answers `compatible_degraded`
+/// and the setup assistant keeps its manual instructions.
+pub const ENROLL_CAPABILITIES: &[&str] = &["identity.enroll"];
+
 fn offered_capabilities() -> Vec<&'static str> {
     P2_CAPABILITIES
         .iter()
         .chain(OPTIONAL_CAPABILITIES.iter())
         .chain(LOCAL_FEATURE_CAPABILITIES.iter())
         .chain(WORKSPACE_CAPABILITIES.iter())
+        .chain(ENROLL_CAPABILITIES.iter())
         .copied()
         .collect()
 }
@@ -62,6 +68,7 @@ fn optional_capabilities() -> Vec<&'static str> {
         .iter()
         .chain(LOCAL_FEATURE_CAPABILITIES.iter())
         .chain(WORKSPACE_CAPABILITIES.iter())
+        .chain(ENROLL_CAPABILITIES.iter())
         .copied()
         .collect()
 }

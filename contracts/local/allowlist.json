@@ -189,6 +189,17 @@
     },
     {
       "cancellable": false,
+      "capability": "identity.enroll",
+      "command": "identity.enroll",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": true,
+      "request": "IdentityEnrollRequest",
+      "response": "IdentityEnrollResult",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
       "capability": "identity.view",
       "command": "identity.get_view",
       "max_request_bytes": 65536,

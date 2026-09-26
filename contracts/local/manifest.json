@@ -36,6 +36,21 @@
       "reason": "unknown field: a reference has no value"
     },
     {
+      "model": "IdentityEnrollRequest",
+      "name": "identity.enroll.session_bad_shape",
+      "reason": "the human session only holds token characters"
+    },
+    {
+      "model": "IdentityEnrollRequest",
+      "name": "identity.enroll.session_too_short",
+      "reason": "the human session is at least 16 characters"
+    },
+    {
+      "model": "IdentityEnrollResult",
+      "name": "identity.enroll.enrolled_without_machine",
+      "reason": "an enrolled outcome names the new machine"
+    },
+    {
       "model": "IdentityView",
       "name": "identity.view.revoked_without_error",
       "reason": "non-present secret requires a structured error"
@@ -171,6 +186,8 @@
     "HarnessVerifyResult",
     "HumanIdentity",
     "IdentityBinding",
+    "IdentityEnrollRequest",
+    "IdentityEnrollResult",
     "IdentityView",
     "IndexInfo",
     "IndexLocation",
@@ -440,6 +457,14 @@
     {
       "model": "HarnessVerifyResult",
       "name": "harness.verify.result.verified"
+    },
+    {
+      "model": "IdentityEnrollResult",
+      "name": "identity.enroll.already_enrolled"
+    },
+    {
+      "model": "IdentityEnrollResult",
+      "name": "identity.enroll.enrolled"
     },
     {
       "model": "IdentityView",

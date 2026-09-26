@@ -411,3 +411,129 @@ describe("A5 — compte auto-inscrit dans l'assistant", () => {
     fetchSpy.mockRestore();
   });
 });
+
+describe("A5 — enregistrement du poste sans admin (DEC-0130)", () => {
+  const PROFILE = { profile_id: "main", server_origin: "https://studio.example" };
+  const view = (status: string) => ok({ profile: PROFILE, secrets: [{ status }] });
+
+  function enrollingDesktop(answers: {
+    status: () => string;
+    enroll?: (payload: Record<string, unknown>) => BridgeAnswer;
+    granted?: string[];
+  }) {
+    const calls: Array<{ command: string; payload: Record<string, unknown> }> = [];
+    const granted = answers.granted ?? ["daemon.control", "identity.view", "identity.enroll"];
+    const platform = fakeDesktop({
+      request: (async (command: string, payload: Record<string, unknown>) => {
+        calls.push({ command, payload });
+        if (command === "runtime.handshake") return ok({ outcome: "compatible", granted_capabilities: granted });
+        if (command === "identity.get_view") return view(answers.status());
+        if (command === "identity.enroll" && answers.enroll) return answers.enroll(payload);
+        return refused("not_supported");
+      }) as never,
+    });
+    return { platform, calls };
+  }
+
+  const verification = () => emptySession({ schema: 1, status: "in_progress", current: "verification" });
+
+  it("enregistre le poste avec la session de l'étape « Connexion », une seule fois", async () => {
+    let status = "absent";
+    const { platform, calls } = enrollingDesktop({
+      status: () => status,
+      enroll: () => {
+        status = "present";
+        return ok({ outcome: "enrolled", machine_id: PROJECT, view: { profile: PROFILE, secrets: [] } });
+      },
+    });
+    const root = mount();
+    await renderOnboarding(root, platform, verification());
+    expect(root.querySelector<HTMLButtonElement>("[data-action=next]")!.disabled).toBe(true);
+    const enroll = root.querySelector<HTMLButtonElement>("[data-action=enroll]")!;
+    enroll.click();
+    enroll.click();
+    await tick(20);
+
+    const enrolls = calls.filter((c) => c.command === "identity.enroll");
+    expect(enrolls).toHaveLength(1);
+    expect(enrolls[0]!.payload).toMatchObject({ profile: PROFILE, human_session: "session-token", replace_existing: false });
+    expect(String(enrolls[0]!.payload["machine_name"])).toContain("Studi'OS Desktop");
+    expect(root.querySelector("[data-testid=onboarding-notice]")?.textContent).toContain("Poste enregistré.");
+    expect(root.querySelector<HTMLButtonElement>("[data-action=next]")!.disabled).toBe(false);
+    expect(root.innerHTML).not.toContain("session-token");
+  });
+
+  it("un credential révoqué est remplacé explicitement", async () => {
+    const { platform, calls } = enrollingDesktop({
+      status: () => "revoked",
+      enroll: () => ok({ outcome: "enrolled", machine_id: PROJECT, view: { profile: PROFILE, secrets: [] } }),
+    });
+    const root = mount();
+    await renderOnboarding(root, platform, verification());
+    root.querySelector<HTMLButtonElement>("[data-action=enroll]")!.click();
+    await tick(20);
+    expect(calls.find((c) => c.command === "identity.enroll")?.payload["replace_existing"]).toBe(true);
+  });
+
+  it("ancien démon sans la capacité : message de mise à jour, la session n'est jamais envoyée", async () => {
+    const { platform, calls } = enrollingDesktop({ status: () => "absent", granted: ["daemon.control", "identity.view"] });
+    const root = mount();
+    await renderOnboarding(root, platform, verification());
+    expect(root.querySelector("[data-action=enroll]")).toBeNull();
+    expect(root.querySelector("[data-testid=enroll-unavailable]")?.textContent).toContain("Mettez l'application à jour");
+    expect(calls.some((c) => c.command === "identity.enroll")).toBe(false);
+    expect(JSON.stringify(calls)).not.toContain("session-token");
+  });
+
+  it("capacité perdue entre l'affichage et le clic (démon redémarré) : rien n'est envoyé", async () => {
+    let granted = ["daemon.control", "identity.view", "identity.enroll"];
+    const calls: string[] = [];
+    const platform = fakeDesktop({
+      request: (async (command: string) => {
+        calls.push(command);
+        if (command === "runtime.handshake") return ok({ outcome: "compatible", granted_capabilities: granted });
+        if (command === "identity.get_view") return view("absent");
+        return refused("not_supported");
+      }) as never,
+    });
+    const root = mount();
+    await renderOnboarding(root, platform, verification());
+    granted = ["daemon.control", "identity.view"];
+    root.querySelector<HTMLButtonElement>("[data-action=enroll]")!.click();
+    await tick(20);
+    expect(calls).not.toContain("identity.enroll");
+    expect(root.querySelector("[data-testid=onboarding-error]")?.textContent).toContain("Mettez l'application à jour");
+  });
+
+  it("sans session : invite à se connecter, aucun appel", async () => {
+    clearToken();
+    const { platform, calls } = enrollingDesktop({ status: () => "absent" });
+    const root = mount();
+    await renderOnboarding(root, platform, verification());
+    expect(root.querySelector("[data-testid=enroll-needs-login]")).not.toBeNull();
+    expect(root.querySelector("[data-action=enroll]")).toBeNull();
+    expect(calls.some((c) => c.command === "identity.enroll")).toBe(false);
+  });
+
+  it.each([
+    [{ code: "permission_denied", details: { reason: "session_expired" } }, "Votre session a expiré"],
+    [{ code: "permission_denied", details: { reason: "forbidden" } }, "ne peut pas enregistrer de poste"],
+    [{ code: "internal_error", details: { reason: "server_unreachable" } }, "Serveur injoignable"],
+    [{ code: "keyring_unavailable", details: { reason: "credential_not_stored" } }, "révoquez-le depuis « Postes »"],
+    [{ code: "wrong_profile", details: {} }, "vise un autre serveur"],
+    [{ code: "capability_missing", details: {} }, "ne sait pas enregistrer le poste"],
+  ])("refus %o : message fixe", async (error, expected) => {
+    const { platform } = enrollingDesktop({
+      status: () => "absent",
+      enroll: () =>
+        ({ ok: false, error: { component: "daemon", message: "server text", retryable: false, correlation_id: null, ...error } }) as unknown as BridgeAnswer,
+    });
+    const root = mount();
+    await renderOnboarding(root, platform, verification());
+    root.querySelector<HTMLButtonElement>("[data-action=enroll]")!.click();
+    await tick(20);
+    const shown = root.querySelector("[data-testid=onboarding-error]")?.textContent ?? "";
+    expect(shown).toContain(expected);
+    expect(shown).not.toContain("server text");
+  });
+});

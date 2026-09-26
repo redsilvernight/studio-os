@@ -66,7 +66,10 @@ un test échoue si l'export diverge des builders Python.
   refusé (`IDENTITY_MISMATCH`).
 - **Workspace** : aucun secret, uniquement `SecretReference`. Six états de santé.
 - **Identités** : `HumanIdentity` et `MachineIdentity` sont deux types ; seules
-  les références et leur statut traversent la frontière.
+  les références et leur statut traversent la frontière, à une exception près :
+  `identity.enroll` (DEC-0130) porte la session humaine en entrée seule
+  (`IdentityEnrollRequest.human_session`, `SecretStr`, jamais renvoyée ni
+  journalisée) pour enregistrer le poste sans administrateur.
 - **Providers** : Knowledge (Markdown canonique, index dérivé, Obsidian
   optionnel), Code Graph (aucun détail Graphify dans les contrats publics ;
   `graphify` n'apparaît que comme valeur d'identifiant d'adaptateur dans les

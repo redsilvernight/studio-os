@@ -1,0 +1,12 @@
+{
+  "data": {
+    "human_session": "short",
+    "machine_name": "dev",
+    "profile": {
+      "profile_id": "default",
+      "server_origin": "https://studio.example.test"
+    }
+  },
+  "model": "IdentityEnrollRequest",
+  "reason": "the human session is at least 16 characters"
+}

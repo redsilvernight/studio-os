@@ -55,6 +55,58 @@
       "title": "HumanIdentity",
       "type": "object"
     },
+    "IdentityEnrollOutcome": {
+      "enum": [
+        "enrolled",
+        "already_enrolled"
+      ],
+      "title": "IdentityEnrollOutcome",
+      "type": "string"
+    },
+    "IdentityView": {
+      "additionalProperties": false,
+      "description": "Everything the renderer may know about identity: who, on which machine,\nand whether the secrets behind them are usable — never the secrets.",
+      "properties": {
+        "human": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HumanIdentity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "machine": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MachineIdentity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "profile": {
+          "$ref": "#/$defs/ProfileRef"
+        },
+        "secrets": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/SecretReferenceStatus"
+          },
+          "title": "Secrets",
+          "type": "array"
+        }
+      },
+      "required": [
+        "profile"
+      ],
+      "title": "IdentityView",
+      "type": "object"
+    },
     "LocalError": {
       "additionalProperties": false,
       "description": "The one structured error shape of the local stack. Never carries a\nsecret, a stack trace or an absolute local path: `message` and `details`\nare validated, bounded and safe to display or log.",
@@ -311,45 +363,32 @@
     }
   },
   "additionalProperties": false,
-  "description": "Everything the renderer may know about identity: who, on which machine,\nand whether the secrets behind them are usable — never the secrets.",
+  "description": "What the renderer learns: the outcome, the new machine id and the\nrefreshed identity view — never the machine credential.",
   "properties": {
-    "human": {
+    "machine_id": {
       "anyOf": [
         {
-          "$ref": "#/$defs/HumanIdentity"
+          "format": "uuid",
+          "type": "string"
         },
         {
           "type": "null"
         }
       ],
-      "default": null
+      "default": null,
+      "title": "Machine Id"
     },
-    "machine": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/MachineIdentity"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null
+    "outcome": {
+      "$ref": "#/$defs/IdentityEnrollOutcome"
     },
-    "profile": {
-      "$ref": "#/$defs/ProfileRef"
-    },
-    "secrets": {
-      "default": [],
-      "items": {
-        "$ref": "#/$defs/SecretReferenceStatus"
-      },
-      "title": "Secrets",
-      "type": "array"
+    "view": {
+      "$ref": "#/$defs/IdentityView"
     }
   },
   "required": [
-    "profile"
+    "outcome",
+    "view"
   ],
-  "title": "IdentityView",
+  "title": "IdentityEnrollResult",
   "type": "object"
 }
