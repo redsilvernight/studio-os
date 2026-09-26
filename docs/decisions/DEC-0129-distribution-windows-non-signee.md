@@ -1,7 +1,7 @@
 # DEC-0129 — Distribution Windows non signée : pas de certificat Authenticode (coût)
 
-Statut : `proposed` (choix humain exprimé en session du 2026-09-26 — fichier et
-serveur alignés sur `proposed` jusqu'à accord explicite).
+Statut : `accepted` (choix humain exprimé puis accepté dans Studio OS le
+2026-09-26).
 
 ## Décision
 
