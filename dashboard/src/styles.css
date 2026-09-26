@@ -244,6 +244,10 @@ td.actions button { margin-right: 4px; }
   margin-bottom: 8px;
 }
 
+.login-box .account-title { margin: 12px 0 4px; font-size: 16px; }
+.login-links { margin: 8px 0 0; }
+.awaiting-access { display: grid; gap: 12px; justify-items: start; }
+
 .status {
   display: inline-flex;
   align-items: center;
