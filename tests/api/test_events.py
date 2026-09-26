@@ -29,7 +29,7 @@ from studio_api.services import provisioning as provisioning_service
 # `get_session_factory()`'s module-level engine cache can be populated by
 # either fixture in whichever order pytest instantiates them.
 os.environ["STUDIO_DATABASE_URL"] = os.environ.get(
-    "STUDIO_TEST_DATABASE_URL", "postgresql+asyncpg://studio:studio@localhost:5432/studio_os_test"
+    "STUDIO_TEST_DATABASE_URL", "postgresql+asyncpg://studio:studio@127.0.0.1:5432/studio_os_test"
 )
 
 
@@ -325,7 +325,7 @@ async def live_project_and_token(
             session, user.id, "stream-test-machine"
         )
         project = await projects_service.create_project(
-            session, f"proj-{uuid.uuid4().hex[:8]}", "Stream Test Project", None
+            session, f"proj-{uuid.uuid4().hex[:8]}", "Stream Test Project", None, creator=None
         )
         user_id, project_id = user.id, project.id
 
@@ -474,6 +474,32 @@ async def test_stream_does_not_republish_an_idempotent_replay(
 
     assert body_b["event_id"] == str(event_b_id)
     assert seq_b > seq_a
+
+
+async def test_stream_closes_at_once_when_the_owner_is_disabled(
+    live_client: AsyncClient,
+    live_project_and_token: tuple[ProjectModel, MachineModel, str],
+) -> None:
+    project, machine_model, token = live_project_and_token
+
+    async def _drain(lines: AsyncIterator[str]) -> None:
+        async for _line in lines:
+            pass
+
+    async with live_client.stream(
+        "GET",
+        "/api/v1/events/stream",
+        headers={"Authorization": f"Bearer {token}"},
+        params={"project": str(project.id)},
+    ) as stream:
+        assert stream.status_code == 200
+        drained = asyncio.create_task(_drain(stream.aiter_lines()))
+        await asyncio.sleep(0.2)
+        async with get_session_factory()() as session:
+            owner = await session.get(UserModel, machine_model.owner_user_id)
+            assert owner is not None
+            await provisioning_service.disable_user(session, owner.email)
+        await asyncio.wait_for(drained, 5)
 
 
 async def test_stream_requires_authentication(client: AsyncClient, project: ProjectModel) -> None:

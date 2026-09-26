@@ -6,7 +6,7 @@
  * honest connection state without polling. With no observer installed (the web
  * build) this is a transparent `fetch`.
  */
-import { hasToken } from "./auth";
+import { getToken } from "./auth";
 
 export interface ApiObserver {
   /**
@@ -35,6 +35,21 @@ function urlOf(input: RequestInfo | URL): string {
   return input.url;
 }
 
+function authorizationOf(input: RequestInfo | URL, init?: RequestInit): string | null {
+  if (init?.headers !== undefined) return new Headers(init.headers).get("Authorization");
+  return input instanceof Request ? input.headers.get("Authorization") : null;
+}
+
+/**
+ * A 401 ends the session only if the refused request carried the current
+ * token: a late answer to a call made with a previous token never signs out
+ * the session that replaced it, and a login attempt (no bearer) never does.
+ */
+function refusedCurrentSession(input: RequestInfo | URL, init?: RequestInit): boolean {
+  const token = getToken();
+  return token !== null && authorizationOf(input, init) === `Bearer ${token}`;
+}
+
 export const observedFetch: typeof fetch = async (input, init) => {
   if (observer?.refuse?.(urlOf(input))) {
     observer.networkError?.();
@@ -48,6 +63,6 @@ export const observedFetch: typeof fetch = async (input, init) => {
     throw error;
   }
   observer?.reachable?.();
-  if (response.status === 401 && hasToken()) observer?.unauthorized?.();
+  if (response.status === 401 && refusedCurrentSession(input, init)) observer?.unauthorized?.();
   return response;
 };

@@ -48,7 +48,7 @@ from tests.api.test_roadmaps_api import DOCUMENT
 
 TEST_DATABASE_URL = os.environ.get(
     "STUDIO_TEST_DATABASE_URL",
-    "postgresql+asyncpg://studio:studio@localhost:5432/studio_os_test",
+    "postgresql+asyncpg://studio:studio@127.0.0.1:5432/studio_os_test",
 )
 
 
@@ -199,7 +199,7 @@ async def race(
         )
         machine, token = await provisioning_service.create_machine(setup, user.id, "race-machine")
         project = await projects_service.create_project(
-            setup, f"race-{uuid.uuid4().hex[:8]}", "Race Project", None
+            setup, f"race-{uuid.uuid4().hex[:8]}", "Race Project", None, creator=None
         )
 
     async def _touch() -> None:

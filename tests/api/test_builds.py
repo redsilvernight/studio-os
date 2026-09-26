@@ -145,7 +145,7 @@ async def test_reconcile_is_idempotent_and_skips_disabled(
 
     await _wire_project(client, admin_auth_headers, project)
     other_project = await projects_service.create_project(
-        db_session, f"proj-{uuid.uuid4().hex[:8]}", "Other Project", None
+        db_session, f"proj-{uuid.uuid4().hex[:8]}", "Other Project", None, creator=None
     )
     response = await client.post(
         f"/api/v1/projects/{other_project.id}/github-integration",
@@ -359,7 +359,7 @@ async def test_transfer_rejects_build_from_another_project(
 
     await _wire_project(client, admin_auth_headers, project)
     other_project = await projects_service.create_project(
-        db_session, f"proj-{uuid.uuid4().hex[:8]}", "Other Project", None
+        db_session, f"proj-{uuid.uuid4().hex[:8]}", "Other Project", None, creator=None
     )
     await _wire_project(client, admin_auth_headers, other_project, repo="other/repo")
     await _deliver(

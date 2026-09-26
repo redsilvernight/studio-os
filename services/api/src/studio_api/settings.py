@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from typing import Literal
+
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -30,14 +33,24 @@ class Settings(BaseSettings):
     request_id_header: str = "x-request-id"
     rate_limit_requests_per_minute: int = 120
     rate_limit_burst: int = 20
+    # /api/v1/auth/* (login): stricter, always per client IP.
+    auth_rate_limit_requests_per_minute: int = 10
+    auth_rate_limit_burst: int = 5
+    # Comma-separated IPs/CIDRs of reverse proxies (Caddy) whose
+    # X-Forwarded-For is honored. Empty: the header is ignored.
+    trusted_proxies: str = ""
 
     # Logging
     log_format: str = "text"  # "text" or "json"
     log_level: str = "INFO"
 
-    # Human dashboard JWT (DASH-4)
+    # Deployment environment. Fail-closed: anything but an explicit "dev" or
+    # "test" is production, where a weak JWT secret refuses to start.
+    environment: Literal["production", "dev", "test"] = "production"
+
+    # Human dashboard JWT (DASH-4, DEC-0110: 15 min at most, out of range refuses to start)
     jwt_secret: str = "change-me-in-production"
-    jwt_access_token_expire_minutes: int = 480
+    jwt_access_token_expire_minutes: int = Field(default=15, ge=1, le=15)
 
     # GitHub integration, Studio Producer (etape 9.1, DEC-0059) — secrets are
     # env-only, never logged, never returned by the API.

@@ -99,8 +99,10 @@ RESP_403_FORBIDDEN: ErrorResponses = {
         "object kind, `action` the attempted operation). A 403 is final: "
         "retrying the same call changes nothing, and a queued offline "
         "operation that replays into a 403 is dead-lettered, never "
-        "retried. Reads stay fully available; only the listed write "
-        "operations can return this.",
+        "retried. Since contract version 2, any route tied to a "
+        "project, reads included, may answer `resource: project` for a "
+        "project the caller cannot access or that does not exist; it is "
+        "never an authentication error.",
         {"detail": {"error_code": "forbidden", "resource": "task", "action": "write"}},
     )
 }

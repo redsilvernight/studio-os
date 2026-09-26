@@ -10,7 +10,7 @@ from studio_api.db.models.build import BuildModel, ProducerJobModel
 from studio_api.services import github as github_service
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import producer as producer_service
-from studio_api.services.authz import Principal, ensure_can_write
+from studio_api.services.authz import Principal
 from studio_contracts.builds import BuildStatus, ProducerJobKind, ProducerJobRequest
 
 from studio_mcp.errors import run_tool
@@ -57,7 +57,7 @@ async def studio_get_builds(
     read-only. Optional project_id (UUID string), status
     (queued/in_progress/succeeded/failed), limit."""
 
-    async def _handler(session: AsyncSession, _principal: Principal) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed_project_id = None
         if project_id is not None:
             parsed = parse_uuid(project_id, "project_id")
@@ -78,7 +78,7 @@ async def studio_get_builds(
             kwargs["status_value"] = status_value
         if limit is not None:
             kwargs["limit"] = limit
-        builds = await github_service.list_builds(session, **kwargs)
+        builds = await github_service.list_builds(session, principal, **kwargs)
         return {"builds": [_compact_build(b) for b in builds]}
 
     return await run_tool(ctx, _handler)
@@ -116,7 +116,7 @@ async def studio_request_producer_job(
             return {"error_code": "invalid_kind", "message": f"unknown producer kind {kind!r}"}
         # Ahead of `run_idempotent_dict`'s replay short-circuit — see
         # `routers/tasks.py::create_task` for why (DEC-0036).
-        ensure_can_write(principal, "producer_job")
+        producer_service.authorize_request(principal, parsed_project)
 
         async def _create() -> dict[str, Any]:
             job = await producer_service.request_producer_job(

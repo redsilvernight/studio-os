@@ -1,17 +1,38 @@
 # API Contract v1
 
-Base: `/api/v1`
+Base: `/api/v1` — version contractuelle `API_CONTRACT_VERSION = 2` (DEC-0103).
+Statut : **DEC-0103 acceptee ; enforcement projet et `GET /machines` /
+`GET /agents` self/admin livres (A0, tache 00397d8d) ; gestion des membres
+(`/projects/{id}/members`) livree (A0, tache 0324dbb3)**, le serveur annonce la
+version 2. Reste a livrer dans A0 : `GET /api/v1/meta/compatibility`.
+Le prefixe de transport `/api/v1` est conserve ; aucune base `/api/v2` n'est
+creee. La version contractuelle est exposee par le champ
+`api_contract_version` de `GET /api/v1/meta/compatibility` (public, additif,
+DU0-D, etape B2) et negociee fail-closed : un client qui exige la version 1
+doit refuser de fonctionner contre un serveur en version 2. Tant que cet
+endpoint n'existe pas, serveur, CLI, daemon et Dashboard passent en version 2
+dans le meme deploiement (aucun client v1 face a un serveur v2).
+
+Version 2 (RUPTURE, DEC-0103) : isolation projet par membership. Un compte
+authentifie n'a plus acces a tous les projets ; les lectures et ecritures
+rattachees a un projet exigent une membership (ou le role `admin`), les
+collections sont filtrees silencieusement et un projet inaccessible repond
+`403 {"detail": {"error_code": "forbidden", "resource": "project", "action":
+"read|write"}}`. Regles completes : `TECH/04_AUTH_SYNC_CONTRACT.md` section
+Autorisation. Chaque mention « toute machine authentifiee peut lire » de ce
+document s'entend desormais **sous reserve de l'acces projet** pour toute
+ressource rattachee a un projet.
 
 ## Conventions
 - JSON UTF-8.
 - IDs internes UUID.
 - IDs lisibles possibles pour Task/Decision/Transfer.
-- `Idempotency-Key` supporte sur creations rejouables (tasks, claims, decisions, transfers, sessions, ai-work, projects, agents — CC-1/DEC-0045 — plus producer-jobs et github-integration, etape 9.1/DEC-0059, library resources/versions/activations/deprecations/locks, P1/DEC-0064, runtime-bindings P4, runtimes register/update P6 — P7/DEC-0071) — meme cle + meme endpoint renvoie la reponse d'origine plutot que de recreer, y compris sous requetes concurrentes reelles : une seule ressource metier est creee pour une paire (cle, endpoint) donnee tant que la creation reste sous le seuil de reclamation d'une reservation abandonnee (limite connue documentee dans DEC-0015, non couverte par un jeton de fencing dans cette etape). Rejouer la meme cle avec un corps de requete different (hash du corps different) est une erreur client explicite `409 {"error_code": "idempotency_key_payload_mismatch"}`, jamais un rejeu silencieux de la premiere reponse ni une seconde ressource (DEC-0015). `POST /events` fait exception : c'est `event_id` (genere client-side) qui joue ce role, pas ce header — voir `TECH/04_AUTH_SYNC_CONTRACT.md`. `POST /machines` et `POST /users` sont volontairement exclus (actions administratives, interactives, jamais rejouees via la queue offline — DEC-0011/DEC-0012 ; un `Idempotency-Key` sur `POST /machines` persisterait le credential en clair dans la table d'idempotence). Lectures pures (`GET`, `POST /resolutions`, `POST /runtimes/{id}/revoke`, `DELETE /runtime-bindings/{id}`, `DELETE /library-locks/{id}`) : N/A — revoke/suppressions sont naturellement idempotents, la resolution ne persiste rien.
+- `Idempotency-Key` supporte sur creations rejouables (tasks, claims, decisions, transfers, sessions, ai-work, projects, agents — CC-1/DEC-0045 — plus producer-jobs et github-integration, etape 9.1/DEC-0059, library resources/versions/activations/deprecations/locks, P1/DEC-0064, runtime-bindings P4, runtimes register/update P6 — P7/DEC-0071) — meme cle + meme endpoint renvoie la reponse d'origine plutot que de recreer, y compris sous requetes concurrentes reelles : une seule ressource metier est creee pour une paire (cle, endpoint) donnee tant que la creation reste sous le seuil de reclamation d'une reservation abandonnee (limite connue documentee dans DEC-0015, non couverte par un jeton de fencing dans cette etape). Rejouer la meme cle avec un corps de requete different (hash du corps different) est une erreur client explicite `409 {"error_code": "idempotency_key_payload_mismatch"}`, jamais un rejeu silencieux de la premiere reponse ni une seconde ressource (DEC-0015). `POST /events` fait exception : c'est `event_id` (genere client-side) qui joue ce role, pas ce header — voir `TECH/04_AUTH_SYNC_CONTRACT.md`. `POST /machines` et `POST /users` sont volontairement exclus (actions administratives, interactives, jamais rejouees via la queue offline — DEC-0011/DEC-0012 ; un `Idempotency-Key` sur `POST /machines` persisterait le credential en clair dans la table d'idempotence). `PUT`/`DELETE /projects/{id}/members/{user_id}` (DEC-0103) : N/A — naturellement idempotents par la cle `(project_id, user_id)` ; re-accorder conserve le `granted_by_user_id` d'origine. Lectures pures (`GET`, `POST /resolutions`, `POST /runtimes/{id}/revoke`, `DELETE /runtime-bindings/{id}`, `DELETE /library-locks/{id}`) : N/A — revoke/suppressions sont naturellement idempotents, la resolution ne persiste rien.
 - Pagination: `limit`, `offset` ou curseur selon endpoint.
 - Dates ISO 8601 UTC.
 - Ecriture mutable sur un objet existant (`PATCH`) : header `If-Match-Version` avec la `version` lue par le client ; 409 + version serveur courante en cas de conflit (`TECH/04_AUTH_SYNC_CONTRACT.md`).
 - Authentification : header `Authorization: Bearer <machine-token>` sur tout endpoint sous `/api/v1` (sauf `/healthz`, `/metrics`, `POST /auth/token` et `POST /github/webhook` — ce dernier est signe HMAC `X-Hub-Signature-256`, jamais Bearer) — voir `TECH/04_AUTH_SYNC_CONTRACT.md`. Le dashboard humain obtient un JWT court-terme via `POST /auth/token` (DASH-4, DEC-0056) et le presente ensuite comme `Authorization: Bearer <jwt>`.
-- Autorisation (DEC-0036, durcissement documente sur des endpoints existants — meme categorie que DEC-0025) : au-dela de l'authentification, certains endpoints peuvent desormais repondre `403 {"detail": {"error_code": "forbidden", "resource": ..., "action": ...}}` a une machine authentifiee mais insuffisamment autorisee (role `readonly`, machine non proprietaire d'une ressource deja possedee, ou — cas particulier des Transfers, seule categorie ou une lecture peut aussi etre concernee — appelant hors sender/recipient/diffusion/admin) — voir `TECH/04_AUTH_SYNC_CONTRACT.md` section Autorisation pour la matrice complete. Concerne, en ecriture : `POST /tasks`, `PATCH /tasks/{id}`, `POST /tasks/{id}/claim`, `POST /tasks/{id}/release`, `POST /claims`, `POST /claims/{id}/renew`, `DELETE /claims/{id}`, `POST /sessions`, `PATCH /sessions/{id}/end`, `POST /ai-work`, `PATCH /ai-work/{id}`, `POST /decisions`, `POST /events`, `POST /agents` (CC-1/DEC-0045 : `readonly` -> `403`, sans ownership — creation sans ressource preexistante), `POST /transfers`, `POST /transfers/{id}/upload/initiate`, `POST /transfers/{id}/upload/refresh-parts` (DEC-0037),   `POST /transfers/{id}/upload/complete`, `DELETE /transfers/{id}`, `POST /library`, `POST /library/{id}/versions`, `POST /library/{id}/activate`, `POST /library/{id}/deprecate`, `POST /library-locks`, `DELETE /library-locks/{id}` (P1/DEC-0063 : creation Studio = `admin`/`developer`, mutations = machine owner ou `admin`, mainlevee de lock = createur ou `admin`), `POST /runtime-bindings`, `DELETE /runtime-bindings/{id}` (P4/P7 : ecriture `user`/`project` tout writer, `studio_default` `admin`/`developer`, mainlevee = createur ou `admin`), `POST /runtimes`, `PATCH /runtimes/{id}`, `POST /runtimes/{id}/revoke` (P6/P7 : owner-ou-`admin`) ; en lecture (Transfers, regle de visibilite silencieuse, et `GET /library/{id}` en scope User, qui repond `404` et non `403` face a un non-owner pour ne pas reveler l'existence, DEC-0063 precision 1, meme regle pour `GET /runtime-bindings/{id}` et `GET /runtimes/{id}` — P7/DEC-0071) : `GET /transfers/{id}`, `POST /transfers/{id}/download-url`. Un client existant qui n'utilisait jusque-la que des roles/machines proprietaires n'observe aucun changement de comportement.
+- Autorisation (DEC-0036, durcissement documente sur des endpoints existants — meme categorie que DEC-0025) : au-dela de l'authentification, certains endpoints peuvent desormais repondre `403 {"detail": {"error_code": "forbidden", "resource": ..., "action": ...}}` a une machine authentifiee mais insuffisamment autorisee (role `readonly`, machine non proprietaire d'une ressource deja possedee, ou — cas particulier des Transfers, seule categorie ou une lecture peut aussi etre concernee — appelant hors sender/recipient/diffusion/admin) — voir `TECH/04_AUTH_SYNC_CONTRACT.md` section Autorisation pour la matrice complete. Concerne, en ecriture : `POST /tasks`, `PATCH /tasks/{id}`, `POST /tasks/{id}/claim`, `POST /tasks/{id}/release`, `POST /claims`, `POST /claims/{id}/renew`, `DELETE /claims/{id}`, `POST /sessions`, `PATCH /sessions/{id}/end`, `POST /ai-work`, `PATCH /ai-work/{id}`, `POST /decisions`, `POST /events`, `POST /agents` (CC-1/DEC-0045 : `readonly` -> `403`, sans ownership — creation sans ressource preexistante), `POST /transfers`, `POST /transfers/{id}/upload/initiate`, `POST /transfers/{id}/upload/refresh-parts` (DEC-0037),   `POST /transfers/{id}/upload/complete`, `DELETE /transfers/{id}`, `POST /library`, `POST /library/{id}/versions`, `POST /library/{id}/activate`, `POST /library/{id}/deprecate`, `POST /library-locks`, `DELETE /library-locks/{id}` (P1/DEC-0063 : creation Studio = `admin`/`developer`, mutations = machine owner ou `admin`, mainlevee de lock = createur ou `admin`), `POST /runtime-bindings`, `DELETE /runtime-bindings/{id}` (P4/P7 : ecriture `user`/`project` tout writer, `studio_default` `admin`/`developer`, mainlevee = createur ou `admin`), `POST /runtimes`, `PATCH /runtimes/{id}`, `POST /runtimes/{id}/revoke` (P6/P7 : owner-ou-`admin`), `POST /machines`, `POST /machines/{id}/revoke` (A5 : libre-service du proprietaire, `agent` refuse ; le refus porte l'enveloppe `forbidden` objet et non plus la chaine `insufficient role` ; revoke d'une machine d'autrui = `404`, comme une machine absente) ; en lecture (Transfers, regle de visibilite silencieuse, et `GET /library/{id}` en scope User, qui repond `404` et non `403` face a un non-owner pour ne pas reveler l'existence, DEC-0063 precision 1, meme regle pour `GET /runtime-bindings/{id}` et `GET /runtimes/{id}` — P7/DEC-0071) : `GET /transfers/{id}`, `POST /transfers/{id}/download-url`. Un client existant qui n'utilisait jusque-la que des roles/machines proprietaires n'observe aucun changement de comportement de role/ownership. Depuis la version contractuelle 2 (DEC-0103), toute route rattachee a un projet (lecture comprise) peut en outre repondre `403 resource=project` ; ce `403` n'est jamais une erreur d'authentification et un client ne doit pas deconnecter l'utilisateur sur ce motif.
 - Enveloppe reelle d'une erreur machine-readable (`error_code` present dans ce document, ex. `413`/`507`/`409 idempotency_key_payload_mismatch`) : `{"detail": {"error_code": "...", ...}}` — FastAPI enveloppe systematiquement `HTTPException.detail`, jamais `{"error_code": "..."}` a plat. Une erreur sans `error_code` (401/403/404 génériques) renvoie `{"detail": "<message>"}`, une simple chaine. `studio_contracts.common.ErrorResponse`/`VersionConflictError` ne sont utilises par aucun code serveur actuel — clarification documentaire (DEC-0024), pas un changement de comportement.
 
 ## Endpoints principaux
@@ -21,17 +42,53 @@ Base: `/api/v1`
   Le JWT obtenu est accepte comme `Authorization: Bearer <jwt>` sur tout endpoint
   `/api/v1` (sauf `/healthz` et `/metrics`). Cet endpoint est lui-meme sans Bearer :
   il est l'exception d'authentification prevue pour le login humain dashboard.
+  Cycle de session (DEC-0110, rupture de la version contractuelle 2) : JWT de
+  15 minutes au plus, sans refresh token, claims `sub`, `machine_id`,
+  `session_id`, `auth_version`, `iat`, `exp`, `type` — `email` et `role`
+  retires ; un JWT emis avant le deploiement est refuse. `TokenResponse` gagne
+  `expires_in` (secondes, additif). Un User desactive ou non verifie recoit le
+  meme `401` qu'un mauvais mot de passe. L'e-mail est compare sans tenir
+  compte de la casse ni des espaces de bord (A3, normalisation). Validation, revocation et SSE :
+  `TECH/04_AUTH_SYNC_CONTRACT.md`, Cycle de session.
+- GET /auth/me (DEC-0110, additif) — tout principal authentifie (JWT ou token
+  machine). Response `AuthIdentity` : `user_id`, `display_name`, `email`,
+  `role`, `machine_id`. Source d'identite du client a la place des claims
+  retires du JWT ; `401` generique si le principal n'est plus valide. Rate
+  limiting : bucket authentifie ordinaire, pas le bucket strict par IP des
+  autres routes `/api/v1/auth/*`.
 
 ### Projects
-- GET /projects
-- POST /projects (role `admin` ou `developer`, `Idempotency-Key` supporte)
-- GET /projects/{project_id}
-- GET /projects/{project_id}/state
+- GET /projects — uniquement les projets accessibles (membership ou `admin`,
+  DEC-0103) ; liste vide valide pour un compte sans membership.
+- POST /projects (role `admin` ou `developer`, `Idempotency-Key` supporte) —
+  le createur (`User` de la machine appelante) devient membre dans la meme
+  transaction. Slugs uniques globalement et non secrets (DEC-0105) : un slug
+  deja pris repond `409 {"detail": {"error_code": "conflict", "message",
+  "slug"}}`, la meme reponse que l'`apply` d'initialisation — jamais une
+  ecriture, jamais d'id fuit.
+- GET /projects/{project_id} — `403 resource=project` si inaccessible.
+- GET /projects/{project_id}/state — idem.
+
+### Project members (DEC-0103, additif — role `admin`)
+- GET /projects/{project_id}/members — liste des memberships
+  (`project_id`, `user_id`, `granted_by_user_id` nullable, `created_at`,
+  plus `user_display_name` / `user_email` nullables — additif, tache
+  ac1b9a28 — egalement renvoyes par le `PUT`).
+- PUT /projects/{project_id}/members/{user_id} — accorde l'acces : `201`
+  + membership creee au premier octroi ; re-accorder un membre existant
+  renvoie la membership existante inchangee (`200`, `granted_by_user_id`
+  d'origine conserve). `granted_by_user_id` = l'admin appelant.
+- DELETE /projects/{project_id}/members/{user_id} — retire l'acces
+  (idempotent, `204`) ; les flux SSE ouverts de cet utilisateur sur ce projet
+  sont fermes.
+- Non-admin : `403`. Projet ou utilisateur inexistant : `404`.
 
 ### Machines et Users (provisioning, DEC-0011/DEC-0012)
 - GET /machines (DEC-0082, additif) — liste des machines dont le credential
-  n'est pas revoque, de la plus ancienne a la plus recente. Toute machine
-  authentifiee peut lire (aucun role requis, comme `GET /agents`). Reponse =
+  n'est pas revoque, de la plus ancienne a la plus recente. Aucun role
+  requis ; version 2 (RUPTURE, DEC-0103 §4/§11) : uniquement les machines
+  du User appelant (`owner_user_id = principal.user`), `admin` voit tout —
+  une co-membership ne donne jamais acces aux machines d'un co-membre. Reponse =
   `list[Machine]` (`id`, `owner_user_id`, `display_name`, `last_seen_at`,
   `status`, `version`) : `status` est derive cote serveur de `last_seen_at`
   (dernier heartbeat, memes seuils que `POST /heartbeats`), jamais stocke ;
@@ -41,11 +98,63 @@ Base: `/api/v1`
   a laquelle appartient le credential presente, `status` derive comme dans la
   liste. Toute machine authentifiee peut lire. Sert au daemon local a
   connaitre son propre `id` a partir du seul credential.
-- POST /machines (role `admin` — reponse = `Machine` + `credential` en clair,
-  une seule fois ; pas de `Idempotency-Key`, cf. risque de fuite du credential
-  dans la table d'idempotence)
-- POST /machines/{machine_id}/revoke (role `admin`)
-- POST /users (role `admin`, pas de `Idempotency-Key`)
+- POST /machines (A5, additif : libre-service, DU-0/A) — tout principal
+  authentifie (machine ou JWT) dont le role n'est pas `agent` cree une
+  machine dont son propre User est proprietaire. Pour un non-admin, le
+  proprietaire est toujours derive du principal : `owner_user_id` (desormais
+  optionnel) absent ou egal au User appelant ; toute autre valeur repond
+  `403 {"detail": {"error_code": "forbidden", "resource": "machine",
+  "action": "create"}}` sans que le User designe soit jamais recherche (pas
+  d'oracle d'existence). `agent` recoit la meme 403. Seul `admin` designe un
+  autre User (`404` si ce User n'existe pas). La machine creee herite du role
+  et des memberships de son proprietaire (DEC-0103), jamais davantage.
+  Reponse = `Machine` + `credential` en clair, une seule fois ; pas de
+  `Idempotency-Key`, cf. risque de fuite du credential dans la table
+  d'idempotence.
+- POST /machines/{machine_id}/revoke (A5, additif) — le proprietaire
+  (`owner_user_id = principal.user`) ou `admin` ; `agent` recoit `403`. Pour
+  un non-admin, la machine d'un autre User repond `404`, a l'identique d'une
+  machine inexistante (comme `GET /machines`, qui ne la liste jamais).
+  Revoquer la machine appelante elle-meme est permis ; effet immediat.
+- Etat du compte (DU-0/A, introduit par A2/DEC-0110) : ces deux operations
+  exigent un User actif et verifie. Un User `pending` (`email_verified_at`
+  nul) ou `disabled` (`disabled_at` pose) n'obtient aucun principal : toutes
+  ses machines et ses JWT recoivent le `401` generique
+  (`TECH/04_AUTH_SYNC_CONTRACT.md`, Cycle de session). Les User existants et
+  ceux crees par `studio-admin`/`POST /users` sont verifies a la creation.
+- POST /users (role `admin`, pas de `Idempotency-Key`) — e-mail stocke
+  normalise (`strip().lower()`, A3) et unique sans tenir compte de la casse :
+  une variante de casse d'un e-mail existant repond `409`.
+- GET /users (role `admin`, additif, tache ac1b9a28) — annuaire pour choisir
+  un membre : `q` optionnel (≤200 caracteres, sous-chaine insensible a la
+  casse sur `display_name` ou `email`, jokers `%`/`_` pris litteralement),
+  `limit` 1–200 (defaut 50) ; tri par nom puis e-mail ; reponse `list[User]`,
+  jamais de hash. Non-admin : `403`.
+- `User` gagne (A3, additif) `status` (`pending|active|disabled`, derive,
+  jamais stocke), `email_verified_at` et `disabled_at` (nullables).
+
+### Administration des comptes (A3, additif — role `admin`)
+- POST /users/{user_id}/disable — desactive (idempotent) : `auth_version`
+  incremente (tous les JWT meurent), machines du User refusees tant que
+  `disabled_at` est pose, flux SSE ouverts revalides immediatement. Reponse
+  `User`.
+- POST /users/{user_id}/enable — leve la desactivation (idempotent) ; les JWT
+  anterieurs restent invalides, les machines refonctionnent. Un User non
+  verifie reste `pending`. Reponse `User`.
+- POST /users/{user_id}/revoke-sessions — incremente `auth_version` (tous les
+  JWT du User), sans toucher aux tokens machine. Reponse `User`.
+- GET /users/{user_id}/memberships — projets accessibles au User
+  (`list[ProjectMember]`, plus ancien d'abord) ; l'acces se donne/retire par
+  `PUT`/`DELETE /projects/{project_id}/members/{user_id}`.
+- Regles communes : non-admin `403 forbidden` avant toute recherche ; User
+  inconnu `404 {"detail": {"error_code": "not_found"}}`. Aucun endpoint ne
+  permet de modifier son propre compte : cibler soi-meme (ces trois POST et
+  `PUT`/`DELETE /projects/{project_id}/members/{user_id}`) repond `403
+  {"detail": {"error_code": "self_modification_forbidden", "resource":
+  "user", "action": ...}}` avant toute recherche — rupture de la version
+  contractuelle 2 pour `PUT`/`DELETE members` (un admin ne pouvait jusque-la
+  s'accorder/retirer un acces, sans effet puisque sa portee est globale).
+  Aucun endpoint ne modifie `User.role`.
 
 Le tout premier `User` (admin) et le tout premier `Machine` sont crees
 hors-bande par la CLI serveur `studio-admin` (DEC-0011) — aucun endpoint
@@ -82,7 +191,11 @@ public de bootstrap, pas de secret d'environnement dedie.
   uniquement, memes regles de non-idempotence que `accept`.
 
 ### Agents and AI work
-- GET /agents
+- GET /agents — version 2 (RUPTURE, DEC-0103 §4/§11) : uniquement les agents
+  dont la machine (`Agent.machine_id`) appartient au User appelant
+  (`Machine.owner_user_id = principal.user`) ; `admin` voit tout. Un agent
+  sans machine n'est visible que de `admin`. Une co-membership ne donne
+  jamais acces aux agents d'un co-membre.
 - POST /agents (CC-1, additif) — enregistrement public d'une identite
   Agent de provenance operationnelle pour la machine authentifiee.
   Body `AgentCreate` : `display_name` requis, `agent_kind` optionnel
@@ -375,8 +488,8 @@ Contrat fige par P1 (`packages/studio-contracts/.../roadmaps.py`) ; routes
   `applicable=false` + `not_applicable_reason`) ; rejeu avec une autre cle retrouve les liens
   via `hydration_key`, jamais de doublon ; une Task existante n'est jamais modifiee ni
   supprimee, un item de plan retire laisse son lien en place
-- Lecture : toute machine authentifiee (y compris `readonly`, sans ACL projet,
-  DEC-0063) ; ecriture : `readonly` -> `403 forbidden`.
+- Lecture : toute machine authentifiee ayant acces au projet (y compris
+  `readonly` ; membership ou `admin`, DEC-0103) ; ecriture : `readonly` -> `403 forbidden`.
 - Erreurs (`{"detail": {"error_code": ...}}`, vocabulaire ferme
   `RoadmapErrorCode`) : `404 not_found|reference_not_found` ; `409
   version_conflict|base_revision_stale|active_roadmap_exists|invalid_state|
@@ -421,6 +534,9 @@ absente = etat valide. Le serveur ne decide rien : il valide et applique.
   `blocking=true`) — tout probleme bloquant refuse l'apply avant ecriture ;
   ressources optionnelles absentes -> `problems` non bloquants + `skip`.
   `409 actor_not_owned` (`agent_id` declare non rattache a la machine).
+  Slug deja pris par un autre projet (meme invisible de l'appelant) ->
+  `409 {"detail": {"error_code": "conflict", "message", "slug"}}` via le point
+  commun `create_project` (oracle accepte, slugs non secrets, DEC-0105).
 - Permissions : `ensure_can_write` ; creation du projet = `ensure_can_provision`
   (`admin`/`developer`). Idempotence : `Idempotency-Key` + reutilisation par
   slug/titre/clef.
@@ -483,7 +599,10 @@ absente = etat valide. Le serveur ne decide rien : il valide et applique.
 
 ### Events
 - POST /events
-- GET /events
+- GET /events — sans filtre `project_id`, limite aux projets accessibles
+  (DEC-0103) ; filtre sur un projet inaccessible ou inexistant : `403`.
+  Filtre `task_id` (idem `GET /ai-work`) : tache d'un projet inaccessible
+  → `403` (DEC-0103 §8) ; tache inexistante → liste vide.
 - GET /events/stream (Server-Sent Events, DEC-0018)
 
 ### Transfers
@@ -558,6 +677,16 @@ absente = etat valide. Le serveur ne decide rien : il valide et applique.
 les events du projet demande a mesure qu'ils sont crees. Meme authentification
 que le reste de l'API (`Authorization: Bearer <machine-token>`) ; `project`
 est obligatoire (pas de flux global tous projets).
+
+Acces projet (DEC-0103, version contractuelle 2) : un projet inaccessible
+(sans membership ni role `admin`) ou inexistant repond `403
+{"detail": {"error_code": "forbidden", "resource": "project", "action":
+"read"}}` **avant** l'ouverture du flux. Le serveur emet un commentaire SSE
+de keep-alive periodique (`: keep-alive`, additif, ignore par tout client SSE
+standard) ; a chaque keep-alive ou event, la membership est revalidee (TTL ≤
+30 s) et le flux est ferme par le serveur si l'acces a ete retire. Un client
+ne doit pas reconnecter en boucle apres une fermeture suivie d'un `403
+resource=project`.
 
 Reprise apres coupure sans perte ni doublon : chaque event porte un champ SSE
 `id:` egal a son `seq` (entier strictement croissant, distinct du

@@ -103,7 +103,7 @@ async def _progress(
     key: str,
     **fields: Any,
 ) -> Roadmap:
-    current = await roadmaps.get_roadmap(db_session, roadmap_id)
+    current = await roadmaps.get_roadmap(db_session, principal, roadmap_id)
     step = next(s for p in current.phases for s in p.steps if s.key == key)
     return await roadmaps.update_step_progress(
         db_session, principal, roadmap_id, key, StepProgressUpdate(**fields), step.version
@@ -213,7 +213,7 @@ async def test_completed_roadmap_is_only_an_overview(
     document = _doc(("P", [_step("only")]))
     roadmap = await _import(db_session, principal, project, document)
     await _done(db_session, principal, roadmap.id, "only")
-    roadmap = await roadmaps.get_roadmap(db_session, roadmap.id)
+    roadmap = await roadmaps.get_roadmap(db_session, principal, roadmap.id)
     await _transition(db_session, principal, roadmap, RoadmapTransition.COMPLETE)
     payload = await _prepare(auth_ctx, project, "what is left")
     assert "roadmap" not in payload
@@ -257,7 +257,7 @@ async def test_only_the_active_roadmap_is_selected_among_roadmaps_of_every_statu
     await _transition(
         db_session,
         principal,
-        await roadmaps.get_roadmap(db_session, finished.id),
+        await roadmaps.get_roadmap(db_session, principal, finished.id),
         RoadmapTransition.COMPLETE,
     )
     await _import(
@@ -308,7 +308,7 @@ async def test_without_an_active_roadmap_no_other_status_is_promoted_to_the_cont
     await _transition(
         db_session,
         principal,
-        await roadmaps.get_roadmap(db_session, finished.id),
+        await roadmaps.get_roadmap(db_session, principal, finished.id),
         RoadmapTransition.COMPLETE,
     )
     await _import(db_session, principal, project, CHAIN, to=RoadmapStatus.PROPOSED)
@@ -719,7 +719,7 @@ async def test_the_section_extends_the_shared_roadmap_context_contract(
     project = await _project(db_session)
     await _import(db_session, principal, project, CHAIN)
     principal_ctx = await roadmap_section.select_roadmap(
-        db_session, project.id, None, {}, 5, _Unlimited()
+        db_session, principal, project.id, None, {}, 5, _Unlimited()
     )
     item = principal_ctx.item
     assert isinstance(item, RoadmapContext)

@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-102 decision(s). Detail complet dans chaque ADR lie.
+104 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -123,4 +123,6 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0100 | Workflow W2b : setup-hooks distribue les hooks ensure sur fresh machine | accepted | [decisions/DEC-0100-workflow-w2b-setup-hooks.md](decisions/DEC-0100-workflow-w2b-setup-hooks.md) |
 | DEC-0101 | Enregistrement Agent expose via MCP | accepted | [decisions/DEC-0101-enregistrement-agent-via-mcp.md](decisions/DEC-0101-enregistrement-agent-via-mcp.md) |
 | DEC-0102 | Tasks : emission serveur des evenements task.* a chaque ecriture | accepted | [decisions/DEC-0102-emission-serveur-evenements-task.md](decisions/DEC-0102-emission-serveur-evenements-task.md) |
+| DEC-0103 | Isolation projet minimale : membership User→Project, rôle = quoi, membership = où | accepted | [decisions/DEC-0103-isolation-projet-membership-user.md](decisions/DEC-0103-isolation-projet-membership-user.md) |
 | DEC-0104 | Desktop P9 : un identifiant Studi'OS dédié par couple poste + outil d'IA, état token_missing | proposed | [decisions/DEC-0104-desktop-p9-fourniture-jeton-mcp-aux-harnais.md](decisions/DEC-0104-desktop-p9-fourniture-jeton-mcp-aux-harnais.md) |
+| DEC-0105 | Oracle slug projet accepté : slugs non secrets, 409 conflict structuré | proposed | [decisions/DEC-0105-slug-oracle-accepte.md](decisions/DEC-0105-slug-oracle-accepte.md) |

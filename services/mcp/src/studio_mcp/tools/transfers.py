@@ -99,12 +99,11 @@ async def studio_create_transfer_metadata(
                 return parsed
             parsed_task_id = parsed
 
+        transfers_service.authorize_create(principal, parsed_project_id)
         if parsed_project_id is None:
             project_slug = "unscoped"
         else:
-            project = await projects_service.get_project(session, parsed_project_id)
-            if project is None:
-                return {"error_code": "not_found", "message": "project not found"}
+            project = await projects_service.get_project(session, principal, parsed_project_id)
             project_slug = project.slug
 
         settings = get_settings()

@@ -51,7 +51,8 @@ This keeps `auth_role` + ownership as the sole authorization authority
 - A compromised dashboard JWT can be revoked by revoking its machine row,
   without rotating the user's password.
 - The default `STUDIO_JWT_SECRET` must be overridden in production; the API
-   emits a warning if the default is detected at startup.
+   refuses to start with a placeholder or < 32-byte secret unless
+   `STUDIO_ENVIRONMENT` is `dev`/`test` (warning only). Default: `production`.
 
 ## Status
 
@@ -60,3 +61,11 @@ active
 ## Date
 
 2026-09-15
+
+## Amendements
+
+(Acceptés le 2026-09-25 ; le détail fait foi dans le fichier cité.)
+
+- DU0-A (`DU0-A-public-registration.md`, DEC-0109) : un JWT n'est émis/accepté que pour un User actif et vérifié.
+- DU0-B (`DU0-B-session-revocation.md`, DEC-0110) : les JWT portent `auth_version` ; les anciens JWT sont invalides au cutover (contrat 2).
+- DU0-D (`DU0-D-version-compatibility.md`, DEC-0107) : compatibilité de version du contrat 2.

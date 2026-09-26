@@ -123,7 +123,8 @@ OPENAPI_TAG_DESCRIPTIONS: dict[str, str] = {
         "directly to object storage with the returned URLs."
     ),
     "machines": (
-        "Machine provisioning (privileged role). The very first machine is created out of band."
+        "Machine provisioning: self-service for the caller's own User, "
+        "`admin` for any User. The very first machine is created out of band."
     ),
     "users": "User provisioning (privileged role). The very first user is created out of band.",
     "runtime-bindings": (
@@ -181,6 +182,12 @@ def create_app() -> FastAPI:
     setup_middleware(app, settings)
 
     if is_weak_jwt_secret(settings.jwt_secret):
+        if settings.environment == "production":
+            raise RuntimeError(
+                "STUDIO_JWT_SECRET is using a default or short value (< 32 bytes); "
+                "refusing to start in production (set a strong secret, or "
+                "STUDIO_ENVIRONMENT=dev for local development)"
+            )
         logger.warning(
             "STUDIO_JWT_SECRET is using a default or short value (< 32 bytes); "
             "set a strong secret in production"

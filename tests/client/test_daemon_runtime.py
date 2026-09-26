@@ -15,11 +15,13 @@ from studio_client.outbox import (
     OutboxIdentityError,
     OutboxReplayer,
     OutboxStore,
+    OutboxTable,
     connect,
     partitioned_outbox_path,
     transaction,
 )
 from studio_client.retry import RetryPolicy
+from studio_contracts.local.common import ComponentState, LocalErrorCode
 from studio_contracts.local.identity import IdentityBinding
 
 
@@ -186,3 +188,68 @@ def test_health_is_readable_from_a_thread_other_than_the_runtime_loop(
         runtime.request_stop()
         loop_thread.join(timeout=5)
     assert not loop_thread.is_alive()
+
+
+@pytest.mark.asyncio
+async def test_health_reports_project_isolation_dead_letters(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    started = asyncio.Event()
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+    class FakeHeartbeat:
+        def __init__(self, _client, _config, *, agent_id=None, replayer=None):
+            self.stop = asyncio.Event()
+            self.last_attempt_at = None
+            self.last_success_at = None
+            self.last_error = None
+            self.last_replay = None
+
+        def request_stop(self) -> None:
+            self.stop.set()
+
+        async def run(self) -> None:
+            started.set()
+            await self.stop.wait()
+
+    monkeypatch.setattr(runtime_module, "StudioApiClient", lambda _config: FakeClient())
+    monkeypatch.setattr(runtime_module, "HeartbeatDaemon", FakeHeartbeat)
+    monkeypatch.setattr(runtime_module, "build_watchers", lambda _config, _store: [])
+
+    runtime = DaemonRuntime(config(), data_root=tmp_path)
+    runtime._legacy_outbox_path = tmp_path / "legacy.sqlite3"
+    task = asyncio.create_task(runtime.run())
+    try:
+        await asyncio.wait_for(started.wait(), timeout=1)
+        assert runtime.health().outbox_replay.error is None
+
+        project_id = str(uuid4())
+        writer = OutboxStore(connect(runtime.outbox_path))
+        try:
+            with transaction(writer.connection):
+                writer.enqueue_marker(marker_id := uuid4(), "recording.marker.created", {})
+                writer.move_to_dead_letter(
+                    OutboxTable.MARKERS,
+                    str(marker_id),
+                    f"project_access_denied project={project_id}: 403 forbidden",
+                )
+                writer.enqueue_marker(other_id := uuid4(), "recording.marker.created", {})
+                writer.move_to_dead_letter(OutboxTable.MARKERS, str(other_id), "422 invalid")
+        finally:
+            writer.connection.close()
+
+        replay = runtime.health().outbox_replay
+        assert replay.state is ComponentState.PERMISSION_DENIED
+        assert replay.error is not None
+        assert replay.error.code is LocalErrorCode.PERMISSION_DENIED
+        assert replay.error.retryable is False
+        assert replay.error.details == {"dead_letters": 1, "project_ids": project_id}
+    finally:
+        runtime.request_stop()
+        await asyncio.wait_for(task, timeout=1)

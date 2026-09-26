@@ -20,7 +20,15 @@ from studio_contracts.transfers import (
 
 from studio_api.db.models.build import BuildModel
 from studio_api.db.models.transfer import TransferModel
-from studio_api.services.authz import Principal, ensure_can_write, ensure_transfer_access
+from studio_api.services.authz import (
+    Principal,
+    ProjectAction,
+    ensure_can_write,
+    ensure_project_access,
+    ensure_shared_access,
+    ensure_transfer_access,
+    project_visibility_clause,
+)
 from studio_api.services.authz import transfer_visibility_clause as _visibility_clause
 from studio_api.settings import Settings
 from studio_api.storage.provider import StorageProvider, safe_object_key
@@ -85,6 +93,25 @@ async def _enforce_transfer_limits(
         )
 
 
+def ensure_transfer_scope(
+    principal: Principal, project_id: uuid.UUID | None, action: ProjectAction = "read"
+) -> None:
+    """Project level of a transfer, composed with the sender/recipient level
+    of `ensure_transfer_access` by AND (DEC-0103 §11): a project transfer
+    needs the project, a project-less one needs at least one project."""
+    if project_id is None:
+        ensure_shared_access(principal, action)
+    else:
+        ensure_project_access(principal, project_id, action)
+
+
+def authorize_create(principal: Principal, project_id: uuid.UUID | None) -> None:
+    """Project then role check of a transfer creation, run ahead of the
+    idempotency replay short-circuit (DEC-0036, DEC-0103 §12)."""
+    ensure_transfer_scope(principal, project_id, "write")
+    ensure_can_write(principal, "transfer")
+
+
 async def create_transfer(
     session: AsyncSession,
     principal: Principal,
@@ -92,7 +119,7 @@ async def create_transfer(
     transfer_in: TransferCreate,
     project_slug: str,
 ) -> TransferModel:
-    ensure_can_write(principal, "transfer")
+    authorize_create(principal, transfer_in.project_id)
     await _enforce_transfer_limits(
         session, settings, transfer_in.project_id, transfer_in.size_bytes
     )
@@ -143,6 +170,7 @@ async def get_transfer(
     transfer = await session.get(TransferModel, transfer_id)
     if transfer is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "transfer not found")
+    ensure_transfer_scope(principal, transfer.project_id)
     ensure_transfer_access(principal, transfer, "read")
     return transfer
 
@@ -152,7 +180,10 @@ async def list_transfers(
 ) -> list[TransferModel]:
     stmt = select(TransferModel)
     if project_id is not None:
+        ensure_project_access(principal, project_id)
         stmt = stmt.where(TransferModel.project_id == project_id)
+    elif (visible := project_visibility_clause(principal, TransferModel.project_id)) is not None:
+        stmt = stmt.where(visible)
     visibility = _visibility_clause(principal)
     if visibility is not None:
         stmt = stmt.where(visibility)
@@ -168,6 +199,7 @@ async def initiate_upload(
     transfer: TransferModel,
     content_md5: str | None,
 ) -> UploadInitiateResponse:
+    ensure_transfer_scope(principal, transfer.project_id, "write")
     ensure_transfer_access(principal, transfer, "write")
     if transfer.status == "ready":
         raise HTTPException(
@@ -218,6 +250,7 @@ async def refresh_upload_parts(
     confirmed by `ListParts` (the authoritative source, not a server-side
     table: this server deliberately never persists in-progress multipart
     state, TECH/06_STORAGE_TRANSFER_SPEC.md)."""
+    ensure_transfer_scope(principal, transfer.project_id, "write")
     ensure_transfer_access(principal, transfer, "write")
     if transfer.status == "ready":
         raise HTTPException(
@@ -283,6 +316,7 @@ async def complete_upload(
     larger real size and silently exceed the quota it was granted (DEC-0025).
     A client-declared `size_bytes` that disagrees with the reservation is
     therefore rejected the same way a storage-side mismatch is."""
+    ensure_transfer_scope(principal, transfer.project_id, "write")
     ensure_transfer_access(principal, transfer, "write")
     if size_bytes != transfer.size_bytes:
         raise HTTPException(
@@ -387,6 +421,7 @@ async def delete_transfer(
     delete request, not automatic cleanup (see `expire_transfers`, which is
     server-internal and bypasses this check the same way `create_event`
     bypasses `resolve_event_identity` for its own internal callers)."""
+    ensure_transfer_scope(principal, transfer.project_id, "write")
     ensure_transfer_access(principal, transfer, "write")
     await _do_delete(session, storage, transfer)
 

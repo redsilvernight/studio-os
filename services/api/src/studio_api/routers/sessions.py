@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Header, Query, Request, status
 from studio_contracts.sessions import WorkSession, WorkSessionCreate
 
-from studio_api.deps import CurrentMachine, CurrentPrincipal, DbSession
+from studio_api.deps import CurrentPrincipal, DbSession
 from studio_api.openapi_meta import (
     IDEMPOTENCY_KEY_DESCRIPTION,
     RESP_401_UNAUTHORIZED,
@@ -15,7 +15,6 @@ from studio_api.openapi_meta import (
 )
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import sessions as sessions_service
-from studio_api.services.authz import ensure_can_write
 
 router = APIRouter(prefix="/api/v1/sessions", tags=["sessions"])
 
@@ -24,14 +23,16 @@ router = APIRouter(prefix="/api/v1/sessions", tags=["sessions"])
     "",
     response_model=list[WorkSession],
     description=(
-        "List work sessions, optionally filtered by task. Any authenticated machine may read."
+        "List work sessions, optionally filtered by task, restricted to "
+        "sessions whose task belongs to an accessible project. A task of an "
+        "inaccessible project answers `403 forbidden`."
     ),
-    responses={**RESP_401_UNAUTHORIZED},
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
 )
 async def list_sessions(
-    session: DbSession, machine: CurrentMachine, task_id: UUID | None = Query(default=None)
+    session: DbSession, principal: CurrentPrincipal, task_id: UUID | None = Query(default=None)
 ) -> list[WorkSession]:
-    sessions = await sessions_service.list_sessions(session, task_id=task_id)
+    sessions = await sessions_service.list_sessions(session, principal, task_id=task_id)
     return [WorkSession.model_validate(s) for s in sessions]
 
 
@@ -56,7 +57,7 @@ async def start_session(
         default=None, alias="Idempotency-Key", description=IDEMPOTENCY_KEY_DESCRIPTION
     ),
 ) -> WorkSession:
-    ensure_can_write(principal, "session")
+    await sessions_service.authorize_start(session, principal, session_in.task_id)
 
     async def _create() -> WorkSession:
         return WorkSession.model_validate(
