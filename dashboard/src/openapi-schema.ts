@@ -13,7 +13,7 @@ export interface paths {
         };
         /**
          * Healthz
-         * @description Liveness probe. Needs no credential and carries no security requirement — one of the unauthenticated operations, alongside `GET /version`, `GET /metrics` and the human dashboard login `POST /auth/token`. Answers `{"status": "ok"}` when the service is up; use it before authenticating anything else.
+         * @description Liveness probe. Needs no credential and carries no security requirement — one of the unauthenticated operations, alongside `GET /version`, `GET /metrics` and the human dashboard login `POST /auth/token`, `POST /auth/refresh` and `POST /auth/logout`. Answers `{"status": "ok"}` when the service is up; use it before authenticating anything else.
          */
         get: operations["healthz_healthz_get"];
         put?: never;
@@ -55,9 +55,49 @@ export interface paths {
         put?: never;
         /**
          * Login
-         * @description Exchange human credentials for a short-lived dashboard JWT (15 minutes at most, no refresh token). A disabled or unverified account gets the same 401 as a wrong password.
+         * @description Exchange human credentials for a short-lived dashboard JWT (15 minutes at most). With `persistent`, also a rotating refresh token. A disabled or unverified account gets the same 401 as a wrong password.
          */
         post: operations["login_api_v1_auth_token_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh
+         * @description Exchange a refresh token for a new JWT and a new refresh token. The presented token is consumed: presenting it again revokes the whole session. Any failure is the same 401.
+         */
+        post: operations["refresh_api_v1_auth_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Logout
+         * @description End the persistent session of a refresh token. Always 204, whether the token was known or not. Access JWTs already issued stay valid until they expire (15 minutes at most).
+         */
+        post: operations["logout_api_v1_auth_logout_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3742,6 +3782,11 @@ export interface components {
          * @enum {string}
          */
         ProvenanceSource: "active_pointer" | "project_lock" | "version_pin" | "runtime_binding" | "session_override";
+        /** RefreshRequest */
+        RefreshRequest: {
+            /** Refresh Token */
+            refresh_token: string;
+        };
         /**
          * Reorder
          * @description Atomic reorder: the complete ordered list of sibling keys. It must be
@@ -5189,6 +5234,12 @@ export interface components {
              * @example super-secret
              */
             password: string;
+            /**
+             * Persistent
+             * @description Also issue a rotating refresh token. Only for a client that can store it in an OS secret store (the desktop).
+             * @default false
+             */
+            persistent: boolean;
         };
         /** TokenResponse */
         TokenResponse: {
@@ -5204,6 +5255,16 @@ export interface components {
              * @description Lifetime of `access_token` in seconds.
              */
             expires_in: number;
+            /**
+             * Refresh Token
+             * @description Single-use refresh secret; null unless `persistent` was requested.
+             */
+            refresh_token?: string | null;
+            /**
+             * Refresh Expires At
+             * @description When `refresh_token` expires if unused (sliding, capped).
+             */
+            refresh_expires_at?: string | null;
         };
         /**
          * Transfer
@@ -5752,6 +5813,77 @@ export interface operations {
             };
             /** @description Invalid email or password. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refresh_api_v1_auth_refresh_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefreshRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenResponse"];
+                };
+            };
+            /** @description Invalid, expired, reused or revoked refresh token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    logout_api_v1_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefreshRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };

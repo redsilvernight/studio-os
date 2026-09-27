@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-126 decision(s). Detail complet dans chaque ADR lie.
+127 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -136,6 +136,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0135 | W3 — Studio claim_resources : outil MCP distinct pour la pose de claims par lot | accepted | [decisions/DEC-0135-w3-claim-resources-par-lot.md](decisions/DEC-0135-w3-claim-resources-par-lot.md) |
 | DEC-0137 | C3 — Canaux beta/stable : promotion du même artefact par manifeste, sans rebuild | accepted | [decisions/DEC-0137-c3-promotion-beta-stable-par-manifeste.md](decisions/DEC-0137-c3-promotion-beta-stable-par-manifeste.md) |
 | DEC-0141 | C4 clôturée sur preuve du cycle complet ; exercices incident restants reportés à l'ouverture publique | accepted | [decisions/DEC-0141-c4-cloture-cycle-prouve.md](decisions/DEC-0141-c4-cloture-cycle-prouve.md) |
+| DEC-0142 | Refresh token rotatif et session desktop persistante (complète DEC-0110) | accepted | [decisions/DEC-0142-refresh-token-rotatif-desktop.md](decisions/DEC-0142-refresh-token-rotatif-desktop.md) |
 | DEC-0143 | AIB-A : bootstrap = composition + manifest minimal studio.bootstrap/v1 | accepted | [decisions/DEC-0143-aib-a-manifest-bootstrap-studio-bootstrap-v1.md](decisions/DEC-0143-aib-a-manifest-bootstrap-studio-bootstrap-v1.md) |
 | DEC-0144 | AIB-B : plan de bootstrap calcule cote serveur, en lecture seule | accepted | [decisions/DEC-0144-aib-b-plan-bootstrap-serveur-lecture-seule.md](decisions/DEC-0144-aib-b-plan-bootstrap-serveur-lecture-seule.md) |
 | DEC-0145 | AIB-C : ownership blocs delimites, anti-drift par adapters check | accepted | [decisions/DEC-0145-aib-c-blocs-delimites-antidrift.md](decisions/DEC-0145-aib-c-blocs-delimites-antidrift.md) |
