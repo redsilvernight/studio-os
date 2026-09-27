@@ -16,7 +16,7 @@ from studio_client.daemon.workspace_watch import WorkspaceWatch, WorkspaceWatchS
 from studio_client.outbox import OutboxStore, connect
 from studio_client.watchers import PollingWatcher
 from studio_contracts.local.identity import ProfileRef
-from studio_contracts.local.workspace import LocalFeatures, WatcherConfig
+from studio_contracts.local.workspace import LocalFeatures
 from studio_workspaces import daemon_watch_plan
 
 from tests.workspaces.factories import make_config
@@ -105,9 +105,9 @@ def entry(workspace_id: UUID, *paths: Path, enabled: bool = True) -> WorkspaceWa
         str(paths[0]) if paths else "C:/Work/none",
         [(f"r{i}", str(p)) for i, p in enumerate(paths)],
     )
-    if enabled:
+    if not enabled:
         config = config.model_copy(
-            update={"features": LocalFeatures(watchers=True), "watchers": WatcherConfig()}
+            update={"features": LocalFeatures(watchers=False), "watchers": None}
         )
     return WorkspaceWatch(workspace_id, PROJECT, daemon_watch_plan(config))
 

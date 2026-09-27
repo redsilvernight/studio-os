@@ -21,7 +21,7 @@ from studio_client.daemon.workspace_watch import (
 )
 from studio_client.outbox import OutboxStore, OutboxTable, connect
 from studio_client.watchers import PollingWatcher
-from studio_contracts.local.workspace import LocalFeatures, WatcherConfig
+from studio_contracts.local.workspace import LocalFeatures
 from studio_workspaces import daemon_watch_plan
 
 from tests.workspaces.factories import make_config
@@ -63,9 +63,9 @@ def plan_for(workspace_id: UUID, *paths: Path, enabled: bool = True, project: UU
         [(f"r{i}", str(p)) for i, p in enumerate(paths)],
         project_id=project,
     )
-    if enabled:
+    if not enabled:
         config = config.model_copy(
-            update={"features": LocalFeatures(watchers=True), "watchers": WatcherConfig()}
+            update={"features": LocalFeatures(watchers=False), "watchers": None}
         )
     return WorkspaceWatch(workspace_id, project, daemon_watch_plan(config))
 

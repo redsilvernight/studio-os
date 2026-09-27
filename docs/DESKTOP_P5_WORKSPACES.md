@@ -67,6 +67,12 @@ P4 consomme `daemon_watch_plan()` + `WorkspaceStore.validate()` /
 configurée) signifie : ne pas surveiller, servir le reste. P5 n'appelle
 aucun code P4.
 
+`features.watchers` vaut `true` par défaut (seule fonction active d'office) et
+un `watchers` absent reçoit `WatcherConfig()` à la validation : un dossier lié
+est suivi sans réglage. Le daemon ne démarre un `GitWatcher` que sur les racines
+contenant `.git`, réconcilie toutes les 15 s les espaces et les `git_watches`
+de `config.toml` (prioritaires), sans redémarrage.
+
 ## Dette P6/P7
 
 - `KnowledgeConfig`/`CodeGraphConfig` : portés tels quels dans la config,
