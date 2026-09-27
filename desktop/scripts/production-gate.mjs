@@ -2,6 +2,7 @@ import { pathToFileURL } from "node:url";
 
 const PLATFORM = "windows-x86_64";
 const REGISTRATION_MODES = new Set(["present", "closed", "open"]);
+const CLOSED_PROBE_EMAIL = "c4-preflight@studio-os.invalid";
 
 export class UsageError extends Error {}
 
@@ -162,7 +163,9 @@ export async function runGate(options, fetchImpl = fetch) {
           ...options,
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ email: "invalid" }),
+          // The body is validated before the gate: a closed probe needs a
+          // well-formed address, on the reserved .invalid TLD (RFC 2606).
+          body: JSON.stringify({ email: options.registration === "closed" ? CLOSED_PROBE_EMAIL : "invalid" }),
         },
         fetchImpl,
         options.registration === "closed" ? [404] : [422],

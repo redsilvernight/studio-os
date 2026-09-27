@@ -34,8 +34,16 @@ async function fixture(overrides = {}) {
       return json(200, { paths });
     }
     if (request.url === "/api/v1/auth/register" && request.method === "POST") {
-      if (state.registration === "closed") return json(404, { detail: { error_code: "registration_unavailable" } });
-      return json(422, { detail: [{ type: "value_error" }] });
+      // Like FastAPI, the body is validated before the registration gate runs.
+      let body = "";
+      request.on("data", (chunk) => (body += chunk));
+      request.on("end", () => {
+        const { email } = JSON.parse(body || "{}");
+        if (typeof email !== "string" || !email.includes("@")) return json(422, { detail: [{ type: "value_error" }] });
+        if (state.registration === "closed") return json(404, { detail: { error_code: "registration_unavailable" } });
+        return json(202, { status: "accepted" });
+      });
+      return;
     }
     const releaseMatch = request.url.match(/^\/gh\/repos\/redsilvernight\/studio-os\/releases\/tags\/(desktop-dev|desktop-prod)$/);
     if (releaseMatch) {
