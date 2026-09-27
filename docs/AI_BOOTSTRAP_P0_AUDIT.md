@@ -273,3 +273,36 @@ Vérifications effectuées : liens relatifs des deux documents, cohérence avec 
 DEC citées (numéros lus dans `docs/decisions/`), absence de secret et de chemin
 absolu utilisateur, aucun fichier produit modifié. Aucun test de liens n'existe
 dans le dépôt ; contrôle fait par script ad hoc (voir rapport de session).
+
+## 13. Addendum 2026-09-27 — boucle agent et lancement à distance
+
+Baseline : `dev` `6397fde`. Tâche : `dd2eb6a6`. Déclencheur : cible « depuis le
+Dashboard, lancer une tâche sur une machine en ligne avec la configuration IA
+résolue automatiquement ». La roadmap Desktop est désormais livrée : les points
+bloquants du §8 sont levés (`LocalWorkspaceConfig`, `HarnessService`, bridge).
+
+### 13.1 Briques vérifiées dans le code
+
+| Brique | État | Preuve / manque |
+|---|---|---|
+| Identité agent | `studio_register_agent`, `agents ensure --harness` (get-or-create) | agent sans `stable_key` ni lien `AgentDefinition` |
+| Injection au démarrage | modèle de hook `K/hooks.py`, `setup-hooks` (cachée), testé | lit `StudioOS` au lieu de `StudioOS-Dev` (`K/hooks.py:38,60`, `K/config.py:29`) ; pas de Codex ; hooks actifs = copies manuelles hors dépôt |
+| Sessions | start/end/list, testés | pas de reprise, filtre `task_id` seul ; `end_session` ne libère aucun claim ; pas de runtime |
+| `prepare_context` | MCP seul, `agent_stable_key`, roadmap `current_step` | pas de tâche suivante ; pas de route HTTP |
+| Tâches | `claim_task`/`release_task` | ni `idempotency_key` ni `expected_version` au claim |
+| `log_ai_work` | `agent_id` obligatoire | pas de `session_id` ni d'`idempotency_key` MCP |
+| Library | `studio-session`, `studio-handoff`, `studio-protocol` publiés | `studio-context/task/decision` non publiés |
+| Composite / bootstrap | **absent** | ni outil, ni endpoint, ni contrat ; aucun prompt/resource MCP |
+| Présence machine | `online/offline` dérivé du heartbeat | heartbeat sans capacités, harnesses ni projets |
+| Canal serveur→machine | **absent** | aucun mécanisme de demande tirée par le daemon |
+| Lancement de harness | **absent** | ni CLI ni Desktop ne lancent un harness |
+
+### 13.2 Propositions de DEC supplémentaires (statut : `proposed`)
+
+| ID provisoire | Proposition | Alternatives rejetées |
+|---|---|---|
+| AIB-F | Lancement à distance en modèle **pull** : le VPS stocke une demande typée (tâche + harness + agent), le daemon ciblé la tire, décide localement et rapporte ; aucune commande libre | push serveur→daemon (WebSocket) ; shell distant ; détourner les jobs Producer |
+| AIB-G | Aucune réclamation automatique sans `task_id` explicite : `studio_start_work` sans tâche ne fait que proposer des candidates ; le Dashboard désigne tâche **et** machine | ordonnanceur automatique |
+| AIB-H | Session reprenable = même agent + même tâche + `ended_at` nul ; au-delà d'un délai sans activité, elle est close à la reprise suivante (valeur à fixer) | toujours créer une nouvelle session |
+| AIB-I | L'agent porte `harness` et une clé stable locale (`agents ensure`) ; `agent_stable_key` (AgentDefinition) reste un paramètre de résolution, pas une identité | fusionner agent et AgentDefinition |
+| AIB-J | Seul le propriétaire de la machine (ou un droit explicite accordé par lui) peut y lancer une tâche ; la machine exige un opt-in local et une liste de harnesses autorisés | tout membre du projet peut lancer partout |
