@@ -46,6 +46,9 @@ L'inscription publique (A4, DEC-0109) reste fermee
 jusqu'au gate C4 : chaque utilisateur est cree par un administrateur sur le
 serveur. Depuis la racine du depot :
 
+Le gate et sa procedure d'incident sont decrits dans
+`docs/DESKTOP_C4_PRODUCTION_GATE.md`.
+
     ./register-user.sh
 
 Le script interactif orchestre `studio-admin` dans le conteneur `api` :
@@ -80,6 +83,8 @@ Distinction a retenir :
 - **machine token** : affiche une seule fois a la creation, jamais reaffiche.
 
 ## Rotation / revocation
+- Fermeture des inscriptions, revocation de sessions/comptes/machines,
+  suspension et rollback de release : `docs/DESKTOP_C4_PRODUCTION_GATE.md`.
 - Revocation d'une machine : `./revoke-machine.sh <machine_id>`.
 - Mot de passe dashboard oublie/compromis : preferer
   `studio-admin set-password --email ... --password-stdin` (le secret passe par
