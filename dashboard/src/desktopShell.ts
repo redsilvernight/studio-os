@@ -19,6 +19,7 @@ import type { HandshakeResponse } from "./platform/generated/local-contracts.gen
 import {
   DAEMON_ABANDONED,
   DAEMON_RECOVERING,
+  daemonRecovering,
   shellStatusHtml,
   summarizeDaemonAnswer,
   summarizeHealth,
@@ -30,6 +31,13 @@ import {
 
 const DEFAULT_PROFILE_ID = "default";
 const PROBE_TIMEOUT_MS = 5000;
+/**
+ * Follow-up reads while the daemon is starting or being restarted: the first
+ * read often lands during the sidecar start (cold start, update restart) and
+ * nothing else would read it again. Backs off, never stops while transient.
+ */
+const TRANSIENT_RETRY_FIRST_MS = 1000;
+const TRANSIENT_RETRY_MAX_MS = 15000;
 
 export interface DesktopShellHooks {
   /** Repaint the current view (the server came back). */
@@ -52,6 +60,28 @@ export interface DesktopShell {
 }
 
 let shell: DesktopShell | null = null;
+let transientRetry: ReturnType<typeof setTimeout> | null = null;
+let transientDelay = TRANSIENT_RETRY_FIRST_MS;
+
+function cancelTransientRetry(): void {
+  if (transientRetry !== null) clearTimeout(transientRetry);
+  transientRetry = null;
+}
+
+/** Read the daemon again later while it only reports a transient state. */
+function followTransientState(target: DesktopShell): void {
+  cancelTransientRetry();
+  if (!daemonRecovering(target.daemon)) {
+    transientDelay = TRANSIENT_RETRY_FIRST_MS;
+    return;
+  }
+  const delay = transientDelay;
+  transientDelay = Math.min(transientDelay * 2, TRANSIENT_RETRY_MAX_MS);
+  transientRetry = setTimeout(() => {
+    transientRetry = null;
+    if (shell === target) void refreshDaemon(target);
+  }, delay);
+}
 
 /** The Desktop shell, or `null` on the web / before `prepareDesktop`. */
 export function getDesktopShell(): DesktopShell | null {
@@ -157,6 +187,7 @@ export async function refreshDaemon(target: DesktopShell | null = shell): Promis
     target.daemon =
       negotiated.summary.kind === "error" ? supervisorSummary(target, negotiated.summary.code) : negotiated.summary;
     paintShellStatus();
+    followTransientState(target);
     return target.daemon;
   }
   const answer = await target.platform.request("daemon.status", { action: "status", profile });
@@ -173,6 +204,7 @@ export async function refreshDaemon(target: DesktopShell | null = shell): Promis
     target.daemon = summary;
   }
   paintShellStatus();
+  followTransientState(target);
   return target.daemon;
 }
 
@@ -271,6 +303,8 @@ export function serverSnapshot(target: DesktopShell | null = shell): ConnectionS
 export function resetDesktopShellForTests(): void {
   shell?.monitor.stop();
   shell = null;
+  cancelTransientRetry();
+  transientDelay = TRANSIENT_RETRY_FIRST_MS;
   setApiObserver(null);
   setServerOriginOverride(null);
 }
