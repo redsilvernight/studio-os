@@ -168,6 +168,51 @@ async def test_recovery_needs_an_email_backend(client: AsyncClient, active_user:
         app.dependency_overrides.pop(get_email_sender, None)
 
 
+async def test_registration_closes_and_reopens_without_touching_existing_accounts(
+    client: AsyncClient,
+    open_instance: Settings,
+    outbox: Outbox,
+    active_user: UserModel,
+) -> None:
+    """C3 (DEC-0137 / DU-11): signups can be closed then reopened on a running
+    instance; the accounts created while open keep working throughout, and the
+    temporary closure only refuses the three registration routes."""
+    first = _email()
+    pending = _email()
+    assert await _register(client, first) == (202, {"status": "accepted"})
+    assert await _verify(client, outbox.last_secret(first)) == (200, {"status": "verified"})
+    first_jwt = await _jwt(client, first, PASSWORD)
+    assert await _register(client, pending) == (202, {"status": "accepted"})
+
+    closed = _settings(public_registration_enabled=False)
+    app.dependency_overrides[get_settings] = lambda: closed
+    try:
+        assert await _register(client, _email()) == (
+            404,
+            {"detail": {"error_code": "registration_unavailable"}},
+        )
+        assert (await _verify(client, outbox.last_secret(pending)))[0] == 404
+        assert await _login(client, first, PASSWORD) == 200
+        assert await _login(client, active_user.email, PASSWORD) == 200
+        assert (await client.get("/api/v1/auth/me", headers=first_jwt)).status_code == 200
+    finally:
+        app.dependency_overrides[get_settings] = lambda: open_instance
+
+    reopened = _email()
+    assert await _register(client, reopened) == (202, {"status": "accepted"})
+    assert await _verify(client, outbox.last_secret(reopened), display_name="Grace") == (
+        200,
+        {"status": "verified"},
+    )
+    assert await _verify(client, outbox.last_secret(pending), display_name="Pending") == (
+        200,
+        {"status": "verified"},
+    )
+    assert await _login(client, reopened, PASSWORD) == 200
+    assert await _login(client, first, PASSWORD) == 200
+    assert (await client.get("/api/v1/auth/me", headers=first_jwt)).status_code == 200
+
+
 def test_startup_refuses_inconsistent_email_settings() -> None:
     assert email_settings_problems(Settings()) == []
     assert email_settings_problems(_settings()) == []
