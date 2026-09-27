@@ -36,10 +36,20 @@ def _probe_sync(pattern: str) -> bool:
 def _list_process_names() -> list[str]:
     if sys.platform == "win32":
         result = subprocess.run(
-            ["tasklist", "/FO", "CSV", "/NH"], capture_output=True, text=True, check=True
+            ["tasklist", "/FO", "CSV", "/NH"],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            check=True,
         )
         return [line.split(",")[0].strip('"') for line in result.stdout.splitlines() if line]
-    result = subprocess.run(["ps", "-A", "-o", "comm="], capture_output=True, text=True, check=True)
+    result = subprocess.run(
+        ["ps", "-A", "-o", "comm="],
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 

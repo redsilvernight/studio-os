@@ -82,7 +82,7 @@ from studio_contracts.local.workspace import (
 from studio_workspaces.store import WorkspaceStoreError
 from studio_workspaces.workspace_bridge import WorkspaceBridge
 
-from studio_client.config import ClientConfig, default_config_path
+from studio_client.config import ClientConfig, default_config_path, reload_git_watches
 from studio_client.daemon.desktop_origin import DesktopOriginError, desktop_client_config
 from studio_client.daemon.local_features import (
     FEATURE_CAPABILITIES,
@@ -94,6 +94,7 @@ from studio_client.daemon.machine_identity import MachineResolver, resolve_machi
 from studio_client.daemon.runtime import (
     AlreadyRunningError,
     DaemonRuntime,
+    GitWatchSource,
     InstanceLock,
     WorkspaceSource,
 )
@@ -223,11 +224,13 @@ class DaemonController:
         local_features: LocalFeatureRegistry | None = None,
         workspace_bridge: WorkspaceBridge | None = None,
         machine_resolver: MachineResolver = resolve_machine_id,
+        git_watch_source: GitWatchSource | None = None,
     ) -> None:
         self.config = config
         self.data_root = data_root or default_config_path().parent
         self._machine_resolver = machine_resolver
         self._workspace_source = workspace_source
+        self._git_watch_source = git_watch_source
         self.local_features = local_features
         self.workspace_bridge = workspace_bridge
         self._runtime: DaemonRuntime | None = None
@@ -464,6 +467,7 @@ class DaemonController:
                 data_root=self.data_root,
                 ownership=DaemonOwnership.DESKTOP_STARTED,
                 workspace_source=self._workspace_source,
+                git_watch_source=self._git_watch_source,
                 git_change_listener=(
                     None if self.local_features is None else self.local_features.on_git_change
                 ),
@@ -934,6 +938,7 @@ def main(
         workspace_source=workspace_source,
         local_features=local_features,
         workspace_bridge=workspace_bridge,
+        git_watch_source=lambda: reload_git_watches(config.api_base_url),
     )
     if local_features is not None:
         local_features.start(controller._profile())

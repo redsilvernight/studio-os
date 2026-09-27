@@ -130,7 +130,7 @@ async def test_runtime_assembles_existing_services_and_stops_cleanly(
 
     monkeypatch.setattr(runtime_module, "StudioApiClient", lambda _config: FakeClient())
     monkeypatch.setattr(runtime_module, "HeartbeatDaemon", FakeHeartbeat)
-    monkeypatch.setattr(runtime_module, "build_watchers", lambda _config, _store: [])
+    monkeypatch.setattr(runtime_module, "build_godot_watchers", lambda _config, _store: [])
 
     runtime = DaemonRuntime(config(), data_root=tmp_path)
     runtime._legacy_outbox_path = tmp_path / "legacy.sqlite3"
@@ -168,7 +168,7 @@ def test_health_is_readable_from_a_thread_other_than_the_runtime_loop(
 
     monkeypatch.setattr(runtime_module, "StudioApiClient", lambda _config: FakeClient())
     monkeypatch.setattr(runtime_module, "HeartbeatDaemon", FakeHeartbeat)
-    monkeypatch.setattr(runtime_module, "build_watchers", lambda _config, _store: [])
+    monkeypatch.setattr(runtime_module, "build_godot_watchers", lambda _config, _store: [])
 
     runtime = DaemonRuntime(config(), data_root=tmp_path)
     runtime._legacy_outbox_path = tmp_path / "legacy.sqlite3"

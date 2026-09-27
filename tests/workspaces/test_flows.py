@@ -5,7 +5,11 @@ import subprocess
 from pathlib import Path
 from uuid import UUID
 
-from studio_contracts.local.workspace import WorkspaceMarker, WorkspaceSaveConfigRequest
+from studio_contracts.local.workspace import (
+    LocalFeatures,
+    WorkspaceMarker,
+    WorkspaceSaveConfigRequest,
+)
 from studio_workspaces.flows import FlowKind, run_flow, summarize_features
 from studio_workspaces.git_detection import GitStatus
 from studio_workspaces.picker import MockFolderPicker
@@ -141,7 +145,10 @@ def test_multi_workspace_flow(tmp_path: Path) -> None:
 
 
 def test_summarize_features_disabled() -> None:
-    lines = summarize_features(make_config(WS_A, "C:/Work/demo"))
+    config = make_config(WS_A, "C:/Work/demo").model_copy(
+        update={"features": LocalFeatures(watchers=False), "watchers": None}
+    )
+    lines = summarize_features(config)
     assert any("coupé" in line for line in lines)
     assert any("consultable" in line for line in lines)
 

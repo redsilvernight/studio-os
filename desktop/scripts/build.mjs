@@ -17,8 +17,10 @@
 // 3. freezes the daemon service when --sidecar is given;
 //    and writes its third-party inventory (fails on an undeclared/unreviewed license);
 // 4. compiles the shell with `tauri build --no-bundle` (or `--bundles nsis` with --installer).
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ALLOW_INSECURE_ORIGIN_ENV, allowInsecureOrigin, arg, dashboardDir, dashboardOut, DEFAULT_API_URL, desktopDir, flag, overlayPath, runOrFail, tauriCli, validateBuildApiUrl, viteCli } from "./lib.mjs";
+import { ALLOW_INSECURE_ORIGIN_ENV, allowInsecureOrigin, arg, buildDir, dashboardDir, dashboardOut, DEFAULT_API_URL, desktopDir, flag, overlayPath, runOrFail, tauriCli, tauriDir, validateBuildApiUrl, viteCli } from "./lib.mjs";
+import { importPfx, pfxImportFromEnv, requireWindowsSigning, windowsSigningFromEnv } from "./windows-signing.mjs";
 
 const insecureOriginAllowed = allowInsecureOrigin();
 const apiUrl = validateBuildApiUrl(
@@ -33,6 +35,26 @@ const node = process.execPath;
 
 await runOrFail(node, [join(desktopDir, "scripts", "check-prereqs.mjs"), ...(sidecar ? ["--sidecar"] : [])]);
 await runOrFail(node, [join(desktopDir, "scripts", "version.mjs"), "--check"]);
+
+// B4 — Authenticode before the Tauri build (never after: post-build signing
+// would invalidate the minisign updater signatures). Fail-closed when
+// STUDIO_REQUIRE_AUTHENTICODE=1.
+const pfx = pfxImportFromEnv();
+if (pfx) {
+  if (process.platform !== "win32") {
+    console.error("✖ WINDOWS_SIGN_PFX_BASE64 is set but code signing needs Windows");
+    process.exit(1);
+  }
+  const pfxPath = join(buildDir, "studio-sign.pfx");
+  writeFileSync(pfxPath, Buffer.from(pfx.pfxBase64, "base64"));
+  process.env.WINDOWS_CERT_THUMBPRINT = importPfx(pfxPath, pfx.password);
+  console.log("▶ Signing certificate imported into Cert:\\CurrentUser\\My");
+}
+const signing = windowsSigningFromEnv();
+if (!signing && requireWindowsSigning()) {
+  console.error("✖ STUDIO_REQUIRE_AUTHENTICODE=1 but no signing certificate is configured (WINDOWS_CERT_THUMBPRINT or WINDOWS_SIGN_PFX_BASE64+WINDOWS_SIGN_PASSWORD)");
+  process.exit(1);
+}
 
 console.log(`\n▶ Dashboard build (API: ${apiUrl})`);
 await runOrFail(node, [viteCli(), "build", "--outDir", dashboardOut, "--emptyOutDir"], {
@@ -62,4 +84,11 @@ await runOrFail(node, [tauriCli(), ...tauriArgs, "--config", overlayPath], {
   },
 });
 console.log("\n✔ built: desktop/src-tauri/target/release/studio-desktop.exe");
-if (installer) console.log("✔ installer: desktop/src-tauri/target/release/bundle/nsis/");
+if (installer) {
+  console.log("✔ installer: desktop/src-tauri/target/release/bundle/nsis/");
+  // B4 — verify every delivered executable; --require only in release mode so
+  // local dev installers stay buildable without a certificate.
+  const verify = [join(desktopDir, "scripts", "windows-signing.mjs"), "--verify", "--dir", join(tauriDir, "target", "release", "bundle", "nsis")];
+  if (requireWindowsSigning()) verify.push("--require");
+  await runOrFail(node, verify);
+}

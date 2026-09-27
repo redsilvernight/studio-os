@@ -29,8 +29,8 @@ from studio_contracts.local.handshake import ProtocolVersion
 from studio_contracts.local.identity import IdentityBinding, ProfileRef, partition_key
 
 from studio_client.api_client import StudioApiClient
-from studio_client.config import ClientConfig, default_config_path
-from studio_client.daemon.heartbeat import HeartbeatDaemon, build_watchers
+from studio_client.config import ClientConfig, GitWatchConfig, default_config_path
+from studio_client.daemon.heartbeat import HeartbeatDaemon, build_godot_watchers
 from studio_client.daemon.workspace_watch import (
     RepoObservation,
     WorkspaceWatchLike,
@@ -54,6 +54,7 @@ _LOGGER = logging.getLogger("studio_client.daemon.runtime")
 
 WorkspaceSource = Callable[[ProfileRef], Sequence[WorkspaceWatchLike]]
 WorkspaceRefreshListener = Callable[[], Awaitable[None]]
+GitWatchSource = Callable[[], Sequence[GitWatchConfig]]
 DEFAULT_WORKSPACE_SYNC_SECONDS = 15.0
 
 
@@ -140,7 +141,9 @@ class DaemonRuntime:
         workspace_sync_seconds: float = DEFAULT_WORKSPACE_SYNC_SECONDS,
         git_change_listener: GitChangeListener | None = None,
         workspace_refresh_listener: WorkspaceRefreshListener | None = None,
+        git_watch_source: GitWatchSource | None = None,
     ) -> None:
+        self._git_watch_source = git_watch_source
         self._git_change_listener = git_change_listener
         self._workspace_refresh_listener = workspace_refresh_listener
         if config.machine_id is None:
@@ -172,6 +175,7 @@ class DaemonRuntime:
         self._watchers: list[PollingWatcher] = []
         self._workspace_watches: WorkspaceWatchSet | None = None
         self._workspace_inputs: list[WorkspaceWatchLike] = []
+        self._git_watch_inputs: list[GitWatchConfig] = list(config.git_watches)
         self._workspace_source = workspace_source
         self._workspace_sync_seconds = workspace_sync_seconds
         self._stop_event: asyncio.Event | None = None
@@ -227,27 +231,36 @@ class DaemonRuntime:
         watches = self._workspace_watches
         if watches is None or self._stop_requested:
             return []
-        return await watches.reconcile(self._workspace_inputs)
+        return await watches.reconcile(self._workspace_inputs, self._git_watch_inputs)
 
     async def refresh_workspace_watchers(self) -> list[RepoObservation]:
-        source = self._workspace_source
-        if source is None:
-            return []
-        try:
-            workspaces = await asyncio.to_thread(source, self.profile)
-        except Exception:  # noqa: BLE001
-            _LOGGER.warning("workspace source unreadable; keeping current watchers", exc_info=True)
-            return []
-        if self._workspace_refresh_listener is not None:
+        """Re-read the configured `git_watches` and the workspace plans, then
+        reconcile; an unreadable source keeps its previous inputs."""
+        if self._git_watch_source is not None:
             try:
-                await self._workspace_refresh_listener()
+                self._git_watch_inputs = list(await asyncio.to_thread(self._git_watch_source))
             except Exception:  # noqa: BLE001
-                _LOGGER.warning("workspace refresh listener failed", exc_info=True)
-        return await self.reconcile_workspace_watchers(list(workspaces))
+                _LOGGER.warning("git_watches unreadable; keeping current watchers", exc_info=True)
+        source = self._workspace_source
+        if source is not None:
+            try:
+                workspaces = await asyncio.to_thread(source, self.profile)
+            except Exception:  # noqa: BLE001
+                _LOGGER.warning(
+                    "workspace source unreadable; keeping current watchers", exc_info=True
+                )
+            else:
+                if self._workspace_refresh_listener is not None:
+                    try:
+                        await self._workspace_refresh_listener()
+                    except Exception:  # noqa: BLE001
+                        _LOGGER.warning("workspace refresh listener failed", exc_info=True)
+                self._workspace_inputs = list(workspaces)
+        return await self.reconcile_workspace_watchers()
 
     async def _workspace_sync_loop(self) -> None:
         stop = self._stop_event
-        if stop is None or self._workspace_source is None:
+        if stop is None or (self._workspace_source is None and self._git_watch_source is None):
             return
         while not self._stop_requested:
             try:
@@ -280,19 +293,15 @@ class DaemonRuntime:
                     agent_id=self.agent_id,
                     replayer=replayer,
                 )
-                self._watchers = build_watchers(self.config, store)
+                self._watchers = build_godot_watchers(self.config, store)
                 self._workspace_watches = WorkspaceWatchSet(
                     machine_id=self.binding.machine_id,
                     outbox=store,
                     interval_seconds=self.config.git_watch_interval_seconds,
-                    reserved=[watch.repo_path for watch in self.config.git_watches],
                     change_listener=self._git_change_listener,
                 )
                 if not self._stop_requested:
-                    if self._workspace_source is not None:
-                        await self.refresh_workspace_watchers()
-                    else:
-                        await self._workspace_watches.reconcile(self._workspace_inputs)
+                    await self.refresh_workspace_watchers()
                 if self._stop_requested:
                     self.request_stop()
                 await asyncio.gather(

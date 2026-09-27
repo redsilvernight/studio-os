@@ -39,6 +39,10 @@ MAX_WORKSPACE_WATCHERS = 32
 """Below the 64-entry `DaemonHealth.git_watchers` bound, leaving room for the
 configured `git_watches`."""
 
+CONFIGURED_WATCH_ID = UUID(int=0)
+"""Workspace id reported for a repository declared in the client's
+`git_watches` rather than by a workspace."""
+
 
 class WatchPlanLike(Protocol):
     @property
@@ -57,6 +61,14 @@ class WorkspaceWatchLike(Protocol):
 
     @property
     def plan(self) -> WatchPlanLike: ...
+
+
+class ConfiguredWatchLike(Protocol):
+    @property
+    def repo_path(self) -> Path: ...
+
+    @property
+    def project_id(self) -> UUID: ...
 
 
 @dataclass(frozen=True)
@@ -105,6 +117,7 @@ class _Running:
     watcher: PollingWatcher
     task: asyncio.Task[None]
     workspace_id: UUID
+    project_id: UUID
 
 
 def path_identity(path: Path) -> str:
@@ -157,10 +170,28 @@ class WorkspaceWatchSet:
     def observations(self) -> list[RepoObservation]:
         return list(self._observations)
 
-    async def reconcile(self, workspaces: Sequence[WorkspaceWatchLike]) -> list[RepoObservation]:
-        """Make the running watchers match the plans; idempotent."""
+    async def reconcile(
+        self,
+        workspaces: Sequence[WorkspaceWatchLike],
+        configured: Sequence[ConfiguredWatchLike] = (),
+    ) -> list[RepoObservation]:
+        """Make the running watchers match the plans; idempotent. `configured`
+        repositories take precedence over workspace plans and are not counted
+        against MAX_WORKSPACE_WATCHERS."""
         desired: dict[Path, tuple[UUID, UUID]] = {}
         observations: list[RepoObservation] = []
+        for watch in configured:
+            path = Path(watch.repo_path)
+            status = await asyncio.to_thread(self._probe, path)
+            if status is RepoStatus.WATCHING:
+                if path_identity(path) in self._reserved or any(
+                    path_identity(path) == path_identity(known) for known in desired
+                ):
+                    status = RepoStatus.ALREADY_WATCHED
+                else:
+                    desired[path] = (CONFIGURED_WATCH_ID, watch.project_id)
+            observations.append(RepoObservation(CONFIGURED_WATCH_ID, str(path), status))
+        configured_count = len(desired)
         for workspace in sorted(workspaces, key=lambda item: str(item.workspace_id)):
             if not workspace.plan.enabled:
                 observations.append(
@@ -175,7 +206,7 @@ class WorkspaceWatchSet:
                         path_identity(path) == path_identity(known) for known in desired
                     ):
                         status = RepoStatus.ALREADY_WATCHED
-                    elif len(desired) >= MAX_WORKSPACE_WATCHERS:
+                    elif len(desired) - configured_count >= MAX_WORKSPACE_WATCHERS:
                         status = RepoStatus.LIMIT_REACHED
                     else:
                         desired[path] = (workspace.workspace_id, workspace.project_id)
@@ -187,14 +218,14 @@ class WorkspaceWatchSet:
         for path, (workspace_id, project_id) in desired.items():
             with self._lock:
                 current = self._running.get(path)
-            if current is not None and not current.task.done():
+            if current is not None and not current.task.done() and current.project_id == project_id:
                 continue
             if current is not None:
                 await self._stop_one(path)
             watcher = self._factory(path, project_id)
             task = asyncio.create_task(watcher.run(), name=f"git-watch-{_instance_key(path)}")
             with self._lock:
-                self._running[path] = _Running(watcher, task, workspace_id)
+                self._running[path] = _Running(watcher, task, workspace_id, project_id)
         self._observations = observations
         return list(observations)
 

@@ -1103,7 +1103,7 @@ def build_fixtures() -> list[LocalFixture]:
         knowledge=False, code_graph=False
     ).model_copy(
         update={
-            "features": LocalFeatures(),
+            "features": LocalFeatures(watchers=False),
             "knowledge": None,
             "code_graph": None,
             "watchers": None,
