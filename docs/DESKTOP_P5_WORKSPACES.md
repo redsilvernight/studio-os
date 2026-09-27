@@ -73,6 +73,13 @@ est suivi sans réglage. Le daemon ne démarre un `GitWatcher` que sur les racin
 contenant `.git`, réconcilie toutes les 15 s les espaces et les `git_watches`
 de `config.toml` (prioritaires), sans redémarrage.
 
+`studio-client workspaces register --path --project-id [--slug]`
+(`registration.py`) lie un dossier sans dialogue natif : il émet et consomme sa
+propre confirmation, le chemin explicite de la ligne de commande valant choix
+de l'utilisateur. Idempotent (active les watchers d'un lien existant, refuse
+un dossier lié à un autre projet). Réservé à la ligne de commande : ne jamais
+l'exposer à un appelant non interactif (bridge, API locale).
+
 ## Dette P6/P7
 
 - `KnowledgeConfig`/`CodeGraphConfig` : portés tels quels dans la config,
