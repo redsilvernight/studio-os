@@ -302,7 +302,7 @@ async def _select_tasks(
         if requested is None:
             omitted["task"] = 1
 
-    active = await projects_service.get_active_tasks(session, project_id)
+    active = await projects_service.get_active_tasks(session, principal, project_id)
     candidates = [t for t in active if t.id != task_id]
     ranked: list[tuple[int, str, str, TaskModel, list[str]]] = []
     for candidate in candidates:
@@ -325,6 +325,7 @@ async def _select_tasks(
 
 async def _select_decisions(
     session: AsyncSession,
+    principal: Principal,
     project_id: uuid.UUID,
     task_id: uuid.UUID | None,
     terms: list[str],
@@ -334,7 +335,7 @@ async def _select_decisions(
 ) -> tuple[list[DecisionItem], int]:
     rows = [
         d
-        for d in await decisions_service.list_decisions(session, project_id=project_id)
+        for d in await decisions_service.list_decisions(session, principal, project_id=project_id)
         if d.status != "superseded"
     ]
     ranked: list[tuple[int, int, int, float, str, DecisionModel, Why]] = []
@@ -503,7 +504,7 @@ async def _select_claims(
     """Active (TTL-live) claims tied to the work at hand: those on the requested
     task, and — held by another machine — those overlapping `files` under the
     exact rule claims themselves use. Claims warn, they never block."""
-    claims = await projects_service.get_active_claims(session, project_id)
+    claims = await projects_service.get_active_claims(session, principal, project_id)
     ranked: list[tuple[int, str, str, ResourceClaimModel, Why]] = []
     for claim in claims:
         is_other = claim.claimed_by_machine_id != principal.machine.id
@@ -553,6 +554,7 @@ def _ai_work_item(work: AIWorkLogModel, why: Why, budget: _Budget) -> AIWorkItem
 
 async def _select_ai_work(
     session: AsyncSession,
+    principal: Principal,
     project_id: uuid.UUID,
     task_id: uuid.UUID | None,
     terms: list[str],
@@ -564,7 +566,7 @@ async def _select_ai_work(
     (newest first — the handoff packet lives here), then entries whose summary
     lexically overlaps the objective. Bounded by `limit` and its own budget
     slice, so the section can neither starve nor swamp the rest."""
-    rows = await ai_work_service.list_ai_work(session, project_id=project_id)
+    rows = await ai_work_service.list_ai_work(session, principal, project_id=project_id)
     linked: list[tuple[float, str, AIWorkLogModel]] = []
     lexical: list[tuple[int, float, str, AIWorkLogModel, list[str]]] = []
     for row in rows:
@@ -662,9 +664,7 @@ async def prepare_project_context(
         raise _invalid(f"max_chars must be within {MIN_MAX_CHARS}..{MAX_MAX_CHARS}")
     paths = _clean_files(files)
 
-    project = await projects_service.get_project(session, project_id)
-    if project is None:
-        raise _not_found(f"project {project_id} not found")
+    project = await projects_service.get_project(session, principal, project_id)
 
     terms = query_terms(objective)
     budget = _Budget(max_chars)
@@ -698,6 +698,7 @@ async def prepare_project_context(
         known_tasks[task.id] = "task"
     roadmap = await select_roadmap(
         session,
+        principal,
         project_id,
         task_id,
         known_tasks,
@@ -708,6 +709,7 @@ async def prepare_project_context(
         omitted[name] = omitted.get(name, 0) + count
     ai_work, ai_work_total = await _select_ai_work(
         session,
+        principal,
         project_id,
         task_id,
         terms,
@@ -716,7 +718,7 @@ async def prepare_project_context(
         omitted,
     )
     decisions, decisions_total = await _select_decisions(
-        session, project_id, task_id, terms, limit, budget, omitted
+        session, principal, project_id, task_id, terms, limit, budget, omitted
     )
     rules, rules_total, rules_capped = await _select_library(
         session,

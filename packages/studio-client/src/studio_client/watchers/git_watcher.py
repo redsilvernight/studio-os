@@ -62,6 +62,7 @@ def _read_sync(repo_path: Path) -> GitState | None:
 def _run_git(repo_path: Path, *args: str) -> str:
     result = subprocess.run(
         ["git", "-C", str(repo_path), *args],
+        stdin=subprocess.DEVNULL,
         capture_output=True,
         text=True,
         check=True,

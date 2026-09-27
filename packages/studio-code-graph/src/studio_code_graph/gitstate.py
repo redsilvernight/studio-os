@@ -81,7 +81,7 @@ def _git(repo_root: Path, *args: str, stdin: bytes | None = None) -> bytes | Non
             capture_output=True,
             check=True,
             timeout=_GIT_TIMEOUT_SECONDS,
-            input=stdin,
+            input=b"" if stdin is None else stdin,
         )
     except (OSError, subprocess.SubprocessError):
         return None

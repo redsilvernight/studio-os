@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+import time
 from collections.abc import AsyncIterator
 from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Header, HTTPException, Query, status
+from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from studio_contracts.events import EventCreate, EventEnvelope
 
-from studio_api.deps import CurrentMachine, CurrentPrincipal, DbSession
+from studio_api.deps import JWT_AUTH_VERSION_STATE, CurrentPrincipal, DbSession
 from studio_api.openapi_meta import (
     RESP_401_UNAUTHORIZED,
     RESP_403_FORBIDDEN,
@@ -16,6 +17,10 @@ from studio_api.openapi_meta import (
 )
 from studio_api.services import event_stream
 from studio_api.services import events as events_service
+
+REVALIDATE_SECONDS = 20.0
+"""Membership revalidation period of an open stream. Checked on every item,
+at worst one keep-alive late: bounded by 20 + 10 s (DEC-0103 §9: ≤ 30 s)."""
 
 router = APIRouter(prefix="/api/v1/events", tags=["events"])
 
@@ -68,16 +73,18 @@ async def post_event(
     response_model=list[EventEnvelope],
     description=(
         "Read recent events, optionally filtered by project, task and "
-        "`since` timestamp. Any authenticated machine may read. This is "
+        "`since` timestamp, restricted to the caller's accessible "
+        "projects (a `project`, or a `task_id` of a project, the caller "
+        "cannot access answers `403 forbidden`). This is "
         "the polling and catch-up channel: after a disconnect, poll with "
         "`since` to retrieve missed history, then optionally resume live "
         "delivery on `GET /events/stream`."
     ),
-    responses={**RESP_401_UNAUTHORIZED},
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
 )
 async def get_events(
     session: DbSession,
-    machine: CurrentMachine,
+    principal: CurrentPrincipal,
     project: UUID | None = Query(default=None),
     task: UUID | None = Query(default=None),
     since: datetime | None = Query(default=None),
@@ -85,8 +92,9 @@ async def get_events(
 ) -> list[EventEnvelope]:
     events = await events_service.list_events(
         session,
-        project_id=str(project) if project else None,
-        task_id=str(task) if task else None,
+        principal,
+        project_id=project,
+        task_id=task,
         since=since,
         limit=limit,
     )
@@ -105,7 +113,10 @@ async def get_events(
         "(`Last-Event-ID` wins when both are present). With no cursor, "
         "only events created from connection time are delivered — use "
         "`GET /events?since=` first to backfill history, then open the "
-        "stream for live updates. Same authentication as the rest of the API."
+        "stream for live updates. Same authentication as the rest of the API. "
+        "An inaccessible `project` answers `403 forbidden` before the stream "
+        "opens; an idle stream receives an SSE comment keep-alive, and the "
+        "stream closes once the caller loses access to the project."
     ),
     responses={
         200: {
@@ -125,11 +136,13 @@ async def get_events(
             },
         },
         **RESP_401_UNAUTHORIZED,
+        **RESP_403_FORBIDDEN,
     },
 )
 async def stream_events(
+    request: Request,
     session: DbSession,
-    machine: CurrentMachine,
+    principal: CurrentPrincipal,
     project: UUID = Query(
         ..., description="Project to subscribe to (UUID). No global stream exists."
     ),
@@ -150,6 +163,12 @@ async def stream_events(
 ) -> StreamingResponse:
     parsed_last_event_id = _parse_last_event_id(last_event_id)
     cursor = parsed_last_event_id if parsed_last_event_id is not None else since_seq
+    # Before the response starts: an inaccessible project is a plain 403,
+    # never an opened-then-closed stream (DEC-0103 §9).
+    events_service.authorize_stream(principal, project)
+    machine_id = principal.machine.id
+    user_id = principal.user.id
+    jwt_auth_version: int | None = getattr(request.state, JWT_AUTH_VERSION_STATE, None)
 
     async def generate() -> AsyncIterator[bytes]:
         queue = event_stream.subscribe()
@@ -157,7 +176,7 @@ async def stream_events(
             last_seq = cursor
             if cursor is not None:
                 backlog = await events_service.list_events_after(
-                    session, project_id=str(project), after_seq=cursor
+                    session, principal, project_id=project, after_seq=cursor
                 )
                 for row in backlog:
                     last_seq = row.seq
@@ -170,12 +189,35 @@ async def stream_events(
                     )
             # Done with the DB for this connection's lifetime — release the
             # pooled connection now rather than pinning it for as long as the
-            # client stays subscribed (this loop has no further DB access).
+            # client stays subscribed (revalidation uses its own short session).
             await session.close()
+            checked_at = time.monotonic()
             while True:
-                event = await event_stream.receive(queue)
+                event = await event_stream.receive(queue, event_stream.KEEPALIVE_SECONDS)
                 if event is None:
                     return
+                if isinstance(event, event_stream.AccessRevoked):
+                    if event.user_id == user_id and event.project_id == project:
+                        return
+                    continue
+                if isinstance(event, event_stream.UserRevalidation):
+                    if event.user_id != user_id:
+                        continue
+                    if not await events_service.stream_access_still_valid(
+                        machine_id, project, jwt_auth_version
+                    ):
+                        return
+                    checked_at = time.monotonic()
+                    continue
+                if time.monotonic() - checked_at >= REVALIDATE_SECONDS:
+                    if not await events_service.stream_access_still_valid(
+                        machine_id, project, jwt_auth_version
+                    ):
+                        return
+                    checked_at = time.monotonic()
+                if not isinstance(event, event_stream.StreamEvent):  # KEEPALIVE
+                    yield b": keep-alive\n\n"
+                    continue
                 if event.project_id != project:
                     continue
                 if last_seq is not None and event.seq <= last_seq:

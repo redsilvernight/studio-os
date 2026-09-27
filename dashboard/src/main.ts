@@ -16,6 +16,7 @@
  * retour à l'écran de connexion.
  */
 import { apiBaseUrl, createApiClient } from "./api";
+import { showClientUpdateAdvisory, showClientUpgradeRequired as showUpgradeRequired } from "./clientUpgradeUi";
 import { loadActorNames } from "./actorNames";
 import { resolveApiUrl } from "./config";
 import { clearToken, getToken, hasToken, setToken } from "./auth";
@@ -29,6 +30,7 @@ import { renderTaskDetail } from "./views/taskDetail";
 import { renderTasksInto } from "./views/tasks";
 import { renderAgentDetail, renderAgents } from "./views/agents";
 import { renderMachines } from "./views/machines";
+import { renderAccounts } from "./views/accounts";
 import { renderDecisionsV2 as renderDecisions } from "./views/decisionsV2";
 import { renderTransfers } from "./views/transfers";
 import { renderLibrary, renderLibraryDetail } from "./views/library";
@@ -43,12 +45,18 @@ import { renderInspector } from "./views/inspector";
 import { renderDesignSystem } from "./views/designSystem";
 import { renderNotFound } from "./views/notFound";
 import { loginOverlayHtml, renderLogin } from "./login";
+import { PUBLIC_HASH, publicHashScreen, readAccountLink, scrubbedPath } from "./accountLink";
+import { renderPublicAccount, type PublicScreen } from "./views/publicAccount";
+import { probeProjectAccess, renderAwaitingAccess, type ProjectAccess } from "./views/awaitingAccess";
 import { getPlatform } from "./platform";
 import { getDesktopShell, paintShellStatus, prepareDesktop, setDesktopHooks } from "./desktopShell";
 import { parseRoute } from "./router";
 import { shellHtml, syncAuthState, syncNav } from "./shell";
 import { createRenderGuard } from "./renderGuard";
 import { startRealtimeConnection, type RealtimeConnection } from "./realtime";
+import { setApiObserver } from "./apiEvents";
+import { resetIdentityCache } from "./identityApi";
+import { SESSION_ENDED_NOTICE, createSessionEndHandler } from "./session";
 import type { components } from "./openapi-schema";
 import "./ds/tokens.css";
 import "./ds/components.css";
@@ -67,6 +75,18 @@ const fixtureRoadmapDataSource = createFixtureRoadmapDataSource();
 
 const renderGuard = createRenderGuard();
 let shellListenersMounted = false;
+
+// Only a granted access is remembered (per token): « none » is re-asked on
+// every landing render so a newly added membership shows up at once.
+let grantedForToken: string | null = null;
+
+async function projectAccess(client: ReturnType<typeof createApiClient>): Promise<ProjectAccess> {
+  const token = getToken();
+  if (token !== null && token === grantedForToken) return "granted";
+  const access = await probeProjectAccess(client);
+  if (access === "granted") grantedForToken = token;
+  return access;
+}
 
 async function render(): Promise<void> {
   const my = renderGuard.next();
@@ -89,7 +109,13 @@ async function render(): Promise<void> {
   const authed = hasToken();
   if (authed) await loadActorNames(client);
   const staging = document.createElement("main");
-  switch (route.name) {
+  // A5 : un compte actif sans aucun projet voit « En attente d'accès » à
+  // l'Accueil plutôt qu'un tableau de bord vide (#/projects garde l'état
+  // vide explicite A0).
+  const awaiting = authed && route.name === "dashboard" && (await projectAccess(client)) === "none";
+  if (awaiting) {
+    renderAwaitingAccess(staging, () => void render());
+  } else switch (route.name) {
     case "projects":
       await renderProjects(staging, { client, authed });
       break;
@@ -127,6 +153,9 @@ async function render(): Promise<void> {
       break;
     case "machines":
       await renderMachines(staging, { client, baseUrl, authed });
+      break;
+    case "accounts":
+      await renderAccounts(staging, { client, authed });
       break;
     case "decisions":
       await renderDecisions(staging, { client, authed });
@@ -210,6 +239,29 @@ function showConflictBanner(event: EventEnvelope): void {
   }, 8000);
 }
 
+/** 403 on the live stream: no access to the selected project. Stays visible
+ * (no timer) — the stream will not retry until the project or token changes. */
+function showStreamDeniedBanner(): void {
+  const banner = document.getElementById("conflict-banner");
+  if (banner === null) return;
+  if (conflictBannerTimer !== null) {
+    clearTimeout(conflictBannerTimer);
+    conflictBannerTimer = null;
+  }
+  banner.textContent = "Accès à ce projet refusé : les mises à jour en direct sont arrêtées. Demandez l'accès à un administrateur.";
+  banner.hidden = false;
+  streamDeniedShown = true;
+}
+
+let streamDeniedShown = false;
+
+function clearStreamDeniedBanner(): void {
+  if (!streamDeniedShown) return;
+  streamDeniedShown = false;
+  const banner = document.getElementById("conflict-banner");
+  if (banner !== null) banner.hidden = true;
+}
+
 let realtimeConnection: RealtimeConnection | null = null;
 let realtimeKey: string | null = null;
 
@@ -222,6 +274,7 @@ function syncRealtimeConnection(): void {
   const projectId = uiState.selectedProjectId;
   const key = token !== null && projectId !== null ? `${projectId}::${token}` : null;
   if (key === realtimeKey) return;
+  clearStreamDeniedBanner();
   realtimeConnection?.close();
   realtimeConnection = null;
   realtimeKey = key;
@@ -237,6 +290,10 @@ function syncRealtimeConnection(): void {
       },
       onConflict: (event) => {
         showConflictBanner(event);
+      },
+      onDenied: (status) => {
+        // 401 is already handled by the shell (session expired, apiEvents).
+        if (status === 403) showStreamDeniedBanner();
       },
     },
   );
@@ -354,11 +411,51 @@ function mountLogin(notice?: string): void {
       syncRealtimeConnection();
       mountShell();
     },
-    { notice, desktop: getDesktopShell() !== null, onServerChange: () => void mountLogin() },
+    {
+      notice,
+      desktop: getDesktopShell() !== null,
+      onServerChange: () => void mountLogin(),
+      onAccountAction: (action) => {
+        history.replaceState(null, "", PUBLIC_HASH[action]);
+        mountPublic({ name: action });
+      },
+    },
   );
 }
 
+/** A5 : écrans publics (inscription, vérification, récupération), sans token. */
+function mountPublic(screen: PublicScreen): void {
+  const app = document.getElementById("app");
+  if (app === null) throw new Error("#app missing");
+  renderPublicAccount(app, screen, {
+    client: createApiClient(resolveApiUrl(apiBaseUrl())),
+    go: mountPublic,
+    toLogin: () => {
+      if (publicHashScreen(location.hash) !== null) history.replaceState(null, "", location.pathname);
+      mountLogin();
+    },
+  });
+}
+
+/** Emailed link or shareable pre-login address: mounted instead of the login. */
+function publicEntry(): PublicScreen | null {
+  const link = readAccountLink(location.pathname, location.hash);
+  if (link !== null) {
+    // The secret leaves the address bar and history before anything else.
+    history.replaceState(null, "", scrubbedPath(location.pathname));
+    if (link.token === null) return { name: "failure", kind: "invalid_or_expired_token", flow: link.kind };
+    return link.kind === "verify" ? { name: "verify", token: link.token } : { name: "reset", token: link.token };
+  }
+  const screen = publicHashScreen(location.hash);
+  return screen !== null && !hasToken() ? { name: screen } : null;
+}
+
 function start(): void {
+  const entry = publicEntry();
+  if (entry !== null) {
+    mountPublic(entry);
+    return;
+  }
   // Sans compte, l'écran de connexion couvre tout — sauf au premier lancement
   // Desktop, où l'assistant embarque sa propre connexion (étape « Connexion »).
   const desktop = getDesktopShell() !== null;
@@ -381,6 +478,16 @@ function start(): void {
 export function boot(): void {
   const platform = getPlatform();
   if (platform.mode !== "desktop") {
+    setApiObserver({
+      unauthorized: createSessionEndHandler((notice) => {
+        syncRealtimeConnection();
+        mountLogin(notice);
+      }),
+      // Web Dashboard: no connection monitor, but the C1 compatibility surfaces
+      // must still work (advisory banner, blocking screen on 426).
+      clientUpdate: (latest) => showClientUpdateAdvisory(latest),
+      upgradeRequired: (info) => showUpgradeRequired(info),
+    });
     start();
     return;
   }
@@ -390,8 +497,9 @@ export function boot(): void {
       rerender: () => void render(),
       authExpired: () => {
         clearToken();
+        resetIdentityCache();
         syncRealtimeConnection();
-        mountLogin("Votre session a expiré. Reconnectez-vous pour continuer.");
+        mountLogin(SESSION_ENDED_NOTICE);
       },
     });
     start();

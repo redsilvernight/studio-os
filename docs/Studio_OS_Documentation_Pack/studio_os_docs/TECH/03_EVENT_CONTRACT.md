@@ -17,6 +17,17 @@
 }
 ```
 
+Acces en lecture (DEC-0103, NEUTRE pour ce contrat : enveloppe et
+`schema_version` inchanges) : la livraison d'un event — `GET /events`
+(polling) comme `GET /events/stream` (SSE) — suit l'acces au projet de
+l'event (`project_id`) : membership du User appelant ou role `admin`.
+Emettre un event (`POST /events`) exige aussi l'acces au projet, controle
+avant la deduplication `event_id`. Le retrait d'une membership produit un
+signal strictement interne au serveur (fermeture des flux SSE concernes) ;
+ce n'est **pas** un type d'event et il n'est jamais persiste dans le
+journal. Regles : `TECH/02_API_CONTRACT.md` section Realtime et
+`TECH/04_AUTH_SYNC_CONTRACT.md` section Autorisation.
+
 ## Types
 project.created
 

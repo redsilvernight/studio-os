@@ -1,6 +1,6 @@
 // Real install / launch / upgrade / uninstall test of the NSIS installer.
 //
-//   node scripts/install-test.mjs [--installer <path>]
+//   node scripts/install-test.mjs [--installer <path>] [--channel prod|dev]
 //
 // Runs the actual per-user installer silently into a throwaway directory, launches
 // the INSTALLED application (offline, daemon data redirected to a throwaway
@@ -12,13 +12,19 @@
 // Results: desktop/.build/install-test-results.json. Exit code 1 on any failure.
 
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
+import { connect as netConnect } from "node:net";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { chromium } from "playwright-core";
-import { arg, buildDir, desktopDir, tauriDir } from "./lib.mjs";
+import { arg, buildChannel, buildDir, CHANNELS, desktopDir, tauriDir } from "./lib.mjs";
+import { canonicalVersion } from "./version.mjs";
 
-const PRODUCT = "Studio OS Desktop";
+const CHANNEL = CHANNELS[buildChannel()];
+const PRODUCT = CHANNEL.productName;
 const UNINSTALL_KEY = `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${PRODUCT}`;
 const CDP_PORT = Number(process.env.STUDIO_E2E_CDP_PORT ?? 9444);
 const APP_ORIGIN = "http://tauri.localhost";
@@ -128,7 +134,7 @@ const invoke = (page, name, args) =>
       try {
         return { ok: true, value: await window.__TAURI__.core.invoke(name, args) };
       } catch (e) {
-        return { ok: false, error: String(e) };
+        return { ok: false, error: typeof e === "string" ? e : JSON.stringify(e), code: e?.code };
       }
     },
     { name, args },
@@ -232,7 +238,7 @@ async function main() {
       check("launch.install_dir_reported", typeof diag?.locations?.install_dir === "string" && diag.locations.install_dir.toLowerCase().includes(PRODUCT.toLowerCase()), String(diag?.locations?.install_dir));
       let stamp = null;
       for (let i = 0; i < 20 && !stamp; i++) {
-        stamp = existsSync(join(appData, "StudioOS", "format.json")) ? JSON.parse(readFileSync(join(appData, "StudioOS", "format.json"), "utf8")) : null;
+        stamp = existsSync(join(appData, CHANNEL.dataDir, "format.json")) ? JSON.parse(readFileSync(join(appData, CHANNEL.dataDir, "format.json"), "utf8")) : null;
         if (!stamp) await sleep(500);
       }
       check("launch.user_data_lives_outside_install_dir", stamp?.format === 1 && !listFiles(instDir).some((f) => /format\.json$/i.test(f)), `format.json ${JSON.stringify(stamp)} under the redirected %APPDATA%, none under the install dir`);
@@ -240,12 +246,20 @@ async function main() {
       check("launch.no_listener_on_all_interfaces", sockets.every((s) => !s.startsWith("0.0.0.0:") && !s.startsWith("[::]:")), sockets.length ? sockets.join(", ") : "no listening socket");
       const exported = await invoke(page, "export_diagnostics", {});
       const exportFile = exported.value?.file ? String(exported.value.file) : "";
-      const exportedDir = join(appData, "StudioOS", "diagnostics");
+      const exportedDir = join(appData, CHANNEL.dataDir, "diagnostics");
       const exportedFiles = existsSync(exportedDir) ? readdirSync(exportedDir) : [];
       const exportedText = exportedFiles.length ? readFileSync(join(exportedDir, exportedFiles[0]), "utf8") : "";
       check("launch.diagnostics_export_written_and_redacted", exported.ok && exportedFiles.length === 1 && !exportedText.includes(appData) && !/token|password|secret/i.test(exportedText.replace(/"[^"]*(?:token|password|secret)[^"]*"\s*:\s*"?\[redacted\]"?/gi, "")), `${exportFile}; ${exportedFiles.length} file(s), no raw home path`);
       const upd = await invoke(page, "check_for_update", {});
-      check("launch.updater_not_configured_in_dev_installer", upd.ok && upd.value?.state === "not_configured", JSON.stringify(upd));
+      if (process.env.STUDIO_UPDATER_ENDPOINT) {
+        // Updater compiled in: the check answers with a status or a structured error, never
+        // crashes. Before this build is published the channel feed may be absent (404 ->
+        // invalid_metadata); the feed itself is proven after publication (--upgrade-from).
+        const answered = (upd.ok && ["up_to_date", "available"].includes(upd.value?.state)) || ["network", "invalid_metadata"].includes(upd.code);
+        check("launch.updater_configured_answers", answered, JSON.stringify(upd));
+      } else {
+        check("launch.updater_not_configured_in_dev_installer", upd.ok && upd.value?.state === "not_configured", JSON.stringify(upd));
+      }
     } finally {
       if (browser) await browser.close().catch(() => {});
       spawnSync("powershell", ["-NoProfile", "-Command", `(Get-Process -Id ${app.pid} -ErrorAction SilentlyContinue).CloseMainWindow() | Out-Null`], { stdio: "ignore" });
@@ -256,14 +270,14 @@ async function main() {
     }
 
     // ---- 3. upgrade over an install holding user data ---------------------------
-    writeFileSync(join(appData, "StudioOS", "config.toml"), "# user setting\n");
+    writeFileSync(join(appData, CHANNEL.dataDir, "config.toml"), "# user setting\n");
     writeFileSync(join(vault, "note.md"), "# my note\n");
     writeFileSync(join(instDir, "stale-from-old-build.txt"), "old\n");
-    const before = readFileSync(join(appData, "StudioOS", "format.json"), "utf8");
+    const before = readFileSync(join(appData, CHANNEL.dataDir, "format.json"), "utf8");
     const up = await runSilent(installerPath, ["/S", `/D=${instDir}`]);
     check("upgrade.reinstall_over_existing_exit_zero", up === 0, `exit ${up}`);
     check("upgrade.program_files_replaced", existsSync(exe) && existsSync(join(instDir, "sidecar", "studio-daemon.exe")), "app and sidecar still present after the reinstall");
-    check("upgrade.user_data_preserved", readFileSync(join(appData, "StudioOS", "config.toml"), "utf8") === "# user setting\n" && readFileSync(join(appData, "StudioOS", "format.json"), "utf8") === before, "config.toml and format.json untouched");
+    check("upgrade.user_data_preserved", readFileSync(join(appData, CHANNEL.dataDir, "config.toml"), "utf8") === "# user setting\n" && readFileSync(join(appData, CHANNEL.dataDir, "format.json"), "utf8") === before, "config.toml and format.json untouched");
     check("upgrade.vault_untouched", readFileSync(join(vault, "note.md"), "utf8") === "# my note\n", "vault note intact");
 
     // ---- 4. uninstall (default: keep data) ---------------------------------------
@@ -272,7 +286,7 @@ async function main() {
     const remaining = existsSync(instDir) ? listFiles(instDir).filter((f) => !/uninstall\.exe$/i.test(f) && !/stale-from-old-build\.txt$/i.test(f)) : [];
     check("uninstall.program_files_removed", !existsSync(exe) && !existsSync(join(instDir, "sidecar")) && remaining.length === 0, remaining.length ? `left: ${remaining.slice(0, 5).join(", ")}` : "app and sidecar removed");
     check("uninstall.registry_key_removed", !installedKey(), UNINSTALL_KEY);
-    check("uninstall.user_data_kept_by_default", readFileSync(join(appData, "StudioOS", "config.toml"), "utf8") === "# user setting\n" && existsSync(join(appData, "StudioOS", "format.json")), "daemon data folder kept");
+    check("uninstall.user_data_kept_by_default", readFileSync(join(appData, CHANNEL.dataDir, "config.toml"), "utf8") === "# user setting\n" && existsSync(join(appData, CHANNEL.dataDir, "format.json")), "daemon data folder kept");
     check("uninstall.vault_untouched", readFileSync(join(vault, "note.md"), "utf8") === "# my note\n", "vault note intact");
     check("uninstall.no_process_left", processCount("studio-daemon.exe") === 0 && processCount("studio-desktop.exe") === 0, "no studio process left");
   } finally {
@@ -284,16 +298,295 @@ async function main() {
   }
 }
 
+// ---- B6: update the installed release N to the published release N+1 ----------
+//
+//   node scripts/install-test.mjs --upgrade-from <installer of N> [--expect-version <N+1>]
+//
+// Installs N (a real published release whose updater is compiled in), then from
+// the running application: (a) with the network down the check fails as a
+// network fault and N keeps working; (b) with the installer download cut off
+// mid-way the install is refused and N is still the installed version; (c) with
+// the network up N finds N+1 on its baked-in feed, installs it without any
+// manual step and the installer restarts the app as N+1 with config, vault,
+// daemon data and credentials intact. A corrupted or wrongly signed artifact is
+// refused before anything runs (updater.rs tests: the same plugin code path).
+
+const CREDENTIAL = `StudioOS-B6-update-test-${process.pid}`;
+
+/** A CONNECT proxy that cuts every tunnel after `limit` bytes from upstream. */
+function cuttingProxy(limit) {
+  const server = createServer((_, res) => res.writeHead(405).end());
+  let cut = 0;
+  server.on("connect", (req, client, head) => {
+    const [host, port] = req.url.split(":");
+    const upstream = netConnect(Number(port) || 443, host, () => {
+      client.write("HTTP/1.1 200 Connection Established\r\n\r\n");
+      if (head.length) upstream.write(head);
+      client.pipe(upstream);
+    });
+    let seen = 0;
+    upstream.on("data", (chunk) => {
+      seen += chunk.length;
+      if (seen > limit) {
+        cut += 1;
+        upstream.destroy();
+        client.destroy();
+        return;
+      }
+      client.write(chunk);
+    });
+    upstream.on("error", () => client.destroy());
+    client.on("error", () => upstream.destroy());
+    upstream.on("close", () => client.end());
+  });
+  return new Promise((res) => server.listen(0, "127.0.0.1", () => res({ server, port: server.address().port, cuts: () => cut })));
+}
+
+function displayVersion() {
+  const out = reg("query", UNINSTALL_KEY, "/v", "DisplayVersion").stdout ?? "";
+  return /DisplayVersion\s+REG_SZ\s+(\S+)/.exec(out)?.[1] ?? null;
+}
+
+/**
+ * Check for an update until the feed serves `expected`: the release was just
+ * published and GitHub may still serve the previous `latest.json` for a while.
+ */
+async function checkUntilServed(page, expected) {
+  let upd;
+  for (let i = 0; i < 24; i++) {
+    upd = await invoke(page, "check_for_update", {});
+    if (upd.ok && upd.value?.version === expected) break;
+    await sleep(5000);
+  }
+  return upd;
+}
+
+const OUTBOX_ENTRIES = 3;
+
+/** Pending work in a daemon outbox file, in a table of its own (the daemon's schema is created alongside). */
+function seedOutbox(file) {
+  mkdirSync(dirname(file), { recursive: true });
+  const db = new DatabaseSync(file);
+  try {
+    db.exec("CREATE TABLE IF NOT EXISTS b6_update_test (id INTEGER PRIMARY KEY, payload TEXT NOT NULL)");
+    const insert = db.prepare("INSERT INTO b6_update_test (payload) VALUES (?)");
+    for (let i = 1; i <= OUTBOX_ENTRIES; i++) insert.run(`pending-${i}`);
+  } finally {
+    db.close();
+  }
+}
+
+function pendingEntries(file) {
+  if (!existsSync(file)) return 0;
+  const db = new DatabaseSync(file, { readOnly: true });
+  try {
+    return db.prepare("SELECT count(*) AS n FROM b6_update_test").get().n;
+  } catch {
+    return 0;
+  } finally {
+    db.close();
+  }
+}
+
+const sha256File = (file) => createHash("sha256").update(readFileSync(file)).digest("hex");
+
+/** Same file, whatever the spelling (8.3 short names on the CI runner). */
+function samePath(a, b) {
+  const real = (p) => {
+    try {
+      return realpathSync.native(p).toLowerCase();
+    } catch {
+      return p.toLowerCase();
+    }
+  };
+  return real(a) === real(b);
+}
+
+function desktopExecutables() {
+  const out = spawnSync(
+    "powershell",
+    ["-NoProfile", "-Command", "Get-CimInstance Win32_Process -Filter \"Name='studio-desktop.exe'\" | ForEach-Object { $_.ExecutablePath }"],
+    { encoding: "utf8" },
+  ).stdout ?? "";
+  return out.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+}
+
+async function closeDesktop() {
+  for (const pid of pidsOf("studio-desktop.exe")) {
+    spawnSync("powershell", ["-NoProfile", "-Command", `(Get-Process -Id ${pid} -ErrorAction SilentlyContinue).CloseMainWindow() | Out-Null`], { stdio: "ignore" });
+  }
+  for (let i = 0; i < 30 && (processCount("studio-desktop.exe") > 0 || processCount("studio-daemon.exe") > 0); i++) await sleep(500);
+  const leftover = processCount("studio-desktop.exe") + processCount("studio-daemon.exe");
+  if (leftover > 0) {
+    spawnSync("taskkill", ["/IM", "studio-desktop.exe", "/T", "/F"], { stdio: "ignore" });
+    spawnSync("taskkill", ["/IM", "studio-daemon.exe", "/T", "/F"], { stdio: "ignore" });
+  }
+  return leftover;
+}
+
+async function upgradeMain(oldInstaller, expected) {
+  if (!existsSync(oldInstaller)) throw new Error(`missing ${oldInstaller} (the published release N)`);
+  if (installedKey()) throw new Error(`${PRODUCT} is already installed for this user; uninstall it first (this test never touches a real install)`);
+  if (processCount("studio-daemon.exe") > 0 || processCount("studio-desktop.exe") > 0) {
+    throw new Error("a studio-daemon.exe / studio-desktop.exe process is already running; stop it first");
+  }
+  const root = mkdtempSync(join(tmpdir(), "studio-update-test-"));
+  const instDir = join(root, "Programs", PRODUCT);
+  const appData = join(root, "appdata");
+  const localAppData = join(root, "localappdata");
+  webviewDataDir = join(root, "webview2");
+  const vault = join(root, "vault");
+  for (const dir of [appData, localAppData, webviewDataDir, vault]) mkdirSync(dir, { recursive: true });
+  const dataDir = join(appData, CHANNEL.dataDir);
+  const baseEnv = {
+    ...process.env,
+    APPDATA: appData,
+    LOCALAPPDATA: localAppData,
+    WEBVIEW2_USER_DATA_FOLDER: webviewDataDir,
+    STUDIO_CLIENT_API_BASE_URL: "http://127.0.0.1:1/api/v1",
+    WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${CDP_PORT}`,
+  };
+  for (const name of ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "all_proxy", "no_proxy"]) delete baseEnv[name];
+  const exe = join(instDir, "studio-desktop.exe");
+
+  /** Launch the installed app and hand its page to `body`; always closes it. */
+  async function withApp(extraEnv, body) {
+    const app = spawn(exe, [], { env: { ...baseEnv, ...extraEnv }, stdio: ["ignore", "ignore", "pipe"] });
+    let stderr = "";
+    app.stderr.on("data", (chunk) => {
+      stderr = (stderr + chunk).slice(-4000);
+    });
+    let browser;
+    try {
+      const attached = await attach(app, () => stderr);
+      browser = attached.browser;
+      return await body(attached.page);
+    } finally {
+      if (browser) await browser.close().catch(() => {});
+      await closeDesktop();
+    }
+  }
+  const versionOf = async (page) => (await invoke(page, "desktop_info", {})).value?.desktop_version;
+
+  try {
+    const code = await runSilent(oldInstaller, ["/S", `/D=${instDir}`]);
+    check("update.install_n_exit_zero", code === 0, `exit ${code}: ${oldInstaller}`);
+    const previous = displayVersion();
+    check("update.n_older_than_expected", Boolean(previous) && previous !== expected, `installed N=${previous}, expected N+1=${expected}`);
+
+    // First run creates the daemon data; then the user data every update must keep.
+    await withApp({}, async (page) => {
+      for (let i = 0; i < 40 && !existsSync(join(dataDir, "format.json")); i++) await sleep(500);
+      check("update.n_runs", (await versionOf(page)) === previous, `N reports ${await versionOf(page)}`);
+    });
+    writeFileSync(join(dataDir, "config.toml"), "# user setting kept across updates\n");
+    writeFileSync(join(vault, "note.md"), "# my note\n");
+    const stamp = readFileSync(join(dataDir, "format.json"), "utf8");
+    // An unenrolled N offline queues nothing: put pending work in the daemon's own
+    // outbox files (same paths as studio_client.outbox.store) so the update has
+    // something real to lose.
+    const outboxes = [join(dataDir, "outbox.sqlite3"), join(dataDir, "outbox", "b6-update-test.sqlite3")];
+    for (const file of outboxes) seedOutbox(file);
+    const outboxHashes = outboxes.map(sha256File);
+    const cred = spawnSync("cmdkey", [`/generic:${CREDENTIAL}`, "/user:b6-update-test", "/pass:not-a-secret"], { encoding: "utf8" });
+    check("update.sentinel_credential_stored", cred.status === 0, `Credential Manager entry ${CREDENTIAL}`);
+
+    // (a) Network down: a network fault, never a crash; N keeps working.
+    await withApp({ HTTPS_PROXY: "http://127.0.0.1:9", HTTP_PROXY: "http://127.0.0.1:9" }, async (page) => {
+      const upd = await invoke(page, "check_for_update", {});
+      check("update.offline_check_is_network_fault", !upd.ok && upd.code === "network", JSON.stringify(upd));
+      check("update.offline_app_still_works", (await versionOf(page)) === previous, "desktop_info answers after the failed check");
+    });
+
+    // (b) Download cut mid-way: refused, retryable, N still installed and running.
+    const proxy = await cuttingProxy(2 * 1024 * 1024);
+    try {
+      const url = `http://127.0.0.1:${proxy.port}`;
+      await withApp({ HTTPS_PROXY: url, HTTP_PROXY: url }, async (page) => {
+        const upd = await checkUntilServed(page, expected);
+        check("update.cut_check_finds_n_plus_1", upd.ok && upd.value?.state === "available" && upd.value?.version === expected, JSON.stringify(upd));
+        const inst = await invoke(page, "install_update", {});
+        check("update.cut_download_refused_as_network", !inst.ok && inst.code === "network", `${JSON.stringify(inst)}; tunnels cut: ${proxy.cuts()}`);
+        check("update.cut_n_still_running", (await versionOf(page)) === previous && displayVersion() === previous, `running ${await versionOf(page)}, installed ${displayVersion()}`);
+      });
+    } finally {
+      proxy.server.close();
+    }
+
+    // (c) Real update from the published feed, no manual step.
+    // Not `withApp`: its close would also stop the app the installer relaunches.
+    const old = spawn(exe, [], { env: baseEnv, stdio: ["ignore", "ignore", "pipe"] });
+    let oldStderr = "";
+    old.stderr.on("data", (chunk) => {
+      oldStderr = (oldStderr + chunk).slice(-4000);
+    });
+    const oldApp = await attach(old, () => oldStderr);
+    const upd = await checkUntilServed(oldApp.page, expected);
+    check("update.check_finds_n_plus_1", upd.ok && upd.value?.state === "available" && upd.value?.version === expected, JSON.stringify(upd));
+    // On success the app exits into the installer: the call never returns.
+    void invoke(oldApp.page, "install_update", {}).catch(() => {});
+    for (let i = 0; i < 120 && old.exitCode === null; i++) await sleep(1000);
+    await oldApp.browser.close().catch(() => {});
+    check("update.n_exits_into_installer", old.exitCode === 0, `N exit code ${old.exitCode}`);
+    for (let i = 0; i < 240 && displayVersion() !== expected; i++) await sleep(1000);
+    check("update.installed_version_is_n_plus_1", displayVersion() === expected, `DisplayVersion ${displayVersion()} (expected ${expected})`);
+    // Byte for byte, before N+1 ever opens them.
+    check("update.outbox_untouched_by_installer", outboxes.every((f, i) => existsSync(f) && sha256File(f) === outboxHashes[i]), `${outboxes.length} outbox file(s), SHA-256 unchanged`);
+
+    // The installer relaunches the app as the user through the shell, with a fresh
+    // environment (no CDP, no redirected %APPDATA%): check it runs from the install
+    // dir, close it, then run N+1 ourselves on N's isolated data.
+    let relaunchedFrom = [];
+    for (let i = 0; i < 60 && relaunchedFrom.length === 0; i++) {
+      relaunchedFrom = desktopExecutables().filter((p) => samePath(p, exe));
+      if (relaunchedFrom.length === 0) await sleep(1000);
+    }
+    check("update.app_relaunched_by_installer", relaunchedFrom.length > 0, `studio-desktop.exe running from: ${desktopExecutables().join(", ") || "none"}`);
+    await closeDesktop();
+    await withApp({}, async (page) => {
+      check("update.relaunched_is_n_plus_1", (await versionOf(page)) === expected, `N+1 reports ${await versionOf(page)} on N's data`);
+      let info = null;
+      for (let i = 0; i < 40; i++) {
+        info = (await invoke(page, "desktop_info", {})).value;
+        if (info?.sidecar?.state === "running") break;
+        await sleep(500);
+      }
+      check("update.sidecar_running_after_update", info?.sidecar?.state === "running", JSON.stringify(info?.sidecar));
+      check("update.single_daemon_after_update", pidsOf("studio-daemon.exe").length === 1, `studio-daemon.exe processes: ${pidsOf("studio-daemon.exe").length}`);
+    });
+    check(
+      "update.user_data_preserved",
+      readFileSync(join(dataDir, "config.toml"), "utf8") === "# user setting kept across updates\n" && readFileSync(join(dataDir, "format.json"), "utf8") === stamp,
+      "config.toml and format.json untouched",
+    );
+    const pending = outboxes.map(pendingEntries);
+    check("update.outbox_entries_kept_after_n_plus_1_run", pending.every((n) => n === OUTBOX_ENTRIES), `pending entries per outbox after N+1 ran: ${pending.join(", ")} (expected ${OUTBOX_ENTRIES})`);
+    check("update.vault_untouched", readFileSync(join(vault, "note.md"), "utf8") === "# my note\n", "vault note intact");
+    check("update.credentials_kept", spawnSync("cmdkey", [`/list:${CREDENTIAL}`], { encoding: "utf8" }).stdout.includes(CREDENTIAL), `Credential Manager entry ${CREDENTIAL} still present`);
+  } finally {
+    spawnSync("cmdkey", [`/delete:${CREDENTIAL}`], { stdio: "ignore" });
+    await closeDesktop();
+    if (installedKey()) {
+      const u = join(instDir, "uninstall.exe");
+      if (existsSync(u)) await runSilent(u, ["/S", `_?=${instDir}`]);
+    }
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+const upgradeFrom = arg("--upgrade-from");
+const resultsFile = upgradeFrom ? "update-test-results.json" : "install-test-results.json";
 let failed = false;
 try {
-  await main();
+  if (upgradeFrom) await upgradeMain(resolve(upgradeFrom), arg("--expect-version", canonicalVersion()));
+  else await main();
 } catch (e) {
   failed = true;
   console.error("install test aborted:", e);
   results.push({ id: "install_test.aborted", status: "FAIL", evidence: String(e) });
 }
 mkdirSync(buildDir, { recursive: true });
-writeFileSync(resolve(buildDir, "install-test-results.json"), JSON.stringify(results, null, 2));
+writeFileSync(resolve(buildDir, resultsFile), JSON.stringify(results, null, 2));
 const bad = results.filter((r) => r.status === "FAIL");
 console.log(`\ninstall test: ${results.length - bad.length}/${results.length} passed`);
 process.exit(failed || bad.length ? 1 : 0);

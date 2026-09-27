@@ -265,7 +265,7 @@ describe("empty / erreur partielle", () => {
     const html = machinesEmptyHtml();
     expect(html).toContain("Aucune machine observée");
     expect(html).toMatch(/environnement enregistré/);
-    expect(html).toMatch(/provisionnées par un administrateur/);
+    expect(html).toMatch(/enregistre ses propres machines/);
     expect(html).not.toContain("<a");
     expect(html).not.toContain("<button");
   });

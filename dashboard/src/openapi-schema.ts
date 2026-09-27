@@ -13,9 +13,29 @@ export interface paths {
         };
         /**
          * Healthz
-         * @description Liveness probe. Needs no credential and carries no security requirement — one of the unauthenticated operations, alongside `GET /metrics` and the human dashboard login `POST /auth/token`. Answers `{"status": "ok"}` when the service is up; use it before authenticating anything else.
+         * @description Liveness probe. Needs no credential and carries no security requirement — one of the unauthenticated operations, alongside `GET /version`, `GET /metrics` and the human dashboard login `POST /auth/token`. Answers `{"status": "ok"}` when the service is up; use it before authenticating anything else.
          */
         get: operations["healthz_healthz_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Version
+         * @description Compatibility probe. Needs no credential — one of the unauthenticated operations, alongside `GET /healthz` and `GET /metrics`. Reports the API contract version, the running server build, and per client family the oldest build still served (`minimum_supported`) with the newest known build (`latest`). Old clients ignore it safely.
+         */
+        get: operations["version_version_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -35,9 +55,149 @@ export interface paths {
         put?: never;
         /**
          * Login
-         * @description Exchange human credentials for a short-lived dashboard JWT.
+         * @description Exchange human credentials for a short-lived dashboard JWT (15 minutes at most, no refresh token). A disabled or unverified account gets the same 401 as a wrong password.
          */
         post: operations["login_api_v1_auth_token_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Identity
+         * @description Identity of the authenticated principal (JWT or machine token): the client's source for email and role, which the JWT no longer carries. Never subject to project access control.
+         */
+        get: operations["get_identity_api_v1_auth_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register
+         * @description Public self-registration, only when the instance enables it. Body: the address only. Creates a `pending` `readonly` User without password nor project membership and e-mails a single-use verification link; the password and display name are chosen when that link is consumed. The answer is identical whether or not the address already has an account.
+         */
+        post: operations["register_api_v1_auth_register_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/resend-verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resend Verification
+         * @description Send a new verification link to a still-pending account (earlier links stop working). Same answer for any address.
+         */
+        post: operations["resend_verification_api_v1_auth_resend_verification_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/verify-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Email
+         * @description Consume a verification secret and activate the pending account with the password and display name given here; every other verification link of the account stops working. Replaying the same body returns the same result.
+         */
+        post: operations["verify_email_api_v1_auth_verify_email_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/forgot-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Forgot Password
+         * @description E-mail a single-use password reset link. Same answer for any address; a disabled account gets nothing.
+         */
+        post: operations["forgot_password_api_v1_auth_forgot_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Password
+         * @description Consume a reset secret and set a new password; every session and JWT of the account is revoked. Replaying the same body returns the same result.
+         */
+        post: operations["reset_password_api_v1_auth_reset_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/change-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change Password
+         * @description Change the caller's password (current password required). Every session and JWT of the account is revoked, including the caller's: log in again.
+         */
+        post: operations["change_password_api_v1_auth_change_password_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -53,13 +213,13 @@ export interface paths {
         };
         /**
          * List Projects
-         * @description List all projects. Any authenticated machine may read.
+         * @description List the projects the caller may access: every project for an admin, the projects the caller's User is a member of otherwise.
          */
         get: operations["list_projects_api_v1_projects_get"];
         put?: never;
         /**
          * Create Project
-         * @description Create a project. Requires a privileged role (admin or developer); other roles receive `403 forbidden`. Slugs are unique: reusing one fails with 409. Accepts `Idempotency-Key` for safe retries.
+         * @description Create a project. Requires a privileged role (admin or developer); other roles receive `403 forbidden`. Slugs are unique: reusing one fails with 409. The creator becomes a member of the new project. Accepts `Idempotency-Key` for safe retries.
          */
         post: operations["create_project_api_v1_projects_post"];
         delete?: never;
@@ -77,7 +237,7 @@ export interface paths {
         };
         /**
          * Get Project
-         * @description Get one project by id. Any authenticated machine may read.
+         * @description Get one project by id. A project the caller may not access — nonexistent included — answers `403 forbidden`.
          */
         get: operations["get_project_api_v1_projects__project_id__get"];
         put?: never;
@@ -97,12 +257,56 @@ export interface paths {
         };
         /**
          * Get Project State
-         * @description Bootstrap read for a project: its active tasks and active resource claims in one call. Start here before working on a project. Any authenticated machine may read.
+         * @description Bootstrap read for a project: its active tasks and active resource claims in one call. Start here before working on a project. Same project access rule as `GET /projects/{id}`.
          */
         get: operations["get_project_state_api_v1_projects__project_id__state_get"];
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Project Members
+         * @description List the users with access to a project. Requires the admin role: any other role gets `403 forbidden` before any lookup. Unknown project: 404.
+         */
+        get: operations["list_project_members_api_v1_projects__project_id__members_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/members/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Grant Project Member
+         * @description Grant a user access to a project (admin only). `201` with the new membership; granting an existing member returns it unchanged with `200` (the original `granted_by_user_id` is kept). Naturally idempotent: no `Idempotency-Key`. Granting yourself: `403 self_modification_forbidden`. Unknown project or user: 404.
+         */
+        put: operations["grant_project_member_api_v1_projects__project_id__members__user_id__put"];
+        post?: never;
+        /**
+         * Revoke Project Member
+         * @description Remove a user's access to a project (admin only). Idempotent `204`; the user's open event streams on this project are closed. Removing yourself: `403 self_modification_forbidden`. Unknown project or user: 404.
+         */
+        delete: operations["revoke_project_member_api_v1_projects__project_id__members__user_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -117,7 +321,7 @@ export interface paths {
         };
         /**
          * List Tasks
-         * @description List tasks, optionally filtered by project. Any authenticated machine may read.
+         * @description List tasks of the caller's accessible projects, optionally filtered by project. A `project_id` the caller cannot access (or that does not exist) answers `403 forbidden`.
          */
         get: operations["list_tasks_api_v1_tasks_get"];
         put?: never;
@@ -141,7 +345,7 @@ export interface paths {
         };
         /**
          * Get Task
-         * @description Get one task by id. Any authenticated machine may read.
+         * @description Get one task by id. A task of a project the caller cannot access answers `403 forbidden` (resource `project`).
          */
         get: operations["get_task_api_v1_tasks__task_id__get"];
         put?: never;
@@ -205,7 +409,7 @@ export interface paths {
         };
         /**
          * List Sessions
-         * @description List work sessions, optionally filtered by task. Any authenticated machine may read.
+         * @description List work sessions, optionally filtered by task, restricted to sessions whose task belongs to an accessible project. A task of an inaccessible project answers `403 forbidden`.
          */
         get: operations["list_sessions_api_v1_sessions_get"];
         put?: never;
@@ -249,7 +453,7 @@ export interface paths {
         };
         /**
          * List Claims
-         * @description List resource claims, optionally filtered by project. Any authenticated machine may read.
+         * @description List resource claims of the caller's accessible projects, optionally filtered by project. A `project_id` the caller cannot access (or that does not exist) answers `403 forbidden`.
          */
         get: operations["list_claims_api_v1_claims_get"];
         put?: never;
@@ -313,7 +517,7 @@ export interface paths {
         };
         /**
          * List Decisions
-         * @description List recorded decisions, optionally filtered by project. Any authenticated machine may read.
+         * @description List recorded decisions of the caller's accessible projects, plus global (project-less) decisions for a caller with at least one project, optionally filtered by project. A `project_id` the caller cannot access answers `403 forbidden`.
          */
         get: operations["list_decisions_api_v1_decisions_get"];
         put?: never;
@@ -377,7 +581,7 @@ export interface paths {
         };
         /**
          * List Library
-         * @description List library definitions, optionally filtered. User-scope rows are visible to their owner (or an admin) only — collections never count, list, or hint at another user's private resources.
+         * @description List library definitions, optionally filtered. User-scope rows are visible to their owner (or an admin) only — collections never count, list, or hint at another user's private resources. Project rows need their project, Studio rows at least one project; a `project_id` the caller cannot access answers `403 forbidden`.
          */
         get: operations["list_library_api_v1_library_get"];
         put?: never;
@@ -529,7 +733,7 @@ export interface paths {
         };
         /**
          * List Runtime Bindings
-         * @description List stored runtime choices, optionally filtered. Another user's `user`-level bindings are filtered out before exposure — collections never count, list, or hint at them.
+         * @description List stored runtime choices, optionally filtered. Another user's `user`-level bindings are filtered out before exposure — collections never count, list, or hint at them. Project levels need their project, the studio default at least one project; a `project_id` the caller cannot access answers `403 forbidden`.
          */
         get: operations["list_runtime_bindings_api_v1_runtime_bindings_get"];
         put?: never;
@@ -665,7 +869,7 @@ export interface paths {
         };
         /**
          * List Agents
-         * @description List agent provenance identities. Any authenticated machine may read.
+         * @description List agent provenance identities: those whose machine belongs to the caller's User, every agent for `admin` (contract version 2).
          */
         get: operations["list_agents_api_v1_agents_get"];
         put?: never;
@@ -689,7 +893,7 @@ export interface paths {
         };
         /**
          * List Ai Work
-         * @description List AI work ledger entries, optionally filtered by project or task. Any authenticated machine may read.
+         * @description List AI work ledger entries, optionally filtered by project or task, restricted to the caller's accessible projects. A `project_id`, or a `task_id` of a project, the caller cannot access answers `403 forbidden`.
          */
         get: operations["list_ai_work_api_v1_ai_work_get"];
         put?: never;
@@ -733,7 +937,7 @@ export interface paths {
         };
         /**
          * Get Review Queue
-         * @description Aggregated view of everything waiting on a human decision: AI work in `review_requested` (resolve via `PATCH /ai-work/{id}`), decisions still `proposed` (informational — no transition endpoint exists for decisions), recent `resource.conflict` events within `conflict_window_hours` (best-effort and time-windowed: no persisted conflict state exists, an old unaddressed conflict silently ages out of the window), failed builds (`build_failure`, informational — no build transition endpoint exists), and opened PRs with no merge yet (`pr_ready`, best-effort and time-windowed like conflicts). Also serves as the notifications surface — there is no separate notifications endpoint. Any authenticated machine may read. Clients must tolerate an unknown `kind`.
+         * @description Aggregated view of everything waiting on a human decision: AI work in `review_requested` (resolve via `PATCH /ai-work/{id}`), decisions still `proposed` (informational — no transition endpoint exists for decisions), recent `resource.conflict` events within `conflict_window_hours` (best-effort and time-windowed: no persisted conflict state exists, an old unaddressed conflict silently ages out of the window), failed builds (`build_failure`, informational — no build transition endpoint exists), and opened PRs with no merge yet (`pr_ready`, best-effort and time-windowed like conflicts). Also serves as the notifications surface — there is no separate notifications endpoint. Restricted to the caller's accessible projects; a `project_id` the caller cannot access answers `403 forbidden`. Clients must tolerate an unknown `kind`.
          */
         get: operations["get_review_queue_api_v1_review_queue_get"];
         put?: never;
@@ -753,7 +957,7 @@ export interface paths {
         };
         /**
          * Get Timeline
-         * @description Day-grouped project activity (newest day first), unfiltered — the full history, not an actionable signal (see GET /review-queue for that). Inherits GET /events's 'not claimed exhaustive' honesty: several event types have no server-side emission yet. Any authenticated machine may read.
+         * @description Day-grouped project activity (newest day first), unfiltered — the full history, not an actionable signal (see GET /review-queue for that). Inherits GET /events's 'not claimed exhaustive' honesty: several event types have no server-side emission yet. Any authenticated machine with access to the project may read; any other project answers `403 forbidden`.
          */
         get: operations["get_timeline_api_v1_timeline_get"];
         put?: never;
@@ -793,7 +997,7 @@ export interface paths {
         };
         /**
          * Get Github Integration
-         * @description Read a project's GitHub wiring. Any authenticated machine may read.
+         * @description Read a project's GitHub wiring. A project the caller cannot access answers `403 forbidden`.
          */
         get: operations["get_github_integration_api_v1_projects__project_id__github_integration_get"];
         put?: never;
@@ -821,7 +1025,7 @@ export interface paths {
         };
         /**
          * List Builds
-         * @description List CI builds observed on wired GitHub repositories, newest first. Any authenticated machine may read.
+         * @description List CI builds of the caller's accessible projects, observed on wired GitHub repositories, newest first. A `project_id` the caller cannot access (or that does not exist) answers `403 forbidden`.
          */
         get: operations["list_builds_api_v1_builds_get"];
         put?: never;
@@ -841,7 +1045,7 @@ export interface paths {
         };
         /**
          * Get Build
-         * @description Get one build by id. Any authenticated machine may read.
+         * @description Get one build by id. A build of a project the caller cannot access answers `403 forbidden` (resource `project`).
          */
         get: operations["get_build_api_v1_builds__build_id__get"];
         put?: never;
@@ -861,7 +1065,7 @@ export interface paths {
         };
         /**
          * List Producer Jobs
-         * @description List Producer jobs, newest first. Any authenticated machine may read.
+         * @description List Producer jobs of the caller's accessible projects, newest first. A `project_id` the caller cannot access (or that does not exist) answers `403 forbidden`.
          */
         get: operations["list_producer_jobs_api_v1_producer_jobs_get"];
         put?: never;
@@ -885,7 +1089,7 @@ export interface paths {
         };
         /**
          * Get Producer Job
-         * @description Get one Producer job by id. Any authenticated machine may read.
+         * @description Get one Producer job by id. A job of a project the caller cannot access answers `403 forbidden` (resource `project`).
          */
         get: operations["get_producer_job_api_v1_producer_jobs__job_id__get"];
         put?: never;
@@ -925,7 +1129,7 @@ export interface paths {
         };
         /**
          * Get Events
-         * @description Read recent events, optionally filtered by project, task and `since` timestamp. Any authenticated machine may read. This is the polling and catch-up channel: after a disconnect, poll with `since` to retrieve missed history, then optionally resume live delivery on `GET /events/stream`.
+         * @description Read recent events, optionally filtered by project, task and `since` timestamp, restricted to the caller's accessible projects (a `project`, or a `task_id` of a project, the caller cannot access answers `403 forbidden`). This is the polling and catch-up channel: after a disconnect, poll with `since` to retrieve missed history, then optionally resume live delivery on `GET /events/stream`.
          */
         get: operations["get_events_api_v1_events_get"];
         put?: never;
@@ -949,7 +1153,7 @@ export interface paths {
         };
         /**
          * Stream Events
-         * @description Live event push for one project as Server-Sent Events (`text/event-stream`; each SSE `id:` is the event's `seq`, a strictly increasing integer). `project` is required — there is no global cross-project stream. Resuming after a cutover loses nothing: pass the last seen `seq` as `since_seq`, or rely on the standard SSE `Last-Event-ID` auto-reconnect header (`Last-Event-ID` wins when both are present). With no cursor, only events created from connection time are delivered — use `GET /events?since=` first to backfill history, then open the stream for live updates. Same authentication as the rest of the API.
+         * @description Live event push for one project as Server-Sent Events (`text/event-stream`; each SSE `id:` is the event's `seq`, a strictly increasing integer). `project` is required — there is no global cross-project stream. Resuming after a cutover loses nothing: pass the last seen `seq` as `since_seq`, or rely on the standard SSE `Last-Event-ID` auto-reconnect header (`Last-Event-ID` wins when both are present). With no cursor, only events created from connection time are delivered — use `GET /events?since=` first to backfill history, then open the stream for live updates. Same authentication as the rest of the API. An inaccessible `project` answers `403 forbidden` before the stream opens; an idle stream receives an SSE comment keep-alive, and the stream closes once the caller loses access to the project.
          */
         get: operations["stream_events_api_v1_events_stream_get"];
         put?: never;
@@ -993,7 +1197,7 @@ export interface paths {
         };
         /**
          * Get Consumption
-         * @description Read quota consumption (`consumed_bytes`, `quota_bytes`, `remaining_bytes`) for a project, or for the unscoped bucket when no project is given. Any authenticated machine may read. Call before a large upload to avoid a rejected creation — the reading is advisory, another upload may still win the race.
+         * @description Read quota consumption (`consumed_bytes`, `quota_bytes`, `remaining_bytes`) for a project, or for the unscoped bucket when no project is given. Requires access to the project (or, for the unscoped bucket, at least one project), else `403 forbidden`. Call before a large upload to avoid a rejected creation — the reading is advisory, another upload may still win the race.
          */
         get: operations["get_consumption_api_v1_transfers_consumption_get"];
         put?: never;
@@ -1117,13 +1321,13 @@ export interface paths {
         };
         /**
          * List Machines
-         * @description List machines whose credential is not revoked, oldest first. Any authenticated machine may read. `status` is derived server-side from `last_seen_at` (last heartbeat) and is never stored; a machine that never sent a heartbeat has `last_seen_at: null` and status `offline`. Credentials and their hashes are never exposed.
+         * @description List machines whose credential is not revoked, oldest first: the caller's own User's machines only, every machine for `admin` (contract version 2). `status` is derived server-side from `last_seen_at` (last heartbeat) and is never stored; a machine that never sent a heartbeat has `last_seen_at: null` and status `offline`. Credentials and their hashes are never exposed.
          */
         get: operations["list_machines_api_v1_machines_get"];
         put?: never;
         /**
          * Create Machine
-         * @description Provision a new machine credential. Requires the admin role. The credential is returned in clear text exactly once — store it immediately, it is never readable again. Deliberately not replayable: no `Idempotency-Key` (a replayable credential creation would persist the secret). The very first machine is created out of band, never through this endpoint.
+         * @description Provision a new machine credential (self-service, A5). Any authenticated caller whose role is not `agent` creates a machine owned by its own User: `owner_user_id` absent or equal to the caller's User. Naming another User requires `admin`, otherwise `403 forbidden` (`resource: machine`, `action: create`) without that User ever being looked up. The new machine inherits its owner's role and project memberships, never more. The credential is returned in clear text exactly once — store it immediately, it is never readable again. Deliberately not replayable: no `Idempotency-Key` (a replayable credential creation would persist the secret). The very first machine is created out of band, never through this endpoint.
          */
         post: operations["create_machine_api_v1_machines_post"];
         delete?: never;
@@ -1163,7 +1367,7 @@ export interface paths {
         put?: never;
         /**
          * Revoke Machine
-         * @description Revoke a machine credential immediately. Requires the admin role. Revocation takes effect on the next request — there is no grace period and no rotation to manage.
+         * @description Revoke a machine credential immediately (self-service, A5): its owner or `admin`. Another User's machine answers 404 for a non-admin, exactly like a nonexistent one, so its existence cannot be inferred (as `GET /machines` never lists it). `agent` never revokes. Revoking the calling machine itself is allowed. Revocation takes effect on the next request — there is no grace period and no rotation to manage.
          */
         post: operations["revoke_machine_api_v1_machines__machine_id__revoke_post"];
         delete?: never;
@@ -1179,13 +1383,97 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List Users
+         * @description Admin user directory, used to pick who to add to a project. Requires the admin role: any other role gets `403 forbidden` before any lookup. `q` filters on a case-insensitive substring of the display name or email; results are sorted by display name then email and capped by `limit`. Each User carries its derived account `status` (`pending`, `active`, `disabled`).
+         */
+        get: operations["list_users_api_v1_users_get"];
         put?: never;
         /**
          * Create User
-         * @description Provision a new user with a role (`admin`, `developer`, `agent`, or `readonly` — the role alone decides what the user's machines may do). Requires the admin role. Emails are unique: reusing one fails with 409. Deliberately not replayable: no `Idempotency-Key`. The very first (admin) user is created out of band, never through this endpoint.
+         * @description Provision a new user with a role (`admin`, `developer`, `agent`, or `readonly` — the role alone decides what the user's machines may do). Requires the admin role. The email is stored trimmed and lower-cased and is unique regardless of case: reusing one fails with 409. Deliberately not replayable: no `Idempotency-Key`. The very first (admin) user is created out of band, never through this endpoint.
          */
         post: operations["create_user_api_v1_users_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{user_id}/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Disable User
+         * @description Disable an account (admin only; idempotent). Every JWT of the User is revoked (`auth_version` bumped), every machine it owns is refused while it stays disabled, and its open event streams close. Targeting your own account: `403 {error_code: self_modification_forbidden}`, checked before any lookup. Unknown user: 404.
+         */
+        post: operations["disable_user_api_v1_users__user_id__disable_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{user_id}/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enable User
+         * @description Lift a deactivation (admin only; idempotent). Earlier JWTs stay invalid; the User's machines work again. An account whose email is not verified stays `pending`: activation requires verification. Targeting your own account: `403 {error_code: self_modification_forbidden}`, checked before any lookup. Unknown user: 404.
+         */
+        post: operations["enable_user_api_v1_users__user_id__enable_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{user_id}/revoke-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke User Sessions
+         * @description Revoke every dashboard session (JWT) of a User (admin only): `auth_version` is bumped, machine tokens are untouched. Targeting your own account: `403 {error_code: self_modification_forbidden}`, checked before any lookup. Unknown user: 404.
+         */
+        post: operations["revoke_user_sessions_api_v1_users__user_id__revoke_sessions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{user_id}/memberships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List User Memberships
+         * @description Projects a User can access (admin only), oldest grant first. Access is granted or removed with `PUT`/`DELETE /projects/{project_id}/members/{user_id}`. Unknown user: 404.
+         */
+        get: operations["list_user_memberships_api_v1_users__user_id__memberships_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1201,7 +1489,7 @@ export interface paths {
         };
         /**
          * List Roadmaps
-         * @description List a project's roadmaps (newest first), optionally by `status`. Any authenticated machine may read. A project may have several roadmaps but at most one `active`.
+         * @description List a project's roadmaps (newest first), optionally by `status`. Requires access to the project (`403 forbidden`). A project may have several roadmaps but at most one `active`.
          */
         get: operations["list_roadmaps_api_v1_projects__project_id__roadmaps_get"];
         put?: never;
@@ -1843,6 +2131,34 @@ export interface components {
          * @enum {string}
          */
         AIWorkStatus: "started" | "completed" | "failed" | "review_requested" | "approved" | "changes_requested";
+        /** AcceptedResponse */
+        AcceptedResponse: {
+            /**
+             * Status
+             * @description Always `accepted`, whether or not an e-mail was sent.
+             * @default accepted
+             */
+            status: string;
+        };
+        /** AccountActionResponse */
+        AccountActionResponse: {
+            /**
+             * Status
+             * @example verified
+             * @example password_reset
+             * @example password_changed
+             */
+            status: string;
+        };
+        /**
+         * AccountStatus
+         * @description Derived, never stored: `disabled` when `disabled_at` is set, else
+         *     `pending` while `email_verified_at` is null, else `active`. Only an
+         *     `active` account gets a principal; the state is orthogonal to project
+         *     access.
+         * @enum {string}
+         */
+        AccountStatus: "pending" | "active" | "disabled";
         /**
          * Agent
          * @description Provenance identity attached to one machine: who did the work, for
@@ -1932,6 +2248,25 @@ export interface components {
              * @default []
              */
             session_overrides: components["schemas"]["SessionRuntimeOverride"][];
+        };
+        /** AuthIdentity */
+        AuthIdentity: {
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** Display Name */
+            display_name: string;
+            /** Email */
+            email: string;
+            /** Role */
+            role: string;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
         };
         /**
          * BindingRelation
@@ -2054,6 +2389,16 @@ export interface components {
          * @enum {string}
          */
         CapabilitySource: "declared";
+        /** ChangePasswordRequest */
+        ChangePasswordRequest: {
+            /** Current Password */
+            current_password: string;
+            /**
+             * New Password
+             * @description 12 characters to 72 UTF-8 bytes.
+             */
+            new_password: string;
+        };
         /**
          * ClaimStatus
          * @description A claim past `expires_at` is not active regardless of stored status.
@@ -2189,6 +2534,14 @@ export interface components {
              * Format: date-time
              */
             expires_at: string;
+        };
+        /** EmailField */
+        EmailField: {
+            /**
+             * Email
+             * @example ada@example.com
+             */
+            email: string;
         };
         /**
          * EventCreate
@@ -3008,13 +3361,16 @@ export interface components {
             /** @default offline */
             status: components["schemas"]["MachineStatus"];
         };
-        /** MachineCreate */
+        /**
+         * MachineCreate
+         * @description `owner_user_id` is optional (A5): absent, the machine belongs to the
+         *     caller's own User. A non-admin may only name itself — the server never
+         *     lets it choose another owner, and never looks that other User up. Only
+         *     `admin` provisions a machine for someone else.
+         */
         MachineCreate: {
-            /**
-             * Owner User Id
-             * Format: uuid
-             */
-            owner_user_id: string;
+            /** Owner User Id */
+            owner_user_id?: string | null;
             /** Display Name */
             display_name: string;
         };
@@ -3309,6 +3665,36 @@ export interface components {
             provenance?: components["schemas"]["WriteProvenance"];
         };
         /**
+         * ProjectMember
+         * @description A User's access to a project: granted or removed, never
+         *     modified — hence no `version`. `granted_by_user_id` is null only for the
+         *     migration backfill. `user_display_name` and `user_email` are read-only
+         *     conveniences resolved from the member's User.
+         */
+        ProjectMember: {
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** Granted By User Id */
+            granted_by_user_id?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** User Display Name */
+            user_display_name?: string | null;
+            /** User Email */
+            user_email?: string | null;
+        };
+        /**
          * ProjectState
          * @description GET /projects/{id}/state — the aggregate view a client bootstraps from.
          */
@@ -3368,6 +3754,16 @@ export interface components {
             /** Expected Roadmap Version */
             expected_roadmap_version: number;
             provenance?: components["schemas"]["WriteProvenance"];
+        };
+        /** ResetPasswordRequest */
+        ResetPasswordRequest: {
+            /** Token */
+            token: string;
+            /**
+             * New Password
+             * @description 12 characters to 72 UTF-8 bytes.
+             */
+            new_password: string;
         };
         /** ResolvedAgent */
         ResolvedAgent: {
@@ -4163,11 +4559,12 @@ export interface components {
         /**
          * Role
          * @description Account roles, weakest to strongest: `readonly` (reads plus heartbeat
-         *     only, no business writes); `agent` (writes, but never project, machine
-         *     or user provisioning); `developer` (writes, plus project creation);
-         *     `admin` (everything, including machine/user provisioning and work
-         *     review resolution). The role always belongs to the machine owner's
-         *     user, never to a harness, provider, model or profile.
+         *     and self-service of its own machines, no business writes); `agent`
+         *     (writes, but never project, machine or user provisioning); `developer`
+         *     (writes, plus project creation); `admin` (everything, including
+         *     machine/user provisioning for any user and work review resolution).
+         *     The role always belongs to the machine owner's user, never to a
+         *     harness, provider, model or profile.
          * @enum {string}
          */
         Role: "admin" | "developer" | "agent" | "readonly";
@@ -4802,6 +5199,11 @@ export interface components {
              * @default bearer
              */
             token_type: string;
+            /**
+             * Expires In
+             * @description Lifetime of `access_token` in seconds.
+             */
+            expires_in: number;
         };
         /**
          * Transfer
@@ -5033,7 +5435,11 @@ export interface components {
              */
             expires_at: string;
         };
-        /** User */
+        /**
+         * User
+         * @description `email` is normalized (trimmed, lower-case) and unique regardless of
+         *     case.
+         */
         User: {
             /**
              * Created At
@@ -5057,6 +5463,12 @@ export interface components {
             /** Email */
             email: string;
             role: components["schemas"]["Role"];
+            /** @default active */
+            status: components["schemas"]["AccountStatus"];
+            /** Email Verified At */
+            email_verified_at?: string | null;
+            /** Disabled At */
+            disabled_at?: string | null;
         };
         /**
          * UserCreate
@@ -5084,6 +5496,45 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** VerifyEmailRequest */
+        VerifyEmailRequest: {
+            /** Token */
+            token: string;
+            /**
+             * Password
+             * @description 12 characters to 72 UTF-8 bytes.
+             */
+            password: string;
+            /** Display Name */
+            display_name: string;
+        };
+        /** VersionInfo */
+        VersionInfo: {
+            /**
+             * Api Version
+             * @description API contract major version.
+             */
+            api_version: string;
+            /**
+             * Server Version
+             * @description Running server build version.
+             */
+            server_version: string;
+            /**
+             * Minimum Supported
+             * @description Oldest client build per family the server still serves.
+             */
+            minimum_supported: {
+                [key: string]: string;
+            };
+            /**
+             * Latest
+             * @description Newest known client build per family.
+             */
+            latest: {
+                [key: string]: string;
+            };
         };
         /**
          * VersionOrigin
@@ -5241,6 +5692,42 @@ export interface operations {
             };
         };
     };
+    version_version_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Version negotiation snapshot. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "api_version": "1",
+                     *       "server_version": "0.1.0",
+                     *       "minimum_supported": {
+                     *         "desktop": "0.1.0",
+                     *         "daemon": "0.1.0",
+                     *         "dashboard": "0.1.0"
+                     *       },
+                     *       "latest": {
+                     *         "desktop": "0.1.0",
+                     *         "daemon": "0.1.0",
+                     *         "dashboard": "0.1.0"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["VersionInfo"];
+                };
+            };
+        };
+    };
     login_api_v1_auth_token_post: {
         parameters: {
             query?: never;
@@ -5269,6 +5756,373 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_identity_api_v1_auth_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthIdentity"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    register_api_v1_auth_register_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required. Caller-generated unique value per intended request: replaying the same key with the identical body returns the original response without sending a second e-mail; a different body is `409 idempotency_key_payload_mismatch`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailField"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcceptedResponse"];
+                };
+            };
+            /** @description `idempotency_key_required`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `registration_unavailable`: public registration is closed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resend_verification_api_v1_auth_resend_verification_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required. Caller-generated unique value per intended request: replaying the same key with the identical body returns the original response without sending a second e-mail; a different body is `409 idempotency_key_payload_mismatch`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailField"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcceptedResponse"];
+                };
+            };
+            /** @description `idempotency_key_required`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `registration_unavailable`: public registration is closed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_email_api_v1_auth_verify_email_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyEmailRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountActionResponse"];
+                };
+            };
+            /** @description `invalid_or_expired_token`: unknown, expired or already used. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `registration_unavailable`: public registration is closed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `idempotency_key_payload_mismatch`: same secret, different body. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    forgot_password_api_v1_auth_forgot_password_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required. Caller-generated unique value per intended request: replaying the same key with the identical body returns the original response without sending a second e-mail; a different body is `409 idempotency_key_payload_mismatch`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailField"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcceptedResponse"];
+                };
+            };
+            /** @description `idempotency_key_required`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `password_recovery_unavailable`: no e-mail backend configured. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `idempotency_key_payload_mismatch` / `idempotency_key_in_progress`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_password_api_v1_auth_reset_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountActionResponse"];
+                };
+            };
+            /** @description `invalid_or_expired_token`: unknown, expired or already used. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `password_recovery_unavailable`: no e-mail backend configured. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description `idempotency_key_payload_mismatch`: same secret, different body. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_password_api_v1_auth_change_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangePasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountActionResponse"];
+                };
+            };
+            /** @description `invalid_current_password`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
             };
             /** @description Validation Error */
             422: {
@@ -5354,7 +6208,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5433,6 +6287,24 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
             /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
             404: {
                 headers: {
@@ -5487,6 +6359,255 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_project_members_api_v1_projects__project_id__members_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectMember"][];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    grant_project_member_api_v1_projects__project_id__members__user_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectMember"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_project_member_api_v1_projects__project_id__members__user_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
                      *     }
                      */
                     "application/json": unknown;
@@ -5553,6 +6674,24 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -5603,7 +6742,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5682,6 +6821,24 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
             /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
             404: {
                 headers: {
@@ -5748,7 +6905,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5842,7 +6999,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5935,7 +7092,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6012,6 +7169,24 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -6062,7 +7237,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6141,7 +7316,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6218,6 +7393,24 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -6268,7 +7461,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6347,7 +7540,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6422,7 +7615,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6499,6 +7692,24 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -6549,7 +7760,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6628,7 +7839,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6721,7 +7932,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -6818,6 +8029,24 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -6868,7 +8097,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7096,7 +8325,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7212,7 +8441,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7316,7 +8545,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7460,7 +8689,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7553,7 +8782,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7635,6 +8864,24 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -7685,7 +8932,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7847,7 +9094,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7975,7 +9222,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8144,7 +9391,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8245,7 +9492,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8324,7 +9571,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8455,7 +9702,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8535,6 +9782,24 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -8585,7 +9850,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8669,7 +9934,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8763,6 +10028,24 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -8805,6 +10088,24 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
                      *     }
                      */
                     "application/json": unknown;
@@ -8950,6 +10251,24 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
             /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
             404: {
                 headers: {
@@ -9016,7 +10335,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9099,7 +10418,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9178,6 +10497,24 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -9218,6 +10555,24 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
                      *     }
                      */
                     "application/json": unknown;
@@ -9283,6 +10638,24 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -9333,7 +10706,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9407,6 +10780,24 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
                      *     }
                      */
                     "application/json": unknown;
@@ -9538,6 +10929,24 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -9585,7 +10994,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9671,6 +11080,24 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
                      *     }
                      */
                     "application/json": unknown;
@@ -9771,7 +11198,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9888,6 +11315,24 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -9933,7 +11378,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10008,7 +11453,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10089,7 +11534,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10193,7 +11638,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10297,7 +11742,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10381,7 +11826,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10494,7 +11939,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10507,6 +11952,20 @@ export interface operations {
                      *         "resource": "task",
                      *         "action": "write"
                      *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
                      *     }
                      */
                     "application/json": unknown;
@@ -10591,7 +12050,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10618,6 +12077,70 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_users_api_v1_users_get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"][];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
                      *     }
                      */
                     "application/json": unknown;
@@ -10670,7 +12193,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10683,6 +12206,314 @@ export interface operations {
                      *         "resource": "task",
                      *         "action": "write"
                      *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    disable_user_api_v1_users__user_id__disable_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    enable_user_api_v1_users__user_id__enable_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_user_sessions_api_v1_users__user_id__revoke_sessions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_user_memberships_api_v1_users__user_id__memberships_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectMember"][];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
                      *     }
                      */
                     "application/json": unknown;
@@ -10732,6 +12563,24 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
                      *     }
                      */
                     "application/json": unknown;
@@ -10804,7 +12653,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10915,7 +12764,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11021,6 +12870,24 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
             /** @description Errors use the platform envelope `{"detail": {"error_code": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request). */
             404: {
                 headers: {
@@ -11090,7 +12957,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11200,7 +13067,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11308,6 +13175,24 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
             /** @description Errors use the platform envelope `{"detail": {"error_code": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request). */
             404: {
                 headers: {
@@ -11389,6 +13274,24 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
             /** @description Errors use the platform envelope `{"detail": {"error_code": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request). */
             404: {
                 headers: {
@@ -11447,6 +13350,24 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
                      *     }
                      */
                     "application/json": unknown;
@@ -11521,7 +13442,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11628,6 +13549,24 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
             /** @description Errors use the platform envelope `{"detail": {"error_code": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request). */
             404: {
                 headers: {
@@ -11695,7 +13634,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11808,7 +13747,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11918,7 +13857,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12028,7 +13967,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12142,7 +14081,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12253,7 +14192,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12367,7 +14306,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12477,7 +14416,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12591,7 +14530,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12705,7 +14644,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12815,7 +14754,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12925,7 +14864,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13039,7 +14978,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13147,7 +15086,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13257,6 +15196,24 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
             /** @description Errors use the platform envelope `{"detail": {"error_code": ...}}` `not_found` (unknown roadmap or project) or `reference_not_found` (unknown phase/step key or task in the request). */
             404: {
                 headers: {
@@ -13326,7 +15283,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13484,7 +15441,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Reads stay fully available; only the listed write operations can return this. */
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
             403: {
                 headers: {
                     [name: string]: unknown;

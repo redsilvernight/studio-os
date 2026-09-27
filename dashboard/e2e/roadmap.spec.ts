@@ -24,8 +24,15 @@ function project(id: string) {
   };
 }
 
-async function openRoadmap(page: Page, projectId: string): Promise<void> {
-  await login(page, "#/projects", newCaptured());
+interface OpenOptions {
+  /** transition -> error_code answered with 409 by the stubbed transitions endpoint. */
+  transitionFailure?: Record<string, string>;
+  /** Identity role answered by /auth/me (lifecycle actions need admin/developer). */
+  role?: string;
+}
+
+async function openRoadmap(page: Page, projectId: string, options: OpenOptions = {}): Promise<void> {
+  await login(page, "#/projects", newCaptured(), options.role === undefined ? {} : { role: options.role });
   await page.route(new RegExp(`/api/v1/projects/${projectId}/state$`), (route) =>
     route.fulfill({
       status: 200,
@@ -160,9 +167,15 @@ async function openRoadmap(page: Page, projectId: string): Promise<void> {
     const body = (route.request().postDataJSON() ?? {}) as { transition?: string };
     const entry = [...served.entries()].find(([, roadmap]) => roadmap.id === roadmapId);
     const current = entry?.[1];
+    const failure = options.transitionFailure?.[body.transition ?? ""];
+    if (failure !== undefined) {
+      await route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ detail: { error_code: failure } }) });
+      return;
+    }
+    const targets: Record<string, string> = { approve: "active", reject: "archived", complete: "completed", reopen: "active", archive: "archived", activate: "active" };
     const transitioned: ApiRoadmap = {
       ...makeRoadmap(projectId, roadmapId, "draft", { title: typeof current?.title === "string" ? current.title : "Plan" }),
-      status: body.transition === "approve" ? "active" : body.transition === "reject" ? "archived" : "draft",
+      status: targets[body.transition ?? ""] ?? "draft",
       phases: (current?.phases as unknown[]) ?? [],
     };
     if (entry !== undefined) served.set(entry[0], transitioned);
@@ -247,6 +260,34 @@ test.describe("Roadmap workspace", () => {
     await page.getByRole("button", { name: "Approuver" }).click();
     await expect(page.locator("span.ds-badge", { hasText: "Active" })).toBeVisible();
     await expect(page.getByText("Décision enregistrée.")).toBeVisible();
+  });
+
+  test("approbation bloquée par une autre roadmap active : erreur visible, statut inchangé", async ({ page }) => {
+    await openRoadmap(page, roadmapFixtureProjectIds.proposed, { transitionFailure: { approve: "active_roadmap_exists" } });
+    await page.getByRole("button", { name: "Approuver" }).click();
+    await expect(page.locator("[data-review-error] [role=alert]")).toContainText("déjà active");
+    await expect(page.locator("span.ds-badge", { hasText: "À examiner" })).toBeVisible();
+  });
+
+  test("cycle de vie : clôturer puis rouvrir avec motif obligatoire", async ({ page }) => {
+    await openRoadmap(page, roadmapFixtureProjectIds.active, { role: "admin" });
+    await page.getByRole("button", { name: "Clôturer", exact: true }).click();
+    await page.getByRole("button", { name: "Confirmer : Clôturer" }).click();
+    await expect(page.locator(".roadmap-title-line .ds-badge")).toHaveText("Terminée");
+    await page.getByRole("button", { name: "Rouvrir", exact: true }).click();
+    await page.getByRole("button", { name: "Confirmer : Rouvrir" }).click();
+    await expect(page.getByText("Motif requis.")).toBeVisible();
+    await page.locator("[data-lifecycle-comment]").fill("Étape oubliée");
+    await page.getByRole("button", { name: "Confirmer : Rouvrir" }).click();
+    await expect(page.locator(".roadmap-title-line .ds-badge")).toHaveText("Active");
+  });
+
+  test("cycle de vie : un 409 de clôture reste affiché", async ({ page }) => {
+    await openRoadmap(page, roadmapFixtureProjectIds.active, { role: "developer", transitionFailure: { complete: "invalid_state" } });
+    await page.getByRole("button", { name: "Clôturer", exact: true }).click();
+    await page.getByRole("button", { name: "Confirmer : Clôturer" }).click();
+    await expect(page.locator("[data-lifecycle-error] [role=alert]")).toContainText("pas possible dans l'état actuel");
+    await expect(page.locator(".roadmap-title-line .ds-badge")).toHaveText("Active");
   });
 
   test("proposition de révision IA : diff, commentaire obligatoire, décision", async ({ page }) => {

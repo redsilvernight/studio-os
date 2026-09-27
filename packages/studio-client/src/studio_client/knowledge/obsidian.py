@@ -142,6 +142,7 @@ def _default_opener(uri: str) -> None:
     command = "open" if sys.platform == "darwin" else "xdg-open"
     subprocess.Popen(
         [command, uri],
+        stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         start_new_session=True,

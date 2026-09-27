@@ -10,7 +10,7 @@ from studio_api.db.models.task import TaskModel
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import projects as projects_service
 from studio_api.services import tasks as tasks_service
-from studio_api.services.authz import Principal, ensure_can_write
+from studio_api.services.authz import Principal
 from studio_contracts.tasks import TaskCreate, TaskStatus, TaskUpdate
 
 from studio_mcp.errors import run_tool
@@ -35,11 +35,11 @@ def _compact_task(task: TaskModel) -> dict[str, Any]:
 async def studio_get_task(task_id: str, ctx: Context) -> dict[str, Any]:
     """Get one task by id (UUID string)."""
 
-    async def _handler(session: AsyncSession, _principal: Principal) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed = parse_uuid(task_id, "task_id")
         if isinstance(parsed, dict):
             return parsed
-        task = await tasks_service.get_task(session, parsed)
+        task = await tasks_service.read_task(session, principal, parsed)
         if task is None:
             return {"error_code": "not_found", "message": f"task {task_id} not found"}
         return _compact_task(task)
@@ -50,11 +50,11 @@ async def studio_get_task(task_id: str, ctx: Context) -> dict[str, Any]:
 async def studio_get_active_tasks(project_id: str, ctx: Context) -> dict[str, Any]:
     """List active (created/in_progress/blocked) tasks for a project_id (UUID string)."""
 
-    async def _handler(session: AsyncSession, _principal: Principal) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed = parse_uuid(project_id, "project_id")
         if isinstance(parsed, dict):
             return parsed
-        tasks = await projects_service.get_active_tasks(session, parsed)
+        tasks = await projects_service.get_active_tasks(session, principal, parsed)
         return {"tasks": [_compact_task(t) for t in tasks]}
 
     return await run_tool(ctx, _handler)
@@ -80,7 +80,7 @@ async def studio_create_task(
             return parsed
         # Ahead of `run_idempotent_dict`'s replay short-circuit — see
         # `routers/tasks.py::create_task` for why (DEC-0036).
-        ensure_can_write(principal, "task")
+        tasks_service.authorize_create(principal, parsed)
 
         async def _create() -> dict[str, Any]:
             task = await tasks_service.create_task(

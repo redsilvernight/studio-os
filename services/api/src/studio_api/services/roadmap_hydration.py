@@ -45,12 +45,12 @@ from studio_api.services.roadmap_support import (
     PendingEvent,
     RoadmapTree,
     check_version,
+    ensure_roadmap_access,
     finish_result,
     guard_write,
     invalid_state,
     load_tree,
     lock_roadmap,
-    not_found,
     reference_not_found,
     resolve_provenance,
 )
@@ -124,13 +124,11 @@ def _result(
 
 
 async def preview_hydration(
-    session: AsyncSession, roadmap_id: uuid.UUID, payload: HydrationRequest
+    session: AsyncSession, principal: Principal, roadmap_id: uuid.UUID, payload: HydrationRequest
 ) -> HydrationResult:
     """Read-only: any non-archived status; a non-`active` roadmap answers
     `applicable=False`. Writes nothing."""
-    roadmap = await session.get(RoadmapModel, roadmap_id)
-    if roadmap is None:
-        raise not_found()
+    roadmap = await ensure_roadmap_access(session, principal, roadmap_id)
     if roadmap.status == RoadmapStatus.ARCHIVED.value:
         raise invalid_state(RoadmapStatus.ARCHIVED, "an archived roadmap cannot be hydrated")
     tree = await load_tree(session, roadmap)

@@ -11,6 +11,7 @@ studio_claim_task
 studio_release_task
 studio_get_resource_claims
 studio_claim_resource
+studio_claim_resources
 studio_release_resource
 studio_get_decisions
 studio_add_decision
@@ -55,6 +56,11 @@ Reponses compactes, champs utiles uniquement, filtres `project`, `task`, `since`
 Chaque outil authentifie l'appelant individuellement (voir
 `TECH/04_AUTH_SYNC_CONTRACT.md` section "Auth MCP") — jamais un secret
 process-wide ni un parametre d'outil. Detail : `docs/DECISIONS.md` DEC-0023.
+Le MCP n'accepte que des tokens machine, jamais un JWT dashboard. Depuis A2
+(DEC-0110, DU-0/A), un token dont le proprietaire est desactive ou non
+verifie est refuse comme un token revoque : erreur `unauthenticated`
+(« invalid or revoked machine token »), sans reveler la cause ; reactiver le
+User rend le token de nouveau utilisable.
 Exception : les outils locaux UC-3 (section ci-dessous, DEC-0047) tournent
 dans un processus stdio lance par le consommateur lui-meme, sans DB ni
 `Principal` serveur — la frontiere de confiance est le processus, pas un
@@ -62,12 +68,13 @@ token (pas d'attaquant reseau).
 
 ## Etat reel (roadmap etape 5, DEC-0023, UC-3/DEC-0047, P8/DEC-0072)
 
-Le serveur VPS enregistre 46 outils (`services/mcp/src/studio_mcp/` : 29
+Le serveur VPS enregistre 47 outils (`services/mcp/src/studio_mcp/` : 29
 historiques + 5 AI Library P8, section ci-dessous, + `studio_prepare_context`,
 DEC-0080, section « Contexte projet borné », + 7 outils Roadmaps P4/P5,
 DEC-0087, section « Roadmaps et initialisation via MCP », +
 `studio_register_agent`, DEC-0101, section « Enregistrement d'Agent », +
-`studio_transition_roadmap`, section « Roadmaps et initialisation via MCP »).
+`studio_transition_roadmap`, section « Roadmaps et initialisation via MCP », +
+`studio_claim_resources`, pose par lot, section « Claims par lot » ci-dessous).
 Les 3 outils locaux read-only specifies ci-dessous (UC-3, exposition via
 MCP local par poste, DEC-0047) sont en place mais conditionnels au
 fichier de configuration du poste : `studio_memory_search`,
@@ -156,7 +163,7 @@ pour l'appelant (appel one-shot).
 **idempotency_key (DEC-0027)** : un sous-ensemble d'outils createurs de
 ressource accepte desormais un parametre optionnel `idempotency_key` (str) —
 `studio_create_task`, `studio_add_decision`, `studio_claim_resource`,
-`studio_start_session`. Reutilise le meme coeur atomique
+`studio_claim_resources`, `studio_start_session`. Reutilise le meme coeur atomique
 (`services/api/src/studio_api/services/idempotency.py::run_idempotent_dict`)
 que `Idempotency-Key` HTTP, sous un espace `endpoint` distinct
 (`"MCP <nom_outil>"`, jamais `"METHOD /path"`) — une meme valeur de cle
@@ -165,6 +172,22 @@ deux ressources, choix delibere puisque, par construction (DEC-0024), les
 deux chemins ne sont jamais censes rejouer la meme intention. Rejouer la
 meme cle avec les memes arguments renvoie la ressource d'origine ; la meme
 cle avec des arguments differents echoue `idempotency_key_payload_mismatch`.
+
+**Claims par lot — `studio_claim_resources` (tache W3, additif/DEC-0048)** :
+variante « par lot » de `studio_claim_resource`, meme service
+(`claims.create_claim`, DEC-0005) et meme semantique warn-only (un claim ne
+bloque jamais Git ni une ecriture ; un chevauchement emet `resource.conflict`).
+Prend `paths` (liste, non vide, plafonnee a 50), plus `resource_type` et
+`ttl_seconds` communs et un `task_id` optionnel ; renvoie une reponse compacte
+`{"claims": [...], "conflicts": [...]}` ou `conflicts` est le sous-ensemble des
+claims crees qui chevauche un claim actif. Idempotent sous
+`MCP studio_claim_resources` (DEC-0027) : une fois le premier appel abouti, un
+rejeu identique renvoie le lot d'origine au lieu de dupliquer. Les claims
+etant valides un par un (comme pour `studio_claim_resource`), un echec en
+milieu de lot peut laisser les claims deja valides en place ; la cle est
+alors liberee et un nouvel appel identique repart du lot complet. La
+liberation ciblee par `task_id` reste du ressort de la tache W1
+(`studio_handoff`), pas de cet outil.
 
 **Outils exemptes, et pourquoi** : `studio_claim_task` (deja protege par
 `already_claimed`, jamais une seconde ressource), `studio_release_task` /
@@ -186,6 +209,13 @@ et rejouent sous des namespaces distincts (`POST /agents` vs
 sur les deux chemins. L'enregistrement ne confere aucun droit (CC-1) ;
 `display_name` requis, `agent_kind`/`agent_profile`/`harness`/`provider`/
 `model` optionnels (chaines ouvertes d'observabilite, TECH/02).
+
+**`studio_log_ai_work` — creation et mise a jour (tache c5c20c90)** : sans
+`ai_work_id`, `status` (defaut `started`), `changed_files` et `tests_run`
+sont appliques a la creation (parite `POST /ai-work`, meme service) ;
+`approved`/`changes_requested` y sont refuses (`invalid_status_transition`).
+Avec `ai_work_id`, seuls les champs non nuls changent, mais `summary`
+(requis) remplace toujours le resume stocke : repasser le resume complet.
 
 **`studio_log_ai_work` — creation et mise a jour (tache c5c20c90)** : sans
 `ai_work_id`, `status` (defaut `started`), `changed_files` et `tests_run`
@@ -285,6 +315,18 @@ vocabulaire d'erreurs metier preserve (`definition_not_found`,
 seconde taxonomie ; aucun `version`/`schema_version` en payload
 (DEC-0048) ; overrides session valides comme des choix stockes,
 gagnants selon P4, jamais persists.
+
+Acces projet (DEC-0103, rupture semantique, schemas inchanges) : tout
+outil MCP applique les memes gardes que HTTP, dans les services partages
+(DEC-0046 §4) — `run_tool` injecte le `Principal` avec son
+`project_scope`. `studio_prepare_context`, `studio_discover_definitions` et
+`studio_resolve_agent` verifient l'acces au projet **avant** toute lecture.
+Refus : `{error_code: "forbidden", resource: "project", action:
+"read|write"}` dans l'enveloppe plate `McpError`, jamais `not_found` pour un
+projet inaccessible ; les listes (`studio_get_projects`,
+`studio_get_active_tasks`, ...) filtrent silencieusement, une liste de
+projets vide est une reponse valide. Aucun outil `_v2`. Tout outil est classe
+`project|instance|own|public` dans le registre fail-closed partage avec HTTP.
 Volontairement absents : `resolve_definition` P2 seul (redondant avec
 P5 canonique), locks projet (lus via la resolution), lecture Registry
 detaillee (couverte par discovery/configure), P9 (Context Package) et
@@ -297,7 +339,8 @@ seule, réponse bornée et déterministe. Les outils `get/list/discover`
 restent disponibles pour les besoins précis ou avancés.
 
 Entrée : `project_id` (UUID) et `objective` (1..1000 car.) requis ;
-optionnels `task_id` (doit appartenir au projet, sinon `not_found`),
+optionnels `task_id` (doit appartenir au projet, sinon `not_found` —
+`forbidden` si son projet est inaccessible, voir « Accès projet » ci-dessous),
 `files` (≤ 20 chemins), `limit` (1..20, défaut 5, éléments par catégorie),
 `max_chars` (1000..50000, défaut 12000, budget de texte libre),
 `agent_stable_key` (définition d'agent résolue via le Resolution Engine :
@@ -319,8 +362,16 @@ Garanties : au plus `limit` éléments par catégorie ; texte libre coupé à
 `additional_available`. Le budget compte des caractères, pas des tokens.
 Sélection = liens structurels + recouvrement lexical exact avec l'objectif,
 jamais de recherche sémantique ni de LLM. Mêmes règles d'accès que les
-outils de lecture composés (Library `user` d'autrui invisible, tâche d'un
-autre projet = `not_found`). Section AI Work (P2) — `ai_work` : entrées de travail pertinentes pour la
+outils de lecture composés (Library `user` d'autrui invisible, Library
+Studio réservée à `admin` ou à un User ayant au moins une membership).
+Accès projet (DEC-0103, rupture sémantique, schémas inchangés) : `project_id`
+inaccessible (ni membership ni `admin`) ou inexistant →
+`{error_code: "forbidden", resource: "project", action: "read"}` **avant
+toute lecture** ; un `task_id` rattaché à un projet inaccessible →
+même refus `forbidden` / `resource: "project"` (remplace l'ancien
+`not_found` inter-projet, DEC-0103 §8/§10 : UUID v4, pas d'oracle
+exploitable) ; un `task_id` inexistant, ou rattaché à un autre projet
+accessible, reste `not_found`. Section AI Work (P2) — `ai_work` : entrées de travail pertinentes pour la
 reprise, bornées à `limit`, tranche dédiée de 15 % de `max_chars` sur le même
 mécanisme. Ordre : entrées liées à la tâche demandée d'abord (`linked_to_task`,
 plus récentes d'abord — le paquet de handoff vit ici), puis recouvrement
@@ -386,7 +437,7 @@ sans roadmap `active`). Budgets et erreurs
 structurees comme les autres outils (DEC-0048, sans version par payload).
 
 ## Roadmaps et initialisation via MCP (P4/P5, DEC-0087) — implementes
-Surface MCP implementee (35 -> 46 outils), sur les memes services que l'API
+Surface MCP implementee (35 -> 47 outils), sur les memes services que l'API
 (DEC-0046). Tout est derive des contrats P1 (`studio.roadmap/v1`) plus le
 nouveau contrat neutre `studio.initialization/v1`.
 - `studio_get_roadmap(project_id, status?, limit, max_chars)` — lecture :
@@ -430,7 +481,10 @@ nouveau contrat neutre `studio.initialization/v1`.
   `ProjectInitializationPlan` : projet, roadmap **optionnelle**, tasks,
   ressources Library, bindings runtime. `apply` refuse avant toute ecriture si
   un probleme est bloquant ; resume `created/reused/skipped` identique au
-  preview ; replays idempotents.
+  preview ; replays idempotents. Slug deja pris (meme invisible de
+  l'appelant) -> `{error_code: "conflict", message, slug}` (slugs non
+  secrets, oracle accepte, DEC-0105) ; un `error_code` inconnu reste le
+  fallback generique `{error_code: "error"}`.
 Aucun de ces outils n'approuve une *revision* de proposition.
 HTTP reste la surface canonique (DEC-0046) : la route `POST .../proposals/{n}/review`
 n'a volontairement **aucun** équivalent MCP — le MCP est un sous-ensemble intentionnel,

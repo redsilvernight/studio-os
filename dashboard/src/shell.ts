@@ -73,6 +73,7 @@ export function shellNavGroups(route: Route, desktop = false): ShellNavGroup[] {
       items: [
         { href: "#/transfers", label: "Transferts", icon: "transfers", active: is("transfers") },
         { href: "#/machines", label: "Machines", icon: "machines", active: is("machines") },
+        { href: "#/accounts", label: "Comptes", icon: "agents", active: is("accounts") },
       ],
     },
     {
@@ -128,6 +129,7 @@ export function shellHtml(route: Route, authed: boolean, desktop = false): strin
       <span class="app-topbar-state" id="token-state"></span>
     </header>
     <div id="conflict-banner" class="conflict-banner" role="status" hidden></div>
+    <div id="client-update-banner" class="client-update-banner" role="status" aria-live="polite" hidden></div>
     <main id="view" tabindex="-1"></main>
   </div>
 </div>

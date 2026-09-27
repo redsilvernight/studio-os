@@ -20,6 +20,25 @@ export interface LoginOptions {
   /** Desktop only: show the server address and let the user change it. */
   desktop?: boolean;
   onServerChange?: () => void;
+  /** A5: show « Créer un compte » / « Mot de passe oublié ? ». */
+  onAccountAction?: (action: "register" | "forgot") => void;
+}
+
+/** Fixed French messages (A5): the server's text is never shown. */
+export const LOGIN_MESSAGES = {
+  invalid:
+    "Email ou mot de passe incorrect. Si vous venez de vous inscrire, ouvrez d'abord le lien de vérification reçu par email.",
+  rateLimited: "Trop de tentatives depuis cette connexion. Patientez une minute puis réessayez.",
+  unreachable: "Serveur injoignable. Vérifiez votre connexion et l'adresse du serveur, puis réessayez.",
+  failed: "Échec de la connexion. Réessayez dans quelques instants.",
+  unexpected: "Réponse inattendue du serveur.",
+} as const;
+
+function accountLinksHtml(): string {
+  return `<p class="meta login-links" data-testid="login-account-links">
+      <a href="#/inscription" data-account-action="register">Créer un compte</a>
+      · <a href="#/mot-de-passe-oublie" data-account-action="forgot">Mot de passe oublié ?</a>
+    </p>`;
 }
 
 /** The Desktop server line: the address in use and an explicit « Modifier ». */
@@ -98,6 +117,7 @@ export function renderLogin(container: HTMLElement, onLogin: () => void, options
         <button type="submit">Se connecter</button>
       </form>
       <div id="login-error" class="error" role="alert" hidden></div>
+      ${options.onAccountAction ? accountLinksHtml() : ""}
       ${options.desktop ? serverLineHtml() : ""}
       <p class="meta">Un jeton machine ? Collez-le dans le bloc compte de la barre latérale après connexion.</p>
     </div>
@@ -109,6 +129,12 @@ export function renderLogin(container: HTMLElement, onLogin: () => void, options
   const errorBox = container.querySelector<HTMLDivElement>("#login-error");
   const submit = form?.querySelector<HTMLButtonElement>("button[type=submit]") ?? null;
   if (options.desktop) bindServerLine(container, options);
+  container.querySelectorAll<HTMLAnchorElement>("a[data-account-action]").forEach((link) =>
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      options.onAccountAction?.(link.dataset["accountAction"] === "forgot" ? "forgot" : "register");
+    }),
+  );
 
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -147,22 +173,20 @@ async function attemptLogin(email: string, password: string): Promise<LoginResul
       body: JSON.stringify({ email, password }),
     });
   } catch {
-    return { ok: false, error: "Serveur injoignable. Vérifiez votre connexion et l'adresse du serveur, puis réessayez." };
+    return { ok: false, error: LOGIN_MESSAGES.unreachable };
   }
   if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    const message =
-      typeof body === "object" && body !== null && "detail" in body && typeof body.detail === "string"
-        ? body.detail
-        : "Échec de la connexion";
-    return { ok: false, error: message };
+    // Unverified, disabled and wrong password are one 401 on purpose (A4).
+    if (response.status === 401) return { ok: false, error: LOGIN_MESSAGES.invalid };
+    if (response.status === 429) return { ok: false, error: LOGIN_MESSAGES.rateLimited };
+    return { ok: false, error: LOGIN_MESSAGES.failed };
   }
-  const data = (await response.json()) as { access_token?: string };
+  const data = (await response.json().catch(() => ({}))) as { access_token?: string };
   if (data.access_token) {
     setToken(data.access_token);
     return { ok: true };
   }
-  return { ok: false, error: "Réponse inattendue" };
+  return { ok: false, error: LOGIN_MESSAGES.unexpected };
 }
 
 export function loginOverlayHtml(): string {

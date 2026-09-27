@@ -55,6 +55,7 @@ async def _git_stdout(cmd: list[str], cwd: str) -> str | None:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             cwd=cwd,
+            stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )

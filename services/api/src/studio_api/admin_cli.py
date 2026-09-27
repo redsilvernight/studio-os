@@ -13,8 +13,12 @@ from uuid import UUID
 
 import httpx
 from fastapi import HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.auth import Role
 
+from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.user import UserModel
 from studio_api.db.session import get_session_factory
 from studio_api.services import github as github_service
 from studio_api.services import projects as projects_service
@@ -57,6 +61,18 @@ async def _set_password(email: str, password: str) -> None:
     async with get_session_factory()() as session:
         await provisioning_service.set_user_password(session, email, password)
         print(f"password set for {email}")
+
+
+async def _update_user_state(action: str, email: str) -> None:
+    operations = {
+        "disable": provisioning_service.disable_user,
+        "enable": provisioning_service.enable_user,
+        "revoke-sessions": provisioning_service.revoke_user_sessions,
+    }
+    async with get_session_factory()() as session:
+        user = await operations[action](session, email.strip().lower())
+        state = "disabled" if user.disabled_at is not None else "enabled"
+        print(f"{action}: {user.email} ({state}, auth_version={user.auth_version})")
 
 
 async def _create_machine(owner_email: str, display_name: str) -> None:
@@ -108,8 +124,72 @@ async def _show_machine_by_token(token: str) -> None:
 
 async def _create_project(slug: str, name: str, description: str | None) -> None:
     async with get_session_factory()() as session:
-        project = await projects_service.create_project(session, slug, name, description)
+        project = await projects_service.create_project(
+            session, slug, name, description, creator=None
+        )
         print(f"project created: {project.id} ({project.slug})")
+
+
+async def _resolve_project(session: AsyncSession, ref: str) -> ProjectModel:
+    """`--project` accepts a UUID or a slug."""
+    try:
+        project = await session.get(ProjectModel, UUID(ref))
+    except ValueError:
+        result = await session.execute(select(ProjectModel).where(ProjectModel.slug == ref))
+        project = result.scalar_one_or_none()
+    if project is None:
+        print(f"no project {ref}", file=sys.stderr)
+        raise SystemExit(1)
+    return project
+
+
+async def _resolve_user(session: AsyncSession, email: str) -> UserModel:
+    user = await provisioning_service.get_user_by_email(session, email.strip().lower())
+    if user is None:
+        print(f"no user with email {email}", file=sys.stderr)
+        raise SystemExit(1)
+    return user
+
+
+async def _grant_project_member(project_ref: str, email: str, admin_email: str) -> None:
+    """The CLI has no authenticated caller: `--admin-email` names the admin
+    recorded as `granted_by_user_id` (DEC-0103, every grant keeps who gave it)."""
+    async with get_session_factory()() as session:
+        project = await _resolve_project(session, project_ref)
+        user = await _resolve_user(session, email)
+        admin = await _resolve_user(session, admin_email)
+        if admin.role != Role.ADMIN.value:
+            print(f"{admin_email} is not an admin", file=sys.stderr)
+            raise SystemExit(1)
+        _, created = await projects_service.grant_member(
+            session, project.id, user.id, granted_by_user_id=admin.id
+        )
+    verb = "granted" if created else "already a member"
+    print(f"{verb}: {user.email} -> {project.slug}")
+
+
+async def _revoke_project_member(project_ref: str, email: str) -> None:
+    async with get_session_factory()() as session:
+        project = await _resolve_project(session, project_ref)
+        user = await _resolve_user(session, email)
+        removed = await projects_service.revoke_member(session, project.id, user.id)
+    verb = "revoked" if removed else "not a member"
+    print(f"{verb}: {user.email} -> {project.slug}")
+
+
+async def _list_project_members(project_ref: str) -> None:
+    async with get_session_factory()() as session:
+        project = await _resolve_project(session, project_ref)
+        members = await projects_service.list_members(session, project.id)
+        users = await provisioning_service.users_by_id(session, {m.user_id for m in members})
+    if not members:
+        print("no member")
+        return
+    print(f"{'user_id':<36}  {'email':<32} granted_by")
+    for member in members:
+        email = users[member.user_id].email if member.user_id in users else "?"
+        granted_by = member.granted_by_user_id or "system"
+        print(f"{str(member.user_id):<36}  {email:<32} {granted_by}")
 
 
 async def _expire_transfers() -> None:
@@ -179,6 +259,12 @@ def main() -> None:
     user_create.add_argument("--display-name", required=True)
     user_create.add_argument("--email", required=True)
     user_create.add_argument("--role", required=True, choices=[role.value for role in Role])
+    for action, help_text in (
+        ("disable", "Block the user's sessions and machines until re-enabled"),
+        ("enable", "Re-enable a disabled user"),
+        ("revoke-sessions", "Invalidate every dashboard session of the user"),
+    ):
+        user_sub.add_parser(action, help=help_text).add_argument("--email", required=True)
 
     password_parser = sub.add_parser("set-password", help="Set a user's dashboard password")
     password_parser.add_argument("--email", required=True)
@@ -210,6 +296,15 @@ def main() -> None:
     project_create.add_argument("--slug", required=True)
     project_create.add_argument("--name", required=True)
     project_create.add_argument("--description", default=None)
+    project_grant = project_sub.add_parser("grant", help="Give a user access to a project")
+    project_grant.add_argument("--project", required=True, help="Project UUID or slug")
+    project_grant.add_argument("--email", required=True, help="User receiving access")
+    project_grant.add_argument("--admin-email", required=True, help="Admin granting it")
+    project_revoke = project_sub.add_parser("revoke", help="Remove a user's project access")
+    project_revoke.add_argument("--project", required=True, help="Project UUID or slug")
+    project_revoke.add_argument("--email", required=True)
+    project_members = project_sub.add_parser("members", help="List a project's members")
+    project_members.add_argument("--project", required=True, help="Project UUID or slug")
 
     transfer_parser = sub.add_parser("transfers", help="Manage transfers")
     transfer_sub = transfer_parser.add_subparsers(dest="transfer_command", required=True)
@@ -243,6 +338,8 @@ def main() -> None:
                 print("error: --display-name must not be empty", file=sys.stderr)
                 raise SystemExit(2)
             asyncio.run(_create_user(args.display_name, email, args.role))
+        elif args.command == "user":
+            asyncio.run(_update_user_state(args.user_command, args.email))
         elif args.command == "set-password":
             password = _read_password_from_stdin() if args.password_stdin else args.password
             asyncio.run(_set_password(args.email, password))
@@ -256,6 +353,12 @@ def main() -> None:
             asyncio.run(_show_machine_by_token(_read_secret_from_stdin("token")))
         elif args.command == "project" and args.project_command == "create":
             asyncio.run(_create_project(args.slug, args.name, args.description))
+        elif args.command == "project" and args.project_command == "grant":
+            asyncio.run(_grant_project_member(args.project, args.email, args.admin_email))
+        elif args.command == "project" and args.project_command == "revoke":
+            asyncio.run(_revoke_project_member(args.project, args.email))
+        elif args.command == "project" and args.project_command == "members":
+            asyncio.run(_list_project_members(args.project))
         elif args.command == "transfers" and args.transfer_command == "expire":
             asyncio.run(_expire_transfers())
         elif args.command == "transfers" and args.transfer_command == "abort-stale-multipart":

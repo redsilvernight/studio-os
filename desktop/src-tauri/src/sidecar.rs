@@ -21,6 +21,7 @@ const MANIFEST_FILE: &str = "sidecar-manifest.json";
 pub const SERVER_ORIGIN_ENV: &str = "STUDIO_DESKTOP_SERVER_ORIGIN";
 pub const ALLOW_INSECURE_ORIGIN_ENV: &str = "STUDIO_DESKTOP_ALLOW_INSECURE_ORIGIN";
 pub const AUTOSTART_ENV: &str = "STUDIO_DAEMON_AUTOSTART";
+pub const CHANNEL_ENV: &str = "STUDIO_CLIENT_CHANNEL";
 const EXCHANGE_TIMEOUT: Duration = Duration::from_secs(20);
 const MAX_LINE_BYTES: usize = 2 * 1024 * 1024;
 const RESTART_WINDOW: Duration = Duration::from_secs(60);
@@ -173,6 +174,11 @@ impl Inner {
             cmd.env(ALLOW_INSECURE_ORIGIN_ENV, "1");
         } else {
             cmd.env_remove(ALLOW_INSECURE_ORIGIN_ENV);
+        }
+        if crate::info::dev_channel() {
+            cmd.env(CHANNEL_ENV, "dev");
+        } else {
+            cmd.env_remove(CHANNEL_ENV);
         }
         #[cfg(windows)]
         {

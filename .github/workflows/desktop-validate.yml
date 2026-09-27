@@ -49,6 +49,9 @@ jobs:
           npm ci
           npm ci --prefix ../dashboard
         working-directory: desktop
+      - name: Desktop script unit tests
+        run: npm run test:scripts
+        working-directory: desktop
       - name: Version coherence
         run: npm run version:check
         working-directory: desktop

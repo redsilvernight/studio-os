@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getToken, clearToken } from "./auth";
-import { renderLogin } from "./login";
+import { LOGIN_MESSAGES, renderLogin } from "./login";
 import { prepareDesktop, resetDesktopShellForTests } from "./desktopShell";
 import { fakeDesktop } from "./testSupport/fakeDesktop";
 import { setServerOriginOverride } from "./runtimeConfig";
@@ -70,14 +70,27 @@ describe("login", () => {
     expect(getToken()).toBeNull();
   });
 
-  it("shows the server's own message for a refused login", async () => {
+  it.each([
+    [401, LOGIN_MESSAGES.invalid],
+    [429, LOGIN_MESSAGES.rateLimited],
+    [500, LOGIN_MESSAGES.failed],
+  ])("HTTP %i: fixed French message, never the server's text", async (status, message) => {
     globalThis.fetch = vi.fn(
-      async () => new Response(JSON.stringify({ detail: "Identifiants invalides" }), { status: 401 }),
+      async () => new Response(JSON.stringify({ detail: "invalid email or password" }), { status }),
     ) as unknown as typeof fetch;
     const root = mount();
     submit(root);
     await flush();
-    expect(root.querySelector("#login-error")?.textContent).toBe("Identifiants invalides");
+    expect(root.querySelector("#login-error")?.textContent).toBe(message);
+  });
+
+  it("offers account creation and recovery only when wired", () => {
+    expect(mount().querySelector("[data-testid=login-account-links]")).toBeNull();
+    const onAccountAction = vi.fn();
+    const root = mount({ onAccountAction });
+    root.querySelector<HTMLAnchorElement>("a[data-account-action=register]")!.click();
+    root.querySelector<HTMLAnchorElement>("a[data-account-action=forgot]")!.click();
+    expect(onAccountAction.mock.calls).toEqual([["register"], ["forgot"]]);
   });
 
   it("shows the reason the user came back (expired session)", () => {

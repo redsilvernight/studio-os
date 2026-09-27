@@ -13,15 +13,23 @@ from pydantic_settings import (
 )
 
 _CONFIG_FILE_ENV_VAR = "STUDIO_CLIENT_CONFIG_FILE"
+CHANNEL_ENV_VAR = "STUDIO_CLIENT_CHANNEL"
+
+
+def client_channel() -> str:
+    """`dev` for the development Desktop channel, installed side by side with
+    the stable one and keeping its own data; `prod` otherwise."""
+    return "dev" if os.environ.get(CHANNEL_ENV_VAR) == "dev" else "prod"
 
 
 def default_config_path() -> Path:
+    dev = client_channel() == "dev"
     if os.name == "nt":
         base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
-        return base / "StudioOS" / "config.toml"
+        return base / ("StudioOS-Dev" if dev else "StudioOS") / "config.toml"
     xdg = os.environ.get("XDG_CONFIG_HOME")
     base = Path(xdg) if xdg else Path.home() / ".config"
-    return base / "studio-os" / "config.toml"
+    return base / ("studio-os-dev" if dev else "studio-os") / "config.toml"
 
 
 class GitWatchConfig(BaseModel):
@@ -165,3 +173,9 @@ class ClientConfig(BaseSettings):
         if toml_path.is_file():
             sources.append(TomlConfigSettingsSource(settings_cls, toml_file=toml_path))
         return tuple(sources)
+
+
+def reload_git_watches(api_base_url: str) -> tuple[GitWatchConfig, ...]:
+    """`git_watches` as currently declared by the environment and the TOML
+    file, so a running daemon picks up edits without a restart."""
+    return ClientConfig(api_base_url=api_base_url).git_watches

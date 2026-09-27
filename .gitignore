@@ -46,3 +46,6 @@ docker/backups/
 
 # Vault mémoire local créé par l'assistant Desktop
 /vault/
+
+# Local dev account e-mails (STUDIO_EMAIL_BACKEND=file)
+.studio-mail/

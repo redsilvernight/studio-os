@@ -12,7 +12,15 @@ from studio_contracts.events import EventCreate, EventType
 
 from studio_api.db.models.decision import DecisionModel
 from studio_api.services import events as events_service
-from studio_api.services.authz import Principal, ensure_can_write, forbidden
+from studio_api.services.authz import (
+    Principal,
+    ProjectAction,
+    ensure_can_write,
+    ensure_project_access,
+    ensure_shared_access,
+    forbidden,
+    project_visibility_clause,
+)
 
 _ALLOWED_TRANSITIONS: dict[DecisionStatus, frozenset[DecisionStatus]] = {
     DecisionStatus.ACCEPTED: frozenset({DecisionStatus.PROPOSED}),
@@ -46,19 +54,41 @@ def invalid_decision_transition(current: str, target: str) -> HTTPException:
 
 
 async def list_decisions(
-    session: AsyncSession, project_id: uuid.UUID | None = None
+    session: AsyncSession, principal: Principal, project_id: uuid.UUID | None = None
 ) -> list[DecisionModel]:
+    """Unfiltered: the accessible projects' decisions plus the global
+    (project-less) ones, the latter only for a Principal with at least one
+    project (DEC-0103 §4/§7)."""
     stmt = select(DecisionModel)
     if project_id is not None:
+        ensure_project_access(principal, project_id)
         stmt = stmt.where(DecisionModel.project_id == project_id)
+    elif (visible := project_visibility_clause(principal, DecisionModel.project_id)) is not None:
+        stmt = stmt.where(visible)
     result = await session.execute(stmt)
     return list(result.scalars().all())
+
+
+def _ensure_decision_scope(
+    principal: Principal, project_id: uuid.UUID | None, action: ProjectAction
+) -> None:
+    if project_id is None:
+        ensure_shared_access(principal, action)
+    else:
+        ensure_project_access(principal, project_id, action)
+
+
+def authorize_create(principal: Principal, project_id: uuid.UUID | None) -> None:
+    """Project (or shared-data) then role check of a decision creation, run
+    ahead of the idempotency replay short-circuit (DEC-0036, DEC-0103 §12)."""
+    _ensure_decision_scope(principal, project_id, "write")
+    ensure_can_write(principal, "decision")
 
 
 async def create_decision(
     session: AsyncSession, principal: Principal, decision_in: DecisionCreate
 ) -> DecisionModel:
-    ensure_can_write(principal, "decision")
+    authorize_create(principal, decision_in.project_id)
     decision = DecisionModel(
         readable_id=await _next_readable_id(session),
         project_id=decision_in.project_id,
@@ -139,6 +169,7 @@ async def _transition_decision(
     if principal.role != Role.ADMIN:
         raise forbidden("decision", target.value)
     decision = await _lock_decision(session, decision_id)
+    _ensure_decision_scope(principal, decision.project_id, "write")
     current = DecisionStatus(decision.status)
     if current not in _ALLOWED_TRANSITIONS[target]:
         raise invalid_decision_transition(decision.status, target.value)

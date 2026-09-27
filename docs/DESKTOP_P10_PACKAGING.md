@@ -46,7 +46,8 @@ npm run package          # Dashboard → config → sidecar → inventaire → N
   divergent ; `npm run version:sync` les réaligne.
 - `notices.mjs --check` échoue sur une licence non déclarée ou un copyleft non relu.
 - Les outils de développement présents dans l'environnement (mypy, pytest, Pygments, …) sont exclus
-  du gel (`--exclude-module`).
+  du gel (`--exclude-module`), ainsi que le SDK AWS inutilisé à l'exécution
+  (`boto3`/`botocore`/`s3transfer`/`jmespath`, voir §15).
 
 ## 4. Sidecar
 
@@ -80,9 +81,9 @@ reconstructibles.
 
 Le shell attache un daemon sain déjà présent ou en démarre un seul ; il le supervise avec un
 redémarrage borné et l'arrête à la fermeture (fermeture normale vérifiée : 0 processus restant).
-Le hook NSIS exécute `taskkill /F /T /IM studio-daemon.exe` avant installation et désinstallation
-pour libérer les fichiers. **Limite documentée** : il tue tout `studio-daemon.exe` de l'utilisateur,
-y compris un daemon de développement.
+Le hook NSIS arrête (`taskkill /F /T /PID`) avant installation et désinstallation le seul
+`studio-daemon.exe` dont l'exécutable est sous le dossier d'installation, pour libérer les fichiers ;
+un daemon d'un autre canal ou de développement n'est pas touché.
 
 ## 7. Désinstallation
 
@@ -98,16 +99,67 @@ et `%APPDATA%\StudioOS`. Aucun Vault, projet ni dépôt n'est jamais supprimé.
 n'existe et l'UI affiche `not_configured`. Mise à jour à l'initiative de l'utilisateur uniquement.
 Codes d'erreur stables : `not_configured`, `network`, `invalid_metadata`, `invalid_signature`,
 `install_failed`. Un artefact corrompu ou mal signé est rejeté avant installation ; les données ne
-sont pas touchées. Aucune infrastructure de mise à jour de production n'est fournie par P10.
+sont pas touchées.
+
+Depuis B5/T2, le manifeste `latest.json` attendu par l'updater est généré depuis les artefacts
+réels par `desktop/scripts/update-manifest.mjs` : format statique du plugin
+(`version`/`notes`/`pub_date`/`platforms[windows-x86_64]{url,signature}`) complété d'un bloc
+additif et versionné (`schema_version: 1`, `channel` `beta|stable`,
+`artifacts{file,size_bytes,sha256}`) que les clients N-1 ignorent (prouvé par un test Rust de
+l'updater) ; l'URL est l'asset téléchargeable HTTPS d'une release GitHub. Le manifeste est joint à
+la pré-release de tag (B5/T1) et, quand l'updater est compilé dans le build, à la release de canal
+(`desktop-dev` → beta, `desktop-prod` → stable ; DEC-0108).
+
+Depuis B6 (DEC-0134), un build de canal est versionné `<canonique>-<canal>.<run_number>`
+(`version.mjs --channel-build`) et, quand l'environnement GitHub du canal porte la clé updater,
+compile l'updater avec l'endpoint `releases/download/desktop-<canal>/latest.json`. Après
+publication, la release précédente du canal est installée puis mise à jour depuis l'application
+(`install-test.mjs --upgrade-from`) : réseau coupé et téléchargement interrompu refusés sans
+toucher N, puis N → N+1 réel avec données, vault et identifiants intacts. Pendant l'installation
+l'UI désactive le bouton et annonce le redémarrage ; un téléchargement interrompu propose de
+réessayer sans nouvelle recherche.
+
+Depuis C3 (DEC-0137), la voie stable n'est plus reconstruite : elle est une
+**promotion par manifeste** de l'artefact validé sur la voie beta.
+`desktop/scripts/promote-channel.mjs` recopie l'installeur octet pour octet
+(même SHA-256, même signature minisign) et réécrit `latest.json`
+(`channel: stable`, URL de la release cible) ; un SHA-256 ou une taille qui ne
+correspond pas au manifeste source est refusé (`hash_mismatch`/`size_mismatch`),
+donc un artefact reconstruit ne peut jamais être promu. Le manifeste porte un
+champ additif `api_origin` (origine API bakée au build) et la promotion refuse
+(`api_origin_mismatch`) de déplacer un artefact entre deux voies dont les
+origines diffèrent — un feed stable ne doit jamais pointer vers une API de dev.
+Le déclenchement vit dans `desktop-promote.yml` (push sur `deploy/flo-laptop` ou
+`workflow_dispatch`) ; `desktop-channels.yml` ne construit plus que la voie beta
+(`dev` → `desktop-dev`).
 
 ## 9. Signatures
 
 - **Signature de mise à jour** (minisign) : prouve l'authenticité de l'artefact de mise à jour.
   La clé privée reste hors dépôt (`TAURI_SIGNING_PRIVATE_KEY[_PASSWORD]`) ; aucune clé n'est générée
   ni committée.
-- **Signature de code Windows** (Authenticode) : **non appliquée**. L'installateur produit est un
-  **installateur de développement non signé** ; Windows SmartScreen peut l'avertir. P10 ne prétend
-  pas satisfaire SmartScreen. Un certificat de production est un prérequis de release (§15).
+- **Signature de code Windows** (Authenticode, B4) : **pas de certificat** (DEC-0129,
+  coût refusé, aucune alternative gratuite). L'installateur est distribué **non signé** :
+  SmartScreen avertit, Smart App Control peut bloquer — assumé. La confiance repose sur
+  minisign (update altérée ou mal signée refusée avant installation) + `SHA256SUMS.txt` /
+  `provenance.json` par release. La plomberie (`desktop/scripts/windows-signing.mjs`,
+  overlay `bundle.windows`, gate `--verify`) reste **dormante** : si un certificat arrive un
+  jour, il suffit de renseigner les secrets CI et de poser `STUDIO_REQUIRE_AUTHENTICODE=1`
+  (alors, certificat manquant = erreur fatale, et `--verify --require` refuse tout `.exe`
+  sans signature de chaîne valide). En attendant, la vérification est en mode rapport et
+  un build non signé passe. Ordre le jour venu : signer **pendant** `tauri build` (jamais
+  après, sinon les signatures minisign qui couvrent les binaires finaux seraient invalidées).
+
+Secrets CI (environnement `desktop-release`, dormants sans certificat) :
+`WINDOWS_CERT_THUMBPRINT` (SHA1 du certificat dans `Cert:\CurrentUser\My`), ou
+`WINDOWS_SIGN_PFX_BASE64` + `WINDOWS_SIGN_PASSWORD` (le PFX est importé par `build.mjs`,
+le PFX l'emporte sur le thumbprint) ; optionnels : `WINDOWS_SIGN_TIMESTAMP_URL`,
+`WINDOWS_SIGN_DIGEST_ALGORITHM`.
+
+La rotation planifiée, la perte et la compromission des deux familles de clés
+sont traitées dans `docs/DESKTOP_B4_KEY_RUNBOOK.md`. Une rotation minisign exige
+une version-pont signée par l'ancienne clé ; changer directement les deux secrets
+rendrait les clients existants incapables d'accepter la nouvelle release.
 
 ## 10. Autostart, tray, réseau
 
@@ -140,7 +192,7 @@ données), vérifier les mises à jour. L'export ne contient ni jeton, ni mot de
 
 `THIRD_PARTY_INVENTORY.json` (dans `sidecar\`) liste les paquets Python gelés, les crates Rust liées
 et les paquets npm d'exécution avec la licence déclarée. **Ce n'est pas un SBOM certifié ni un avis
-juridique.** Le dépôt ne contient pas de fichier `LICENSE` : à trancher avant diffusion publique.
+juridique.** Le dépôt est publié sous Apache-2.0 (`LICENSE`, DEC-0126).
 Cinq crates MPL-2.0 (`cssparser`, `cssparser-macros`, `dtoa-short`, `option-ext`, `selectors`) sont
 liées statiquement sans modification et revues.
 
@@ -170,6 +222,7 @@ Scripts :
 | `npm run test:e2e:shell` | Shell réel : navigation, pont, panneau diagnostics |
 | `npm run test:e2e` | Gate complète contre une pile jetable |
 | `npm run test:rust` | Allowlist, sidecar, updater, diagnostics |
+| `npm run test:scripts` | Scripts de release : politique de build, signature Windows, artefacts/provenance, manifeste d'update, version, **promotion beta→stable sans rebuild** (hash/taille refusés, origine API, rollback) |
 | `uv run pytest tests/client/test_data_format.py` | Marqueur de format et migrations |
 
 Le test d'installation utilise un `APPDATA` redirigé : il ne touche ni les données ni les
@@ -178,33 +231,82 @@ d'installateur antérieur réel.
 
 ## 15. Limites et procédure de release
 
-Limites : installateur non signé (Authenticode) ; WebView2 requis (bootstrapper embarqué) ;
+Limites : installateur non signé sans certificat (Authenticode, voir §9, DEC-0129) ; WebView2 requis (bootstrapper embarqué) ;
 les identifiants du Gestionnaire d'identifiants Windows ne sont pas effacés à la désinstallation
 (suppression manuelle des entrées `StudioOS`) ; pas de tray ; pas d'installation par machine.
 
 Dette connue (P11/P12) :
 
-- Le pont du shell ne sert pas `knowledge.*`, `code_graph.*`, `workspace.*` (`not_supported`) : aucun
-  contrôle Code Graph / Knowledge / workspace local au niveau de l'application installée ; les états
-  Graphify absent/incompatible sont couverts par les tests Python du provider.
 - L'export de diagnostics ne liste pas les composants optionnels (Graphify, Git).
-- Le crochet NSIS `taskkill /IM studio-daemon.exe` arrête aussi un daemon de développement de l'utilisateur.
-- `botocore` n'est pas élagué du sidecar (gain de taille possible) ; pas de fichier `LICENSE` à la racine.
+- Pas de fichier `LICENSE` à la racine : à trancher avant diffusion publique (B3).
 
-Procédure de release (manuelle, hors P10) :
+Soldé par B3 :
 
-1. Fournir un certificat de signature de code et l'appliquer à l'installateur.
+- Le pont du shell sert `workspace.*`, `knowledge.*`, `code_graph.*` et `harness.*`
+  via le daemon (vérifié par handshake : capacités négociées) ; la mention
+  `not_supported` ne concernait que P10.
+- Le crochet NSIS n'arrête plus que le daemon du répertoire d'installation
+  (par PID, fail-closed) ; plus aucun daemon de développement tué.
+- `boto3`/`botocore`/`s3transfer`/`jmespath` élagués du sidecar (`--exclude-module`,
+  `desktop/scripts/build-sidecar.mjs`) : entraînement statique via le provider AWS
+  paresseux de `pydantic-settings`, jamais importé à l'exécution (transferts via
+  URLs pré-signées + httpx). Sidecar : 73 Mo → 38,9 Mo mesurés ; binaire gelé
+  vérifié par handshake `compatible`.
+
+Procédure de release (par tag, sans étape locale — B5) :
+
+1. Signature : rien à faire (DEC-0129, non signé assumé). Si un certificat arrive un jour,
+   le stocker dans les secrets `desktop-release` (`WINDOWS_CERT_THUMBPRINT` ou
+   `WINDOWS_SIGN_PFX_BASE64` + `WINDOWS_SIGN_PASSWORD`, voir §9) et poser
+   `STUDIO_REQUIRE_AUTHENTICODE=1` dans le workflow.
 2. Générer la paire minisign hors dépôt ; publier la clé publique via `STUDIO_UPDATER_PUBKEY`.
-3. Lancer `desktop-release.yml` (déclenchement manuel, secrets de l'environnement `desktop-release`).
-4. Publier l'installateur et le manifeste de mise à jour ; le workflow ne publie rien.
+   L'environnement `desktop-release` porte aussi les variables `STUDIO_DESKTOP_API_URL`
+   et, si besoin, `STUDIO_DESKTOP_STORAGE_URL` (origines compilées dans le bundle).
+3. Créer et pousser un tag `desktop-vX.Y.Z` égal à la version canonique
+   (`desktop/package.json`). Le tag est le seul déclencheur d'une publication.
+4. `desktop-release.yml` construit et vérifie le candidat — gate tag = version,
+   `npm run version:check`, build Tauri (minisign ; Authenticode pendant le build si
+   un certificat existe un jour), `windows-signing.mjs --verify` (rapport, `--require`
+   seulement avec certificat), `test:install`, `SHA256SUMS.txt` + `provenance.json` —
+   puis le **publie** en pré-release GitHub du tag (`--prerelease --latest=false`) :
+   aucune étape locale. Un `workflow_dispatch` ne fait que construire le candidat privé,
+   sans publier. La promotion beta→stable passe par le manifeste `latest.json`, jamais
+   par un rebuild (DEC-0108).
+
+Canaux non signés (DEC-0129, DEC-0137) : la voie beta est construite par
+`desktop-channels.yml` — chaque push touchant le Desktop sur `dev` remplace la
+release `desktop-dev` (pre-release, `--channel dev`) — et la voie stable est une
+**promotion** de cet artefact par `desktop-promote.yml`, jamais un rebuild.
+Promotion : push sur `deploy/flo-laptop` (geste « go stable »), ou
+`workflow_dispatch` (`from`/`to`, et `source_tag` pour un retour vers stable à
+partir d'une pré-release de tag immuable `desktop-vX.Y.Z`). Le script vérifie le
+SHA-256/taille contre le manifeste source et refuse une origine API différente,
+puis publie le même installeur et un `latest.json` réécrit sur `desktop-prod`
+(`--latest`) ou `desktop-dev` (`--prerelease --latest=false`). Les origines
+API/stockage viennent des variables `STUDIO_DESKTOP_API_URL` /
+`STUDIO_DESKTOP_STORAGE_URL` des environnements GitHub `desktop-prod` et
+`desktop-dev` : elles doivent coïncider pour qu'une promotion beta→stable soit
+acceptée (un seul VPS). Le canal Dev s'installe à côté de Prod : identifiant
+`dev.studio-os.desktop-dev`, produit « Studio OS Desktop Dev », données
+`%APPDATA%\StudioOS-Dev` (`STUDIO_CLIENT_CHANNEL=dev` transmis au daemon),
+serveur MCP `studio-os-dev` dans les configurations des outils.
+
+Depuis B3, le workflow génère `SHA256SUMS.txt` (GNU `sha256sum -c`) et
+`provenance.json` (`studio.release-provenance/v1` : commit, tag, dirty,
+versions Desktop/daemon, origine API, outillage) via
+`desktop/scripts/release-artifacts.mjs`, et les joint à l'artefact privé :
+deux builds du même tag sont fonctionnellement équivalents quand leurs hashes
+coïncident pour une provenance identique. Aucun secret n'y figure (garanti par
+`test:release-artifacts`).
 
 ## 16. Mesures
 
 | Élément | Taille |
 |---|---|
-| Sidecar (dossier) | 70,0 Mo (75,4 Mo avant exclusion des outils de développement) |
-| Installateur NSIS | 37,6 Mo |
-| Installation | 75,9 Mo, 2 064 fichiers |
+| Sidecar (dossier) | 38,9 Mo (73 Mo avant l'élagage AWS de B3 ; 75,4 Mo avant exclusion des outils de développement) |
+| Installateur NSIS | 37,6 Mo (pré-élagage : à remesurer au prochain `npm run package`) |
+| Installation | 75,9 Mo, 2 064 fichiers (pré-élagage : à remesurer via `npm run test:install`) |
 
-Le botocore complet (données de tous les services AWS) reste gelé dans le sidecar : dette d'élagage
-connue, non traitée par P10.
+Le SDK AWS complet (modèles de tous les services) n'est plus gelé dans le sidecar
+depuis B3 (voir §15) ; les chiffres installateur/installation ci-dessus datent
+d'avant l'élagage et seront remesurés à la prochaine release.

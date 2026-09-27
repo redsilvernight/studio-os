@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 from studio_contracts.tasks import Task, TaskCreate, TaskUpdate
 
-from studio_api.deps import CurrentMachine, CurrentPrincipal, DbSession
+from studio_api.deps import CurrentPrincipal, DbSession
 from studio_api.openapi_meta import (
     IDEMPOTENCY_KEY_DESCRIPTION,
     IF_MATCH_VERSION_DESCRIPTION,
@@ -18,7 +18,6 @@ from studio_api.openapi_meta import (
 )
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import tasks as tasks_service
-from studio_api.services.authz import ensure_can_write
 
 router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
 
@@ -26,18 +25,22 @@ router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
 @router.get(
     "",
     response_model=list[Task],
-    description="List tasks, optionally filtered by project. Any authenticated machine may read.",
-    responses={**RESP_401_UNAUTHORIZED},
+    description=(
+        "List tasks of the caller's accessible projects, optionally filtered "
+        "by project. A `project_id` the caller cannot access (or that does "
+        "not exist) answers `403 forbidden`."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
 )
 async def list_tasks(
     session: DbSession,
-    machine: CurrentMachine,
+    principal: CurrentPrincipal,
     project_id: UUID | None = Query(default=None),
     limit: int = Query(default=100, le=500),
     offset: int = Query(default=0),
 ) -> list[Task]:
     tasks = await tasks_service.list_tasks(
-        session, project_id=project_id, limit=limit, offset=offset
+        session, principal, project_id=project_id, limit=limit, offset=offset
     )
     return [Task.model_validate(t) for t in tasks]
 
@@ -62,7 +65,7 @@ async def create_task(
         default=None, alias="Idempotency-Key", description=IDEMPOTENCY_KEY_DESCRIPTION
     ),
 ) -> Task:
-    ensure_can_write(principal, "task")
+    tasks_service.authorize_create(principal, task_in.project_id)
 
     async def _create() -> Task:
         return Task.model_validate(await tasks_service.create_task(session, principal, task_in))
@@ -75,11 +78,14 @@ async def create_task(
 @router.get(
     "/{task_id}",
     response_model=Task,
-    description="Get one task by id. Any authenticated machine may read.",
-    responses={**RESP_401_UNAUTHORIZED, **RESP_404_NOT_FOUND},
+    description=(
+        "Get one task by id. A task of a project the caller cannot access "
+        "answers `403 forbidden` (resource `project`)."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
 )
-async def get_task(task_id: UUID, session: DbSession, machine: CurrentMachine) -> Task:
-    task = await tasks_service.get_task(session, task_id)
+async def get_task(task_id: UUID, session: DbSession, principal: CurrentPrincipal) -> Task:
+    task = await tasks_service.read_task(session, principal, task_id)
     if task is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
     return Task.model_validate(task)

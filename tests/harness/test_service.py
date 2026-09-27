@@ -545,3 +545,30 @@ def test_errors_never_carry_paths_or_secrets(rig: Rig) -> None:
     assert str(rig.root) not in text
     statuses = rig.service.detect(WorkspaceScope(workspace_id=WORKSPACE_ID))
     assert str(rig.root) not in statuses.model_dump_json()
+
+
+def _sse(payload: dict[str, object]) -> str:
+    return f"event: message\ndata: {json.dumps(payload)}\n\n"
+
+
+def test_empty_project_list_is_a_verified_connection_without_project_access() -> None:
+    assert service_module._projects_in({"projects": []}) == 0
+    details = service_module.verified_details(0)
+    assert details["project_count"] == "0"
+    assert details["project_access"] == "none"
+    assert "administrator" in details["hint"]
+
+
+def test_project_list_counts_visible_projects_without_access_hint() -> None:
+    projects = [{"project_id": str(uuid4())}, {"project_id": str(uuid4())}]
+    assert service_module._projects_in({"projects": projects}) == 2
+    assert service_module._projects_in({"result": {"projects": projects}}) == 2
+    assert service_module.verified_details(2) == {
+        "method": "studio_get_projects",
+        "project_count": "2",
+    }
+
+
+def test_unknown_project_count_keeps_plain_verified_details() -> None:
+    assert service_module._projects_in({"other": 1}) is None
+    assert service_module.verified_details(None) == {"method": "studio_get_projects"}

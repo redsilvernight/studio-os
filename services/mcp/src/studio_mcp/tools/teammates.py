@@ -21,13 +21,13 @@ async def studio_get_teammate_activity(project_id: str, ctx: Context) -> dict[st
     themselves), each with a heartbeat-derived status
     (TECH/04_AUTH_SYNC_CONTRACT.md)."""
 
-    async def _handler(session: AsyncSession, _principal: Principal) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed = parse_uuid(project_id, "project_id")
         if isinstance(parsed, dict):
             return parsed
 
-        tasks = await projects_service.get_active_tasks(session, parsed)
-        claims = await projects_service.get_active_claims(session, parsed)
+        tasks = await projects_service.get_active_tasks(session, principal, parsed)
+        claims = await projects_service.get_active_claims(session, principal, parsed)
         machine_ids = {t.claimed_by_machine_id for t in tasks if t.claimed_by_machine_id}
         machine_ids.update(c.claimed_by_machine_id for c in claims)
 

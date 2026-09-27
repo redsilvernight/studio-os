@@ -11,6 +11,7 @@
         "daemon.restart",
         "daemon.health",
         "identity.get_view",
+        "identity.enroll",
         "workspace.validate",
         "workspace.get_config",
         "workspace.confirm_roots",

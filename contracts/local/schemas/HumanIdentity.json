@@ -23,7 +23,7 @@
     }
   },
   "additionalProperties": false,
-  "description": "The person using the Desktop. Authenticated by a short-lived session\nthat lives in the renderer/dashboard; its credential is never part of any\nlocal contract.",
+  "description": "The person using the Desktop. Authenticated by a short-lived session\nthat lives in the renderer/dashboard; its credential is part of no local\ncontract except the single, write-only `IdentityEnrollRequest.human_session`\n(DEC-0130).",
   "properties": {
     "display_name": {
       "maxLength": 200,

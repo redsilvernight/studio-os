@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.work_session import WorkSessionModel
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import sessions as sessions_service
-from studio_api.services.authz import Principal, ensure_can_write
+from studio_api.services.authz import Principal
 from studio_contracts.sessions import WorkSessionCreate
 
 from studio_mcp.errors import run_tool
@@ -29,14 +29,16 @@ def _compact_session(work_session: WorkSessionModel) -> dict[str, Any]:
 async def studio_get_sessions(ctx: Context, task_id: str | None = None) -> dict[str, Any]:
     """List work sessions, optionally filtered by task_id (UUID string)."""
 
-    async def _handler(session: AsyncSession, _principal: Principal) -> dict[str, Any]:
+    async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed_task_id = None
         if task_id is not None:
             parsed = parse_uuid(task_id, "task_id")
             if isinstance(parsed, dict):
                 return parsed
             parsed_task_id = parsed
-        work_sessions = await sessions_service.list_sessions(session, task_id=parsed_task_id)
+        work_sessions = await sessions_service.list_sessions(
+            session, principal, task_id=parsed_task_id
+        )
         return {"sessions": [_compact_session(s) for s in work_sessions]}
 
     return await run_tool(ctx, _handler)
@@ -63,7 +65,7 @@ async def studio_start_session(
             parsed_agent_id = parsed
         # Ahead of `run_idempotent_dict`'s replay short-circuit — see
         # `routers/tasks.py::create_task` for why (DEC-0036).
-        ensure_can_write(principal, "session")
+        await sessions_service.authorize_start(session, principal, parsed_task_id)
 
         async def _create() -> dict[str, Any]:
             work_session = await sessions_service.start_session(

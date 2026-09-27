@@ -9,7 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.claims import ResourceClaimCreate
 
 from studio_api.db.models.claim import ResourceClaimModel
-from studio_api.services.authz import Principal, ensure_can_write, ensure_machine_owned
+from studio_api.services.authz import (
+    Principal,
+    ensure_can_write,
+    ensure_machine_owned,
+    ensure_project_access,
+    project_visibility_clause,
+)
 
 
 async def _active_claims(session: AsyncSession, project_id: uuid.UUID) -> list[ResourceClaimModel]:
@@ -43,13 +49,25 @@ def paths_conflict(a_path: str, a_type: str, b_path: str, b_type: str) -> bool:
 
 
 async def list_claims(
-    session: AsyncSession, project_id: uuid.UUID | None = None
+    session: AsyncSession, principal: Principal, project_id: uuid.UUID | None = None
 ) -> list[ResourceClaimModel]:
     stmt = select(ResourceClaimModel)
     if project_id is not None:
+        ensure_project_access(principal, project_id)
         stmt = stmt.where(ResourceClaimModel.project_id == project_id)
+    elif (
+        visible := project_visibility_clause(principal, ResourceClaimModel.project_id)
+    ) is not None:
+        stmt = stmt.where(visible)
     result = await session.execute(stmt)
     return list(result.scalars().all())
+
+
+def authorize_create(principal: Principal, project_id: uuid.UUID) -> None:
+    """Project then role check of a claim creation. Callers run it ahead of
+    the idempotency replay short-circuit (DEC-0036, DEC-0103 §12)."""
+    ensure_project_access(principal, project_id, "write")
+    ensure_can_write(principal, "claim")
 
 
 async def create_claim(
@@ -62,7 +80,7 @@ async def create_claim(
     """Soft lock: a conflict is surfaced (`resource.conflict` event, left to the
     router) but never blocks the write here — see AI/01_AI_OPERATING_REFERENCE.md
     interdiction on blocking locks."""
-    ensure_can_write(principal, "claim")
+    authorize_create(principal, claim_in.project_id)
     now = datetime.now(UTC)
     claim = ResourceClaimModel(
         project_id=claim_in.project_id,
@@ -94,6 +112,7 @@ async def has_conflict(session: AsyncSession, claim: ResourceClaimModel) -> bool
 async def renew_claim(
     session: AsyncSession, principal: Principal, claim: ResourceClaimModel
 ) -> ResourceClaimModel:
+    ensure_project_access(principal, claim.project_id, "write")
     ensure_machine_owned(principal, claim.claimed_by_machine_id, "claim", "renew")
     now = datetime.now(UTC)
     claim.renewed_at = now
@@ -106,6 +125,7 @@ async def renew_claim(
 async def release_claim(
     session: AsyncSession, principal: Principal, claim: ResourceClaimModel
 ) -> ResourceClaimModel:
+    ensure_project_access(principal, claim.project_id, "write")
     ensure_machine_owned(principal, claim.claimed_by_machine_id, "claim", "release")
     claim.status = "released"
     claim.released_at = datetime.now(UTC)

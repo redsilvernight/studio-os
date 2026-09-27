@@ -50,6 +50,7 @@ from studio_contracts.roadmaps import (
 
 from studio_api.services import roadmaps as roadmaps_service
 from studio_api.services import tasks as tasks_service
+from studio_api.services.authz import Principal
 
 __all__ = [
     # Canonical contract re-exports (live in studio_contracts.project_context).
@@ -373,6 +374,7 @@ def _overview(
 
 async def select_roadmap(
     session: AsyncSession,
+    principal: Principal,
     project_id: uuid.UUID,
     task_id: uuid.UUID | None,
     known_tasks: dict[uuid.UUID, TaskLocation],
@@ -390,18 +392,20 @@ async def select_roadmap(
             # By status, so archived roadmaps never crowd out an older active one
             # and only the roadmaps that matter are read.
             summaries = list(
-                await roadmaps_service.list_roadmaps(session, project_id, RoadmapStatus.ACTIVE, 1)
+                await roadmaps_service.list_roadmaps(
+                    session, principal, project_id, RoadmapStatus.ACTIVE, 1
+                )
             )
             for other in _OVERVIEW_RANK:
                 rows = await roadmaps_service.list_roadmaps(
-                    session, project_id, other, MAX_ROADMAPS_SCANNED
+                    session, principal, project_id, other, MAX_ROADMAPS_SCANNED
                 )
                 selection.scan_capped = selection.scan_capped or len(rows) == MAX_ROADMAPS_SCANNED
                 summaries.extend(rows)
             selection.overview = _overview(summaries, limit, selection)
             active = next((s for s in summaries if s.status is RoadmapStatus.ACTIVE), None)
             if active is not None:
-                detail = await roadmaps_service.get_roadmap(session, active.id)
+                detail = await roadmaps_service.get_roadmap(session, principal, active.id)
                 pending = sum(
                     1
                     for s in summaries

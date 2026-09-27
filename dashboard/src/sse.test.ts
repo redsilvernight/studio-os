@@ -208,6 +208,41 @@ describe("openLiveProjectStream", () => {
     handle.close();
   });
 
+  it.each([403, 401])("stops for good on HTTP %i instead of retrying forever", async (status) => {
+    const fetchMock = vi.fn(() => Promise.resolve(new Response("", { status })));
+    vi.stubGlobal("fetch", fetchMock);
+    const denied: number[] = [];
+    const handle = openLiveProjectStream("", "tok", "proj-1", {
+      onMessage: () => {},
+      onDenied: (s) => denied.push(s),
+    });
+
+    await vi.waitFor(() => expect(denied).toEqual([status]));
+    await vi.advanceTimersByTimeAsync(120000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(handle.closed).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("keeps retrying a transient HTTP failure (503)", async () => {
+    const fetchMock = vi.fn(() => Promise.resolve(new Response("", { status: 503 })));
+    vi.stubGlobal("fetch", fetchMock);
+    const onDenied = vi.fn();
+    const handle = openLiveProjectStream(
+      "",
+      "tok",
+      "proj-1",
+      { onMessage: () => {}, onDenied },
+      { backoffInitialMs: 1000 },
+    );
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await vi.advanceTimersByTimeAsync(2500);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(onDenied).not.toHaveBeenCalled();
+    handle.close();
+  });
+
   it("close() during a pending backoff prevents any further reconnect and leaves no pending timer", async () => {
     installFetch(1);
     const handle = openLiveProjectStream("", "tok", "proj-1", { onMessage: () => {} });

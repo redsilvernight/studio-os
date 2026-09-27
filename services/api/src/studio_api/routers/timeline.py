@@ -6,8 +6,8 @@ from uuid import UUID
 from fastapi import APIRouter, Query
 from studio_contracts.timeline import Timeline
 
-from studio_api.deps import CurrentMachine, DbSession
-from studio_api.openapi_meta import RESP_401_UNAUTHORIZED
+from studio_api.deps import CurrentPrincipal, DbSession
+from studio_api.openapi_meta import RESP_401_UNAUTHORIZED, RESP_403_FORBIDDEN
 from studio_api.services import timeline as timeline_service
 
 router = APIRouter(prefix="/api/v1/timeline", tags=["timeline"])
@@ -21,17 +21,18 @@ router = APIRouter(prefix="/api/v1/timeline", tags=["timeline"])
         "full history, not an actionable signal (see GET /review-queue for "
         "that). Inherits GET /events's 'not claimed exhaustive' honesty: "
         "several event types have no server-side emission yet. Any "
-        "authenticated machine may read."
+        "authenticated machine with access to the project may read; any "
+        "other project answers `403 forbidden`."
     ),
-    responses={**RESP_401_UNAUTHORIZED},
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
 )
 async def get_timeline(
     session: DbSession,
-    machine: CurrentMachine,
+    principal: CurrentPrincipal,
     project_id: UUID = Query(...),
     since: datetime | None = Query(default=None),
     limit: int = Query(default=200, le=500),
 ) -> Timeline:
     return await timeline_service.get_timeline(
-        session, project_id=project_id, since=since, limit=limit
+        session, principal, project_id=project_id, since=since, limit=limit
     )

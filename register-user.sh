@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Studi'OS — administrateur : provisionner un utilisateur humain sur
-# l'instance déployée. Opération privilégiée côté serveur ; aucune inscription
-# publique n'existe et aucune API anonyme ne crée de compte.
+# l'instance déployée. Opération privilégiée côté serveur : le compte est créé
+# vérifié, avec le rôle choisi. L'inscription publique (A4, DEC-0109) est un
+# chemin distinct, fermé par défaut (STUDIO_PUBLIC_REGISTRATION_ENABLED=false),
+# qui ne crée que des comptes `readonly` sans accès projet.
 #
 # Usage : ./register-user.sh
 #

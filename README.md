@@ -81,6 +81,21 @@ Tailscale ou nom d'hôte), surchargeable via `STUDIO_PUBLIC_BASE_URL`.
 - **bootstrap** : le tout premier admin est créé hors-bande (`bootstrap.sh`) ;
   `register-user.sh` ne le remplace pas et n'ouvre aucune inscription publique.
 
+### Inscription publique et récupération de compte (A4, DEC-0109)
+
+- **Fermée par défaut** : `STUDIO_PUBLIC_REGISTRATION_ENABLED=false`, et OFF sur
+  toute instance exposée jusqu'au gate C4. Ouverte, elle ne crée que des comptes
+  `readonly`, en attente de vérification e-mail, sans aucun accès projet : un
+  admin accorde ensuite les memberships. La fermer n'affecte aucun compte existant.
+- **E-mails** : `STUDIO_EMAIL_BACKEND` = `disabled` (défaut), `file` (dev local,
+  fichiers `.eml` dans `STUDIO_EMAIL_FILE_DIR`) ou `smtp` (`STUDIO_EMAIL_FROM`,
+  `STUDIO_SMTP_*`, secrets uniquement dans `.env`). Les liens pointent vers
+  `STUDIO_PUBLIC_BASE_URL`. L'API refuse de démarrer sur une configuration
+  incohérente (inscription sans backend, `file` en production, base URL non HTTPS).
+- **Mot de passe** : oublié/réinitialisation dès qu'un backend e-mail existe,
+  changement authentifié toujours ; les deux révoquent toutes les sessions.
+  Contrat : `TECH/02_API_CONTRACT.md`, section Inscription publique.
+
 
 ## Tests
 

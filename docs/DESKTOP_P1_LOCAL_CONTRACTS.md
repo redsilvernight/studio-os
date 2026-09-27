@@ -47,7 +47,11 @@ un test échoue si l'export diverge des builders Python.
   version de paquet. Résultats : `compatible`, `compatible_degraded`,
   `daemon_too_old`, `desktop_too_old`, `capability_missing`,
   `protocol_incompatible`. Échec = fail-closed (`silent_fallback: false`).
-- **Bridge** : 33 commandes et 4 événements, table `CommandSpec` par commande
+  En `compatible_degraded`, la remédiation est `update_daemon` dès qu'une
+  capability optionnelle est inconnue du démon (`missing_optional`), et
+  `install_optional_component` seulement quand un composant présent n'est pas
+  prêt (`degraded`).
+- **Bridge** : 34 commandes et 4 événements, table `CommandSpec` par commande
   (capability, mutation, annulation, délai, tailles). Aucune primitive shell,
   filesystem arbitraire, spawn ou proxy HTTP ; `allowlist_violations()` doit
   renvoyer `[]`.
@@ -66,7 +70,10 @@ un test échoue si l'export diverge des builders Python.
   refusé (`IDENTITY_MISMATCH`).
 - **Workspace** : aucun secret, uniquement `SecretReference`. Six états de santé.
 - **Identités** : `HumanIdentity` et `MachineIdentity` sont deux types ; seules
-  les références et leur statut traversent la frontière.
+  les références et leur statut traversent la frontière, à une exception près :
+  `identity.enroll` (DEC-0130) porte la session humaine en entrée seule
+  (`IdentityEnrollRequest.human_session`, `SecretStr`, jamais renvoyée ni
+  journalisée) pour enregistrer le poste sans administrateur.
 - **Providers** : Knowledge (Markdown canonique, index dérivé, Obsidian
   optionnel), Code Graph (aucun détail Graphify dans les contrats publics ;
   `graphify` n'apparaît que comme valeur d'identifiant d'adaptateur dans les

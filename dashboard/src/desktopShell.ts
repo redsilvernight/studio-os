@@ -9,6 +9,8 @@
  */
 import { apiBaseUrl } from "./api";
 import { setApiObserver } from "./apiEvents";
+import { setClientFamily } from "./clientIdentity";
+import { showClientUpdateAdvisory, showClientUpgradeRequired as showUpgradeRequired } from "./clientUpgradeUi";
 import { joinUrl } from "./config";
 import { createConnectionMonitor, type ConnectionMonitor, type ConnectionSnapshot } from "./connection";
 import type { DesktopInfo, Platform, ServerOriginState } from "./platform";
@@ -17,6 +19,7 @@ import type { HandshakeResponse } from "./platform/generated/local-contracts.gen
 import {
   DAEMON_ABANDONED,
   DAEMON_RECOVERING,
+  daemonRecovering,
   shellStatusHtml,
   summarizeDaemonAnswer,
   summarizeHealth,
@@ -28,6 +31,13 @@ import {
 
 const DEFAULT_PROFILE_ID = "default";
 const PROBE_TIMEOUT_MS = 5000;
+/**
+ * Follow-up reads while the daemon is starting or being restarted: the first
+ * read often lands during the sidecar start (cold start, update restart) and
+ * nothing else would read it again. Backs off, never stops while transient.
+ */
+const TRANSIENT_RETRY_FIRST_MS = 1000;
+const TRANSIENT_RETRY_MAX_MS = 15000;
 
 export interface DesktopShellHooks {
   /** Repaint the current view (the server came back). */
@@ -45,9 +55,33 @@ export interface DesktopShell {
   origin: ServerOriginState | null;
   daemon: DaemonSummary;
   hooks: DesktopShellHooks | null;
+  /** Last handshake advice: the daemon lacks an optional capability entirely. */
+  daemonAdvice?: "update_daemon" | null;
 }
 
 let shell: DesktopShell | null = null;
+let transientRetry: ReturnType<typeof setTimeout> | null = null;
+let transientDelay = TRANSIENT_RETRY_FIRST_MS;
+
+function cancelTransientRetry(): void {
+  if (transientRetry !== null) clearTimeout(transientRetry);
+  transientRetry = null;
+}
+
+/** Read the daemon again later while it only reports a transient state. */
+function followTransientState(target: DesktopShell): void {
+  cancelTransientRetry();
+  if (!daemonRecovering(target.daemon)) {
+    transientDelay = TRANSIENT_RETRY_FIRST_MS;
+    return;
+  }
+  const delay = transientDelay;
+  transientDelay = Math.min(transientDelay * 2, TRANSIENT_RETRY_MAX_MS);
+  transientRetry = setTimeout(() => {
+    transientRetry = null;
+    if (shell === target) void refreshDaemon(target);
+  }, delay);
+}
 
 /** The Desktop shell, or `null` on the web / before `prepareDesktop`. */
 export function getDesktopShell(): DesktopShell | null {
@@ -114,6 +148,10 @@ async function negotiate(target: DesktopShell): Promise<
     // A refused handshake is a version/capability incompatibility, shown as such.
     return { ok: false, summary: { kind: "error", code: "protocol_incompatible" } };
   }
+  // An older daemon that does not know an optional capability at all:
+  // updating it (not installing a component) restores the feature.
+  target.daemonAdvice =
+    reply.outcome === "compatible_degraded" && reply.remediation === "update_daemon" ? "update_daemon" : null;
   return { ok: true, granted: new Set(reply.granted_capabilities ?? []) };
 }
 
@@ -149,6 +187,7 @@ export async function refreshDaemon(target: DesktopShell | null = shell): Promis
     target.daemon =
       negotiated.summary.kind === "error" ? supervisorSummary(target, negotiated.summary.code) : negotiated.summary;
     paintShellStatus();
+    followTransientState(target);
     return target.daemon;
   }
   const answer = await target.platform.request("daemon.status", { action: "status", profile });
@@ -165,6 +204,7 @@ export async function refreshDaemon(target: DesktopShell | null = shell): Promis
     target.daemon = summary;
   }
   paintShellStatus();
+  followTransientState(target);
   return target.daemon;
 }
 
@@ -174,6 +214,7 @@ export async function refreshDaemon(target: DesktopShell | null = shell): Promis
  */
 export async function prepareDesktop(platform: Platform): Promise<DesktopShell | null> {
   if (platform.mode !== "desktop") return null;
+  setClientFamily("desktop");
   const monitor = createConnectionMonitor({
     probe: probeHealth,
     schedule: (callback, delay) => {
@@ -213,6 +254,8 @@ export async function prepareDesktop(platform: Platform): Promise<DesktopShell |
     reachable: () => monitor.reportReachable(),
     networkError: () => monitor.reportNetworkError(),
     unauthorized: () => monitor.reportUnauthorized(),
+    clientUpdate: (latest) => showClientUpdateAdvisory(latest),
+    upgradeRequired: (info) => showUpgradeRequired(info),
   });
   void monitor.check().then(() => refreshDaemon(created));
   return created;
@@ -260,6 +303,8 @@ export function serverSnapshot(target: DesktopShell | null = shell): ConnectionS
 export function resetDesktopShellForTests(): void {
   shell?.monitor.stop();
   shell = null;
+  cancelTransientRetry();
+  transientDelay = TRANSIENT_RETRY_FIRST_MS;
   setApiObserver(null);
   setServerOriginOverride(null);
 }

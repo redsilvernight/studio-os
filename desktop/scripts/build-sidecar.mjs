@@ -15,6 +15,15 @@ export const sidecarDist = join(buildDir, "sidecar", "dist", "studio-daemon");
 // Present in the build environment (workspace dev group) but never imported by the daemon.
 const DEV_TOOLING = ["mypy", "mypy_extensions", "pytest", "_pytest", "pluggy", "iniconfig", "pygments", "tkinter"];
 
+// AWS SDK, statically traced but never used at runtime (B3): pydantic-settings
+// eagerly imports its (lazy) AWS Secrets Manager provider module, so
+// modulegraph pulls boto3/botocore even though the daemon never creates an S3
+// client — transfers go through pre-signed URLs over httpx, and ClientConfig
+// never enables the AWS settings source. Excluding the whole chain (botocore
+// data models alone were ~24 MB). Do NOT extend this to urllib3/dateutil,
+// which other runtime imports may still use.
+const AWS_UNUSED = ["boto3", "botocore", "s3transfer", "jmespath"];
+
 const work = join(buildDir, "sidecar");
 mkdirSync(work, { recursive: true });
 rmSync(sidecarDist, { recursive: true, force: true });
@@ -28,6 +37,7 @@ await runOrFail(
     "--distpath", join(work, "dist"), "--workpath", join(work, "work"), "--specpath", work,
     "--hidden-import", "keyring.backends.Windows",
     ...DEV_TOOLING.flatMap((module) => ["--exclude-module", module]),
+    ...AWS_UNUSED.flatMap((module) => ["--exclude-module", module]),
     join(desktopDir, "sidecar", "studio_daemon.py"),
   ],
   { cwd: repoRoot },

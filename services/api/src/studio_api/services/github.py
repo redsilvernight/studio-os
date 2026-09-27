@@ -23,7 +23,13 @@ from studio_contracts.events import EventCreate, EventType
 from studio_api.db.models.build import BuildModel, GitHubIntegrationModel
 from studio_api.db.models.project import ProjectModel
 from studio_api.services import events as events_service
-from studio_api.services.authz import Principal, ensure_can_provision
+from studio_api.services.authz import (
+    Principal,
+    ProjectAction,
+    ensure_can_provision,
+    ensure_project_access,
+    project_visibility_clause,
+)
 
 _GITHUB_API = "https://api.github.com"
 
@@ -354,10 +360,26 @@ async def get_integration_by_project(
     return result.scalar_one_or_none()
 
 
+async def get_integration_for(
+    session: AsyncSession, principal: Principal, project_id: UUID, action: ProjectAction = "read"
+) -> GitHubIntegrationModel | None:
+    """`get_integration_by_project` behind the project check, so an
+    inaccessible project never reveals whether it is wired (DEC-0103 §8)."""
+    ensure_project_access(principal, project_id, action)
+    return await get_integration_by_project(session, project_id)
+
+
+def authorize_integration_write(principal: Principal, project_id: UUID) -> None:
+    """Project then role check of a wiring write, run ahead of the
+    idempotency replay short-circuit (DEC-0036, DEC-0103 §12)."""
+    ensure_project_access(principal, project_id, "write")
+    ensure_can_provision(principal, "github_integration")
+
+
 async def create_integration(
     session: AsyncSession, principal: Principal, integration_in: GitHubIntegrationCreate
 ) -> GitHubIntegrationModel:
-    ensure_can_provision(principal, "github_integration")
+    authorize_integration_write(principal, integration_in.project_id)
     project = await session.get(ProjectModel, integration_in.project_id)
     if project is None:
         raise HTTPException(
@@ -391,7 +413,7 @@ async def update_integration(
     integration: GitHubIntegrationModel,
     integration_in: GitHubIntegrationUpdate,
 ) -> GitHubIntegrationModel:
-    ensure_can_provision(principal, "github_integration")
+    authorize_integration_write(principal, integration.project_id)
     if integration_in.repo_full_name is not None:
         integration.repo_full_name = integration_in.repo_full_name
     if integration_in.default_branch is not None:
@@ -405,21 +427,30 @@ async def update_integration(
 
 async def list_builds(
     session: AsyncSession,
+    principal: Principal,
     project_id: UUID | None = None,
     status_value: str | None = None,
     limit: int = 100,
 ) -> list[BuildModel]:
     stmt = select(BuildModel).order_by(BuildModel.created_at.desc()).limit(limit)
     if project_id is not None:
+        ensure_project_access(principal, project_id)
         stmt = stmt.where(BuildModel.project_id == project_id)
+    elif (visible := project_visibility_clause(principal, BuildModel.project_id)) is not None:
+        stmt = stmt.where(visible)
     if status_value is not None:
         stmt = stmt.where(BuildModel.status == status_value)
     result = await session.execute(stmt)
     return list(result.scalars().all())
 
 
-async def get_build(session: AsyncSession, build_id: UUID) -> BuildModel | None:
-    return await session.get(BuildModel, build_id)
+async def get_build(
+    session: AsyncSession, principal: Principal, build_id: UUID
+) -> BuildModel | None:
+    build = await session.get(BuildModel, build_id)
+    if build is not None:
+        ensure_project_access(principal, build.project_id)
+    return build
 
 
 async def fetch_workflow_runs(

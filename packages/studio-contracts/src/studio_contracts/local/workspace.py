@@ -45,12 +45,14 @@ class WorkspaceRoots(LocalContractModel):
 
 
 class LocalFeatures(LocalContractModel):
-    """Every optional local capability is off until the workspace turns it on."""
+    """Every optional local capability is off until the workspace turns it on,
+    except Git watching: observing commits and branches of the workspace's own
+    repositories is what makes a linked folder tracked at all."""
 
     knowledge: bool = False
     code_graph: bool = False
     harness: bool = False
-    watchers: bool = False
+    watchers: bool = True
 
 
 class IndexLocation(LocalContractModel):
@@ -106,6 +108,20 @@ class LocalWorkspaceConfig(LocalContractModel):
     secret_references: list[SecretReference] = Field(default=[], max_length=8)
     created_at: UtcDatetime
     updated_at: UtcDatetime
+
+    @model_validator(mode="before")
+    @classmethod
+    def _default_watcher_config(cls, data: object) -> object:
+        if not isinstance(data, dict) or data.get("watchers") is not None:
+            return data
+        features = data.get("features", {})
+        if isinstance(features, LocalFeatures):
+            enabled = features.watchers
+        elif isinstance(features, dict):
+            enabled = features.get("watchers", True) is True
+        else:
+            return data
+        return {**data, "watchers": {}} if enabled else data
 
     @model_validator(mode="after")
     def _features_have_config(self) -> Self:

@@ -75,8 +75,8 @@
 	reverse_proxy minio:9000
 }
 
-# S3 API dedie (interim) : permet aux URLs pre-signees d'etre joignables via
-# l'hote Tailscale sans DNS public, tout en gardant MinIO non publie.
+# Flo-laptop only publishes this listener on 127.0.0.1 through the dedicated
+# Compose overlay. Tailscale Serve terminates TLS on :8443 and forwards here.
 :9000 {
 	reverse_proxy minio:9000
 }

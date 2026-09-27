@@ -459,7 +459,7 @@ async def test_p13_no_cross_project_shadowing(
     admin, _ = p13_admin
     owner_a = await _principal(db_session, machine)
     project_two = await projects_service.create_project(
-        db_session, f"p13-{uuid.uuid4().hex[:8]}", "P13 Second Project", None
+        db_session, f"p13-{uuid.uuid4().hex[:8]}", "P13 Second Project", None, creator=None
     )
     await _create(db_session, admin, AGENT, "iso-shadow", _agent_content("studio"))
     await _create(
@@ -473,7 +473,7 @@ async def test_p13_no_cross_project_shadowing(
     )
 
     other_project = await projects_service.create_project(
-        db_session, f"p13-{uuid.uuid4().hex[:8]}", "P13 Other Project", None
+        db_session, f"p13-{uuid.uuid4().hex[:8]}", "P13 Other Project", None, creator=None
     )
     resolved = (
         await _resolve(client, auth_headers, "iso-shadow", project_id=other_project.id)
@@ -1184,10 +1184,10 @@ async def test_p13_cross_project_isolation(
     admin, _ = p13_admin
     owner_a = await _principal(db_session, machine)
     project_one = await projects_service.create_project(
-        db_session, f"p13-{uuid.uuid4().hex[:8]}", "P13 One", None
+        db_session, f"p13-{uuid.uuid4().hex[:8]}", "P13 One", None, creator=None
     )
     project_two = await projects_service.create_project(
-        db_session, f"p13-{uuid.uuid4().hex[:8]}", "P13 Two", None
+        db_session, f"p13-{uuid.uuid4().hex[:8]}", "P13 Two", None, creator=None
     )
     await _create(db_session, admin, AGENT, "proj-iso", _agent_content())
     await _bind(

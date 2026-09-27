@@ -86,6 +86,8 @@ from studio_contracts.local.harness import (
 from studio_contracts.local.identity import (
     HumanIdentity,
     IdentityBinding,
+    IdentityEnrollOutcome,
+    IdentityEnrollResult,
     IdentityView,
     MachineIdentity,
     ProfileRef,
@@ -166,6 +168,7 @@ DESKTOP_CAPABILITIES = [
     "harness.plan",
     "harness.read",
     "harness.verify",
+    "identity.enroll",
     "identity.view",
     "knowledge.graph",
     "knowledge.index",
@@ -968,6 +971,13 @@ def build_fixtures() -> list[LocalFixture]:
         daemon_peer(code_graph_state=ComponentState.NOT_INSTALLED, drop=frozenset()),
         correlation_id=CORRELATION,
     )
+    # An older daemon that does not know an optional capability at all: the
+    # remedy is updating it, not installing a component.
+    fixtures["runtime.handshake.compatible_daemon_update"] = negotiate(
+        request,
+        daemon_peer(drop=frozenset({"daemon.health"})),
+        correlation_id=CORRELATION,
+    )
     fixtures["runtime.handshake.daemon_too_old"] = negotiate(
         _handshake_request(desktop_peer(_range((2, 0), (2, 1)))),
         daemon_peer(),
@@ -1103,7 +1113,7 @@ def build_fixtures() -> list[LocalFixture]:
         knowledge=False, code_graph=False
     ).model_copy(
         update={
-            "features": LocalFeatures(),
+            "features": LocalFeatures(watchers=False),
             "knowledge": None,
             "code_graph": None,
             "watchers": None,
@@ -1191,6 +1201,17 @@ def build_fixtures() -> list[LocalFixture]:
         _secret_status(
             SecretStatus.WRONG_PROFILE, LocalErrorCode.WRONG_PROFILE, profile=OTHER_PROFILE
         )
+    )
+    # A5 enrollment (DEC-0130): results only. A request carries the write-only
+    # human session, which no fixture may hold.
+    fixtures["identity.enroll.enrolled"] = IdentityEnrollResult(
+        outcome=IdentityEnrollOutcome.ENROLLED,
+        machine_id=MACHINE_ID,
+        view=_identity_view(_secret_status(SecretStatus.PRESENT, None)),
+    )
+    fixtures["identity.enroll.already_enrolled"] = IdentityEnrollResult(
+        outcome=IdentityEnrollOutcome.ALREADY_ENROLLED,
+        view=_identity_view(_secret_status(SecretStatus.PRESENT, None)),
     )
 
     fixtures["knowledge.status.disabled"] = _knowledge_status(
@@ -1599,6 +1620,28 @@ def build_invalid_fixtures() -> list[InvalidFixture]:
             "SecretReference",
             {**_dump(secret_reference()), "value": "hunter2"},
             "unknown field: a reference has no value",
+        ),
+        InvalidFixture(
+            "identity.enroll.session_bad_shape",
+            "IdentityEnrollRequest",
+            {
+                "profile": _dump(PROFILE),
+                "human_session": "not a session value at all",
+                "machine_name": "dev-workstation",
+            },
+            "the human session only holds token characters",
+        ),
+        InvalidFixture(
+            "identity.enroll.session_too_short",
+            "IdentityEnrollRequest",
+            {"profile": _dump(PROFILE), "human_session": "short", "machine_name": "dev"},
+            "the human session is at least 16 characters",
+        ),
+        InvalidFixture(
+            "identity.enroll.enrolled_without_machine",
+            "IdentityEnrollResult",
+            {**_valid_data("identity.enroll.enrolled"), "machine_id": None},
+            "an enrolled outcome names the new machine",
         ),
         InvalidFixture(
             "identity.view.revoked_without_error",

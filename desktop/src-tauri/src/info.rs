@@ -8,6 +8,12 @@ use serde_json::{json, Value};
 pub const PRODUCT: &str = "Studi'OS Desktop";
 pub const DESKTOP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// `dev` builds install side by side with the stable one: own identifier,
+/// install folder and daemon data (`STUDIO_DESKTOP_CHANNEL` at build time).
+pub fn dev_channel() -> bool {
+    option_env!("STUDIO_DESKTOP_CHANNEL") == Some("dev")
+}
+
 /// What the Desktop really speaks in P2: daemon status and identity view.
 /// More capabilities are declared by the phase that implements them, never
 /// ahead of time (negotiation is by capability, not by wishful thinking).
@@ -41,12 +47,18 @@ pub const LOCAL_FEATURE_CAPABILITIES: &[&str] = &[
 /// unavailable instead of failing the handshake.
 pub const WORKSPACE_CAPABILITIES: &[&str] = &["workspace.config"];
 
+/// Additive A5 capability (DEC-0130): self-service enrollment of this machine.
+/// Offered but never required: an older daemon answers `compatible_degraded`
+/// and the setup assistant keeps its manual instructions.
+pub const ENROLL_CAPABILITIES: &[&str] = &["identity.enroll"];
+
 fn offered_capabilities() -> Vec<&'static str> {
     P2_CAPABILITIES
         .iter()
         .chain(OPTIONAL_CAPABILITIES.iter())
         .chain(LOCAL_FEATURE_CAPABILITIES.iter())
         .chain(WORKSPACE_CAPABILITIES.iter())
+        .chain(ENROLL_CAPABILITIES.iter())
         .copied()
         .collect()
 }
@@ -56,6 +68,7 @@ fn optional_capabilities() -> Vec<&'static str> {
         .iter()
         .chain(LOCAL_FEATURE_CAPABILITIES.iter())
         .chain(WORKSPACE_CAPABILITIES.iter())
+        .chain(ENROLL_CAPABILITIES.iter())
         .copied()
         .collect()
 }

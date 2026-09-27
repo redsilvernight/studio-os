@@ -1,0 +1,57 @@
+{
+  "$defs": {
+    "ProfileRef": {
+      "additionalProperties": false,
+      "description": "A local profile is one server origin on one machine. Two profiles never\nshare a secret, an outbox partition or a daemon instance.",
+      "properties": {
+        "profile_id": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Profile Id",
+          "type": "string"
+        },
+        "server_origin": {
+          "title": "Server Origin",
+          "type": "string"
+        }
+      },
+      "required": [
+        "profile_id",
+        "server_origin"
+      ],
+      "title": "ProfileRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Enroll this machine for the human signed in on the Desktop, without an\nadmin (A5 self-service). The daemon checks `profile` against its own server\norigin before any network call, uses `human_session` for exactly one\n`POST /api/v1/machines`, stores the returned credential in the OS keyring\nand forgets the session. Validation errors never echo their input.",
+  "properties": {
+    "human_session": {
+      "maxLength": 4096,
+      "minLength": 16,
+      "pattern": "^[A-Za-z0-9._~+/=-]+$",
+      "title": "Human Session",
+      "type": "string"
+    },
+    "machine_name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Machine Name",
+      "type": "string"
+    },
+    "profile": {
+      "$ref": "#/$defs/ProfileRef"
+    },
+    "replace_existing": {
+      "default": false,
+      "title": "Replace Existing",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "profile",
+    "human_session",
+    "machine_name"
+  ],
+  "title": "IdentityEnrollRequest",
+  "type": "object"
+}

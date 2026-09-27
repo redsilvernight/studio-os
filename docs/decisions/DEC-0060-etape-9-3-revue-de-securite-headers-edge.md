@@ -66,3 +66,9 @@ aucune migration).
   compose mono-nœud (invariant documenté dans `middleware.py:65-68`).
 - Rotation/révocation périodique : déjà couverte (9.5, `docker/revoke-machine.sh`,
   `STUDIO_JWT_SECRET`, checklist cochée).
+
+## Amendements
+
+(Acceptés le 2026-09-25 ; le détail fait foi dans le fichier cité.)
+
+- DU0-C (`DU0-C-trusted-proxy-rate-limiting.md`, DEC-0106) : chaîne de proxys de confiance et rate limiting `429` + `Retry-After` (contrat 2).

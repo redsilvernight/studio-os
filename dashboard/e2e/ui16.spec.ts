@@ -177,12 +177,14 @@ test.describe("UI-16 erreurs, confirmations, formulaires", () => {
     expectClean(watch);
   });
 
-  test("401 : l'échec d'authentification reste lisible, sans crash", async ({ page }) => {
+  test("401 : la session terminée renvoie au login avec un message explicite, sans crash", async ({ page }) => {
     const watch = watchErrors(page);
-    await login(page, "#/tasks", newCaptured(), { tasksUnauthorized: true });
-    const alert = page.locator("#view [role=alert]").first();
-    await expect(alert).toContainText("Tâches indisponibles");
-    await expect(alert).toContainText("Votre session n'est plus valide");
+    await login(page, "#/machines", newCaptured(), { tasksUnauthorized: true });
+    await page.evaluate(() => {
+      location.hash = "#/tasks";
+    });
+    await expect(page.getByTestId("login-notice")).toContainText("Votre session a expiré ou a été révoquée");
+    await expect(page.locator("#login-form")).toBeVisible();
     expectClean(watch);
   });
 

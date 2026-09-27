@@ -92,16 +92,17 @@ def _print_models(models: list[BaseModel], *, as_json: bool) -> None:
 
 async def _with_client(
     config: ClientConfig, action: Callable[[StudioApiClient], Awaitable[Any]]
-) -> Any:
+) -> tuple[Any, StudioApiClient]:
     async with StudioApiClient(config, KeyringTokenStore()) as client:
-        return await action(client)
+        result = await action(client)
+        return result, client
 
 
 def _run(config: ClientConfig, action: Callable[[StudioApiClient], Awaitable[Any]]) -> Any:
     """Every subcommand's single entry into async code — `StudioApiClient`
     is async-only, but the CLI itself is a synchronous argparse program."""
     try:
-        return asyncio.run(_with_client(config, action))
+        result, client = asyncio.run(_with_client(config, action))
     except MissingMachineToken as exc:
         print(str(exc), file=sys.stderr)
         raise SystemExit(1) from None
@@ -109,6 +110,10 @@ def _run(config: ClientConfig, action: Callable[[StudioApiClient], Awaitable[Any
         label = exc.error_code or exc.message
         print(f"error: {label} ({exc.status_code})", file=sys.stderr)
         raise SystemExit(1) from None
+    if client.update_recommended:
+        latest = client.latest_version or "the latest release"
+        print(f"note: client {latest} is available; update recommended.", file=sys.stderr)
+    return result
 
 
 def login(argv: Sequence[str] | None = None) -> int:
@@ -770,6 +775,38 @@ def _adapters_check(args: argparse.Namespace, config: ClientConfig | None) -> No
         raise SystemExit(1)
 
 
+def _workspaces_register(args: argparse.Namespace, config: ClientConfig) -> None:
+    from studio_contracts.local.identity import ProfileRef
+    from studio_workspaces import WorkspaceStoreError, register_workspace
+
+    project_id = _parse_uuid(args.project_id, field="project_id")
+    registry_dir = Path(args.registry_dir) if args.registry_dir else default_config_path().parent
+    try:
+        profile = ProfileRef(
+            profile_id=config.profile_id, server_origin=origin_of(config.api_base_url)
+        )
+        result = register_workspace(
+            registry_dir, profile, project_id, args.path, project_slug=args.slug
+        )
+    except WorkspaceStoreError as exc:
+        print(f"error: {exc} ({exc.code.value})", file=sys.stderr)
+        raise SystemExit(1) from None
+    except ValidationError as exc:
+        print(f"error: invalid workspace: {exc.errors()[0]['msg']}", file=sys.stderr)
+        raise SystemExit(1) from None
+    summary = {
+        "action": result.action.value,
+        "workspace_id": str(result.config.workspace_id),
+        "project_id": str(result.config.project_id),
+        "workspace_root": result.config.roots.workspace_root,
+        "watchers": result.config.features.watchers,
+    }
+    if args.json:
+        print(json.dumps(summary))
+    else:
+        print(f"{summary['action']}	{summary['workspace_id']}	{summary['workspace_root']}")
+
+
 def _rules_sync(args: argparse.Namespace, config: ClientConfig | None) -> None:
     """Regenerate rule projections (P3): `.claude/rules/*.md` plus the
     AGENTS.md rules block, both from `.agents/rules/`. Never merges."""
@@ -1053,6 +1090,23 @@ def _build_parser() -> argparse.ArgumentParser:
     notifications_list.add_argument("--conflict-window-hours", type=int, default=None)
     _add_json_flag(notifications_list)
     notifications_list.set_defaults(func=_notifications_list)
+
+    workspaces_parser = subparsers.add_parser(
+        "workspaces", help="Machine-local workspaces followed by the daemon."
+    )
+    workspaces_sub = workspaces_parser.add_subparsers(dest="workspaces_command", required=True)
+    workspaces_register = workspaces_sub.add_parser(
+        "register",
+        help="Link a folder to a project with Git watching on (idempotent).",
+    )
+    workspaces_register.add_argument("--path", required=True, help="Absolute folder path.")
+    workspaces_register.add_argument("--project-id", required=True, help="Project UUID.")
+    workspaces_register.add_argument("--slug", help="Project slug.")
+    workspaces_register.add_argument(
+        "--registry-dir", help="Workspace registry directory (default: the daemon's)."
+    )
+    _add_json_flag(workspaces_register)
+    workspaces_register.set_defaults(func=_workspaces_register)
 
     timeline_parser = subparsers.add_parser("timeline", help="Day-grouped project activity.")
     timeline_sub = timeline_parser.add_subparsers(dest="timeline_command", required=True)

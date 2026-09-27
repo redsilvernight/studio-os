@@ -42,6 +42,8 @@ vendor. No server contract changes; nothing in P2+ is implemented.
 - **Identities**: `HumanIdentity` and `MachineIdentity` are distinct types.
   Only `SecretReference`/`SecretReferenceStatus` cross the boundary; secret
   values are rejected by structural guards.
+  Amendment (DEC-0130, accepted 2026-09-26): `identity.enroll` carries the human session
+  as the single write-only secret input (`IdentityEnrollRequest.human_session`).
 - **KnowledgeProvider / CodeGraphProvider / HarnessAdapter**: provider-neutral
   contracts sharing one provider-state invariant. Markdown stays canonical, the
   index is derived, Obsidian is optional, Graphify is a non-canonical adapter
