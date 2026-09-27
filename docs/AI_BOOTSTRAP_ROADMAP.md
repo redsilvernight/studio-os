@@ -163,13 +163,14 @@ Objectif PDF : auditer les briques, classer global/projet/généré/versionné/l
 décider le contrat de bootstrap sans coder, vérifier l'absence de duplication.
 
 - **STATUS** : audit fait (21/09) et complété (addendum §13, 27/09) ; décisions
-  AIB-A…J **proposées, non acceptées**. La réconciliation Desktop est faite (livré).
+  AIB-A…J **acceptées le 27/09** (fiches DEC-0143…0152 + DEC-0154/0155, serveur
+  et fichiers alignés). La réconciliation Desktop est faite (livré).
   La collision des fiches DEC-0090…0094 est résolue ; les identifiants serveur
   restent distincts selon DEC-0088/DEC-0089 et la CI vérifie l'index ADR.
 - **EXISTING BUILDING BLOCKS** : tout le §2/§3 et le §13 de l'audit.
 - **FILES/MODULES** : `docs/AI_BOOTSTRAP_P0_AUDIT.md`, `docs/decisions/`.
 - **REUSE** : `docs/decisions/` + `scripts.adr_index`.
-- **MISSING** : acceptation ou rejet des DEC AIB-A…J.
+- **MISSING** : aucun (P0 clos le 27/09).
 - **DEPENDENCIES** : aucune.
 - **RISKS** : canal de lancement mal borné (sécurité) ; confusion possible entre
   numéro de fiche ADR et `Decision.readable_id` serveur malgré la table de correspondance.
@@ -248,17 +249,18 @@ Objectif PDF : contrat déclaratif minimal de l'intégration IA d'un projet,
 références par stable keys/versions/bindings, harnesses/capacités/politique, dry-run
 et conflits explicites, aucune écriture distante.
 
-- **STATUS** : MANQUE (aucun contrat existant).
+- **STATUS** : LIVRÉ le 27/09 : `C/bootstrap.py` (`studio.bootstrap/v1` :
+  manifest + dry-run/états/conflits), fixtures valides, 29 tests contrats,
+  `contract-guardian` PASS, CI verte sur `dev`.
 - **EXISTING BUILDING BLOCKS** : `studio.initialization/v1` (`C/initialization.py:175`)
   comme patron preview/apply/`problems`/actions ; `extra="forbid"` ; rejet des clés
   secrètes (`C/runtime.py:64`) ; skill `contract-change` ; agent `contract-guardian`.
-- **FILES/MODULES** : nouveau module de contrat dans `C/` (nom à fixer) ; docs TECH
+- **FILES/MODULES** : module de contrat `C/bootstrap.py` ; docs TECH
   02/05 seulement si contrat serveur ; schémas/fixtures valides+invalides sur le
   modèle de `contracts/local/` (Desktop).
 - **REUSE** : neutralité harness du contrat d'initialisation ; conventions Pydantic ;
   vocabulaire ouvert `harness_ref`.
-- **MISSING** : schéma `studio.bootstrap/v1` (AIB-A) ; représentation des conflits et
-  états ; format du rapport dry-run ; vocabulaire des ids de harness.
+- **MISSING** : aucun (vocabulaire : DEC-0155, implémenté et testé).
 - **DEPENDENCIES** : P0 (AIB-A, AIB-C) ; nommage cohérent avec `studio.local/v1`.
 - **RISKS** : doublonner le plan d'initialisation ; fuite de concepts harness dans le
   Core ; représenter un chemin absolu ou un secret ; migration si `Project.metadata`
