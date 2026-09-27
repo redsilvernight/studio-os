@@ -152,7 +152,9 @@ jobs:
             if ($LASTEXITCODE -ne 0) { "::error title=${step}::$(($out | Out-String).Trim() -replace "`r?`n", " ")"; exit 1 }
           }
           $title = "Studi'OS Desktop $label $version ($short)"
-          $flags = if ($channel -eq "dev") { @("--prerelease", "--latest=false") } else { @("--latest") }
+          # @(...) keeps a one-element array: an `if` expression would unroll it to a
+          # string, and splatting a string passes each character as an argument.
+          $flags = @(if ($channel -eq "dev") { @("--prerelease", "--latest=false") } else { @("--latest") })
           # Never delete before publishing: a failed step must leave the previous
           # release downloadable. The tag is moved with git first, so a refusal
           # stops here with git's own reason and nothing else changed.
