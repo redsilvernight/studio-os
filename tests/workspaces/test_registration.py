@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from uuid import uuid4
 
@@ -49,7 +50,8 @@ def test_registering_twice_changes_nothing(tmp_path: Path) -> None:
     registry, folder = tmp_path / "registry", _folder(tmp_path)
     first = register_workspace(registry, PROFILE, PROJECT_ID, str(folder))
 
-    again = register_workspace(registry, PROFILE, PROJECT_ID, str(folder).upper())
+    same_folder = str(folder).upper() if os.name == "nt" else str(folder)
+    again = register_workspace(registry, PROFILE, PROJECT_ID, same_folder)
 
     assert again.action is RegistrationAction.UNCHANGED
     assert again.config == first.config
