@@ -1,7 +1,7 @@
 ---
 id: DEC-0151
 title: 'AIB-I : agent porte harness et cle stable locale, stable_key reste resolution'
-status: proposed
+status: accepted
 date: '2026-09-27'
 superseded_by: null
 source: docs/AI_BOOTSTRAP_P0_AUDIT.md
@@ -10,7 +10,7 @@ source: docs/AI_BOOTSTRAP_P0_AUDIT.md
 # DEC-0151 — AIB-I : l'agent porte `harness` et clé stable locale
 
 Gate P0 (tâche `6b3d2782`). Proposition issue de l'addendum §13.1–§13.2 (ID
-provisoire AIB-I). Statut `proposed` jusqu'à accord humain.
+provisoire AIB-I). Statut `accepted` (accord humain du 2026-09-27 — fichier et serveur alignés).
 
 ## Proposition
 

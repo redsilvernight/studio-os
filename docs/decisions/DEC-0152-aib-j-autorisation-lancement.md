@@ -1,7 +1,7 @@
 ---
 id: DEC-0152
 title: 'AIB-J : seul le proprietaire de la machine peut y lancer une tache'
-status: proposed
+status: accepted
 date: '2026-09-27'
 superseded_by: null
 source: docs/AI_BOOTSTRAP_P0_AUDIT.md
@@ -10,7 +10,7 @@ source: docs/AI_BOOTSTRAP_P0_AUDIT.md
 # DEC-0152 — AIB-J : seul le propriétaire de la machine peut y lancer une tâche
 
 Gate P0 (tâche `6b3d2782`). Proposition issue de l'addendum §13.2 (ID provisoire
-AIB-J, rév. 3). Statut `proposed` jusqu'à accord humain.
+AIB-J, rév. 3). Statut `accepted` (accord humain du 2026-09-27 — fichier et serveur alignés).
 
 ## Proposition
 

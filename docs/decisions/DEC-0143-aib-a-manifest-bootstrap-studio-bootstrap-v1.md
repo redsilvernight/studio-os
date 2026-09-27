@@ -1,7 +1,7 @@
 ---
 id: DEC-0143
 title: 'AIB-A : bootstrap = composition + manifest minimal studio.bootstrap/v1'
-status: proposed
+status: accepted
 date: '2026-09-27'
 superseded_by: null
 source: docs/AI_BOOTSTRAP_P0_AUDIT.md
@@ -10,7 +10,7 @@ source: docs/AI_BOOTSTRAP_P0_AUDIT.md
 # DEC-0143 — AIB-A : bootstrap = composition + manifest minimal `studio.bootstrap/v1`
 
 Gate P0 (tâche `6b3d2782`). Proposition issue de l'audit §6 et §10 (ID provisoire
-AIB-A). Statut `proposed` jusqu'à accord humain.
+AIB-A). Statut `accepted` (accord humain du 2026-09-27 — fichier et serveur alignés).
 
 ## Proposition
 

@@ -1,7 +1,7 @@
 ---
 id: DEC-0145
 title: 'AIB-C : ownership blocs delimites, anti-drift par adapters check'
-status: proposed
+status: accepted
 date: '2026-09-27'
 superseded_by: null
 source: docs/AI_BOOTSTRAP_P0_AUDIT.md
@@ -10,7 +10,7 @@ source: docs/AI_BOOTSTRAP_P0_AUDIT.md
 # DEC-0145 — AIB-C : ownership par blocs délimités, anti-drift par `adapters check`
 
 Gate P0 (tâche `6b3d2782`). Proposition issue de l'audit §5, §7 et §10 (ID
-provisoire AIB-C). Statut `proposed` jusqu'à accord humain.
+provisoire AIB-C). Statut `accepted` (accord humain du 2026-09-27 — fichier et serveur alignés ; entrée serveur recréée comme DEC-0153 après perte de l'entrée initiale).
 
 ## Proposition
 

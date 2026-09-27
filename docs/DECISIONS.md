@@ -126,13 +126,13 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0104 | Desktop P9 : un identifiant Studi'OS dédié par couple poste + outil d'IA, état token_missing | proposed | [decisions/DEC-0104-desktop-p9-fourniture-jeton-mcp-aux-harnais.md](decisions/DEC-0104-desktop-p9-fourniture-jeton-mcp-aux-harnais.md) |
 | DEC-0126 | Licence du dépôt : Apache-2.0 et inventaire tiers embarqué | active | [decisions/DEC-0126-licence-apache-2-0.md](decisions/DEC-0126-licence-apache-2-0.md) |
 | DEC-0129 | Distribution Windows non signée : pas de certificat Authenticode | active | [decisions/DEC-0129-distribution-windows-non-signee.md](decisions/DEC-0129-distribution-windows-non-signee.md) |
-| DEC-0143 | AIB-A : bootstrap = composition + manifest minimal studio.bootstrap/v1 | proposed | [decisions/DEC-0143-aib-a-manifest-bootstrap-studio-bootstrap-v1.md](decisions/DEC-0143-aib-a-manifest-bootstrap-studio-bootstrap-v1.md) |
-| DEC-0144 | AIB-B : plan de bootstrap calcule cote serveur, en lecture seule | proposed | [decisions/DEC-0144-aib-b-plan-bootstrap-serveur-lecture-seule.md](decisions/DEC-0144-aib-b-plan-bootstrap-serveur-lecture-seule.md) |
-| DEC-0145 | AIB-C : ownership blocs delimites, anti-drift par adapters check | proposed | [decisions/DEC-0145-aib-c-blocs-delimites-antidrift.md](decisions/DEC-0145-aib-c-blocs-delimites-antidrift.md) |
-| DEC-0146 | AIB-D : ressources communes servies a la demande, protocole seul materialise | proposed | [decisions/DEC-0146-aib-d-ressources-a-la-demande.md](decisions/DEC-0146-aib-d-ressources-a-la-demande.md) |
-| DEC-0147 | AIB-E : cablage MCP et harness machine-local, jamais dans le depot | proposed | [decisions/DEC-0147-aib-e-cablage-machine-local.md](decisions/DEC-0147-aib-e-cablage-machine-local.md) |
-| DEC-0148 | AIB-F : lancement distant en modele pull tire par le daemon | proposed | [decisions/DEC-0148-aib-f-lancement-pull.md](decisions/DEC-0148-aib-f-lancement-pull.md) |
-| DEC-0149 | AIB-G : aucune reclamation automatique sans task_id explicite | proposed | [decisions/DEC-0149-aib-g-pas-de-claim-automatique.md](decisions/DEC-0149-aib-g-pas-de-claim-automatique.md) |
-| DEC-0150 | AIB-H : session reprenable meme agent et meme tache | proposed | [decisions/DEC-0150-aib-h-session-reprenable.md](decisions/DEC-0150-aib-h-session-reprenable.md) |
-| DEC-0151 | AIB-I : agent porte harness et cle stable locale, stable_key reste resolution | proposed | [decisions/DEC-0151-aib-i-identite-agent.md](decisions/DEC-0151-aib-i-identite-agent.md) |
-| DEC-0152 | AIB-J : seul le proprietaire de la machine peut y lancer une tache | proposed | [decisions/DEC-0152-aib-j-autorisation-lancement.md](decisions/DEC-0152-aib-j-autorisation-lancement.md) |
+| DEC-0143 | AIB-A : bootstrap = composition + manifest minimal studio.bootstrap/v1 | accepted | [decisions/DEC-0143-aib-a-manifest-bootstrap-studio-bootstrap-v1.md](decisions/DEC-0143-aib-a-manifest-bootstrap-studio-bootstrap-v1.md) |
+| DEC-0144 | AIB-B : plan de bootstrap calcule cote serveur, en lecture seule | accepted | [decisions/DEC-0144-aib-b-plan-bootstrap-serveur-lecture-seule.md](decisions/DEC-0144-aib-b-plan-bootstrap-serveur-lecture-seule.md) |
+| DEC-0145 | AIB-C : ownership blocs delimites, anti-drift par adapters check | accepted | [decisions/DEC-0145-aib-c-blocs-delimites-antidrift.md](decisions/DEC-0145-aib-c-blocs-delimites-antidrift.md) |
+| DEC-0146 | AIB-D : ressources communes servies a la demande, protocole seul materialise | accepted | [decisions/DEC-0146-aib-d-ressources-a-la-demande.md](decisions/DEC-0146-aib-d-ressources-a-la-demande.md) |
+| DEC-0147 | AIB-E : cablage MCP et harness machine-local, jamais dans le depot | accepted | [decisions/DEC-0147-aib-e-cablage-machine-local.md](decisions/DEC-0147-aib-e-cablage-machine-local.md) |
+| DEC-0148 | AIB-F : lancement distant en modele pull tire par le daemon | accepted | [decisions/DEC-0148-aib-f-lancement-pull.md](decisions/DEC-0148-aib-f-lancement-pull.md) |
+| DEC-0149 | AIB-G : aucune reclamation automatique sans task_id explicite | accepted | [decisions/DEC-0149-aib-g-pas-de-claim-automatique.md](decisions/DEC-0149-aib-g-pas-de-claim-automatique.md) |
+| DEC-0150 | AIB-H : session reprenable meme agent et meme tache | accepted | [decisions/DEC-0150-aib-h-session-reprenable.md](decisions/DEC-0150-aib-h-session-reprenable.md) |
+| DEC-0151 | AIB-I : agent porte harness et cle stable locale, stable_key reste resolution | accepted | [decisions/DEC-0151-aib-i-identite-agent.md](decisions/DEC-0151-aib-i-identite-agent.md) |
+| DEC-0152 | AIB-J : seul le proprietaire de la machine peut y lancer une tache | accepted | [decisions/DEC-0152-aib-j-autorisation-lancement.md](decisions/DEC-0152-aib-j-autorisation-lancement.md) |

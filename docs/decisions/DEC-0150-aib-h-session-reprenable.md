@@ -1,7 +1,7 @@
 ---
 id: DEC-0150
 title: 'AIB-H : session reprenable meme agent et meme tache'
-status: proposed
+status: accepted
 date: '2026-09-27'
 superseded_by: null
 source: docs/AI_BOOTSTRAP_P0_AUDIT.md
@@ -10,7 +10,7 @@ source: docs/AI_BOOTSTRAP_P0_AUDIT.md
 # DEC-0150 — AIB-H : session reprenable (même agent, même tâche)
 
 Gate P0 (tâche `6b3d2782`). Proposition issue de l'addendum §13.1–§13.2 (ID
-provisoire AIB-H). Statut `proposed` jusqu'à accord humain.
+provisoire AIB-H). Statut `accepted` (accord humain du 2026-09-27 — fichier et serveur alignés).
 
 ## Proposition
 
