@@ -1,7 +1,7 @@
 ---
 id: DEC-0147
 title: 'AIB-E : cablage MCP et harness machine-local, jamais dans le depot'
-status: proposed
+status: accepted
 date: '2026-09-27'
 superseded_by: null
 source: docs/AI_BOOTSTRAP_P0_AUDIT.md
@@ -10,7 +10,7 @@ source: docs/AI_BOOTSTRAP_P0_AUDIT.md
 # DEC-0147 — AIB-E : câblage MCP/harness machine-local, jamais dans le dépôt
 
 Gate P0 (tâche `6b3d2782`). Proposition issue de l'audit §5 et §10 (ID provisoire
-AIB-E). Statut `proposed` jusqu'à accord humain.
+AIB-E). Statut `accepted` (accord humain du 2026-09-27 — fichier et serveur alignés).
 
 ## Proposition
 

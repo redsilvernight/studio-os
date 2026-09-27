@@ -1,7 +1,7 @@
 ---
 id: DEC-0149
 title: 'AIB-G : aucune reclamation automatique sans task_id explicite'
-status: proposed
+status: accepted
 date: '2026-09-27'
 superseded_by: null
 source: docs/AI_BOOTSTRAP_P0_AUDIT.md
@@ -10,7 +10,7 @@ source: docs/AI_BOOTSTRAP_P0_AUDIT.md
 # DEC-0149 — AIB-G : aucune réclamation automatique sans `task_id` explicite
 
 Gate P0 (tâche `6b3d2782`). Proposition issue de l'addendum §13.2 (ID provisoire
-AIB-G). Statut `proposed` jusqu'à accord humain.
+AIB-G). Statut `accepted` (accord humain du 2026-09-27 — fichier et serveur alignés).
 
 ## Proposition
 

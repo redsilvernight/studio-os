@@ -1,7 +1,7 @@
 ---
 id: DEC-0148
 title: 'AIB-F : lancement distant en modele pull tire par le daemon'
-status: proposed
+status: accepted
 date: '2026-09-27'
 superseded_by: null
 source: docs/AI_BOOTSTRAP_P0_AUDIT.md
@@ -11,7 +11,7 @@ source: docs/AI_BOOTSTRAP_P0_AUDIT.md
 
 Gate P0 (tâche `6b3d2782`). Proposition issue de l'addendum §13.1–§13.2 (ID
 provisoire AIB-F, rév. 3 : cible « depuis le Dashboard, lancer une tâche sur une
-machine en ligne »). Statut `proposed` jusqu'à accord humain.
+machine en ligne »). Statut `accepted` (accord humain du 2026-09-27 — fichier et serveur alignés).
 
 ## Proposition
 
