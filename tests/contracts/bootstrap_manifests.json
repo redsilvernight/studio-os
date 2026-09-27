@@ -1,0 +1,51 @@
+[
+  {
+    "format": "studio.bootstrap/v1",
+    "project": {
+      "slug": "solo-harness",
+      "name": "Projet mono-harness"
+    },
+    "harnesses": [
+      {
+        "id": "claude-code"
+      }
+    ]
+  },
+  {
+    "format": "studio.bootstrap/v1",
+    "project": {
+      "slug": "binding-of-alchemie",
+      "name": "BindingOfAlchemie",
+      "description": "Projet Godot de référence : trois harnesses, confirmation avant écrasement."
+    },
+    "harnesses": [
+      {
+        "id": "claude-code"
+      },
+      {
+        "id": "opencode"
+      },
+      {
+        "id": "codex"
+      }
+    ],
+    "policy": {
+      "on_modified": "ask"
+    }
+  },
+  {
+    "format": "studio.bootstrap/v1",
+    "project": {
+      "slug": "long-tail-harness",
+      "name": "Futur harness inconnu mais bien formé"
+    },
+    "harnesses": [
+      {
+        "id": "my-future-harness-2"
+      }
+    ],
+    "policy": {
+      "on_modified": "refuse"
+    }
+  }
+]
