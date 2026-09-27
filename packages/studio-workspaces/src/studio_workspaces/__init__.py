@@ -14,6 +14,11 @@ from studio_workspaces.path_safety import (
     classify_local_path,
 )
 from studio_workspaces.picker import FolderPicker, MockFolderPicker, SelectedFolder
+from studio_workspaces.registration import (
+    RegistrationAction,
+    WorkspaceRegistration,
+    register_workspace,
+)
 from studio_workspaces.root_confirmation import RootConfirmationService
 from studio_workspaces.secret_guard import SecretMaterialError, assert_no_secrets, scan_studio_dir
 from studio_workspaces.store import DissociateResult, MarkerHit, WorkspaceStore, WorkspaceStoreError
@@ -40,6 +45,7 @@ __all__ = [
     "NativePick",
     "NativePickStatus",
     "PathVerdict",
+    "RegistrationAction",
     "RootConfirmationService",
     "SecretMaterialError",
     "SelectedFolder",
@@ -48,6 +54,7 @@ __all__ = [
     "WorkspaceStore",
     "WorkspaceStoreError",
     "WorkspaceBridge",
+    "WorkspaceRegistration",
     "WorkspaceWatchEntry",
     "assert_no_secrets",
     "check_p5_glob",
@@ -56,6 +63,7 @@ __all__ = [
     "daemon_watch_plan",
     "detect_git",
     "parse_native_pick",
+    "register_workspace",
     "registry_config_source",
     "registry_watch_source",
     "run_flow",

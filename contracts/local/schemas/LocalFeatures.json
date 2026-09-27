@@ -1,6 +1,6 @@
 {
   "additionalProperties": false,
-  "description": "Every optional local capability is off until the workspace turns it on.",
+  "description": "Every optional local capability is off until the workspace turns it on,\nexcept Git watching: observing commits and branches of the workspace's own\nrepositories is what makes a linked folder tracked at all.",
   "properties": {
     "code_graph": {
       "default": false,
@@ -18,7 +18,7 @@
       "type": "boolean"
     },
     "watchers": {
-      "default": false,
+      "default": true,
       "title": "Watchers",
       "type": "boolean"
     }

@@ -155,17 +155,26 @@ def build_watchers(config: ClientConfig, store: OutboxStore) -> list[PollingWatc
         )
         for git_watch in config.git_watches
     ]
-    if config.godot_watch_process_pattern is not None and config.godot_watch_project_id is not None:
-        watchers.append(
-            GodotWatcher(
-                project_id=config.godot_watch_project_id,
-                machine_id=config.machine_id,
-                outbox=store,
-                process_pattern=config.godot_watch_process_pattern,
-                interval_seconds=config.godot_watch_interval_seconds,
-            )
-        )
+    watchers.extend(build_godot_watchers(config, store))
     return watchers
+
+
+def build_godot_watchers(config: ClientConfig, store: OutboxStore) -> list[PollingWatcher]:
+    if (
+        config.machine_id is None
+        or config.godot_watch_process_pattern is None
+        or config.godot_watch_project_id is None
+    ):
+        return []
+    return [
+        GodotWatcher(
+            project_id=config.godot_watch_project_id,
+            machine_id=config.machine_id,
+            outbox=store,
+            process_pattern=config.godot_watch_process_pattern,
+            interval_seconds=config.godot_watch_interval_seconds,
+        )
+    ]
 
 
 def main(argv: Sequence[str] | None = None) -> None:

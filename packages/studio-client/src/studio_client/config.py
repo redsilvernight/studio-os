@@ -173,3 +173,9 @@ class ClientConfig(BaseSettings):
         if toml_path.is_file():
             sources.append(TomlConfigSettingsSource(settings_cls, toml_file=toml_path))
         return tuple(sources)
+
+
+def reload_git_watches(api_base_url: str) -> tuple[GitWatchConfig, ...]:
+    """`git_watches` as currently declared by the environment and the TOML
+    file, so a running daemon picks up edits without a restart."""
+    return ClientConfig(api_base_url=api_base_url).git_watches
