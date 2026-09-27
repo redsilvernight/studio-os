@@ -1,7 +1,7 @@
 ---
 id: DEC-0154
 title: 'P0 : reconciliation Desktop livree, ordre tranche, matrice validee'
-status: proposed
+status: accepted
 date: '2026-09-27'
 superseded_by: null
 source: docs/AI_BOOTSTRAP_P0_AUDIT.md
@@ -10,8 +10,8 @@ source: docs/AI_BOOTSTRAP_P0_AUDIT.md
 # DEC-0154 — P0 : réconciliation Desktop livrée, ordre tranché, matrice validée
 
 Gate P0 (tâche `bb818697`). Clôt les critères « matrice validée » et
-« réconciliation Desktop » de l'étape P0. Statut `proposed` jusqu'à accord
-humain. Vérifié sur `dev` `ab1995a` (roadmap Desktop `d46f7b4a` livrée).
+« réconciliation Desktop » de l'étape P0. Statut `accepted` (accord humain du
+2026-09-27 — fichier et serveur alignés). Vérifié sur `dev` `ab1995a` (roadmap Desktop `d46f7b4a` livrée).
 
 ## Réconciliation §8 : les 4 trous sont comblés, on consomme, on ne recrée pas
 

@@ -136,5 +136,5 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0150 | AIB-H : session reprenable meme agent et meme tache | accepted | [decisions/DEC-0150-aib-h-session-reprenable.md](decisions/DEC-0150-aib-h-session-reprenable.md) |
 | DEC-0151 | AIB-I : agent porte harness et cle stable locale, stable_key reste resolution | accepted | [decisions/DEC-0151-aib-i-identite-agent.md](decisions/DEC-0151-aib-i-identite-agent.md) |
 | DEC-0152 | AIB-J : seul le proprietaire de la machine peut y lancer une tache | accepted | [decisions/DEC-0152-aib-j-autorisation-lancement.md](decisions/DEC-0152-aib-j-autorisation-lancement.md) |
-| DEC-0154 | P0 : reconciliation Desktop livree, ordre tranche, matrice validee | proposed | [decisions/DEC-0154-p0-reconciliation-desktop-ordre.md](decisions/DEC-0154-p0-reconciliation-desktop-ordre.md) |
-| DEC-0155 | P0 : vocabulaire harness canonique kebab-case | proposed | [decisions/DEC-0155-p0-vocabulaire-harness.md](decisions/DEC-0155-p0-vocabulaire-harness.md) |
+| DEC-0154 | P0 : reconciliation Desktop livree, ordre tranche, matrice validee | accepted | [decisions/DEC-0154-p0-reconciliation-desktop-ordre.md](decisions/DEC-0154-p0-reconciliation-desktop-ordre.md) |
+| DEC-0155 | P0 : vocabulaire harness canonique kebab-case | accepted | [decisions/DEC-0155-p0-vocabulaire-harness.md](decisions/DEC-0155-p0-vocabulaire-harness.md) |

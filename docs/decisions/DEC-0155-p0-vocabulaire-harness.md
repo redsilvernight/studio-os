@@ -1,7 +1,7 @@
 ---
 id: DEC-0155
 title: 'P0 : vocabulaire harness canonique kebab-case'
-status: proposed
+status: accepted
 date: '2026-09-27'
 superseded_by: null
 source: docs/AI_BOOTSTRAP_P0_AUDIT.md
@@ -10,7 +10,7 @@ source: docs/AI_BOOTSTRAP_P0_AUDIT.md
 # DEC-0155 — P0 : vocabulaire harness canonique
 
 Gate P0 (tâche `bb818697`). Tranche la question §11.2 (alignement adapters ↔
-`harness_ref`). Statut `proposed` jusqu'à accord humain.
+`harness_ref`). Statut `accepted` (accord humain du 2026-09-27 — fichier et serveur alignés).
 
 ## Proposition
 
