@@ -24,6 +24,10 @@ uv run pytest tests/api/test_c2_failure_cases.py tests/api/test_session_cycle.py
 cd desktop/src-tauri; cargo test --lib updater   # signer : `npm ci` dans desktop/, sinon le test signé est ignoré
 ```
 
-## Parcours nouvel utilisateur (tâche `2295a9ad`) et N-1 → N (tâche `f22d8b10`)
+## Parcours nouvel utilisateur (tâche `2295a9ad`)
 
-À compléter par ces tâches.
+Voir `docs/DESKTOP_C2_NEW_USER_E2E.md` (Web et Desktop contre une API réelle jetable).
+
+## N-1 → N (tâche `f22d8b10`)
+
+À compléter par cette tâche.
