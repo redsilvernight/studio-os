@@ -10,9 +10,10 @@ from uuid import UUID, uuid4
 
 import pytest
 import studio_client.daemon.runtime as runtime_module
-from studio_client.config import ClientConfig
+from studio_client.config import ClientConfig, GitWatchConfig
 from studio_client.daemon.runtime import DaemonRuntime
 from studio_client.daemon.workspace_watch import (
+    CONFIGURED_WATCH_ID,
     RepoStatus,
     WorkspaceWatch,
     WorkspaceWatchSet,
@@ -189,6 +190,40 @@ async def test_crashed_watcher_task_is_replaced_once(tmp_path: Path) -> None:
     await watches.stop()
 
 
+async def test_configured_repo_is_watched_and_wins_over_a_workspace(tmp_path: Path) -> None:
+    watches = make_set(tmp_path)
+    shared = repo(tmp_path, "shared")
+    configured = [GitWatchConfig(repo_path=shared, project_id=PROJECT)]
+    observed = await watches.reconcile([plan_for(WS_A, shared, project=uuid4())], configured)
+    assert [(o.workspace_id, o.status) for o in observed] == [
+        (CONFIGURED_WATCH_ID, RepoStatus.WATCHING),
+        (WS_A, RepoStatus.ALREADY_WATCHED),
+    ]
+    assert watches._running[shared].project_id == PROJECT  # noqa: SLF001
+    assert len(FakeWatcher.instances) == 1
+    await watches.stop()
+
+
+async def test_configured_repo_missing_then_cloned_is_picked_up(tmp_path: Path) -> None:
+    watches = make_set(tmp_path)
+    later = tmp_path / "later"
+    configured = [GitWatchConfig(repo_path=later, project_id=PROJECT)]
+    assert statuses(await watches.reconcile([], configured)) == [RepoStatus.MISSING]
+    (later / ".git").mkdir(parents=True)
+    assert statuses(await watches.reconcile([], configured)) == [RepoStatus.WATCHING]
+    assert watches.watched_paths == [later]
+    await watches.stop()
+
+
+async def test_project_change_restarts_the_watcher(tmp_path: Path) -> None:
+    watches = make_set(tmp_path)
+    path = repo(tmp_path, "game")
+    await watches.reconcile([], [GitWatchConfig(repo_path=path, project_id=PROJECT)])
+    await watches.reconcile([], [GitWatchConfig(repo_path=path, project_id=uuid4())])
+    assert [w.stopped for w in FakeWatcher.instances] == [True, False]
+    await watches.stop()
+
+
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is required")
 async def test_real_git_watcher_reports_a_new_commit_through_the_outbox(tmp_path: Path) -> None:
     path = tmp_path / "real"
@@ -269,3 +304,71 @@ async def test_daemon_runtime_applies_plans_at_start_and_stops_them(
     runtime.request_stop()
     await asyncio.wait_for(task, timeout=5)
     assert runtime._workspace_watches is None  # noqa: SLF001
+
+
+async def test_daemon_runtime_hot_reloads_configured_git_watches(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+    class FakeHeartbeat:
+        def __init__(self, _client, _config, *, agent_id=None, replayer=None):
+            self.stop = asyncio.Event()
+            self.last_attempt_at = None
+            self.last_success_at = None
+            self.last_error = None
+            self.last_replay = None
+
+        def request_stop(self) -> None:
+            self.stop.set()
+
+        async def run(self) -> None:
+            await self.stop.wait()
+
+    monkeypatch.setattr(runtime_module, "StudioApiClient", lambda _config: FakeClient())
+    monkeypatch.setattr(runtime_module, "HeartbeatDaemon", FakeHeartbeat)
+    path = repo(tmp_path, "game")
+    declared: list[GitWatchConfig] = []
+    failing = False
+
+    def source() -> list[GitWatchConfig]:
+        if failing:
+            raise ValueError("invalid config.toml")
+        return list(declared)
+
+    runtime = DaemonRuntime(
+        ClientConfig(
+            api_base_url="https://studio.example/api/v1",
+            profile_id="main",
+            machine_id=MACHINE,
+            git_watch_interval_seconds=0.05,
+        ),
+        data_root=tmp_path / "data",
+        git_watch_source=source,
+        workspace_sync_seconds=0.05,
+    )
+    runtime._legacy_outbox_path = tmp_path / "absent.sqlite3"  # noqa: SLF001
+    task = asyncio.create_task(runtime.run())
+
+    async def watched() -> list[Path]:
+        for _ in range(100):
+            watches = runtime._workspace_watches  # noqa: SLF001
+            if watches is not None and watches.watched_paths:
+                return watches.watched_paths
+            await asyncio.sleep(0.02)
+        return []
+
+    await asyncio.sleep(0.1)
+    assert runtime._workspace_watches.watched_paths == []  # noqa: SLF001
+    declared.append(GitWatchConfig(repo_path=path, project_id=PROJECT))
+    assert await watched() == [path]
+    failing = True
+    await asyncio.sleep(0.15)
+    assert runtime._workspace_watches.watched_paths == [path]  # noqa: SLF001
+    runtime.request_stop()
+    await asyncio.wait_for(task, timeout=5)
