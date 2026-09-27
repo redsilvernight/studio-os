@@ -21,6 +21,8 @@ jobs:
         run: uv python install 3.12
       - name: Sync workspace
         run: uv sync --all-packages
+      - name: ADR index check
+        run: uv run python -m scripts.adr_index --root . --check
       - name: ruff check
         run: uv run ruff check .
       - name: ruff format --check

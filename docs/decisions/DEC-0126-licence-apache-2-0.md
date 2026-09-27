@@ -1,3 +1,11 @@
+---
+id: DEC-0126
+title: "Licence du dépôt : Apache-2.0 et inventaire tiers embarqué"
+status: active
+date: '2026-09-26'
+superseded_by: null
+---
+
 # DEC-0126 — Licence du dépôt : Apache-2.0 + inventaire tiers embarqué
 
 Statut : `accepted` (choix humain exprimé en session B3 du 2026-09-26, accepté

@@ -231,11 +231,23 @@ Réellement nouveau : contrat/manifest de bootstrap ; plan agrégé ; commandes 
 
 ## 10. Propositions de DEC (statut : `proposed`, non numérotées)
 
-Aucune n'est acceptée. Aucun numéro n'est réservé : les IDs `DEC-0090…0094` sont en
-collision entre `master` (Roadmaps P10, accept/supersede) et les branches Desktop
-(Desktop P0…P4), et les IDs serveur divergent des fichiers
-(`ROADMAPS_POST_FINDINGS.md` #5). Numérotation à faire à l'acceptation, après
-`scripts.adr_index --check`.
+Aucune n'est acceptée. Aucun numéro n'est réservé. La collision de branches sur
+`DEC-0090…0094` est résolue dans `dev` : chaque fiche du dépôt possède désormais
+un numéro unique. Conformément à DEC-0088/DEC-0089, le `Decision.readable_id`
+serveur reste un identifiant distinct et n'entraîne aucune renumérotation des
+fiches canoniques du dépôt :
+
+| Fiche canonique | `Decision.readable_id` serveur |
+|---|---|
+| DEC-0090 — Roadmaps P10 | DEC-0089 |
+| DEC-0091 — Desktop/Tauri | DEC-0090 |
+| DEC-0092 — Desktop/Graphify | DEC-0091 |
+| DEC-0093 — contrats locaux | DEC-0093 |
+| DEC-0094 — daemon lifecycle | DEC-0094 |
+
+Les propositions AIB-A…J recevront les prochains numéros libres du dépôt lors de
+leur acceptation. `scripts.adr_index --check` garantit l'unicité et la cohérence
+du registre ; il est exécuté par la CI.
 
 | ID provisoire | Proposition | Alternatives rejetées | Pourquoi une DEC |
 |---|---|---|---|
@@ -262,7 +274,8 @@ locaux (DEC-0074), façade `prepare_context` (DEC-0080), initialisation serveur
    configuration MCP avant P3 (non vérifié ici).
 6. Le script `studio-init-project.ps1` vit hors dépôt (non lu) ; décider s'il est
    absorbé, appelé ou laissé.
-7. `scripts.adr_index --check` n'est pas branché en CI.
+7. Résolu le 2026-09-27 : `scripts.adr_index --check` est branché dans le job CI
+   `lint`, après réparation des front matters DEC-0126, DEC-0129 et DEC-0130.
 8. Références périmées hors périmètre : `CLAUDE.md:36`/`AGENTS.md:36` →
    `docs/ROADMAP_CORRECTIONS_AUDIT.md` (archivé), commentaire de
    `dashboard/src/machinesApi.ts:4`.

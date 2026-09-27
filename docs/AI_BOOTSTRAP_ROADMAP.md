@@ -164,15 +164,17 @@ décider le contrat de bootstrap sans coder, vérifier l'absence de duplication.
 
 - **STATUS** : audit fait (21/09) et complété (addendum §13, 27/09) ; décisions
   AIB-A…J **proposées, non acceptées**. La réconciliation Desktop est faite (livré).
+  La collision des fiches DEC-0090…0094 est résolue ; les identifiants serveur
+  restent distincts selon DEC-0088/DEC-0089 et la CI vérifie l'index ADR.
 - **EXISTING BUILDING BLOCKS** : tout le §2/§3 et le §13 de l'audit.
 - **FILES/MODULES** : `docs/AI_BOOTSTRAP_P0_AUDIT.md`, `docs/decisions/`.
 - **REUSE** : `docs/decisions/` + `scripts.adr_index`.
-- **MISSING** : acceptation des DEC AIB-A…J ; numérotation DEC (collision `0090–0094`,
-  IDs serveur ≠ fichiers).
+- **MISSING** : acceptation ou rejet des DEC AIB-A…J.
 - **DEPENDENCIES** : aucune.
-- **RISKS** : DEC en collision ; canal de lancement mal borné (sécurité).
+- **RISKS** : canal de lancement mal borné (sécurité) ; confusion possible entre
+  numéro de fiche ADR et `Decision.readable_id` serveur malgré la table de correspondance.
 - **TEST STRATEGY** : cohérence documentaire ; `uv run python -m scripts.adr_index
-  --check` après acceptation.
+  --root . --check` dans la CI et après toute nouvelle fiche.
 - **GATE** : DEC AIB-A…J acceptées ou rejetées ; matrice validée.
 - **OUT OF SCOPE** : tout code.
 

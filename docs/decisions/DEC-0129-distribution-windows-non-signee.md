@@ -1,3 +1,11 @@
+---
+id: DEC-0129
+title: 'Distribution Windows non signée : pas de certificat Authenticode'
+status: active
+date: '2026-09-26'
+superseded_by: null
+---
+
 # DEC-0129 — Distribution Windows non signée : pas de certificat Authenticode (coût)
 
 Statut : `accepted` (choix humain exprimé puis accepté dans Studio OS le
