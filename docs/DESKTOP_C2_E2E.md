@@ -30,4 +30,22 @@ Voir `docs/DESKTOP_C2_NEW_USER_E2E.md` (Web et Desktop contre une API réelle je
 
 ## N-1 → N (tâche `f22d8b10`)
 
-À compléter par cette tâche.
+Vraie release N-1 installée (canal `dev`, profil réel de l'utilisateur), mise à
+jour par l'UI vers la release N signée publiée sur GitHub :
+
+1. Avant : relever le SHA-256 des fichiers de `%APPDATA%\StudioOS-Dev` (hors
+   `cache/`) et de `%APPDATA%\dev.studio-os.desktop-dev\shell-settings.json` ;
+   noter la version affichée (Paramètres › Application).
+2. Paramètres › Application › Détails techniques › « Rechercher une mise à
+   jour » → « Installer la version N » ; l'application redémarre seule.
+3. Après, contrôles :
+   - `ProductVersion` de l'exécutable installé et version de l'assistant local = N ;
+   - hashes inchangés pour `format.json`, `identity/*.json`, `workspaces/*.json`,
+     `shell-settings.json`, base `outbox/*.sqlite3` (lecture Python : le daemon
+     la verrouille), file intègre (`pragma integrity_check`) ;
+   - assistant local « En marche », heartbeat et rejeu de la file « Fonctionne » ;
+   - le poste reste le même dans Machines (pas de réenrôlement ni de doublon).
+
+La reconnexion web après redémarrage n'est pas exigée ni interdite : le JWT
+n'est gardé qu'en mémoire. Les invariants signés du flux (clé, artefact,
+downgrade) restent couverts par `updater.rs` (section cas d'échec).
