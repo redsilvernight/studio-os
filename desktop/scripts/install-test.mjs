@@ -12,7 +12,7 @@
 // Results: desktop/.build/install-test-results.json. Exit code 1 on any failure.
 
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { connect as netConnect } from "node:net";
 import { tmpdir } from "node:os";
@@ -345,6 +345,27 @@ function displayVersion() {
   return /DisplayVersion\s+REG_SZ\s+(\S+)/.exec(out)?.[1] ?? null;
 }
 
+/** Same file, whatever the spelling (8.3 short names on the CI runner). */
+function samePath(a, b) {
+  const real = (p) => {
+    try {
+      return realpathSync.native(p).toLowerCase();
+    } catch {
+      return p.toLowerCase();
+    }
+  };
+  return real(a) === real(b);
+}
+
+function desktopExecutables() {
+  const out = spawnSync(
+    "powershell",
+    ["-NoProfile", "-Command", "Get-CimInstance Win32_Process -Filter \"Name='studio-desktop.exe'\" | ForEach-Object { $_.ExecutablePath }"],
+    { encoding: "utf8" },
+  ).stdout ?? "";
+  return out.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+}
+
 async function closeDesktop() {
   for (const pid of pidsOf("studio-desktop.exe")) {
     spawnSync("powershell", ["-NoProfile", "-Command", `(Get-Process -Id ${pid} -ErrorAction SilentlyContinue).CloseMainWindow() | Out-Null`], { stdio: "ignore" });
@@ -466,36 +487,27 @@ async function upgradeMain(oldInstaller, expected) {
     for (let i = 0; i < 240 && displayVersion() !== expected; i++) await sleep(1000);
     check("update.installed_version_is_n_plus_1", displayVersion() === expected, `DisplayVersion ${displayVersion()} (expected ${expected})`);
 
-    // The installer relaunches the app (same environment): attach to it.
-    let relaunched = null;
-    let browser;
-    try {
-      for (let i = 0; i < 60 && !relaunched; i++) {
-        try {
-          browser = await chromium.connectOverCDP(`http://127.0.0.1:${CDP_PORT}`);
-          const page = browser.contexts()[0]?.pages().find((p) => p.url().startsWith(APP_ORIGIN));
-          if (page) relaunched = page;
-          else await browser.close();
-        } catch {
-          await sleep(1000);
-        }
-      }
-      check("update.app_relaunched_by_installer", Boolean(relaunched), `desktop processes ${processCount("studio-desktop.exe")}`);
-      if (relaunched) {
-        check("update.relaunched_is_n_plus_1", (await versionOf(relaunched)) === expected, `relaunched app reports ${await versionOf(relaunched)}`);
-        let info = null;
-        for (let i = 0; i < 40; i++) {
-          info = (await invoke(relaunched, "desktop_info", {})).value;
-          if (info?.sidecar?.state === "running") break;
-          await sleep(500);
-        }
-        check("update.sidecar_running_after_update", info?.sidecar?.state === "running", JSON.stringify(info?.sidecar));
-        check("update.single_daemon_after_update", pidsOf("studio-daemon.exe").length === 1, `studio-daemon.exe processes: ${pidsOf("studio-daemon.exe").length}`);
-      }
-    } finally {
-      if (browser) await browser.close().catch(() => {});
-      await closeDesktop();
+    // The installer relaunches the app as the user through the shell, with a fresh
+    // environment (no CDP, no redirected %APPDATA%): check it runs from the install
+    // dir, close it, then run N+1 ourselves on N's isolated data.
+    let relaunchedFrom = [];
+    for (let i = 0; i < 60 && relaunchedFrom.length === 0; i++) {
+      relaunchedFrom = desktopExecutables().filter((p) => samePath(p, exe));
+      if (relaunchedFrom.length === 0) await sleep(1000);
     }
+    check("update.app_relaunched_by_installer", relaunchedFrom.length > 0, `studio-desktop.exe running from: ${desktopExecutables().join(", ") || "none"}`);
+    await closeDesktop();
+    await withApp({}, async (page) => {
+      check("update.relaunched_is_n_plus_1", (await versionOf(page)) === expected, `N+1 reports ${await versionOf(page)} on N's data`);
+      let info = null;
+      for (let i = 0; i < 40; i++) {
+        info = (await invoke(page, "desktop_info", {})).value;
+        if (info?.sidecar?.state === "running") break;
+        await sleep(500);
+      }
+      check("update.sidecar_running_after_update", info?.sidecar?.state === "running", JSON.stringify(info?.sidecar));
+      check("update.single_daemon_after_update", pidsOf("studio-daemon.exe").length === 1, `studio-daemon.exe processes: ${pidsOf("studio-daemon.exe").length}`);
+    });
     check(
       "update.user_data_preserved",
       readFileSync(join(dataDir, "config.toml"), "utf8") === "# user setting kept across updates\n" && readFileSync(join(dataDir, "format.json"), "utf8") === stamp && dbs.every((f) => existsSync(join(dataDir, f))),
