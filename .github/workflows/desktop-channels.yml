@@ -1,0 +1,177 @@
+name: Desktop channels
+
+# The living GitHub release of the unsigned Desktop beta lane, replaced by every
+# new build of `dev`: tag `desktop-dev`, pre-release, installs side by side with
+# Prod (own identity and data, `--channel dev`). The API / storage origins baked
+# into the build come from the `desktop-dev` GitHub environment variables, so no
+# deployment address lives in the code. Unsigned: SmartScreen / Smart App Control
+# may warn or block. Signed builds stay in desktop-release.yml.
+#
+# The stable lane (`desktop-prod`) is NEVER built here: it is a promotion of the
+# same artefact by manifest (DEC-0108), driven by desktop-promote.yml, so a build
+# is validated on beta before it reaches stable and no rebuild ever re-signs it.
+#
+# B6 auto-update: each build is versioned `<canonical>-dev.<run_number>`, so
+# every build is a newer release than the one installed. When the environment
+# holds the minisign updater key (STUDIO_UPDATER_PUBKEY,
+# TAURI_SIGNING_PRIVATE_KEY[_PASSWORD], docs/DESKTOP_B4_KEY_RUNBOOK.md) the
+# updater is compiled in with the beta feed baked in, `latest.json` is
+# published, and after publication the previous release of the lane is installed
+# and updated to this one from the application (install-test.mjs
+# --upgrade-from). Without the key the build stays without updater.
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - "desktop/**"
+      - "dashboard/**"
+      - "packages/studio-client/**"
+      - "packages/studio-code-graph/**"
+      - "packages/studio-contracts/**"
+      - "packages/studio-workspaces/**"
+      - "uv.lock"
+      - ".github/workflows/desktop-channels.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-channel-dev
+  cancel-in-progress: true
+
+env:
+  UV_LOCKED: "1"
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    environment: desktop-dev
+    env:
+      STUDIO_DESKTOP_CHANNEL: dev
+      STUDIO_DESKTOP_API_URL: ${{ vars.STUDIO_DESKTOP_API_URL }}
+      STUDIO_DESKTOP_STORAGE_URL: ${{ vars.STUDIO_DESKTOP_STORAGE_URL }}
+      STUDIO_UPDATER_PUBKEY: ${{ secrets.STUDIO_UPDATER_PUBKEY }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Refuse a build without its origins
+        shell: pwsh
+        run: |
+          if (-not $env:STUDIO_DESKTOP_API_URL) { "::error title=config::STUDIO_DESKTOP_API_URL is not set on the environment"; exit 1 }
+      - name: Updater feed of this channel (only with the updater key)
+        shell: pwsh
+        run: |
+          if (-not $env:STUDIO_UPDATER_PUBKEY) { "::notice title=updater::no STUDIO_UPDATER_PUBKEY on this environment: build without updater"; exit 0 }
+          if (-not $env:TAURI_SIGNING_PRIVATE_KEY) { "::error title=updater::STUDIO_UPDATER_PUBKEY is set but TAURI_SIGNING_PRIVATE_KEY is not"; exit 1 }
+          "STUDIO_UPDATER_ENDPOINT=https://github.com/${{ github.repository }}/releases/download/desktop-$env:STUDIO_DESKTOP_CHANNEL/latest.json" >> $env:GITHUB_ENV
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Sync workspace
+        run: uv sync --all-packages
+      - name: Install Node dependencies
+        run: |
+          npm ci
+          npm ci --prefix ../dashboard
+        working-directory: desktop
+      - name: Stamp the channel build version
+        run: node scripts/version.mjs --channel-build $env:STUDIO_DESKTOP_CHANNEL ${{ github.run_number }}
+        shell: pwsh
+        working-directory: desktop
+      - name: Build the unsigned installer of this channel
+        shell: pwsh
+        run: |
+          $build = @("scripts/build.mjs", "--installer", "--channel", $env:STUDIO_DESKTOP_CHANNEL, "--api-url", $env:STUDIO_DESKTOP_API_URL)
+          if ($env:STUDIO_DESKTOP_STORAGE_URL) { $build += @("--storage-url", $env:STUDIO_DESKTOP_STORAGE_URL) }
+          node @build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        working-directory: desktop
+      - name: Install, launch, upgrade and uninstall
+        run: npm run test:install
+        working-directory: desktop
+      - name: Annotate failing install checks
+        if: failure()
+        run: node scripts/annotate-results.mjs install-test-results.json
+        working-directory: desktop
+      - name: Update feed manifest (latest.json, only when the updater is compiled in)
+        if: hashFiles('desktop/src-tauri/target/release/bundle/nsis/*.sig') != ''
+        shell: pwsh
+        run: node scripts/update-manifest.mjs --url-base "https://github.com/${{ github.repository }}/releases/download/desktop-$env:STUDIO_DESKTOP_CHANNEL" --asset-name "StudiOS-Setup-$env:STUDIO_DESKTOP_CHANNEL.exe" --api-url "$env:STUDIO_DESKTOP_API_URL"
+        working-directory: desktop
+      - name: Keep the previous release of this channel (release N of the update test)
+        if: hashFiles('desktop/src-tauri/target/release/bundle/nsis/*.sig') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP "previous"
+          gh release download "desktop-$env:STUDIO_DESKTOP_CHANNEL" -p "StudiOS-Setup-$env:STUDIO_DESKTOP_CHANNEL.exe" -p latest.json -D $dir 2>&1 | Out-Null
+          $feed = Join-Path $dir "latest.json"
+          $version = (Get-Content desktop/package.json | ConvertFrom-Json).version
+          if (-not (Test-Path $feed)) { "::notice title=update-test::the previous release has no updater (no latest.json): N -> N+1 is proven from the next build on"; exit 0 }
+          $previous = (Get-Content $feed | ConvertFrom-Json).version
+          if ($previous -eq $version) { "::notice title=update-test::the previous release already is $version (re-run): nothing to update"; exit 0 }
+          "UPDATE_TEST_FROM=$(Join-Path $dir "StudiOS-Setup-$env:STUDIO_DESKTOP_CHANNEL.exe")" >> $env:GITHUB_ENV
+          "Update test: $previous -> $version" >> $env:GITHUB_STEP_SUMMARY
+      - name: Update the channel release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          trap { "::error title=publish::$($_.Exception.Message)"; exit 1 }
+          $channel = $env:STUDIO_DESKTOP_CHANNEL
+          $label = if ($channel -eq "dev") { "Dev" } else { "Prod" }
+          $tag = "desktop-$channel"
+          $version = (Get-Content desktop/package.json | ConvertFrom-Json).version
+          $short = "${{ github.sha }}".Substring(0, 7)
+          $source = Get-ChildItem desktop/src-tauri/target/release/bundle/nsis/*.exe | Select-Object -First 1
+          $asset = Join-Path $env:RUNNER_TEMP "StudiOS-Setup-$channel.exe"
+          Copy-Item $source.FullName $asset
+          $hash = (Get-FileHash $asset -Algorithm SHA256).Hash.ToLower()
+          $assets = @($asset)
+          $manifest = "desktop/src-tauri/target/release/bundle/nsis/latest.json"
+          if (Test-Path $manifest) { $assets += (Resolve-Path $manifest).Path }
+          $notes = @(
+            "Studi'OS Desktop $label $version, built from ${{ github.ref_name }} at ${{ github.sha }} and checked by npm run test:install.",
+            "",
+            "API: $env:STUDIO_DESKTOP_API_URL",
+            "SHA-256: $hash",
+            "",
+            "Unsigned build: SmartScreen / Smart App Control may warn or block it. This release is replaced by the next build of ${{ github.ref_name }}."
+          ) -join "`n"
+          function Invoke-Checked([string] $step, [scriptblock] $command) {
+            $out = & $command 2>&1
+            if ($LASTEXITCODE -ne 0) { "::error title=${step}::$(($out | Out-String).Trim() -replace "`r?`n", " ")"; exit 1 }
+          }
+          $title = "Studi'OS Desktop $label $version ($short)"
+          $flags = if ($channel -eq "dev") { @("--prerelease", "--latest=false") } else { @("--latest") }
+          # Never delete before publishing: a failed step must leave the previous
+          # release downloadable. The tag is moved with git first, so a refusal
+          # stops here with git's own reason and nothing else changed.
+          Invoke-Checked "git push tag" { git push -q -f origin "${{ github.sha }}:refs/tags/$tag" }
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            Invoke-Checked "gh release upload" { gh release upload $tag @($assets) --clobber }
+            Invoke-Checked "gh release edit" { gh release edit $tag --title $title --notes $notes @flags }
+          } else {
+            Invoke-Checked "gh release create" { gh release create $tag @($assets) --verify-tag --title $title --notes $notes @flags }
+          }
+          "Published $tag ($hash)" >> $env:GITHUB_STEP_SUMMARY
+      # After publication on purpose: N must find N+1 on the real, published feed.
+      - name: Update the previous release to this one from the application (B6)
+        if: env.UPDATE_TEST_FROM != ''
+        shell: pwsh
+        run: node scripts/install-test.mjs --upgrade-from $env:UPDATE_TEST_FROM
+        working-directory: desktop
+      - name: Annotate failing update checks
+        if: failure() && env.UPDATE_TEST_FROM != ''
+        run: node scripts/annotate-results.mjs update-test-results.json
+        working-directory: desktop
