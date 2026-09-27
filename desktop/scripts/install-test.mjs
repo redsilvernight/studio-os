@@ -347,6 +347,20 @@ function displayVersion() {
   return /DisplayVersion\s+REG_SZ\s+(\S+)/.exec(out)?.[1] ?? null;
 }
 
+/**
+ * Check for an update until the feed serves `expected`: the release was just
+ * published and GitHub may still serve the previous `latest.json` for a while.
+ */
+async function checkUntilServed(page, expected) {
+  let upd;
+  for (let i = 0; i < 24; i++) {
+    upd = await invoke(page, "check_for_update", {});
+    if (upd.ok && upd.value?.version === expected) break;
+    await sleep(5000);
+  }
+  return upd;
+}
+
 const OUTBOX_ENTRIES = 3;
 
 /** Pending work in a daemon outbox file, in a table of its own (the daemon's schema is created alongside). */
@@ -489,7 +503,7 @@ async function upgradeMain(oldInstaller, expected) {
     try {
       const url = `http://127.0.0.1:${proxy.port}`;
       await withApp({ HTTPS_PROXY: url, HTTP_PROXY: url }, async (page) => {
-        const upd = await invoke(page, "check_for_update", {});
+        const upd = await checkUntilServed(page, expected);
         check("update.cut_check_finds_n_plus_1", upd.ok && upd.value?.state === "available" && upd.value?.version === expected, JSON.stringify(upd));
         const inst = await invoke(page, "install_update", {});
         check("update.cut_download_refused_as_network", !inst.ok && inst.code === "network", `${JSON.stringify(inst)}; tunnels cut: ${proxy.cuts()}`);
@@ -507,13 +521,7 @@ async function upgradeMain(oldInstaller, expected) {
       oldStderr = (oldStderr + chunk).slice(-4000);
     });
     const oldApp = await attach(old, () => oldStderr);
-    let upd;
-    // The release was just published: give the feed a moment to be served.
-    for (let i = 0; i < 12; i++) {
-      upd = await invoke(oldApp.page, "check_for_update", {});
-      if (upd.ok && upd.value?.version === expected) break;
-      await sleep(5000);
-    }
+    const upd = await checkUntilServed(oldApp.page, expected);
     check("update.check_finds_n_plus_1", upd.ok && upd.value?.state === "available" && upd.value?.version === expected, JSON.stringify(upd));
     // On success the app exits into the installer: the call never returns.
     void invoke(oldApp.page, "install_update", {}).catch(() => {});
