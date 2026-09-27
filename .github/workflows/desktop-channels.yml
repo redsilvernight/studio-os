@@ -1,27 +1,28 @@
 name: Desktop channels
 
-# Two living GitHub releases of the unsigned Desktop installer, each replaced
-# by every new build of its branch:
-#   deploy/flo-laptop -> tag `desktop-prod`, release marked Latest (stable, in use);
-#   dev               -> tag `desktop-dev`, pre-release, installs side by side
-#                        with Prod (own identity and data, `--channel dev`).
-# The API / storage origins baked into each build come from the variables of
-# the matching GitHub environment (`desktop-prod`, `desktop-dev`), so no
-# deployment address lives in the code. Unsigned: SmartScreen / Smart App
-# Control may warn or block. Signed builds stay in desktop-release.yml.
+# The living GitHub release of the unsigned Desktop beta lane, replaced by every
+# new build of `dev`: tag `desktop-dev`, pre-release, installs side by side with
+# Prod (own identity and data, `--channel dev`). The API / storage origins baked
+# into the build come from the `desktop-dev` GitHub environment variables, so no
+# deployment address lives in the code. Unsigned: SmartScreen / Smart App Control
+# may warn or block. Signed builds stay in desktop-release.yml.
 #
-# B6 auto-update: each build is versioned `<canonical>-<channel>.<run_number>`,
-# so every build is a newer release than the one installed. When the channel
-# environment holds the minisign updater key (STUDIO_UPDATER_PUBKEY,
+# The stable lane (`desktop-prod`) is NEVER built here: it is a promotion of the
+# same artefact by manifest (DEC-0108), driven by desktop-promote.yml, so a build
+# is validated on beta before it reaches stable and no rebuild ever re-signs it.
+#
+# B6 auto-update: each build is versioned `<canonical>-dev.<run_number>`, so
+# every build is a newer release than the one installed. When the environment
+# holds the minisign updater key (STUDIO_UPDATER_PUBKEY,
 # TAURI_SIGNING_PRIVATE_KEY[_PASSWORD], docs/DESKTOP_B4_KEY_RUNBOOK.md) the
-# updater is compiled in with this channel's feed baked in, `latest.json` is
-# published, and after publication the previous release of the channel is
-# installed and updated to this one from the application (install-test.mjs
+# updater is compiled in with the beta feed baked in, `latest.json` is
+# published, and after publication the previous release of the lane is installed
+# and updated to this one from the application (install-test.mjs
 # --upgrade-from). Without the key the build stays without updater.
 
 on:
   push:
-    branches: [dev, "deploy/flo-laptop"]
+    branches: [dev]
     paths:
       - "desktop/**"
       - "dashboard/**"
@@ -37,7 +38,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: desktop-channel-${{ github.ref_name }}
+  group: desktop-channel-dev
   cancel-in-progress: true
 
 env:
@@ -45,12 +46,11 @@ env:
 
 jobs:
   installer:
-    if: github.ref_name == 'dev' || github.ref_name == 'deploy/flo-laptop'
     runs-on: windows-latest
     timeout-minutes: 60
-    environment: ${{ github.ref_name == 'dev' && 'desktop-dev' || 'desktop-prod' }}
+    environment: desktop-dev
     env:
-      STUDIO_DESKTOP_CHANNEL: ${{ github.ref_name == 'dev' && 'dev' || 'prod' }}
+      STUDIO_DESKTOP_CHANNEL: dev
       STUDIO_DESKTOP_API_URL: ${{ vars.STUDIO_DESKTOP_API_URL }}
       STUDIO_DESKTOP_STORAGE_URL: ${{ vars.STUDIO_DESKTOP_STORAGE_URL }}
       STUDIO_UPDATER_PUBKEY: ${{ secrets.STUDIO_UPDATER_PUBKEY }}
@@ -104,7 +104,7 @@ jobs:
       - name: Update feed manifest (latest.json, only when the updater is compiled in)
         if: hashFiles('desktop/src-tauri/target/release/bundle/nsis/*.sig') != ''
         shell: pwsh
-        run: node scripts/update-manifest.mjs --url-base "https://github.com/${{ github.repository }}/releases/download/desktop-$env:STUDIO_DESKTOP_CHANNEL" --asset-name "StudiOS-Setup-$env:STUDIO_DESKTOP_CHANNEL.exe"
+        run: node scripts/update-manifest.mjs --url-base "https://github.com/${{ github.repository }}/releases/download/desktop-$env:STUDIO_DESKTOP_CHANNEL" --asset-name "StudiOS-Setup-$env:STUDIO_DESKTOP_CHANNEL.exe" --api-url "$env:STUDIO_DESKTOP_API_URL"
         working-directory: desktop
       - name: Keep the previous release of this channel (release N of the update test)
         if: hashFiles('desktop/src-tauri/target/release/bundle/nsis/*.sig') != ''
