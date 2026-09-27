@@ -18,6 +18,8 @@ foreach ($required in @(
     '--is-ancestor',
     'docker-compose.flo-laptop.yml',
     "'caddy', 'validate'",
+    "'caddy', 'reload'",
+    "'/mcp'",
     'backup postgres and minio',
     '/openapi.json',
     '/api/v1/auth/register',
