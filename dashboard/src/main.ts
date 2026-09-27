@@ -57,6 +57,7 @@ import { startRealtimeConnection, type RealtimeConnection } from "./realtime";
 import { setApiObserver } from "./apiEvents";
 import { resetIdentityCache } from "./identityApi";
 import { SESSION_ENDED_NOTICE, createSessionEndHandler } from "./session";
+import { configurePersistentSession, endPersistentSession, refreshSession, resumeSession } from "./persistentSession";
 import type { components } from "./openapi-schema";
 import "./ds/tokens.css";
 import "./ds/components.css";
@@ -383,6 +384,7 @@ function mountShell(): void {
     if (event.key === "Enter") applyInputToken();
   });
   document.getElementById("token-clear")?.addEventListener("click", () => {
+    void endPersistentSession();
     clearToken();
     syncRealtimeConnection();
     getDesktopShell()?.monitor.clearAuthExpired();
@@ -492,16 +494,30 @@ export function boot(): void {
     return;
   }
   // Desktop only: learn the server origin before the first API call.
-  void prepareDesktop(platform).then(() => {
+  void prepareDesktop(platform).then(async () => {
     setDesktopHooks({
       rerender: () => void render(),
       authExpired: () => {
-        clearToken();
-        resetIdentityCache();
-        syncRealtimeConnection();
-        mountLogin(SESSION_ENDED_NOTICE);
+        // A persistent session (DEC-0142) renews silently; only a refused or
+        // unreachable renewal falls back to the sign-in screen.
+        void refreshSession().then((outcome) => {
+          const desktop = getDesktopShell();
+          if (outcome === "refreshed" && desktop !== null) {
+            desktop.monitor.clearAuthExpired();
+            void desktop.monitor.check();
+            syncRealtimeConnection();
+            void render();
+            return;
+          }
+          clearToken();
+          resetIdentityCache();
+          syncRealtimeConnection();
+          mountLogin(SESSION_ENDED_NOTICE);
+        });
       },
     });
+    configurePersistentSession(platform.sessionVault);
+    await resumeSession();
     start();
   });
 }
