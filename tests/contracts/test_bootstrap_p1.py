@@ -8,12 +8,19 @@ import pytest
 from pydantic import ValidationError
 from studio_contracts.bootstrap import (
     BOOTSTRAP_FORMAT,
+    MAX_BOOTSTRAP_FILES,
     MAX_BOOTSTRAP_HARNESSES,
+    BootstrapConflict,
+    BootstrapConflictCode,
+    BootstrapDryRunReport,
+    BootstrapFileReport,
     BootstrapHarnessRef,
     BootstrapManifest,
     BootstrapPolicy,
     BootstrapProblemCode,
+    bootstrap_dry_run_conflicts,
     bootstrap_manifest_problems,
+    build_dry_run_report,
 )
 from studio_contracts.initialization import InitializationProjectSpec
 
@@ -174,3 +181,166 @@ def test_duplicate_harness_is_a_problem_not_a_parse_error() -> None:
     assert len(problems) == 1
     assert problems[0].code is BootstrapProblemCode.DUPLICATE_HARNESS
     assert problems[0].key == "opencode"
+
+
+GOOD_HASH = "sha256:" + "0" * 64
+
+
+def _file(path: str, state: str, **overrides: Any) -> BootstrapFileReport:
+    data: dict[str, Any] = {"path": path, "state": state}
+    data.update(overrides)
+    return BootstrapFileReport.model_validate(data)
+
+
+def test_all_five_states_parse() -> None:
+    for state in ["absent", "obsolete", "modified", "incompatible", "up_to_date"]:
+        assert _file("docs/x.md", state).state.value == state
+    with pytest.raises(ValidationError):
+        _file("docs/x.md", "drifted")
+
+
+def test_file_paths_are_repo_relative_and_portable() -> None:
+    for bad in [
+        "/etc/passwd",
+        "C:\\repo\\x.md",
+        "\\\\server\\x.md",
+        "../escape.md",
+        "docs/../escape.md",
+        "docs\\x.md",
+        "",
+        ".",
+        "./x.md",
+        "docs//x.md",
+        "docs/x.md/",
+    ]:
+        with pytest.raises(ValidationError):
+            _file(bad, "absent")
+    for good in ["CLAUDE.md", "docs/decisions/x.md", ".agents/rules/x.md"]:
+        assert _file(good, "absent").path == good
+
+
+def test_absent_carries_no_origin_nor_hash() -> None:
+    with pytest.raises(ValidationError):
+        _file("docs/x.md", "absent", origin_version=3)
+    with pytest.raises(ValidationError):
+        _file("docs/x.md", "absent", content_hash=GOOD_HASH)
+    assert _file("docs/x.md", "absent").content_hash is None
+
+
+def test_content_hash_shape_is_enforced() -> None:
+    assert _file("docs/x.md", "up_to_date", content_hash=GOOD_HASH).content_hash == GOOD_HASH
+    for bad in ["sha256:xyz", "md5:" + "0" * 32, GOOD_HASH.upper(), ""]:
+        with pytest.raises(ValidationError):
+            _file("docs/x.md", "up_to_date", content_hash=bad)
+
+
+def test_modified_under_refuse_blocks_sync() -> None:
+    manifest = _minimal()
+    files = [_file("CLAUDE.md", "modified", origin_version=1, content_hash=GOOD_HASH)]
+    conflicts = bootstrap_dry_run_conflicts(manifest, files)
+    assert len(conflicts) == 1
+    assert conflicts[0].code is BootstrapConflictCode.MODIFIED_NEEDS_CONFIRMATION
+    assert conflicts[0].blocking is True
+    report = build_dry_run_report(manifest, files)
+    assert report.sync_allowed is False
+    assert report.summary.modified == 1
+
+
+def test_modified_under_ask_needs_confirmation_and_blocks_sync() -> None:
+    manifest = _minimal(policy={"on_modified": "ask"})
+    files = [_file("CLAUDE.md", "modified", origin_version=1, content_hash=GOOD_HASH)]
+    assert bootstrap_dry_run_conflicts(manifest, files) == []
+    report = build_dry_run_report(manifest, files)
+    assert report.needs_confirmation is True
+    assert report.sync_allowed is False
+
+
+def test_ask_without_modified_allows_sync() -> None:
+    manifest = _minimal(policy={"on_modified": "ask"})
+    report = build_dry_run_report(manifest, [_file("CLAUDE.md", "up_to_date")])
+    assert report.needs_confirmation is False
+    assert report.sync_allowed is True
+
+
+def test_non_blocking_conflict_does_not_block_sync() -> None:
+    manifest = _minimal()
+    report = BootstrapDryRunReport(
+        manifest=manifest,
+        files=[],
+        conflicts=[
+            BootstrapConflict(code=BootstrapConflictCode.INCOMPATIBLE_TARGET, blocking=False)
+        ],
+        sync_allowed=True,
+    )
+    assert report.sync_allowed is True
+
+
+def test_field_bounds_are_enforced() -> None:
+    with pytest.raises(ValidationError):
+        _file("docs/x.md", "up_to_date", message="m" * 501)
+    with pytest.raises(ValidationError):
+        _file("docs/x.md", "up_to_date", origin_version=0)
+    report = build_dry_run_report(_minimal(), [])
+    assert report.sync_allowed is True
+    assert report.needs_confirmation is False
+
+
+def test_report_is_deterministic_across_input_orders() -> None:
+    manifest = _minimal()
+    first = [
+        _file("b.md", "absent"),
+        _file("a.md", "modified", origin_version=1, content_hash=GOOD_HASH),
+    ]
+    second = list(reversed(first))
+    assert build_dry_run_report(manifest, first) == build_dry_run_report(manifest, second)
+
+
+def test_incompatible_always_blocks() -> None:
+    for policy in ({}, {"on_modified": "ask"}):
+        manifest = _minimal(policy=policy)
+        files = [_file(".codex/agents/x.toml", "incompatible")]
+        conflicts = bootstrap_dry_run_conflicts(manifest, files)
+        assert [c.code for c in conflicts] == [BootstrapConflictCode.INCOMPATIBLE_TARGET]
+        assert build_dry_run_report(manifest, files).sync_allowed is False
+
+
+def test_clean_states_allow_sync_and_count() -> None:
+    manifest = _minimal()
+    files = [
+        _file("a.md", "absent"),
+        _file("b.md", "obsolete", origin_version=1, content_hash=GOOD_HASH),
+        _file("c.md", "up_to_date", origin_version=2, content_hash=GOOD_HASH),
+    ]
+    report = build_dry_run_report(manifest, files)
+    assert report.conflicts == []
+    assert report.sync_allowed is True
+    assert (report.summary.absent, report.summary.obsolete, report.summary.up_to_date) == (1, 1, 1)
+    assert BootstrapDryRunReport.model_validate_json(report.model_dump_json()) == report
+    assert build_dry_run_report(manifest, files) == report
+
+
+def test_report_is_bounded() -> None:
+    manifest = _minimal()
+    files = [_file(f"f{n}.md", "absent") for n in range(MAX_BOOTSTRAP_FILES + 1)]
+    with pytest.raises(ValidationError):
+        build_dry_run_report(manifest, files)
+
+
+def test_dry_run_models_carry_no_secret_or_runtime_field() -> None:
+    forbidden = {
+        "provider",
+        "model",
+        "runtime",
+        "runtime_id",
+        "machine",
+        "capabilities",
+        "token",
+        "secret",
+        "metadata",
+    }
+    fields = (
+        set(BootstrapFileReport.model_fields)
+        | set(BootstrapConflict.model_fields)
+        | set(BootstrapDryRunReport.model_fields)
+    )
+    assert forbidden & fields == set()
