@@ -69,6 +69,12 @@
 	reverse_proxy minio:9000
 }
 
+# Flo-laptop only publishes this listener on 127.0.0.1 through the dedicated
+# Compose overlay. Tailscale Serve terminates TLS on :8443 and forwards here.
+:9000 {
+	reverse_proxy minio:9000
+}
+
 # Catch-all for Tailscale Funnel / direct-IP access. Tailscale terminates TLS
 # and forwards plain HTTP to localhost, so this site listens on port 80.
 :80 {
