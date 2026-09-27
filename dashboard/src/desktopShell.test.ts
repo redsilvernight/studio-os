@@ -196,6 +196,51 @@ describe("prepareDesktop", () => {
       expect(currentStatus()).toMatchObject({ reason, label });
     });
 
+    it("a daemon read during its start is read again: the pill reaches Connecté without navigation", async () => {
+      vi.useFakeTimers();
+      try {
+        const options: { state: "starting" | "running" } = { state: "starting" };
+        const daemon = fakeDaemon(options);
+        stubFetch(async () => new Response("ok", { status: 200 }));
+        await prepareDesktop(fakeDesktop({ request: daemon.request }, STUDIO));
+        await vi.advanceTimersByTimeAsync(0);
+        paintShellStatus(document);
+        expect(document.querySelector("#shell-status")?.textContent).toContain("Assistant local en démarrage");
+
+        options.state = "running";
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(currentStatus()?.reason).toBe("connected");
+        expect(document.querySelector("#shell-status")?.textContent).toContain("Connecté");
+
+        // Settled: no more reads once the state is no longer transient.
+        const reads = daemon.calls.filter((c) => c === "daemon.status").length;
+        await vi.advanceTimersByTimeAsync(60000);
+        expect(daemon.calls.filter((c) => c === "daemon.status")).toHaveLength(reads);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("keeps reading, with backoff, while the daemon stays in start", async () => {
+      vi.useFakeTimers();
+      try {
+        const daemon = fakeDaemon({ state: "starting" });
+        stubFetch(async () => new Response("ok", { status: 200 }));
+        await prepareDesktop(fakeDesktop({ request: daemon.request }, STUDIO));
+        await vi.advanceTimersByTimeAsync(0);
+        const reads = () => daemon.calls.filter((c) => c === "daemon.status").length;
+        expect(reads()).toBe(1);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(reads()).toBe(2);
+        await vi.advanceTimersByTimeAsync(1999);
+        expect(reads()).toBe(2);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(reads()).toBe(3);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it("a refused handshake is shown as an incompatible version", async () => {
       const shell = await boot(fakeDaemon({ refuse: "daemon_too_old" }));
       expect(shell.daemon).toEqual({ kind: "error", code: "protocol_incompatible" });
