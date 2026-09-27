@@ -17,6 +17,7 @@
  */
 import { apiBaseUrl, createApiClient } from "./api";
 import { showClientUpdateAdvisory, showClientUpgradeRequired as showUpgradeRequired } from "./clientUpgradeUi";
+import { checkUpdateAtStart, paintUpdateBanner } from "./updateAtStart";
 import { loadActorNames } from "./actorNames";
 import { resolveApiUrl } from "./config";
 import { clearToken, getToken, hasToken, setToken } from "./auth";
@@ -347,6 +348,7 @@ function mountShell(): void {
   if (app === null) throw new Error("#app missing");
   app.innerHTML = shellHtml(parseRoute(location.hash), hasToken(), getDesktopShell() !== null);
   paintShellStatus(document);
+  paintUpdateBanner(document);
 
   document.getElementById("nav-open")?.addEventListener("click", () => openDrawer());
   document.getElementById("nav-close")?.addEventListener("click", () => closeDrawer());
@@ -503,6 +505,7 @@ export function boot(): void {
       },
     });
     start();
+    void checkUpdateAtStart(platform);
   });
 }
 

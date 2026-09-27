@@ -147,7 +147,7 @@ export interface Platform {
   exportDiagnostics(): Promise<DiagnosticsExportResult>;
   /** Reveal the logs or the exported diagnostics folder. Resolves `false` where unavailable. */
   openDataFolder(folder: DataFolder): Promise<boolean>;
-  /** User-driven update check; nothing checks on its own. */
+  /** Update check: once at start (banner only) and from Réglages › Application. */
   checkForUpdate(): Promise<UpdateCheckResult>;
   /** Download the release found by `checkForUpdate`, verify it, install and restart. */
   installUpdate(): Promise<{ ok: true } | { ok: false; code: UpdateErrorCode }>;
