@@ -121,7 +121,7 @@ export function projectsPageHtml(data: ProjectsPageData): string {
   const toolbar = toolbarHtml(data.state, visible.length, data.projects.length);
   let body: string;
   if (data.projects.length === 0) {
-    body = dsEmptyState("Aucun projet", "Créez votre premier projet pour commencer à travailler.");
+    body = dsEmptyState("Aucun projet accessible", "Créez un projet, ou demandez à un administrateur l'accès à un projet existant.");
   } else if (visible.length === 0) {
     body = dsEmptyState(
       "Aucun projet ne correspond au filtre",

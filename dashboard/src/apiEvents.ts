@@ -6,7 +6,8 @@
  * honest connection state without polling. With no observer installed (the web
  * build) this is a transparent `fetch`.
  */
-import { hasToken } from "./auth";
+import { getToken } from "./auth";
+import { advisoryLatest, parseUpgradeRequired, type UpgradeInfo } from "./clientCompatibility";
 
 export interface ApiObserver {
   /**
@@ -21,6 +22,10 @@ export interface ApiObserver {
   networkError?(): void;
   /** A signed-in session was refused (HTTP 401). */
   unauthorized?(): void;
+  /** The server says a newer client build is recommended (C1 grace window). */
+  clientUpdate?(latest: string): void;
+  /** The server refused this build outright (426 client_upgrade_required). */
+  upgradeRequired?(info: UpgradeInfo): void;
 }
 
 let observer: ApiObserver | null = null;
@@ -33,6 +38,21 @@ function urlOf(input: RequestInfo | URL): string {
   if (typeof input === "string") return input;
   if (input instanceof URL) return input.href;
   return input.url;
+}
+
+function authorizationOf(input: RequestInfo | URL, init?: RequestInit): string | null {
+  if (init?.headers !== undefined) return new Headers(init.headers).get("Authorization");
+  return input instanceof Request ? input.headers.get("Authorization") : null;
+}
+
+/**
+ * A 401 ends the session only if the refused request carried the current
+ * token: a late answer to a call made with a previous token never signs out
+ * the session that replaced it, and a login attempt (no bearer) never does.
+ */
+function refusedCurrentSession(input: RequestInfo | URL, init?: RequestInit): boolean {
+  const token = getToken();
+  return token !== null && authorizationOf(input, init) === `Bearer ${token}`;
 }
 
 export const observedFetch: typeof fetch = async (input, init) => {
@@ -48,6 +68,22 @@ export const observedFetch: typeof fetch = async (input, init) => {
     throw error;
   }
   observer?.reachable?.();
-  if (response.status === 401 && hasToken()) observer?.unauthorized?.();
+  if (response.status === 401 && refusedCurrentSession(input, init)) observer?.unauthorized?.();
+  const headers = response.headers;
+  const latest = headers ? advisoryLatest(headers) : null;
+  if (latest !== null) observer?.clientUpdate?.(latest);
+  if (response.status === 426 && typeof response.clone === "function") {
+    // The structured detail lives in the body; a clone avoids consuming the
+    // caller's stream. A malformed body simply yields no blocking screen.
+    try {
+      const body: unknown = await response.clone().json();
+      const detail = (body as { detail?: { error_code?: unknown } } | null)?.detail;
+      const code = typeof detail?.error_code === "string" ? detail.error_code : null;
+      const info = parseUpgradeRequired(code, detail);
+      if (info !== null) observer?.upgradeRequired?.(info);
+    } catch {
+      // Non-JSON body: nothing to display.
+    }
+  }
   return response;
 };

@@ -5,14 +5,23 @@ import type {
   RoadmapDataSource,
   RoadmapDiffEntry,
   RoadmapDocument,
+  RoadmapLifecycleTransition,
   RoadmapPendingProposal,
   RoadmapPhase,
   RoadmapReviewDecision,
+  RoadmapStatus,
 } from "./roadmapTypes";
 
 function clone<T>(value: T): T {
   return structuredClone(value);
 }
+
+/** Lifecycle subset of the server transition table (studio_contracts.roadmaps.ROADMAP_TRANSITIONS). */
+const LIFECYCLE_TARGETS: Partial<Record<RoadmapStatus, Partial<Record<RoadmapLifecycleTransition, RoadmapStatus>>>> = {
+  draft: { activate: "active", archive: "archived" },
+  active: { complete: "completed", archive: "archived" },
+  completed: { reopen: "active", archive: "archived" },
+};
 
 function seedPendingProposal(roadmap: Roadmap): RoadmapPendingProposal {
   const firstStep = (roadmap.phases ?? []).flatMap((phase) => phase.steps ?? [])[0];
@@ -163,6 +172,26 @@ export function createFixtureRoadmapDataSource(): RoadmapDataSource {
       }
       pending.delete(projectId);
       return clone(state.get(projectId) ?? null);
+    },
+
+    async transitionRoadmap(
+      roadmap: Roadmap,
+      transition: RoadmapLifecycleTransition,
+      comment?: string,
+    ): Promise<Roadmap> {
+      const current = state.get(roadmap.project_id) ?? null;
+      if (current === null || current.id !== roadmap.id) throw new Error("Roadmap introuvable");
+      if (current.version !== roadmap.version) throw new Error("Version périmée : rechargez la roadmap");
+      const target = LIFECYCLE_TARGETS[current.status]?.[transition];
+      if (target === undefined) throw new Error(`Transition ${transition} impossible depuis ${current.status}`);
+      if (transition === "reopen" && (comment === undefined || comment.trim() === "")) {
+        throw new Error("A comment is required to reopen a roadmap");
+      }
+      const updated = clone(current);
+      updated.status = target;
+      if (updated.version !== undefined) updated.version += 1;
+      state.set(roadmap.project_id, clone(updated));
+      return clone(updated);
     },
   };
 }

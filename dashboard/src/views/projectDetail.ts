@@ -17,18 +17,20 @@ import type { components } from "../openapi-schema";
 import { dsBadge, dsEmptyState, dsSectionHeader, dsSkeleton } from "../ds/ds";
 import { taskStatusLabel, taskStatusTone } from "../taskStatus";
 import { describeError, esc, fmtTime } from "../ui";
+import { fetchIdentity } from "../identityApi";
 import { renderActivityInto } from "./activity";
 import { renderClaimsInto } from "./claims";
 import { renderDecisionsV2 as renderDecisions } from "./decisionsV2";
+import { renderMembersInto } from "./members";
 import { renderTasksInto } from "./tasks";
-import { renderRoadmapInto } from "./roadmap";
+import { isRoadmapManagerRole, renderRoadmapInto } from "./roadmap";
 
 type Project = components["schemas"]["Project"];
 type ProjectState = components["schemas"]["ProjectState"];
 type Task = components["schemas"]["Task"];
 type ResourceClaim = components["schemas"]["ResourceClaim"];
 
-export type ProjectTab = "overview" | "roadmap" | "tasks" | "claims" | "activity" | "decisions";
+export type ProjectTab = "overview" | "roadmap" | "tasks" | "claims" | "activity" | "decisions" | "members";
 
 export interface ProjectDetailContext {
   client: StudioClient;
@@ -43,6 +45,7 @@ export const PROJECT_TABS: ReadonlyArray<{ id: ProjectTab; label: string; suffix
   { id: "claims", label: "Réservations", suffix: "/claims" },
   { id: "activity", label: "Activité", suffix: "/activity" },
   { id: "decisions", label: "Décisions", suffix: "/decisions" },
+  { id: "members", label: "Membres", suffix: "/members" },
 ];
 
 /** Libellés FR des statuts (source unique : taskStatus.ts, UI-5). */
@@ -238,11 +241,14 @@ export async function renderProjectDetail(
       panel.innerHTML = `<div class="ds-notice ds-notice--danger" role="alert"><strong>Roadmap indisponible.</strong> La source de données n'est pas configurée.</div>`;
       return;
     }
+    const canManageLifecycle =
+      ctx.roadmapDataSource.demo === true || isRoadmapManagerRole((await fetchIdentity(ctx.client))?.role ?? null);
     await renderRoadmapInto(panel, {
       dataSource: ctx.roadmapDataSource,
       projectId: project.id,
       projectName: project.name,
       roadmapId,
+      canManageLifecycle,
     });
     return;
   }
@@ -257,6 +263,17 @@ export async function renderProjectDetail(
   }
   if (tab === "activity") {
     await renderActivityInto(panel, { client: ctx.client, projectId: project.id, authed: ctx.authed });
+    return;
+  }
+  if (tab === "members") {
+    const identity = await fetchIdentity(ctx.client);
+    await renderMembersInto(panel, {
+      client: ctx.client,
+      projectId: project.id,
+      authed: ctx.authed,
+      isAdmin: identity?.role === "admin",
+      selfId: identity?.user_id ?? null,
+    });
     return;
   }
   const intro = document.createElement("p");

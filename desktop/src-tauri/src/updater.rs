@@ -335,6 +335,28 @@ mod tests {
         .unwrap()
     }
 
+    /// A manifest carrying the additive `latest.json` fields (B5/T2): an older
+    /// reader must ignore what it does not know, never reject the release.
+    fn manifest_for_host_with_extras(version: &str, url: &str, signature: &str) -> Vec<u8> {
+        let key = platform_key();
+        serde_json::to_vec(&serde_json::json!({
+            "version": version,
+            "notes": "test release",
+            "platforms": { key.clone(): { "url": url, "signature": signature } },
+            "schema_version": 1,
+            "channel": "stable",
+            "artifacts": { key: { "file": "setup.exe", "size_bytes": 10, "sha256": "00" } }
+        }))
+        .unwrap()
+    }
+
+    /// The platform key `latest.json` must use to be found by the plugin.
+    #[test]
+    fn the_manifest_platform_key_matches_the_updater_target() {
+        #[cfg(windows)]
+        assert_eq!(platform_key(), "windows-x86_64");
+    }
+
     #[test]
     fn the_update_flow_accepts_a_signed_release_and_refuses_every_bad_one() {
         tauri::async_runtime::block_on(update_flow());
@@ -397,6 +419,11 @@ mod tests {
                 manifest_for_host("100.0.0", &art, &signature),
                 false,
             ),
+            (
+                "/additive",
+                manifest_for_host_with_extras(newer, &art, &signature),
+                false,
+            ),
         ]);
 
         let run = |route: &'static str| {
@@ -437,6 +464,17 @@ mod tests {
             download_verified(&state).await.err().expect("refused").code,
             "no_pending_update"
         );
+        // The additive `latest.json` fields (B5/T2) are ignored by an older
+        // reader, never a reason to reject the release.
+        let (status, state) = run("/additive").await;
+        match status {
+            Ok(UpdateStatus::Available { version, .. }) => assert_eq!(version, newer),
+            other => panic!("additive manifest must be accepted, got {other:?}"),
+        }
+        let (_, bytes) = download_verified(&state)
+            .await
+            .expect("additive manifest verifies");
+        assert_eq!(bytes, artifact);
 
         // Signature made by another key, corrupted artifact, inflated version:
         // refused, and the release stays pending for a retry.

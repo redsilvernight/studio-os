@@ -326,3 +326,69 @@ async def test_dead_letter_move_is_durable_after_crash(tmp_path: Path) -> None:
     dead = second_connection_store.connection.execute("SELECT * FROM dead_letter").fetchall()
     assert len(dead) == 1
     assert dead[0]["source_table"] == OutboxTable.EVENTS.value
+
+
+_PROJECT_DENIED = {"detail": {"error_code": "forbidden", "resource": "project", "action": "write"}}
+
+
+async def test_project_isolation_403_dead_letters_with_visible_diagnostic(
+    tmp_path: Path, caplog: Any
+) -> None:
+    """Project isolation: a queued event for a project the account cannot
+    access is refused with a final 403 `resource: project`. The row is
+    dead-lettered (never retried), tagged `project_access_denied project=<id>`,
+    reported on the outcome and logged with the project — not a bare 403."""
+    store = _store(tmp_path / "outbox.sqlite3")
+    denied_event = _event()
+    other_project = uuid4()
+    with transaction(store.connection):
+        store.enqueue_event(denied_event)
+    with transaction(store.connection):
+        store.enqueue_mutation(
+            str(uuid4()), "task.update", "PATCH", f"/api/v1/projects/{other_project}/tasks/x", {}
+        )
+    since = datetime.now(UTC)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, json=_PROJECT_DENIED)
+
+    async with _client(handler) as client:
+        replayer = OutboxReplayer(store, client, RetryPolicy(max_attempts=1))
+        with caplog.at_level("WARNING", logger="studio_client.outbox.replay"):
+            outcome = await replayer.replay_ready()
+
+    assert outcome.dead_lettered == 2
+    assert outcome.stopped_on_transient_error is False
+    assert outcome.project_access_denied == [str(denied_event.project_id), str(other_project)]
+    errors = [
+        row["error"]
+        for row in store.connection.execute("SELECT error FROM dead_letter ORDER BY failed_at")
+    ]
+    assert errors[0].startswith(f"project_access_denied project={denied_event.project_id}: 403")
+    assert str(denied_event.project_id) in caplog.text
+    assert "no access to project" in caplog.text
+
+    count, projects = store.project_access_denied_since(since)
+    assert count == 2
+    assert projects == [str(denied_event.project_id), str(other_project)]
+    assert store.project_access_denied_since(datetime.now(UTC))[0] == 0
+
+
+async def test_role_403_is_not_reported_as_project_isolation(tmp_path: Path) -> None:
+    store = _store(tmp_path / "outbox.sqlite3")
+    with transaction(store.connection):
+        store.enqueue_event(_event())
+    since = datetime.now(UTC)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            403,
+            json={"detail": {"error_code": "forbidden", "resource": "event", "action": "write"}},
+        )
+
+    async with _client(handler) as client:
+        outcome = await OutboxReplayer(store, client, RetryPolicy(max_attempts=1)).replay_ready()
+
+    assert outcome.dead_lettered == 1
+    assert outcome.project_access_denied == []
+    assert store.project_access_denied_since(since) == (0, [])

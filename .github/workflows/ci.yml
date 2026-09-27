@@ -124,7 +124,7 @@ jobs:
       - name: adapters check (canonical projections anti-drift)
         run: uv run --package studio-client studio-client adapters check --repo-root .
       - name: pytest
-        run: uv run pytest -q --junitxml=pytest-results.xml
+        run: uv run pytest -n 4 -q --junitxml=pytest-results.xml
       - name: Annotate failing tests
         # Job logs need a signed-in reader; annotations are public.
         if: failure()

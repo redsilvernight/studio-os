@@ -1,6 +1,6 @@
 // Reproducible Desktop build.
 //
-//   node scripts/build.mjs [--api-url <origin>] [--storage-url <origin>] [--sidecar] [--installer]
+//   node scripts/build.mjs [--api-url <origin>] [--storage-url <origin>] [--channel prod|dev] [--sidecar] [--installer]
 //
 // Without --installer: the bare executable (`--no-bundle`, `bundle.active` false).
 // With --installer: also freezes the daemon and produces the NSIS per-user
@@ -19,7 +19,7 @@
 // 4. compiles the shell with `tauri build --no-bundle` (or `--bundles nsis` with --installer).
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ALLOW_INSECURE_ORIGIN_ENV, allowInsecureOrigin, arg, buildDir, dashboardDir, dashboardOut, DEFAULT_API_URL, desktopDir, flag, overlayPath, runOrFail, tauriCli, tauriDir, validateBuildApiUrl, viteCli } from "./lib.mjs";
+import { ALLOW_INSECURE_ORIGIN_ENV, allowInsecureOrigin, arg, buildChannel, buildDir, dashboardDir, dashboardOut, DEFAULT_API_URL, desktopDir, flag, overlayPath, runOrFail, tauriCli, tauriDir, validateBuildApiUrl, viteCli } from "./lib.mjs";
 import { importPfx, pfxImportFromEnv, requireWindowsSigning, windowsSigningFromEnv } from "./windows-signing.mjs";
 
 const insecureOriginAllowed = allowInsecureOrigin();
@@ -28,17 +28,20 @@ const apiUrl = validateBuildApiUrl(
   insecureOriginAllowed,
 );
 const storageArg = arg("--storage-url", process.env.STUDIO_DESKTOP_STORAGE_URL);
-const storageUrl = storageArg ? validateBuildApiUrl(storageArg, insecureOriginAllowed) : undefined;
+const storageUrl = storageArg ? validateBuildApiUrl(storageArg, allowInsecureOrigin()) : undefined;
 const installer = flag("--installer");
 const sidecar = flag("--sidecar") || installer;
+const channel = buildChannel();
 const node = process.execPath;
 
 await runOrFail(node, [join(desktopDir, "scripts", "check-prereqs.mjs"), ...(sidecar ? ["--sidecar"] : [])]);
 await runOrFail(node, [join(desktopDir, "scripts", "version.mjs"), "--check"]);
 
 // B4 — Authenticode before the Tauri build (never after: post-build signing
-// would invalidate the minisign updater signatures). Fail-closed when
-// STUDIO_REQUIRE_AUTHENTICODE=1.
+// would invalidate the minisign updater signatures). Dormant per DEC-0129 (no
+// certificate): the installer stays unsigned and SmartScreen will warn, which
+// is the accepted distribution model. Only with STUDIO_REQUIRE_AUTHENTICODE=1
+// (a future certificate) does a missing certificate fail the build.
 const pfx = pfxImportFromEnv();
 if (pfx) {
   if (process.platform !== "win32") {
@@ -62,7 +65,7 @@ await runOrFail(node, [viteCli(), "build", "--outDir", dashboardOut, "--emptyOut
   env: { VITE_STUDIO_API_URL: apiUrl },
 });
 
-const cfg = [join(desktopDir, "scripts", "make-config.mjs"), "--api-url", apiUrl];
+const cfg = [join(desktopDir, "scripts", "make-config.mjs"), "--api-url", apiUrl, "--channel", channel];
 if (storageUrl) cfg.push("--storage-url", storageUrl);
 if (sidecar) cfg.push("--sidecar");
 if (installer) cfg.push("--installer");
@@ -80,14 +83,15 @@ console.log(`\n▶ Tauri build (${tauriArgs.slice(1).join(" ")})`);
 await runOrFail(node, [tauriCli(), ...tauriArgs, "--config", overlayPath], {
   env: {
     STUDIO_DESKTOP_API_URL: apiUrl,
+    STUDIO_DESKTOP_CHANNEL: channel,
     [ALLOW_INSECURE_ORIGIN_ENV]: insecureOriginAllowed ? "1" : "0",
   },
 });
 console.log("\n✔ built: desktop/src-tauri/target/release/studio-desktop.exe");
 if (installer) {
   console.log("✔ installer: desktop/src-tauri/target/release/bundle/nsis/");
-  // B4 — verify every delivered executable; --require only in release mode so
-  // local dev installers stay buildable without a certificate.
+  // B4 — report the Authenticode state of every delivered executable
+  // (DEC-0129: unsigned is accepted; --require only when a certificate exists).
   const verify = [join(desktopDir, "scripts", "windows-signing.mjs"), "--verify", "--dir", join(tauriDir, "target", "release", "bundle", "nsis")];
   if (requireWindowsSigning()) verify.push("--require");
   await runOrFail(node, verify);

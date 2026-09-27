@@ -737,18 +737,18 @@ class HarnessService:
                 mcp_url=info.mcp_url,
                 details={"reason": "token_missing"},
             )
-        failure, status = self._mcp_probe(info.mcp_url, token)
+        failure, observed = self._mcp_probe(info.mcp_url, token)
         token = None
         if failure is None:
             return HarnessVerifyResult(
                 adapter_id=adapter.adapter_id,
                 state=VerifyState.VERIFIED,
                 mcp_url=info.mcp_url,
-                details={"method": "studio_get_projects"},
+                details=verified_details(observed),
             )
         details = {"reason": failure}
-        if status is not None:
-            details["http_status"] = str(status)
+        if observed is not None:
+            details["http_status"] = str(observed)
         return HarnessVerifyResult(
             adapter_id=adapter.adapter_id,
             state=VerifyState.FAILED,
@@ -785,6 +785,27 @@ class HarnessService:
         return record
 
 
+def _projects_in(structured: Mapping[str, object]) -> int | None:
+    projects = structured.get("projects")
+    nested = structured.get("result")
+    if projects is None and isinstance(nested, dict):
+        projects = nested.get("projects")
+    return len(projects) if isinstance(projects, list) else None
+
+
+def verified_details(project_count: int | None) -> dict[str, str]:
+    details = {"method": "studio_get_projects"}
+    if project_count is not None:
+        details["project_count"] = str(project_count)
+        if project_count == 0:
+            details["project_access"] = "none"
+            details["hint"] = (
+                "Connected, but this account has access to no project yet: "
+                "ask an administrator to grant project access."
+            )
+    return details
+
+
 _VERIFY_MESSAGES: dict[str, str] = {
     "mcp_unauthorized": "Studi'OS refused the tool's credential.",
     "mcp_http_error": "Studi'OS answered the MCP call with an error status.",
@@ -813,8 +834,10 @@ def _sse_messages(text: str) -> list[dict[str, Any]]:
 
 def probe_mcp(mcp_url: str, token: str) -> tuple[str | None, int | None]:
     """One real MCP round trip (initialize, then a read-only tool call) with the
-    tool's credential. Returns a stable failure token and the HTTP status only:
-    no response body, exception text or header ever leaves this function."""
+    tool's credential. On failure returns a stable failure token and the HTTP
+    status; on success `(None, number of visible projects)` when the result
+    says so. No response body, exception text or header ever leaves this
+    function."""
     import httpx
 
     headers = {
@@ -855,6 +878,7 @@ def probe_mcp(mcp_url: str, token: str) -> tuple[str | None, int | None]:
             if response.status_code != 200:
                 return "mcp_http_error", response.status_code
             succeeded = False
+            project_count: int | None = None
             for message in _sse_messages(response.text):
                 if message.get("error"):
                     return "mcp_tool_error", None
@@ -866,8 +890,10 @@ def probe_mcp(mcp_url: str, token: str) -> tuple[str | None, int | None]:
                     isinstance(structured, dict) and "error_code" in structured
                 ):
                     return "mcp_tool_error", None
+                if isinstance(structured, dict):
+                    project_count = _projects_in(structured)
                 succeeded = True
-            return (None, None) if succeeded else ("mcp_no_result", None)
+            return (None, project_count) if succeeded else ("mcp_no_result", None)
     except Exception:  # noqa: BLE001 — the message could echo a header; keep only a token
         return "mcp_unreachable", None
 

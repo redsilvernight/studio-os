@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -85,6 +86,14 @@ CREATE TABLE IF NOT EXISTS multipart_uploads (
     created_at TEXT NOT NULL
 );
 """
+
+
+PROJECT_ACCESS_DENIED = "project_access_denied"
+"""Prefix of a `dead_letter.error` written for a 403 from project isolation
+(`project_access_denied project=<id>: <error>`), so the daemon can surface
+those rows without parsing free text further."""
+
+_DENIED_PROJECT_RE = re.compile(rf"^{PROJECT_ACCESS_DENIED} project=(\S+):")
 
 
 def _utcnow_iso() -> str:
@@ -213,6 +222,23 @@ class OutboxStore:
             int(self._conn.execute(f"SELECT COUNT(*) FROM {table.value}").fetchone()[0])
             for table in OutboxTable
         )
+
+    def project_access_denied_since(self, since: datetime) -> tuple[int, list[str]]:
+        """Dead letters written since `since` for a 403 from project isolation
+        (`error` prefixed `PROJECT_ACCESS_DENIED`): their count and the
+        distinct project ids, oldest first. Never returns payloads."""
+        rows = self._conn.execute(
+            "SELECT error FROM dead_letter WHERE error LIKE ? AND failed_at >= ? "
+            "ORDER BY failed_at",
+            (f"{PROJECT_ACCESS_DENIED} %", since.astimezone(UTC).isoformat()),
+        ).fetchall()
+        projects: list[str] = []
+        for row in rows:
+            match = _DENIED_PROJECT_RE.match(str(row[0]))
+            project = match.group(1) if match is not None else "unknown"
+            if project not in projects:
+                projects.append(project)
+        return len(rows), projects
 
     def oldest_pending_at(self) -> datetime | None:
         values = [

@@ -43,7 +43,7 @@ from studio_contracts.roadmaps import (
     WriteProvenance,
 )
 
-from studio_api.deps import CurrentMachine, CurrentPrincipal, DbSession
+from studio_api.deps import CurrentPrincipal, DbSession
 from studio_api.openapi_meta import (
     IDEMPOTENCY_KEY_DESCRIPTION,
     IF_MATCH_VERSION_DESCRIPTION,
@@ -55,6 +55,7 @@ from studio_api.openapi_meta import (
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import roadmap_hydration as hydration_service
 from studio_api.services import roadmap_structure as structure_service
+from studio_api.services import roadmap_support
 from studio_api.services import roadmaps as roadmaps_service
 
 router = APIRouter(prefix="/api/v1", tags=["roadmaps"])
@@ -123,7 +124,7 @@ RESP_409_REVIEW = merge_status(
         server_revision_no=2,
     ),
 )
-_READ: ErrorResponses = {**RESP_401_UNAUTHORIZED, **RESP_404}
+_READ: ErrorResponses = {**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404}
 _WRITE: ErrorResponses = {
     **RESP_401_UNAUTHORIZED,
     **RESP_403_FORBIDDEN,
@@ -145,8 +146,8 @@ _REVIEW: ErrorResponses = {
     "/projects/{project_id}/roadmaps",
     response_model=list[RoadmapSummary],
     description=(
-        "List a project's roadmaps (newest first), optionally by `status`. Any "
-        "authenticated machine may read. A project may have several roadmaps but "
+        "List a project's roadmaps (newest first), optionally by `status`. Requires "
+        "access to the project (`403 forbidden`). A project may have several roadmaps but "
         "at most one `active`."
     ),
     responses=_READ,
@@ -154,12 +155,14 @@ _REVIEW: ErrorResponses = {
 async def list_roadmaps(
     project_id: UUID,
     session: DbSession,
-    machine: CurrentMachine,
+    principal: CurrentPrincipal,
     roadmap_status: RoadmapStatus | None = Query(default=None, alias="status"),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ) -> list[RoadmapSummary]:
-    return await roadmaps_service.list_roadmaps(session, project_id, roadmap_status, limit, offset)
+    return await roadmaps_service.list_roadmaps(
+        session, principal, project_id, roadmap_status, limit, offset
+    )
 
 
 @router.post(
@@ -179,6 +182,7 @@ async def create_roadmap(
     principal: CurrentPrincipal,
     idempotency_key: str | None = IdempotencyKey,
 ) -> Roadmap:
+    roadmap_support.authorize_roadmap_create(principal, payload.project_id)
     return await idempotency_service.run_idempotent(
         session,
         request,
@@ -209,6 +213,7 @@ async def import_roadmap(
     principal: CurrentPrincipal,
     idempotency_key: str | None = IdempotencyKey,
 ) -> Roadmap:
+    roadmap_support.authorize_roadmap_create(principal, payload.project_id)
     return await idempotency_service.run_idempotent(
         session,
         request,
@@ -229,8 +234,8 @@ async def import_roadmap(
     ),
     responses=_READ,
 )
-async def get_roadmap(roadmap_id: UUID, session: DbSession, machine: CurrentMachine) -> Roadmap:
-    return await roadmaps_service.get_roadmap(session, roadmap_id)
+async def get_roadmap(roadmap_id: UUID, session: DbSession, principal: CurrentPrincipal) -> Roadmap:
+    return await roadmaps_service.get_roadmap(session, principal, roadmap_id)
 
 
 @router.patch(
@@ -296,7 +301,7 @@ async def transition_roadmap(
 async def export_roadmap(
     roadmap_id: UUID,
     session: DbSession,
-    machine: CurrentMachine,
+    principal: CurrentPrincipal,
     export_format: Literal["json", "pdf"] = Query(default="json", alias="format"),
 ) -> RoadmapDocument:
     if export_format == "pdf":
@@ -304,7 +309,7 @@ async def export_roadmap(
             status.HTTP_501_NOT_IMPLEMENTED,
             detail={"error_code": "not_implemented", "message": "pdf export is not available"},
         )
-    return await roadmaps_service.export_roadmap(session, roadmap_id)
+    return await roadmaps_service.export_roadmap(session, principal, roadmap_id)
 
 
 # --- revisions and proposals ---
@@ -322,11 +327,13 @@ async def export_roadmap(
 async def list_revisions(
     roadmap_id: UUID,
     session: DbSession,
-    machine: CurrentMachine,
+    principal: CurrentPrincipal,
     kind: RevisionKind | None = Query(default=None),
     revision_status: RevisionStatus | None = Query(default=None, alias="status"),
 ) -> list[RoadmapRevisionSummary]:
-    return await roadmaps_service.list_revisions(session, roadmap_id, kind, revision_status)
+    return await roadmaps_service.list_revisions(
+        session, principal, roadmap_id, kind, revision_status
+    )
 
 
 @router.get(
@@ -339,9 +346,9 @@ async def list_revisions(
     responses=_READ,
 )
 async def get_revision(
-    roadmap_id: UUID, revision_no: int, session: DbSession, machine: CurrentMachine
+    roadmap_id: UUID, revision_no: int, session: DbSession, principal: CurrentPrincipal
 ) -> RoadmapRevision:
-    return await roadmaps_service.get_revision(session, roadmap_id, revision_no)
+    return await roadmaps_service.get_revision(session, principal, roadmap_id, revision_no)
 
 
 @router.post(
@@ -365,6 +372,7 @@ async def create_proposal(
     principal: CurrentPrincipal,
     idempotency_key: str | None = IdempotencyKey,
 ) -> RoadmapRevision:
+    await roadmap_support.authorize_roadmap_write(session, principal, roadmap_id)
     return await idempotency_service.run_idempotent(
         session,
         request,
@@ -387,9 +395,9 @@ async def create_proposal(
     responses=_READ,
 )
 async def proposal_diff(
-    roadmap_id: UUID, revision_no: int, session: DbSession, machine: CurrentMachine
+    roadmap_id: UUID, revision_no: int, session: DbSession, principal: CurrentPrincipal
 ) -> RoadmapDiff:
-    return await roadmaps_service.proposal_diff(session, roadmap_id, revision_no)
+    return await roadmaps_service.proposal_diff(session, principal, roadmap_id, revision_no)
 
 
 @router.post(
@@ -436,6 +444,7 @@ async def create_phase(
     principal: CurrentPrincipal,
     idempotency_key: str | None = IdempotencyKey,
 ) -> Roadmap:
+    await roadmap_support.authorize_roadmap_write(session, principal, roadmap_id)
     return await idempotency_service.run_idempotent(
         session,
         request,
@@ -543,6 +552,7 @@ async def create_step(
     principal: CurrentPrincipal,
     idempotency_key: str | None = IdempotencyKey,
 ) -> Roadmap:
+    await roadmap_support.authorize_roadmap_write(session, principal, roadmap_id)
     return await idempotency_service.run_idempotent(
         session,
         request,
@@ -674,6 +684,7 @@ async def link_task(
     principal: CurrentPrincipal,
     idempotency_key: str | None = IdempotencyKey,
 ) -> Roadmap:
+    await roadmap_support.authorize_roadmap_write(session, principal, roadmap_id)
     return await idempotency_service.run_idempotent(
         session,
         request,
@@ -714,9 +725,9 @@ async def unlink_task(
     responses=_READ,
 )
 async def preview_hydration(
-    roadmap_id: UUID, payload: HydrationRequest, session: DbSession, machine: CurrentMachine
+    roadmap_id: UUID, payload: HydrationRequest, session: DbSession, principal: CurrentPrincipal
 ) -> HydrationResult:
-    return await hydration_service.preview_hydration(session, roadmap_id, payload)
+    return await hydration_service.preview_hydration(session, principal, roadmap_id, payload)
 
 
 @router.post(
@@ -739,6 +750,7 @@ async def apply_hydration(
     principal: CurrentPrincipal,
     idempotency_key: str | None = IdempotencyKey,
 ) -> HydrationResult:
+    await roadmap_support.authorize_roadmap_write(session, principal, roadmap_id)
     return await idempotency_service.run_idempotent(
         session,
         request,

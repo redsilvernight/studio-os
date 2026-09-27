@@ -89,7 +89,7 @@ async def _review(
     role: Role = Role.ADMIN,
     comment: str | None = "reviewed",
 ) -> Roadmap:
-    current = await roadmaps.get_roadmap(db_session, roadmap_id)
+    current = await roadmaps.get_roadmap(db_session, principal, roadmap_id)
     return await roadmaps.review_proposal(
         db_session,
         dataclasses.replace(principal, role=role),
@@ -162,7 +162,7 @@ async def test_a_superseded_proposal_does_not_touch_the_context(
     first = await _propose(db_session, principal, roadmap, "First attempt")
     await _propose(db_session, principal, roadmap, "Second attempt")
 
-    revisions = await roadmaps.list_revisions(db_session, roadmap.id)
+    revisions = await roadmaps.list_revisions(db_session, principal, roadmap.id)
     statuses = {r.revision_no: r.status for r in revisions if r.kind.value == "proposal"}
     assert statuses[first] is RevisionStatus.SUPERSEDED
     assert await _prepare(auth_ctx, project, "work on the plan") == before

@@ -37,7 +37,7 @@ describe("P1 contract boundary (no second source of truth)", () => {
     };
     expect(LOCAL_PROTOCOL).toBe(exported.protocol);
     expect(knownCommands().sort()).toEqual(exported.commands.map((c) => c.command).sort());
-    expect(knownCommands()).toHaveLength(33);
+    expect(knownCommands()).toHaveLength(34);
   });
 
   it("bundles the request and response schema of every allowlisted command", () => {
@@ -308,5 +308,21 @@ describe("desktop adapter: diagnostics and updates", () => {
     expect(await webPlatform.diagnostics()).toBeNull();
     expect(await webPlatform.openDataFolder("logs")).toBe(false);
     expect(await webPlatform.checkForUpdate()).toEqual({ ok: false, code: "not_configured" });
+  });
+});
+
+describe("identity.enroll (A5, DEC-0130)", () => {
+  const profile = { profile_id: "main", server_origin: "https://studio.example" };
+  const session = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.signature-part";
+
+  it("is a known, mutating command behind its own capability", () => {
+    const spec = LOCAL_COMMANDS.find((c) => c.command === "identity.enroll");
+    expect(spec).toMatchObject({ capability: "identity.enroll", mutating: true, response: "IdentityEnrollResult" });
+  });
+
+  it("builds a request with the session and refuses a malformed one", () => {
+    expect(() => buildRequest("identity.enroll", { profile, human_session: session, machine_name: "Studi'OS Desktop" })).not.toThrow();
+    expect(() => buildRequest("identity.enroll", { profile, human_session: "short", machine_name: "x" })).toThrow();
+    expect(() => buildRequest("identity.enroll", { profile, machine_name: "x" })).toThrow();
   });
 });

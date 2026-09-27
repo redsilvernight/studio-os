@@ -36,13 +36,18 @@ Pour deux developpeurs, un petit VPS est suffisant pour l'orchestration. Le stoc
    - execute `alembic upgrade head`
    - cree le premier admin et son mot de passe dashboard
    - cree la premiere machine et affiche son token
-3. `docker compose up -d` pour demarrer API/MCP/dashboard/Caddy.
-4. Configurer `STUDIO_JWT_SECRET` (long, aleatoire) et `STUDIO_CORS_ORIGINS` dans
-   `docker/.env`, puis redemarrer le service `api`.
+3. Configurer `STUDIO_JWT_SECRET` (aleatoire, >= 32 octets) et `STUDIO_CORS_ORIGINS`
+   dans `docker/.env` : l'API refuse de demarrer avec le placeholder ou un secret court.
+4. `docker compose up -d` pour demarrer API/MCP/dashboard/Caddy.
 
 ## Utilisateurs suivants
-Aucune inscription publique n'existe : chaque utilisateur est cree par un
-administrateur sur le serveur. Depuis la racine du depot :
+L'inscription publique (A4, DEC-0109) reste fermee
+(`STUDIO_PUBLIC_REGISTRATION_ENABLED=false`, defaut) sur toute instance exposee
+jusqu'au gate C4 : chaque utilisateur est cree par un administrateur sur le
+serveur. Depuis la racine du depot :
+
+Le gate et sa procedure d'incident sont decrits dans
+`docs/DESKTOP_C4_PRODUCTION_GATE.md`.
 
     ./register-user.sh
 
@@ -78,11 +83,20 @@ Distinction a retenir :
 - **machine token** : affiche une seule fois a la creation, jamais reaffiche.
 
 ## Rotation / revocation
+- Fermeture des inscriptions, revocation de sessions/comptes/machines,
+  suspension et rollback de release : `docs/DESKTOP_C4_PRODUCTION_GATE.md`.
 - Revocation d'une machine : `./revoke-machine.sh <machine_id>`.
 - Mot de passe dashboard oublie/compromis : preferer
   `studio-admin set-password --email ... --password-stdin` (le secret passe par
   stdin, jamais par les arguments de processus). `--password ...` reste accepte
   pour compatibilite.
+- E-mails de compte (A4) : `STUDIO_EMAIL_BACKEND=smtp` avec `STUDIO_EMAIL_FROM`,
+  `STUDIO_SMTP_HOST`, `STUDIO_SMTP_PORT`, `STUDIO_SMTP_SECURITY`
+  (`starttls`|`tls`|`none`) et, si le relais l'exige, `STUDIO_SMTP_USERNAME` /
+  `STUDIO_SMTP_PASSWORD` dans `docker/.env` uniquement. Active la recuperation de
+  mot de passe (`forgot`/`reset`) ; `STUDIO_PUBLIC_BASE_URL` (defaut
+  `https://${DASHBOARD_DOMAIN}`) sert aux liens. Une configuration incoherente
+  empeche l'API de demarrer.
 - Rotation du secret JWT : changer `STUDIO_JWT_SECRET` et redemarrer `api` invalide
   les sessions actives ; les utilisateurs doivent se reconnecter.
 

@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from studio_api.middleware import setup_middleware
 from studio_api.observability import configure_logging
 from studio_api.routers import (
+    accounts,
     agents,
     ai_work,
     auth,
@@ -33,6 +34,7 @@ from studio_api.routers import (
     timeline,
     transfers,
     users,
+    version,
 )
 
 logger = logging.getLogger(__name__)
@@ -42,7 +44,7 @@ APP_DESCRIPTION = (
     "claims, work sessions, decisions, AI work logs, events, and file "
     "transfer metadata. Every operation under `/api/v1` requires machine "
     "authentication (`Authorization: Bearer <machine-token>`, provisioned "
-    "out of band) except `GET /healthz`, `GET /metrics` and the human "
+    "out of band) except `GET /healthz`, `GET /metrics`, `GET /version` and the human "
     "dashboard login `POST /auth/token`. File bytes never flow through "
     "this API — transfers exchange metadata and short-lived signed URLs "
     "only, uploads and downloads go directly to object storage. Replayable "
@@ -52,7 +54,12 @@ APP_DESCRIPTION = (
 )
 
 OPENAPI_TAG_DESCRIPTIONS: dict[str, str] = {
-    "health": "Liveness, metrics and dashboard login probes (unauthenticated).",
+    "health": "Liveness, metrics, version and dashboard login probes (unauthenticated).",
+    "version": (
+        "Compatibility probe: API contract version, server build, and per "
+        "client family the oldest build still served with the newest known "
+        "build (unauthenticated)."
+    ),
     "projects": (
         "Project registry. Creating a project requires a privileged role; "
         "reading is open to any authenticated machine."
@@ -123,7 +130,8 @@ OPENAPI_TAG_DESCRIPTIONS: dict[str, str] = {
         "directly to object storage with the returned URLs."
     ),
     "machines": (
-        "Machine provisioning (privileged role). The very first machine is created out of band."
+        "Machine provisioning: self-service for the caller's own User, "
+        "`admin` for any User. The very first machine is created out of band."
     ),
     "users": "User provisioning (privileged role). The very first user is created out of band.",
     "runtime-bindings": (
@@ -174,6 +182,7 @@ def create_app() -> FastAPI:
     )
 
     from studio_api.jwt_auth import is_weak_jwt_secret
+    from studio_api.mailer import email_settings_problems
     from studio_api.settings import get_settings
 
     settings = get_settings()
@@ -181,14 +190,26 @@ def create_app() -> FastAPI:
     setup_middleware(app, settings)
 
     if is_weak_jwt_secret(settings.jwt_secret):
+        if settings.environment == "production":
+            raise RuntimeError(
+                "STUDIO_JWT_SECRET is using a default or short value (< 32 bytes); "
+                "refusing to start in production (set a strong secret, or "
+                "STUDIO_ENVIRONMENT=dev for local development)"
+            )
         logger.warning(
             "STUDIO_JWT_SECRET is using a default or short value (< 32 bytes); "
             "set a strong secret in production"
         )
 
+    email_problems = email_settings_problems(settings)
+    if email_problems:
+        raise RuntimeError("invalid e-mail / registration settings: " + "; ".join(email_problems))
+
     app.include_router(health.router)
+    app.include_router(version.router)
     app.include_router(metrics.router)
     app.include_router(auth.router, prefix="/api/v1")
+    app.include_router(accounts.router, prefix="/api/v1")
     app.include_router(projects.router)
     app.include_router(tasks.router)
     app.include_router(sessions.router)

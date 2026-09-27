@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Header, Request, status
 from sqlalchemy import select
-from studio_contracts.auth import Agent, AgentCreate
+from studio_contracts.auth import Agent, AgentCreate, Role
 
 from studio_api.db.models.agent import AgentModel
-from studio_api.deps import CurrentMachine, CurrentPrincipal, DbSession
+from studio_api.db.models.machine import MachineModel
+from studio_api.deps import CurrentPrincipal, DbSession
 from studio_api.openapi_meta import (
     IDEMPOTENCY_KEY_DESCRIPTION,
     RESP_401_UNAUTHORIZED,
@@ -22,11 +23,19 @@ router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
 @router.get(
     "",
     response_model=list[Agent],
-    description="List agent provenance identities. Any authenticated machine may read.",
+    description=(
+        "List agent provenance identities: those whose machine belongs to the "
+        "caller's User, every agent for `admin` (contract version 2)."
+    ),
     responses={**RESP_401_UNAUTHORIZED},
 )
-async def list_agents(session: DbSession, machine: CurrentMachine) -> list[Agent]:
-    result = await session.execute(select(AgentModel))
+async def list_agents(session: DbSession, principal: CurrentPrincipal) -> list[Agent]:
+    stmt = select(AgentModel)
+    if principal.role != Role.ADMIN:
+        stmt = stmt.join(MachineModel, AgentModel.machine_id == MachineModel.id).where(
+            MachineModel.owner_user_id == principal.user.id
+        )
+    result = await session.execute(stmt)
     return [Agent.model_validate(a) for a in result.scalars().all()]
 
 

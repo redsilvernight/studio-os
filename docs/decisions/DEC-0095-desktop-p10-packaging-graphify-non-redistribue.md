@@ -78,3 +78,9 @@ open whether Graphify may be bundled, pending a distribution audit.
 `desktop/src-tauri/installer/hooks.nsh`,
 `packages/studio-client/src/studio_client/data_format.py`,
 `packages/studio-client/src/studio_client/knowledge/locator.py`.
+
+## Amendements
+
+(Acceptés le 2026-09-25 ; le détail fait foi dans le fichier cité.)
+
+- DU0-E (`DU0-E-release-signature-distribution.md`, DEC-0108) : signature des releases et manifeste public de distribution.

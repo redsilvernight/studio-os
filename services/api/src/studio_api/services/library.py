@@ -6,7 +6,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import ColumnElement, and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.auth import Role
@@ -38,21 +38,70 @@ from studio_api.db.models.library import (
 from studio_api.db.models.project import ProjectModel
 from studio_api.services import events as events_service
 from studio_api.services.authz import (
+    ALL_PROJECTS,
     Principal,
+    ProjectAction,
     ensure_can_provision,
     ensure_can_write,
+    ensure_project_access,
+    ensure_shared_access,
     forbidden,
+    has_any_project,
+    has_project_access,
 )
 
 _LIBRARY_EVENT_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "studio-os:library")
 
 
 def _can_read(principal: Principal, resource: LibraryResourceModel) -> bool:
-    """Studio/Project definitions are shared reads; User definitions are
-    owner-or-admin only (DEC-0063)."""
-    if resource.scope != "user":
-        return True
-    return principal.role == Role.ADMIN or resource.owner_user_id == principal.user.id
+    """User definitions are owner-or-admin only (DEC-0063); Project ones
+    follow their project, Studio ones need at least one project (DEC-0103
+    §4/§11, composed by AND)."""
+    if resource.scope == "user":
+        return principal.role == Role.ADMIN or resource.owner_user_id == principal.user.id
+    if resource.project_id is not None:
+        return has_project_access(principal, resource.project_id)
+    return has_any_project(principal)
+
+
+def _ensure_scope_access(
+    principal: Principal, project_id: UUID | None, is_user_scope: bool, action: ProjectAction
+) -> None:
+    if is_user_scope:
+        return
+    if project_id is not None:
+        ensure_project_access(principal, project_id, action)
+    else:
+        ensure_shared_access(principal, action)
+
+
+def ensure_resource_scope(
+    principal: Principal, resource: LibraryResourceModel, action: ProjectAction = "read"
+) -> None:
+    """Project level of a definition, checked before the User-scope 404
+    masking (DEC-0103 §8): Project scope needs its project, Studio scope
+    at least one project; User scope keeps its owner-or-admin rule."""
+    _ensure_scope_access(principal, resource.project_id, resource.scope == "user", action)
+
+
+def _read_clause(principal: Principal) -> ColumnElement[bool] | None:
+    """SQL twin of `_can_read`; `None` means no filter (admin)."""
+    if principal.role == Role.ADMIN:
+        return None
+    own = and_(
+        LibraryResourceModel.scope == "user",
+        LibraryResourceModel.owner_user_id == principal.user.id,
+    )
+    scope = principal.project_scope
+    if scope is ALL_PROJECTS:
+        return or_(own, LibraryResourceModel.scope != "user")
+    if not scope:
+        return own
+    return or_(
+        own,
+        and_(LibraryResourceModel.scope == "project", LibraryResourceModel.project_id.in_(scope)),
+        LibraryResourceModel.scope == "studio",
+    )
 
 
 def _not_found() -> HTTPException:
@@ -64,7 +113,22 @@ async def get_resource(
 ) -> LibraryResourceModel | None:
     """Returns `None` for a missing row and for a User-scope row the caller
     may not see — both map to 404 so no surface leaks another user's
-    private existence (DEC-0063 precision 1)."""
+    private existence (DEC-0063 precision 1). A definition of an
+    inaccessible project answers 403 first (DEC-0103 §8)."""
+    resource = await session.get(LibraryResourceModel, resource_id)
+    if resource is None:
+        return None
+    ensure_resource_scope(principal, resource)
+    if not _can_read(principal, resource):
+        return None
+    return resource
+
+
+async def find_readable_resource(
+    session: AsyncSession, principal: Principal, resource_id: UUID
+) -> LibraryResourceModel | None:
+    """Resolution lookup: every unreadable row, whatever the reason, is
+    masked as missing so resolution keeps its single public 404."""
     resource = await session.get(LibraryResourceModel, resource_id)
     if resource is None or not _can_read(principal, resource):
         return None
@@ -88,14 +152,10 @@ async def list_resources(
     if scope is not None:
         conditions.append(LibraryResourceModel.scope == scope)
     if project_id is not None:
+        ensure_project_access(principal, project_id)
         conditions.append(LibraryResourceModel.project_id == project_id)
-    if principal.role != Role.ADMIN:
-        conditions.append(
-            or_(
-                LibraryResourceModel.scope != "user",
-                LibraryResourceModel.owner_user_id == principal.user.id,
-            )
-        )
+    if (visible := _read_clause(principal)) is not None:
+        conditions.append(visible)
     stmt = (
         select(LibraryResourceModel)
         .order_by(LibraryResourceModel.created_at.asc())
@@ -294,8 +354,25 @@ async def _emit_library_event(
     )
 
 
-def _ensure_owner_or_admin(principal: Principal, resource: LibraryResourceModel) -> None:
+def authorize_write(principal: Principal, resource: LibraryResourceModel) -> None:
+    """Project then role check of a definition mutation, run ahead of the
+    idempotency replay short-circuit (DEC-0036, DEC-0103 §12)."""
+    ensure_resource_scope(principal, resource, "write")
     ensure_can_write(principal, "library")
+
+
+def authorize_create(principal: Principal, scope: str, project_id: UUID | None) -> None:
+    """Project (or shared-data) then role check of a definition creation,
+    run ahead of the idempotency replay short-circuit."""
+    _ensure_scope_access(principal, project_id, scope == "user", "write")
+    if scope == "studio":
+        ensure_can_provision(principal, "library")
+    else:
+        ensure_can_write(principal, "library")
+
+
+def _ensure_owner_or_admin(principal: Principal, resource: LibraryResourceModel) -> None:
+    authorize_write(principal, resource)
     if principal.role == Role.ADMIN:
         return
     if resource.owner_user_id != principal.user.id:
@@ -307,6 +384,7 @@ async def create_resource(
 ) -> tuple[LibraryResourceModel, LibraryResourceVersionModel]:
     """Creates the resource row plus draft version 1 (which never activates
     itself — DEC-0064 precision 3)."""
+    authorize_create(principal, data.scope.value, data.project_id)
     owner_id: UUID | None = None
     project_id: UUID | None = None
     if data.scope.value == "studio":
@@ -559,29 +637,27 @@ async def version_detail(
 async def list_locks(
     session: AsyncSession, principal: Principal, project_id: UUID | None = None
 ) -> list[LibraryProjectLockModel]:
-    """Reads stay fully available, including to `readonly` (TECH/04): no
-    write gate here. Locks on another user's private resources are filtered
+    """Open to `readonly` (TECH/04): no write gate here. A lock follows its
+    project (DEC-0103 §11) and locks on unreadable resources are filtered
     out like the resources themselves (DEC-0063 precision 1)."""
     stmt = select(LibraryProjectLockModel).join(
         LibraryResourceModel,
         LibraryProjectLockModel.resource_id == LibraryResourceModel.id,
     )
     if project_id is not None:
+        ensure_project_access(principal, project_id)
         stmt = stmt.where(LibraryProjectLockModel.project_id == project_id)
-    if principal.role != Role.ADMIN:
-        stmt = stmt.where(
-            or_(
-                LibraryResourceModel.scope != "user",
-                LibraryResourceModel.owner_user_id == principal.user.id,
-            )
-        )
+    elif principal.project_scope is not ALL_PROJECTS:
+        stmt = stmt.where(LibraryProjectLockModel.project_id.in_(principal.project_scope))
+    if (visible := _read_clause(principal)) is not None:
+        stmt = stmt.where(visible)
     return list((await session.execute(stmt)).scalars().all())
 
 
 async def set_lock(
     session: AsyncSession, principal: Principal, data: LibraryLockCreate
 ) -> LibraryProjectLockModel:
-    ensure_can_write(principal, "library")
+    authorize_lock(principal, data.project_id)
     if await session.get(ProjectModel, data.project_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail={"error_code": "project_not_found"})
     resource = await session.get(LibraryResourceModel, data.resource_id)
@@ -627,12 +703,20 @@ async def set_lock(
     return lock
 
 
+def authorize_lock(principal: Principal, project_id: UUID) -> None:
+    """Project then role check of a lock creation, run ahead of the
+    idempotency replay short-circuit (DEC-0036, DEC-0103 §12)."""
+    ensure_project_access(principal, project_id, "write")
+    ensure_can_write(principal, "library")
+
+
 async def release_lock(
     session: AsyncSession, principal: Principal, lock: LibraryProjectLockModel
 ) -> LibraryProjectLock:
     """Release by the creating user or an admin (claims pattern). The
     response contract is snapshotted before deletion: reading attributes
     off a deleted, committed row would fail on session expiry."""
+    ensure_project_access(principal, lock.project_id, "write")
     ensure_can_write(principal, "library")
     if principal.role != Role.ADMIN and lock.created_by_user_id != principal.user.id:
         raise forbidden("library", "release")
@@ -687,7 +771,10 @@ async def resolve_definition(
     first, then shadow `User > Project(project_id) > Studio`, then pick the
     effective version (project lock, else active). Pure read: open to every
     authenticated role, and identical inputs always yield identical outputs.
-    No endpoint exposes this in P2."""
+    No endpoint exposes this in P2. An inaccessible `project_id` answers
+    403 before any read (DEC-0103 §10)."""
+    if project_id is not None:
+        ensure_project_access(principal, project_id)
     try:
         return await _resolve_inner(session, principal, kind, stable_key, project_id)
     except _Unresolvable:

@@ -11,6 +11,7 @@ import createClient, { type Middleware } from "openapi-fetch";
 import type { paths } from "./openapi-schema";
 import { getToken } from "./auth";
 import { observedFetch } from "./apiEvents";
+import { clientNegotiationHeaders } from "./clientIdentity";
 import { getServerOriginOverride } from "./runtimeConfig";
 
 export interface ApiErrorDetails {
@@ -39,8 +40,27 @@ export class ApiError extends Error {
     this.details = details.details ?? null;
   }
 
+  /** Session problem only (401): the token is missing, expired or revoked.
+   *  A 403 is never an auth error — the account is valid but lacks a right. */
   get isAuth(): boolean {
-    return this.status === 401 || this.status === 403;
+    return this.status === 401;
+  }
+
+  /** Valid account, refused action or resource (403). */
+  get isForbidden(): boolean {
+    return this.status === 403;
+  }
+
+  /** 403 from project isolation: the account has no access to this project
+   *  (or the project does not exist — the server never says which). */
+  get isProjectAccessDenied(): boolean {
+    if (this.status !== 403 || this.errorCode !== "forbidden") return false;
+    const details = this.details;
+    return (
+      details !== null &&
+      typeof details === "object" &&
+      (details as { resource?: unknown }).resource === "project"
+    );
   }
 }
 
@@ -49,6 +69,9 @@ const bearer: Middleware = {
     const token = getToken();
     if (token !== null) {
       request.headers.set("Authorization", `Bearer ${token}`);
+    }
+    for (const [name, value] of Object.entries(clientNegotiationHeaders())) {
+      request.headers.set(name, value);
     }
     return request;
   },

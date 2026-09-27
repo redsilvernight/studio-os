@@ -139,7 +139,7 @@ async def test_review_queue_filters_by_project(
     from studio_api.services import projects as projects_service
 
     other_project = await projects_service.create_project(
-        db_session, f"proj-{uuid.uuid4().hex[:8]}", "Other Project", None
+        db_session, f"proj-{uuid.uuid4().hex[:8]}", "Other Project", None, creator=None
     )
 
     ai_work = await client.post(

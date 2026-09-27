@@ -25,19 +25,18 @@ from studio_api.storage.provider import get_storage
 
 TEST_DATABASE_URL = os.environ.get(
     "STUDIO_TEST_DATABASE_URL",
-    "postgresql+asyncpg://studio:studio@localhost:5432/studio_os_test",
+    "postgresql+asyncpg://studio:studio@127.0.0.1:5432/studio_os_test",
 )
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def engine() -> AsyncIterator[AsyncEngine]:
     """Real Postgres (per .claude/rules/database.md — SQLite never stands in for
     the shared source of state), pointed at a dedicated, pre-migrated test DB.
 
-    Function-scoped: asyncpg connections are bound to the event loop they were
-    created on, and pytest-asyncio hands each test its own loop — a
-    session-scoped engine here would reuse pooled connections across loops and
-    fail with "attached to a different loop"."""
+    Session-scoped so pooled connections are reused across tests: asyncpg
+    connections are bound to their event loop, which is why every test and
+    fixture runs on the single session loop (pyproject `asyncio_default_*`)."""
     test_engine = create_async_engine(TEST_DATABASE_URL)
     yield test_engine
     await test_engine.dispose()
@@ -160,7 +159,7 @@ async def other_auth_headers(other_machine: tuple[MachineModel, str]) -> dict[st
 @pytest_asyncio.fixture
 async def project(db_session: AsyncSession) -> ProjectModel:
     return await projects_service.create_project(
-        db_session, f"proj-{uuid.uuid4().hex[:8]}", "Test Project", None
+        db_session, f"proj-{uuid.uuid4().hex[:8]}", "Test Project", None, creator=None
     )
 
 

@@ -73,6 +73,8 @@ const CODE_MESSAGES: Record<string, string> = {
   idempotency_key_in_progress: "Cette demande est déjà en cours de traitement. Patientez un instant.",
   idempotency_key_payload_mismatch: "Cette demande a déjà été envoyée avec un contenu différent. Rechargez la page, puis recommencez.",
   invalid_status_transition: "Ce changement de statut n'est pas autorisé depuis l'état actuel.",
+  invalid_state: "Cette action n'est pas possible dans l'état actuel. Rechargez pour voir le statut à jour.",
+  active_roadmap_exists: "Une autre roadmap est déjà active dans ce projet. Clôturez-la ou archivez-la d'abord.",
   runtime_incompatible: "Le runtime retenu ne satisfait pas les exigences demandées.",
   runtime_not_found: "Runtime introuvable.",
   definition_not_found: "Définition introuvable.",
@@ -98,7 +100,11 @@ const STATUS_MESSAGES: Record<number, string> = {
   429: "Trop de demandes. Patientez un instant, puis réessayez.",
 };
 
+const PROJECT_ACCESS_DENIED_MESSAGE =
+  "Vous n'avez pas accès à ce projet, ou il n'existe pas. Demandez l'accès à un administrateur.";
+
 function humanMessage(error: ApiError): string {
+  if (error.isProjectAccessDenied) return PROJECT_ACCESS_DENIED_MESSAGE;
   if (error.errorCode !== null && CODE_MESSAGES[error.errorCode] !== undefined) return CODE_MESSAGES[error.errorCode] ?? "";
   if (STATUS_MESSAGES[error.status] !== undefined) return STATUS_MESSAGES[error.status] ?? "";
   if (error.status >= 500) return "Le serveur a rencontré une erreur. Réessayez dans un instant.";

@@ -18,6 +18,8 @@ from prometheus_client import (
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response
 
+from studio_api.security_log import SECURITY_EVENT_ATTR, RedactingFilter
+
 logger = logging.getLogger(__name__)
 
 REGISTRY = CollectorRegistry(auto_describe=True)
@@ -74,6 +76,8 @@ class JsonFormatter(logging.Formatter):
             payload["exception"] = self.formatException(record.exc_info)
         if hasattr(record, "request_id"):
             payload["request_id"] = record.request_id
+        if hasattr(record, SECURITY_EVENT_ATTR):
+            payload[SECURITY_EVENT_ATTR] = getattr(record, SECURITY_EVENT_ATTR)
         return json.dumps(payload, ensure_ascii=False)
 
 
@@ -85,6 +89,7 @@ def configure_logging(log_format: str = "text", log_level: str = "INFO") -> None
         handler.setFormatter(JsonFormatter())
     else:
         handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    handler.addFilter(RedactingFilter())
 
     root = logging.getLogger()
     root.handlers.clear()

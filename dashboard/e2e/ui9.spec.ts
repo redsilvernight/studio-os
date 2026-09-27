@@ -246,7 +246,7 @@ test.describe("UI-9 page Machines", () => {
     await login(page, "#/machines", { empty: true });
     const view = page.locator("#view");
     await expect(view).toContainText("Aucune machine observée");
-    await expect(view).toContainText("provisionnées par un administrateur");
+    await expect(view).toContainText("enregistre ses propres machines");
     await expect(view.locator("#machines-list a")).toHaveCount(0);
     await expect(view.locator("#machines-list button")).toHaveCount(0);
     await page.screenshot({ path: `${SHOTS}/machines-vide-1280.png` });

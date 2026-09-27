@@ -97,7 +97,10 @@ async def test_claim_by_second_machine_conflicts(
     assert claimed.json()["status"] == "in_progress"
 
     other_user = UserModel(
-        display_name="Other", email=f"{uuid.uuid4()}@example.test", role="developer"
+        display_name="Other",
+        email=f"{uuid.uuid4()}@example.test",
+        role="developer",
+        email_verified_at=datetime.now(UTC),
     )
     db_session.add(other_user)
     await db_session.flush()
@@ -188,7 +191,10 @@ async def test_rejected_claim_emits_no_event(
     await client.post(f"/api/v1/tasks/{task_id}/claim", headers=auth_headers)
 
     other_user = UserModel(
-        display_name="Other", email=f"{uuid.uuid4()}@example.test", role="developer"
+        display_name="Other",
+        email=f"{uuid.uuid4()}@example.test",
+        role="developer",
+        email_verified_at=datetime.now(UTC),
     )
     db_session.add(other_user)
     await db_session.flush()

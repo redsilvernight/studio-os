@@ -54,8 +54,16 @@ const claim = (resource_path: string, expires_at: string) =>
 const NOW = new Date("2026-09-12T10:00:00Z").getTime();
 
 describe("PROJECT_TABS", () => {
-  it("six onglets adossés à des capacités réelles, jamais décoratifs", () => {
-    expect(PROJECT_TABS.map((t) => t.id)).toEqual(["overview", "roadmap", "tasks", "claims", "activity", "decisions"]);
+  it("sept onglets adossés à des capacités réelles, jamais décoratifs", () => {
+    expect(PROJECT_TABS.map((t) => t.id)).toEqual([
+      "overview",
+      "roadmap",
+      "tasks",
+      "claims",
+      "activity",
+      "decisions",
+      "members",
+    ]);
   });
 });
 

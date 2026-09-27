@@ -50,7 +50,7 @@ async def _principal(db_session: AsyncSession, machine: Machine) -> Principal:
 
 async def _project(db_session: AsyncSession):
     return await projects_service.create_project(
-        db_session, f"ctx-{uuid.uuid4().hex[:8]}", "Context Project", None
+        db_session, f"ctx-{uuid.uuid4().hex[:8]}", "Context Project", None, creator=None
     )
 
 

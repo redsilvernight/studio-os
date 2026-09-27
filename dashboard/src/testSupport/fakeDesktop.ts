@@ -25,6 +25,7 @@ export const PEER = {
     "harness.read",
     "harness.plan",
     "harness.apply",
+    "identity.enroll",
   ],
   required_capabilities: ["daemon.control", "identity.view"],
   optional_capabilities: [
@@ -40,6 +41,7 @@ export const PEER = {
     "harness.read",
     "harness.plan",
     "harness.apply",
+    "identity.enroll",
   ],
   optional_components: [],
 } as unknown as PeerInfo;
@@ -126,10 +128,15 @@ export function fakeDaemon(options: FakeDaemonOptions = {}) {
         return ok(command, { outcome: options.refuse, daemon: {}, granted_capabilities: [] });
       }
       granted = new Set(offers.filter((c) => PEER.capabilities?.includes(c)));
+      const complete = offers.includes("daemon.health");
       return ok(command, {
-        outcome: offers.includes("daemon.health") ? "compatible" : "compatible_degraded",
+        outcome: complete ? "compatible" : "compatible_degraded",
         daemon: {},
         granted_capabilities: [...granted],
+        // Same rule as the P1 `negotiate`: an optional capability the daemon
+        // does not know at all means an older daemon to update.
+        missing_optional: complete ? [] : ["daemon.health"],
+        remediation: complete ? "none" : "update_daemon",
       });
     }
     const needs = command === "daemon.health" ? "daemon.health" : "daemon.control";

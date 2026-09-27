@@ -127,6 +127,9 @@ export interface Roadmap {
 
 export type RoadmapReviewDecision = "approve" | "request_changes" | "reject";
 
+/** Lifecycle transitions outside the review flow; `reopen` requires a comment. */
+export type RoadmapLifecycleTransition = "activate" | "complete" | "reopen" | "archive";
+
 export type RoadmapRevisionKind = "proposal" | "snapshot" | "review";
 export type RoadmapRevisionStatus =
   | "pending"
@@ -202,4 +205,10 @@ export interface RoadmapDataSource {
     comment?: string,
     roadmapId?: string,
   ): Promise<Roadmap | null>;
+  /** Apply a lifecycle transition guarded by `roadmap.version` (409 version_conflict when stale). */
+  transitionRoadmap(
+    roadmap: Roadmap,
+    transition: RoadmapLifecycleTransition,
+    comment?: string,
+  ): Promise<Roadmap>;
 }

@@ -79,9 +79,20 @@ describe("resolutionErrorView", () => {
     expect(view.noFallback).toBe(false);
   });
 
-  it("flags auth failures", () => {
-    const error = new ApiError(parseErrorBody(403, { detail: { error_code: "forbidden" } }));
+  it("flags auth failures (401 only)", () => {
+    const error = new ApiError(parseErrorBody(401, { detail: "not authenticated" }));
     expect(resolutionErrorView(error).isAuth).toBe(true);
+  });
+
+  it("keeps a 403 apart from auth and flags project isolation", () => {
+    const role = resolutionErrorView(new ApiError(parseErrorBody(403, { detail: { error_code: "forbidden" } })));
+    expect(role.isAuth).toBe(false);
+    expect(role.forbidden).toBe(true);
+    expect(role.projectAccessDenied).toBe(false);
+    const project = resolutionErrorView(
+      new ApiError(parseErrorBody(403, { detail: { error_code: "forbidden", resource: "project", action: "read" } })),
+    );
+    expect(project.projectAccessDenied).toBe(true);
   });
 
   it("degrades gracefully on a non-ApiError", () => {

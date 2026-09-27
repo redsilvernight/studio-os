@@ -210,7 +210,7 @@ export function homeProjectsHtml(result: HomeResult<Project[]>): string {
     return `<section class="home-section home-section--projects" aria-labelledby="home-projets"><div id="home-projets">${header}</div><div class="ds-notice ds-notice--danger"><strong>Projets indisponibles.</strong>${esc(result.message)}</div></section>`;
   }
   if (result.value.length === 0) {
-    return `<section class="home-section home-section--projects" aria-labelledby="home-projets"><div id="home-projets">${header}</div>${dsEmptyState("Aucun projet", "Créez votre premier projet pour commencer.", { label: "Voir les projets", href: "#/projects" })}</section>`;
+    return `<section class="home-section home-section--projects" aria-labelledby="home-projets"><div id="home-projets">${header}</div>${dsEmptyState("Aucun projet accessible", "Créez un projet, ou demandez à un administrateur l'accès à un projet existant.", { label: "Voir les projets", href: "#/projects" })}</section>`;
   }
   const items = pickHomeProjects(result.value)
     .map((p) => {

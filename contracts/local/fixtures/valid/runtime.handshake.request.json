@@ -11,6 +11,7 @@
         "harness.plan",
         "harness.read",
         "harness.verify",
+        "identity.enroll",
         "identity.view",
         "knowledge.graph",
         "knowledge.index",
