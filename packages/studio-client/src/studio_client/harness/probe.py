@@ -120,6 +120,7 @@ def _kill_tree(process: subprocess.Popen[bytes]) -> None:
         if sys.platform == "win32":
             subprocess.run(  # noqa: S603
                 ["taskkill", "/F", "/T", "/PID", str(process.pid)],  # noqa: S607
+                stdin=subprocess.DEVNULL,
                 capture_output=True,
                 timeout=5,
                 check=False,

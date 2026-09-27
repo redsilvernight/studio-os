@@ -40,6 +40,7 @@ def _default_runner(cmd: Sequence[str], timeout: float) -> CompletedLike:
     try:
         completed = subprocess.run(
             list(cmd),
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
             timeout=timeout,
