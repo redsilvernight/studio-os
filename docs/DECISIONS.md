@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-104 decision(s). Detail complet dans chaque ADR lie.
+114 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -126,3 +126,13 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0103 | Isolation projet minimale : membership User→Project, rôle = quoi, membership = où | accepted | [decisions/DEC-0103-isolation-projet-membership-user.md](decisions/DEC-0103-isolation-projet-membership-user.md) |
 | DEC-0104 | Desktop P9 : un identifiant Studi'OS dédié par couple poste + outil d'IA, état token_missing | proposed | [decisions/DEC-0104-desktop-p9-fourniture-jeton-mcp-aux-harnais.md](decisions/DEC-0104-desktop-p9-fourniture-jeton-mcp-aux-harnais.md) |
 | DEC-0105 | Oracle slug projet accepté : slugs non secrets, 409 conflict structuré | accepted | [decisions/DEC-0105-slug-oracle-accepte.md](decisions/DEC-0105-slug-oracle-accepte.md) |
+| DEC-0126 | Licence du dépôt : Apache-2.0 et inventaire tiers embarqué | active | [decisions/DEC-0126-licence-apache-2-0.md](decisions/DEC-0126-licence-apache-2-0.md) |
+| DEC-0127 | C1 — Négociation de version client/serveur additive (/version, headers, 426) | proposed | [decisions/DEC-0127-c1-version-negotiation.md](decisions/DEC-0127-c1-version-negotiation.md) |
+| DEC-0129 | Distribution Windows non signée : pas de certificat Authenticode | active | [decisions/DEC-0129-distribution-windows-non-signee.md](decisions/DEC-0129-distribution-windows-non-signee.md) |
+| DEC-0130 | Enrôlement du poste Desktop : une seule entrée secrète sur le pont local | active | [decisions/DEC-0130-enrolement-poste-desktop-session-unique.md](decisions/DEC-0130-enrolement-poste-desktop-session-unique.md) |
+| DEC-0132 | B5/T1 — Release candidate publiée par tag desktop-vX.Y.Z | accepted | [decisions/DEC-0132-b5-release-par-tag.md](decisions/DEC-0132-b5-release-par-tag.md) |
+| DEC-0133 | B5/T2 — Manifeste latest.json : génération, schéma versionné, hébergement GitHub Releases | accepted | [decisions/DEC-0133-b5-latest-json.md](decisions/DEC-0133-b5-latest-json.md) |
+| DEC-0134 | B6 — Auto-update réel sur les canaux : version de build, feed par canal, preuve après publication | accepted | [decisions/DEC-0134-b6-auto-update-canaux.md](decisions/DEC-0134-b6-auto-update-canaux.md) |
+| DEC-0135 | W3 — Studio claim_resources : outil MCP distinct pour la pose de claims par lot | accepted | [decisions/DEC-0135-w3-claim-resources-par-lot.md](decisions/DEC-0135-w3-claim-resources-par-lot.md) |
+| DEC-0137 | C3 — Canaux beta/stable : promotion du même artefact par manifeste, sans rebuild | accepted | [decisions/DEC-0137-c3-promotion-beta-stable-par-manifeste.md](decisions/DEC-0137-c3-promotion-beta-stable-par-manifeste.md) |
+| DEC-0141 | C4 clôturée sur preuve du cycle complet ; exercices incident restants reportés à l'ouverture publique | accepted | [decisions/DEC-0141-c4-cloture-cycle-prouve.md](decisions/DEC-0141-c4-cloture-cycle-prouve.md) |
