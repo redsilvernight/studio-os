@@ -1,16 +1,16 @@
 # Studi'OS — Roadmap Project AI Bootstrap
 
-Statut : **BROUILLON — différé pendant la roadmap Desktop active**
+Statut : **ACTIVE** (roadmap serveur `53ca8479`) — révision 3 proposée le 2026-09-27
 Source de référence : [StudiOS_Roadmap_Project_AI_Bootstrap.pdf](StudiOS_Roadmap_Project_AI_Bootstrap.pdf)
-Audit et matrice de réutilisation : [AI_BOOTSTRAP_P0_AUDIT.md](AI_BOOTSTRAP_P0_AUDIT.md)
-Baseline : `origin/master` `83da83c`
-Dernière réconciliation : 2026-09-25 — livraison de la synchronisation des skills
-Library (`studio-client skills check/diff/sync`, tâche `35c2d265`). La roadmap reste
-un brouillon : aucune phase n'est activée et aucune tâche n'est hydratée depuis elle.
+Audit et matrice de réutilisation : [AI_BOOTSTRAP_P0_AUDIT.md](AI_BOOTSTRAP_P0_AUDIT.md) (§13 : addendum du 2026-09-27)
+Baseline : `dev` `6397fde` (la roadmap Desktop est livrée et fusionnée)
+Dernière réconciliation : 2026-09-27 — ajout de la boucle de travail agent
+(phase `agent-loop`, étapes L1–L4) et du lancement de tâche depuis le Dashboard
+(phase `remote-launch`, étapes R1–R5). Tâche de révision : `dd2eb6a6`.
 
-Ce document est la version Markdown de travail du PDF (§1–§8, fidèle) suivie de
-l'hydratation par phase (§9) issue de l'audit du code. Le PDF reste la référence
-d'origine ; en cas d'écart, le PDF et les DEC acceptées priment.
+Ce document est la version Markdown de travail du PDF (§1–§8, fidèle, complété par
+les ajouts marqués « rév. 3 ») suivie de l'hydratation par étape (§9) issue de
+l'audit du code. En cas d'écart, les DEC acceptées priment, puis le PDF.
 
 Abréviations : `S/` = `services/api/src/studio_api/`,
 `C/` = `packages/studio-contracts/src/studio_contracts/`,
@@ -23,6 +23,12 @@ Claude Code, OpenCode, Codex ou un autre harness, sans recopier manuellement une
 configuration IA complète : le projet est enregistré, le poste local reçoit un
 bootstrap minimal, les ressources communes sont résolues à la demande, puis le
 harness reprend une tâche via `studio_prepare_context`.
+
+**Cible étendue (rév. 3)** : depuis le Dashboard, ouvrir une tâche, choisir une
+machine en ligne et disponible, et y lancer la tâche ; la machine résout et applique
+seule la configuration IA (bundle, projections, skills), démarre le harness, et
+l'agent suit la boucle `studio_start_work` → travail → `studio_handoff`, visible
+en temps réel dans Studi'OS.
 
 ## 2. Principes directeurs
 
@@ -49,6 +55,10 @@ harness reprend une tâche via `studio_prepare_context`.
 7. L'agent utilise `studio_prepare_context` puis charge les ressources spécialisées
    à la demande.
 8. Studi'OS peut ensuite détecter le drift et proposer une resynchronisation.
+9. (rév. 3) Sans ouvrir le harness soi-même : Dashboard → tâche → « Lancer sur… » →
+   machine en ligne compatible → le daemon de cette machine accepte, prépare le
+   worktree et la configuration, lance le harness en mode non interactif et rapporte
+   l'état jusqu'au handoff.
 
 ## 4. Architecture cible
 
@@ -84,7 +94,16 @@ daemon ou CLI local → génération sûre dans le dépôt → Claude/OpenCode/C
 - Source canonique unique ; projections régénérables et contrôlées anti-drift.
 - Aucune dépendance obligatoire à Claude : OpenCode/Codex utilisent le même cœur.
 - Le bootstrap permanent reste minimal et mesuré.
-- `studio_prepare_context` reste la porte d'entrée normale vers le contexte projet.
+- `studio_prepare_context` reste la porte d'entrée normale vers le contexte projet ;
+  `studio_start_work` le compose sans le modifier (façade en lecture seule, DEC-0080).
+- (rév. 3) Le VPS n'envoie aucun ordre : il enregistre une *demande de lancement* que
+  le daemon ciblé **tire** ; la machine décide localement (opt-in explicite, projet
+  enregistré, harness autorisé) et peut refuser.
+- (rév. 3) Seul le propriétaire de la machine (ou un droit explicite) peut y lancer
+  une tâche ; aucune commande arbitraire, uniquement « tâche X avec harness Y ».
+- (rév. 3) Un lancement travaille toujours dans le worktree de sa tâche
+  (`studio-git-flow`), jamais dans le checkout principal ; aucun push ni merge
+  automatique.
 
 ## 7. Critères d'acceptation finaux
 
@@ -99,6 +118,11 @@ daemon ou CLI local → génération sûre dans le dépôt → Claude/OpenCode/C
 - Les ressources communes Studi'OS ne sont pas dupliquées inutilement dans chaque dépôt.
 - Aucun LLM n'est exécuté sur le VPS.
 - Les tests prouvent l'agnosticisme et la continuité Agent A → Agent B.
+- (rév. 3) Un agent démarre ou reprend une tâche en un appel (`studio_start_work`) et
+  la clôt en un appel (`studio_handoff`), sans claim orphelin.
+- (rév. 3) Depuis le Dashboard, une tâche est lancée sur une machine en ligne choisie ;
+  la configuration IA y est résolue automatiquement ; l'état affiché ne dépasse
+  jamais ce que la machine a rapporté.
 
 ## 8. Hors périmètre
 
@@ -108,6 +132,8 @@ daemon ou CLI local → génération sûre dans le dépôt → Claude/OpenCode/C
 - Introduire un second moteur de résolution ou un second système de Library.
 - Copier automatiquement toutes les rules/skills dans tous les projets.
 - Masquer les conflits en écrasant les fichiers locaux.
+- (rév. 3) Un canal push serveur→machine, un shell distant ou l'exécution de commandes
+  arbitraires ; un ordonnanceur automatique qui choisit seul tâche et machine.
 
 Définition de réussite : « J'ajoute un projet à Studi'OS, je configure ce poste,
 j'ouvre mon harness et je peux travailler immédiatement ; Studi'OS fournit le
@@ -120,32 +146,99 @@ Chaque phase peut être donnée séparément à une session. « Objectif PDF » 
 le PDF ; les champs suivants viennent de l'audit (`origin/master` `83da83c`).
 Aucune phase n'est un plan d'implémentation.
 
-Dépendances transverses (voir audit §8) : la roadmap
-[Desktop Local Environment](StudiOS_Roadmap_Desktop_Local_Environment.pdf)
-(branches `desktop/*`, non fusionnées) planifie `LocalWorkspaceConfig`,
-`HarnessAdapter` et un bridge local. **Project AI Bootstrap les consomme, il ne les
-recrée pas.**
+Dépendances transverses (voir audit §8 et §13) : la roadmap
+[Desktop Local Environment](StudiOS_Roadmap_Desktop_Local_Environment.pdf) est
+**livrée** : `LocalWorkspaceConfig` (`workspaces register`), `HarnessService`
+(`harness.detect|preview|apply|rollback|verify`, Claude Code et OpenCode), bridge
+`studio.local/v1` et supervision du daemon existent. **Project AI Bootstrap les
+consomme, il ne les recrée pas.**
+
+Ordre (rév. 3) : P0 → {L1, L2, L3} → L4 ; P0 → P1 → P2 → P3 → {P4, P5} → P6 ;
+P0 → R1 → R2 → {R3, R4} → R5 ; P7/P8 après P5 et L4 ; P9 en dernier. La boucle
+agent (L*) livre de la valeur sans attendre le contrat de bootstrap (P1–P3).
 
 ### P0 — Architecture Gate & inventaire
 
 Objectif PDF : auditer les briques, classer global/projet/généré/versionné/local,
 décider le contrat de bootstrap sans coder, vérifier l'absence de duplication.
 
-- **STATUS** : audit fait ; décisions AIB-A…E **proposées, non acceptées**. P0 reste
-  à clore (revue + acceptation + réconciliation Desktop).
-- **EXISTING BUILDING BLOCKS** : tout le §2/§3 de l'audit.
-- **FILES/MODULES** : `docs/AI_BOOTSTRAP_P0_AUDIT.md` ; modèle de format :
-  `docs/DESKTOP_P0_ARCHITECTURE_GATE.md` (branche Desktop).
-- **REUSE** : format de gate Desktop P0 ; `docs/decisions/` + `scripts.adr_index`.
-- **MISSING** : acceptation des DEC ; ordre vis-à-vis de Desktop P5/P9 ; numérotation
-  DEC (collision `0090–0094` master/Desktop, IDs serveur ≠ fichiers).
-- **DEPENDENCIES** : état de fusion des branches `desktop/*`.
-- **RISKS** : DEC en collision ; double implémentation du registre workspace et de
-  la détection de harness.
+- **STATUS** : audit fait (21/09) et complété (addendum §13, 27/09) ; décisions
+  AIB-A…J **proposées, non acceptées**. La réconciliation Desktop est faite (livré).
+- **EXISTING BUILDING BLOCKS** : tout le §2/§3 et le §13 de l'audit.
+- **FILES/MODULES** : `docs/AI_BOOTSTRAP_P0_AUDIT.md`, `docs/decisions/`.
+- **REUSE** : `docs/decisions/` + `scripts.adr_index`.
+- **MISSING** : acceptation des DEC AIB-A…J ; numérotation DEC (collision `0090–0094`,
+  IDs serveur ≠ fichiers).
+- **DEPENDENCIES** : aucune.
+- **RISKS** : DEC en collision ; canal de lancement mal borné (sécurité).
 - **TEST STRATEGY** : cohérence documentaire ; `uv run python -m scripts.adr_index
   --check` après acceptation.
-- **GATE** : DEC AIB-A…E acceptées ou rejetées ; matrice validée ; ordre Desktop tranché.
+- **GATE** : DEC AIB-A…J acceptées ou rejetées ; matrice validée.
 - **OUT OF SCOPE** : tout code.
+
+### Phase `agent-loop` — Boucle de travail agent (rév. 3)
+
+Le « bouton magique » local : identité fiable au démarrage, démarrage/reprise en un
+appel, clôture en un appel. Toutes les briques existent séparément (audit §13.1) ;
+ces étapes les composent, sans second moteur ni nouvelle source de vérité.
+
+### L1 — Identité de démarrage fiable
+
+Objectif : chaque harness démarre en connaissant `project_id`, `slug` et `agent_id`
+sans action manuelle.
+
+- **STATUS** : PARTIEL — modèle de hook `K/hooks.py` + `setup-hooks` (commande
+  cachée) + `agents ensure`, testés ; le hook actif sur les postes est une copie
+  modifiée à la main.
+- **MISSING** : le hook lit `%APPDATA%\StudioOS` alors que le profil dev écrit dans
+  `StudioOS-Dev` (`K/hooks.py:38,60` vs `K/config.py:29`) ; prise en charge des
+  worktrees (`<repo>-wt-<id8>` → projet) ; hook Codex ; lien agent ↔ harness /
+  `agent_stable_key` (AIB-I) ; exposition de `setup-hooks` (CLI documentée, action
+  Desktop via `harness.apply`).
+- **GATE** : Claude Code, OpenCode et Codex démarrés dans le dépôt ou un worktree de
+  tâche reçoivent l'identité ; hook géré (marqueur) et régénérable.
+- **OUT OF SCOPE** : sélection de tâche.
+
+### L2 — `studio_start_work` : démarrer ou reprendre en un appel
+
+Objectif : un outil composite (HTTP canonique + MCP, DEC-0046) qui, pour
+`project_id` + `agent_id` : avec `task_id`, réclame la tâche (idempotent pour la même
+machine), reprend la session ouverte du même agent/tâche ou en crée une, puis
+renvoie `studio_prepare_context` (avec `agent_stable_key`) en format compact ; sans
+`task_id`, ne réclame rien et renvoie contexte + tâches candidates (étape courante de
+roadmap, non réclamées).
+
+- **STATUS** : MANQUE.
+- **EXISTING BUILDING BLOCKS** : `claim_task`, `start_session`, `prepare_context`,
+  `get_active_tasks`, roadmap `current_step.linked_task_ids`.
+- **MISSING** : sémantique de reprise (AIB-H) ; filtre de sessions agent/ouverte ;
+  idempotence de `claim_task` ; candidates non réclamées ; tâches W4/W5 existantes
+  (`f30861ca`, `73146125`) à rattacher.
+- **RISKS** : effet de bord ajouté à `prepare_context` (interdit, DEC-0080) ;
+  réclamation automatique non voulue (AIB-G).
+- **GATE** : rejouer l'appel ne crée ni second claim ni seconde session ; contrat
+  revu par `contract-guardian`.
+
+### L3 — `studio_handoff` : clôture en un appel
+
+Objectif : tâche existante W1 (`6f5b526a`) — statut (`expected_version`),
+libération des claims de la tâche, `ai_work`, fin de session, idempotent.
+
+- **STATUS** : MANQUE (tâche W1 créée, non commencée).
+- **MISSING** : `session_id` dans `ai_work` ; `idempotency_key` MCP de
+  `log_ai_work` ; `end_session` ne libère aujourd'hui aucun claim
+  (`S/services/sessions.py`).
+- **GATE** : après handoff, aucun claim de la tâche ne reste détenu ; rejeu sans effet.
+
+### L4 — Protocole réduit et E2E de la boucle
+
+Objectif : réduire les skills `studio-session` / `studio-handoff` / `studio-task` à
+l'usage de L2/L3, publier les skills protocole manquants en Library
+(`studio-context`, `studio-task`, `studio-decision`) et prouver la boucle A → B.
+
+- **DEPENDENCIES** : L1, L2, L3.
+- **GATE** : budget du protocole (`tests/protocol/test_agent_protocol.py`) réduit ou
+  stable ; E2E Claude → OpenCode sur la même tâche sans perte d'état.
 
 ### P1 — Contrat Project AI Bootstrap
 
@@ -221,11 +314,11 @@ supportées ; jamais d'écrasement silencieux ; adapters existants ; `init`, `ch
 - **MISSING** : commande `init` et commandes `check/diff/sync` portant sur le bundle
   projet complet (les commandes livrées ne couvrent que les skills studio-scope) ;
   bloc géré dans `CLAUDE.md` ; diff unifié ; rollback ; projection résolue des rules,
-  AgentDefinitions et workflows par adaptateur ; enregistrement dépôt↔projet
-  (Desktop P5) ; détection de harnesses (Desktop P9) ; câblage MCP machine-local
-  (AIB-E). `rules sync` écrase toujours le bloc `AGENTS.md` sans backup
-  (`K/cli.py:716`).
-- **DEPENDENCIES** : P1, P2, Desktop P5/P9.
+  AgentDefinitions et workflows par adaptateur ; câblage MCP machine-local (AIB-E,
+  à brancher sur `HarnessService`). `rules sync` écrase toujours le bloc `AGENTS.md`
+  sans backup (`K/cli.py:716`). Livré par Desktop, à consommer : enregistrement
+  dépôt↔projet (`LocalWorkspaceConfig`), détection de harnesses (`harness.detect`).
+- **DEPENDENCIES** : P1, P2.
 - **RISKS** : écrasement de contenu utilisateur ; fuite de token dans le dépôt ;
   fins de ligne Windows ; logique harness dans le Core ; course avec le daemon.
 - **TEST STRATEGY** : la tranche skills possède 21 tests ciblés et ses validations
@@ -304,15 +397,87 @@ vérifier/resynchroniser ; ne jamais prétendre avoir écrit sur un poste hors l
   nouveau `*Api.ts`, `dashboard/openapi.json`.
 - **REUSE** : `renderXInto(panel, ctx)` comme l'onglet Roadmap ; composants DS.
 - **MISSING** : onglet ; API de statut désiré/rapporté ; rapport de statut du poste vers
-  le serveur ; canal d'action (aucun canal serveur→daemon n'existe : `POST /producer/jobs`
-  est synchrone et déterministe) ; à défaut, mode instruction (commande locale à copier).
-- **DEPENDENCIES** : P1, P2, P5 ; Desktop bridge local.
-- **RISKS** : sur-promesse (écriture supposée sur poste hors ligne) ; inventer une file
-  de jobs = nouveau contrat Bloc A.
+  le serveur (réutilise le rapport de R1) ; action « resynchroniser » via une demande
+  locale tirée par le daemon (mécanisme de R2, pas de second canal) ou, poste hors
+  ligne, mode instruction (commande locale à copier).
+- **DEPENDENCIES** : P2, P5, R1.
+- **RISKS** : sur-promesse (écriture supposée sur poste hors ligne).
 - **TEST STRATEGY** : tests dashboard (vitest) par état ; poste hors ligne → instructions ;
   régénération `openapi`.
 - **GATE** : aucun état n'affirme une écriture non confirmée par le poste.
-- **OUT OF SCOPE** : implémentation d'un canal push serveur→daemon (décision distincte).
+- **OUT OF SCOPE** : canal push serveur→daemon.
+
+### Phase `remote-launch` — Lancer une tâche depuis le Dashboard (rév. 3)
+
+Objectif : Dashboard → tâche → machine en ligne compatible → exécution locale avec
+configuration IA résolue automatiquement → suivi jusqu'au handoff. Modèle **pull** :
+le VPS stocke une demande, le daemon ciblé la tire, décide et rapporte (AIB-F). Aucun
+LLM ni agent sur le VPS ; aucune commande arbitraire.
+
+### R1 — Présence et aptitude des machines
+
+Objectif : savoir quelles machines peuvent recevoir une tâche d'un projet donné.
+
+- **STATUS** : PARTIEL — statut `online/offline` dérivé du heartbeat
+  (`S/routers/machines.py`), `HeartbeatRequest` = `machine_id`, `agent_id`,
+  horodatage (`C/auth.py:130`) ; détection locale `harness.detect` (Desktop).
+- **MISSING** : rapport additif de capacités par la machine — harnesses détectés et
+  versions, projets enregistrés (`project_id` seulement, jamais de chemin), opt-in
+  « accepte les lancements », occupation (lancements en cours / maximum) ; API de
+  lecture « machines éligibles pour la tâche X ».
+- **RISKS** : fuite de chemins ou d'inventaire local ; rapport périmé présenté comme vrai.
+- **GATE** : aucune donnée de chemin ou secret dans le rapport ; éligibilité
+  déterministe et testée.
+
+### R2 — Contrat « demande de lancement » (Bloc A)
+
+Objectif : ressource `TaskLaunch` (nom à fixer) : `task_id`, `machine_id` cible,
+demandeur, harness et `agent_stable_key` souhaités, cycle
+`requested → accepted → preparing → running → succeeded|failed|cancelled|rejected|expired`,
+motif, `session_id` lié, idempotence, expiration ; lecture par le daemon (tirage via
+réponse de heartbeat ou endpoint de poll), transitions rapportées par la machine
+seule, annulation par le demandeur.
+
+- **STATUS** : MANQUE.
+- **EXISTING BUILDING BLOCKS** : outbox idempotent client, événements, `expected_version`,
+  skill `contract-change`, agent `contract-guardian`.
+- **RISKS** : shell distant déguisé ; lancement par un tiers sur la machine d'autrui ;
+  file de jobs Producer détournée (`S/routers/producer.py` est synchrone).
+- **GATE** : autorisation propriétaire/droit explicite testée ; aucune commande libre
+  représentable ; transitions invalides refusées ; `contract-guardian` PASS.
+
+### R3 — Exécuteur local du daemon
+
+Objectif : le daemon tire les demandes qui le ciblent, applique la politique locale
+(opt-in, projet enregistré, harness autorisé, limite de concurrence), prépare le
+worktree de la tâche (`studio-git-flow`), assure la configuration IA (bundle P2 si
+livré, sinon `skills sync` + adapters existants + `harness.apply`), lance le harness
+en mode non interactif avec l'identité (L1) et la consigne « `studio_start_work` →
+travail → `studio_handoff` », puis rapporte état, sortie bornée et fin.
+
+- **DEPENDENCIES** : R2, L2, L3, P2.
+- **RISKS** : exécution non voulue ; travail dans le checkout principal ; processus
+  orphelins ; secrets dans les journaux rapportés ; permissions du harness trop larges.
+- **GATE** : refus local testé pour chaque condition ; annulation effective ;
+  journaux bornés et expurgés ; aucun push/merge automatique.
+
+### R4 — Dashboard : « Lancer sur… »
+
+Objectif : sur la fiche tâche, choisir une machine éligible (R1) et un harness/agent,
+voir l'aperçu de résolution (P2 / `studio_resolve_agent`), lancer, suivre l'état,
+annuler, ouvrir la session et le handoff résultants.
+
+- **DEPENDENCIES** : R1, R2.
+- **GATE** : l'UI n'affiche jamais un état non rapporté par la machine ; machine hors
+  ligne ou inéligible non sélectionnable ; tests vitest + e2e.
+
+### R5 — E2E Dashboard → machine → handoff
+
+Objectif : scénario complet sur deux machines simulées (A demande, B exécute), avec
+harness factice puis réel, reprise après coupure réseau, annulation, refus local.
+
+- **DEPENDENCIES** : R3, R4, L4.
+- **GATE** : scénario vert en CI (harness factice) ; démonstration réelle documentée.
 
 ### P7 — Onboarding d'un projet neuf
 
@@ -327,7 +492,7 @@ OpenCode/Codex sans dupliquer ; mesure fichiers/tokens permanents/actions manuel
 - **REUSE** : scénario de référence (audit §7) ; tests de continuité Agent A→B.
 - **MISSING** : automatisation du scénario ; mesures ; définition du nombre d'actions
   manuelles cible.
-- **DEPENDENCIES** : P3, P4, P5.
+- **DEPENDENCIES** : P3, P4, P5, L4.
 - **RISKS** : Godot non installé en CI (utiliser un stub `project.godot`) ; mesures
   non comparables.
 - **TEST STRATEGY** : E2E scripté sur dossier vierge ; comptage fichiers générés, octets
@@ -348,7 +513,7 @@ reconnexion, pas de LAN.
 - **REUSE** : identité machine et outbox.
 - **MISSING** : commande de reconstruction depuis le manifest ; mapping projet↔chemin
   local créé par machine ; test de scan des fichiers commités (chemin absolu, secret).
-- **DEPENDENCIES** : P3, P5 ; Desktop P5 (workspaces).
+- **DEPENDENCIES** : P3, P5 (le registre workspaces Desktop est livré).
 - **RISKS** : chemins absolus dans un fichier partagé ; token dans le dépôt ; divergence
   de fins de ligne entre postes.
 - **TEST STRATEGY** : deux dossiers temporaires simulant A et B ; scan de secrets/chemins ;
@@ -370,7 +535,7 @@ sans régression Agent Integration ni dépendance à Claude.
 - **REUSE** : suites existantes comme garde de non-régression.
 - **MISSING** : rollback ; compatibilité de versions du manifest ; docs « connecter un
   projet », « ajouter un harness », « réparer le drift ».
-- **DEPENDENCIES** : P3–P8.
+- **DEPENDENCIES** : P3–P8, R5 (ajouter la revue de sécurité du lancement à distance).
 - **RISKS** : régression Agent Integration ; dépendance implicite à Claude.
 - **TEST STRATEGY** : suites Agent Integration inchangées ; tests d'agnosticisme
   Claude/OpenCode/Codex ; tests de rollback et de conflit.
