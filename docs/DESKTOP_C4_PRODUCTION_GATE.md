@@ -1,5 +1,9 @@
 # C4 — Gate de production publique et runbook incident
 
+Le serveur Flo-laptop doit d’abord être mis à niveau avec le déploiement local
+one-shot décrit dans [FLO_LAPTOP_DEPLOYMENT.md](FLO_LAPTOP_DEPLOYMENT.md). Cette
+opération ne promeut aucun artefact Desktop.
+
 Ce gate clôt la roadmap « Desktop Distribution, Updates & Public Registration ».
 Il ne remplace pas les tests C2 : il prouve le même parcours contre une instance
 réellement exposée et un canal de mise à jour réellement publié. Les résultats

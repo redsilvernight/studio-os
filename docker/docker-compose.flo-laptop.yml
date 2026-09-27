@@ -1,0 +1,12 @@
+services:
+  caddy:
+    ports:
+      - "127.0.0.1:9000:9000"
+
+  api:
+    environment:
+      STUDIO_S3_PUBLIC_ENDPOINT_URL: ${STUDIO_S3_PUBLIC_ENDPOINT_URL:?set STUDIO_S3_PUBLIC_ENDPOINT_URL in docker/.env}
+
+  mcp:
+    environment:
+      STUDIO_S3_PUBLIC_ENDPOINT_URL: ${STUDIO_S3_PUBLIC_ENDPOINT_URL:?set STUDIO_S3_PUBLIC_ENDPOINT_URL in docker/.env}
