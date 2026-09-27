@@ -2,10 +2,12 @@
 real Desktop daemon wrote into the real OS keyring, without ever printing it.
 
     check-absent --origin O          refuse to run over a pre-existing entry
-    probe --origin O --other ID --profile DIR
+    probe --origin O --other ID --profile DIR [--project ID --task-title T]
                                      use the stored credential: owner, visible
                                      projects, access to another project, and
-                                     whether any secret leaked into DIR
+                                     whether any secret leaked into DIR; C2
+                                     first use: T listed in project ID, no task
+                                     readable in the other project
     cleanup --origin O               remove the entry and verify it is gone
 
 Loopback origins only (disposable gate stack).
@@ -45,6 +47,12 @@ def _get(origin: str, path: str, token: str) -> tuple[int, object]:
         return error.code, None
 
 
+def _items(payload: object) -> list[dict[str, object]]:
+    if isinstance(payload, dict):
+        payload = payload.get("items", [])
+    return [item for item in payload if isinstance(item, dict)] if isinstance(payload, list) else []
+
+
 def _leaks(root: Path, credential: str) -> list[str]:
     found: list[str] = []
     needle = credential.encode()
@@ -66,6 +74,8 @@ def main() -> int:
     parser.add_argument("--origin", required=True)
     parser.add_argument("--other")
     parser.add_argument("--profile")
+    parser.add_argument("--project")
+    parser.add_argument("--task-title")
     args = parser.parse_args()
     origin = _loopback(args.origin)
     store = KeyringTokenStore(SERVICE)
@@ -92,6 +102,15 @@ def main() -> int:
         result["project_slugs"] = sorted(p["slug"] for p in projects or [])
         if args.other:
             result["other_status"] = _get(origin, f"/api/v1/projects/{args.other}", credential)[0]
+        if args.project and args.task_title:
+            status, tasks = _get(origin, f"/api/v1/tasks?project_id={args.project}", credential)
+            titles = [t.get("title") for t in _items(tasks)]
+            result["tasks_status"] = status
+            result["task_listed"] = args.task_title in titles
+            if args.other:
+                status, hidden = _get(origin, f"/api/v1/tasks?project_id={args.other}", credential)
+                result["other_tasks_status"] = status
+                result["other_tasks_count"] = len(_items(hidden))
         if args.profile:
             result["leaks"] = _leaks(Path(args.profile), credential)
     print(json.dumps(result))

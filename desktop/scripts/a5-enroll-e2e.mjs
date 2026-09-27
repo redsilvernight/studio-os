@@ -10,7 +10,10 @@
 // → « Vérification » : « Enregistrer ce poste » → keyring holds a credential
 // owned by that user → « Projet » : « En attente d'accès » → admin grants one
 // project → the machine sees exactly that project, not the other one. No
-// secret in the profile folder. Results: desktop/.build/a5-enroll-results.json.
+// secret in the profile folder. C2 first use (task 2295a9ad): the project is
+// picked in the wizard (« Dossier » step reached) and the machine lists the
+// project's task, none of the other project's. Results:
+// desktop/.build/a5-enroll-results.json.
 
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -27,6 +30,7 @@ const API = "http://127.0.0.1:8765";
 const APP_ORIGIN = "http://tauri.localhost";
 const PASSWORD = `a5-${randomUUID()}`;
 const EMAIL = `ada-${randomUUID().slice(0, 8)}@example.test`;
+const FIRST_TASK = "C2 · première tâche";
 const results = [];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -133,6 +137,11 @@ async function main() {
       body: { slug: "a5-other", name: "Autre projet" },
     });
     check("setup.two_projects", gate && other.status === 201, `gate=${gate?.slug} other=HTTP ${other.status}`);
+    const tasks = [];
+    for (const [projectId, title] of [[gate?.id, FIRST_TASK], [other.json?.id, "C2 · hors périmètre"]]) {
+      tasks.push((await api("/api/v1/tasks", { method: "POST", token: admin, key: randomUUID(), body: { project_id: projectId, title } })).status);
+    }
+    check("setup.one_task_per_project", tasks.every((s) => s === 201), `tasks HTTP ${tasks.join(", ")}`);
 
     // ---- self-registration, link read from the e-mail file
     const registered = await api("/api/v1/auth/register", { method: "POST", key: randomUUID(), body: { email: EMAIL } });
@@ -217,7 +226,28 @@ async function main() {
       .catch(() => false);
     check("wizard.project_after_grant", grant.status === 201 && listed, `grant HTTP ${grant.status}; project list shown: ${listed}`);
 
-    machine = JSON.parse(probe("probe", ["--other", other.json?.id ?? "", "--profile", profileRoot]));
+    // ---- C2 first use: pick the granted project, reach « Dossier »
+    await page.check(`input[name=project][value="${gate.id}"]`);
+    await page.click('[data-action="next"]');
+    const dossier = await page
+      .waitForSelector('[data-testid="onboarding-step"][data-step="dossier"]', { timeout: 20_000 })
+      .then(() => true)
+      .catch(() => false);
+    check("c2.wizard_project_picked", dossier, "granted project selected, « Dossier » step reached");
+
+    machine = JSON.parse(
+      probe("probe", ["--other", other.json?.id ?? "", "--profile", profileRoot, "--project", gate.id, "--task-title", FIRST_TASK]),
+    );
+    check(
+      "c2.machine_first_use",
+      machine.tasks_status === 200 && machine.task_listed === true,
+      `tasks of the granted project HTTP ${machine.tasks_status}; « ${FIRST_TASK} » listed: ${machine.task_listed}`,
+    );
+    check(
+      "c2.other_project_tasks_hidden",
+      (machine.other_tasks_status === 200 && machine.other_tasks_count === 0) || [403, 404].includes(machine.other_tasks_status),
+      `tasks of the other project HTTP ${machine.other_tasks_status}, ${machine.other_tasks_count ?? 0} visible`,
+    );
     check(
       "machine.only_owner_projects",
       JSON.stringify(machine.project_slugs) === JSON.stringify([gate.slug]) && [403, 404].includes(machine.other_status),
