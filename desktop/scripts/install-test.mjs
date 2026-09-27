@@ -12,11 +12,13 @@
 // Results: desktop/.build/install-test-results.json. Exit code 1 on any failure.
 
 import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { connect as netConnect } from "node:net";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { chromium } from "playwright-core";
 import { arg, buildChannel, buildDir, CHANNELS, desktopDir, tauriDir } from "./lib.mjs";
 import { canonicalVersion } from "./version.mjs";
@@ -345,6 +347,35 @@ function displayVersion() {
   return /DisplayVersion\s+REG_SZ\s+(\S+)/.exec(out)?.[1] ?? null;
 }
 
+const OUTBOX_ENTRIES = 3;
+
+/** Pending work in a daemon outbox file, in a table of its own (the daemon's schema is created alongside). */
+function seedOutbox(file) {
+  mkdirSync(dirname(file), { recursive: true });
+  const db = new DatabaseSync(file);
+  try {
+    db.exec("CREATE TABLE IF NOT EXISTS b6_update_test (id INTEGER PRIMARY KEY, payload TEXT NOT NULL)");
+    const insert = db.prepare("INSERT INTO b6_update_test (payload) VALUES (?)");
+    for (let i = 1; i <= OUTBOX_ENTRIES; i++) insert.run(`pending-${i}`);
+  } finally {
+    db.close();
+  }
+}
+
+function pendingEntries(file) {
+  if (!existsSync(file)) return 0;
+  const db = new DatabaseSync(file, { readOnly: true });
+  try {
+    return db.prepare("SELECT count(*) AS n FROM b6_update_test").get().n;
+  } catch {
+    return 0;
+  } finally {
+    db.close();
+  }
+}
+
+const sha256File = (file) => createHash("sha256").update(readFileSync(file)).digest("hex");
+
 /** Same file, whatever the spelling (8.3 short names on the CI runner). */
 function samePath(a, b) {
   const real = (p) => {
@@ -437,7 +468,12 @@ async function upgradeMain(oldInstaller, expected) {
     writeFileSync(join(dataDir, "config.toml"), "# user setting kept across updates\n");
     writeFileSync(join(vault, "note.md"), "# my note\n");
     const stamp = readFileSync(join(dataDir, "format.json"), "utf8");
-    const dbs = ["state.db", "outbox.db"].filter((f) => existsSync(join(dataDir, f)));
+    // An unenrolled N offline queues nothing: put pending work in the daemon's own
+    // outbox files (same paths as studio_client.outbox.store) so the update has
+    // something real to lose.
+    const outboxes = [join(dataDir, "outbox.sqlite3"), join(dataDir, "outbox", "b6-update-test.sqlite3")];
+    for (const file of outboxes) seedOutbox(file);
+    const outboxHashes = outboxes.map(sha256File);
     const cred = spawnSync("cmdkey", [`/generic:${CREDENTIAL}`, "/user:b6-update-test", "/pass:not-a-secret"], { encoding: "utf8" });
     check("update.sentinel_credential_stored", cred.status === 0, `Credential Manager entry ${CREDENTIAL}`);
 
@@ -486,6 +522,8 @@ async function upgradeMain(oldInstaller, expected) {
     check("update.n_exits_into_installer", old.exitCode === 0, `N exit code ${old.exitCode}`);
     for (let i = 0; i < 240 && displayVersion() !== expected; i++) await sleep(1000);
     check("update.installed_version_is_n_plus_1", displayVersion() === expected, `DisplayVersion ${displayVersion()} (expected ${expected})`);
+    // Byte for byte, before N+1 ever opens them.
+    check("update.outbox_untouched_by_installer", outboxes.every((f, i) => existsSync(f) && sha256File(f) === outboxHashes[i]), `${outboxes.length} outbox file(s), SHA-256 unchanged`);
 
     // The installer relaunches the app as the user through the shell, with a fresh
     // environment (no CDP, no redirected %APPDATA%): check it runs from the install
@@ -510,9 +548,11 @@ async function upgradeMain(oldInstaller, expected) {
     });
     check(
       "update.user_data_preserved",
-      readFileSync(join(dataDir, "config.toml"), "utf8") === "# user setting kept across updates\n" && readFileSync(join(dataDir, "format.json"), "utf8") === stamp && dbs.every((f) => existsSync(join(dataDir, f))),
-      `config.toml and format.json untouched; kept: ${dbs.join(", ") || "no database created by N"}`,
+      readFileSync(join(dataDir, "config.toml"), "utf8") === "# user setting kept across updates\n" && readFileSync(join(dataDir, "format.json"), "utf8") === stamp,
+      "config.toml and format.json untouched",
     );
+    const pending = outboxes.map(pendingEntries);
+    check("update.outbox_entries_kept_after_n_plus_1_run", pending.every((n) => n === OUTBOX_ENTRIES), `pending entries per outbox after N+1 ran: ${pending.join(", ")} (expected ${OUTBOX_ENTRIES})`);
     check("update.vault_untouched", readFileSync(join(vault, "note.md"), "utf8") === "# my note\n", "vault note intact");
     check("update.credentials_kept", spawnSync("cmdkey", [`/list:${CREDENTIAL}`], { encoding: "utf8" }).stdout.includes(CREDENTIAL), `Credential Manager entry ${CREDENTIAL} still present`);
   } finally {

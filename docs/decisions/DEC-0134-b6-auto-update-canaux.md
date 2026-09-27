@@ -1,7 +1,7 @@
 ---
 id: DEC-0134
 title: 'B6 — Auto-update réel sur les canaux : version de build, feed par canal, preuve après publication'
-status: proposed
+status: accepted
 date: '2026-09-27'
 superseded_by: null
 ---
