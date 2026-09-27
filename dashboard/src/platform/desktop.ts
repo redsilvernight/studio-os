@@ -3,7 +3,8 @@
  *
  * It reaches the typed app commands the shell exposes (P2 `desktop_info`,
  * `bridge_request`; P3 `get_server_origin`, `set_server_origin`,
- * `restart_desktop`, `choose_folder`, `choose_file`) through the global
+ * `restart_desktop`, `choose_folder`, `choose_file`; DEC-0142 `load_session`,
+ * `store_session`, `clear_session`) through the global
  * injected by Tauri; no `@tauri-apps/*` package is imported, so the web bundle
  * has no Tauri dependency at all. Every shell answer is shape-checked here.
  */
@@ -261,6 +262,32 @@ export function createDesktopPlatform(invoke: TauriInvoke): Platform {
       } catch (error) {
         return { ok: false, code: updateCodeOf(error) } as const;
       }
+    },
+    sessionVault: {
+      async load() {
+        try {
+          const secret = await invoke("load_session");
+          return typeof secret === "string" && secret !== "" ? secret : null;
+        } catch {
+          return null;
+        }
+      },
+      async store(secret: string) {
+        try {
+          await invoke("store_session", { secret });
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      async clear() {
+        try {
+          await invoke("clear_session");
+          return true;
+        } catch {
+          return false;
+        }
+      },
     },
   };
 }

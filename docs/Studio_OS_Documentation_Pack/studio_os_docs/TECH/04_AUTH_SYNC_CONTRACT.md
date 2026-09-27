@@ -36,8 +36,26 @@ publique `register`/`resend-verification`/`verify-email` — contrat complet :
 - **Duree** : JWT d'acces HS256 de 15 minutes au plus
   (`STUDIO_JWT_ACCESS_TOKEN_EXPIRE_MINUTES`, defaut 15 ; une valeur hors
   1..15 empeche le demarrage du serveur, fail-closed), garde en memoire par
-  le client, sans refresh token. A expiration, le client refait
-  `POST /auth/token`.
+  le client. A expiration, le client refait `POST /auth/token`, ou
+  `POST /auth/refresh` s'il detient un refresh token (ci-dessous).
+- **Session persistante (DEC-0142, additif)** : `POST /auth/token` avec
+  `persistent: true` emet en plus un refresh token opaque (256 bits,
+  seul son SHA-256 est stocke, table `refresh_tokens`). Reserve a un client
+  capable de le garder dans le coffre de secrets de l'OS (Desktop) ; le
+  navigateur n'en demande jamais. `POST /auth/refresh` consomme le jeton
+  (usage unique) et renvoie un nouveau JWT et un nouveau refresh token de la
+  meme famille. Presenter un jeton deja consomme revoque toute la famille
+  (detection de vol). Expiration glissante de 30 jours
+  (`STUDIO_REFRESH_TOKEN_SLIDING_DAYS`), plafonnee par une duree absolue de
+  90 jours depuis le login (`STUDIO_REFRESH_TOKEN_ABSOLUTE_DAYS`) ; valeurs
+  hors 1..90 : demarrage refuse. La famille est liee a l'`auth_version` du
+  login : toute revocation ci-dessous la tue, comme la revocation de la
+  machine dashboard ou un compte desactive ; `user enable` ne la ressuscite
+  pas. Tout refus repond le meme
+  `401 {"detail": "invalid or expired refresh token"}` ; le client efface
+  alors le jeton et renvoie au login, sans retry. `POST /auth/logout`
+  (body `refresh_token`) revoque la famille et repond toujours `204`. Ces
+  deux routes sont sans `Authorization`.
 - **Claims** : exactement `sub` (id User), `machine_id` (machine dashboard),
   `session_id` (UUID aleatoire par login, pour la tracabilite — aucun etat
   serveur), `auth_version` (entier, copie de `User.auth_version` au login),
@@ -82,8 +100,8 @@ publique `register`/`resend-verification`/`verify-email` — contrat complet :
 - **Cutover** : un JWT emis avant le deploiement (sans `auth_version`) est
   invalide ; les utilisateurs se reconnectent une fois.
 
-`POST /auth/token` est une exception d'authentification Bearer : il est sans
-`Authorization` (comme `/healthz` et `/metrics`). Une fois le JWT obtenu, il
+`POST /auth/token`, `POST /auth/refresh` et `POST /auth/logout` sont des
+exceptions d'authentification Bearer : ils sont sans `Authorization` (comme `/healthz` et `/metrics`). Une fois le JWT obtenu, il
 est presente comme `Authorization: Bearer <jwt>` sur les endpoints `/api/v1`.
 
 ## Webhook GitHub (etape 9.1, DEC-0059)
