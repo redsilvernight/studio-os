@@ -232,6 +232,9 @@ try {
     Invoke-Compose @('run', '--rm', '--no-deps', 'api', 'alembic', 'upgrade', 'head')
     Write-DeployLog 'recreating application services and caddy'
     Invoke-Compose @('up', '-d', '--remove-orphans', 'postgres', 'minio', 'minio-init', 'api', 'mcp', 'dashboard', 'caddy')
+    # The Caddyfile is a single-file bind mount: a content change alone does not
+    # recreate the container, so the running config must be reloaded explicitly.
+    Invoke-Compose @('exec', '-T', 'caddy', 'caddy', 'reload', '--config', '/etc/caddy/Caddyfile', '--adapter', 'caddyfile')
 
     $deadline = (Get-Date).AddSeconds($HealthTimeoutSeconds)
     Wait-HttpOk $HealthUrl $deadline | Out-Null
@@ -241,6 +244,9 @@ try {
         if (-not $openApi.paths.ContainsKey($route)) { throw "deployed OpenAPI is missing required route: $route" }
     }
     Wait-HttpOk $StorageHealthUrl $deadline | Out-Null
+    $mcpUrl = ([Uri]$HealthUrl).GetLeftPart([UriPartial]::Authority) + '/mcp'
+    $mcpStatus = try { (Invoke-WebRequest -UseBasicParsing -TimeoutSec 10 -Method Post -ContentType 'application/json' -Body '{}' -Uri $mcpUrl).StatusCode } catch { [int]$_.Exception.Response.StatusCode }
+    if ($mcpStatus -eq 405 -or $mcpStatus -eq 0) { throw "the MCP route is not served by the MCP service: $mcpUrl returned $mcpStatus" }
 
     $state = [ordered]@{
         revision = $Revision.ToLowerInvariant()
@@ -261,6 +267,7 @@ catch {
             Invoke-Git @('switch', '--detach', $previousRevision)
             Invoke-Compose @('build', 'api', 'mcp', 'dashboard')
             Invoke-Compose @('up', '-d', '--remove-orphans', 'api', 'mcp', 'dashboard', 'caddy')
+        Invoke-Compose @('exec', '-T', 'caddy', 'caddy', 'reload', '--config', '/etc/caddy/Caddyfile', '--adapter', 'caddyfile')
             Write-DeployLog "code rollback complete: $previousRevision"
         }
         catch {
