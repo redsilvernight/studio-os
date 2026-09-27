@@ -17,7 +17,7 @@ Non-goals, by construction:
   `name`/`description` is never consumed as a credential or a path.
 - No provider, model or runtime choice lives here (DEC-0066/DEC-0070): the
   harness ids are open references in the canonical kebab-case vocabulary
-  (DEC-0155: `claude-code`, `opencode`, `codex`), never a vendor catalog.
+  (DEC-0155, examples live in tests/fixtures only), never a vendor catalog.
 
 Frozen by P1: additive-only. A breaking change bumps `BOOTSTRAP_FORMAT` and
 goes through reconciliation (skill `contract-change`).
