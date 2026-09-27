@@ -1,3 +1,9 @@
+# Interim hors VPS (pas de DNS public) : TLS automatique desactive, l'acces
+# distant passe par le reseau chiffre Tailscale. A retirer au deploiement VPS.
+{
+	auto_https off
+}
+
 # Edge security headers (DEC-0060, etape 9.3) : HSTS + baseline sur les
 # sites termines en TLS par Caddy. Le catch-all :80 (Tailscale Funnel,
 # HTTP clair) est volontairement exclu : HSTS sur HTTP est ignore par
@@ -88,6 +94,10 @@
 
 	route /healthz {
 		reverse_proxy api:8000
+	}
+
+	route /mcp* {
+		reverse_proxy mcp:8100
 	}
 
 	reverse_proxy dashboard:80
