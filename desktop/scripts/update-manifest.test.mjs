@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
+  apiOrigin,
   assetUrl,
   buildManifest,
   installerIn,
@@ -86,6 +87,26 @@ test("dev builds announce the beta lane and write a parseable file", () => {
     const written = JSON.parse(readFileSync(path, "utf8"));
     assert.equal(written.channel, "beta");
     assert.ok(written.platforms["windows-x86_64"].url.startsWith("https://example.test/rel/"));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("the build records the API origin as an additive field, never a secret", () => {
+  assert.equal(apiOrigin("https://api.example.test"), "https://api.example.test");
+  assert.equal(apiOrigin("https://api.example.test/path?q=1"), "https://api.example.test");
+  assert.equal(apiOrigin(undefined), undefined);
+  assert.throws(() => apiOrigin("not a url"), /not a valid origin/);
+  const dir = fixtureDir();
+  try {
+    const withOrigin = buildManifest({
+      bundleDir: dir,
+      urlBase: "https://example.test/rel",
+      apiUrl: "https://api.example.test/some/path",
+    });
+    assert.equal(withOrigin.api_origin, "https://api.example.test");
+    const without = buildManifest({ bundleDir: dir, urlBase: "https://example.test/rel" });
+    assert.equal(without.api_origin, undefined);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

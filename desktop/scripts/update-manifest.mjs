@@ -2,19 +2,22 @@
 //
 //   node scripts/update-manifest.mjs --bundle-dir <dir> --url-base <https url>
 //        [--channel prod|dev] [--version <semver>] [--installer <file>]
-//        [--notes <text>] [--out <path>]
+//        [--notes <text>] [--api-url <origin>] [--out <path>]
 //
 // Reads the NSIS installer and its Tauri minisign signature (`<installer>.sig`)
 // and writes `latest.json` in the `tauri-plugin-updater` static format
 // (`version`, `notes`, `pub_date`, `platforms[target]{url,signature}`) plus an
 // additive, versioned block the plugin does not know about and therefore
-// ignores (`schema_version`, `channel`, `artifacts{file,size_bytes,sha256}`).
-// A new optional field can never break an older reader (B5 acceptance criterion
-// 4); this is proven by the Rust updater test accepting a manifest that carries
-// them. Only an https URL is ever recorded, and never file bytes.
+// ignores (`schema_version`, `channel`, `artifacts{file,size_bytes,sha256}`,
+// `api_origin`). A new optional field can never break an older reader (B5
+// acceptance criterion 4); this is proven by the Rust updater test accepting a
+// manifest that carries them. Only an https URL is ever recorded, and never
+// file bytes.
 //
 // `channel` maps the build channel to the public release lane (DEC-0108):
-// `dev` -> `beta`, `prod` -> `stable`.
+// `dev` -> `beta`, `prod` -> `stable`. `api_origin` is the API origin baked into
+// the build; a later promotion (C3) refuses to move an artefact between lanes
+// whose origins differ (a stable feed must never point at a dev API).
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -52,7 +55,17 @@ export function assetUrl(urlBase, filename) {
   return `${url.href.replace(/\/+$/, "")}/${encodeURIComponent(filename)}`;
 }
 
-export function buildManifest({ bundleDir, urlBase, channel = "prod", version, installer, assetName, notes, pubDate } = {}) {
+/** The API origin baked into the build, or undefined when none was given. */
+export function apiOrigin(apiUrl) {
+  if (!apiUrl) return undefined;
+  try {
+    return new URL(apiUrl).origin;
+  } catch {
+    throw new Error(`api url is not a valid origin: ${apiUrl}`);
+  }
+}
+
+export function buildManifest({ bundleDir, urlBase, channel = "prod", version, installer, assetName, notes, pubDate, apiUrl } = {}) {
   const name = installerIn(bundleDir, installer);
   const path = join(bundleDir, name);
   if (!existsSync(`${path}.sig`)) {
@@ -66,6 +79,7 @@ export function buildManifest({ bundleDir, urlBase, channel = "prod", version, i
   const asset = assetName ?? name;
   const url = assetUrl(urlBase, asset);
   const release = version ?? canonicalVersion();
+  const origin = apiOrigin(apiUrl);
   return {
     version: release,
     notes: notes ?? `Studi'OS Desktop ${release}`,
@@ -74,6 +88,7 @@ export function buildManifest({ bundleDir, urlBase, channel = "prod", version, i
     schema_version: 1,
     channel: publicChannel(channel),
     artifacts: { [target]: { file: asset, size_bytes: statSync(path).size, sha256: sha256Of(path) } },
+    ...(origin ? { api_origin: origin } : {}),
   };
 }
 
@@ -100,6 +115,7 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
       installer: arg("--installer"),
       assetName: arg("--asset-name"),
       notes: arg("--notes"),
+      apiUrl: arg("--api-url", process.env.STUDIO_DESKTOP_API_URL),
     }),
   );
   const platform = manifest.platforms[updaterTarget()];

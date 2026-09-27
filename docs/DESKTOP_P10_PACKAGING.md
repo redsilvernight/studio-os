@@ -119,6 +119,20 @@ toucher N, puis N → N+1 réel avec données, vault et identifiants intacts. Pe
 l'UI désactive le bouton et annonce le redémarrage ; un téléchargement interrompu propose de
 réessayer sans nouvelle recherche.
 
+Depuis C3 (DEC-0137), la voie stable n'est plus reconstruite : elle est une
+**promotion par manifeste** de l'artefact validé sur la voie beta.
+`desktop/scripts/promote-channel.mjs` recopie l'installeur octet pour octet
+(même SHA-256, même signature minisign) et réécrit `latest.json`
+(`channel: stable`, URL de la release cible) ; un SHA-256 ou une taille qui ne
+correspond pas au manifeste source est refusé (`hash_mismatch`/`size_mismatch`),
+donc un artefact reconstruit ne peut jamais être promu. Le manifeste porte un
+champ additif `api_origin` (origine API bakée au build) et la promotion refuse
+(`api_origin_mismatch`) de déplacer un artefact entre deux voies dont les
+origines diffèrent — un feed stable ne doit jamais pointer vers une API de dev.
+Le déclenchement vit dans `desktop-promote.yml` (push sur `deploy/flo-laptop` ou
+`workflow_dispatch`) ; `desktop-channels.yml` ne construit plus que la voie beta
+(`dev` → `desktop-dev`).
+
 ## 9. Signatures
 
 - **Signature de mise à jour** (minisign) : prouve l'authenticité de l'artefact de mise à jour.
@@ -208,6 +222,7 @@ Scripts :
 | `npm run test:e2e:shell` | Shell réel : navigation, pont, panneau diagnostics |
 | `npm run test:e2e` | Gate complète contre une pile jetable |
 | `npm run test:rust` | Allowlist, sidecar, updater, diagnostics |
+| `npm run test:scripts` | Scripts de release : politique de build, signature Windows, artefacts/provenance, manifeste d'update, version, **promotion beta→stable sans rebuild** (hash/taille refusés, origine API, rollback) |
 | `uv run pytest tests/client/test_data_format.py` | Marqueur de format et migrations |
 
 Le test d'installation utilise un `APPDATA` redirigé : il ne touche ni les données ni les
@@ -258,14 +273,23 @@ Procédure de release (par tag, sans étape locale — B5) :
    sans publier. La promotion beta→stable passe par le manifeste `latest.json`, jamais
    par un rebuild (DEC-0108).
 
-Canaux non signés (`desktop-channels.yml`, DEC-0129) : chaque push touchant le Desktop remplace la
-release de son canal. `deploy/flo-laptop` → tag `desktop-prod` (release « Latest ») ;
-`dev` → tag `desktop-dev` (pre-release, `--channel dev`). Les origines API/stockage viennent des
-variables `STUDIO_DESKTOP_API_URL` / `STUDIO_DESKTOP_STORAGE_URL` des environnements GitHub
-`desktop-prod` et `desktop-dev`. Le canal Dev s'installe à côté de Prod : identifiant
-`dev.studio-os.desktop-dev`, produit « Studio OS Desktop Dev », données `%APPDATA%\StudioOS-Dev`
-(`STUDIO_CLIENT_CHANNEL=dev` transmis au daemon), serveur MCP `studio-os-dev` dans les
-configurations des outils.
+Canaux non signés (DEC-0129, DEC-0137) : la voie beta est construite par
+`desktop-channels.yml` — chaque push touchant le Desktop sur `dev` remplace la
+release `desktop-dev` (pre-release, `--channel dev`) — et la voie stable est une
+**promotion** de cet artefact par `desktop-promote.yml`, jamais un rebuild.
+Promotion : push sur `deploy/flo-laptop` (geste « go stable »), ou
+`workflow_dispatch` (`from`/`to`, et `source_tag` pour un retour vers stable à
+partir d'une pré-release de tag immuable `desktop-vX.Y.Z`). Le script vérifie le
+SHA-256/taille contre le manifeste source et refuse une origine API différente,
+puis publie le même installeur et un `latest.json` réécrit sur `desktop-prod`
+(`--latest`) ou `desktop-dev` (`--prerelease --latest=false`). Les origines
+API/stockage viennent des variables `STUDIO_DESKTOP_API_URL` /
+`STUDIO_DESKTOP_STORAGE_URL` des environnements GitHub `desktop-prod` et
+`desktop-dev` : elles doivent coïncider pour qu'une promotion beta→stable soit
+acceptée (un seul VPS). Le canal Dev s'installe à côté de Prod : identifiant
+`dev.studio-os.desktop-dev`, produit « Studio OS Desktop Dev », données
+`%APPDATA%\StudioOS-Dev` (`STUDIO_CLIENT_CHANNEL=dev` transmis au daemon),
+serveur MCP `studio-os-dev` dans les configurations des outils.
 
 Depuis B3, le workflow génère `SHA256SUMS.txt` (GNU `sha256sum -c`) et
 `provenance.json` (`studio.release-provenance/v1` : commit, tag, dirty,
