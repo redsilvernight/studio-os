@@ -1,7 +1,7 @@
 ---
 id: DEC-0137
 title: 'C3 — Canaux beta/stable : promotion du même artefact par manifeste, sans rebuild'
-status: proposed
+status: accepted
 date: '2026-09-27'
 superseded_by: null
 ---
