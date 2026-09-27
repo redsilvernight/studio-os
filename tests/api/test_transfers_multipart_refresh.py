@@ -5,6 +5,7 @@ import hashlib
 import uuid
 
 import httpx
+import pytest
 from httpx import AsyncClient
 from studio_api.db.models.machine import MachineModel
 from studio_api.services import transfers as transfers_service
@@ -255,7 +256,7 @@ async def test_delete_transfer_aborts_dangling_multipart_upload(
 
 
 async def test_abort_stale_multipart_uploads_worker(
-    client: AsyncClient, auth_headers: dict[str, str]
+    client: AsyncClient, auth_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """`studio-admin transfers abort-stale-multipart` (DEC-0037): storage's
     own `Initiated` timestamp is the only signal available (the server never
@@ -264,6 +265,12 @@ async def test_abort_stale_multipart_uploads_worker(
     sleeping in the test."""
     transfer_id, upload_id = await _create_multipart_transfer(client, auth_headers)
     storage = get_storage()
+    list_all = storage.list_multipart_uploads
+
+    async def list_own(*, prefix: str | None = None) -> list[dict[str, object]]:
+        return [u for u in await list_all(prefix=prefix) if u["upload_id"] == upload_id]
+
+    monkeypatch.setattr(storage, "list_multipart_uploads", list_own)
 
     dry_run = await transfers_service.abort_stale_multipart_uploads(
         storage, older_than_days=-1, dry_run=True
