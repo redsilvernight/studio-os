@@ -120,6 +120,15 @@ export type UpdateErrorCode =
 
 export type UpdateCheckResult = { ok: true; status: UpdateStatus } | { ok: false; code: UpdateErrorCode };
 
+/** The OS secret store holding the persistent session's refresh token (DEC-0142).
+ * Every call degrades to 
+ull/alse, never throws. */
+export interface SessionVault {
+  load(): Promise<string | null>;
+  store(secret: string): Promise<boolean>;
+  clear(): Promise<boolean>;
+}
+
 export interface Platform {
   readonly mode: PlatformMode;
   /** Which native controls this runtime really has (all false on the web). */
@@ -151,6 +160,9 @@ export interface Platform {
   checkForUpdate(): Promise<UpdateCheckResult>;
   /** Download the release found by `checkForUpdate`, verify it, install and restart. */
   installUpdate(): Promise<{ ok: true } | { ok: false; code: UpdateErrorCode }>;
+  /** Desktop only: 
+ull on the web, where no session outlives the page. */
+  readonly sessionVault: SessionVault | null;
 }
 
 export type { DaemonStatus, IdentityView };

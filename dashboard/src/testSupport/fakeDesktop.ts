@@ -94,6 +94,7 @@ export function fakeDesktop(over: Partial<Platform> = {}, origin: ServerOriginSt
     openDataFolder: async () => true,
     checkForUpdate: async () => ({ ok: true, status: { state: "not_configured" } }),
     installUpdate: async () => ({ ok: false, code: "not_configured" }),
+    sessionVault: null,
     ...over,
   };
 }

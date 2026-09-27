@@ -16,6 +16,7 @@ Ce ne sont **pas** des extensions `studio.local/v1` : elles ne passent pas par `
 | `set_server_origin` | enregistre/efface l'origine (stockage local non secret `shell-settings.json`) | validation Rust stricte (codes stables), aucune application à chaud |
 | `restart_desktop` | relance explicite (arrêt propre du sidecar d'abord) | jamais déclenché sans action utilisateur |
 | `choose_folder` / `choose_file` | dialogue natif (crate `rfd`, pas de plugin Tauri) | le renderer ne reçoit que le choix ; annulation = issue normale ; aucun scan implicite ; consommé par P5 |
+| `load_session` / `store_session` / `clear_session` | refresh token de la session persistante (DEC-0142) dans le coffre OS (Gestionnaire d'identification Windows, Trousseau macOS, crate `keyring`) | appelant de confiance ; une entrée par origine serveur, choisie par Rust (jamais par le renderer) ; seul un jeton base64url ≤ 256 car. est accepté ; valeur stockée invalide supprimée ; jamais de persistance dans la webview |
 
 Permissions générées par `build.rs` (`command_names::APP_COMMANDS` → `capabilities/main-window.json`). Aucun plugin (`tauri-plugin-shell/fs/http/opener` interdits par test Cargo).
 
@@ -27,7 +28,7 @@ Permissions générées par `build.rs` (`command_names::APP_COMMANDS` → `capab
 
 ## 4. États et priorité
 
-`protocole incompatible > serveur injoignable > session expirée > assistant local indisponible > redémarrage requis > connecté > connexion…`. Statut simple dans la barre haute (pastille), détails progressifs dans Réglages › Application. Reprise sans redémarrage : backoff de sonde `/healthz`, tout appel API abouti rétablit l'état, un 401 renvoie vers la connexion avec un message explicite.
+`protocole incompatible > serveur injoignable > session expirée > assistant local indisponible > redémarrage requis > connecté > connexion…`. Statut simple dans la barre haute (pastille), détails progressifs dans Réglages › Application. Reprise sans redémarrage : backoff de sonde `/healthz`, tout appel API abouti rétablit l'état, un 401 renvoie vers la connexion avec un message explicite. Session persistante (DEC-0142, `dashboard/src/persistentSession.ts`) : reprise silencieuse au lancement, JWT renouvelé ~60 s avant expiration, et un 401 tente d'abord un renouvellement (rotation à vol unique) ; seul un refus (401) efface le jeton, un serveur injoignable le conserve. « Se déconnecter » révoque la session côté serveur puis l'efface.
 
 L'état du daemon vient de `daemon.status` (P1, `DaemonRunState` + codes d'erreur P1) ; aucun état n'est inventé. `not_supported` (daemon non livré) n'est pas une alerte ; `daemon_unavailable`/`daemon_crashed` le sont.
 
