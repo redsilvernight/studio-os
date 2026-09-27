@@ -24,10 +24,39 @@ from studio_client.retry import RetryPolicy
 from studio_contracts.local.common import ComponentState, LocalErrorCode
 from studio_contracts.local.identity import IdentityBinding
 
+HANG_GUARD_SECONDS = 30
+
 
 @pytest.fixture(autouse=True)
 def _cleanup_transfer_storage() -> None:
     return None
+
+
+async def wait_until_started(started: asyncio.Event, run_task: asyncio.Task[None]) -> None:
+    started_waiter = asyncio.create_task(started.wait())
+    try:
+        done, _ = await asyncio.wait(
+            {started_waiter, run_task},
+            timeout=HANG_GUARD_SECONDS,
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+    finally:
+        started_waiter.cancel()
+    if started_waiter in done:
+        return
+    if run_task in done:
+        run_task.result()
+        pytest.fail("DaemonRuntime.run() returned before its services started")
+    run_task.cancel()
+    pytest.fail(f"DaemonRuntime services did not start within {HANG_GUARD_SECONDS}s")
+
+
+async def wait_until_stopped(run_task: asyncio.Task[None]) -> None:
+    done, _ = await asyncio.wait({run_task}, timeout=HANG_GUARD_SECONDS)
+    if run_task not in done:
+        run_task.cancel()
+        pytest.fail(f"DaemonRuntime did not stop within {HANG_GUARD_SECONDS}s")
+    run_task.result()
 
 
 def binding(*, origin: str = "https://studio.example", profile: str = "main", machine=None):
@@ -137,10 +166,10 @@ async def test_runtime_assembles_existing_services_and_stops_cleanly(
     runtime = DaemonRuntime(config(), data_root=tmp_path)
     runtime._legacy_outbox_path = tmp_path / "legacy.sqlite3"
     task = asyncio.create_task(runtime.run())
-    await asyncio.wait_for(started.wait(), timeout=1)
+    await wait_until_started(started, task)
     assert runtime.health().status.state.value == "running"
     runtime.request_stop()
-    await asyncio.wait_for(task, timeout=1)
+    await wait_until_stopped(task)
     assert runtime.health().status.state.value == "stopped"
 
 
@@ -226,7 +255,7 @@ async def test_health_reports_project_isolation_dead_letters(
     runtime._legacy_outbox_path = tmp_path / "legacy.sqlite3"
     task = asyncio.create_task(runtime.run())
     try:
-        await asyncio.wait_for(started.wait(), timeout=1)
+        await wait_until_started(started, task)
         assert runtime.health().outbox_replay.error is None
 
         project_id = str(uuid4())
@@ -252,4 +281,4 @@ async def test_health_reports_project_isolation_dead_letters(
         assert replay.error.details == {"dead_letters": 1, "project_ids": project_id}
     finally:
         runtime.request_stop()
-        await asyncio.wait_for(task, timeout=1)
+        await wait_until_stopped(task)
