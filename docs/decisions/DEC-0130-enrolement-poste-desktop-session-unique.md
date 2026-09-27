@@ -1,3 +1,11 @@
+---
+id: DEC-0130
+title: 'Enrôlement du poste Desktop : une seule entrée secrète sur le pont local'
+status: active
+date: '2026-09-26'
+superseded_by: null
+---
+
 # DEC-0130 — Enrôlement du poste Desktop : une seule entrée secrète sur le pont local (amende DEC-0093)
 
 Statut : `accepted` (option choisie puis acceptée explicitement par l'humain

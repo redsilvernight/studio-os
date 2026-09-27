@@ -1,5 +1,5 @@
 //! Shell-native app commands (P3): runtime `server_origin`, app restart and the
-//! semantic native pickers.
+//! semantic native pickers; the persistent-session secret store (DEC-0142).
 //!
 //! These are Desktop-shell capabilities, not `studio.local/v1` protocol
 //! extensions: they never travel through `bridge_request` and add nothing to
@@ -9,6 +9,7 @@
 use crate::diagnostics::{self, Diagnostics, Folder};
 use crate::picker::{self, NativeChooser, PickError, PickKind, PickOutcome, PickerOptions};
 use crate::server_origin::{self, SettingsStore};
+use crate::session_vault::{self, OsKeyring, VaultError};
 use crate::sidecar::Sidecar;
 use crate::updater::{self, UpdateState, UpdateStatus};
 use crate::{caller_is_trusted, DevOrigin};
@@ -306,6 +307,74 @@ pub async fn install_update(
     .await
     .map_err(|_| shell_error("install_failed", "The update could not be installed."))?
     .map_err(|e| update_error(updater::classify(&e)))
+}
+
+fn vault_error(e: VaultError) -> ShellError {
+    match e {
+        VaultError::InvalidSecret => {
+            shell_error("invalid_secret", "The value is not a refresh token.")
+        }
+        VaultError::Unavailable => shell_error(
+            "vault_unavailable",
+            "The operating system secret store is not available.",
+        ),
+    }
+}
+
+/// Run one secret-store operation off the main thread, scoped to the server
+/// origin this process talks to (the renderer never chooses the account).
+async fn with_vault<T: Send + 'static>(
+    sidecar: &Sidecar,
+    op: impl FnOnce(&dyn session_vault::SecretStore, &str) -> Result<T, VaultError> + Send + 'static,
+) -> Result<T, ShellError> {
+    let account = session_vault::account_for(sidecar.origin().as_deref());
+    tauri::async_runtime::spawn_blocking(move || op(&OsKeyring, &account))
+        .await
+        .map_err(|_| vault_error(VaultError::Unavailable))?
+        .map_err(vault_error)
+}
+
+/// The persistent session's refresh token (DEC-0142), or `null`.
+#[tauri::command]
+pub async fn load_session(
+    window: WebviewWindow,
+    sidecar: State<'_, Sidecar>,
+    dev: State<'_, DevOrigin>,
+) -> Result<Option<String>, ShellError> {
+    if !caller_is_trusted(&window, &dev) {
+        return Err(untrusted());
+    }
+    with_vault(&sidecar, session_vault::load).await
+}
+
+/// Replace the stored refresh token (after a login or a rotation).
+#[tauri::command]
+pub async fn store_session(
+    window: WebviewWindow,
+    secret: String,
+    sidecar: State<'_, Sidecar>,
+    dev: State<'_, DevOrigin>,
+) -> Result<(), ShellError> {
+    if !caller_is_trusted(&window, &dev) {
+        return Err(untrusted());
+    }
+    with_vault(&sidecar, move |store, account| {
+        session_vault::save(store, account, &secret)
+    })
+    .await
+}
+
+/// Forget the stored refresh token (logout or refused refresh).
+#[tauri::command]
+pub async fn clear_session(
+    window: WebviewWindow,
+    sidecar: State<'_, Sidecar>,
+    dev: State<'_, DevOrigin>,
+) -> Result<(), ShellError> {
+    if !caller_is_trusted(&window, &dev) {
+        return Err(untrusted());
+    }
+    with_vault(&sidecar, session_vault::clear).await
 }
 
 #[cfg(test)]

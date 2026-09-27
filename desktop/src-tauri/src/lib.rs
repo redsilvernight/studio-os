@@ -3,7 +3,8 @@
 //! A thin Tauri 2 host for the shared Dashboard build. The only privileged
 //! surface is the closed list of typed app commands in `command_names`: the
 //! P2 identity/bridge pair and the P3 shell commands (runtime server origin,
-//! restart, semantic native pickers). There is no shell, filesystem, process
+//! restart, semantic native pickers) and the persistent-session secret store
+//! (DEC-0142). There is no shell, filesystem, process
 //! or HTTP-proxy primitive, and no plugin that provides one.
 
 mod allowlist;
@@ -15,6 +16,7 @@ mod info;
 mod navigation;
 mod picker;
 mod server_origin;
+mod session_vault;
 mod shell_commands;
 mod sidecar;
 mod updater;
@@ -205,7 +207,10 @@ pub fn run() {
             shell_commands::export_diagnostics,
             shell_commands::open_data_folder,
             shell_commands::check_for_update,
-            shell_commands::install_update
+            shell_commands::install_update,
+            shell_commands::load_session,
+            shell_commands::store_session,
+            shell_commands::clear_session
         ])
         .setup(|app| {
             let dev_origin = if tauri::is_dev() {
@@ -285,6 +290,9 @@ mod tests {
                 "open_data_folder",
                 "check_for_update",
                 "install_update",
+                "load_session",
+                "store_session",
+                "clear_session",
             ]
         );
     }

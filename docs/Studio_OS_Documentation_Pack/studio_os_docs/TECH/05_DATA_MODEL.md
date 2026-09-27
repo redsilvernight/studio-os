@@ -63,8 +63,8 @@ et `email_verified_at` (nullable). Etat derive, non stocke : `disabled` si
 `disabled_at` est pose, sinon `pending` si `email_verified_at` est nul, sinon
 `active`. Backfill : `email_verified_at = created_at` pour tout User
 existant ; la creation par `studio-admin` ou `POST /users` le pose
-immediatement. Aucune table de sessions : `session_id` du JWT n'est pas
-persiste.
+immediatement. `session_id` du JWT n'est pas persiste ; seules les sessions
+persistantes du Desktop ont un etat serveur (`RefreshToken`, ci-dessous).
 
 ## AccountToken (A4, DEC-0109 — migration Alembic `0017`, additive et reversible)
 Secret de compte a usage unique : `id`, `user_id` (FK `users`, `ON DELETE
@@ -77,6 +77,18 @@ de meme usage ; la consommation est un `UPDATE` conditionnel
 `readonly`, `pending` (`email_verified_at` nul, `password_hash` nul,
 `display_name` provisoire = partie locale de l'adresse), sans membership ; mot
 de passe et nom sont poses a la verification.
+
+## RefreshToken (DEC-0142 — migration Alembic `0018`, additive et reversible)
+Table `refresh_tokens` : `id`, `user_id` (FK `users`, `ON DELETE CASCADE`),
+`machine_id` (FK `machines`, machine dashboard, `ON DELETE CASCADE`),
+`family_id` (UUID commun a toutes les rotations d'un login), `token_hash`
+(SHA-256 du secret de 256 bits, unique ; le secret n'est jamais stocke),
+`auth_version` (copie de `User.auth_version` au login), `created_at`,
+`expires_at` (glissant), `absolute_expires_at` (fixe pour la famille),
+`consumed_at` et `revoked_at` (nullables). Index `family_id` et `user_id`.
+La rotation est un `UPDATE` conditionnel (`consumed_at IS NULL AND
+revoked_at IS NULL AND expires_at > now()`) ; un jeton deja consomme
+presente de nouveau revoque la famille.
 
 ## Machine
 `id`, `owner_user_id` (FK User), `display_name`, `credential_hash` (token

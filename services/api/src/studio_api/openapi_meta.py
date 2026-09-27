@@ -25,7 +25,8 @@ machine_bearer_scheme = HTTPBearer(
         "`/api/v1`. The token is opaque: a missing, invalid or revoked "
         "credential returns 401. Unauthenticated operations are "
         "`GET /healthz`, `GET /metrics`, the human dashboard login "
-        "`POST /auth/token`, and the HMAC-signed GitHub ingress "
+        "`POST /auth/token` (with `POST /auth/refresh` and `POST /auth/logout`, "
+        "which carry a refresh token in the body), and the HMAC-signed GitHub ingress "
         "`POST /github/webhook` (etape 9.1: signed, never Bearer)."
     ),
 )
