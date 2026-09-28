@@ -72,7 +72,7 @@ async def studio_handoff(
 
         async def _create() -> dict[str, Any]:
             result = await handoff_service.handoff(session, principal, request)
-            return result.model_dump(mode="json")  # type: ignore[no-any-return]
+            return result.model_dump(mode="json")
 
         request_hash = idempotency_service.hash_request(
             json.dumps(
@@ -90,8 +90,9 @@ async def studio_handoff(
                 sort_keys=True,
             ).encode()
         )
-        return await idempotency_service.run_idempotent_dict(
+        result = await idempotency_service.run_idempotent_dict(
             session, idempotency_key, "MCP studio_handoff", request_hash, _create
         )
+        return result
 
     return await run_tool(ctx, _handler)

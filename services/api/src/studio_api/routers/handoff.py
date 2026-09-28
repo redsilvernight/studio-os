@@ -35,9 +35,7 @@ router = APIRouter(prefix="/api/v1/handoff", tags=["handoff"])
         **RESP_403_FORBIDDEN,
         **RESP_404_NOT_FOUND,
         **RESP_409_IDEMPOTENCY,
-        409: {
-            "description": "Invalid session (no task), version conflict, or actor_not_owned."
-        },
+        409: {"description": "Invalid session (no task), version conflict, or actor_not_owned."},
     },
 )
 async def handoff(

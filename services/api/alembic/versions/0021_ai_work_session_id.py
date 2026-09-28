@@ -22,9 +22,7 @@ depends_on: Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "ai_work_logs", sa.Column("session_id", sa.Uuid(as_uuid=True), nullable=True)
-    )
+    op.add_column("ai_work_logs", sa.Column("session_id", sa.Uuid(as_uuid=True), nullable=True))
     op.create_foreign_key(
         "fk_ai_work_logs_session_id_work_sessions",
         "ai_work_logs",

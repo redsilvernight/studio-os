@@ -63,15 +63,15 @@ async def handoff(
             status.HTTP_409_CONFLICT,
             detail={"error_code": "invalid_session", "message": "session has no associated task"},
         )
-    
+
     # Verify task belongs to project
     task = await tasks_service.get_task(session, work_session.task_id)
     if task is None or task.project_id != request.project_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
-    
+
     # Verify session ownership
     ensure_machine_owned(principal, work_session.machine_id, "session", "end")
-    
+
     # Update task status if provided
     if request.task_status is not None:
         task_update = request.task_status
@@ -82,10 +82,10 @@ async def handoff(
             task_update,
             request.expected_version,
         )
-    
+
     # Release all claims for the task
     released_claims = await claims_service.release_task_claims_by_task(session, principal, task)
-    
+
     # Log AI work if agent_id provided
     ai_work_id = None
     if request.agent_id is not None and request.summary is not None:
@@ -109,10 +109,10 @@ async def handoff(
             ),
         )
         ai_work_id = ai_work.id
-    
+
     # End the session
     await sessions_service.end_session(session, principal, request.session_id)
-    
+
     return HandoffResult(
         task_id=task.id,
         task_status=TaskStatus(task.status),
