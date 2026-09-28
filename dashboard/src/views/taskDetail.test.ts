@@ -10,6 +10,7 @@ import { resetActorNames, setActorNames } from "../actorNames";
 import {
   aiWorkStatusLabel,
   aiWorkStatusTone,
+  releaseTaskConfirmText,
   sessionStateLabel,
   taskConflictNotice,
   taskDetailErrorHtml,
@@ -185,6 +186,21 @@ describe("prise en charge (claim/release machine)", () => {
     setActorNames([{ id: "abcdef12-3456", display_name: "flo-laptop" }], []);
     const named = taskDetailHtml(data({ task: held }));
     expect(named).toContain('title="abcdef12-3456">flo-laptop</span>');
+    resetActorNames();
+  });
+
+  it("confirmation de libération : nomme la machine et l'agent détenteurs", () => {
+    const held = {
+      ...(baseTask as unknown as Record<string, unknown>),
+      claimed_by_machine_id: "abcdef12-3456",
+      claimed_by_agent_id: "agent-9876",
+    } as never;
+    setActorNames([{ id: "abcdef12-3456", display_name: "flo-laptop" }], [{ id: "agent-9876", display_name: "claude-dev" }]);
+    const text = releaseTaskConfirmText(held);
+    expect(text).toContain("machine flo-laptop");
+    expect(text).toContain("agent claude-dev");
+    expect(text).toContain("détenteur ou à un administrateur");
+    expect(text).not.toContain("<");
     resetActorNames();
   });
 

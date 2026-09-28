@@ -30,7 +30,7 @@ import {
   dsSkeleton,
 } from "../ds/ds";
 import { taskClaimHint, taskStatusLabel, taskStatusTone } from "../taskStatus";
-import { agentLabel, agentRef, machineRef } from "../actorNames";
+import { agentLabel, agentRef, machineLabel, machineRef } from "../actorNames";
 import { describeError, esc, fmtTime, shortId } from "../ui";
 
 export interface TaskDetailContext {
@@ -120,6 +120,15 @@ export function sessionStateLabel(session: SessionRow): { label: string; tone: "
   return session.ended_at === null || session.ended_at === undefined || session.ended_at === ""
     ? { label: "En cours", tone: "info" }
     : { label: "Terminée", tone: "neutral" };
+}
+
+/** Confirmation de libération : nomme la machine (et l'agent) détenteurs. */
+export function releaseTaskConfirmText(task: Task): string {
+  const agent = task.claimed_by_agent_id ? ` (agent ${agentLabel(task.claimed_by_agent_id)})` : "";
+  return (
+    `Libérer la tâche « ${task.title} », prise par la machine ${machineLabel(task.claimed_by_machine_id)}${agent} ? ` +
+    `Réservé au détenteur ou à un administrateur ; le statut reste inchangé.`
+  );
 }
 
 function claimSectionHtml(task: Task, authed: boolean): string {
@@ -347,7 +356,7 @@ function bind(root: HTMLElement, ctx: TaskDetailContext, data: TaskDetailData): 
     void doClaim(root, ctx, task.id);
   });
   root.querySelector<HTMLElement>("#task-head-release")?.addEventListener("click", () => {
-    void doRelease(root, ctx, task.id);
+    void doRelease(root, ctx, task);
   });
 
   const form = root.querySelector<HTMLFormElement>("#task-edit-form");
@@ -412,7 +421,7 @@ function bind(root: HTMLElement, ctx: TaskDetailContext, data: TaskDetailData): 
     void doClaim(root, ctx, task.id);
   });
   root.querySelector("[data-release]")?.addEventListener("click", () => {
-    void doRelease(root, ctx, task.id);
+    void doRelease(root, ctx, task);
   });
 }
 
@@ -436,7 +445,9 @@ async function doClaim(root: HTMLElement, ctx: TaskDetailContext, taskId: string
   }
 }
 
-async function doRelease(root: HTMLElement, ctx: TaskDetailContext, taskId: string): Promise<void> {
+async function doRelease(root: HTMLElement, ctx: TaskDetailContext, task: Task): Promise<void> {
+  if (!window.confirm(releaseTaskConfirmText(task))) return;
+  const taskId = task.id;
   for (const button of root.querySelectorAll<HTMLButtonElement>("[data-release], #task-head-release")) {
     button.disabled = true;
   }

@@ -14,7 +14,7 @@
 import type { StudioClient } from "../api";
 import { createClaim, listClaims, releaseClaim, renewClaim, type ResourceClaim } from "../claimsApi";
 import { dsBadge, dsEmptyState, dsField, dsSectionHeader, focusDsErrorBox } from "../ds/ds";
-import { machineRef } from "../actorNames";
+import { machineLabel, machineRef } from "../actorNames";
 import { describeError, esc, fmtTime, idCell } from "../ui";
 
 export interface ClaimsContext {
@@ -45,7 +45,15 @@ function claimLiveliness(claim: ResourceClaim, now: number): ClaimLiveliness {
   return new Date(claim.expires_at).getTime() <= now ? "expired" : "active";
 }
 
-function rowsHtml(claims: ResourceClaim[], authed: boolean): string {
+/** Confirmation de libération : nomme le chemin et la machine détentrice. */
+export function releaseClaimConfirmText(claim: ResourceClaim): string {
+  return (
+    `Libérer la réservation « ${claim.resource_path} », détenue par la machine ${machineLabel(claim.claimed_by_machine_id)} ? ` +
+    `Les autres machines ne la verront plus comme détenue. Réservé au détenteur ou à un administrateur.`
+  );
+}
+
+export function rowsHtml(claims: ResourceClaim[], authed: boolean): string {
   const now = Date.now();
   return claims
     .map((c) => {
@@ -56,7 +64,7 @@ function rowsHtml(claims: ResourceClaim[], authed: boolean): string {
         `<td>${dsBadge(LIVELINESS_LABEL[state], LIVELINESS_TONE[state])}</td>` +
         `<td>Expire le ${fmtTime(c.expires_at)}<br /><span class="ds-list-sub">durée ${c.ttl_seconds} s</span></td>` +
         `<td class="actions"><button type="button" class="ds-btn ds-btn--sm" data-renew="${esc(c.id)}" aria-label="Renouveler la réservation ${esc(c.resource_path)}" ${authed ? "" : "disabled"}>Renouveler</button>` +
-        `<button type="button" class="ds-btn ds-btn--sm" data-release="${esc(c.id)}" aria-label="Libérer la réservation ${esc(c.resource_path)}" ${authed ? "" : "disabled"}>Libérer</button></td></tr>`
+        `<button type="button" class="ds-btn ds-btn--sm" data-release="${esc(c.id)}" aria-label="Libérer la réservation ${esc(c.resource_path)}" ${authed && state !== "released" ? "" : "disabled"}>Libérer</button></td></tr>`
       );
     })
     .join("");
@@ -97,7 +105,7 @@ export async function renderClaimsInto(root: HTMLElement, ctx: ClaimsContext): P
         `<div class="claims-create">${dsSectionHeader("Nouvelle réservation")}${createFormHtml(ctx.authed)}</div>` +
         `<div data-msg class="ds-list-sub" role="status"></div>`,
     );
-    bind(root, ctx, reload);
+    bind(root, ctx, claims, reload);
   } catch (error) {
     root.innerHTML = panelHtml(
       "",
@@ -113,7 +121,7 @@ function setMsg(root: HTMLElement, text: string): void {
   if (text !== "" && node instanceof HTMLElement) focusDsErrorBox(node);
 }
 
-function bind(root: HTMLElement, ctx: ClaimsContext, reload: () => Promise<void>): void {
+function bind(root: HTMLElement, ctx: ClaimsContext, claims: ResourceClaim[], reload: () => Promise<void>): void {
   root.querySelectorAll<HTMLButtonElement>("[data-renew]").forEach((button) => {
     button.addEventListener("click", () => {
       button.disabled = true;
@@ -127,9 +135,11 @@ function bind(root: HTMLElement, ctx: ClaimsContext, reload: () => Promise<void>
   });
   root.querySelectorAll<HTMLButtonElement>("[data-release]").forEach((button) => {
     button.addEventListener("click", () => {
-      if (!window.confirm("Libérer cette réservation ? Les autres machines ne la verront plus comme détenue.")) return;
+      const claimId = button.dataset["release"] ?? "";
+      const claim = claims.find((c) => c.id === claimId);
+      if (claim === undefined || !window.confirm(releaseClaimConfirmText(claim))) return;
       button.disabled = true;
-      releaseClaim(ctx.client, button.dataset["release"] ?? "")
+      releaseClaim(ctx.client, claimId)
         .then(() => reload())
         .catch((error: unknown) => {
           button.disabled = false;
