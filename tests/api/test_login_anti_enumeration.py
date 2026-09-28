@@ -85,7 +85,8 @@ def test_dummy_hash_has_the_real_cost() -> None:
 def test_no_public_route_can_reveal_a_duplicate() -> None:
     """Public writes are login, the signed webhook and the A4 registration /
     recovery routes, whose answers never depend on the address
-    (tests/api/test_public_registration.py). A new public route must be
+    (tests/api/test_public_registration.py). Refresh and logout take only an
+    opaque refresh token, never an address (DEC-0142). A new public route must be
     reviewed for anti-enumeration and added here deliberately."""
     public_writes = {
         (method, path)
@@ -94,6 +95,8 @@ def test_no_public_route_can_reveal_a_duplicate() -> None:
     }
     assert public_writes == {
         ("POST", "/api/v1/auth/token"),
+        ("POST", "/api/v1/auth/refresh"),
+        ("POST", "/api/v1/auth/logout"),
         ("POST", "/api/v1/github/webhook"),
         ("POST", "/api/v1/auth/register"),
         ("POST", "/api/v1/auth/resend-verification"),

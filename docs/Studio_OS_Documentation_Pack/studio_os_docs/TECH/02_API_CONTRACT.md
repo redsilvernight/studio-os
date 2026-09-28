@@ -31,7 +31,7 @@ ressource rattachee a un projet.
 - Pagination: `limit`, `offset` ou curseur selon endpoint.
 - Dates ISO 8601 UTC.
 - Ecriture mutable sur un objet existant (`PATCH`) : header `If-Match-Version` avec la `version` lue par le client ; 409 + version serveur courante en cas de conflit (`TECH/04_AUTH_SYNC_CONTRACT.md`).
-- Authentification : header `Authorization: Bearer <machine-token>` sur tout endpoint sous `/api/v1` (sauf `/healthz`, `/metrics`, `GET /version`, `POST /auth/token`, les routes publiques d'inscription et de recuperation A4 et `POST /github/webhook` — ce dernier est signe HMAC `X-Hub-Signature-256`, jamais Bearer) — voir `TECH/04_AUTH_SYNC_CONTRACT.md`. Le dashboard humain obtient un JWT court-terme via `POST /auth/token` (DASH-4, DEC-0056) et le presente ensuite comme `Authorization: Bearer <jwt>`.
+- Authentification : header `Authorization: Bearer <machine-token>` sur tout endpoint sous `/api/v1` (sauf `/healthz`, `/metrics`, `GET /version`, `POST /auth/token`, `POST /auth/refresh`, `POST /auth/logout`, les routes publiques d'inscription et de recuperation A4 et `POST /github/webhook` — ce dernier est signe HMAC `X-Hub-Signature-256`, jamais Bearer) — voir `TECH/04_AUTH_SYNC_CONTRACT.md`. Le dashboard humain obtient un JWT court-terme via `POST /auth/token` (DASH-4, DEC-0056) et le presente ensuite comme `Authorization: Bearer <jwt>`.
 - Enveloppe reelle d'une erreur machine-readable (`error_code` present dans ce document, ex. `413`/`507`/`409 idempotency_key_payload_mismatch`) : `{"detail": {"error_code": "...", ...}}` — FastAPI enveloppe systematiquement `HTTPException.detail`, jamais `{"error_code": "..."}` a plat. Une erreur sans `error_code` (401/403/404 génériques) renvoie `{"detail": "<message>"}`, une simple chaine. `studio_contracts.common.ErrorResponse`/`VersionConflictError` ne sont utilises par aucun code serveur actuel — clarification documentaire (DEC-0024), pas un changement de comportement.
 
 ## Endpoints principaux
@@ -60,13 +60,23 @@ ressource rattachee a un projet.
   `/api/v1` (sauf `/healthz` et `/metrics`). Cet endpoint est lui-meme sans Bearer :
   il est l'exception d'authentification prevue pour le login humain dashboard.
   Cycle de session (DEC-0110, rupture de la version contractuelle 2) : JWT de
-  15 minutes au plus, sans refresh token, claims `sub`, `machine_id`,
+  15 minutes au plus, claims `sub`, `machine_id`,
   `session_id`, `auth_version`, `iat`, `exp`, `type` — `email` et `role`
   retires ; un JWT emis avant le deploiement est refuse. `TokenResponse` gagne
   `expires_in` (secondes, additif). Un User desactive ou non verifie recoit le
   meme `401` qu'un mauvais mot de passe. L'e-mail est compare sans tenir
   compte de la casse ni des espaces de bord (A3, normalisation). Validation, revocation et SSE :
   `TECH/04_AUTH_SYNC_CONTRACT.md`, Cycle de session.
+  Session persistante (DEC-0142, additif) : `TokenRequest` gagne `persistent`
+  (bool, defaut `false`) ; `TokenResponse` gagne `refresh_token` et
+  `refresh_expires_at` (nullables, renseignes seulement si `persistent`).
+- POST /auth/refresh (DEC-0142, additif) — sans Bearer. Body `RefreshRequest`
+  (`refresh_token`, 1..256 caracteres) ; response `TokenResponse` avec un
+  nouveau JWT et un nouveau refresh token (rotation a usage unique). Tout
+  refus (inconnu, expire, reutilise, revoque, compte ou machine invalide) :
+  `401 {"detail": "invalid or expired refresh token"}`.
+- POST /auth/logout (DEC-0142, additif) — sans Bearer. Body `RefreshRequest` ;
+  revoque la famille du jeton ; toujours `204`, jeton inconnu compris.
 - GET /auth/me (DEC-0110, additif) — tout principal authentifie (JWT ou token
   machine). Response `AuthIdentity` : `user_id`, `display_name`, `email`,
   `role`, `machine_id`. Source d'identite du client a la place des claims

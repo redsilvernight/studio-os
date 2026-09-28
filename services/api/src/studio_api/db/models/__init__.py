@@ -18,6 +18,7 @@ from studio_api.db.models.library import (
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.project_membership import ProjectMembershipModel
+from studio_api.db.models.refresh_token import RefreshTokenModel
 from studio_api.db.models.roadmap import (
     RoadmapModel,
     RoadmapPhaseModel,
@@ -36,6 +37,7 @@ __all__ = [
     "Base",
     "UserModel",
     "AccountTokenModel",
+    "RefreshTokenModel",
     "MachineModel",
     "AgentModel",
     "ProjectModel",

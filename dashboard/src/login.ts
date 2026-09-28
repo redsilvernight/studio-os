@@ -6,7 +6,7 @@
  */
 import { apiBaseUrl } from "./api";
 import { observedFetch } from "./apiEvents";
-import { setToken } from "./auth";
+import { acceptTokens, persistentSessionAvailable, type TokenBody } from "./persistentSession";
 import { joinUrl } from "./config";
 import { getPlatform } from "./platform";
 import { esc } from "./ui";
@@ -170,7 +170,8 @@ async function attemptLogin(email: string, password: string): Promise<LoginResul
     response = await observedFetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      // A persistent session only where an OS secret store keeps it (DEC-0142).
+      body: JSON.stringify({ email, password, persistent: persistentSessionAvailable() }),
     });
   } catch {
     return { ok: false, error: LOGIN_MESSAGES.unreachable };
@@ -181,11 +182,8 @@ async function attemptLogin(email: string, password: string): Promise<LoginResul
     if (response.status === 429) return { ok: false, error: LOGIN_MESSAGES.rateLimited };
     return { ok: false, error: LOGIN_MESSAGES.failed };
   }
-  const data = (await response.json().catch(() => ({}))) as { access_token?: string };
-  if (data.access_token) {
-    setToken(data.access_token);
-    return { ok: true };
-  }
+  const data = (await response.json().catch(() => ({}))) as TokenBody;
+  if (await acceptTokens(data)) return { ok: true };
   return { ok: false, error: LOGIN_MESSAGES.unexpected };
 }
 

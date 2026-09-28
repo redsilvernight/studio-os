@@ -208,13 +208,14 @@ async def test_sse_is_refused_for_a_below_minimum_client(window_client: AsyncCli
     assert response.json()["detail"]["error_code"] == "client_upgrade_required"
 
 
-async def test_there_is_no_refresh_endpoint_so_login_is_reacquired(
+async def test_refresh_is_open_to_a_supported_n_minus_1_client(
     window_client: AsyncClient,
 ) -> None:
-    # "refresh si applicable": it is not — tokens are re-obtained through
-    # POST /auth/token; a supported N-1 client gets an ordinary 404 here, never
-    # a compatibility refusal.
+    # "refresh si applicable" (DEC-0142): a supported N-1 client that presents
+    # a bad refresh token gets the ordinary 401, never a compatibility refusal.
     response = await window_client.post(
-        "/api/v1/auth/refresh", headers=_headers("dashboard", N_MINUS_1)
+        "/api/v1/auth/refresh",
+        headers=_headers("dashboard", N_MINUS_1),
+        json={"refresh_token": "unknown"},
     )
-    assert response.status_code == 404
+    assert response.status_code == 401

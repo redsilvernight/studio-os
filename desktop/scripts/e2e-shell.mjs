@@ -41,7 +41,7 @@ const a5 = { registers: [], projects: [], urls: [] };
 function startLiveServer() {
   const server = createServer((req, res) => {
     res.setHeader("Access-Control-Allow-Origin", APP_ORIGIN);
-    res.setHeader("Access-Control-Allow-Headers", "authorization,content-type,idempotency-key");
+    res.setHeader("Access-Control-Allow-Headers", "authorization,content-type,idempotency-key,x-studio-client,x-studio-client-version");
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
     if (req.method === "OPTIONS") return res.writeHead(204).end();
     res.setHeader("Content-Type", "application/json");
@@ -140,6 +140,22 @@ async function main() {
     await page.waitForSelector("#login-error:not([hidden])", { timeout: 15_000 });
     const err = await page.textContent("#login-error");
     check("network.unreachable_message_at_login", /injoignable/i.test(err ?? ""), `login error: ${err}`);
+
+    // ---- 1b. persistent session vault (DEC-0142): OS store round trip, refusal of non-tokens
+    {
+      const token = "e2e_vault-" + Date.now().toString(36);
+      const stored = await invoke(page, "store_session", { secret: token });
+      const loaded = await invoke(page, "load_session", {});
+      const bad = await invoke(page, "store_session", { secret: "not a token" });
+      const cleared = await invoke(page, "clear_session", {});
+      const after = await invoke(page, "load_session", {});
+      check(
+        "vault.round_trip",
+        stored.ok && loaded.value === token && cleared.ok && after.ok && after.value === null,
+        `store=${stored.ok} load=${loaded.value === token} clear=${cleared.ok} after=${JSON.stringify(after)}`,
+      );
+      check("vault.refuses_non_token", !bad.ok, JSON.stringify(bad).slice(0, 160));
+    }
 
     // ---- 2. native commands are typed, validated and cannot be tricked
     const s0 = await invoke(page, "get_server_origin", {});

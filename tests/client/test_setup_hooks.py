@@ -5,10 +5,14 @@ account configs never touched (DEC-0096 boundary). No DB needed."""
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
 from studio_client import cli
+from studio_client.config import default_config_path
 from studio_client.hooks import (
     AGENT_STORE_REL,
     HARNESSES,
@@ -20,6 +24,7 @@ from studio_client.hooks import (
 )
 
 _SPECS = {spec.harness: spec for spec in HARNESSES}
+_PS = shutil.which("pwsh") or shutil.which("powershell")
 
 
 def test_render_has_no_unsubstituted_placeholder() -> None:
@@ -114,3 +119,149 @@ def test_cli_setup_hooks_dry_run_json(
 def test_agent_store_path_is_user_level() -> None:
     assert AGENT_STORE_REL.parts[:1] == (".claude",)
     assert AGENT_STORE_REL.name == "studio-agent.json"
+
+
+@pytest.mark.parametrize("channel", ["dev", "prod"])
+def test_hook_reads_the_clients_profile_directory(
+    channel: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("STUDIO_CLIENT_CHANNEL", channel)
+    profile_dir = default_config_path().parent.name
+    rendered = render_hook(_SPECS["opencode"])
+    assert f"'{profile_dir}'" in rendered
+    assert "STUDIO_CLIENT_CHANNEL" in rendered
+    assert "STUDIO_CLIENT_CONFIG_FILE" in rendered
+    assert "XDG_CONFIG_HOME" in rendered
+
+
+def test_hook_matches_task_worktrees() -> None:
+    rendered = render_hook(_SPECS["opencode"])
+    assert "-wt-" in rendered
+    assert "^[0-9a-fA-F]{8}$" in rendered
+
+
+def _run_hook(hook: Path, cwd: Path) -> subprocess.CompletedProcess[str]:
+    args = [_PS, "-NoProfile"]
+    if os.name == "nt":
+        args += ["-ExecutionPolicy", "Bypass"]
+    args += ["-File", str(hook)]
+    return subprocess.run(
+        args,
+        input=json.dumps({"cwd": str(cwd)}),
+        capture_output=True,
+        text=True,
+        cwd=str(cwd),
+        timeout=120,
+        env=os.environ.copy(),
+    )
+
+
+@pytest.mark.skipif(_PS is None, reason="PowerShell absent de cette machine")
+def test_hook_injects_identity_from_dev_profile_and_task_worktree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Le hook rend l'identité du projet depuis le profil dev et un worktree
+    `<repo>-wt-<id8>` ; un suffixe hors convention ne rend rien, et le canal
+    absent avec les deux profils présents retient le profil prod (fail-open :
+    code 0, sortie vide)."""
+    repo = tmp_path / "Studi'os"
+    worktree = tmp_path / "Studi'os-wt-c1aa7c34"
+    deep = worktree / "packages" / "studio-client"
+    foreign = tmp_path / "Studi'os-wt-zzzzzzzz"
+    for directory in (repo, deep, foreign):
+        directory.mkdir(parents=True)
+
+    if os.name == "nt":
+        monkeypatch.setenv("APPDATA", str(tmp_path))
+        dev_profile = tmp_path / "StudioOS-Dev"
+    else:
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+        dev_profile = tmp_path / "studio-os-dev"
+    monkeypatch.setenv("STUDIO_CLIENT_CHANNEL", "dev")
+    monkeypatch.delenv("STUDIO_CLIENT_CONFIG_FILE", raising=False)
+
+    project_id = "2a836038-153c-41cf-879a-73bd794760b0"
+    ws_dir = dev_profile / "workspaces"
+    ws_dir.mkdir(parents=True)
+    (ws_dir / f"{project_id}.json").write_text(
+        json.dumps(
+            {
+                "project_id": project_id,
+                "project_slug": "studio-os",
+                "roots": {
+                    "workspace_root": str(repo),
+                    "repo_roots": [{"name": "Studi'os", "path": str(repo)}],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    hook = tmp_path / "hook.ps1"
+    hook.write_text(render_hook(_SPECS["opencode"]), encoding="utf-8")
+
+    for tracked_dir in (worktree, deep):
+        result = _run_hook(hook, tracked_dir)
+        assert result.returncode == 0, result.stderr
+        assert project_id in result.stdout
+        assert "slug studio-os" in result.stdout
+
+    foreign_result = _run_hook(hook, foreign)
+    assert foreign_result.returncode == 0
+    assert foreign_result.stdout.strip() == ""
+
+    if os.name == "nt":
+        (tmp_path / "StudioOS").mkdir()
+    else:
+        (tmp_path / "studio-os").mkdir()
+    monkeypatch.delenv("STUDIO_CLIENT_CHANNEL")
+    prod_result = _run_hook(hook, worktree)
+    assert prod_result.returncode == 0
+    assert prod_result.stdout.strip() == ""
+
+
+@pytest.mark.skipif(_PS is None, reason="PowerShell absent de cette machine")
+def test_hook_falls_back_to_the_profile_that_exists_without_a_channel(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Sans STUDIO_CLIENT_CHANNEL le profil existant fait foi : un poste dev
+    dont seul `StudioOS-Dev` existe rend bien l'identité du projet, alors que
+    la valeur par défaut `StudioOS` ne contiendrait aucun workspace."""
+    rendered = render_hook(_SPECS["opencode"])
+    assert "Test-Path -LiteralPath $prodDir" in rendered
+
+    repo = tmp_path / "Studi'os"
+    repo.mkdir()
+    monkeypatch.delenv("STUDIO_CLIENT_CHANNEL", raising=False)
+    monkeypatch.delenv("STUDIO_CLIENT_CONFIG_FILE", raising=False)
+    if os.name == "nt":
+        monkeypatch.setenv("APPDATA", str(tmp_path))
+        profile = tmp_path / "StudioOS-Dev"
+    else:
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+        profile = tmp_path / "studio-os-dev"
+
+    project_id = "2a836038-153c-41cf-879a-73bd794760b0"
+    ws_dir = profile / "workspaces"
+    ws_dir.mkdir(parents=True)
+    (ws_dir / f"{project_id}.json").write_text(
+        json.dumps(
+            {
+                "project_id": project_id,
+                "project_slug": "studio-os",
+                "roots": {
+                    "workspace_root": str(repo),
+                    "repo_roots": [{"name": "Studi'os", "path": str(repo)}],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    hook = tmp_path / "hook-fallback.ps1"
+    hook.write_text(render_hook(_SPECS["opencode"]), encoding="utf-8")
+
+    result = _run_hook(hook, repo)
+    assert result.returncode == 0, result.stderr
+    assert project_id in result.stdout
+    assert "slug studio-os" in result.stdout

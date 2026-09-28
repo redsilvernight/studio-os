@@ -15,6 +15,9 @@
     "allow-export-diagnostics",
     "allow-open-data-folder",
     "allow-check-for-update",
-    "allow-install-update"
+    "allow-install-update",
+    "allow-load-session",
+    "allow-store-session",
+    "allow-clear-session"
   ]
 }

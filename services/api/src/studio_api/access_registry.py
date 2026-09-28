@@ -40,6 +40,8 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     ("GET", "/metrics"): "public",
     ("GET", "/version"): "public",
     ("POST", "/api/v1/auth/token"): "public",
+    ("POST", "/api/v1/auth/refresh"): "public",
+    ("POST", "/api/v1/auth/logout"): "public",
     ("POST", "/api/v1/auth/register"): "public",
     ("POST", "/api/v1/auth/resend-verification"): "public",
     ("POST", "/api/v1/auth/verify-email"): "public",
