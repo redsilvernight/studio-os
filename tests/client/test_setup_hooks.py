@@ -40,6 +40,17 @@ def test_render_has_no_unsubstituted_placeholder() -> None:
 def test_render_outputs_differ_per_harness() -> None:
     assert "'json'" in render_hook(_SPECS["claude-code"])
     assert "'text'" in render_hook(_SPECS["opencode"])
+    assert "'text'" in render_hook(_SPECS["codex"])
+
+
+def test_codex_spec() -> None:
+    spec = _SPECS["codex"]
+    assert spec.agent_key == "codex"
+    assert spec.hook_rel == Path(".codex") / "studio-session-start-codex.ps1"
+    assert ".codex/config.toml" in spec.config_markers
+    assert "codex" in spec.binaries
+    assert "hooks.json" in spec.register_hint
+    assert "{target}" in spec.register_hint
 
 
 def test_render_carries_no_secret() -> None:
@@ -52,13 +63,13 @@ def test_render_carries_no_secret() -> None:
 
 def test_deploy_creates_hooks_idempotently(tmp_path: Path) -> None:
     first = deploy_hooks(tmp_path, list(HARNESSES))
-    assert [r.status for r in first.reports] == ["deployed", "deployed"]
+    assert [r.status for r in first.reports] == ["deployed"] * len(HARNESSES)
     for spec in HARNESSES:
         target = tmp_path / spec.hook_rel
         assert target.is_file()
         assert is_managed(target)
     second = deploy_hooks(tmp_path, list(HARNESSES))
-    assert [r.status for r in second.reports] == ["unchanged", "unchanged"]
+    assert [r.status for r in second.reports] == ["unchanged"] * len(HARNESSES)
 
 
 def test_deploy_never_overwrites_foreign_file(tmp_path: Path) -> None:
@@ -76,7 +87,7 @@ def test_deploy_never_overwrites_foreign_file(tmp_path: Path) -> None:
 
 def test_deploy_dry_run_writes_nothing(tmp_path: Path) -> None:
     result = deploy_hooks(tmp_path, list(HARNESSES), dry_run=True)
-    assert [r.status for r in result.reports] == ["would-deploy", "would-deploy"]
+    assert [r.status for r in result.reports] == ["would-deploy"] * len(HARNESSES)
     assert not any(tmp_path.rglob("*.ps1"))
 
 
@@ -85,6 +96,14 @@ def test_detect_by_config_marker(tmp_path: Path) -> None:
     marker.write_text("{}", encoding="utf-8")
     found = {spec.harness for spec in detect_harnesses(tmp_path, ())}
     assert found == {"claude-code"}
+
+
+def test_detect_codex_by_config_marker(tmp_path: Path) -> None:
+    marker_dir = tmp_path / ".codex"
+    marker_dir.mkdir()
+    (marker_dir / "config.toml").write_text("", encoding="utf-8")
+    found = {spec.harness for spec in detect_harnesses(tmp_path, ())}
+    assert found == {"codex"}
 
 
 def test_detect_by_binary(tmp_path: Path) -> None:
@@ -105,15 +124,35 @@ def test_cli_setup_hooks_deploys(tmp_path: Path, capsys: pytest.CaptureFixture[s
     assert "opencode: deployed" in capsys.readouterr().out
 
 
+def test_cli_setup_hooks_deploys_codex_with_hint(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert cli.setup_hooks(["--home", str(tmp_path), "--harness", "codex"]) == 0
+    out = capsys.readouterr().out
+    assert "codex: deployed" in out
+    assert "Next (codex):" in out
+    assert "hooks.json" in out
+    assert str(tmp_path / _SPECS["codex"].hook_rel) in out
+    assert "{target}" not in out
+
+
 def test_cli_setup_hooks_dry_run_json(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("PATH", str(tmp_path))
     assert cli.setup_hooks(["--home", str(tmp_path), "--dry-run", "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["skipped"] == ["claude-code", "opencode"]
+    assert payload["skipped"] == ["claude-code", "opencode", "codex"]
     assert payload["deployed"] == []
     assert not any(tmp_path.rglob("*.ps1"))
+
+
+def test_setup_hooks_visible_in_top_level_help(capsys: pytest.CaptureFixture[str]) -> None:
+    """`setup-hooks` is no longer a hidden command: it shows in `--help`."""
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["--help"])
+    assert exc.value.code == 0
+    assert "setup-hooks" in capsys.readouterr().out
 
 
 def test_agent_store_path_is_user_level() -> None:
