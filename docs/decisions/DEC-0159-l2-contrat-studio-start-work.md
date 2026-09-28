@@ -25,15 +25,24 @@ humaine — fichier et serveur alignés à l'acceptation).
   en succès) / `candidates` (chemin sans tâche uniquement).
 - `agent_id` doit appartenir à la machine appelante (`409 actor_not_owned`,
   même règle que `POST /ai-work`) ; autorisation avant le court-circuit
-  d'idempotence ; `200` si reprise/retrouvé, `201` si création.
+  d'idempotence ; réponse `200` toujours (`resumed` distingue une session
+  reprise d'une session neuve, donc le statut ne varie pas sous rejeu).
 - Aucune nouvelle table, aucun nouvel event ; `prepare_context` ne gagne
-  aucun effet de bord.
+  aucun effet de bord. Composite en un appel : les services composés gardent
+  leurs propres commits (pas une transaction unique — contrainte notée par
+  l'audit P0), un échec en cours converge au rejeu.
 
 ## Garde-fous
 
-- Contrat seul dans ce lot (tâche 15dc6fe4) : la route et l'outil arrivent
-  avec l'implémentation (tâche 9dff9368). La section contrat est marquée
-  « spec sans implémentation » jusqu'à fusion.
+- Lot livré : contrat **et** implémentation (route `POST /start-work`, outil
+  MCP `studio_start_work`, service `services/start_work.py`, tâche 9dff9368).
+- Amendement vs l'approbation initiale (avant implémentation) : la réponse
+  est **`200` toujours** (`resumed` porte la nouveauté) et la composition
+  **n'est pas une transaction unique** — deux corrections rendues nécessaires
+  par l'implémentation (statut stable sous rejeu ; les services composés
+  commitent leurs étapes). Cette décision, amendée, **remplace** l'approbation
+  antérieure du couple `200`/`201` et de « une transaction » ; elle reste à
+  accepter par un humain.
 - `AgentDefinition.stable_key` reste un paramètre de résolution ;
   `agent_stable_key` n'est qu'un boost de tri du contexte.
 

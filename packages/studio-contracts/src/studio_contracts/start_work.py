@@ -5,9 +5,10 @@ current roadmap step's unclaimed candidate tasks, claiming nothing (AIB-G).
 
 HTTP canonical (`POST /api/v1/start-work`, DEC-0046) plus the MCP tool
 `studio_start_work`. No new table, no new event type: this composes the
-existing task-claim, session and `prepare_context` services in one
-transaction (implementation: task 9dff9368). `prepare_context` itself
-gains no side effect (DEC-0080).
+existing task-claim, session and `prepare_context` services in one call — not
+a single database transaction (the composed services own their own commits),
+so a mid-call failure converges on retry. `prepare_context` itself gains no
+side effect (DEC-0080).
 """
 
 from __future__ import annotations
@@ -55,9 +56,7 @@ class StartWorkCandidate(ContractModel):
     """One unclaimed task a fresh start could pick up (no-task path only):
     compact by construction — id, title, status, plus the `why` relation that
     surfaced it (`active_roadmap` for the current step, `project_scope` for
-    another unclaimed project task), never the description. `why` is
-    required: the model has no consumer yet, and adding it later would be a
-    breaking change."""
+    another unclaimed project task), never the description."""
 
     task_id: UUID
     title: str
@@ -66,7 +65,9 @@ class StartWorkCandidate(ContractModel):
 
 
 class StartWorkResult(ContractModel):
-    """One call, one transaction, one replayable result. `task`/`session`
+    """One call, one replayable result — not a single database transaction:
+    the composed services commit their own steps, so a partial failure
+    converges on the next call. `task`/`session`
     are set only on the with-task path; `claimed` tells whether the task is
     now claimed by the caller's machine; `resumed` tells whether the
     session was resumed (`True`) or created (`False`) — meaningless without
