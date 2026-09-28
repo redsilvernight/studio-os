@@ -198,8 +198,8 @@ HARNESSES: tuple[HarnessSpec, ...] = (
         config_markers=(".config/opencode/opencode.jsonc", ".config/opencode/opencode.json"),
         binaries=("opencode",),
         register_hint=(
-            "call the script on session start (e.g. from the studio-os plugin "
-            'on session.created, passing {{"cwd": directory}} on stdin)'
+            "session wiring is the managed studio-os.js plugin (deployed by "
+            "setup-hooks next to the script); restart OpenCode to load it"
         ),
     ),
     HarnessSpec(
