@@ -75,6 +75,11 @@ jobs:
         with:
           node-version: 22
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # Dependencies only (the app crate is rebuilt): shared by both Desktop workflows.
+          workspaces: desktop/src-tauri -> target
+          shared-key: desktop
       - name: Sync workspace
         run: uv sync --all-packages
       - name: Install Node dependencies
