@@ -1768,7 +1768,7 @@
      "sessions"
     ],
     "summary": "List Sessions",
-    "description": "List work sessions, optionally filtered by task, restricted to sessions whose task belongs to an accessible project. A task of an inaccessible project answers `403 forbidden`.",
+    "description": "List work sessions, optionally filtered by task, restricted to sessions whose task belongs to an accessible project. A task of an inaccessible project answers `403 forbidden`. Each session carries derived presence (C1): `status` (`active|idle|expired|ended`) and `expires_at`, computed from `last_activity_at` at read time.",
     "operationId": "list_sessions_api_v1_sessions_get",
     "security": [
      {
@@ -18078,6 +18078,17 @@
     "title": "SessionRuntimeOverride",
     "description": "One ephemeral session-level runtime choice carried by a resolution\nrequest (P7). Same key shape as a stored binding\n(`target_kind`, `target_stable_key`) plus the concrete `target` \u2014 but\nnever persisted: the router forwards it as resolution context only\n(`session_overrides`), and the service validates it exactly like a\nstored choice (unknown machine 404, another user's machine 403)."
    },
+   "SessionStatus": {
+    "type": "string",
+    "enum": [
+     "active",
+     "idle",
+     "expired",
+     "ended"
+    ],
+    "title": "SessionStatus",
+    "description": "Presence derived at read time (C1), never stored: `active`\n(recent activity), `idle` (no activity past the idle threshold),\n`expired` (no activity past the expire threshold \u2014 L2 closes these),\n`ended` (`ended_at` set). Same pattern as `MachineStatus` from\n`last_seen_at`, but driven by session-attached activity, never by a\ndedicated agent heartbeat."
+   },
    "Step": {
     "properties": {
      "created_at": {
@@ -19838,6 +19849,34 @@
        }
       ],
       "title": "Ended At"
+     },
+     "last_activity_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Activity At"
+     },
+     "status": {
+      "$ref": "#/components/schemas/SessionStatus",
+      "default": "active"
+     },
+     "expires_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expires At"
      }
     },
     "additionalProperties": false,

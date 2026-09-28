@@ -249,6 +249,16 @@ public de bootstrap, pas de secret d'environnement dedie.
 - POST /sessions
 - PATCH /sessions/{id}/end
 - GET /sessions
+- Presence derivee a la lecture (C1, DEC-0157, additif) : chaque session
+  expose `last_activity_at` (derniere activite authentifiee rattachee a la
+  session — debut/fin aujourd'hui ; `start_work`, `sync`, emission
+  d'evenements, `ai_work` et `handoff` dans leurs etapes L2/L3/C2/C4),
+  `status` (`active|idle|expired|ended`, seuils configurables
+  `session_idle_after_seconds` / `session_expire_after_seconds`) et
+  `expires_at` (echeance lue `expired`, `null` si terminee). Jamais stockes,
+  jamais un heartbeat (meme patron que `status` machine depuis
+  `last_seen_at`) ; la cloture effective des expirees reste L2. Un client
+  qui ignore ces champs n'observe aucun changement.
 
 ### Claims
 - GET /claims

@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.events import ActorType, EventCreate, EventType
-from studio_contracts.sessions import WorkSessionCreate
+from studio_contracts.sessions import SessionStatus, WorkSessionCreate
 
 from studio_api.db.models.task import TaskModel
 from studio_api.db.models.work_session import WorkSessionModel
@@ -21,6 +21,7 @@ from studio_api.services.authz import (
     ensure_project_access,
     project_visibility_clause,
 )
+from studio_api.settings import Settings
 
 _SESSION_EVENT_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "studio-os/session-events")
 
@@ -113,11 +114,13 @@ async def start_session(
     session: AsyncSession, principal: Principal, session_in: WorkSessionCreate
 ) -> WorkSessionModel:
     await authorize_start(session, principal, session_in.task_id)
+    now = datetime.now(UTC)
     work_session = WorkSessionModel(
         task_id=session_in.task_id,
         machine_id=session_in.machine_id,
         agent_id=session_in.agent_id,
-        started_at=datetime.now(UTC),
+        started_at=now,
+        last_activity_at=now,
     )
     session.add(work_session)
     await session.commit()
@@ -136,8 +139,59 @@ async def end_session(
     ensure_machine_owned(principal, work_session.machine_id, "session", "end")
     if work_session.ended_at is not None:
         return work_session
-    work_session.ended_at = datetime.now(UTC)
+    now = datetime.now(UTC)
+    work_session.ended_at = now
+    work_session.last_activity_at = now
     await session.commit()
     await session.refresh(work_session)
     await _emit_session_event(session, principal, work_session, EventType.SESSION_ENDED)
+    return work_session
+
+
+def _effective_activity(work_session: WorkSessionModel) -> datetime | None:
+    """Newest known activity: explicit touches win, `started_at` is the
+    fallback for rows predating C1 (migration 0020 backfilled them)."""
+    return work_session.last_activity_at or work_session.started_at
+
+
+def derive_session_status(work_session: WorkSessionModel, settings: Settings) -> SessionStatus:
+    """Presence derived at read with configurable thresholds (C1, DEC-0157)
+    — never stored, never a heartbeat. `ended` wins over every age; an
+    expired session still reads `expired` until L2 (l2-resume) closes it."""
+    if work_session.ended_at is not None:
+        return SessionStatus.ENDED
+    reference = _effective_activity(work_session)
+    if reference is None:
+        return SessionStatus.ACTIVE
+    age = datetime.now(UTC) - reference
+    if age > timedelta(seconds=settings.session_expire_after_seconds):
+        return SessionStatus.EXPIRED
+    if age > timedelta(seconds=settings.session_idle_after_seconds):
+        return SessionStatus.IDLE
+    return SessionStatus.ACTIVE
+
+
+def derive_session_expiry(work_session: WorkSessionModel, settings: Settings) -> datetime | None:
+    """When this session will read `expired` if nothing touches it — `None`
+    for ended sessions. L2 (l2-resume) is the consumer that closes them."""
+    if work_session.ended_at is not None:
+        return None
+    reference = _effective_activity(work_session)
+    if reference is None:
+        return None
+    return reference + timedelta(seconds=settings.session_expire_after_seconds)
+
+
+async def touch_session(session: AsyncSession, session_id: uuid.UUID) -> WorkSessionModel | None:
+    """Record authenticated activity attached to a session (C1): the single
+    writer of `last_activity_at`. Call only from an already-authorized
+    session-attached call (start/end today; start_work, sync, event
+    emission, ai_work and handoff in their own L2/L3/C2/C4 steps). Returns
+    the session, or `None` when unknown. Never touches heartbeats."""
+    work_session = await session.get(WorkSessionModel, session_id)
+    if work_session is None:
+        return None
+    work_session.last_activity_at = datetime.now(UTC)
+    await session.commit()
+    await session.refresh(work_session)
     return work_session

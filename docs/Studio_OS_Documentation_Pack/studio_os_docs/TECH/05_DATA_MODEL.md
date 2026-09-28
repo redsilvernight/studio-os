@@ -154,7 +154,10 @@ mutables.
 ## WorkSession
 `id`, `task_id` (FK Task), `machine_id` (FK Machine), `agent_id` (FK Agent,
 nullable), `started_at`, `ended_at` (nullable). Append-only : pas de
-`version`.
+`version`. `last_activity_at` (C1, additif, nullable, backfill =
+`started_at`, migration Alembic reversible) : ecrit par `touch_session`
+depuis les appels authentifies rattaches (pas de heartbeat) ; `status` et
+`expires_at` derives a la lecture, jamais stockes.
 
 ## Decision
 `id`, `readable_id` (unique, format `DEC-XXXX`), `project_id` (FK Project,
