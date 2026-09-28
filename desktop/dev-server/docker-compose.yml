@@ -1,0 +1,142 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8765:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      api:
+        condition: service_healthy
+      mcp:
+        condition: service_healthy
+      dashboard:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    restart: unless-stopped
+    command: ["uvicorn", "studio_api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment: &server-environment
+      STUDIO_DATABASE_URL: postgresql+asyncpg://studio:${POSTGRES_PASSWORD}@postgres:5432/studio
+      STUDIO_S3_ENDPOINT_URL: http://minio:9000
+      STUDIO_S3_PUBLIC_ENDPOINT_URL: http://127.0.0.1:8766
+      STUDIO_S3_BUCKET: studio-transfers
+      STUDIO_S3_ACCESS_KEY: studio
+      STUDIO_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      STUDIO_JWT_SECRET: ${STUDIO_JWT_SECRET}
+      STUDIO_CORS_ORIGINS: http://tauri.localhost,https://tauri.localhost,tauri://localhost,http://127.0.0.1:8765
+      STUDIO_TRUSTED_PROXIES: 172.16.0.0/12,192.168.0.0/16,10.0.0.0/8
+      STUDIO_ENVIRONMENT: dev
+      STUDIO_LOG_FORMAT: text
+      STUDIO_LOG_LEVEL: INFO
+      STUDIO_RATE_LIMIT_REQUESTS_PER_MINUTE: "600"
+      STUDIO_RATE_LIMIT_BURST: "100"
+      STUDIO_AUTH_RATE_LIMIT_REQUESTS_PER_MINUTE: "60"
+      STUDIO_AUTH_RATE_LIMIT_BURST: "20"
+      STUDIO_PUBLIC_REGISTRATION_ENABLED: "true"
+      STUDIO_PUBLIC_BASE_URL: http://127.0.0.1:8765
+      STUDIO_EMAIL_BACKEND: file
+      STUDIO_EMAIL_FROM: studio-dev@localhost
+      STUDIO_EMAIL_FILE_DIR: /studio-mail
+    volumes:
+      - ${STUDIO_DEV_MAIL_DIR}:/studio-mail
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; s=socket.create_connection(('127.0.0.1',8000), timeout=5); s.close()\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  mcp:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    restart: unless-stopped
+    command: ["python", "-m", "studio_mcp.server"]
+    environment:
+      <<: *server-environment
+      STUDIO_MCP_TRANSPORT: streamable-http
+    volumes:
+      - ${STUDIO_DEV_MAIL_DIR}:/studio-mail
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; s=socket.create_connection(('127.0.0.1',8100), timeout=5); s.close()\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: docker/dashboard.Dockerfile
+    restart: unless-stopped
+    environment:
+      NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/ >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: studio
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: studio
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U studio -d studio"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  minio:
+    image: pgsty/minio:latest@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
+    restart: unless-stopped
+    command: server /data
+    ports:
+      - "127.0.0.1:8766:9000"
+    environment:
+      MINIO_ROOT_USER: studio
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  minio-init:
+    image: pgsty/mc:latest@sha256:cfc83108c3abb371f8fb84d99c1fdc88f8c237e022409b0081fb7c0a3be634dd
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 studio ${MINIO_ROOT_PASSWORD} &&
+      mc mb --ignore-existing local/studio-transfers &&
+      mc anonymous set none local/studio-transfers
+      "
+
+volumes:
+  postgres_data:
+  minio_data:

@@ -13,6 +13,7 @@ mod bridge;
 mod command_names;
 mod diagnostics;
 mod info;
+mod local_server;
 mod navigation;
 mod picker;
 mod server_origin;
@@ -167,21 +168,22 @@ fn apply_server_origin_to_csp(config: &mut tauri::Config, origin: &str) {
 
 pub fn run() {
     let mut context = tauri::generate_context!();
-    // The CSP is static per build: a user-configured server origin is allowed
-    // in `connect-src` (and nowhere else) before the webview is created.
+    // Official release channels have a fixed origin compiled into the build.
+    // Persisted overrides from older versions are ignored so Dev cannot escape
+    // loopback and Prod cannot silently point away from its deployment.
     let store = server_origin::SettingsStore::for_identifier(&context.config().identifier);
-    let applied_origin = store.as_ref().and_then(server_origin::SettingsStore::load);
-    if let Some(origin) = &applied_origin {
-        apply_server_origin_to_csp(context.config_mut(), origin);
-    }
     let effective_origin = server_origin::effective_origin(
-        applied_origin.as_deref(),
+        None,
         option_env!("STUDIO_DESKTOP_API_URL"),
         option_env!("STUDIO_DESKTOP_ALLOW_INSECURE_ORIGIN"),
     );
+    let channel_origin = effective_origin.clone().map(|origin| origin.into_parts().0);
+    if let Some(origin) = &channel_origin {
+        apply_server_origin_to_csp(context.config_mut(), origin);
+    }
     let sidecar = Sidecar::with_origin(effective_origin);
     let exit_sidecar = sidecar.clone();
-    let shell_state = shell_commands::ShellState::new(store, applied_origin);
+    let shell_state = shell_commands::ShellState::fixed(store, channel_origin);
 
     // The updater is compiled in but only active when this build carries an
     // updater configuration (public key + endpoint); otherwise it is absent.
@@ -213,6 +215,12 @@ pub fn run() {
             shell_commands::clear_session
         ])
         .setup(|app| {
+            if info::dev_channel() {
+                match app.path().resource_dir() {
+                    Ok(resource_dir) => local_server::start(resource_dir),
+                    Err(error) => eprintln!("local Dev server resources unavailable: {error}"),
+                }
+            }
             let dev_origin = if tauri::is_dev() {
                 app.config().build.dev_url.clone()
             } else {
@@ -224,7 +232,7 @@ pub fn run() {
             let popup_dev = dev_origin.clone();
             let mut window =
                 WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
-                    .title(info::PRODUCT)
+                    .title(info::product())
                     .inner_size(1280.0, 800.0)
                     .min_inner_size(900.0, 600.0)
                     .on_navigation(move |url| match navigation::decide(url, nav_dev.as_ref()) {
