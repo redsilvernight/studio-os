@@ -24,6 +24,11 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same PR supersedes the running validation.
+concurrency:
+  group: desktop-validate-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   UV_LOCKED: "1"
 
@@ -42,6 +47,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # Dependencies only (the app crate is rebuilt): shared by both Desktop workflows.
+          workspaces: desktop/src-tauri -> target
+          shared-key: desktop
       - name: Sync workspace
         run: uv sync --all-packages
       - name: Install Node dependencies

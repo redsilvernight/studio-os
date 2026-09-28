@@ -24,6 +24,9 @@ dirs = "6"
 # exposes semantic choose_folder/choose_file commands, never a filesystem API.
 rfd = { version = "0.15", default-features = false }
 tauri-plugin-updater = "2"
+# DEC-0142: the refresh token lives in the OS secret store (Credential Manager,
+# Keychain), never in a file or the webview storage.
+keyring = { version = "3", features = ["windows-native", "apple-native"] }
 regex = { version = "1", default-features = false, features = ["std", "unicode-perl", "unicode-case", "perf"] }
 
 [target.'cfg(windows)'.dependencies]

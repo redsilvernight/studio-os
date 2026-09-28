@@ -314,7 +314,7 @@ impl Sidecar {
         })))
     }
 
-    #[cfg(test)]
+    /// The validated server origin this process talks to (`None` = build default).
     pub fn origin(&self) -> Option<String> {
         self.0.lock().ok().and_then(|g| g.origin.clone())
     }

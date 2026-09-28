@@ -2,7 +2,7 @@
  "openapi": "3.1.0",
  "info": {
   "title": "Studio OS API",
-  "description": "Shared coordination API for Studio OS projects: tasks, resource claims, work sessions, decisions, AI work logs, events, and file transfer metadata. Every operation under `/api/v1` requires machine authentication (`Authorization: Bearer <machine-token>`, provisioned out of band) except `GET /healthz`, `GET /metrics`, `GET /version` and the human dashboard login `POST /auth/token`. File bytes never flow through this API \u2014 transfers exchange metadata and short-lived signed URLs only, uploads and downloads go directly to object storage. Replayable creations accept `Idempotency-Key`; concurrent updates use `If-Match-Version`; permission refusals answer `403 forbidden` and are final.",
+  "description": "Shared coordination API for Studio OS projects: tasks, resource claims, work sessions, decisions, AI work logs, events, and file transfer metadata. Every operation under `/api/v1` requires machine authentication (`Authorization: Bearer <machine-token>`, provisioned out of band) except `GET /healthz`, `GET /metrics`, `GET /version` and the human dashboard login `POST /auth/token` with its refresh-token routes `POST /auth/refresh` and `POST /auth/logout`. File bytes never flow through this API \u2014 transfers exchange metadata and short-lived signed URLs only, uploads and downloads go directly to object storage. Replayable creations accept `Idempotency-Key`; concurrent updates use `If-Match-Version`; permission refusals answer `403 forbidden` and are final.",
   "version": "1"
  },
  "paths": {
@@ -12,7 +12,7 @@
      "health"
     ],
     "summary": "Healthz",
-    "description": "Liveness probe. Needs no credential and carries no security requirement \u2014 one of the unauthenticated operations, alongside `GET /version`, `GET /metrics` and the human dashboard login `POST /auth/token`. Answers `{\"status\": \"ok\"}` when the service is up; use it before authenticating anything else.",
+    "description": "Liveness probe. Needs no credential and carries no security requirement \u2014 one of the unauthenticated operations, alongside `GET /version`, `GET /metrics` and the human dashboard login `POST /auth/token`, `POST /auth/refresh` and `POST /auth/logout`. Answers `{\"status\": \"ok\"}` when the service is up; use it before authenticating anything else.",
     "operationId": "healthz_healthz_get",
     "responses": {
      "200": {
@@ -77,7 +77,7 @@
      "auth"
     ],
     "summary": "Login",
-    "description": "Exchange human credentials for a short-lived dashboard JWT (15 minutes at most, no refresh token). A disabled or unverified account gets the same 401 as a wrong password.",
+    "description": "Exchange human credentials for a short-lived dashboard JWT (15 minutes at most). With `persistent`, also a rotating refresh token. A disabled or unverified account gets the same 401 as a wrong password.",
     "operationId": "login_api_v1_auth_token_post",
     "requestBody": {
      "content": {
@@ -102,6 +102,86 @@
      },
      "401": {
       "description": "Invalid email or password."
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/auth/refresh": {
+   "post": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Refresh",
+    "description": "Exchange a refresh token for a new JWT and a new refresh token. The presented token is consumed: presenting it again revokes the whole session. Any failure is the same 401.",
+    "operationId": "refresh_api_v1_auth_refresh_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RefreshRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TokenResponse"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Invalid, expired, reused or revoked refresh token."
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/auth/logout": {
+   "post": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Logout",
+    "description": "End the persistent session of a refresh token. Always 204, whether the token was known or not. Access JWTs already issued stay valid until they expire (15 minutes at most).",
+    "operationId": "logout_api_v1_auth_logout_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RefreshRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "204": {
+      "description": "Successful Response"
      },
      "422": {
       "description": "Validation Error",
@@ -15340,6 +15420,21 @@
     "title": "ProvenanceSource",
     "description": "Where a resolved element came from (structured, never prose)."
    },
+   "RefreshRequest": {
+    "properties": {
+     "refresh_token": {
+      "type": "string",
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Refresh Token"
+     }
+    },
+    "type": "object",
+    "required": [
+     "refresh_token"
+    ],
+    "title": "RefreshRequest"
+   },
    "Reorder": {
     "properties": {
      "ordered_keys": {
@@ -18723,6 +18818,12 @@
       "examples": [
        "super-secret"
       ]
+     },
+     "persistent": {
+      "type": "boolean",
+      "title": "Persistent",
+      "description": "Also issue a rotating refresh token. Only for a client that can store it in an OS secret store (the desktop).",
+      "default": false
      }
     },
     "type": "object",
@@ -18747,6 +18848,31 @@
       "type": "integer",
       "title": "Expires In",
       "description": "Lifetime of `access_token` in seconds."
+     },
+     "refresh_token": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Refresh Token",
+      "description": "Single-use refresh secret; null unless `persistent` was requested."
+     },
+     "refresh_expires_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Refresh Expires At",
+      "description": "When `refresh_token` expires if unused (sliding, capped)."
      }
     },
     "type": "object",
@@ -19833,7 +19959,7 @@
   "securitySchemes": {
    "MachineBearer": {
     "type": "http",
-    "description": "Machine credential provisioned out of band. Send it as `Authorization: Bearer <machine-token>` on every request under `/api/v1`. The token is opaque: a missing, invalid or revoked credential returns 401. Unauthenticated operations are `GET /healthz`, `GET /metrics`, the human dashboard login `POST /auth/token`, and the HMAC-signed GitHub ingress `POST /github/webhook` (etape 9.1: signed, never Bearer).",
+    "description": "Machine credential provisioned out of band. Send it as `Authorization: Bearer <machine-token>` on every request under `/api/v1`. The token is opaque: a missing, invalid or revoked credential returns 401. Unauthenticated operations are `GET /healthz`, `GET /metrics`, the human dashboard login `POST /auth/token` (with `POST /auth/refresh` and `POST /auth/logout`, which carry a refresh token in the body), and the HMAC-signed GitHub ingress `POST /github/webhook` (etape 9.1: signed, never Bearer).",
     "scheme": "bearer"
    }
   }

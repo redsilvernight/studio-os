@@ -63,6 +63,10 @@ class Settings(BaseSettings):
     # Human dashboard JWT (DASH-4, DEC-0110: 15 min at most, out of range refuses to start)
     jwt_secret: str = "change-me-in-production"
     jwt_access_token_expire_minutes: int = Field(default=15, ge=1, le=15)
+    # Desktop refresh token (DEC-0142): sliding idle window, capped by an
+    # absolute lifetime after which the password is asked again.
+    refresh_token_sliding_days: int = Field(default=30, ge=1, le=90)
+    refresh_token_absolute_days: int = Field(default=90, ge=1, le=90)
 
     # Public registration (A4, DEC-0109): closed by default. OFF on every
     # exposed instance until the C4 gate; enabling it in production also

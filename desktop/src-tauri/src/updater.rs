@@ -3,8 +3,9 @@
 //! The plugin is used programmatically only: it is registered when (and only
 //! when) the build carries an updater configuration (`plugins.updater`: public
 //! key + HTTPS endpoint), and its own IPC commands are NOT granted to the
-//! renderer (see the capability tests). Nothing is checked automatically at
-//! start, so an offline or unconfigured Desktop behaves exactly as before.
+//! renderer (see the capability tests). The dashboard checks once at start
+//! and only shows a banner; nothing is ever installed without the user, and an
+//! offline or unconfigured Desktop stays silent.
 //!
 //! Authenticity: the artifact is verified against the baked-in minisign public
 //! key before anything runs (`require-signed-version` also binds the signature

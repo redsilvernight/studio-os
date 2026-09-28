@@ -35,6 +35,7 @@ export const webPlatform: Platform = {
   async checkForUpdate() {
     return { ok: false, code: "not_configured" };
   },
+  sessionVault: null,
   async installUpdate() {
     return { ok: false, code: "not_configured" };
   },

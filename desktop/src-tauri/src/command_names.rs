@@ -18,4 +18,8 @@ pub const APP_COMMANDS: &[&str] = &[
     "open_data_folder",
     "check_for_update",
     "install_update",
+    // DEC-0142: the persistent session's refresh token in the OS secret store.
+    "load_session",
+    "store_session",
+    "clear_session",
 ];
