@@ -269,7 +269,12 @@ def create_server() -> MCPServer:
     server.add_tool(
         studio_get_sessions,
         name="studio_get_sessions",
-        description="List work sessions, optionally filtered by task_id (UUID string) — read-only.",
+        description=(
+            "List work sessions, optionally filtered by task_id (UUID string), by "
+            "agent_id (UUID string) and/or to open_only=true (never-ended sessions, the "
+            "live ones). Each session carries derived presence (status, expires_at)."
+            " Read-only."
+        ),
         annotations=_READ_ONLY,
     )
     server.add_tool(

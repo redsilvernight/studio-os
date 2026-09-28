@@ -37,19 +37,27 @@ def _present(work_session: WorkSessionModel, settings: Settings) -> WorkSession:
     "",
     response_model=list[WorkSession],
     description=(
-        "List work sessions, optionally filtered by task, restricted to "
-        "sessions whose task belongs to an accessible project. A task of an "
-        "inaccessible project answers `403 forbidden`. Each session carries "
-        "derived presence (C1): `status` (`active|idle|expired|ended`) and "
-        "`expires_at`, computed from `last_activity_at` at read time."
+        "List work sessions, optionally filtered by task, agent and/or open "
+        "state, restricted to sessions whose task belongs to an accessible "
+        "project. A task of an inaccessible project answers `403 forbidden`. "
+        "`open=true` returns only sessions never ended (the live ones). Each "
+        "session carries derived presence (C1): `status` "
+        "(`active|idle|expired|ended`) and `expires_at`, computed from "
+        "`last_activity_at` at read time."
     ),
     responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
 )
 async def list_sessions(
-    session: DbSession, principal: CurrentPrincipal, task_id: UUID | None = Query(default=None)
+    session: DbSession,
+    principal: CurrentPrincipal,
+    task_id: UUID | None = Query(default=None),
+    agent_id: UUID | None = Query(default=None),
+    open_only: bool = Query(default=False, alias="open"),
 ) -> list[WorkSession]:
     settings = get_settings()
-    sessions = await sessions_service.list_sessions(session, principal, task_id=task_id)
+    sessions = await sessions_service.list_sessions(
+        session, principal, task_id=task_id, agent_id=agent_id, open_only=open_only
+    )
     return [_present(s, settings) for s in sessions]
 
 

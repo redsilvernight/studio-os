@@ -449,7 +449,7 @@ export interface paths {
         };
         /**
          * List Sessions
-         * @description List work sessions, optionally filtered by task, restricted to sessions whose task belongs to an accessible project. A task of an inaccessible project answers `403 forbidden`. Each session carries derived presence (C1): `status` (`active|idle|expired|ended`) and `expires_at`, computed from `last_activity_at` at read time.
+         * @description List work sessions, optionally filtered by task, agent and/or open state, restricted to sessions whose task belongs to an accessible project. A task of an inaccessible project answers `403 forbidden`. `open=true` returns only sessions never ended (the live ones). Each session carries derived presence (C1): `status` (`active|idle|expired|ended`) and `expires_at`, computed from `last_activity_at` at read time.
          */
         get: operations["list_sessions_api_v1_sessions_get"];
         put?: never;
@@ -7332,6 +7332,8 @@ export interface operations {
         parameters: {
             query?: {
                 task_id?: string | null;
+                agent_id?: string | null;
+                open?: boolean;
             };
             header?: never;
             path?: never;

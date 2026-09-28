@@ -1786,7 +1786,7 @@
      "sessions"
     ],
     "summary": "List Sessions",
-    "description": "List work sessions, optionally filtered by task, restricted to sessions whose task belongs to an accessible project. A task of an inaccessible project answers `403 forbidden`. Each session carries derived presence (C1): `status` (`active|idle|expired|ended`) and `expires_at`, computed from `last_activity_at` at read time.",
+    "description": "List work sessions, optionally filtered by task, agent and/or open state, restricted to sessions whose task belongs to an accessible project. A task of an inaccessible project answers `403 forbidden`. `open=true` returns only sessions never ended (the live ones). Each session carries derived presence (C1): `status` (`active|idle|expired|ended`) and `expires_at`, computed from `last_activity_at` at read time.",
     "operationId": "list_sessions_api_v1_sessions_get",
     "security": [
      {
@@ -1809,6 +1809,33 @@
         }
        ],
        "title": "Task Id"
+      }
+     },
+     {
+      "name": "agent_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Agent Id"
+      }
+     },
+     {
+      "name": "open",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "boolean",
+       "default": false,
+       "title": "Open"
       }
      }
     ],
