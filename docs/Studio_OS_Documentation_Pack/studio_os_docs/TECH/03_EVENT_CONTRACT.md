@@ -120,7 +120,8 @@ sinon `user`. Cles `payload` documentees (ignorables) : `status`, `version`,
 Les ecritures de ResourceClaim (HTTP et MCP, meme service) emettent leur
 evenement dans la meme transaction que l'etat (`stage_event`), diffuse apres
 commit : `resource.claimed` (creation ; un rejeu `Idempotency-Key` n'emet
-rien), `resource.renewed` (renouvellement), `resource.released` (liberation ;
+rien), `resource.renewed` (renouvellement ; renouveler une reservation deja
+liberee la laisse liberee, sans ecriture ni evenement), `resource.released` (liberation ;
 une seconde liberation d'une reservation deja liberee n'ecrit ni n'emet rien).
 `resource.conflict` reste emis en plus de `resource.claimed` lors d'un
 chevauchement. Un refus (403, 404) n'emet rien. `task_id` = celui de la

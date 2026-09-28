@@ -159,6 +159,9 @@ async def renew_claim(
 ) -> ResourceClaimModel:
     ensure_project_access(principal, claim.project_id, "write")
     ensure_machine_owned(principal, claim.claimed_by_machine_id, "claim", "renew")
+    if claim.status == "released":
+        # A released claim stays released: no write, no `resource.renewed`.
+        return claim
     now = datetime.now(UTC)
     claim.renewed_at = now
     claim.expires_at = now + timedelta(seconds=claim.ttl_seconds)

@@ -159,6 +159,10 @@ async def test_claim_lifecycle_emits_resource_events(
     assert (
         await client.delete(f"/api/v1/claims/{claim_id}", headers=auth_headers)
     ).status_code == 204
+    # Renewing a released claim is a no-op: it stays released, no resource.renewed.
+    renewed_after = await client.post(f"/api/v1/claims/{claim_id}/renew", headers=auth_headers)
+    assert renewed_after.status_code == 200
+    assert renewed_after.json()["status"] == "released"
 
     events = await resource_events()
     types = [e["event_type"] for e in events]
