@@ -200,7 +200,7 @@ class RoadmapStepItem(ContextStep):
 
 
 class RoadmapItem(RoadmapContext):
-    """`RoadmapContext` (TECH/07) extended with the fields a consumer needs to
+    """`RoadmapContext` extended with the fields a consumer needs to
     trust it: status, provenance, truncation and the step of the requested Task."""
 
     status: RoadmapStatus

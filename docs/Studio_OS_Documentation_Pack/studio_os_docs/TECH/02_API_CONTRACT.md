@@ -277,11 +277,13 @@ public de bootstrap, pas de secret d'environnement dedie.
   reutilisee. Aucune cloture sur un chemin de lecture (`GET` reste pur,
   DEC-0080). Un client qui ignore ces regles n'observe aucun changement.
 
-### Start work (L2, additif — spec sans implementation, voir tache 9dff9368)
+### Start work (L2, additif, DEC-0159)
 - POST /start-work (body `StartWorkRequest`, reponse `StartWorkResult`) +
   outil MCP `studio_start_work` (meme contrat, `idempotency_key` optionnel,
   DEC-0027/DEC-0046/DEC-0048 : pas de version dans le payload).
-  Composite en une transaction, sans nouvelle table ni nouvel evenement :
+  Composite en un appel (les services composes gardent leurs propres
+  commits : ce n'est pas une transaction unique, un echec en cours converge
+  au rejeu), sans nouvelle table ni nouvel evenement :
   avec `task_id`, claim idempotent pour la meme machine (`409
   already_claimed` si une autre machine tient la tache) + reprise de la
   session ouverte du meme agent sur la tache ou creation (AIB-H ; les
@@ -298,9 +300,10 @@ public de bootstrap, pas de secret d'environnement dedie.
   `agent_id` doit appartenir a la machine appelante (`409 actor_not_owned`,
   meme regle que `POST /ai-work`). Autorisation avant le court-circuit
   d'idempotence (meme ordre que DEC-0036) : `readonly` -> `403 forbidden`.
+  Reponse `200` toujours : `resumed` distingue une session reprise d'une
+  session neuve, donc le statut ne varie jamais sous rejeu.
   `Idempotency-Key` supporte : meme cle + meme corps = resultat d'origine
-  (`200` si reprise/retrouve, `201` si creation ; ni second claim ni
-  seconde session), corps different = `409
+  (ni second claim ni seconde session), corps different = `409
   idempotency_key_payload_mismatch`. Un client qui n'appelle pas la route
   n'observe aucun changement.
 

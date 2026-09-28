@@ -484,6 +484,26 @@ export interface paths {
         patch: operations["end_session_api_v1_sessions__session_id__end_patch"];
         trace?: never;
     };
+    "/api/v1/start-work": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Work
+         * @description Start or resume work on a task in one call. Requires a writer role. With `task_id`: claim the task for the caller's machine (idempotent) + resume or create the agent's open session on it + the scoped project context. Without `task_id`: the project context plus the candidate tasks (current-step linked tasks first, then other unclaimed tasks), claiming nothing. `agent_id` must belong to the caller's machine (`409 actor_not_owned`). Always `200`: the response fields (`resumed`, `candidates`) tell a resumed session from a new one, so the status never varies under replay. Accepts `Idempotency-Key`: the same key returns the original result instead of claiming or starting again.
+         */
+        post: operations["start_work_api_v1_start_work_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/claims": {
         parameters: {
             query?: never;
@@ -2071,6 +2091,47 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * AIWorkItem
+         * @description One AI work entry relevant to the objective (P2.3): the handoff resume
+         *     packet. `truncated` covers the summary as well as the capped file/test
+         *     lists — anything cut is counted, never silently dropped, via
+         *     `additional_available` / `omitted_for_budget`.
+         */
+        AIWorkItem: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Status */
+            status: string;
+            /** Summary */
+            summary: string;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+            /**
+             * Changed Files
+             * @default []
+             */
+            changed_files: string[];
+            /**
+             * Tests Run
+             * @default []
+             */
+            tests_run: string[];
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Ended At */
+            ended_at?: string | null;
+            why: components["schemas"]["Why"];
+        };
+        /**
          * AIWorkLog
          * @description A work entry. `agent_profile`, `harness`, `provider` and `model` are
          *     optional additive observability metadata — open strings snapshotting the
@@ -2219,6 +2280,14 @@ export interface components {
          * @enum {string}
          */
         AccountStatus: "pending" | "active" | "disabled";
+        /** ActiveWork */
+        ActiveWork: {
+            /**
+             * Claims
+             * @default []
+             */
+            claims: components["schemas"]["ClaimItem"][];
+        };
         /**
          * Agent
          * @description Provenance identity attached to one machine: who did the work, for
@@ -2480,6 +2549,33 @@ export interface components {
              */
             new_password: string;
         };
+        /** ClaimItem */
+        ClaimItem: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Resource Path */
+            resource_path: string;
+            /** Resource Type */
+            resource_type: string;
+            /** Task Id */
+            task_id?: string | null;
+            /**
+             * Claimed By Machine Id
+             * Format: uuid
+             */
+            claimed_by_machine_id: string;
+            /** Claimed By Self */
+            claimed_by_self: boolean;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            why: components["schemas"]["Why"];
+        };
         /**
          * ClaimStatus
          * @description A claim past `expires_at` is not active regardless of stored status.
@@ -2488,6 +2584,25 @@ export interface components {
          * @enum {string}
          */
         ClaimStatus: "active" | "released" | "expired";
+        ContextLimits: {
+            [key: string]: unknown;
+        };
+        /** ContextStep */
+        ContextStep: {
+            /** Key */
+            key: string;
+            /** Title */
+            title: string;
+            state: components["schemas"]["StepState"];
+            /** Available */
+            available: boolean;
+            /** Waiting On */
+            waiting_on?: string[];
+            /** Acceptance Criteria */
+            acceptance_criteria?: string[];
+            /** Linked Task Ids */
+            linked_task_ids?: string[];
+        };
         /**
          * Decision
          * @description A recorded project decision with a stable human-readable id
@@ -2541,6 +2656,30 @@ export interface components {
              * Format: uuid
              */
             proposed_by_id: string;
+        };
+        /** DecisionItem */
+        DecisionItem: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Readable Id */
+            readable_id: string;
+            /** Title */
+            title: string;
+            /** Status */
+            status: string;
+            /** Task Id */
+            task_id?: string | null;
+            /** Body */
+            body: string;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+            why: components["schemas"]["Why"];
         };
         /**
          * DecisionStatus
@@ -3183,6 +3322,37 @@ export interface components {
             /** Expected Resource Version */
             expected_resource_version: number;
         };
+        /** LibraryItem */
+        LibraryItem: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "rule" | "skill";
+            /** Stable Key */
+            stable_key: string;
+            /** Title */
+            title: string;
+            /** Scope */
+            scope: string;
+            /** Version */
+            version: number;
+            /** Version Origin */
+            version_origin: string;
+            /** Text */
+            text: string;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+            why: components["schemas"]["Why"];
+            /**
+             * Agent Applies
+             * @default false
+             */
+            agent_applies: boolean;
+        };
         /**
          * LibraryKind
          * @description Closed studio taxonomy (our own domain, not a vendor catalog):
@@ -3564,6 +3734,9 @@ export interface components {
             objective?: string | null;
             provenance?: components["schemas"]["WriteProvenance"];
         };
+        PreparedContext: {
+            [key: string]: unknown;
+        };
         /**
          * PreservedReference
          * @description A `composes_agent` / `references_workflow` dependency, preserved with
@@ -3774,6 +3947,25 @@ export interface components {
             user_display_name?: string | null;
             /** User Email */
             user_email?: string | null;
+        };
+        /** ProjectRef */
+        ProjectRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Slug */
+            slug: string;
+            /** Name */
+            name: string;
+            /** Description */
+            description?: string | null;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
         };
         /**
          * ProjectState
@@ -4506,12 +4698,84 @@ export interface components {
             provenance?: components["schemas"]["WriteProvenance"];
         };
         /**
+         * RoadmapItem
+         * @description `RoadmapContext` extended with the fields a consumer needs to
+         *     trust it: status, provenance, truncation and the step of the requested Task.
+         */
+        RoadmapItem: {
+            /**
+             * Roadmap Id
+             * Format: uuid
+             */
+            roadmap_id: string;
+            /** Title */
+            title: string;
+            progress: components["schemas"]["Progress"];
+            /** Current Phase Key */
+            current_phase_key?: string | null;
+            current_step?: components["schemas"]["RoadmapStepItem"] | null;
+            /** Upcoming Steps */
+            upcoming_steps?: components["schemas"]["ContextStep"][];
+            /** Blocking */
+            blocking?: string[];
+            /**
+             * Draft Pending
+             * @default 0
+             */
+            draft_pending: number;
+            status: components["schemas"]["RoadmapStatus"];
+            /** Objective */
+            objective?: string | null;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+            task_step?: components["schemas"]["RoadmapStepItem"] | null;
+            why: components["schemas"]["Why"];
+        };
+        /**
          * RoadmapOrigin
          * @description How content entered Studio OS. Self-declared by the writer: a workflow
          *     guard, not a security boundary; the boundary is the role.
          * @enum {string}
          */
         RoadmapOrigin: "manual" | "ai_proposal" | "import";
+        /**
+         * RoadmapOverview
+         * @description Roadmaps other than the active one, by reference: what is waiting for a
+         *     human decision (`draft_pending`) or finished.
+         */
+        RoadmapOverview: {
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /** Draft Pending */
+            draft_pending: number;
+            /**
+             * Others
+             * @default []
+             */
+            others: components["schemas"]["RoadmapRef"][];
+        };
+        /** RoadmapRef */
+        RoadmapRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title: string;
+            status: components["schemas"]["RoadmapStatus"];
+            progress: components["schemas"]["Progress"];
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+        };
         /** RoadmapRevision */
         RoadmapRevision: {
             /**
@@ -4579,6 +4843,49 @@ export interface components {
          * @enum {string}
          */
         RoadmapStatus: "draft" | "proposed" | "active" | "completed" | "archived";
+        /**
+         * RoadmapStepItem
+         * @description A step the agent may work on now: the shared `ContextStep` plus its
+         *     objective and the Tasks tied to it. `acceptance_criteria` lists the criteria
+         *     still to satisfy (already checked ones are only counted).
+         */
+        RoadmapStepItem: {
+            /** Key */
+            key: string;
+            /** Title */
+            title: string;
+            state: components["schemas"]["StepState"];
+            /** Available */
+            available: boolean;
+            /** Waiting On */
+            waiting_on?: string[];
+            /** Acceptance Criteria */
+            acceptance_criteria?: string[];
+            /** Linked Task Ids */
+            linked_task_ids?: string[];
+            /** Objective */
+            objective?: string | null;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+            /**
+             * Criteria Total
+             * @default 0
+             */
+            criteria_total: number;
+            /**
+             * Criteria Checked
+             * @default 0
+             */
+            criteria_checked: number;
+            /**
+             * Linked Tasks
+             * @default []
+             */
+            linked_tasks: components["schemas"]["RoadmapTaskRef"][];
+        };
         /** RoadmapSummary */
         RoadmapSummary: {
             /**
@@ -4616,6 +4923,24 @@ export interface components {
             /** Current Step Key */
             current_step_key?: string | null;
             provenance?: components["schemas"]["studio_contracts__roadmaps__Provenance"] | null;
+        };
+        /**
+         * RoadmapTaskRef
+         * @description A Task linked to a step: a bare reference when the package already
+         *     carries it (`in_context`), a title and status otherwise.
+         */
+        RoadmapTaskRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title?: string | null;
+            /** Status */
+            status?: string | null;
+            /** In Context */
+            in_context?: ("task" | "related_tasks") | null;
         };
         /**
          * RoadmapTransition
@@ -4989,6 +5314,101 @@ export interface components {
          * @enum {string}
          */
         SessionStatus: "active" | "idle" | "expired" | "ended";
+        /**
+         * StartWorkCandidate
+         * @description One unclaimed task a fresh start could pick up (no-task path only):
+         *     compact by construction — id, title, status, plus the `why` relation that
+         *     surfaced it (`active_roadmap` for the current step, `project_scope` for
+         *     another unclaimed project task), never the description.
+         */
+        StartWorkCandidate: {
+            /**
+             * Task Id
+             * Format: uuid
+             */
+            task_id: string;
+            /** Title */
+            title: string;
+            status: components["schemas"]["TaskStatus"];
+            why: components["schemas"]["Why"];
+        };
+        /**
+         * StartWorkRequest
+         * @description Composite start-work input. `project_id` and `agent_id` are required:
+         *     the agent must belong to the caller's own machine (`409 actor_not_owned`
+         *     otherwise — same rule as `POST /ai-work`). `task_id` selects
+         *     the mode: with it, claim (idempotent for the same machine) + resume or
+         *     create the agent's open session on the task + scoped context; without
+         *     it, context + candidates only, never a claim nor a session (AIB-G).
+         *     `objective` defaults server-side (`reprendre la tâche <titre>` /
+         *     `vue projet`) when omitted. `files` follows the `prepare_context`
+         *     bounds (at most 20 cleaned paths); `limit`/`max_chars` are passed
+         *     through to `prepare_context` unchanged.
+         */
+        StartWorkRequest: {
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /**
+             * Agent Id
+             * Format: uuid
+             */
+            agent_id: string;
+            /** Task Id */
+            task_id?: string | null;
+            /** Objective */
+            objective?: string | null;
+            /** Agent Stable Key */
+            agent_stable_key?: string | null;
+            /** Files */
+            files?: string[] | null;
+            /**
+             * Limit
+             * @default 5
+             */
+            limit: number;
+            /**
+             * Max Chars
+             * @default 12000
+             */
+            max_chars: number;
+        };
+        /**
+         * StartWorkResult
+         * @description One call, one replayable result — not a single database transaction:
+         *     the composed services commit their own steps, so a partial failure
+         *     converges on the next call. `task`/`session`
+         *     are set only on the with-task path; `claimed` tells whether the task is
+         *     now claimed by the caller's machine; `resumed` tells whether the
+         *     session was resumed (`True`) or created (`False`) — meaningless without
+         *     a task. `prepared_context` is present on every successful response
+         *     (bounded); `candidates` only on the no-task path. Replaying the same `Idempotency-Key` with the
+         *     same body returns the original result — never a second claim nor a
+         *     second session; a different body is `409
+         *     idempotency_key_payload_mismatch`.
+         */
+        StartWorkResult: {
+            task?: components["schemas"]["Task"] | null;
+            session?: components["schemas"]["WorkSession"] | null;
+            /**
+             * Claimed
+             * @default false
+             */
+            claimed: boolean;
+            /**
+             * Resumed
+             * @default false
+             */
+            resumed: boolean;
+            prepared_context?: components["schemas"]["PreparedContext"] | null;
+            /**
+             * Candidates
+             * @default []
+             */
+            candidates: components["schemas"]["StartWorkCandidate"][];
+        };
         /** Step */
         Step: {
             /**
@@ -5210,6 +5630,35 @@ export interface components {
             title: string;
             /** Description */
             description?: string | null;
+        };
+        /** TaskItem */
+        TaskItem: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Readable Id */
+            readable_id?: string | null;
+            /** Title */
+            title: string;
+            /** Status */
+            status: string;
+            /** Description */
+            description?: string | null;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+            /** Claimed By Machine Id */
+            claimed_by_machine_id?: string | null;
+            /**
+             * Claimed By Self
+             * @default false
+             */
+            claimed_by_self: boolean;
+            why: components["schemas"]["Why"];
         };
         /**
          * TaskPlanItem
@@ -5658,6 +6107,23 @@ export interface components {
          * @enum {string}
          */
         VersionOrigin: "lock" | "active" | "pin";
+        /**
+         * Why
+         * @description Why an item was selected — the only relations Studi'OS knows how to
+         *     establish: a structural link, or an exact-token overlap with the objective.
+         */
+        Why: {
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "requested" | "linked_to_task" | "task_claim" | "path_conflict" | "project_scope" | "lexical" | "active_roadmap";
+            /**
+             * Matched Terms
+             * @default []
+             */
+            matched_terms: string[];
+        };
         /** WorkSession */
         WorkSession: {
             /**
@@ -7538,6 +8004,104 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_work_api_v1_start_work_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartWorkRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StartWorkResult"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "idempotency_key_payload_mismatch"
+                     *       }
                      *     }
                      */
                     "application/json": unknown;
