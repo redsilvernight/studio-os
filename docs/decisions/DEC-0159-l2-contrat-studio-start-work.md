@@ -18,8 +18,8 @@ humaine — fichier et serveur alignés à l'acceptation).
   outil MCP `studio_start_work`, `Idempotency-Key` supporté) : avec
   `task_id`, claim idempotent pour la même machine + reprise de la session
   ouverte du même agent sur la tâche ou création + `prepare_context` borné
-  et cadré ; sans `task_id`, contexte projet + `candidates` (tâches non
-  réclamées de l'étape courante), sans claim ni session (AIB-G).
+  et cadré ; sans `task_id`, contexte projet + `candidates` (deux paliers,
+  voir § Candidats), sans claim ni session (AIB-G).
 - Réponse `StartWorkResult` (`studio_contracts/start_work.py`) : `task` /
   `session` / `claimed` / `resumed` / `prepared_context` (toujours présent
   en succès) / `candidates` (chemin sans tâche uniquement).
@@ -41,6 +41,19 @@ humaine — fichier et serveur alignés à l'acceptation).
 
 Clôture des sessions expirées (L2 l2-resume, tâche 44f4fe5f), curseur de
 sync (C2), bloc sync initial (C4).
+
+## Candidats (AIB-G, tâche 2e1a6e77)
+
+Sans `task_id`, deux paliers bornés par `limit`, chacun expliqué par `why` :
+
+1. les tâches liées à l'étape courante de la roadmap active, dans l'ordre
+   déterministe du service (pas l'ordre de la base) (`why.reason =
+   active_roadmap`) ;
+2. les autres tâches non réclamées et non terminées du projet, plus
+   récemment modifiées d'abord (`why.reason = project_scope`).
+
+Un lien pendouillant ou hors projet est ignoré, jamais exposé. Aucun claim
+ni session sur ce chemin.
 
 ## Voir aussi
 
