@@ -288,6 +288,24 @@ public de bootstrap, pas de secret d'environnement dedie.
   avant le court-circuit d'idempotence (DEC-0036) — `readonly` -> `403
   forbidden`, sans RBAC specifique aux Agents. Ne confere aucun droit
   supplementaire : `auth_role` + ownership restent la seule autorite.
+  `stable_key` (AIB-I, additif, optionnel) : une collision `(machine, stable_key)`
+  sur cette route est `409 duplicate_stable_key` (meme precedent que la Library),
+  jamais un doublon silencieux — le chemin idempotent est `POST /agents/ensure`.
+- POST /agents/ensure (AIB-I, additif) — `agents ensure` cote serveur :
+  trouve l'agent de la machine appelante pour `AgentCreate.stable_key` ou
+  l'enregistre. Meme machine + meme cle + memes metadonnees = agent existant
+  (`created=false`, `200`) ; meme cle + metadonnees differentes = `409
+  idempotency_key_payload_mismatch` (meme condition qu'un rejeu `Idempotency-Key`
+  au corps different) ; sans `stable_key` = enregistrement simple
+  (`created=true`, `201`). La `stable_key` elle-meme est la cle de rejeu
+  (meme patron que `event_id` pour `POST /events` et que la cle naturelle de
+  `PUT /projects/{id}/members/{user_id}`) : pas de `Idempotency-Key` ici, et
+  une course d'enregistrements concurrents se resout par la contrainte unique
+  `(machine_id, stable_key)` (le perdant relit la ligne du gagnant).
+  `AgentCreate`/`Agent` portent `stable_key` (optionnel, defaut `null`) :
+  chaine ouverte d'observabilite, jamais lue par l'autorisation, et jamais
+  `AgentDefinition.stable_key` (parametre de resolution, pas identite).
+  Un client qui ne l'envoie pas n'observe aucun changement.
 - POST /ai-work — `AIWorkLogCreate` accepte, en plus de `summary`, les
   champs optionnels `agent_profile`, `harness`, `provider`, `model` (UC-5,
   additif, memes regles que sur `Agent` : chaines ouvertes d'observabilite,

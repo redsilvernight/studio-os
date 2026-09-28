@@ -301,7 +301,7 @@ def create_server() -> MCPServer:
         description=(
             "Register an agent provenance identity for the caller's own machine "
             "(display_name required; agent_kind, agent_profile, harness, provider, "
-            "model optional). machine_id is always derived from the authenticated "
+            "model, stable_key optional). machine_id is always derived from the authenticated "
             "machine, never supplied. Requires a writer role (read-only callers fail "
             "with forbidden). Registration confers no permission; it exists only to "
             "attribute AI work logs. Pass idempotency_key when retrying a call that "

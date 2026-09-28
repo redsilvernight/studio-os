@@ -4914,6 +4914,80 @@
     }
    }
   },
+  "/api/v1/agents/ensure": {
+   "post": {
+    "tags": [
+     "agents"
+    ],
+    "summary": "Ensure Agent",
+    "description": "Server-side `agents ensure` (AIB-I, additive): find this machine's agent for `AgentCreate.stable_key` or register it, so a retried session-start hook never registers a duplicate \u2014 even after the idempotency table forgot the original call. `machine_id` is always derived from the credential, never sent. Same machine + same key + same metadata returns the existing agent (`created=false`, `200`); same key + different metadata is `409 idempotency_key_payload_mismatch`, never a silent second agent. Without a `stable_key` this is a plain registration (`created=true`, `201`). The `stable_key` itself is the replay key (same pattern as `event_id` for `POST /events` and the natural key of `PUT /projects/{id}/members/{user_id}`), so no `Idempotency-Key` is needed here. Authorization: `ensure_can_write` \u2014 `readonly` -> `403 forbidden`. Confers no permission.",
+    "operationId": "ensure_agent_api_v1_agents_ensure_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AgentCreate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AgentEnsureResult"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "`idempotency_key_payload_mismatch`: same stable key, different body."
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ]
+   }
+  },
   "/api/v1/ai-work": {
    "get": {
     "tags": [
@@ -12115,6 +12189,17 @@
        }
       ],
       "title": "Model"
+     },
+     "stable_key": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stable Key"
      }
     },
     "additionalProperties": false,
@@ -12128,7 +12213,7 @@
      "agent_kind"
     ],
     "title": "Agent",
-    "description": "Provenance identity attached to one machine: who did the work, for\naudit and attribution. Never an authorization input \u2014 permissions come\nfrom the machine owner's role alone. `agent_profile`, `harness`,\n`provider` and `model` are optional additive observability metadata:\nopen strings, never whitelisted, never a capability or compatibility\ncondition, never read to make a decision."
+    "description": "Provenance identity attached to one machine: who did the work, for\naudit and attribution. Never an authorization input \u2014 permissions come\nfrom the machine owner's role alone. `agent_profile`, `harness`,\n`provider` and `model` are optional additive observability metadata:\nopen strings, never whitelisted, never a capability or compatibility\ncondition, never read to make a decision. `stable_key` (AIB-I, additive)\nis the local stable key set by `agents ensure` (default\n`agents-ensure-{harness}`), unique per owning machine: the idempotent\nlookup key for session-start, never an authorization input, and never\n`AgentDefinition.stable_key` (a resolution parameter, not an identity)."
    },
    "AgentCreate": {
     "properties": {
@@ -12184,6 +12269,17 @@
        }
       ],
       "title": "Model"
+     },
+     "stable_key": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stable Key"
      }
     },
     "additionalProperties": false,
@@ -12192,7 +12288,26 @@
      "display_name"
     ],
     "title": "AgentCreate",
-    "description": "Public registration of a provenance identity: `machine_id` is always\nderived from the authenticated machine, never client-supplied.\n`display_name` and `agent_kind` are free-form metadata \u2014 never\nauthorization inputs, never the canonical identity (the\nserver-generated `Agent.id` is). `agent_profile`, `harness`, `provider`\nand `model` are optional open-string observability metadata: any value\nis accepted, unknown values are never rejected, and none of them is ever\nrequired."
+    "description": "Public registration of a provenance identity: `machine_id` is always\nderived from the authenticated machine, never client-supplied.\n`display_name` and `agent_kind` are free-form metadata \u2014 never\nauthorization inputs, never the canonical identity (the\nserver-generated `Agent.id` is). `agent_profile`, `harness`, `provider`\nand `model` are optional open-string observability metadata: any value\nis accepted, unknown values are never rejected, and none of them is ever\nrequired. `stable_key` (AIB-I, additive, optional) is the local stable\nkey for `POST /agents/ensure`: same machine + same key returns the\nexisting agent, same key + different metadata is `409\nidempotency_key_payload_mismatch`. Never `AgentDefinition.stable_key`."
+   },
+   "AgentEnsureResult": {
+    "properties": {
+     "agent": {
+      "$ref": "#/components/schemas/Agent"
+     },
+     "created": {
+      "type": "boolean",
+      "title": "Created"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "agent",
+     "created"
+    ],
+    "title": "AgentEnsureResult",
+    "description": "Result of `POST /agents/ensure` (AIB-I, additive): the caller's own\nmachine's agent for `stable_key`, plus whether this call created it."
    },
    "AgentResolutionRequest": {
     "properties": {

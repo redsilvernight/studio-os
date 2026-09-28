@@ -11,6 +11,7 @@ from studio_contracts.ai_work import AIWorkLog
 from studio_contracts.auth import (
     Agent,
     AgentCreate,
+    AgentEnsureResult,
     HeartbeatRequest,
     HeartbeatResponse,
     Machine,
@@ -217,25 +218,23 @@ class StudioApiClient:
         )
         return Agent.model_validate(response.json())
 
-    async def ensure_agent(
-        self, agent_in: AgentCreate, *, idempotency_key: str
-    ) -> tuple[Agent, bool]:
-        """Return `(agent, created)`: the caller's own machine's agent matching
-        `(harness, display_name)`, or register it when absent (CC-1/DEC-0045 —
-        public registration, no authority conferred; DEC-0053 metadata echoed
-        verbatim). Matching stays on this machine's agents only: `GET /agents`
-        lists every machine's identities, and two machines may legitimately
-        share a `display_name`."""
-        machine = await self.get_own_machine()
-        wanted_harness = agent_in.harness or ""
-        for agent in await self.list_agents():
-            if (
-                agent.machine_id == machine.id
-                and (agent.harness or "") == wanted_harness
-                and agent.display_name == agent_in.display_name
-            ):
-                return agent, False
-        return await self.register_agent(agent_in, idempotency_key=idempotency_key), True
+    async def ensure_agent(self, agent_in: AgentCreate) -> tuple[Agent, bool]:
+        """Return `(agent, created)` through `POST /agents/ensure` (AIB-I):
+        the server finds this machine's agent for `stable_key` or registers
+        it (CC-1/DEC-0045 — public registration, no authority conferred;
+        DEC-0053 metadata echoed verbatim). Server-side and race-safe, unlike
+        the former list-and-match on `(harness, display_name)`: a retried
+        session-start hook never registers a duplicate, and same key +
+        different metadata fails explicitly with
+        `idempotency_key_payload_mismatch`."""
+        response = await self._request(
+            "POST",
+            "/api/v1/agents/ensure",
+            json=agent_in.model_dump(mode="json"),
+            idempotent=agent_in.stable_key is not None,
+        )
+        result = AgentEnsureResult.model_validate(response.json())
+        return result.agent, result.created
 
     async def send_heartbeat(
         self, machine_id: UUID, agent_id: UUID | None = None
