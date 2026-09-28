@@ -34,6 +34,12 @@ studio_memory_read
 studio_graph_query
 studio_emit_event
 
+### studio_start_work (L2, additif — spec sans implementation, voir tache 9dff9368)
+Composite demarrer/reprendre (claim idempotent + reprise/creation de
+session + contexte borne, ou contexte + candidates sans task_id) :
+meme contrat que `POST /start-work` (`TECH/02_API_CONTRACT.md` § Start
+work), `idempotency_key` optionnel.
+
 ## AI Library via MCP — inventaire (P8, DEC-0072)
 studio_resolve_agent
 studio_discover_definitions

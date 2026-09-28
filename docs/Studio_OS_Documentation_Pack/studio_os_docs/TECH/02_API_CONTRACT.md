@@ -249,6 +249,28 @@ public de bootstrap, pas de secret d'environnement dedie.
 - POST /sessions
 - PATCH /sessions/{id}/end
 - GET /sessions
+
+### Start work (L2, additif — spec sans implementation, voir tache 9dff9368)
+- POST /start-work (body `StartWorkRequest`, reponse `StartWorkResult`) +
+  outil MCP `studio_start_work` (meme contrat, `idempotency_key` optionnel,
+  DEC-0027/DEC-0046/DEC-0048 : pas de version dans le payload).
+  Composite en une transaction, sans nouvelle table ni nouvel evenement :
+  avec `task_id`, claim idempotent pour la meme machine (`409
+  already_claimed` si une autre machine tient la tache) + reprise de la
+  session ouverte du meme agent sur la tache ou creation (AIB-H ; les
+  expirees sont closes par L2) + `touch_session` + `prepare_context`
+  borne et cadre (`task_id`, `files`, `agent_stable_key`) ; sans `task_id`,
+  contexte projet + `candidates` (taches non reclamees de l'etape courante
+  de roadmap, `task_id`/`title`/`status` compacts), sans claim ni session
+  (AIB-G). `prepare_context` ne gagne aucun effet de bord (DEC-0080).
+  `agent_id` doit appartenir a la machine appelante (`409 actor_not_owned`,
+  meme regle que `POST /ai-work`). Autorisation avant le court-circuit
+  d'idempotence (meme ordre que DEC-0036) : `readonly` -> `403 forbidden`.
+  `Idempotency-Key` supporte : meme cle + meme corps = resultat d'origine
+  (`200` si reprise/retrouve, `201` si creation ; ni second claim ni
+  seconde session), corps different = `409
+  idempotency_key_payload_mismatch`. Un client qui n'appelle pas la route
+  n'observe aucun changement.
 - Presence derivee a la lecture (C1, DEC-0157, additif) : chaque session
   expose `last_activity_at` (derniere activite authentifiee rattachee a la
   session — debut/fin aujourd'hui ; `start_work`, `sync`, emission
