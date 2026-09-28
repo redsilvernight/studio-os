@@ -160,8 +160,11 @@ async def studio_claim_task(
     return await run_tool(ctx, _handler)
 
 
-async def studio_release_task(task_id: str, ctx: Context) -> dict[str, Any]:
-    """Release a task's claim (clears claimed_by_machine_id/agent_id)."""
+async def studio_release_task(
+    task_id: str, ctx: Context, expected_version: int | None = None
+) -> dict[str, Any]:
+    """Release a task's claim (clears claimed_by_machine_id/agent_id). An
+    optional `expected_version` rejects a stale read with `version_conflict`."""
 
     async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed = parse_uuid(task_id, "task_id")
@@ -170,7 +173,7 @@ async def studio_release_task(task_id: str, ctx: Context) -> dict[str, Any]:
         task = await tasks_service.get_task(session, parsed)
         if task is None:
             return {"error_code": "not_found", "message": f"task {task_id} not found"}
-        task = await tasks_service.release_task(session, principal, task)
+        task = await tasks_service.release_task(session, principal, task, expected_version)
         return _compact_task(task)
 
     return await run_tool(ctx, _handler)

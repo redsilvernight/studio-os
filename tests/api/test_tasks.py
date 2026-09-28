@@ -123,6 +123,36 @@ async def test_claim_by_second_machine_conflicts(
     assert released.json()["claimed_by_machine_id"] is None
 
 
+async def test_release_task_honours_optional_if_match_version(
+    client: AsyncClient, auth_headers: dict[str, str], project: ProjectModel
+) -> None:
+    created = await client.post(
+        "/api/v1/tasks",
+        headers=auth_headers,
+        json={"project_id": str(project.id), "title": "Versioned release"},
+    )
+    task_id = created.json()["id"]
+    claimed = await client.post(f"/api/v1/tasks/{task_id}/claim", headers=auth_headers)
+    version = claimed.json()["version"]
+
+    stale = await client.post(
+        f"/api/v1/tasks/{task_id}/release",
+        headers={**auth_headers, "If-Match-Version": str(version - 1)},
+    )
+    assert stale.status_code == 409
+    assert stale.json()["detail"] == {"error_code": "version_conflict", "server_version": version}
+    still_held = await client.get(f"/api/v1/tasks/{task_id}", headers=auth_headers)
+    assert still_held.json()["claimed_by_machine_id"] is not None
+
+    released = await client.post(
+        f"/api/v1/tasks/{task_id}/release",
+        headers={**auth_headers, "If-Match-Version": str(version)},
+    )
+    assert released.status_code == 200
+    assert released.json()["claimed_by_machine_id"] is None
+    assert released.json()["version"] == version + 1
+
+
 async def _task_event_types(
     client: AsyncClient, auth_headers: dict[str, str], task_id: str
 ) -> list[str]:

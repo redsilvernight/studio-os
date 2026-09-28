@@ -103,9 +103,18 @@ interface Captured {
   idempotencyKeys: (string | null)[];
   createdBodies: unknown[];
   patches: { url: string; version: string | null; body: unknown }[];
+  releaseVersions?: (string | null)[];
 }
 
-function apiStub(captured: Captured, opts: { patchConflict?: boolean } = {}) {
+interface StubOpts {
+  patchConflict?: boolean;
+  /** Machine of the caller answered by /auth/me (role developer). */
+  meMachine?: string;
+}
+
+const HOLDER = "bbbbbbbb-0000-4111-8111-000000000001";
+
+function apiStub(captured: Captured, opts: StubOpts = {}) {
   return async (route: Route) => {
     const req = route.request();
     const url = req.url();
@@ -114,6 +123,16 @@ function apiStub(captured: Captured, opts: { patchConflict?: boolean } = {}) {
       route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
     if (url.endsWith("/api/v1/auth/token")) {
       await json(200, { access_token: "e2e-token", token_type: "bearer" });
+      return;
+    }
+    if (url.endsWith("/api/v1/auth/me")) {
+      await json(200, {
+        user_id: "u-e2e",
+        display_name: "E2E",
+        email: "e2e@example.test",
+        role: "developer",
+        machine_id: opts.meMachine ?? HOLDER,
+      });
       return;
     }
     if (method === "POST" && url.endsWith("/api/v1/tasks")) {
@@ -144,6 +163,7 @@ function apiStub(captured: Captured, opts: { patchConflict?: boolean } = {}) {
       return;
     }
     if (method === "POST" && url.endsWith("/release")) {
+      (captured.releaseVersions ??= []).push(req.headers()["if-match-version"] ?? null);
       await json(200, { ...TASKS[1], claimed_by_machine_id: null, version: 3 });
       return;
     }
@@ -183,7 +203,7 @@ function apiStub(captured: Captured, opts: { patchConflict?: boolean } = {}) {
   };
 }
 
-async function login(page: Page, startHash: string, captured: Captured, opts: { patchConflict?: boolean } = {}): Promise<void> {
+async function login(page: Page, startHash: string, captured: Captured, opts: StubOpts = {}): Promise<void> {
   await page.route("**/api/**", apiStub(captured, opts));
   await page.goto(`/${startHash}`);
   await expect(page.locator("#login-form")).toBeVisible();
@@ -355,6 +375,21 @@ test.describe("UI-5 détail tâche", () => {
     await view.locator("[data-release]").click();
     await expect.poll(() => confirmMessage).toContain("prise par la machine");
     await expect(view.locator(".ds-notice--info")).toContainText("Le statut reste inchangé");
+    // Libération versionnée : la version lue part en If-Match-Version.
+    expect(captured.releaseVersions).toEqual([String(TASKS[1]?.version)]);
+    expect(csp).toEqual([]);
+    expect(fatal).toEqual([]);
+  });
+
+  test("libérer réservé au détenteur ou à un admin : autre machine = bouton inactif", async ({ page }) => {
+    const { csp, fatal } = watchErrors(page);
+    const captured: Captured = { idempotencyKeys: [], createdBodies: [], patches: [] };
+    await login(page, "#/tasks/aaaaaaaa-0000-4111-8111-000000000002", captured, { meMachine: "cccccccc-0000-4111-8111-000000000009" });
+    const view = page.locator("#view");
+    await expect(view.locator("h1")).toContainText("Optimiser les éclairages");
+    await expect(view.locator("[data-release]")).toBeDisabled();
+    await expect(view.locator("#task-head-release")).toHaveCount(0);
+    await expect(view).toContainText("ou un administrateur, peut la libérer");
     expect(csp).toEqual([]);
     expect(fatal).toEqual([]);
   });

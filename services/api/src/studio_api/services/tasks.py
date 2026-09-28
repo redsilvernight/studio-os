@@ -205,9 +205,22 @@ async def claim_task(
     )
 
 
-async def release_task(session: AsyncSession, principal: Principal, task: TaskModel) -> TaskModel:
+async def release_task(
+    session: AsyncSession,
+    principal: Principal,
+    task: TaskModel,
+    expected_version: int | None = None,
+) -> TaskModel:
+    """`expected_version` is optional: when given, a stale version is rejected
+    with `version_conflict` (like `update_task`) instead of releasing a claim
+    taken since the caller's read."""
     ensure_project_access(principal, task.project_id, "write")
     ensure_machine_owned(principal, task.claimed_by_machine_id, "task", "release")
+    if expected_version is not None and task.version != expected_version:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={"error_code": "version_conflict", "server_version": task.version},
+        )
     agent_id = task.claimed_by_agent_id
     task.claimed_by_machine_id = None
     task.claimed_by_agent_id = None

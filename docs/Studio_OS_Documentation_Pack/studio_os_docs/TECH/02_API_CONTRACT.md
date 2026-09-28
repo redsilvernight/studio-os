@@ -243,7 +243,11 @@ public de bootstrap, pas de secret d'environnement dedie.
 - GET /tasks/{id}
 - PATCH /tasks/{id}
 - POST /tasks/{id}/claim
-- POST /tasks/{id}/release
+- POST /tasks/{id}/release — `If-Match-Version` facultatif (additif) : absent,
+  comportement inchange ; present et perime, `409 {"detail": {"error_code":
+  "version_conflict", "server_version": N}}` sans liberer. Controle d'acces
+  (detenteur ou admin, `403 forbidden`) evalue avant la version. MCP
+  `studio_release_task` : `expected_version` facultatif, meme semantique.
 
 ### Sessions
 - POST /sessions

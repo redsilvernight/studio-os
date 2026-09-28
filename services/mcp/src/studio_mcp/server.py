@@ -162,7 +162,8 @@ def create_server() -> MCPServer:
         name="studio_release_task",
         description=(
             "Release a task's claim by task_id (UUID string). Only the holding machine (or a "
-            "privileged role) may release; anyone else fails with forbidden. Safe to repeat — "
+            "privileged role) may release; anyone else fails with forbidden. Optional "
+            "expected_version: a stale version fails with version_conflict. Safe to repeat — "
             "never creates anything."
         ),
         annotations=_IDEMPOTENT_WRITE,
@@ -208,7 +209,8 @@ def create_server() -> MCPServer:
         name="studio_release_resource",
         description=(
             "Release a resource claim by claim_id (UUID string). Only the holding machine (or a "
-            "privileged role) may release; anyone else fails with forbidden. Safe to repeat — "
+            "privileged role) may release; anyone else fails with forbidden. Optional "
+            "expected_version: a stale version fails with version_conflict. Safe to repeat — "
             "never creates anything."
         ),
         annotations=_IDEMPOTENT_WRITE,

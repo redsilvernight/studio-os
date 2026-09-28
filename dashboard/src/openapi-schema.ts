@@ -431,7 +431,7 @@ export interface paths {
         put?: never;
         /**
          * Release Task
-         * @description Release a task's claim. Only the machine holding the claim (or a privileged role) may release it; anyone else receives `403 forbidden`.
+         * @description Release a task's claim. Only the machine holding the claim (or a privileged role) may release it; anyone else receives `403 forbidden`. The `If-Match-Version` header is optional: when sent, a stale version is rejected with the live server version.
          */
         post: operations["release_task_api_v1_tasks__task_id__release_post"];
         delete?: never;
@@ -7193,7 +7193,10 @@ export interface operations {
     release_task_api_v1_tasks__task_id__release_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version — re-read, merge, and retry. Updates never overwrite silently. */
+                "If-Match-Version"?: number | null;
+            };
             path: {
                 task_id: string;
             };
@@ -7251,6 +7254,23 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version — re-read the object, merge, and retry with the new version. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
                      *     }
                      */
                     "application/json": unknown;

@@ -383,8 +383,11 @@ async def test_claim_task_and_release_task_hit_expected_paths() -> None:
             "updated_at": "2026-09-13T00:00:00Z",
         }
 
+    versions: list[str | None] = []
+
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append(request.url.path)
+        versions.append(request.headers.get("If-Match-Version"))
         status = "in_progress" if request.url.path.endswith("/claim") else "created"
         return httpx.Response(200, json=_task_body(status))
 
@@ -393,8 +396,12 @@ async def test_claim_task_and_release_task_hit_expected_paths() -> None:
     ) as client:
         claimed = await client.claim_task(task_id)
         released = await client.release_task(task_id)
+        await client.release_task(task_id, if_match_version=2)
 
-    assert seen == [f"/api/v1/tasks/{task_id}/claim", f"/api/v1/tasks/{task_id}/release"]
+    release_path = f"/api/v1/tasks/{task_id}/release"
+    assert seen == [f"/api/v1/tasks/{task_id}/claim", release_path, release_path]
+    # If-Match-Version is optional on release: sent only when given.
+    assert versions == [None, None, "2"]
     assert claimed.status == TaskStatus.IN_PROGRESS
     assert released.status == TaskStatus.CREATED
 
