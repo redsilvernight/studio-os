@@ -287,9 +287,14 @@ public de bootstrap, pas de secret d'environnement dedie.
   session ouverte du meme agent sur la tache ou creation (AIB-H ; les
   expirees sont closes par L2) + `touch_session` + `prepare_context`
   borne et cadre (`task_id`, `files`, `agent_stable_key`) ; sans `task_id`,
-  contexte projet + `candidates` (taches non reclamees de l'etape courante
-  de roadmap, `task_id`/`title`/`status` compacts), sans claim ni session
-  (AIB-G). `prepare_context` ne gagne aucun effet de bord (DEC-0080).
+  contexte projet + `candidates` (AIB-G) : d'abord les taches liees a
+  l'etape courante de la roadmap, dans l'ordre deterministe du service (pas
+  l'ordre de la base) (`why` `active_roadmap`), puis les autres taches non
+  reclamees et non terminees du projet, plus recemment modifiees d'abord
+  (`why` `project_scope`), bornees par `limit` ; chaque candidat est compact
+  (`task_id`/`title`/`status`/`why`), jamais la description. Aucun claim ni
+  session sur ce chemin (`prepare_context` ne gagne aucun effet de bord,
+  DEC-0080).
   `agent_id` doit appartenir a la machine appelante (`409 actor_not_owned`,
   meme regle que `POST /ai-work`). Autorisation avant le court-circuit
   d'idempotence (meme ordre que DEC-0036) : `readonly` -> `403 forbidden`.

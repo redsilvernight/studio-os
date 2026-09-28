@@ -10,7 +10,7 @@ from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
-from studio_contracts.project_context import DEFAULT_LIMIT, DEFAULT_MAX_CHARS
+from studio_contracts.project_context import DEFAULT_LIMIT, DEFAULT_MAX_CHARS, Why
 from studio_contracts.start_work import (
     StartWorkCandidate,
     StartWorkRequest,
@@ -54,14 +54,32 @@ def test_request_enforces_prepare_bounds() -> None:
 
 
 def test_candidate_is_compact() -> None:
-    candidate = StartWorkCandidate(task_id=uuid4(), title="Do it", status=TaskStatus.CREATED)
+    candidate = StartWorkCandidate(
+        task_id=uuid4(), title="Do it", status=TaskStatus.CREATED, why=Why(reason="active_roadmap")
+    )
     assert candidate.model_dump() == {
         "task_id": candidate.task_id,
         "title": "Do it",
         "status": TaskStatus.CREATED,
+        "why": {"reason": "active_roadmap", "matched_terms": []},
     }
     with pytest.raises(ValidationError):
         StartWorkCandidate(task_id=uuid4(), title="Do it", status="created", description="x")
+
+
+def test_candidate_requires_a_why_relation() -> None:
+    with pytest.raises(ValidationError):
+        StartWorkCandidate(task_id=uuid4(), title="Do it", status=TaskStatus.CREATED)
+
+
+def test_candidate_carries_a_why_relation() -> None:
+    candidate = StartWorkCandidate(
+        task_id=uuid4(),
+        title="Do it",
+        status=TaskStatus.CREATED,
+        why=Why(reason="project_scope"),
+    )
+    assert candidate.why.reason == "project_scope"
 
 
 def test_result_defaults_to_no_task_path() -> None:
@@ -76,7 +94,14 @@ def test_result_defaults_to_no_task_path() -> None:
 
 def test_result_json_round_trip_with_candidates() -> None:
     result = StartWorkResult(
-        candidates=[StartWorkCandidate(task_id=uuid4(), title="Next", status=TaskStatus.CREATED)]
+        candidates=[
+            StartWorkCandidate(
+                task_id=uuid4(),
+                title="Next",
+                status=TaskStatus.CREATED,
+                why=Why(reason="project_scope"),
+            )
+        ]
     )
     assert StartWorkResult.model_validate_json(result.model_dump_json()).candidates == (
         result.candidates

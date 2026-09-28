@@ -23,6 +23,7 @@ from studio_contracts.project_context import (
     MAX_FILES,
     OBJECTIVE_MAX_CHARS,
     PreparedContext,
+    Why,
 )
 from studio_contracts.sessions import WorkSession
 from studio_contracts.tasks import Task, TaskStatus
@@ -51,12 +52,17 @@ class StartWorkRequest(IdempotentCreate):
 
 
 class StartWorkCandidate(ContractModel):
-    """One unclaimed task of the roadmap's current step (no-task path only):
-    compact by construction — id, title, status, never the description."""
+    """One unclaimed task a fresh start could pick up (no-task path only):
+    compact by construction — id, title, status, plus the `why` relation that
+    surfaced it (`active_roadmap` for the current step, `project_scope` for
+    another unclaimed project task), never the description. `why` is
+    required: the model has no consumer yet, and adding it later would be a
+    breaking change."""
 
     task_id: UUID
     title: str
     status: TaskStatus
+    why: Why
 
 
 class StartWorkResult(ContractModel):
