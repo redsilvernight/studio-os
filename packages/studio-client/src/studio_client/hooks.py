@@ -171,6 +171,7 @@ class HarnessSpec:
     output: str
     config_markers: tuple[str, ...] = ()
     binaries: tuple[str, ...] = ()
+    register_hint: str = ""
 
 
 HARNESSES: tuple[HarnessSpec, ...] = (
@@ -182,6 +183,11 @@ HARNESSES: tuple[HarnessSpec, ...] = (
         output="json",
         config_markers=(".claude.json", ".claude/settings.json"),
         binaries=("claude",),
+        register_hint=(
+            "register in .claude/settings.json under hooks.SessionStart "
+            '({{"matcher": "startup|resume", "hooks": [{{"type": "command", '
+            '"command": "pwsh -NoProfile -File \\"{target}\\"", "timeout": 30}}]}})'
+        ),
     ),
     HarnessSpec(
         harness="opencode",
@@ -191,6 +197,24 @@ HARNESSES: tuple[HarnessSpec, ...] = (
         output="text",
         config_markers=(".config/opencode/opencode.jsonc", ".config/opencode/opencode.json"),
         binaries=("opencode",),
+        register_hint=(
+            "call the script on session start (e.g. from the studio-os plugin "
+            'on session.created, passing {{"cwd": directory}} on stdin)'
+        ),
+    ),
+    HarnessSpec(
+        harness="codex",
+        label="Codex",
+        hook_rel=Path(".codex") / "studio-session-start-codex.ps1",
+        agent_key="codex",
+        output="text",
+        config_markers=(".codex/config.toml", ".codex/hooks.json"),
+        binaries=("codex",),
+        register_hint=(
+            "register in .codex/hooks.json under hooks.SessionStart "
+            '({{"matcher": "startup|resume", "hooks": [{{"type": "command", '
+            '"command": "pwsh -NoProfile -File \\"{target}\\"", "timeout": 30}}]}})'
+        ),
     ),
 )
 

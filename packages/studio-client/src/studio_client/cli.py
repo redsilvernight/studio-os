@@ -181,6 +181,7 @@ def setup_hooks(argv: Sequence[str] | None = None) -> int:
         specs = [spec for spec in HARNESSES if spec.harness in installed]
         skipped = [spec.harness for spec in HARNESSES if spec.harness not in installed]
     result = deploy_hooks(home, specs, overwrite=args.overwrite, dry_run=args.dry_run)
+    hints = {spec.harness: spec.register_hint for spec in HARNESSES}
     if args.json:
         payload = result.to_dict()
         payload["skipped"] = skipped
@@ -194,10 +195,10 @@ def setup_hooks(argv: Sequence[str] | None = None) -> int:
         for name in skipped:
             print(f"{name}: skipped (harness not detected under {home})")
         if result.reports and not args.dry_run:
-            print(
-                "Next: register the hook in each harness (one line to paste, "
-                "see the W2b decision), then restart the harness session."
-            )
+            for report in result.reports:
+                hint = hints.get(report.harness, "")
+                if hint:
+                    print(f"Next ({report.harness}): " + hint.format(target=report.target))
     return 0
 
 
@@ -934,6 +935,11 @@ def _build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "outbox",
         help="Review a legacy, identity-less outbox (`studio-client outbox legacy --help`).",
+    )
+
+    subparsers.add_parser(
+        "setup-hooks",
+        help="Deploy Studio OS session-start hooks (`studio-client setup-hooks --help`).",
     )
 
     projects_parser = subparsers.add_parser("projects", help="Projects.")
