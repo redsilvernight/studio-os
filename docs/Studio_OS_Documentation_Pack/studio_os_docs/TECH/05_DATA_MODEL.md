@@ -105,7 +105,12 @@ ex: "build-bot", "local-assistant"), `agent_profile`, `harness`, `provider`,
 `model` (str libres, nullables), + champs communs mutables. `agent_profile`,
 `harness`, `provider` et `model` sont des metadonnees d'observabilite
 additives (DEC-0043 amendee, UC-5) : chaines ouvertes jamais whitelistees,
-jamais lues par l'autorisation.
+jamais lues par l'autorisation. `stable_key` (AIB-I, additif, nullable) :
+cle stable locale posee par `agents ensure` (defaut `agents-ensure-{harness}`),
+contrainte unique `(machine_id, stable_key)` (migration Alembic reversible ;
+les NULL restent distincts, lignes existantes inchangees) — cle de recherche
+idempotente du demarrage de session, jamais entree d'autorisation, jamais
+confondue avec `AgentDefinition.stable_key` (parametre de resolution).
 
 ## Project
 `id`, `slug` (unique), `name`, `description` (nullable), `archived` (bool,

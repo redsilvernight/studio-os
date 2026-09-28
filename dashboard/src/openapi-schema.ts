@@ -924,6 +924,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agents/ensure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ensure Agent
+         * @description Server-side `agents ensure` (AIB-I, additive): find this machine's agent for `AgentCreate.stable_key` or register it, so a retried session-start hook never registers a duplicate — even after the idempotency table forgot the original call. `machine_id` is always derived from the credential, never sent. Same machine + same key + same metadata returns the existing agent (`created=false`, `200`); same key + different metadata is `409 idempotency_key_payload_mismatch`, never a silent second agent. Without a `stable_key` this is a plain registration (`created=true`, `201`). The `stable_key` itself is the replay key (same pattern as `event_id` for `POST /events` and the natural key of `PUT /projects/{id}/members/{user_id}`), so no `Idempotency-Key` is needed here. Authorization: `ensure_can_write` — `readonly` -> `403 forbidden`. Confers no permission.
+         */
+        post: operations["ensure_agent_api_v1_agents_ensure_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/ai-work": {
         parameters: {
             query?: never;
@@ -2206,7 +2226,11 @@ export interface components {
          *     from the machine owner's role alone. `agent_profile`, `harness`,
          *     `provider` and `model` are optional additive observability metadata:
          *     open strings, never whitelisted, never a capability or compatibility
-         *     condition, never read to make a decision.
+         *     condition, never read to make a decision. `stable_key` (AIB-I, additive)
+         *     is the local stable key set by `agents ensure` (default
+         *     `agents-ensure-{harness}`), unique per owning machine: the idempotent
+         *     lookup key for session-start, never an authorization input, and never
+         *     `AgentDefinition.stable_key` (a resolution parameter, not an identity).
          */
         Agent: {
             /**
@@ -2240,6 +2264,8 @@ export interface components {
             provider?: string | null;
             /** Model */
             model?: string | null;
+            /** Stable Key */
+            stable_key?: string | null;
         };
         /**
          * AgentCreate
@@ -2250,7 +2276,10 @@ export interface components {
          *     server-generated `Agent.id` is). `agent_profile`, `harness`, `provider`
          *     and `model` are optional open-string observability metadata: any value
          *     is accepted, unknown values are never rejected, and none of them is ever
-         *     required.
+         *     required. `stable_key` (AIB-I, additive, optional) is the local stable
+         *     key for `POST /agents/ensure`: same machine + same key returns the
+         *     existing agent, same key + different metadata is `409
+         *     idempotency_key_payload_mismatch`. Never `AgentDefinition.stable_key`.
          */
         AgentCreate: {
             /** Display Name */
@@ -2268,6 +2297,18 @@ export interface components {
             provider?: string | null;
             /** Model */
             model?: string | null;
+            /** Stable Key */
+            stable_key?: string | null;
+        };
+        /**
+         * AgentEnsureResult
+         * @description Result of `POST /agents/ensure` (AIB-I, additive): the caller's own
+         *     machine's agent for `stable_key`, plus whether this call created it.
+         */
+        AgentEnsureResult: {
+            agent: components["schemas"]["Agent"];
+            /** Created */
+            created: boolean;
         };
         /**
          * AgentResolutionRequest
@@ -9867,6 +9908,78 @@ export interface operations {
                      */
                     "application/json": unknown;
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ensure_agent_api_v1_agents_ensure_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentEnsureResult"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `idempotency_key_payload_mismatch`: same stable key, different body. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

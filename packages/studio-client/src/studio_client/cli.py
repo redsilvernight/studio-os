@@ -300,9 +300,9 @@ def _agents_ensure(args: argparse.Namespace, config: ClientConfig) -> None:
     """Session-start helper (workflow W2): find this machine's agent for a
     harness or register it (CC-1, no authority conferred), so hooks can expose
     a stable `agent_id` to `sessions start` / `studio_start_session` and
-    `studio_log_ai_work`. The default idempotency key is stable per harness so
-    a retried hook never registers a duplicate; changing the metadata with the
-    default key fails explicitly with `idempotency_key_payload_mismatch`."""
+    `studio_log_ai_work`. The default stable key is stable per harness so
+    a retried hook never registers a duplicate; changing the metadata with
+    the default key fails explicitly with `idempotency_key_payload_mismatch`."""
     agent_in = AgentCreate(
         display_name=args.display_name or f"studio-{args.harness}",
         agent_kind=args.agent_kind,
@@ -310,11 +310,11 @@ def _agents_ensure(args: argparse.Namespace, config: ClientConfig) -> None:
         harness=args.harness,
         provider=args.provider,
         model=args.model,
+        stable_key=args.stable_key or f"agents-ensure-{args.harness}",
     )
-    key = args.idempotency_key or f"agents-ensure-{args.harness}"
 
     async def action(client: StudioApiClient) -> tuple[Any, bool]:
-        return await client.ensure_agent(agent_in, idempotency_key=key)
+        return await client.ensure_agent(agent_in)
 
     agent, created = _run(config, action)
     if args.json:
@@ -1025,7 +1025,7 @@ def _build_parser() -> argparse.ArgumentParser:
     agents_ensure.add_argument("--provider")
     agents_ensure.add_argument("--model")
     agents_ensure.add_argument(
-        "--idempotency-key", help="Defaults to a stable 'agents-ensure-<harness>' key."
+        "--stable-key", help="Defaults to a stable 'agents-ensure-<harness>' key."
     )
     _add_json_flag(agents_ensure)
     agents_ensure.set_defaults(func=_agents_ensure)
