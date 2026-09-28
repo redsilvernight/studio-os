@@ -114,7 +114,11 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
         Probe("/api/v1/start-work", {"project_id": "{pid}", "agent_id": "{outsider_agent}"}),
     ),
     ("POST", "/api/v1/handoff"): (
-        Probe("/api/v1/handoff", {"project_id": "{pid}", "session_id": "{session}", "expected_version": 1}, expect="role"),
+        Probe(
+            "/api/v1/handoff",
+            {"project_id": "{pid}", "session_id": "{session}", "expected_version": 1},
+            expect="role",
+        ),
     ),
     ("GET", "/api/v1/claims"): (
         Probe("/api/v1/claims?project_id={pid}"),

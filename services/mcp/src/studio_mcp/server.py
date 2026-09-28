@@ -30,6 +30,7 @@ from studio_mcp.tools.decisions import (
     studio_supersede_decision,
 )
 from studio_mcp.tools.events import studio_emit_event, studio_get_recent_changes
+from studio_mcp.tools.handoff import studio_handoff
 from studio_mcp.tools.initialization import (
     studio_apply_project_initialization,
     studio_preview_project_initialization,
@@ -46,7 +47,6 @@ from studio_mcp.tools.roadmaps import (
 )
 from studio_mcp.tools.sessions import studio_end_session, studio_get_sessions, studio_start_session
 from studio_mcp.tools.start_work import studio_start_work
-from studio_mcp.tools.handoff import studio_handoff
 from studio_mcp.tools.tasks import (
     studio_claim_task,
     studio_create_task,

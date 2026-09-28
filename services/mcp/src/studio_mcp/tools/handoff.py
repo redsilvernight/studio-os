@@ -9,7 +9,7 @@ from studio_api.services import handoff as handoff_service
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services.authz import Principal
 from studio_contracts.handoff import HandoffRequest
-from studio_contracts.tasks import TaskUpdate
+from studio_contracts.tasks import TaskStatus, TaskUpdate
 
 from studio_mcp.errors import run_tool
 from studio_mcp.util import parse_uuid
@@ -56,7 +56,7 @@ async def studio_handoff(
 
         task_update = None
         if task_status is not None:
-            task_update = TaskUpdate(status=task_status)
+            task_update = TaskUpdate(status=TaskStatus(task_status))
 
         request = HandoffRequest(
             project_id=parsed_project,
@@ -72,7 +72,7 @@ async def studio_handoff(
 
         async def _create() -> dict[str, Any]:
             result = await handoff_service.handoff(session, principal, request)
-            return result.model_dump(mode="json")
+            return result.model_dump(mode="json")  # type: ignore[no-any-return]
 
         request_hash = idempotency_service.hash_request(
             json.dumps(

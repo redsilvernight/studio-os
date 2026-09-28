@@ -13,6 +13,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.ai_work import AIWorkLogCreate, AIWorkStatus
 from studio_contracts.handoff import HandoffRequest, HandoffResult
+from studio_contracts.tasks import TaskStatus
 
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.work_session import WorkSessionModel
@@ -98,7 +99,11 @@ async def handoff(
                 machine_id=principal.machine.id,
                 session_id=request.session_id,
                 summary=request.summary,
-                status=request.ai_work_status or AIWorkStatus.COMPLETED,
+                status=(
+                    AIWorkStatus(request.ai_work_status)
+                    if request.ai_work_status is not None
+                    else AIWorkStatus.COMPLETED
+                ),
                 changed_files=request.changed_files or [],
                 tests_run=request.tests_run or [],
             ),
@@ -110,7 +115,7 @@ async def handoff(
     
     return HandoffResult(
         task_id=task.id,
-        task_status=task.status,
+        task_status=TaskStatus(task.status),
         task_version=task.version,
         session_id=request.session_id,
         released_claims=[c.id for c in released_claims],
