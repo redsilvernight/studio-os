@@ -134,10 +134,19 @@ async def studio_update_task(
 
 
 async def studio_claim_task(
-    task_id: str, ctx: Context, agent_id: str | None = None
+    task_id: str,
+    ctx: Context,
+    agent_id: str | None = None,
+    idempotency_key: str | None = None,
 ) -> dict[str, Any]:
     """Claim a task for the caller's machine (soft lock, sets status to
-    in_progress). Fails with `already_claimed` if another machine holds it."""
+    in_progress). Fails with `already_claimed` if another machine holds it.
+    Re-claiming a task this machine already holds with the same agent is a
+    no-op, so a replayed call is safe even without a key. Pass a
+    caller-generated `idempotency_key` when this call might be retried —
+    replaying the same key with the same arguments returns the original
+    claim instead of re-running it; the same key with different arguments
+    fails with `idempotency_key_payload_mismatch` (DEC-0027)."""
 
     async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed = parse_uuid(task_id, "task_id")
@@ -152,10 +161,25 @@ async def studio_claim_task(
         task = await tasks_service.get_task(session, parsed)
         if task is None:
             return {"error_code": "not_found", "message": f"task {task_id} not found"}
-        task = await tasks_service.claim_task(
-            session, principal, task, principal.machine.id, parsed_agent_id
+        # Ahead of `run_idempotent_dict`'s replay short-circuit (DEC-0036).
+        tasks_service.authorize_claim(principal, task)
+
+        async def _claim() -> dict[str, Any]:
+            claimed = await tasks_service.claim_task(
+                session, principal, task, principal.machine.id, parsed_agent_id
+            )
+            return _compact_task(claimed)
+
+        request_hash = idempotency_service.hash_request(
+            json.dumps({"agent_id": agent_id}, sort_keys=True).encode()
         )
-        return _compact_task(task)
+        return await idempotency_service.run_idempotent_dict(
+            session,
+            idempotency_key,
+            f"MCP studio_claim_task:{parsed}",
+            request_hash,
+            _claim,
+        )
 
     return await run_tool(ctx, _handler)
 

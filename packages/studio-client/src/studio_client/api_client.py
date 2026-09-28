@@ -298,8 +298,20 @@ class StudioApiClient:
         )
         return Task.model_validate(response.json())
 
-    async def claim_task(self, task_id: UUID) -> Task:
-        response = await self._request("POST", f"/api/v1/tasks/{task_id}/claim")
+    async def claim_task(self, task_id: UUID, *, idempotency_key: str | None = None) -> Task:
+        """Claim a task. Safe to retry: claiming a task this machine already
+        holds is a server-side no-op, so a transport retry never produces a
+        second claim. Pass `idempotency_key` to also replay the exact
+        original response across processes."""
+        extra_headers = (
+            {"Idempotency-Key": idempotency_key} if idempotency_key is not None else None
+        )
+        response = await self._request(
+            "POST",
+            f"/api/v1/tasks/{task_id}/claim",
+            extra_headers=extra_headers,
+            idempotent=True,
+        )
         return Task.model_validate(response.json())
 
     async def release_task(self, task_id: UUID) -> Task:

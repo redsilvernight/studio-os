@@ -41,3 +41,8 @@ humaine — fichier et serveur alignés à l'acceptation).
 
 Clôture des sessions expirées (L2 l2-resume, tâche 44f4fe5f), curseur de
 sync (C2), bloc sync initial (C4).
+
+## Voir aussi
+
+- DEC-0160 : `claim_task` idempotent (no-op même machine) + `Idempotency-Key`,
+  préalable du caractère rejouable de `studio_start_work`.

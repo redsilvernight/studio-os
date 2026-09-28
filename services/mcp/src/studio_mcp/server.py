@@ -154,8 +154,14 @@ def create_server() -> MCPServer:
         description=(
             "Claim a task for the caller's machine (soft lock, sets status to "
             "in_progress). Requires a writer role. Fails with already_claimed if another "
-            "machine holds it."
+            "machine holds it; re-claiming a task this machine already holds while it is "
+            "still in_progress with the same agent is a no-op. Pass idempotency_key when "
+            "retrying a call that may have already succeeded — replaying the same "
+            "key+arguments returns the original claim instead of running it again "
+            "(never a duplicate); the same key with different arguments fails with "
+            "idempotency_key_payload_mismatch."
         ),
+        annotations=_IDEMPOTENT_WRITE,
     )
     server.add_tool(
         studio_release_task,
