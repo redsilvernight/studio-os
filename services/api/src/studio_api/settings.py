@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     transfer_project_quota_bytes: int = 100 * 1024**3
     multipart_abandon_after_days: int = 7
 
+    # Cross-process realtime fan-out (DEC-0156): the API listens for events
+    # committed by other processes (mcp, workers) and relays them over SSE.
+    realtime_listener_enabled: bool = True
+
     heartbeat_interval_seconds: int = 30
     heartbeat_offline_after_seconds: int = 90
 

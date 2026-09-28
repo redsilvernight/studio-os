@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import socket
+import sys
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
@@ -11,7 +12,7 @@ from datetime import UTC, datetime
 import pytest_asyncio
 import uvicorn
 from httpx import AsyncClient
-from sqlalchemy import delete
+from sqlalchemy import delete, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db import session as db_session
 from studio_api.db.models.agent import AgentModel
@@ -23,6 +24,7 @@ from studio_api.db.session import get_session_factory
 from studio_api.main import app
 from studio_api.services import projects as projects_service
 from studio_api.services import provisioning as provisioning_service
+from studio_api.services.event_listener import EventListener
 
 # The live-server fixtures below need the app's real (non-overridden)
 # `get_session` to point at the test database. Set at import time, before
@@ -474,6 +476,153 @@ async def test_stream_does_not_republish_an_idempotent_replay(
 
     assert body_b["event_id"] == str(event_b_id)
     assert seq_b > seq_a
+
+
+_EMIT_FROM_ANOTHER_PROCESS = """
+import asyncio, sys
+from studio_api.db.session import get_session_factory
+from studio_api.services import events as events_service
+from studio_contracts.events import EventCreate
+
+async def main() -> None:
+    async with get_session_factory()() as session:
+        event_in = EventCreate.model_validate_json(sys.argv[1])
+        event = await events_service.create_event(session, event_in)
+        print(event.seq)
+
+asyncio.run(main())
+"""
+
+
+async def _emit_from_another_process(
+    project_id: uuid.UUID, machine: MachineModel, event_id: uuid.UUID
+) -> int:
+    """Commits an event through `create_event` in a separate Python process,
+    like the `mcp` container does: its in-memory hub is not this server's."""
+    payload = {
+        **_event_payload(project_id, machine.owner_user_id, event_id),
+        "machine_id": str(machine.id),
+    }
+    proc = await asyncio.create_subprocess_exec(
+        sys.executable,
+        "-c",
+        _EMIT_FROM_ANOTHER_PROCESS,
+        json.dumps(payload),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await asyncio.wait_for(proc.communicate(), 60)
+    assert proc.returncode == 0, stderr.decode()
+    return int(stdout.decode().strip().splitlines()[-1])
+
+
+async def _live_listener() -> EventListener:
+    listener: EventListener = app.state.event_listener
+    await asyncio.wait_for(listener.connected.wait(), 10)
+    return listener
+
+
+async def test_stream_delivers_an_event_committed_by_another_process(
+    live_client: AsyncClient,
+    live_project_and_token: tuple[ProjectModel, MachineModel, str],
+) -> None:
+    project, machine_model, token = live_project_and_token
+    event_id = uuid.uuid4()
+    await _live_listener()
+
+    async with live_client.stream(
+        "GET",
+        "/api/v1/events/stream",
+        headers={"Authorization": f"Bearer {token}"},
+        params={"project": str(project.id)},
+    ) as connection:
+        assert connection.status_code == 200
+        seq = await _emit_from_another_process(project.id, machine_model, event_id)
+        seq_received, body = await asyncio.wait_for(
+            _read_one_sse_event(connection.aiter_lines()), 10
+        )
+
+    assert body["event_id"] == str(event_id)
+    assert seq_received == seq
+
+
+async def test_stream_ignores_an_idempotent_replay_from_another_process(
+    live_client: AsyncClient,
+    live_project_and_token: tuple[ProjectModel, MachineModel, str],
+) -> None:
+    project, machine_model, token = live_project_and_token
+    event_a_id = uuid.uuid4()
+    event_b_id = uuid.uuid4()
+    await _live_listener()
+
+    async with live_client.stream(
+        "GET",
+        "/api/v1/events/stream",
+        headers={"Authorization": f"Bearer {token}"},
+        params={"project": str(project.id)},
+    ) as connection:
+        assert connection.status_code == 200
+        lines = connection.aiter_lines()
+        seq_a = await _emit_from_another_process(project.id, machine_model, event_a_id)
+        _, body_a = await asyncio.wait_for(_read_one_sse_event(lines), 10)
+        assert body_a["event_id"] == str(event_a_id)
+
+        # The replay returns the stored row and notifies nobody: the next
+        # thing the subscriber sees is the genuinely new event.
+        assert await _emit_from_another_process(project.id, machine_model, event_a_id) == seq_a
+        await _emit_from_another_process(project.id, machine_model, event_b_id)
+        _, body_b = await asyncio.wait_for(_read_one_sse_event(lines), 10)
+
+    assert body_b["event_id"] == str(event_b_id)
+
+
+async def test_listener_catches_up_after_its_connection_is_cut(
+    live_client: AsyncClient,
+    live_project_and_token: tuple[ProjectModel, MachineModel, str],
+) -> None:
+    """An event committed while the listener is down, with no NOTIFY at all,
+    still reaches live subscribers once the listener reconnects."""
+    project, machine_model, token = live_project_and_token
+    event_id = uuid.uuid4()
+    listener = await _live_listener()
+    old_pid = listener.server_pid
+    listener.reconnect_delay_seconds = 1.0
+
+    async with live_client.stream(
+        "GET",
+        "/api/v1/events/stream",
+        headers={"Authorization": f"Bearer {token}"},
+        params={"project": str(project.id)},
+    ) as connection:
+        assert connection.status_code == 200
+        async with get_session_factory()() as session:
+            await session.execute(text("SELECT pg_terminate_backend(:pid)"), {"pid": old_pid})
+        await asyncio.wait_for(listener.disconnected.wait(), 10)
+
+        # Written straight to the table: no publish, no NOTIFY — only the
+        # reconnection catch-up can deliver it.
+        async with get_session_factory()() as session:
+            session.add(
+                EventModel(
+                    id=event_id,
+                    event_type="task.created",
+                    project_id=project.id,
+                    machine_id=machine_model.id,
+                    actor_type="user",
+                    actor_id=machine_model.owner_user_id,
+                    client_timestamp=datetime.now(UTC),
+                    server_timestamp=datetime.now(UTC),
+                    payload={"title": "Missed while disconnected"},
+                )
+            )
+            await session.commit()
+
+        _, body = await asyncio.wait_for(_read_one_sse_event(connection.aiter_lines()), 15)
+
+    assert body["event_id"] == str(event_id)
+    # The catch-up runs before the listener reports itself connected again.
+    await asyncio.wait_for(listener.connected.wait(), 10)
+    assert listener.server_pid is not None and listener.server_pid != old_pid
 
 
 async def test_stream_closes_at_once_when_the_owner_is_disabled(

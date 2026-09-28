@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
@@ -171,6 +175,26 @@ OPENAPI_TAG_DESCRIPTIONS: dict[str, str] = {
 }
 
 
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    from studio_api.services.event_listener import EventListener
+    from studio_api.settings import get_settings
+
+    settings = get_settings()
+    if not settings.realtime_listener_enabled:
+        yield
+        return
+    listener = EventListener(settings.database_url)
+    app.state.event_listener = listener
+    task = asyncio.create_task(listener.run())
+    try:
+        yield
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Studio OS API",
@@ -180,6 +204,7 @@ def create_app() -> FastAPI:
             {"name": name, "description": description}
             for name, description in OPENAPI_TAG_DESCRIPTIONS.items()
         ],
+        lifespan=_lifespan,
     )
 
     from studio_api.jwt_auth import is_weak_jwt_secret
