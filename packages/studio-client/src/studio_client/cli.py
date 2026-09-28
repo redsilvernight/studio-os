@@ -31,6 +31,7 @@ from studio_client.context import (
 from studio_client.errors import StudioApiError
 from studio_client.hooks import HARNESSES, deploy_hooks, detect_harnesses
 from studio_client.knowledge import GraphifyGraphProvider, ScopePolicy, VaultMemoryProvider
+from studio_client.opencode_plugin import deploy_plugin
 from studio_client.outbox import OutboxStore, connect, default_outbox_path
 from studio_client.outbox.legacy import main as legacy_outbox_main
 from studio_client.recording import (
@@ -143,13 +144,14 @@ def login(argv: Sequence[str] | None = None) -> int:
 
 
 def setup_hooks(argv: Sequence[str] | None = None) -> int:
-    """Deploy versioned session-start hooks (workflow W2b, DEC-0100): `agents
-    ensure` at every harness session start, so a fresh machine gets a stable
-    `agent_id` without manual wiring. Pure local command — no server, no
-    secret written (the template carries none; the machine token stays
-    keyring/env). Never edits user/global account configs: only Studio OS's
-    own hook files are written (DEC-0096 boundary); the one-line harness
-    registration is printed for the operator to paste."""
+    """Deploy versioned session-start hooks (workflow W2b, DEC-0100) plus the
+    OpenCode plugin: `agents ensure` at every harness session start, so a
+    fresh machine gets a stable `agent_id` without manual wiring. Pure local
+    command — no server, no secret written (the templates carry none; the
+    machine token stays keyring/env). Never edits user/global account
+    configs: only Studio OS's own hook/plugin files are written (DEC-0096
+    boundary); the one-line harness registration is printed for the operator
+    to paste."""
     parser = argparse.ArgumentParser(
         prog="studio-client setup-hooks",
         description="Deploy Studio OS session-start hooks for detected harnesses.",
@@ -181,6 +183,9 @@ def setup_hooks(argv: Sequence[str] | None = None) -> int:
         specs = [spec for spec in HARNESSES if spec.harness in installed]
         skipped = [spec.harness for spec in HARNESSES if spec.harness not in installed]
     result = deploy_hooks(home, specs, overwrite=args.overwrite, dry_run=args.dry_run)
+    if any(spec.harness == "opencode" for spec in specs):
+        plugin_result = deploy_plugin(home, overwrite=args.overwrite, dry_run=args.dry_run)
+        result.reports.extend(plugin_result.reports)
     hints = {spec.harness: spec.register_hint for spec in HARNESSES}
     if args.json:
         payload = result.to_dict()
