@@ -2,9 +2,9 @@
 id: DEC-0051
 title: 'Question ouverte n°4 (etape 8) : notifications derivees de la Review Queue,
   timeline sur les events, aucune entite Notification persistee'
-status: active
+status: superseded
 date: '2026-09-15'
-superseded_by: null
+superseded_by: DEC-0157
 source: docs/DECISIONS.md
 sync_hash: sha256:b267cef7fa297ca3add536dc867e25c2fa5940ee2eab795e3781cbcf686a7678
 ---
