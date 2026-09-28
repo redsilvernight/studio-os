@@ -64,7 +64,8 @@ async def test_overlapping_file_claim_conflicts(
     )
     conflict_events = [e for e in events_after.json() if e["event_type"] == "resource.conflict"]
     assert len(conflict_events) == 1
-    assert len(events_after.json()) == count_before + 1
+    # The second claim itself (resource.claimed) plus the conflict it raises.
+    assert len(events_after.json()) == count_before + 2
 
 
 async def test_folder_claim_conflicts_with_descendant_file_claim(
@@ -128,3 +129,66 @@ async def test_renew_and_release_claim(
     )
     released_claim = next(c for c in listing.json() if c["id"] == claim_id)
     assert released_claim["status"] == "released"
+
+
+async def test_claim_lifecycle_emits_resource_events(
+    client: AsyncClient, auth_headers: dict[str, str], project: ProjectModel
+) -> None:
+    async def resource_events() -> list[dict[str, object]]:
+        response = await client.get(
+            "/api/v1/events", headers=auth_headers, params={"project": str(project.id)}
+        )
+        return [e for e in response.json() if str(e["event_type"]).startswith("resource.")]
+
+    created = await client.post(
+        "/api/v1/claims",
+        headers=auth_headers,
+        json={
+            "project_id": str(project.id),
+            "resource_path": "art/hero.png",
+            "resource_type": "file",
+            "ttl_seconds": 60,
+        },
+    )
+    claim_id = created.json()["id"]
+    await client.post(f"/api/v1/claims/{claim_id}/renew", headers=auth_headers)
+    assert (
+        await client.delete(f"/api/v1/claims/{claim_id}", headers=auth_headers)
+    ).status_code == 204
+    # Releasing twice is harmless: no second resource.released.
+    assert (
+        await client.delete(f"/api/v1/claims/{claim_id}", headers=auth_headers)
+    ).status_code == 204
+
+    events = await resource_events()
+    types = [e["event_type"] for e in events]
+    assert types.count("resource.claimed") == 1
+    assert types.count("resource.renewed") == 1
+    assert types.count("resource.released") == 1
+    released = next(e for e in events if e["event_type"] == "resource.released")
+    payload = released["payload"]
+    assert isinstance(payload, dict)
+    assert payload["claim_id"] == claim_id
+    assert payload["resource_path"] == "art/hero.png"
+    assert payload["status"] == "released"
+    assert payload["previous_status"] == "active"
+
+
+async def test_idempotent_claim_replay_emits_claimed_once(
+    client: AsyncClient, auth_headers: dict[str, str], project: ProjectModel
+) -> None:
+    body = {
+        "project_id": str(project.id),
+        "resource_path": "audio/theme.ogg",
+        "resource_type": "file",
+        "ttl_seconds": 60,
+    }
+    headers = {**auth_headers, "Idempotency-Key": "claim-events-replay"}
+    first = await client.post("/api/v1/claims", headers=headers, json=body)
+    replay = await client.post("/api/v1/claims", headers=headers, json=body)
+    assert first.json()["id"] == replay.json()["id"]
+    events = await client.get(
+        "/api/v1/events", headers=auth_headers, params={"project": str(project.id)}
+    )
+    claimed = [e for e in events.json() if e["event_type"] == "resource.claimed"]
+    assert len(claimed) == 1
