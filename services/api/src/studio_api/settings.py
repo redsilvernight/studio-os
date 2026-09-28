@@ -32,6 +32,13 @@ class Settings(BaseSettings):
     heartbeat_interval_seconds: int = 30
     heartbeat_offline_after_seconds: int = 90
 
+    # Session presence (C1, DEC-0157): derived at read from last_activity_at,
+    # never stored, never a heartbeat. A session with no activity past the
+    # idle threshold reads `idle`; past the expire threshold it reads
+    # `expired` (effective closing is L2, l2-resume).
+    session_idle_after_seconds: int = 1800
+    session_expire_after_seconds: int = 28800
+
     # CORS / middleware
     cors_origins: str = ""
     request_id_header: str = "x-request-id"

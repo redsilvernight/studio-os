@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Header, Request, status
+from fastapi import APIRouter, Header, Request, Response, status
 from sqlalchemy import select
-from studio_contracts.auth import Agent, AgentCreate, Role
+from studio_contracts.auth import Agent, AgentCreate, AgentEnsureResult, Role
 
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.machine import MachineModel
@@ -79,3 +79,42 @@ async def register_agent(
         _create,
         status.HTTP_201_CREATED,
     )
+
+
+@router.post(
+    "/ensure",
+    response_model=AgentEnsureResult,
+    description=(
+        "Server-side `agents ensure` (AIB-I, additive): find this machine's "
+        "agent for `AgentCreate.stable_key` or register it, so a retried "
+        "session-start hook never registers a duplicate — even after the "
+        "idempotency table forgot the original call. `machine_id` is always "
+        "derived from the credential, never sent. Same machine + same key + "
+        "same metadata returns the existing agent (`created=false`, `200`); "
+        "same key + different metadata is `409 "
+        "idempotency_key_payload_mismatch`, never a silent second agent. "
+        "Without a `stable_key` this is a plain registration "
+        "(`created=true`, `201`). The `stable_key` itself is the replay key "
+        "(same pattern as `event_id` for `POST /events` and the natural key "
+        "of `PUT /projects/{id}/members/{user_id}`), so no `Idempotency-Key` "
+        "is needed here. Authorization: `ensure_can_write` — `readonly` -> "
+        "`403 forbidden`. Confers no permission."
+    ),
+    responses={
+        **RESP_401_UNAUTHORIZED,
+        **RESP_403_FORBIDDEN,
+        409: {
+            "description": "`idempotency_key_payload_mismatch`: same stable key, different body."
+        },
+    },
+)
+async def ensure_agent(
+    agent_in: AgentCreate,
+    response: Response,
+    session: DbSession,
+    principal: CurrentPrincipal,
+) -> AgentEnsureResult:
+    ensure_can_write(principal, "agent")
+    agent, created = await agents_service.ensure_agent(session, principal, agent_in)
+    response.status_code = status.HTTP_201_CREATED if created else status.HTTP_200_OK
+    return AgentEnsureResult(agent=Agent.model_validate(agent), created=created)

@@ -133,3 +133,28 @@ async def test_create_task_idempotency_key_payload_mismatch_is_rejected(
         str(project.id), "Different title", auth_ctx, idempotency_key="mcp-task-key-2"
     )
     assert result["error_code"] == "idempotency_key_payload_mismatch"
+
+
+async def test_claim_task_idempotency_key_replay_returns_original(
+    auth_ctx: FakeContext, project: ProjectModel
+) -> None:
+    """An MCP claim replay with the same key+arguments returns the original
+    claim instead of re-running it (DEC-0027)."""
+    created = await studio_create_task(str(project.id), "Replayable claim", auth_ctx)
+    first = await studio_claim_task(created["id"], auth_ctx, idempotency_key="mcp-claim-1")
+    second = await studio_claim_task(created["id"], auth_ctx, idempotency_key="mcp-claim-1")
+    assert second["id"] == first["id"]
+    assert second["version"] == first["version"]
+
+
+async def test_claim_task_replay_without_key_is_a_noop(
+    auth_ctx: FakeContext, project: ProjectModel, machine: tuple[MachineModel, str]
+) -> None:
+    """Same machine, same agent: a second claim changes nothing (no version
+    bump), even without a key."""
+    machine_model, _ = machine
+    created = await studio_create_task(str(project.id), "No-op claim", auth_ctx)
+    first = await studio_claim_task(created["id"], auth_ctx)
+    second = await studio_claim_task(created["id"], auth_ctx)
+    assert second["claimed_by_machine_id"] == str(machine_model.id)
+    assert second["version"] == first["version"]

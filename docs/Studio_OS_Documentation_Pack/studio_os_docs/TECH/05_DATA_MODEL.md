@@ -105,7 +105,12 @@ ex: "build-bot", "local-assistant"), `agent_profile`, `harness`, `provider`,
 `model` (str libres, nullables), + champs communs mutables. `agent_profile`,
 `harness`, `provider` et `model` sont des metadonnees d'observabilite
 additives (DEC-0043 amendee, UC-5) : chaines ouvertes jamais whitelistees,
-jamais lues par l'autorisation.
+jamais lues par l'autorisation. `stable_key` (AIB-I, additif, nullable) :
+cle stable locale posee par `agents ensure` (defaut `agents-ensure-{harness}`),
+contrainte unique `(machine_id, stable_key)` (migration Alembic reversible ;
+les NULL restent distincts, lignes existantes inchangees) — cle de recherche
+idempotente du demarrage de session, jamais entree d'autorisation, jamais
+confondue avec `AgentDefinition.stable_key` (parametre de resolution).
 
 ## Project
 `id`, `slug` (unique), `name`, `description` (nullable), `archived` (bool,
@@ -149,7 +154,10 @@ mutables.
 ## WorkSession
 `id`, `task_id` (FK Task), `machine_id` (FK Machine), `agent_id` (FK Agent,
 nullable), `started_at`, `ended_at` (nullable). Append-only : pas de
-`version`.
+`version`. `last_activity_at` (C1, additif, nullable, backfill =
+`started_at`, migration Alembic reversible) : ecrit par `touch_session`
+depuis les appels authentifies rattaches (pas de heartbeat) ; `status` et
+`expires_at` derives a la lecture, jamais stockes.
 
 ## Decision
 `id`, `readable_id` (unique, format `DEC-XXXX`), `project_id` (FK Project,

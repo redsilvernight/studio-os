@@ -120,6 +120,7 @@ PROBES: dict[str, tuple[Probe, ...]] = {
     "studio_get_sessions": (Probe({"task_id": "{task}"}),),
     "studio_get_teammate_activity": (Probe({"project_id": "{pid}"}),),
     "studio_start_session": (Probe({"task_id": "{task}"}),),
+    "studio_start_work": (Probe({"project_id": "{pid}", "agent_id": "{outsider_agent}"}),),
     "studio_end_session": (Probe({"session_id": "{session}"}),),
     "studio_log_ai_work": (
         Probe({"project_id": "{pid}", "summary": "x", "agent_id": "{outsider_agent}"}),

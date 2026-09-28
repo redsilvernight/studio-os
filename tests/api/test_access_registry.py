@@ -110,6 +110,9 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
         Probe("/api/v1/sessions", {"task_id": "{task}", "machine_id": "{outsider_machine}"}),
     ),
     ("PATCH", "/api/v1/sessions/{session_id}/end"): (Probe("/api/v1/sessions/{session}/end"),),
+    ("POST", "/api/v1/start-work"): (
+        Probe("/api/v1/start-work", {"project_id": "{pid}", "agent_id": "{outsider_agent}"}),
+    ),
     ("GET", "/api/v1/claims"): (
         Probe("/api/v1/claims?project_id={pid}"),
         Probe("/api/v1/claims", expect="filtered"),

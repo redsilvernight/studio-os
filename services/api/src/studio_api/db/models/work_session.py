@@ -20,3 +20,4 @@ class WorkSessionModel(UUIDPKMixin, Base):
     )
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    last_activity_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)

@@ -22,6 +22,7 @@ studio_get_sessions
 studio_get_teammate_activity
 studio_start_session
 studio_end_session
+studio_start_work
 studio_register_agent
 studio_log_ai_work
 studio_get_ai_work
@@ -33,6 +34,12 @@ studio_memory_search
 studio_memory_read
 studio_graph_query
 studio_emit_event
+
+### studio_start_work (L2, additif, DEC-0159)
+Demarrer/reprendre en un appel : claim idempotent + reprise ou creation de
+session + contexte borne (avec `task_id`) ; contexte + `candidates` sans
+claim (sans `task_id`, AIB-G). Meme contrat que `POST /start-work`
+(`TECH/02_API_CONTRACT.md` § Start work), `idempotency_key` optionnel.
 
 ## AI Library via MCP — inventaire (P8, DEC-0072)
 studio_resolve_agent

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
 from studio_mcp.tools.sessions import studio_end_session, studio_get_sessions, studio_start_session
@@ -52,3 +53,17 @@ async def test_start_session_idempotency_key_replay_starts_no_second_session(
 
     result = await studio_get_sessions(auth_ctx, task_id=task["id"])
     assert len(result["sessions"]) == 1
+
+
+async def test_get_sessions_filters_by_agent_and_open_state(
+    auth_ctx: FakeContext, project: ProjectModel, agent: AgentModel
+) -> None:
+    task = await studio_create_task(str(project.id), "Open filter task", auth_ctx)
+    started = await studio_start_session(task["id"], auth_ctx, agent_id=str(agent.id))
+    await studio_end_session(started["id"], auth_ctx)
+
+    still_open = await studio_get_sessions(auth_ctx, task_id=task["id"], open_only=True)
+    assert still_open["sessions"] == []
+
+    by_agent = await studio_get_sessions(auth_ctx, task_id=task["id"], agent_id=str(agent.id))
+    assert [s["id"] for s in by_agent["sessions"]] == [started["id"]]

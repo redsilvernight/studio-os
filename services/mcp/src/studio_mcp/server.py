@@ -45,6 +45,7 @@ from studio_mcp.tools.roadmaps import (
     studio_update_roadmap_step,
 )
 from studio_mcp.tools.sessions import studio_end_session, studio_get_sessions, studio_start_session
+from studio_mcp.tools.start_work import studio_start_work
 from studio_mcp.tools.tasks import (
     studio_claim_task,
     studio_create_task,
@@ -154,8 +155,14 @@ def create_server() -> MCPServer:
         description=(
             "Claim a task for the caller's machine (soft lock, sets status to "
             "in_progress). Requires a writer role. Fails with already_claimed if another "
-            "machine holds it."
+            "machine holds it; re-claiming a task this machine already holds while it is "
+            "still in_progress with the same agent is a no-op. Pass idempotency_key when "
+            "retrying a call that may have already succeeded — replaying the same "
+            "key+arguments returns the original claim instead of running it again "
+            "(never a duplicate); the same key with different arguments fails with "
+            "idempotency_key_payload_mismatch."
         ),
+        annotations=_IDEMPOTENT_WRITE,
     )
     server.add_tool(
         studio_release_task,
@@ -263,9 +270,30 @@ def create_server() -> MCPServer:
         annotations=_READ_ONLY,
     )
     server.add_tool(
+        studio_start_work,
+        name="studio_start_work",
+        description=(
+            "Start or resume work on a task in one call (project_id, agent_id UUID strings; "
+            "optional task_id, objective, agent_stable_key, files, limit, max_chars). With "
+            "task_id: claims the task (idempotent) + resumes or creates the agent's open "
+            "session on it + returns the scoped project context. Without task_id: the project "
+            "context plus candidate tasks (current-step linked first, then other unclaimed), "
+            "claiming nothing. agent_id must belong to the caller's machine (actor_not_owned "
+            "otherwise). Requires a writer role. Pass idempotency_key when retrying a call "
+            "that may have already succeeded — replaying the same key+arguments returns the "
+            "original result, never a duplicate claim nor a duplicate session; the same key "
+            "with different arguments fails with idempotency_key_payload_mismatch."
+        ),
+    )
+    server.add_tool(
         studio_get_sessions,
         name="studio_get_sessions",
-        description="List work sessions, optionally filtered by task_id (UUID string) — read-only.",
+        description=(
+            "List work sessions, optionally filtered by task_id (UUID string), by "
+            "agent_id (UUID string) and/or to open_only=true (never-ended sessions, the "
+            "live ones). Each session carries derived presence (status, expires_at)."
+            " Read-only."
+        ),
         annotations=_READ_ONLY,
     )
     server.add_tool(
@@ -303,7 +331,7 @@ def create_server() -> MCPServer:
         description=(
             "Register an agent provenance identity for the caller's own machine "
             "(display_name required; agent_kind, agent_profile, harness, provider, "
-            "model optional). machine_id is always derived from the authenticated "
+            "model, stable_key optional). machine_id is always derived from the authenticated "
             "machine, never supplied. Requires a writer role (read-only callers fail "
             "with forbidden). Registration confers no permission; it exists only to "
             "attribute AI work logs. Pass idempotency_key when retrying a call that "
