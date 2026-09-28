@@ -89,7 +89,11 @@ async def _ensure_task_project_access(
 
 
 async def list_sessions(
-    session: AsyncSession, principal: Principal, task_id: uuid.UUID | None = None
+    session: AsyncSession,
+    principal: Principal,
+    task_id: uuid.UUID | None = None,
+    agent_id: uuid.UUID | None = None,
+    open_only: bool = False,
 ) -> list[WorkSessionModel]:
     stmt = select(WorkSessionModel)
     if task_id is not None:
@@ -97,8 +101,39 @@ async def list_sessions(
         stmt = stmt.where(WorkSessionModel.task_id == task_id)
     elif (visible := project_visibility_clause(principal, TaskModel.project_id)) is not None:
         stmt = stmt.join(TaskModel, WorkSessionModel.task_id == TaskModel.id).where(visible)
+    if agent_id is not None:
+        stmt = stmt.where(WorkSessionModel.agent_id == agent_id)
+    if open_only:
+        stmt = stmt.where(WorkSessionModel.ended_at.is_(None))
     result = await session.execute(stmt)
     return list(result.scalars().all())
+
+
+async def _find_open_session(
+    session: AsyncSession,
+    task_id: uuid.UUID,
+    agent_id: uuid.UUID | None,
+    machine_id: uuid.UUID,
+) -> WorkSessionModel | None:
+    """The calling machine's open session (never ended) for this agent on
+    the task, newest first (AIB-H). Ownership mirrors `end_session`: a
+    session is that machine's live presence on the work, so another machine
+    never resumes it."""
+    stmt = (
+        select(WorkSessionModel)
+        .where(
+            WorkSessionModel.task_id == task_id,
+            WorkSessionModel.machine_id == machine_id,
+            WorkSessionModel.ended_at.is_(None),
+        )
+        .order_by(WorkSessionModel.started_at.desc())
+    )
+    if agent_id is None:
+        stmt = stmt.where(WorkSessionModel.agent_id.is_(None))
+    else:
+        stmt = stmt.where(WorkSessionModel.agent_id == agent_id)
+    result = await session.execute(stmt)
+    return result.scalars().first()
 
 
 async def authorize_start(
@@ -108,6 +143,55 @@ async def authorize_start(
     of the idempotency replay short-circuit (DEC-0036, DEC-0103 §12)."""
     await _ensure_task_project_access(session, principal, task_id, "write")
     ensure_can_write(principal, "session")
+
+
+async def resume_or_start_session(
+    session: AsyncSession,
+    principal: Principal,
+    session_in: WorkSessionCreate,
+    settings: Settings,
+) -> tuple[WorkSessionModel, bool]:
+    """Resume-or-create (AIB-H), the session half of `studio_start_work`:
+    the calling machine's open session for the same agent on the task is
+    resumed (touched, `resumed=True`); an open session whose derived
+    presence is `expired` is **closed first** (the effective closing C1
+    deferred to L2) and a fresh one created (`resumed=False`), as is the
+    case with no open session. An `ended` session is never reused. The
+    caller is authorized exactly like a start; closing emits `session.ended`
+    then the new one `session.started`. Returns `(session, resumed)`."""
+    await authorize_start(session, principal, session_in.task_id)
+    # Same ownership rule as `end_session`: a session is a machine's own
+    # presence, so it never resumes (nor closes) another machine's session.
+    ensure_machine_owned(principal, session_in.machine_id, "session", "resume")
+    now = datetime.now(UTC)
+    existing = await _find_open_session(
+        session, session_in.task_id, session_in.agent_id, session_in.machine_id
+    )
+    if existing is not None and (
+        derive_session_status(existing, settings) is not SessionStatus.EXPIRED
+    ):
+        existing.last_activity_at = now
+        await session.commit()
+        await session.refresh(existing)
+        return existing, True
+    if existing is not None:
+        existing.ended_at = now
+        existing.last_activity_at = now
+        await session.commit()
+        await session.refresh(existing)
+        await _emit_session_event(session, principal, existing, EventType.SESSION_ENDED)
+    work_session = WorkSessionModel(
+        task_id=session_in.task_id,
+        machine_id=session_in.machine_id,
+        agent_id=session_in.agent_id,
+        started_at=now,
+        last_activity_at=now,
+    )
+    session.add(work_session)
+    await session.commit()
+    await session.refresh(work_session)
+    await _emit_session_event(session, principal, work_session, EventType.SESSION_STARTED)
+    return work_session, False
 
 
 async def start_session(

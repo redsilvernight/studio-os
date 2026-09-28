@@ -258,7 +258,24 @@ public de bootstrap, pas de secret d'environnement dedie.
 ### Sessions
 - POST /sessions
 - PATCH /sessions/{id}/end
-- GET /sessions
+- GET /sessions — filtres optionnels `agent_id` (UUID) et `open=true`
+  (seulement les sessions jamais terminees, les vivantes), additif
+  (L2/AIB-H, DEC-0161).
+- Presence derivee a la lecture (C1, DEC-0157, additif) : chaque session
+  expose `last_activity_at` (derniere activite authentifiee rattachee a la
+  session — debut/fin aujourd'hui ; `start_work`, `sync`, emission
+  d'evenements, `ai_work` et `handoff` dans leurs etapes L2/L3/C2/C4),
+  `status` (`active|idle|expired|ended`, seuils configurables
+  `session_idle_after_seconds` / `session_expire_after_seconds`) et
+  `expires_at` (echeance lue `expired`, `null` si terminee). Jamais stockes,
+  jamais un heartbeat (meme patron que `status` machine depuis
+  `last_seen_at`).
+- Reprise et cloture des expirees (L2/AIB-H, DEC-0161) : la reprise d'une
+  session (`studio_start_work`) reprend la session ouverte de la meme
+  machine/agent sur la tache, ou la **clot** si sa presence derivee est
+  `expired` puis en cree une neuve ; une session `ended` n'est jamais
+  reutilisee. Aucune cloture sur un chemin de lecture (`GET` reste pur,
+  DEC-0080). Un client qui ignore ces regles n'observe aucun changement.
 
 ### Start work (L2, additif — spec sans implementation, voir tache 9dff9368)
 - POST /start-work (body `StartWorkRequest`, reponse `StartWorkResult`) +
@@ -281,16 +298,6 @@ public de bootstrap, pas de secret d'environnement dedie.
   seconde session), corps different = `409
   idempotency_key_payload_mismatch`. Un client qui n'appelle pas la route
   n'observe aucun changement.
-- Presence derivee a la lecture (C1, DEC-0157, additif) : chaque session
-  expose `last_activity_at` (derniere activite authentifiee rattachee a la
-  session — debut/fin aujourd'hui ; `start_work`, `sync`, emission
-  d'evenements, `ai_work` et `handoff` dans leurs etapes L2/L3/C2/C4),
-  `status` (`active|idle|expired|ended`, seuils configurables
-  `session_idle_after_seconds` / `session_expire_after_seconds`) et
-  `expires_at` (echeance lue `expired`, `null` si terminee). Jamais stockes,
-  jamais un heartbeat (meme patron que `status` machine depuis
-  `last_seen_at`) ; la cloture effective des expirees reste L2. Un client
-  qui ignore ces champs n'observe aucun changement.
 
 ### Claims
 - GET /claims

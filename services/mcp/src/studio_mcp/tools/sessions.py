@@ -34,8 +34,15 @@ def _compact_session(work_session: WorkSessionModel) -> dict[str, Any]:
     }
 
 
-async def studio_get_sessions(ctx: Context, task_id: str | None = None) -> dict[str, Any]:
-    """List work sessions, optionally filtered by task_id (UUID string)."""
+async def studio_get_sessions(
+    ctx: Context,
+    task_id: str | None = None,
+    agent_id: str | None = None,
+    open_only: bool = False,
+) -> dict[str, Any]:
+    """List work sessions, optionally filtered by task_id (UUID string), by
+    agent_id (UUID string) and/or to `open_only=true` (never-ended sessions,
+    the live ones)."""
 
     async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed_task_id = None
@@ -44,8 +51,18 @@ async def studio_get_sessions(ctx: Context, task_id: str | None = None) -> dict[
             if isinstance(parsed, dict):
                 return parsed
             parsed_task_id = parsed
+        parsed_agent_id = None
+        if agent_id is not None:
+            parsed = parse_uuid(agent_id, "agent_id")
+            if isinstance(parsed, dict):
+                return parsed
+            parsed_agent_id = parsed
         work_sessions = await sessions_service.list_sessions(
-            session, principal, task_id=parsed_task_id
+            session,
+            principal,
+            task_id=parsed_task_id,
+            agent_id=parsed_agent_id,
+            open_only=open_only,
         )
         return {"sessions": [_compact_session(s) for s in work_sessions]}
 
