@@ -52,6 +52,23 @@ async def test_claim_then_release_task(
     assert released["claimed_by_machine_id"] is None
 
 
+async def test_release_task_rejects_stale_expected_version(
+    auth_ctx: FakeContext, project: ProjectModel
+) -> None:
+    created = await studio_create_task(str(project.id), "Versioned release", auth_ctx)
+    claimed = await studio_claim_task(created["id"], auth_ctx)
+
+    stale = await studio_release_task(
+        created["id"], auth_ctx, expected_version=claimed["version"] - 1
+    )
+    assert stale["error_code"] == "version_conflict"
+
+    released = await studio_release_task(
+        created["id"], auth_ctx, expected_version=claimed["version"]
+    )
+    assert released["claimed_by_machine_id"] is None
+
+
 async def test_claim_task_conflicts_when_already_claimed(
     auth_ctx: FakeContext, project: ProjectModel, db_session: AsyncSession
 ) -> None:

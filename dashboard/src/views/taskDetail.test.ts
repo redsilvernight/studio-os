@@ -10,6 +10,7 @@ import { resetActorNames, setActorNames } from "../actorNames";
 import {
   aiWorkStatusLabel,
   aiWorkStatusTone,
+  canReleaseTask,
   releaseTaskConfirmText,
   sessionStateLabel,
   taskConflictNotice,
@@ -202,6 +203,28 @@ describe("prise en charge (claim/release machine)", () => {
     expect(text).toContain("détenteur ou à un administrateur");
     expect(text).not.toContain("<");
     resetActorNames();
+  });
+
+  it("libérer : détenteur ou admin seulement (indice UI, identité inconnue = actif)", () => {
+    const held = {
+      ...(baseTask as unknown as Record<string, unknown>),
+      claimed_by_machine_id: "abcdef12-3456",
+    } as never;
+    const me = { user_id: "u1", display_name: "Flo", email: "f@x", role: "developer", machine_id: "abcdef12-3456" };
+    expect(canReleaseTask(held, true, me)).toBe(true);
+    expect(canReleaseTask(held, true, { ...me, machine_id: "other" })).toBe(false);
+    expect(canReleaseTask(held, true, { ...me, machine_id: "other", role: "admin" })).toBe(true);
+    expect(canReleaseTask(held, true, null)).toBe(true);
+    expect(canReleaseTask(held, false, me)).toBe(false);
+    expect(canReleaseTask(baseTask, true, me)).toBe(false);
+
+    const other = taskDetailHtml(data({ task: held, canRelease: false }));
+    expect(other).not.toContain('id="task-head-release"');
+    expect(other).toContain("data-release disabled");
+    expect(other).toContain("ou un administrateur, peut la libérer");
+    const admin = taskDetailHtml(data({ task: held, canRelease: true }));
+    expect(admin).toContain('id="task-head-release"');
+    expect(admin).not.toContain("data-release disabled");
   });
 
   it("lecture seule : actions désactivées sans disparaître", () => {

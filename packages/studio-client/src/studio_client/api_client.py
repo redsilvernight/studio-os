@@ -303,8 +303,13 @@ class StudioApiClient:
         response = await self._request("POST", f"/api/v1/tasks/{task_id}/claim")
         return Task.model_validate(response.json())
 
-    async def release_task(self, task_id: UUID) -> Task:
-        response = await self._request("POST", f"/api/v1/tasks/{task_id}/release")
+    async def release_task(self, task_id: UUID, *, if_match_version: int | None = None) -> Task:
+        extra_headers = (
+            {"If-Match-Version": str(if_match_version)} if if_match_version is not None else None
+        )
+        response = await self._request(
+            "POST", f"/api/v1/tasks/{task_id}/release", extra_headers=extra_headers
+        )
         return Task.model_validate(response.json())
 
     async def list_sessions(self, *, task_id: UUID | None = None) -> list[WorkSession]:

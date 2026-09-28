@@ -153,13 +153,26 @@ async def claim_task(task_id: UUID, session: DbSession, principal: CurrentPrinci
     description=(
         "Release a task's claim. Only the machine holding the claim (or a "
         "privileged role) may release it; anyone else receives `403 "
-        "forbidden`."
+        "forbidden`. The `If-Match-Version` header is optional: when sent, a "
+        "stale version is rejected with the live server version."
     ),
-    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
+    responses={
+        **RESP_401_UNAUTHORIZED,
+        **RESP_403_FORBIDDEN,
+        **RESP_404_NOT_FOUND,
+        **RESP_409_VERSION_CONFLICT,
+    },
 )
-async def release_task(task_id: UUID, session: DbSession, principal: CurrentPrincipal) -> Task:
+async def release_task(
+    task_id: UUID,
+    session: DbSession,
+    principal: CurrentPrincipal,
+    if_match_version: int | None = Header(
+        default=None, alias="If-Match-Version", description=IF_MATCH_VERSION_DESCRIPTION
+    ),
+) -> Task:
     task = await tasks_service.get_task(session, task_id)
     if task is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
-    task = await tasks_service.release_task(session, principal, task)
+    task = await tasks_service.release_task(session, principal, task, if_match_version)
     return Task.model_validate(task)

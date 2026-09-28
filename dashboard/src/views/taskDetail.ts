@@ -32,10 +32,13 @@ import {
 import { taskClaimHint, taskStatusLabel, taskStatusTone } from "../taskStatus";
 import { agentLabel, agentRef, machineLabel, machineRef } from "../actorNames";
 import { describeError, esc, fmtTime, shortId } from "../ui";
+import { fetchIdentity, type AuthIdentity } from "../identityApi";
 
 export interface TaskDetailContext {
   client: StudioClient;
   authed: boolean;
+  /** Identité de l'appelant (`/auth/me`) ; `null` = inconnue, le serveur tranche. */
+  identity?: AuthIdentity | null;
 }
 
 export interface SessionRow {
@@ -131,7 +134,18 @@ export function releaseTaskConfirmText(task: Task): string {
   );
 }
 
-function claimSectionHtml(task: Task, authed: boolean): string {
+/**
+ * Indice UI (le serveur revérifie, DEC-0036) : seule la machine détentrice ou
+ * un administrateur peut libérer. Identité inconnue : bouton laissé actif.
+ */
+export function canReleaseTask(task: Task, authed: boolean, identity: AuthIdentity | null | undefined): boolean {
+  const holder = task.claimed_by_machine_id;
+  if (!authed || holder === null || holder === undefined || holder === "") return false;
+  if (identity === null || identity === undefined || typeof identity.machine_id !== "string") return true;
+  return identity.role === "admin" || identity.machine_id === holder;
+}
+
+function claimSectionHtml(task: Task, authed: boolean, canRelease: boolean): string {
   const held = task.claimed_by_machine_id !== null && task.claimed_by_machine_id !== undefined && task.claimed_by_machine_id !== "";
   const stateLine = held
     ? `<p>Prise par la machine ${machineRef(task.claimed_by_machine_id)}${task.claimed_by_agent_id ? ` · agent ${agentRef(task.claimed_by_agent_id)}` : ""}.</p>`
@@ -144,8 +158,12 @@ function claimSectionHtml(task: Task, authed: boolean): string {
     `ici, « prendre » désigne qui travaille sur la tâche, pas la réservation d'un fichier.</p>` +
     `<div class="tasks-footer">` +
     `<button class="ds-btn${held ? "" : " ds-btn--primary"}" type="button" data-claim${authed && !held ? "" : " disabled"}>Prendre cette tâche</button>` +
-    `<button class="ds-btn" type="button" data-release${authed && held ? "" : " disabled"}>Libérer la tâche</button>` +
-    `</div></section>`;
+    `<button class="ds-btn" type="button" data-release${canRelease ? "" : " disabled"}>Libérer la tâche</button>` +
+    `</div>` +
+    (authed && held && !canRelease
+      ? `<p class="ds-list-sub">Seule la machine qui a pris la tâche, ou un administrateur, peut la libérer.</p>`
+      : "") +
+    `</section>`;
 }
 
 function sessionsSectionHtml(sessions: SessionRow[] | null): string {
@@ -228,6 +246,8 @@ export interface TaskDetailData {
   notice: string;
   noticeTone?: "danger" | "info";
   authed: boolean;
+  /** Absent = détenue et connecté (comportement historique). */
+  canRelease?: boolean;
 }
 
 export function taskEditFormHtml(task: Task, authed: boolean): string {
@@ -255,11 +275,14 @@ export function taskEditFormHtml(task: Task, authed: boolean): string {
 export function taskDetailHtml(data: TaskDetailData): string {
   const { task } = data;
   const held = task.claimed_by_machine_id !== null && task.claimed_by_machine_id !== undefined && task.claimed_by_machine_id !== "";
+  const canRelease = data.canRelease ?? (data.authed && held);
   const subtitle = `${task.readable_id ? `${task.readable_id} · ` : ""}${taskStatusLabel(task.status)} · ${taskClaimHint(task)}`;
   const header = dsPageHeader(task.title, subtitle, [
     ...(data.authed
       ? held
-        ? [{ label: "Libérer", id: "task-head-release", variant: "secondary" as const }]
+        ? canRelease
+          ? [{ label: "Libérer", id: "task-head-release", variant: "secondary" as const }]
+          : []
         : [{ label: "Prendre", id: "task-head-take", variant: "primary" as const }]
       : []),
     { label: "Modifier", id: "task-head-edit", variant: "ghost" as const },
@@ -283,13 +306,17 @@ export function taskDetailHtml(data: TaskDetailData): string {
     data.taskClaims === null
       ? ""
       : `<p class="ds-list-sub">Réservations de ressources liées : ${data.taskClaims} — <a href="#/projects/${esc(task.project_id)}/claims">voir l'onglet Réservations du projet</a>.</p>`;
-  return `<div class="tasks task-detail">${header}${notice}${overview}${edit}${claimSectionHtml(task, data.authed)}` +
+  return `<div class="tasks task-detail">${header}${notice}${overview}${edit}${claimSectionHtml(task, data.authed, canRelease)}` +
     `<div data-msg class="ds-list-sub" role="status" aria-live="polite"></div>` +
     `${sessionsSectionHtml(data.sessions)}${aiWorkSectionHtml(data.worklogs)}${claimsLine}${techDetailsHtml(task)}</div>`;
 }
 
-export async function renderTaskDetail(root: HTMLElement, ctx: TaskDetailContext, taskId: string): Promise<void> {
+export async function renderTaskDetail(root: HTMLElement, baseCtx: TaskDetailContext, taskId: string): Promise<void> {
   root.innerHTML = taskDetailLoadingHtml(taskId);
+  const ctx: TaskDetailContext = {
+    ...baseCtx,
+    identity: baseCtx.identity ?? (baseCtx.authed ? await fetchIdentity(baseCtx.client) : null),
+  };
   let task: Task;
   try {
     task = await getTask(ctx.client, taskId);
@@ -319,7 +346,7 @@ export async function renderTaskDetail(root: HTMLElement, ctx: TaskDetailContext
 }
 
 function paint(root: HTMLElement, ctx: TaskDetailContext, data: TaskDetailData): void {
-  root.innerHTML = taskDetailHtml(data);
+  root.innerHTML = taskDetailHtml({ ...data, canRelease: canReleaseTask(data.task, data.authed, ctx.identity) });
   bind(root, ctx, data);
 }
 
@@ -452,7 +479,7 @@ async function doRelease(root: HTMLElement, ctx: TaskDetailContext, task: Task):
     button.disabled = true;
   }
   try {
-    await releaseTask(ctx.client, taskId);
+    await releaseTask(ctx.client, taskId, task.version);
     const data = await readComplements(root, ctx, taskId);
     paint(root, ctx, {
       ...data,
@@ -463,6 +490,21 @@ async function doRelease(root: HTMLElement, ctx: TaskDetailContext, task: Task):
   } catch (error) {
     for (const button of root.querySelectorAll<HTMLButtonElement>("[data-release], #task-head-release")) {
       button.disabled = false;
+    }
+    if (error instanceof ApiError && error.errorCode === "version_conflict") {
+      // La tâche a changé depuis la lecture (reprise, autre libération…) :
+      // on relit et on laisse l'utilisateur redécider, jamais de retry aveugle.
+      try {
+        const data = await readComplements(root, ctx, taskId);
+        paint(root, ctx, {
+          ...data,
+          notice: `Cette tâche a changé ailleurs (version ${data.task.version}) : rien n'a été libéré. Vérifiez son état puis relancez la libération si besoin.`,
+          authed: ctx.authed,
+        });
+      } catch {
+        // readComplements a déjà signalé l'échec du rechargement.
+      }
+      return;
     }
     setMsg(root, "Libération impossible.", describeError(error));
   }
