@@ -399,6 +399,38 @@ async def test_claim_task_and_release_task_hit_expected_paths() -> None:
     assert released.status == TaskStatus.CREATED
 
 
+async def test_claim_task_forwards_an_idempotency_key() -> None:
+    seen: dict[str, str] = {}
+    task_id = uuid4()
+    project_id = uuid4()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["key"] = request.headers.get("Idempotency-Key", "")
+        return httpx.Response(
+            200,
+            json={
+                "id": str(task_id),
+                "readable_id": None,
+                "project_id": str(project_id),
+                "title": "t",
+                "description": None,
+                "status": "in_progress",
+                "claimed_by_machine_id": None,
+                "claimed_by_agent_id": None,
+                "version": 1,
+                "created_at": "2026-09-13T00:00:00Z",
+                "updated_at": "2026-09-13T00:00:00Z",
+            },
+        )
+
+    async with StudioApiClient(
+        _config(), _token_store(), transport=httpx.MockTransport(handler)
+    ) as client:
+        await client.claim_task(task_id, idempotency_key="claim-key-1")
+
+    assert seen["key"] == "claim-key-1"
+
+
 async def test_start_session_propagates_idempotency_key() -> None:
     seen: dict[str, str] = {}
     session_id = uuid4()

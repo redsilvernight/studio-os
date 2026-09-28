@@ -242,7 +242,17 @@ public de bootstrap, pas de secret d'environnement dedie.
 - POST /tasks
 - GET /tasks/{id}
 - PATCH /tasks/{id}
-- POST /tasks/{id}/claim
+- POST /tasks/{id}/claim — claim idempotent (L2, additif/clarification,
+  DEC-0160) : reclamer une tache encore `in_progress`, deja tenue par la
+  meme machine avec le meme agent, est un no-op (aucun bump de `version`,
+  aucun evenement `task.started` duplique) — un appel rejoue reste donc sans
+  effet nouveau, sans cle. Une machine differente garde `409 already_claimed` ;
+  reclamer une tache liberee, bloquee ou terminee, ou avec un `agent_id`
+  different, est une (re)prise reelle (version + `task.started`). Accepte
+  `Idempotency-Key` (meme cle + meme corps = claim d'origine, corps
+  different = `409 idempotency_key_payload_mismatch`). Aucun changement de
+  champ, de code HTTP ni d'enveloppe d'evenement : pas de bump de version
+  contractuelle.
 - POST /tasks/{id}/release
 
 ### Sessions

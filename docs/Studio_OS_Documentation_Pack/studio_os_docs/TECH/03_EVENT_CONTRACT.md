@@ -110,8 +110,11 @@ SSE du projet : `task.created` (creation unitaire ; l'hydratation de Roadmap
 n'emet que `roadmap.hydrated`), `task.started` (claim), `task.updated`
 (release, ou update sans changement de statut), `task.started`/`task.blocked`/
 `task.completed` (update qui change le statut vers `in_progress`/`blocked`/
-`completed`). Un re-claim par la meme machine reemet `task.started`
-(`previous_status=in_progress`). Un refus (409, 403) n'emet rien. `actor_type="agent"` si
+`completed`). Un re-claim par la meme machine sur une tache encore
+`in_progress` avec le meme `agent_id` est un no-op : aucun evenement n'est
+reemis et la `version` ne bouge pas (idempotence de rejeu, DEC-0160 ; le
+re-claim d'une tache liberee, bloquee ou terminee reemet `task.started`).
+Un refus (409, 403) n'emet rien. `actor_type="agent"` si
 l'`agent_id` du claim (ou de la Task) est rattache a la machine appelante,
 sinon `user`. Cles `payload` documentees (ignorables) : `status`, `version`,
 `transition` (`created|claimed|released|updated`), `previous_status`.

@@ -129,6 +129,7 @@ def test_idempotency_and_event_id_discoverable(tools: list[Tool]) -> None:
     by_name = _by_name(tools)
     for name in (
         "studio_create_task",
+        "studio_claim_task",
         "studio_claim_resource",
         "studio_claim_resources",
         "studio_add_decision",

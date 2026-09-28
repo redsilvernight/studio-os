@@ -411,7 +411,7 @@ export interface paths {
         put?: never;
         /**
          * Claim Task
-         * @description Claim a task for the caller's machine (sets status to in_progress). Requires a writer role. Fails with `already_claimed` if another machine holds it.
+         * @description Claim a task for the caller's machine (sets status to in_progress). Requires a writer role. Fails with `already_claimed` if another machine holds it. Re-claiming a task this machine already holds while it is still `in_progress` with the same agent is a no-op (no version bump, no duplicate event), so a replayed call is safe even without an `Idempotency-Key`. Accepts `Idempotency-Key` for safe retries: the same key returns the original claim instead of re-running it.
          */
         post: operations["claim_task_api_v1_tasks__task_id__claim_post"];
         delete?: never;
@@ -7158,7 +7158,10 @@ export interface operations {
     claim_task_api_v1_tasks__task_id__claim_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 task_id: string;
             };
@@ -7221,7 +7224,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Another machine already holds this task's claim (soft lock). Release by its owner, or pick another task — claims warn, they never queue. */
+            /** @description Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7230,7 +7233,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": {
-                     *         "error_code": "already_claimed"
+                     *         "error_code": "idempotency_key_payload_mismatch"
                      *       }
                      *     }
                      */
