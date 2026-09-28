@@ -198,7 +198,7 @@ per project (`project` required, DEC-0018).
 | Refetch dispatch | `src/realtime.ts` JSON-parses each live message into an `EventEnvelope` (malformed frames are dropped, never thrown) and, debounced ~300ms, calls the **same** `render()` a manual navigation would — SSE is never a second source of truth (`store.ts`). |
 | Reviews → Review Queue | Overview's "Needs attention" panel now calls `GET /api/v1/review-queue` instead of client-filtering `GET /ai-work`, rendering all three kinds (`ai_work_review`/`decision_proposal`/`resource_conflict`) with a kind badge. DASH-5 adds Approve / Request changes for `ai_work_review` rows (`PATCH /ai-work/{id}`). |
 | Conflict banner | A live `resource.conflict` event shows a transient banner (resource path, from the event's own payload — no extra REST call) in the app shell, per the promise made in DASH-2. |
-| Live traffic caveat | Views wired to `task.*` (Kanban) will see near-zero live traffic until server-side `task.*` emission exists (question ouverte n°9, `ROADMAP_STEP8_BREAKDOWN.md`) — the wiring is correct and future-proof, just currently quiet. `resource.conflict` is the only claims-related event actually emitted today. |
+| Live traffic caveat | Views wired to `task.*` (Kanban) will see near-zero live traffic until server-side `task.*` emission exists (question ouverte n°9, `ROADMAP_STEP8_BREAKDOWN.md`) — the wiring is correct and future-proof, just currently quiet. Claims emit `resource.claimed`/`renewed`/`released` server-side too (`TECH/03_EVENT_CONTRACT.md`, « Emission serveur Claims »); only `resource.conflict` gets special handling (banner). |
 
 No new backend/contract changes — DASH-3 is pure client-side plumbing over
 the events stream that already existed (DASH-0) and the review-queue/timeline

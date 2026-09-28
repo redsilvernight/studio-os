@@ -77,9 +77,11 @@ def authorize_create(principal: Principal, project_id: uuid.UUID) -> None:
     ensure_can_write(principal, "task")
 
 
-async def _actor(
+async def event_actor(
     session: AsyncSession, principal: Principal, agent_id: uuid.UUID | None
 ) -> tuple[Literal["user", "agent"], uuid.UUID]:
+    """Actor of a server-emitted event: the declared agent when it is attached
+    to the calling machine, otherwise the machine's user."""
     if agent_id is not None:
         agent = await session.get(AgentModel, agent_id)
         if agent is not None and agent.machine_id == principal.machine.id:
@@ -97,7 +99,7 @@ async def _commit_with_event(
 ) -> TaskModel:
     """Commits the task write and its event atomically, then fans the event
     out to the SSE stream (TECH/03_EVENT_CONTRACT.md, emission serveur Tasks)."""
-    actor_type, actor_id = await _actor(session, principal, agent_id)
+    actor_type, actor_id = await event_actor(session, principal, agent_id)
     event = await events_service.stage_event(
         session,
         EventCreate(

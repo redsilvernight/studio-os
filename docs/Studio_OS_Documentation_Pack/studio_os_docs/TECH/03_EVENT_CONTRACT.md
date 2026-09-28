@@ -115,3 +115,17 @@ n'emet que `roadmap.hydrated`), `task.started` (claim), `task.updated`
 l'`agent_id` du claim (ou de la Task) est rattache a la machine appelante,
 sinon `user`. Cles `payload` documentees (ignorables) : `status`, `version`,
 `transition` (`created|claimed|released|updated`), `previous_status`.
+
+## Emission serveur Claims (additif)
+Les ecritures de ResourceClaim (HTTP et MCP, meme service) emettent leur
+evenement dans la meme transaction que l'etat (`stage_event`), diffuse apres
+commit : `resource.claimed` (creation ; un rejeu `Idempotency-Key` n'emet
+rien), `resource.renewed` (renouvellement ; renouveler une reservation deja
+liberee la laisse liberee, sans ecriture ni evenement), `resource.released` (liberation ;
+une seconde liberation d'une reservation deja liberee n'ecrit ni n'emet rien).
+`resource.conflict` reste emis en plus de `resource.claimed` lors d'un
+chevauchement. Un refus (403, 404) n'emet rien. `task_id` = celui de la
+reservation. `actor_type="agent"` si l'agent de la reservation est rattache a
+la machine appelante, sinon `user`. Cles `payload` documentees (ignorables) :
+`claim_id`, `resource_path`, `resource_type`, `status`,
+`claimed_by_machine_id`, `expires_at`, `previous_status` (sur `released`).
