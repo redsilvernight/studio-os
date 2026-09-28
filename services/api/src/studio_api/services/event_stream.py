@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 from dataclasses import dataclass
 from uuid import UUID
 
 from studio_contracts.events import EventEnvelope
 
 _QUEUE_MAXSIZE = 256
+
+NOTIFY_CHANNEL = "studio_events"
+"""PostgreSQL channel carrying the `seq` of each committed event (DEC-0156)."""
 
 _CLOSED = object()
 
@@ -51,6 +55,25 @@ StreamSignal = StreamEvent | AccessRevoked | UserRevalidation
 
 _subscribers: set[asyncio.Queue[object]] = set()
 
+_RECENT_SEQS_MAX = 4096
+"""How many published `seq` are remembered to drop the second copy of an
+event: this process publishes its own events right after commit, and the
+cross-process listener (DEC-0156) receives the same `seq` again."""
+
+_recent_seqs: deque[int] = deque()
+_recent_seq_set: set[int] = set()
+
+
+def already_published(seq: int) -> bool:
+    return seq in _recent_seq_set
+
+
+def _remember(seq: int) -> None:
+    _recent_seqs.append(seq)
+    _recent_seq_set.add(seq)
+    if len(_recent_seqs) > _RECENT_SEQS_MAX:
+        _recent_seq_set.discard(_recent_seqs.popleft())
+
 
 def subscribe() -> asyncio.Queue[object]:
     queue: asyncio.Queue[object] = asyncio.Queue(maxsize=_QUEUE_MAXSIZE)
@@ -63,10 +86,16 @@ def unsubscribe(queue: asyncio.Queue[object]) -> None:
 
 
 def publish(event: StreamSignal) -> None:
-    """In-process fan-out only (DEC-0018) — a single `api` replica, per
-    docker/docker-compose.yml. A subscriber too slow to drain its queue is
-    disconnected rather than blocking every other subscriber or growing
-    memory unbounded; it must reconnect and resume from its last `seq`."""
+    """In-process fan-out (DEC-0018); events committed by other processes
+    reach it through `event_listener` (DEC-0156). A `StreamEvent` whose
+    `seq` was already published is dropped. A subscriber too slow to drain
+    its queue is disconnected rather than blocking every other subscriber or
+    growing memory unbounded; it must reconnect and resume from its last
+    `seq`."""
+    if isinstance(event, StreamEvent):
+        if already_published(event.seq):
+            return
+        _remember(event.seq)
     for queue in list(_subscribers):
         try:
             queue.put_nowait(event)
