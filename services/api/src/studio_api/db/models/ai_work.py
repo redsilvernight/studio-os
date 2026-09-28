@@ -22,6 +22,9 @@ class AIWorkLogModel(UUIDPKMixin, Base):
     machine_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("machines.id"), default=None
     )
+    session_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("work_sessions.id"), default=None
+    )
     summary: Mapped[str]
     status: Mapped[str] = mapped_column(default="started")
     changed_files: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)

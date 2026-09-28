@@ -11,6 +11,7 @@ from studio_contracts.sessions import SessionStatus, WorkSessionCreate
 
 from studio_api.db.models.task import TaskModel
 from studio_api.db.models.work_session import WorkSessionModel
+from studio_api.services import claims as claims_service
 from studio_api.services import events as events_service
 from studio_api.services import tasks as tasks_service
 from studio_api.services.authz import (
@@ -229,6 +230,11 @@ async def end_session(
     await session.commit()
     await session.refresh(work_session)
     await _emit_session_event(session, principal, work_session, EventType.SESSION_ENDED)
+    # Release all claims for this task (L3 handoff minimal fallback)
+    if work_session.task_id is not None:
+        task = await tasks_service.get_task(session, work_session.task_id)
+        if task is not None:
+            await claims_service.release_task_claims_by_task(session, principal, task)
     return work_session
 
 

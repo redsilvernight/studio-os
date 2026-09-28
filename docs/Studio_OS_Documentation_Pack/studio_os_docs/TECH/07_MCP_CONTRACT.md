@@ -41,6 +41,14 @@ session + contexte borne (avec `task_id`) ; contexte + `candidates` sans
 claim (sans `task_id`, AIB-G). Meme contrat que `POST /start-work`
 (`TECH/02_API_CONTRACT.md` § Start work), `idempotency_key` optionnel.
 
+### studio_handoff (L3, additif, DEC-0162)
+Cloture en un appel : met a jour le statut de la tache (`expected_version`),
+libere tous les claims de la tache, journalise `ai_work` (si `agent_id` +
+`summary`), termine la session. Meme contrat que `POST /handoff`
+(`TECH/02_API_CONTRACT.md` § Handoff), `idempotency_key` optionnel.
+Reponse compacte : ids + statuts seulement. Repli minimal : `end_session`
+libere maintenant les claims de la tache automatiquement.
+
 ## AI Library via MCP — inventaire (P8, DEC-0072)
 studio_resolve_agent
 studio_discover_definitions
@@ -75,13 +83,14 @@ token (pas d'attaquant reseau).
 
 ## Etat reel (roadmap etape 5, DEC-0023, UC-3/DEC-0047, P8/DEC-0072)
 
-Le serveur VPS enregistre 47 outils (`services/mcp/src/studio_mcp/` : 29
+Le serveur VPS enregistre 48 outils (`services/mcp/src/studio_mcp/` : 29
 historiques + 5 AI Library P8, section ci-dessous, + `studio_prepare_context`,
 DEC-0080, section « Contexte projet borné », + 7 outils Roadmaps P4/P5,
 DEC-0087, section « Roadmaps et initialisation via MCP », +
 `studio_register_agent`, DEC-0101, section « Enregistrement d'Agent », +
 `studio_transition_roadmap`, section « Roadmaps et initialisation via MCP », +
-`studio_claim_resources`, pose par lot, section « Claims par lot » ci-dessous).
+`studio_claim_resources`, pose par lot, section « Claims par lot » ci-dessous,
++ `studio_handoff`, L3, section ci-dessus).
 Les 3 outils locaux read-only specifies ci-dessous (UC-3, exposition via
 MCP local par poste, DEC-0047) sont en place mais conditionnels au
 fichier de configuration du poste : `studio_memory_search`,

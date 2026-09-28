@@ -25,13 +25,15 @@ class AIWorkLog(ContractModel):
     """A work entry. `agent_profile`, `harness`, `provider` and `model` are
     optional additive observability metadata — open strings snapshotting the
     runtime that produced the work, never whitelisted, never an
-    authorization or capability input."""
+    authorization or capability input. `session_id` (L3) links the entry to
+    the work session that produced it for handoff traceability."""
 
     id: UUID
     task_id: UUID | None = None
     project_id: UUID
     agent_id: UUID
     machine_id: UUID | None = None
+    session_id: UUID | None = None
     summary: str
     status: AIWorkStatus = AIWorkStatus.STARTED
     changed_files: list[str] = []
@@ -48,12 +50,15 @@ class AIWorkLogCreate(IdempotentCreate):
     """`status`, `changed_files` and `tests_run` are optional additive
     fields so work already finished can be logged in one call: a terminal
     status sets `ended_at`. `approved`/`changes_requested` are never a valid
-    initial status (they only exit `review_requested`)."""
+    initial status (they only exit `review_requested`). `session_id` (L3)
+    links the entry to the work session that produced it for handoff
+    traceability."""
 
     task_id: UUID | None = None
     project_id: UUID
     agent_id: UUID
     machine_id: UUID | None = None
+    session_id: UUID | None = None
     summary: str
     status: AIWorkStatus = AIWorkStatus.STARTED
     changed_files: list[str] = []
@@ -69,3 +74,4 @@ class AIWorkLogUpdate(ContractModel):
     status: AIWorkStatus | None = None
     changed_files: list[str] | None = None
     tests_run: list[str] | None = None
+    session_id: UUID | None = None

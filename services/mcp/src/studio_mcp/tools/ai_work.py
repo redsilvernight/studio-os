@@ -19,6 +19,7 @@ def _compact_ai_work(work: AIWorkLogModel) -> dict[str, Any]:
         "project_id": str(work.project_id),
         "task_id": str(work.task_id) if work.task_id else None,
         "agent_id": str(work.agent_id),
+        "session_id": str(work.session_id) if work.session_id else None,
         "summary": work.summary,
         "status": work.status,
         "changed_files": work.changed_files,
@@ -62,18 +63,27 @@ async def studio_log_ai_work(
     ctx: Context,
     ai_work_id: str | None = None,
     task_id: str | None = None,
+    session_id: str | None = None,
     status: str | None = None,
     changed_files: list[str] | None = None,
     tests_run: list[str] | None = None,
+    idempotency_key: str | None = None,
 ) -> dict[str, Any]:
     """Log AI work: creates a new entry when `ai_work_id` is omitted, or
     updates the existing entry when given — one tool for the whole lifecycle,
     per TECH/07_MCP_CONTRACT.md. On creation, `status` (default `started`),
     `changed_files` and `tests_run` are honored, so finished work is logged
     in one call; `approved`/`changes_requested` are refused. On update,
-    `summary` replaces the stored one and only non-null fields change."""
+    `summary` replaces the stored one and only non-null fields change.
+    `session_id` (L3) links the entry to the work session for handoff
+    traceability. `idempotency_key` makes the call replay-safe (same key
+    returns the original result)."""
 
     async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
+        import json
+
+        from studio_api.services import idempotency as idempotency_service
+
         parsed_agent_id = parse_uuid(agent_id, "agent_id")
         if isinstance(parsed_agent_id, dict):
             return parsed_agent_id
@@ -89,6 +99,12 @@ async def studio_log_ai_work(
             existing = await session.get(AIWorkLogModel, parsed_id)
             if existing is None:
                 return {"error_code": "not_found", "message": f"ai_work {ai_work_id} not found"}
+            parsed_session_id = None
+            if session_id is not None:
+                parsed_sess = parse_uuid(session_id, "session_id")
+                if isinstance(parsed_sess, dict):
+                    return parsed_sess
+                parsed_session_id = parsed_sess
             work = await ai_work_service.update_ai_work(
                 session,
                 principal,
@@ -98,6 +114,7 @@ async def studio_log_ai_work(
                     status=parsed_status,
                     changed_files=changed_files,
                     tests_run=tests_run,
+                    session_id=parsed_session_id,
                 ),
             )
             return _compact_ai_work(work)
@@ -111,20 +128,51 @@ async def studio_log_ai_work(
             if isinstance(parsed, dict):
                 return parsed
             parsed_task_id = parsed
-        work = await ai_work_service.create_ai_work(
-            session,
-            principal,
-            AIWorkLogCreate(
-                task_id=parsed_task_id,
-                project_id=parsed_project_id,
-                agent_id=parsed_agent_id,
-                machine_id=principal.machine.id,
-                summary=summary,
-                status=parsed_status or AIWorkStatus.STARTED,
-                changed_files=changed_files or [],
-                tests_run=tests_run or [],
-            ),
-        )
-        return _compact_ai_work(work)
+        parsed_session_id = None
+        if session_id is not None:
+            parsed_sess = parse_uuid(session_id, "session_id")
+            if isinstance(parsed_sess, dict):
+                return parsed_sess
+            parsed_session_id = parsed_sess
+
+        async def _create() -> dict[str, Any]:
+            work = await ai_work_service.create_ai_work(
+                session,
+                principal,
+                AIWorkLogCreate(
+                    task_id=parsed_task_id,
+                    project_id=parsed_project_id,
+                    agent_id=parsed_agent_id,
+                    machine_id=principal.machine.id,
+                    session_id=parsed_session_id,
+                    summary=summary,
+                    status=parsed_status or AIWorkStatus.STARTED,
+                    changed_files=changed_files or [],
+                    tests_run=tests_run or [],
+                ),
+            )
+            return _compact_ai_work(work)
+
+        if idempotency_key is not None:
+            request_hash = idempotency_service.hash_request(
+                json.dumps(
+                    {
+                        "project_id": project_id,
+                        "summary": summary,
+                        "agent_id": agent_id,
+                        "task_id": task_id,
+                        "session_id": session_id,
+                        "status": status,
+                        "changed_files": changed_files,
+                        "tests_run": tests_run,
+                    },
+                    sort_keys=True,
+                ).encode()
+            )
+            return await idempotency_service.run_idempotent_dict(
+                session, idempotency_key, "MCP studio_log_ai_work", request_hash, _create
+            )
+
+        return await _create()
 
     return await run_tool(ctx, _handler)

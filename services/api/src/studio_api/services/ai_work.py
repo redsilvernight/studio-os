@@ -123,6 +123,7 @@ async def create_ai_work(
         project_id=work_in.project_id,
         agent_id=work_in.agent_id,
         machine_id=work_in.machine_id,
+        session_id=work_in.session_id,
         summary=work_in.summary,
         status=work_in.status.value,
         changed_files=work_in.changed_files,
@@ -211,6 +212,8 @@ async def update_ai_work(
         work.changed_files = work_in.changed_files
     if work_in.tests_run is not None:
         work.tests_run = work_in.tests_run
+    if work_in.session_id is not None:
+        work.session_id = work_in.session_id
     await session.commit()
     await session.refresh(work)
 

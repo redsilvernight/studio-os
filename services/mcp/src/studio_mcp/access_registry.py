@@ -42,6 +42,7 @@ MCP_ACCESS: Mapping[str, AccessClass] = {
     "studio_get_teammate_activity": _P,
     "studio_start_session": _P,
     "studio_start_work": _P,
+    "studio_handoff": _P,
     "studio_end_session": _P,
     "studio_log_ai_work": _P,
     "studio_get_ai_work": _P,

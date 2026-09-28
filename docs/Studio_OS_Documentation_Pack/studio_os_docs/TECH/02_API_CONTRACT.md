@@ -311,6 +311,27 @@ public de bootstrap, pas de secret d'environnement dedie.
   idempotency_key_payload_mismatch`. Un client qui n'appelle pas la route
   n'observe aucun changement.
 
+### Handoff (L3, additif, DEC-0162)
+- POST /handoff — `HandoffRequest` body, `HandoffResult` response + MCP
+  tool `studio_handoff` (same contract, `idempotency_key` optional,
+  DEC-0027/DEC-0046/DEC-0048 : no version in payload). Composite in one
+  call (composed services own their own commits: not a single database
+  transaction, a mid-call failure converges on retry), no new table, no
+  new event type: with `session_id`, updates the task status (with
+  `expected_version` for optimistic concurrency, like `update_task`),
+  releases all claims for the task, logs AI work (if `agent_id` +
+  `summary` provided), ends the session. The calling machine must own the
+  session (`409 forbidden` otherwise). `agent_id` must belong to the
+  caller's machine (`409 actor_not_owned`). Compact response: ids +
+  statuses only, never full descriptions. Always `200`: the response
+  fields tell a successful handoff; replaying the same `Idempotency-Key`
+  with the same body returns the original result — no second status
+  update, no duplicate claim releases, no duplicate AI work entry, no
+  second session end; a different body is `409
+  idempotency_key_payload_mismatch`. Minimal fallback: `end_session` now
+  releases the task's claims automatically (L3 fallback). A client that
+  does not call the route observes no change.
+
 ### Claims
 - GET /claims
 - POST /claims

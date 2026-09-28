@@ -20,6 +20,7 @@ from studio_api.routers import (
     decisions,
     events,
     github,
+    handoff,
     health,
     heartbeats,
     initialization,
@@ -241,6 +242,7 @@ def create_app() -> FastAPI:
     app.include_router(tasks.router)
     app.include_router(sessions.router)
     app.include_router(start_work.router)
+    app.include_router(handoff.router)
     app.include_router(claims.router)
     app.include_router(decisions.router)
     app.include_router(library.router)

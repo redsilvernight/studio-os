@@ -46,6 +46,7 @@ from studio_mcp.tools.roadmaps import (
 )
 from studio_mcp.tools.sessions import studio_end_session, studio_get_sessions, studio_start_session
 from studio_mcp.tools.start_work import studio_start_work
+from studio_mcp.tools.handoff import studio_handoff
 from studio_mcp.tools.tasks import (
     studio_claim_task,
     studio_create_task,
@@ -284,6 +285,21 @@ def create_server() -> MCPServer:
             "original result, never a duplicate claim nor a duplicate session; the same key "
             "with different arguments fails with idempotency_key_payload_mismatch."
         ),
+    )
+    server.add_tool(
+        studio_handoff,
+        name="studio_handoff",
+        description=(
+            "Close a work session in one call (L3 handoff). project_id, session_id (UUID "
+            "strings) and expected_version are required. task_status (e.g. completed, blocked) "
+            "optionally updates the task. agent_id + summary optionally logs an AI work entry "
+            "linked to the session. agent_id must belong to the caller's machine. Caller-generated "
+            "idempotency_key makes the call replay-safe: the same key returns the original result "
+            "instead of running the composite again — a duplicate call returns the original result "
+            "without a second status update, duplicate claim releases, duplicate AI work entry, or "
+            "second session end. Compact response: ids + statuses only. Requires a writer role."
+        ),
+        annotations=_IDEMPOTENT_WRITE,
     )
     server.add_tool(
         studio_get_sessions,

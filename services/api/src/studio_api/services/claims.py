@@ -11,6 +11,7 @@ from studio_contracts.claims import ResourceClaimCreate
 from studio_contracts.events import EventCreate, EventType
 
 from studio_api.db.models.claim import ResourceClaimModel
+from studio_api.db.models.task import TaskModel
 from studio_api.services import events as events_service
 from studio_api.services import tasks as tasks_service
 from studio_api.services.authz import (
@@ -193,3 +194,32 @@ async def get_claim(session: AsyncSession, claim_id: uuid.UUID) -> ResourceClaim
     if claim is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "claim not found")
     return claim
+
+
+async def release_task_claims_by_task(
+    session: AsyncSession, principal: Principal, task: TaskModel
+) -> list[ResourceClaimModel]:
+    """Release all active claims for a given task. Used by L3 handoff
+    fallback when a session ends. Idempotent: already-released claims
+    are skipped without error."""
+    ensure_project_access(principal, task.project_id, "write")
+    result = await session.execute(
+        select(ResourceClaimModel).where(
+            ResourceClaimModel.task_id == task.id,
+            ResourceClaimModel.status == "active",
+        )
+    )
+    claims = list(result.scalars().all())
+    released = []
+    for claim in claims:
+        # Ownership check per claim: only the holding machine can release
+        if claim.claimed_by_machine_id != principal.machine.id:
+            continue
+        claim.status = "released"
+        claim.released_at = datetime.now(UTC)
+        released.append(claim)
+    if released:
+        await session.commit()
+        for claim in released:
+            await session.refresh(claim)
+    return released
