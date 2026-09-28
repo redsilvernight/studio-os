@@ -1,8 +1,10 @@
-// Promotion of an already built Desktop artefact between the public release
-// lanes (DEC-0108): the same bytes validated on `beta` become `stable` by
-// rewriting the manifest and copying the installer unchanged, never by
-// rebuilding. A rebuild of the same tag produces different bytes and a
-// different SHA-256, so it can never be the promoted artefact.
+// Restoration of an already built Desktop artefact into its own public release
+// lane (DEC-0108, restricted by DEC-0162): an older artefact of `beta` or
+// `stable` is re-published on that same lane by rewriting the manifest and
+// copying the installer unchanged, never by rebuilding. Cross-lane promotion
+// is refused: Dev and Prod are distinct builds. A rebuild of the same tag
+// produces different bytes and a different SHA-256, so it can never be the
+// restored artefact.
 //
 //   node scripts/promote-channel.mjs --dir <downloaded src> --url-base <https url>
 //        [--to stable|beta] [--out <dir>] [--asset-name <file>]
@@ -71,6 +73,13 @@ export function verifyArtifact(dir, artifact, sourceFile) {
 /** The same artefact pointed at the target lane: manifest rewritten, bytes kept. */
 export function promoteManifest(source, { to, urlBase, assetName, apiUrl } = {}) {
   if (!LANES.includes(to)) throw new Error(`unknown target lane: ${to} (expected ${LANES.join(", ")})`);
+  // DEC-0162: Dev and Prod are distinct builds (identity, origins), so an
+  // artefact is only ever restored into the lane it was built for.
+  if (source.channel !== to) {
+    throw new Error(
+      `lane_mismatch: source artefact belongs to ${source.channel ?? "an unknown lane"}, target is ${to} (cross-lane promotion is forbidden by DEC-0162)`,
+    );
+  }
   const target = updaterTarget();
   const artifact = artifactOf(source, target);
   const origin = apiUrl ? new URL(apiUrl).origin : undefined;

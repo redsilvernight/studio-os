@@ -24,10 +24,11 @@ on:
 permissions:
   contents: read
 
-# A newer push to the same PR supersedes the running validation.
+# A newer push to the same PR, or to dev (only the integration tip matters),
+# supersedes the running validation; master and fix/** validate every push.
 concurrency:
   group: desktop-validate-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/dev' }}
 
 env:
   UV_LOCKED: "1"

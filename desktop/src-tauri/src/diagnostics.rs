@@ -175,6 +175,9 @@ pub struct Diagnostics {
     pub sidecar: SidecarReport,
     pub server_origin: Option<String>,
     pub updates_configured: bool,
+    /// Dev only: state of the packaged local server (Docker Compose).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub local_server: Option<crate::local_server::LocalServerReport>,
     pub locations: DataLocations,
 }
 
@@ -229,6 +232,7 @@ pub fn collect(
         },
         server_origin,
         updates_configured,
+        local_server: crate::local_server::report(),
         locations: DataLocations {
             daemon_data_dir: data.as_deref().map(display),
             logs_dir: data.as_deref().map(|d| display(&logs_dir(d))),

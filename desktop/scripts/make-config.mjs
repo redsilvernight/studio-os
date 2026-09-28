@@ -39,6 +39,7 @@ export function channelHooks(channel) {
 
 /** The frozen daemon folder, relative to src-tauri (so nothing absolute is written). */
 export const SIDECAR_RESOURCE = { "../.build/sidecar/dist/studio-daemon/": "sidecar/" };
+export const DEV_SERVER_RESOURCE = { "../.build/dev-server/": "dev-server/" };
 
 /**
  * `sidecar`: ship the frozen daemon as a resource folder (`<install>\sidecar\`).
@@ -56,7 +57,7 @@ export const SIDECAR_RESOURCE = { "../.build/sidecar/dist/studio-daemon/": "side
 export function overlay({ apiUrl, storageUrl, sidecar, installer = false, updater, channel = "prod", signing }) {
   const out = { app: { security: { csp: desktopCsp(apiUrl, storageUrl) } } };
   const bundle = {};
-  if (sidecar) bundle.resources = SIDECAR_RESOURCE;
+  if (sidecar) bundle.resources = { ...SIDECAR_RESOURCE };
   if (installer) bundle.active = true;
   const identity = CHANNELS[channel];
   if (identity === undefined) throw new Error(`unknown channel: ${channel}`);
@@ -65,6 +66,7 @@ export function overlay({ apiUrl, storageUrl, sidecar, installer = false, update
     out.identifier = identity.identifier;
     bundle.shortDescription = identity.productName;
     bundle.windows = { nsis: { installerHooks: `../.build/${CHANNEL_HOOKS_FILE}` } };
+    if (installer) bundle.resources = { ...(bundle.resources ?? {}), ...DEV_SERVER_RESOURCE };
   }
   if (updater) {
     const url = new URL(updater.endpoint);

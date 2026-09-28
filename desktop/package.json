@@ -23,7 +23,7 @@
     "test:promote": "node --test scripts/promote-channel.test.mjs",
     "test:production-gate": "node --test scripts/production-gate.test.mjs",
     "test:version": "node --test scripts/version.test.mjs",
-    "test:scripts": "node --test scripts/build-policy.test.mjs scripts/windows-signing.test.mjs scripts/release-artifacts.test.mjs scripts/update-manifest.test.mjs scripts/version.test.mjs scripts/promote-channel.test.mjs scripts/production-gate.test.mjs",
+    "test:scripts": "node --test scripts/build-policy.test.mjs scripts/windows-signing.test.mjs scripts/release-artifacts.test.mjs scripts/update-manifest.test.mjs scripts/version.test.mjs scripts/promote-channel.test.mjs scripts/production-gate.test.mjs scripts/stage-dev-server.test.mjs",
     "test:e2e": "node scripts/e2e.mjs",
     "test:e2e:shell": "node scripts/e2e-shell.mjs",
     "test:install": "node scripts/install-test.mjs",
