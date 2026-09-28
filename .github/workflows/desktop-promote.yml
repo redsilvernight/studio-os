@@ -1,27 +1,19 @@
-name: Desktop promote (beta to stable, no rebuild)
+name: Desktop restore channel artefact
 
-# Moves an already built, signed Desktop artefact from the beta lane to the
-# stable lane by rewriting `latest.json` and copying the installer and its bytes
-# unchanged (DEC-0108): a rebuild of the same tag is never the same artefact, so
-# promotion is a manifest change, never a new build. The installer's SHA-256 is
-# checked against the source manifest before anything is published, and the
-# source and target API origins must match (a stable feed must never point at a
-# dev API).
+# Restores an older immutable artefact into the same living channel. Cross-lane
+# beta/stable promotion is forbidden by DEC-0162 because Dev and Prod now carry
+# different application identities and server origins. The installer's SHA-256
+# is checked against the source manifest before anything is published.
 #
 # Triggers:
-#   - push to `deploy/flo-laptop`: the human "go stable" gesture, promotes the
-#     current beta artefact to stable;
-#   - workflow_dispatch: choose `from`/`to` lanes and, for a rollback (retour
-#     vers stable), a `source_tag` that still holds the wanted artefact (an
-#     immutable tag pre-release, e.g. `desktop-v0.1.0`).
+#   - workflow_dispatch only: choose one lane as both source and target, with a
+#     `source_tag` that still holds the wanted channel-specific artefact.
 #
 # The target lane's GitHub environment (`desktop-prod` / `desktop-dev`) supplies
 # STUDIO_DESKTOP_API_URL for the origin guard. The source release is never
 # modified.
 
 on:
-  push:
-    branches: ["deploy/flo-laptop"]
   workflow_dispatch:
     inputs:
       from:
@@ -30,12 +22,12 @@ on:
         options: [beta, stable]
         default: beta
       to:
-        description: "Target lane"
+        description: "Target lane (must equal source lane)"
         type: choice
         options: [stable, beta]
-        default: stable
+        default: beta
       source_tag:
-        description: "Release tag holding the artefact (default: the source lane release; use a desktop-vX.Y.Z tag to roll back)"
+        description: "Release tag holding the artefact (default: the source lane release; or an older tag of the same lane to roll back; cross-lane sources are refused)"
         type: string
         default: ""
 
@@ -50,11 +42,13 @@ jobs:
   promote:
     runs-on: windows-latest
     timeout-minutes: 15
-    environment: ${{ (inputs.to || 'stable') == 'beta' && 'desktop-dev' || 'desktop-prod' }}
+    environment: ${{ inputs.to == 'stable' && 'desktop-prod' || 'desktop-dev' }}
     env:
-      STUDIO_DESKTOP_API_URL: ${{ vars.STUDIO_DESKTOP_API_URL }}
-      PROMOTE_FROM: ${{ inputs.from || 'beta' }}
-      PROMOTE_TO: ${{ inputs.to || 'stable' }}
+      # Dev is always the packaged loopback server (DEC-0162); Prod reads its origin
+      # from the desktop-prod environment.
+      STUDIO_DESKTOP_API_URL: ${{ inputs.to == 'stable' && vars.STUDIO_DESKTOP_API_URL || 'http://127.0.0.1:8765' }}
+      PROMOTE_FROM: ${{ inputs.from }}
+      PROMOTE_TO: ${{ inputs.to }}
       PROMOTE_SOURCE_TAG: ${{ inputs.source_tag }}
     steps:
       - uses: actions/checkout@v5
@@ -65,10 +59,11 @@ jobs:
           function LaneChannel([string] $lane) { if ($lane -eq "beta") { "dev" } else { "prod" } }
           if ($env:PROMOTE_FROM -notin @("beta", "stable")) { "::error title=config::unknown source lane $env:PROMOTE_FROM"; exit 1 }
           if ($env:PROMOTE_TO -notin @("beta", "stable")) { "::error title=config::unknown target lane $env:PROMOTE_TO"; exit 1 }
+          if ($env:PROMOTE_FROM -ne $env:PROMOTE_TO) { "::error title=config::cross-lane promotion is forbidden by DEC-0162; restore an artefact into its original lane"; exit 1 }
           $source = if ($env:PROMOTE_SOURCE_TAG) { $env:PROMOTE_SOURCE_TAG } else { LaneTag $env:PROMOTE_FROM }
           "PROMOTE_SOURCE_TAG=$source" >> $env:GITHUB_ENV
           "PROMOTE_TARGET_TAG=$(LaneTag $env:PROMOTE_TO)" >> $env:GITHUB_ENV
-          "PROMOTE_ASSET=StudiOS-Setup-$(LaneChannel $env:PROMOTE_TO).exe" >> $env:GITHUB_ENV
+          "PROMOTE_CHANNEL=$(LaneChannel $env:PROMOTE_TO)" >> $env:GITHUB_ENV
           "Promote $env:PROMOTE_FROM -> $env:PROMOTE_TO from release $source" >> $env:GITHUB_STEP_SUMMARY
       - name: Download the source artefact (never rebuilt)
         env:
@@ -83,6 +78,8 @@ jobs:
           if (-not $file) { "::error title=config::release $env:PROMOTE_SOURCE_TAG carries no windows-x86_64 artefact"; exit 1 }
           gh release download $env:PROMOTE_SOURCE_TAG -p $file -D $src
           "PROMOTE_SRC=$src" >> $env:GITHUB_ENV
+          # Versioned name: the restored feed never points at bytes being replaced.
+          "PROMOTE_ASSET=StudiOS-Setup-$env:PROMOTE_CHANNEL-$($manifest.version).exe" >> $env:GITHUB_ENV
       - name: Promote the manifest (same bytes, fail closed on a rebuild)
         shell: pwsh
         working-directory: desktop
@@ -97,22 +94,25 @@ jobs:
           trap { "::error title=publish::$($_.Exception.Message)"; exit 1 }
           $tag = $env:PROMOTE_TARGET_TAG
           $asset = Join-Path $env:PROMOTE_SRC $env:PROMOTE_ASSET
+          $moving = Join-Path $env:RUNNER_TEMP "StudiOS-Setup-$env:PROMOTE_CHANNEL.exe"
+          Copy-Item $asset $moving
           $manifest = Join-Path $env:PROMOTE_SRC "latest.json"
           $version = (Get-Content $manifest | ConvertFrom-Json).version
           $short = "${{ github.sha }}".Substring(0, 7)
           $hash = (Get-FileHash $asset -Algorithm SHA256).Hash.ToLower()
           $label = if ($env:PROMOTE_TO -eq "beta") { "Beta" } else { "Stable" }
           $notes = @(
-            "Studi'OS Desktop $label $version, promoted from $env:PROMOTE_SOURCE_TAG by manifest (same artefact, no rebuild, DEC-0108).",
+            "Studi'OS Desktop $label $version, restored from $env:PROMOTE_SOURCE_TAG by manifest (same artefact, same lane, no rebuild, DEC-0108 / DEC-0162).",
             "",
             "API: $env:STUDIO_DESKTOP_API_URL",
             "SHA-256: $hash",
             "",
-            "Promotion $env:PROMOTE_FROM -> $env:PROMOTE_TO. This release is replaced by the next promotion of this lane."
+            "Restoration within $env:PROMOTE_TO. This release is replaced by the next build or restoration of this lane."
           ) -join "`n"
           function Invoke-Checked([string] $step, [scriptblock] $command) {
             $out = & $command 2>&1
             if ($LASTEXITCODE -ne 0) { "::error title=${step}::$(($out | Out-String).Trim() -replace "`r?`n", " ")"; exit 1 }
+            $out
           }
           $title = "Studi'OS Desktop $label $version ($short)"
           # @(...) keeps a one-element array: an `if` expression would unroll it to a
@@ -120,13 +120,17 @@ jobs:
           $flags = @(if ($env:PROMOTE_TO -eq "beta") { @("--prerelease", "--latest=false") } else { @("--latest") })
           # Never delete before publishing: a failed step must leave the previous
           # release downloadable. The tag is moved with git first, so a refusal
-          # stops here with git's own reason and nothing else changed.
-          Invoke-Checked "git push tag" { git push -q -f origin "${{ github.sha }}:refs/tags/$tag" }
+          # stops here with git's own reason and nothing else changed. The lease
+          # refuses the move if a channel build moved the tag meanwhile.
+          $remote = Invoke-Checked "git ls-remote" { git ls-remote origin "refs/tags/$tag" }
+          $expected = if ($remote) { ("$remote" -split "\s+")[0] } else { "" }
+          Invoke-Checked "git push tag" { git push -q "--force-with-lease=refs/tags/${tag}:$expected" origin "${{ github.sha }}:refs/tags/$tag" }
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) {
-            Invoke-Checked "gh release upload" { gh release upload $tag @($asset, $manifest) --clobber }
+            # Versioned installer, then the feed naming it, then the moving name.
+            foreach ($file in @($asset, $manifest, $moving)) { Invoke-Checked "gh release upload" { gh release upload $tag $file --clobber } }
             Invoke-Checked "gh release edit" { gh release edit $tag --title $title --notes $notes @flags }
           } else {
-            Invoke-Checked "gh release create" { gh release create $tag @($asset, $manifest) --verify-tag --title $title --notes $notes @flags }
+            Invoke-Checked "gh release create" { gh release create $tag @($asset, $manifest, $moving) --verify-tag --title $title --notes $notes @flags }
           }
           "Published $tag $version ($hash)" >> $env:GITHUB_STEP_SUMMARY

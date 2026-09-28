@@ -65,6 +65,11 @@ await runOrFail(node, [viteCli(), "build", "--outDir", dashboardOut, "--emptyOut
   env: { VITE_STUDIO_API_URL: apiUrl },
 });
 
+if (installer && channel === "dev") {
+  console.log("\n▶ Local Dev server resources");
+  await runOrFail(node, [join(desktopDir, "scripts", "stage-dev-server.mjs")]);
+}
+
 const cfg = [join(desktopDir, "scripts", "make-config.mjs"), "--api-url", apiUrl, "--channel", channel];
 if (storageUrl) cfg.push("--storage-url", storageUrl);
 if (sidecar) cfg.push("--sidecar");

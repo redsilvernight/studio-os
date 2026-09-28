@@ -5,13 +5,22 @@ use crate::sidecar::SidecarState;
 use serde::Serialize;
 use serde_json::{json, Value};
 
-pub const PRODUCT: &str = "Studi'OS Desktop";
+pub const PRODUCT_PROD: &str = "Studi'OS Desktop";
+pub const PRODUCT_DEV: &str = "Studi'OS Desktop Dev";
 pub const DESKTOP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// `dev` builds install side by side with the stable one: own identifier,
 /// install folder and daemon data (`STUDIO_DESKTOP_CHANNEL` at build time).
 pub fn dev_channel() -> bool {
     option_env!("STUDIO_DESKTOP_CHANNEL") == Some("dev")
+}
+
+pub fn product() -> &'static str {
+    if dev_channel() {
+        PRODUCT_DEV
+    } else {
+        PRODUCT_PROD
+    }
 }
 
 /// What the Desktop really speaks in P2: daemon status and identity view.
@@ -103,7 +112,7 @@ pub fn peer_info() -> Value {
 
 pub fn desktop_info(sidecar: SidecarState) -> DesktopInfo {
     DesktopInfo {
-        product: PRODUCT,
+        product: product(),
         desktop_version: DESKTOP_VERSION,
         mode: "desktop",
         protocol: PROTOCOL,

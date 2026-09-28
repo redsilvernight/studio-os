@@ -22,14 +22,26 @@ pub struct ShellState {
     pub store: Option<SettingsStore>,
     /// The origin that was added to the CSP when this process started.
     pub applied_origin: Option<String>,
+    fixed_origin: Option<String>,
     picker_open: AtomicBool,
 }
 
 impl ShellState {
+    #[cfg(test)]
     pub fn new(store: Option<SettingsStore>, applied_origin: Option<String>) -> Self {
         Self {
             store,
             applied_origin,
+            fixed_origin: None,
+            picker_open: AtomicBool::new(false),
+        }
+    }
+
+    pub fn fixed(store: Option<SettingsStore>, origin: Option<String>) -> Self {
+        Self {
+            store,
+            applied_origin: origin.clone(),
+            fixed_origin: origin,
             picker_open: AtomicBool::new(false),
         }
     }
@@ -65,6 +77,13 @@ pub struct ServerOriginState {
 }
 
 fn origin_state(state: &ShellState) -> ServerOriginState {
+    if let Some(fixed) = &state.fixed_origin {
+        return ServerOriginState {
+            configured: Some(fixed.clone()),
+            applied: Some(fixed.clone()),
+            restart_required: false,
+        };
+    }
     let configured = state.store.as_ref().and_then(SettingsStore::load);
     let restart_required = configured != state.applied_origin;
     ServerOriginState {
@@ -82,6 +101,12 @@ pub fn get_server_origin(
 ) -> Result<ServerOriginState, ShellError> {
     if !caller_is_trusted(&window, &dev) {
         return Err(untrusted());
+    }
+    if state.fixed_origin.is_some() {
+        return Err(shell_error(
+            "origin_managed_by_channel",
+            "This release channel has a fixed server address.",
+        ));
     }
     Ok(origin_state(&state))
 }
@@ -401,6 +426,21 @@ mod tests {
                 configured: None,
                 applied: None,
                 restart_required: false
+            }
+        );
+    }
+
+    #[test]
+    fn a_channel_origin_ignores_an_older_persisted_override() {
+        let (_, store) = state_with("fixed", None);
+        store.save(Some("https://old.example.com")).unwrap();
+        let state = ShellState::fixed(Some(store), Some("http://127.0.0.1:8765".to_owned()));
+        assert_eq!(
+            origin_state(&state),
+            ServerOriginState {
+                configured: Some("http://127.0.0.1:8765".to_owned()),
+                applied: Some("http://127.0.0.1:8765".to_owned()),
+                restart_required: false,
             }
         );
     }

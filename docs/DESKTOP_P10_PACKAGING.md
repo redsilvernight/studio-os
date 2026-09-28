@@ -129,9 +129,11 @@ donc un artefact reconstruit ne peut jamais être promu. Le manifeste porte un
 champ additif `api_origin` (origine API bakée au build) et la promotion refuse
 (`api_origin_mismatch`) de déplacer un artefact entre deux voies dont les
 origines diffèrent — un feed stable ne doit jamais pointer vers une API de dev.
-Le déclenchement vit dans `desktop-promote.yml` (push sur `deploy/flo-laptop` ou
-`workflow_dispatch`) ; `desktop-channels.yml` ne construit plus que la voie beta
-(`dev` → `desktop-dev`).
+Depuis DEC-0162 (qui supersède DEC-0137), cette promotion croisée est refusée :
+Dev et Prod sont deux builds distincts. `promote-channel.mjs` n'accepte plus qu'une
+restauration dans la voie d'origine du manifeste (`lane_mismatch` sinon, y compris
+pour un manifeste sans `channel`), déclenchée uniquement par `workflow_dispatch`
+dans `desktop-promote.yml` (voir § 15).
 
 ## 9. Signatures
 
@@ -185,7 +187,9 @@ des entrées PATH absolues hors dossier courant (anti-détournement).
 Depuis le Dashboard (Application) : ouvrir le dossier des journaux, exporter des diagnostics
 expurgés (versions Desktop/sidecar, état daemon/serveur, composants optionnels, emplacement des
 données), vérifier les mises à jour. L'export ne contient ni jeton, ni mot de passe, ni clé
-(vérifié par test). Commandes typées ajoutées à la surface fermée du shell : `get_diagnostics`,
+(vérifié par test). Sur Dev, les diagnostics portent aussi `local_server`
+(`not_started|starting|ready|failed`, raison de l'échec Docker Compose et chemin de
+`server.log`). Commandes typées ajoutées à la surface fermée du shell : `get_diagnostics`,
 `export_diagnostics`, `open_data_folder`, `check_for_update`, `install_update`.
 
 ## 13. Chaîne d'approvisionnement
@@ -222,7 +226,7 @@ Scripts :
 | `npm run test:e2e:shell` | Shell réel : navigation, pont, panneau diagnostics |
 | `npm run test:e2e` | Gate complète contre une pile jetable |
 | `npm run test:rust` | Allowlist, sidecar, updater, diagnostics |
-| `npm run test:scripts` | Scripts de release : politique de build, signature Windows, artefacts/provenance, manifeste d'update, version, **promotion beta→stable sans rebuild** (hash/taille refusés, origine API, rollback) |
+| `npm run test:scripts` | Scripts de release : politique de build, signature Windows, artefacts/provenance, manifeste d'update, version, **restauration même canal sans rebuild** (promotion croisée, hash/taille refusés, origine API, rollback) |
 | `uv run pytest tests/client/test_data_format.py` | Marqueur de format et migrations |
 
 Le test d'installation utilise un `APPDATA` redirigé : il ne touche ni les données ni les
@@ -270,26 +274,39 @@ Procédure de release (par tag, sans étape locale — B5) :
    seulement avec certificat), `test:install`, `SHA256SUMS.txt` + `provenance.json` —
    puis le **publie** en pré-release GitHub du tag (`--prerelease --latest=false`) :
    aucune étape locale. Un `workflow_dispatch` ne fait que construire le candidat privé,
-   sans publier. La promotion beta→stable passe par le manifeste `latest.json`, jamais
-   par un rebuild (DEC-0108).
+   sans publier. Aucun artefact n'est promu d'un canal à l'autre (DEC-0162) ; une
+   restauration dans le même canal passe par le manifeste, jamais par un rebuild.
 
-Canaux non signés (DEC-0129, DEC-0137) : la voie beta est construite par
-`desktop-channels.yml` — chaque push touchant le Desktop sur `dev` remplace la
-release `desktop-dev` (pre-release, `--channel dev`) — et la voie stable est une
-**promotion** de cet artefact par `desktop-promote.yml`, jamais un rebuild.
-Promotion : push sur `deploy/flo-laptop` (geste « go stable »), ou
-`workflow_dispatch` (`from`/`to`, et `source_tag` pour un retour vers stable à
-partir d'une pré-release de tag immuable `desktop-vX.Y.Z`). Le script vérifie le
-SHA-256/taille contre le manifeste source et refuse une origine API différente,
-puis publie le même installeur et un `latest.json` réécrit sur `desktop-prod`
-(`--latest`) ou `desktop-dev` (`--prerelease --latest=false`). Les origines
-API/stockage viennent des variables `STUDIO_DESKTOP_API_URL` /
-`STUDIO_DESKTOP_STORAGE_URL` des environnements GitHub `desktop-prod` et
-`desktop-dev` : elles doivent coïncider pour qu'une promotion beta→stable soit
-acceptée (un seul VPS). Le canal Dev s'installe à côté de Prod : identifiant
-`dev.studio-os.desktop-dev`, produit « Studio OS Desktop Dev », données
+Canaux non signés (DEC-0129, DEC-0162) : `desktop-channels.yml` construit deux
+artefacts réels. Un push sur `dev` remplace `desktop-dev` (pre-release,
+`--channel dev`) ; un push sur `deploy/flo-laptop` remplace `desktop-prod`
+(`--latest`, `--channel prod`). Toute autre branche, y compris en lancement
+manuel, est ignorée. La publication reste non destructive : le tag est déplacé
+avant l'édition de la release, avec `--force-with-lease` (une course avec une
+restauration échoue explicitement), et l'ancienne release reste disponible si
+l'opération échoue. Le feed désigne un installeur versionné
+(`StudiOS-Setup-<canal>-<version>.exe`) téléversé avant `latest.json`, puis le nom
+mobile `StudiOS-Setup-<canal>.exe` : un updater ne lit jamais un feed dont les
+octets ne sont pas encore publiés. Seuls l'installeur courant et le précédent
+restent versionnés. `desktop-promote.yml` ne sert plus qu'à restaurer un
+artefact immuable dans son canal d'origine et refuse toute promotion croisée.
+
+Prod reçoit les origines API/stockage HTTPS de l'environnement GitHub
+`desktop-prod`. Dev utilise `http://127.0.0.1:8765` pour API/MCP/dashboard et
+`http://127.0.0.1:8766` pour MinIO. Son installeur embarque un snapshot borné des
+Dockerfiles et sources serveur ; au démarrage, Tauri lance de façon idempotente
+le projet Compose `studio-os-desktop-dev`, applique les migrations puis attend
+les healthchecks. L'origine compilée est verrouillée par canal ; un override
+utilisateur conservé par une ancienne version est ignoré. Les volumes persistent
+entre mises à jour. Docker Desktop est
+requis uniquement pour Dev et les ports restent liés au loopback.
+
+Le canal Dev s'installe à côté de Prod : identifiant
+`dev.studio-os.desktop-dev`, produit « Studi'OS Desktop Dev », données
 `%APPDATA%\StudioOS-Dev` (`STUDIO_CLIENT_CHANNEL=dev` transmis au daemon),
-serveur MCP `studio-os-dev` dans les configurations des outils.
+serveur MCP `studio-os-dev` dans les configurations des outils. Les e-mails de
+validation de l'instance locale sont écrits sous
+`%APPDATA%\StudioOS-Dev\server\mail`.
 
 Depuis B3, le workflow génère `SHA256SUMS.txt` (GNU `sha256sum -c`) et
 `provenance.json` (`studio.release-provenance/v1` : commit, tag, dirty,

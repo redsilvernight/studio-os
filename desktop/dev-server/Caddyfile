@@ -1,0 +1,27 @@
+{
+	auto_https off
+}
+
+:80 {
+	route /api/* {
+		reverse_proxy api:8000
+	}
+
+	route /openapi.json {
+		reverse_proxy api:8000
+	}
+
+	route /healthz {
+		reverse_proxy api:8000
+	}
+
+	route /version {
+		reverse_proxy api:8000
+	}
+
+	route /mcp* {
+		reverse_proxy mcp:8100
+	}
+
+	reverse_proxy dashboard:80
+}

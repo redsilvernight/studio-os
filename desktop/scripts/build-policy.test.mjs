@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { allowInsecureOrigin, DEFAULT_API_URL, validateBuildApiUrl } from "./lib.mjs";
 
 const hooksPath = join(dirname(fileURLToPath(import.meta.url)), "..", "src-tauri", "installer", "hooks.nsh");
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 test("the product default remains the loopback development server", () => {
   assert.equal(DEFAULT_API_URL, "http://127.0.0.1:8000");
@@ -93,6 +94,13 @@ test("the prod channel keeps the base identity so installs upgrade in place", as
   assert.equal(out.bundle.windows, undefined);
 });
 
+test("bundle product names carry no ASCII quote, which breaks the NSIS template", async () => {
+  const { CHANNELS } = await import("./lib.mjs");
+  for (const { productName } of Object.values(CHANNELS)) {
+    assert.doesNotMatch(productName, /['"]/);
+  }
+});
+
 test("the dev channel installs side by side with its own identity and data", async () => {
   const { channelHooks, CHANNEL_HOOKS_FILE, overlay } = await import("./make-config.mjs");
   const { CHANNELS } = await import("./lib.mjs");
@@ -101,6 +109,7 @@ test("the dev channel installs side by side with its own identity and data", asy
   assert.equal(out.productName, CHANNELS.dev.productName);
   assert.notEqual(out.identifier, CHANNELS.prod.identifier);
   assert.equal(out.bundle.windows.nsis.installerHooks, `../.build/${CHANNEL_HOOKS_FILE}`);
+  assert.deepEqual(out.bundle.resources["../.build/dev-server/"], "dev-server/");
   const hooks = channelHooks("dev");
   assert.match(hooks, /^!define STUDIO_DATA_DIR "StudioOS-Dev"\n!include ".+\\installer\\hooks\.nsh"\n$/);
   assert.throws(() => overlay({ apiUrl: "https://a.example", channel: "staging" }), /unknown channel/);
@@ -115,4 +124,28 @@ test("signing merges into bundle.windows without dropping the channel nsis block
   const out = overlay({ apiUrl: "https://a.example", installer: true, channel: "dev", signing });
   assert.equal(out.bundle.windows.certificateThumbprint, "A1B2C3D4E5F60718293A4B5C6D7E8F9012345678");
   assert.match(out.bundle.windows.nsis.installerHooks, /installer-hooks\.nsh$/);
+});
+
+test("GitHub builds each living channel from its own branch", () => {
+  const workflow = readFileSync(join(repoRoot, ".github", "workflows", "desktop-channels.yml"), "utf8");
+  assert.match(workflow, /branches: \[dev, deploy\/flo-laptop\]/);
+  assert.match(workflow, /STUDIO_DESKTOP_CHANNEL:.*github\.ref_name == 'dev'.*'dev'.*'prod'/);
+  assert.match(workflow, /http:\/\/127\.0\.0\.1:8765/);
+  assert.match(workflow, /desktop-\$channel/);
+  // Any other ref (a manual run included) never builds a channel.
+  assert.match(workflow, /if: github\.ref == 'refs\/heads\/dev' \|\| github\.ref == 'refs\/heads\/deploy\/flo-laptop'/);
+  assert.doesNotMatch(workflow, /inputs\.channel/);
+  // The release itself is never deleted (only stale versioned assets are pruned).
+  assert.doesNotMatch(workflow, /gh release delete(?!-asset)/);
+  assert.match(workflow, /--force-with-lease=refs\/tags\//);
+  assert.doesNotMatch(workflow, /git push -q -f/);
+});
+
+test("GitHub refuses to promote an artefact across Dev and Prod", () => {
+  const workflow = readFileSync(join(repoRoot, ".github", "workflows", "desktop-promote.yml"), "utf8");
+  assert.doesNotMatch(workflow, /^\s+push:/m);
+  assert.match(workflow, /PROMOTE_FROM -ne \$env:PROMOTE_TO/);
+  assert.match(workflow, /cross-lane promotion is forbidden by DEC-0162/);
+  assert.match(workflow, /--force-with-lease=refs\/tags\//);
+  assert.doesNotMatch(workflow, /git push -q -f/);
 });
