@@ -345,8 +345,15 @@ test.describe("UI-5 détail tâche", () => {
     await expect(view).toContainText("Informations techniques");
     await expect(view).not.toContainText("Claim for my machine");
     await page.screenshot({ path: `${SHOTS}/tache-detail-1280.png` });
-    // Libérer : POST release, statut conservé, message explicite.
+    // Libérer : confirmation nommant la machine détentrice, POST release,
+    // statut conservé, message explicite.
+    let confirmMessage = "";
+    page.once("dialog", (dialog) => {
+      confirmMessage = dialog.message();
+      void dialog.accept();
+    });
     await view.locator("[data-release]").click();
+    await expect.poll(() => confirmMessage).toContain("prise par la machine");
     await expect(view.locator(".ds-notice--info")).toContainText("Le statut reste inchangé");
     expect(csp).toEqual([]);
     expect(fatal).toEqual([]);

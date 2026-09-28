@@ -234,7 +234,8 @@ test.describe("UI-16 erreurs, confirmations, formulaires", () => {
       void dialog.dismiss();
     });
     await view.locator("[data-release]").click();
-    expect(message).toContain("Libérer cette réservation ?");
+    expect(message).toContain("Libérer la réservation « ");
+    expect(message).toContain("détenue par la machine");
     expect(captured.claimReleases).toEqual([]);
     page.once("dialog", (dialog) => void dialog.accept());
     await view.locator("[data-release]").click();
