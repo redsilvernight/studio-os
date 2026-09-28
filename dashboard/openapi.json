@@ -1590,7 +1590,7 @@
      "tasks"
     ],
     "summary": "Claim Task",
-    "description": "Claim a task for the caller's machine (sets status to in_progress). Requires a writer role. Fails with `already_claimed` if another machine holds it.",
+    "description": "Claim a task for the caller's machine (sets status to in_progress). Requires a writer role. Fails with `already_claimed` if another machine holds it. Re-claiming a task this machine already holds while it is still `in_progress` with the same agent is a no-op (no version bump, no duplicate event), so a replayed call is safe even without an `Idempotency-Key`. Accepts `Idempotency-Key` for safe retries: the same key returns the original claim instead of re-running it.",
     "operationId": "claim_task_api_v1_tasks__task_id__claim_post",
     "security": [
      {
@@ -1607,6 +1607,24 @@
        "format": "uuid",
        "title": "Task Id"
       }
+     },
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
      }
     ],
     "responses": {
@@ -1655,12 +1673,12 @@
       }
      },
      "409": {
-      "description": "Another machine already holds this task's claim (soft lock). Release by its owner, or pick another task \u2014 claims warn, they never queue.",
+      "description": "Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
       "content": {
        "application/json": {
         "example": {
          "detail": {
-          "error_code": "already_claimed"
+          "error_code": "idempotency_key_payload_mismatch"
          }
         }
        }
@@ -1799,7 +1817,7 @@
      "sessions"
     ],
     "summary": "List Sessions",
-    "description": "List work sessions, optionally filtered by task, restricted to sessions whose task belongs to an accessible project. A task of an inaccessible project answers `403 forbidden`.",
+    "description": "List work sessions, optionally filtered by task, agent and/or open state, restricted to sessions whose task belongs to an accessible project. A task of an inaccessible project answers `403 forbidden`. `open=true` returns only sessions never ended (the live ones). Each session carries derived presence (C1): `status` (`active|idle|expired|ended`) and `expires_at`, computed from `last_activity_at` at read time.",
     "operationId": "list_sessions_api_v1_sessions_get",
     "security": [
      {
@@ -1822,6 +1840,33 @@
         }
        ],
        "title": "Task Id"
+      }
+     },
+     {
+      "name": "agent_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Agent Id"
+      }
+     },
+     {
+      "name": "open",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "boolean",
+       "default": false,
+       "title": "Open"
       }
      }
     ],
@@ -2044,6 +2089,119 @@
        "application/json": {
         "example": {
          "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/start-work": {
+   "post": {
+    "tags": [
+     "start-work"
+    ],
+    "summary": "Start Work",
+    "description": "Start or resume work on a task in one call. Requires a writer role. With `task_id`: claim the task for the caller's machine (idempotent) + resume or create the agent's open session on it + the scoped project context. Without `task_id`: the project context plus the candidate tasks (current-step linked tasks first, then other unclaimed tasks), claiming nothing. `agent_id` must belong to the caller's machine (`409 actor_not_owned`). Always `200`: the response fields (`resumed`, `candidates`) tell a resumed session from a new one, so the status never varies under replay. Accepts `Idempotency-Key`: the same key returns the original result instead of claiming or starting again.",
+    "operationId": "start_work_api_v1_start_work_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/StartWorkRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/StartWorkResult"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "idempotency_key_payload_mismatch"
+         }
         }
        }
       }
@@ -4943,6 +5101,80 @@
       }
      }
     }
+   }
+  },
+  "/api/v1/agents/ensure": {
+   "post": {
+    "tags": [
+     "agents"
+    ],
+    "summary": "Ensure Agent",
+    "description": "Server-side `agents ensure` (AIB-I, additive): find this machine's agent for `AgentCreate.stable_key` or register it, so a retried session-start hook never registers a duplicate \u2014 even after the idempotency table forgot the original call. `machine_id` is always derived from the credential, never sent. Same machine + same key + same metadata returns the existing agent (`created=false`, `200`); same key + different metadata is `409 idempotency_key_payload_mismatch`, never a silent second agent. Without a `stable_key` this is a plain registration (`created=true`, `201`). The `stable_key` itself is the replay key (same pattern as `event_id` for `POST /events` and the natural key of `PUT /projects/{id}/members/{user_id}`), so no `Idempotency-Key` is needed here. Authorization: `ensure_can_write` \u2014 `readonly` -> `403 forbidden`. Confers no permission.",
+    "operationId": "ensure_agent_api_v1_agents_ensure_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AgentCreate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AgentEnsureResult"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "`idempotency_key_payload_mismatch`: same stable key, different body."
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ]
    }
   },
   "/api/v1/ai-work": {
@@ -11699,6 +11931,74 @@
  },
  "components": {
   "schemas": {
+   "AIWorkItem": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "status": {
+      "type": "string",
+      "title": "Status"
+     },
+     "summary": {
+      "type": "string",
+      "title": "Summary"
+     },
+     "truncated": {
+      "type": "boolean",
+      "title": "Truncated",
+      "default": false
+     },
+     "changed_files": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Changed Files",
+      "default": []
+     },
+     "tests_run": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Tests Run",
+      "default": []
+     },
+     "started_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Started At"
+     },
+     "ended_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ended At"
+     },
+     "why": {
+      "$ref": "#/components/schemas/Why"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "status",
+     "summary",
+     "started_at",
+     "why"
+    ],
+    "title": "AIWorkItem",
+    "description": "One AI work entry relevant to the objective (P2.3): the handoff resume\npacket. `truncated` covers the summary as well as the capped file/test\nlists \u2014 anything cut is counted, never silently dropped, via\n`additional_available` / `omitted_for_budget`."
+   },
    "AIWorkLog": {
     "properties": {
      "id": {
@@ -12062,6 +12362,20 @@
     "title": "AccountStatus",
     "description": "Derived, never stored: `disabled` when `disabled_at` is set, else\n`pending` while `email_verified_at` is null, else `active`. Only an\n`active` account gets a principal; the state is orthogonal to project\naccess."
    },
+   "ActiveWork": {
+    "properties": {
+     "claims": {
+      "items": {
+       "$ref": "#/components/schemas/ClaimItem"
+      },
+      "type": "array",
+      "title": "Claims",
+      "default": []
+     }
+    },
+    "type": "object",
+    "title": "ActiveWork"
+   },
    "Agent": {
     "properties": {
      "created_at": {
@@ -12146,6 +12460,17 @@
        }
       ],
       "title": "Model"
+     },
+     "stable_key": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stable Key"
      }
     },
     "additionalProperties": false,
@@ -12159,7 +12484,7 @@
      "agent_kind"
     ],
     "title": "Agent",
-    "description": "Provenance identity attached to one machine: who did the work, for\naudit and attribution. Never an authorization input \u2014 permissions come\nfrom the machine owner's role alone. `agent_profile`, `harness`,\n`provider` and `model` are optional additive observability metadata:\nopen strings, never whitelisted, never a capability or compatibility\ncondition, never read to make a decision."
+    "description": "Provenance identity attached to one machine: who did the work, for\naudit and attribution. Never an authorization input \u2014 permissions come\nfrom the machine owner's role alone. `agent_profile`, `harness`,\n`provider` and `model` are optional additive observability metadata:\nopen strings, never whitelisted, never a capability or compatibility\ncondition, never read to make a decision. `stable_key` (AIB-I, additive)\nis the local stable key set by `agents ensure` (default\n`agents-ensure-{harness}`), unique per owning machine: the idempotent\nlookup key for session-start, never an authorization input, and never\n`AgentDefinition.stable_key` (a resolution parameter, not an identity)."
    },
    "AgentCreate": {
     "properties": {
@@ -12215,6 +12540,17 @@
        }
       ],
       "title": "Model"
+     },
+     "stable_key": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stable Key"
      }
     },
     "additionalProperties": false,
@@ -12223,7 +12559,26 @@
      "display_name"
     ],
     "title": "AgentCreate",
-    "description": "Public registration of a provenance identity: `machine_id` is always\nderived from the authenticated machine, never client-supplied.\n`display_name` and `agent_kind` are free-form metadata \u2014 never\nauthorization inputs, never the canonical identity (the\nserver-generated `Agent.id` is). `agent_profile`, `harness`, `provider`\nand `model` are optional open-string observability metadata: any value\nis accepted, unknown values are never rejected, and none of them is ever\nrequired."
+    "description": "Public registration of a provenance identity: `machine_id` is always\nderived from the authenticated machine, never client-supplied.\n`display_name` and `agent_kind` are free-form metadata \u2014 never\nauthorization inputs, never the canonical identity (the\nserver-generated `Agent.id` is). `agent_profile`, `harness`, `provider`\nand `model` are optional open-string observability metadata: any value\nis accepted, unknown values are never rejected, and none of them is ever\nrequired. `stable_key` (AIB-I, additive, optional) is the local stable\nkey for `POST /agents/ensure`: same machine + same key returns the\nexisting agent, same key + different metadata is `409\nidempotency_key_payload_mismatch`. Never `AgentDefinition.stable_key`."
+   },
+   "AgentEnsureResult": {
+    "properties": {
+     "agent": {
+      "$ref": "#/components/schemas/Agent"
+     },
+     "created": {
+      "type": "boolean",
+      "title": "Created"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "agent",
+     "created"
+    ],
+    "title": "AgentEnsureResult",
+    "description": "Result of `POST /agents/ensure` (AIB-I, additive): the caller's own\nmachine's agent for `stable_key`, plus whether this call created it."
    },
    "AgentResolutionRequest": {
     "properties": {
@@ -12573,6 +12928,63 @@
     ],
     "title": "ChangePasswordRequest"
    },
+   "ClaimItem": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "resource_path": {
+      "type": "string",
+      "title": "Resource Path"
+     },
+     "resource_type": {
+      "type": "string",
+      "title": "Resource Type"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "claimed_by_machine_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Claimed By Machine Id"
+     },
+     "claimed_by_self": {
+      "type": "boolean",
+      "title": "Claimed By Self"
+     },
+     "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Expires At"
+     },
+     "why": {
+      "$ref": "#/components/schemas/Why"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "resource_path",
+     "resource_type",
+     "claimed_by_machine_id",
+     "claimed_by_self",
+     "expires_at",
+     "why"
+    ],
+    "title": "ClaimItem"
+   },
    "ClaimStatus": {
     "type": "string",
     "enum": [
@@ -12582,6 +12994,60 @@
     ],
     "title": "ClaimStatus",
     "description": "A claim past `expires_at` is not active regardless of stored status.\nA claim is a soft lock: it warns, it never blocks a Git operation or a\nfile write."
+   },
+   "ContextLimits": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "ContextStep": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "title": "Key"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "state": {
+      "$ref": "#/components/schemas/StepState"
+     },
+     "available": {
+      "type": "boolean",
+      "title": "Available"
+     },
+     "waiting_on": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Waiting On"
+     },
+     "acceptance_criteria": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Acceptance Criteria"
+     },
+     "linked_task_ids": {
+      "items": {
+       "type": "string",
+       "format": "uuid"
+      },
+      "type": "array",
+      "title": "Linked Task Ids"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "key",
+     "title",
+     "state",
+     "available"
+    ],
+    "title": "ContextStep"
    },
    "Decision": {
     "properties": {
@@ -12712,6 +13178,61 @@
      "proposed_by_id"
     ],
     "title": "DecisionCreate"
+   },
+   "DecisionItem": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "readable_id": {
+      "type": "string",
+      "title": "Readable Id"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "status": {
+      "type": "string",
+      "title": "Status"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "body": {
+      "type": "string",
+      "title": "Body"
+     },
+     "truncated": {
+      "type": "boolean",
+      "title": "Truncated",
+      "default": false
+     },
+     "why": {
+      "$ref": "#/components/schemas/Why"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "readable_id",
+     "title",
+     "status",
+     "body",
+     "why"
+    ],
+    "title": "DecisionItem"
    },
    "DecisionStatus": {
     "type": "string",
@@ -14112,6 +14633,67 @@
     "title": "LibraryDeprecate",
     "description": "Deprecation replaces deletion: flips `status`, keeps\nhistory and `active_version`. Same optimistic-concurrency guard."
    },
+   "LibraryItem": {
+    "properties": {
+     "kind": {
+      "type": "string",
+      "enum": [
+       "rule",
+       "skill"
+      ],
+      "title": "Kind"
+     },
+     "stable_key": {
+      "type": "string",
+      "title": "Stable Key"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "scope": {
+      "type": "string",
+      "title": "Scope"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "version_origin": {
+      "type": "string",
+      "title": "Version Origin"
+     },
+     "text": {
+      "type": "string",
+      "title": "Text"
+     },
+     "truncated": {
+      "type": "boolean",
+      "title": "Truncated",
+      "default": false
+     },
+     "why": {
+      "$ref": "#/components/schemas/Why"
+     },
+     "agent_applies": {
+      "type": "boolean",
+      "title": "Agent Applies",
+      "default": false
+     }
+    },
+    "type": "object",
+    "required": [
+     "kind",
+     "stable_key",
+     "title",
+     "scope",
+     "version",
+     "version_origin",
+     "text",
+     "why"
+    ],
+    "title": "LibraryItem"
+   },
    "LibraryKind": {
     "type": "string",
     "enum": [
@@ -14897,6 +15479,10 @@
     "type": "object",
     "title": "PhaseUpdate"
    },
+   "PreparedContext": {
+    "additionalProperties": true,
+    "type": "object"
+   },
    "PreservedReference": {
     "properties": {
      "resource_id": {
@@ -15336,6 +15922,46 @@
     ],
     "title": "ProjectMember",
     "description": "A User's access to a project: granted or removed, never\nmodified \u2014 hence no `version`. `granted_by_user_id` is null only for the\nmigration backfill. `user_display_name` and `user_email` are read-only\nconveniences resolved from the member's User."
+   },
+   "ProjectRef": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "slug": {
+      "type": "string",
+      "title": "Slug"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "truncated": {
+      "type": "boolean",
+      "title": "Truncated",
+      "default": false
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "slug",
+     "name"
+    ],
+    "title": "ProjectRef"
    },
    "ProjectState": {
     "properties": {
@@ -16918,6 +17544,107 @@
     "title": "RoadmapImport",
     "description": "Create a `draft` from a full document (import, AI proposal, project\ninitialization). `submit=True` also moves it to `proposed` in the same\natomic operation (the proposal flow). Never creates Tasks."
    },
+   "RoadmapItem": {
+    "properties": {
+     "roadmap_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Roadmap Id"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "progress": {
+      "$ref": "#/components/schemas/Progress"
+     },
+     "current_phase_key": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Current Phase Key"
+     },
+     "current_step": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/RoadmapStepItem"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "upcoming_steps": {
+      "items": {
+       "$ref": "#/components/schemas/ContextStep"
+      },
+      "type": "array",
+      "maxItems": 5,
+      "title": "Upcoming Steps"
+     },
+     "blocking": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Blocking"
+     },
+     "draft_pending": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Draft Pending",
+      "default": 0
+     },
+     "status": {
+      "$ref": "#/components/schemas/RoadmapStatus"
+     },
+     "objective": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Objective"
+     },
+     "truncated": {
+      "type": "boolean",
+      "title": "Truncated",
+      "default": false
+     },
+     "task_step": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/RoadmapStepItem"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "why": {
+      "$ref": "#/components/schemas/Why"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "roadmap_id",
+     "title",
+     "progress",
+     "status",
+     "why"
+    ],
+    "title": "RoadmapItem",
+    "description": "`RoadmapContext` extended with the fields a consumer needs to\ntrust it: status, provenance, truncation and the step of the requested Task."
+   },
    "RoadmapOrigin": {
     "type": "string",
     "enum": [
@@ -16927,6 +17654,68 @@
     ],
     "title": "RoadmapOrigin",
     "description": "How content entered Studio OS. Self-declared by the writer: a workflow\nguard, not a security boundary; the boundary is the role."
+   },
+   "RoadmapOverview": {
+    "properties": {
+     "counts": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "type": "object",
+      "title": "Counts"
+     },
+     "draft_pending": {
+      "type": "integer",
+      "title": "Draft Pending"
+     },
+     "others": {
+      "items": {
+       "$ref": "#/components/schemas/RoadmapRef"
+      },
+      "type": "array",
+      "title": "Others",
+      "default": []
+     }
+    },
+    "type": "object",
+    "required": [
+     "counts",
+     "draft_pending"
+    ],
+    "title": "RoadmapOverview",
+    "description": "Roadmaps other than the active one, by reference: what is waiting for a\nhuman decision (`draft_pending`) or finished."
+   },
+   "RoadmapRef": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "status": {
+      "$ref": "#/components/schemas/RoadmapStatus"
+     },
+     "progress": {
+      "$ref": "#/components/schemas/Progress"
+     },
+     "truncated": {
+      "type": "boolean",
+      "title": "Truncated",
+      "default": false
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "title",
+     "status",
+     "progress"
+    ],
+    "title": "RoadmapRef"
    },
    "RoadmapRevision": {
     "properties": {
@@ -17152,6 +17941,91 @@
     ],
     "title": "RoadmapStatus"
    },
+   "RoadmapStepItem": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "title": "Key"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "state": {
+      "$ref": "#/components/schemas/StepState"
+     },
+     "available": {
+      "type": "boolean",
+      "title": "Available"
+     },
+     "waiting_on": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Waiting On"
+     },
+     "acceptance_criteria": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Acceptance Criteria"
+     },
+     "linked_task_ids": {
+      "items": {
+       "type": "string",
+       "format": "uuid"
+      },
+      "type": "array",
+      "title": "Linked Task Ids"
+     },
+     "objective": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Objective"
+     },
+     "truncated": {
+      "type": "boolean",
+      "title": "Truncated",
+      "default": false
+     },
+     "criteria_total": {
+      "type": "integer",
+      "title": "Criteria Total",
+      "default": 0
+     },
+     "criteria_checked": {
+      "type": "integer",
+      "title": "Criteria Checked",
+      "default": 0
+     },
+     "linked_tasks": {
+      "items": {
+       "$ref": "#/components/schemas/RoadmapTaskRef"
+      },
+      "type": "array",
+      "title": "Linked Tasks",
+      "default": []
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "key",
+     "title",
+     "state",
+     "available"
+    ],
+    "title": "RoadmapStepItem",
+    "description": "A step the agent may work on now: the shared `ContextStep` plus its\nobjective and the Tasks tied to it. `acceptance_criteria` lists the criteria\nstill to satisfy (already checked ones are only counted)."
+   },
    "RoadmapSummary": {
     "properties": {
      "created_at": {
@@ -17250,6 +18124,58 @@
      "progress"
     ],
     "title": "RoadmapSummary"
+   },
+   "RoadmapTaskRef": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "title": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Title"
+     },
+     "status": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Status"
+     },
+     "in_context": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "task",
+         "related_tasks"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "In Context"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id"
+    ],
+    "title": "RoadmapTaskRef",
+    "description": "A Task linked to a step: a bare reference when the package already\ncarries it (`in_context`), a title and status otherwise."
    },
    "RoadmapTransition": {
     "type": "string",
@@ -17994,6 +18920,184 @@
     "title": "SessionRuntimeOverride",
     "description": "One ephemeral session-level runtime choice carried by a resolution\nrequest (P7). Same key shape as a stored binding\n(`target_kind`, `target_stable_key`) plus the concrete `target` \u2014 but\nnever persisted: the router forwards it as resolution context only\n(`session_overrides`), and the service validates it exactly like a\nstored choice (unknown machine 404, another user's machine 403)."
    },
+   "SessionStatus": {
+    "type": "string",
+    "enum": [
+     "active",
+     "idle",
+     "expired",
+     "ended"
+    ],
+    "title": "SessionStatus",
+    "description": "Presence derived at read time (C1), never stored: `active`\n(recent activity), `idle` (no activity past the idle threshold),\n`expired` (no activity past the expire threshold \u2014 L2 closes these),\n`ended` (`ended_at` set). Same pattern as `MachineStatus` from\n`last_seen_at`, but driven by session-attached activity, never by a\ndedicated agent heartbeat."
+   },
+   "StartWorkCandidate": {
+    "properties": {
+     "task_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Task Id"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "status": {
+      "$ref": "#/components/schemas/TaskStatus"
+     },
+     "why": {
+      "$ref": "#/components/schemas/Why"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "task_id",
+     "title",
+     "status",
+     "why"
+    ],
+    "title": "StartWorkCandidate",
+    "description": "One unclaimed task a fresh start could pick up (no-task path only):\ncompact by construction \u2014 id, title, status, plus the `why` relation that\nsurfaced it (`active_roadmap` for the current step, `project_scope` for\nanother unclaimed project task), never the description."
+   },
+   "StartWorkRequest": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "agent_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Agent Id"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "objective": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 1000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Objective"
+     },
+     "agent_stable_key": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Agent Stable Key"
+     },
+     "files": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array",
+        "maxItems": 20
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Files"
+     },
+     "limit": {
+      "type": "integer",
+      "title": "Limit",
+      "default": 5
+     },
+     "max_chars": {
+      "type": "integer",
+      "title": "Max Chars",
+      "default": 12000
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id",
+     "agent_id"
+    ],
+    "title": "StartWorkRequest",
+    "description": "Composite start-work input. `project_id` and `agent_id` are required:\nthe agent must belong to the caller's own machine (`409 actor_not_owned`\notherwise \u2014 same rule as `POST /ai-work`). `task_id` selects\nthe mode: with it, claim (idempotent for the same machine) + resume or\ncreate the agent's open session on the task + scoped context; without\nit, context + candidates only, never a claim nor a session (AIB-G).\n`objective` defaults server-side (`reprendre la t\u00e2che <titre>` /\n`vue projet`) when omitted. `files` follows the `prepare_context`\nbounds (at most 20 cleaned paths); `limit`/`max_chars` are passed\nthrough to `prepare_context` unchanged."
+   },
+   "StartWorkResult": {
+    "properties": {
+     "task": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Task"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "session": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/WorkSession"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "claimed": {
+      "type": "boolean",
+      "title": "Claimed",
+      "default": false
+     },
+     "resumed": {
+      "type": "boolean",
+      "title": "Resumed",
+      "default": false
+     },
+     "prepared_context": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/PreparedContext"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "candidates": {
+      "items": {
+       "$ref": "#/components/schemas/StartWorkCandidate"
+      },
+      "type": "array",
+      "title": "Candidates",
+      "default": []
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "StartWorkResult",
+    "description": "One call, one replayable result \u2014 not a single database transaction:\nthe composed services commit their own steps, so a partial failure\nconverges on the next call. `task`/`session`\nare set only on the with-task path; `claimed` tells whether the task is\nnow claimed by the caller's machine; `resumed` tells whether the\nsession was resumed (`True`) or created (`False`) \u2014 meaningless without\na task. `prepared_context` is present on every successful response\n(bounded); `candidates` only on the no-task path. Replaying the same `Idempotency-Key` with the\nsame body returns the original result \u2014 never a second claim nor a\nsecond session; a different body is `409\nidempotency_key_payload_mismatch`."
+   },
    "Step": {
     "properties": {
      "created_at": {
@@ -18680,6 +19784,78 @@
      "title"
     ],
     "title": "TaskCreate"
+   },
+   "TaskItem": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "readable_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Readable Id"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "status": {
+      "type": "string",
+      "title": "Status"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "truncated": {
+      "type": "boolean",
+      "title": "Truncated",
+      "default": false
+     },
+     "claimed_by_machine_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Claimed By Machine Id"
+     },
+     "claimed_by_self": {
+      "type": "boolean",
+      "title": "Claimed By Self",
+      "default": false
+     },
+     "why": {
+      "$ref": "#/components/schemas/Why"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "title",
+     "status",
+     "why"
+    ],
+    "title": "TaskItem"
    },
    "TaskPlanItem": {
     "properties": {
@@ -19709,6 +20885,37 @@
     "title": "VersionOrigin",
     "description": "How an effective version was picked: P2 shadowing selection yields\n`lock`/`active`; an exact version-pinned dependency edge yields `pin`.\nOnly the P5 resolved output emits `pin` \u2014 `LibraryResolution` (P2) still\nemits `lock`/`active` alone (P5, additive)."
    },
+   "Why": {
+    "properties": {
+     "reason": {
+      "type": "string",
+      "enum": [
+       "requested",
+       "linked_to_task",
+       "task_claim",
+       "path_conflict",
+       "project_scope",
+       "lexical",
+       "active_roadmap"
+      ],
+      "title": "Reason"
+     },
+     "matched_terms": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Matched Terms",
+      "default": []
+     }
+    },
+    "type": "object",
+    "required": [
+     "reason"
+    ],
+    "title": "Why",
+    "description": "Why an item was selected \u2014 the only relations Studi'OS knows how to\nestablish: a structural link, or an exact-token overlap with the objective."
+   },
    "WorkSession": {
     "properties": {
      "id": {
@@ -19754,6 +20961,34 @@
        }
       ],
       "title": "Ended At"
+     },
+     "last_activity_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Activity At"
+     },
+     "status": {
+      "$ref": "#/components/schemas/SessionStatus",
+      "default": "active"
+     },
+     "expires_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expires At"
      }
     },
     "additionalProperties": false,

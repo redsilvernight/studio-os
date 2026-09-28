@@ -279,3 +279,105 @@ async def test_list_tasks_most_recently_updated_first(
 
     first = await client.get("/api/v1/tasks", headers=auth_headers, params={**params, "limit": 1})
     assert [t["title"] for t in first.json()] == ["claimed"]
+
+
+async def test_claim_same_machine_is_a_noop(
+    client: AsyncClient, auth_headers: dict[str, str], project: ProjectModel
+) -> None:
+    """Re-claiming a task this machine already holds with the same agent
+    changes nothing: no version bump, no duplicate `task.started`. That is
+    what makes a replayed start safe without an Idempotency-Key."""
+    create = await client.post(
+        "/api/v1/tasks",
+        headers=auth_headers,
+        json={"project_id": str(project.id), "title": "Idempotent claim"},
+    )
+    task_id = create.json()["id"]
+
+    first = await client.post(f"/api/v1/tasks/{task_id}/claim", headers=auth_headers)
+    second = await client.post(f"/api/v1/tasks/{task_id}/claim", headers=auth_headers)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json()["version"] == first.json()["version"]
+    assert second.json()["claimed_by_machine_id"] == first.json()["claimed_by_machine_id"]
+    assert await _task_event_types(client, auth_headers, task_id) == [
+        "task.created",
+        "task.started",
+    ]
+
+
+async def test_claim_idempotency_key_replays_the_original(
+    client: AsyncClient, auth_headers: dict[str, str], project: ProjectModel
+) -> None:
+    create = await client.post(
+        "/api/v1/tasks",
+        headers=auth_headers,
+        json={"project_id": str(project.id), "title": "Replayable claim"},
+    )
+    task_id = create.json()["id"]
+    headers = {**auth_headers, "Idempotency-Key": str(uuid.uuid4())}
+
+    first = await client.post(f"/api/v1/tasks/{task_id}/claim", headers=headers)
+    second = await client.post(f"/api/v1/tasks/{task_id}/claim", headers=headers)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json() == second.json()
+    assert await _task_event_types(client, auth_headers, task_id) == [
+        "task.created",
+        "task.started",
+    ]
+
+
+async def test_claim_idempotency_key_is_scoped_to_the_task(
+    client: AsyncClient, auth_headers: dict[str, str], project: ProjectModel
+) -> None:
+    """The same key on two different tasks is not a payload mismatch: the
+    reservation is scoped by endpoint, which carries the task id."""
+    task_ids = []
+    for title in ("first", "second"):
+        created = await client.post(
+            "/api/v1/tasks",
+            headers=auth_headers,
+            json={"project_id": str(project.id), "title": title},
+        )
+        task_ids.append(created.json()["id"])
+    headers = {**auth_headers, "Idempotency-Key": str(uuid.uuid4())}
+
+    for task_id in task_ids:
+        response = await client.post(f"/api/v1/tasks/{task_id}/claim", headers=headers)
+        assert response.status_code == 200
+        assert response.json()["status"] == "in_progress"
+
+
+async def test_reclaim_after_completion_is_a_real_claim(
+    client: AsyncClient, auth_headers: dict[str, str], project: ProjectModel
+) -> None:
+    """The no-op only covers a task still `in_progress`. Completing keeps the
+    claim recorded, so re-claiming afterwards is a real (re)claim: status
+    back to `in_progress`, version bump, and a second `task.started`."""
+    create = await client.post(
+        "/api/v1/tasks",
+        headers=auth_headers,
+        json={"project_id": str(project.id), "title": "Resumed after done"},
+    )
+    task_id = create.json()["id"]
+    claimed = await client.post(f"/api/v1/tasks/{task_id}/claim", headers=auth_headers)
+    completed = await client.patch(
+        f"/api/v1/tasks/{task_id}",
+        headers={**auth_headers, "If-Match-Version": str(claimed.json()["version"])},
+        json={"status": "completed"},
+    )
+    assert completed.status_code == 200
+
+    reclaimed = await client.post(f"/api/v1/tasks/{task_id}/claim", headers=auth_headers)
+    assert reclaimed.status_code == 200
+    assert reclaimed.json()["status"] == "in_progress"
+    assert reclaimed.json()["version"] > completed.json()["version"]
+    assert await _task_event_types(client, auth_headers, task_id) == [
+        "task.created",
+        "task.started",
+        "task.completed",
+        "task.started",
+    ]

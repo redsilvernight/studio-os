@@ -242,7 +242,17 @@ public de bootstrap, pas de secret d'environnement dedie.
 - POST /tasks
 - GET /tasks/{id}
 - PATCH /tasks/{id}
-- POST /tasks/{id}/claim
+- POST /tasks/{id}/claim — claim idempotent (L2, additif/clarification,
+  DEC-0160) : reclamer une tache encore `in_progress`, deja tenue par la
+  meme machine avec le meme agent, est un no-op (aucun bump de `version`,
+  aucun evenement `task.started` duplique) — un appel rejoue reste donc sans
+  effet nouveau, sans cle. Une machine differente garde `409 already_claimed` ;
+  reclamer une tache liberee, bloquee ou terminee, ou avec un `agent_id`
+  different, est une (re)prise reelle (version + `task.started`). Accepte
+  `Idempotency-Key` (meme cle + meme corps = claim d'origine, corps
+  different = `409 idempotency_key_payload_mismatch`). Aucun changement de
+  champ, de code HTTP ni d'enveloppe d'evenement : pas de bump de version
+  contractuelle.
 - POST /tasks/{id}/release — `If-Match-Version` facultatif (additif) : absent,
   comportement inchange ; present et perime, `409 {"detail": {"error_code":
   "version_conflict", "server_version": N}}` sans liberer. Controle d'acces
@@ -252,7 +262,54 @@ public de bootstrap, pas de secret d'environnement dedie.
 ### Sessions
 - POST /sessions
 - PATCH /sessions/{id}/end
-- GET /sessions
+- GET /sessions — filtres optionnels `agent_id` (UUID) et `open=true`
+  (seulement les sessions jamais terminees, les vivantes), additif
+  (L2/AIB-H, DEC-0161).
+- Presence derivee a la lecture (C1, DEC-0157, additif) : chaque session
+  expose `last_activity_at` (derniere activite authentifiee rattachee a la
+  session — debut/fin aujourd'hui ; `start_work`, `sync`, emission
+  d'evenements, `ai_work` et `handoff` dans leurs etapes L2/L3/C2/C4),
+  `status` (`active|idle|expired|ended`, seuils configurables
+  `session_idle_after_seconds` / `session_expire_after_seconds`) et
+  `expires_at` (echeance lue `expired`, `null` si terminee). Jamais stockes,
+  jamais un heartbeat (meme patron que `status` machine depuis
+  `last_seen_at`).
+- Reprise et cloture des expirees (L2/AIB-H, DEC-0161) : la reprise d'une
+  session (`studio_start_work`) reprend la session ouverte de la meme
+  machine/agent sur la tache, ou la **clot** si sa presence derivee est
+  `expired` puis en cree une neuve ; une session `ended` n'est jamais
+  reutilisee. Aucune cloture sur un chemin de lecture (`GET` reste pur,
+  DEC-0080). Un client qui ignore ces regles n'observe aucun changement.
+
+### Start work (L2, additif, DEC-0159)
+- POST /start-work (body `StartWorkRequest`, reponse `StartWorkResult`) +
+  outil MCP `studio_start_work` (meme contrat, `idempotency_key` optionnel,
+  DEC-0027/DEC-0046/DEC-0048 : pas de version dans le payload).
+  Composite en un appel (les services composes gardent leurs propres
+  commits : ce n'est pas une transaction unique, un echec en cours converge
+  au rejeu), sans nouvelle table ni nouvel evenement :
+  avec `task_id`, claim idempotent pour la meme machine (`409
+  already_claimed` si une autre machine tient la tache) + reprise de la
+  session ouverte du meme agent sur la tache ou creation (AIB-H ; les
+  expirees sont closes par L2) + `touch_session` + `prepare_context`
+  borne et cadre (`task_id`, `files`, `agent_stable_key`) ; sans `task_id`,
+  contexte projet + `candidates` (AIB-G) : d'abord les taches liees a
+  l'etape courante de la roadmap, dans l'ordre deterministe du service (pas
+  l'ordre de la base) (`why` `active_roadmap`), puis les autres taches non
+  reclamees et non terminees du projet, plus recemment modifiees d'abord
+  (`why` `project_scope`), bornees par `limit` ; chaque candidat est compact
+  (`task_id`/`title`/`status`/`why`), jamais la description. Aucun claim ni
+  session sur ce chemin (`prepare_context` ne gagne aucun effet de bord,
+  DEC-0080).
+  `agent_id` doit appartenir a la machine appelante (`409 actor_not_owned`,
+  meme regle que `POST /ai-work`). Autorisation avant le court-circuit
+  d'idempotence (meme ordre que DEC-0036) : `readonly` -> `403 forbidden`.
+  Reponse `200` toujours : `resumed` distingue une session reprise d'une
+  session neuve, donc le statut ne varie jamais sous rejeu.
+  `Idempotency-Key` supporte : meme cle + meme corps = resultat d'origine
+  (ni second claim ni seconde session), corps different = `409
+  idempotency_key_payload_mismatch`. Un client qui n'appelle pas la route
+  n'observe aucun changement.
 
 ### Claims
 - GET /claims
@@ -292,6 +349,24 @@ public de bootstrap, pas de secret d'environnement dedie.
   avant le court-circuit d'idempotence (DEC-0036) — `readonly` -> `403
   forbidden`, sans RBAC specifique aux Agents. Ne confere aucun droit
   supplementaire : `auth_role` + ownership restent la seule autorite.
+  `stable_key` (AIB-I, additif, optionnel) : une collision `(machine, stable_key)`
+  sur cette route est `409 duplicate_stable_key` (meme precedent que la Library),
+  jamais un doublon silencieux — le chemin idempotent est `POST /agents/ensure`.
+- POST /agents/ensure (AIB-I, additif) — `agents ensure` cote serveur :
+  trouve l'agent de la machine appelante pour `AgentCreate.stable_key` ou
+  l'enregistre. Meme machine + meme cle + memes metadonnees = agent existant
+  (`created=false`, `200`) ; meme cle + metadonnees differentes = `409
+  idempotency_key_payload_mismatch` (meme condition qu'un rejeu `Idempotency-Key`
+  au corps different) ; sans `stable_key` = enregistrement simple
+  (`created=true`, `201`). La `stable_key` elle-meme est la cle de rejeu
+  (meme patron que `event_id` pour `POST /events` et que la cle naturelle de
+  `PUT /projects/{id}/members/{user_id}`) : pas de `Idempotency-Key` ici, et
+  une course d'enregistrements concurrents se resout par la contrainte unique
+  `(machine_id, stable_key)` (le perdant relit la ligne du gagnant).
+  `AgentCreate`/`Agent` portent `stable_key` (optionnel, defaut `null`) :
+  chaine ouverte d'observabilite, jamais lue par l'autorisation, et jamais
+  `AgentDefinition.stable_key` (parametre de resolution, pas identite).
+  Un client qui ne l'envoie pas n'observe aucun changement.
 - POST /ai-work — `AIWorkLogCreate` accepte, en plus de `summary`, les
   champs optionnels `agent_profile`, `harness`, `provider`, `model` (UC-5,
   additif, memes regles que sur `Agent` : chaines ouvertes d'observabilite,

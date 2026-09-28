@@ -9,6 +9,7 @@ from studio_api.db.models.work_session import WorkSessionModel
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import sessions as sessions_service
 from studio_api.services.authz import Principal
+from studio_api.settings import get_settings
 from studio_contracts.sessions import WorkSessionCreate
 
 from studio_mcp.errors import run_tool
@@ -16,6 +17,8 @@ from studio_mcp.util import parse_uuid
 
 
 def _compact_session(work_session: WorkSessionModel) -> dict[str, Any]:
+    settings = get_settings()
+    expires_at = sessions_service.derive_session_expiry(work_session, settings)
     return {
         "id": str(work_session.id),
         "task_id": str(work_session.task_id),
@@ -23,11 +26,23 @@ def _compact_session(work_session: WorkSessionModel) -> dict[str, Any]:
         "agent_id": str(work_session.agent_id) if work_session.agent_id else None,
         "started_at": work_session.started_at.isoformat(),
         "ended_at": work_session.ended_at.isoformat() if work_session.ended_at else None,
+        "last_activity_at": work_session.last_activity_at.isoformat()
+        if work_session.last_activity_at
+        else None,
+        "status": sessions_service.derive_session_status(work_session, settings).value,
+        "expires_at": expires_at.isoformat() if expires_at else None,
     }
 
 
-async def studio_get_sessions(ctx: Context, task_id: str | None = None) -> dict[str, Any]:
-    """List work sessions, optionally filtered by task_id (UUID string)."""
+async def studio_get_sessions(
+    ctx: Context,
+    task_id: str | None = None,
+    agent_id: str | None = None,
+    open_only: bool = False,
+) -> dict[str, Any]:
+    """List work sessions, optionally filtered by task_id (UUID string), by
+    agent_id (UUID string) and/or to `open_only=true` (never-ended sessions,
+    the live ones)."""
 
     async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed_task_id = None
@@ -36,8 +51,18 @@ async def studio_get_sessions(ctx: Context, task_id: str | None = None) -> dict[
             if isinstance(parsed, dict):
                 return parsed
             parsed_task_id = parsed
+        parsed_agent_id = None
+        if agent_id is not None:
+            parsed = parse_uuid(agent_id, "agent_id")
+            if isinstance(parsed, dict):
+                return parsed
+            parsed_agent_id = parsed
         work_sessions = await sessions_service.list_sessions(
-            session, principal, task_id=parsed_task_id
+            session,
+            principal,
+            task_id=parsed_task_id,
+            agent_id=parsed_agent_id,
+            open_only=open_only,
         )
         return {"sessions": [_compact_session(s) for s in work_sessions]}
 
