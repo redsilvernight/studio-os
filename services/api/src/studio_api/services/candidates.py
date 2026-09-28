@@ -11,7 +11,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.project_context import DEFAULT_LIMIT, Why
 from studio_contracts.tasks import TaskStatus
@@ -32,7 +32,7 @@ class CandidateTask:
     why: Why
 
 
-def _candidate_clause() -> tuple[object, ...]:
+def _candidate_clause() -> tuple[ColumnElement[bool], ColumnElement[bool]]:
     """Unclaimed and not finished — the work a fresh start can take."""
     return (
         TaskModel.claimed_by_machine_id.is_(None),
