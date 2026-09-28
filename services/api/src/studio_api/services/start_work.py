@@ -23,7 +23,7 @@ from studio_contracts.start_work import (
     StartWorkRequest,
     StartWorkResult,
 )
-from studio_contracts.tasks import Task
+from studio_contracts.tasks import Task, TaskStatus
 
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.work_session import WorkSessionModel
@@ -143,7 +143,7 @@ async def start_work(
             StartWorkCandidate(
                 task_id=candidate.task.id,
                 title=candidate.task.title,
-                status=candidate.task.status,
+                status=TaskStatus(candidate.task.status),
                 why=candidate.why,
             )
             for candidate in candidates

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Header, Request, status
 from studio_contracts.start_work import StartWorkRequest, StartWorkResult
 
@@ -17,7 +19,7 @@ from studio_api.settings import get_settings
 
 router = APIRouter(prefix="/api/v1/start-work", tags=["start-work"])
 
-_RESP_409_ACTOR_NOT_OWNED = {
+_RESP_409_ACTOR_NOT_OWNED: dict[int | str, dict[str, Any]] = {
     409: {
         "description": (
             "`actor_not_owned` (agent not attached to the caller's machine) or "

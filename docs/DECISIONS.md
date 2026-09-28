@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-129 decision(s). Detail complet dans chaque ADR lie.
+132 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -151,3 +151,6 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0155 | P0 : vocabulaire harness canonique kebab-case | accepted | [decisions/DEC-0155-p0-vocabulaire-harness.md](decisions/DEC-0155-p0-vocabulaire-harness.md) |
 | DEC-0156 | Fan-out temps réel multi-process : NOTIFY PostgreSQL post-commit (étend DEC-0018) | accepted | [decisions/DEC-0156-fanout-multi-process-listen-notify.md](decisions/DEC-0156-fanout-multi-process-listen-notify.md) |
 | DEC-0157 | Coordination inter-sessions en pull : curseur par session, studio_sync et coordination.* (remplace DEC-0051) | accepted | [decisions/DEC-0157-coordination-inter-sessions-pull.md](decisions/DEC-0157-coordination-inter-sessions-pull.md) |
+| DEC-0159 | L2 : contrat studio_start_work composite (claim + reprise + contexte, AIB-G) | proposed | [decisions/DEC-0159-l2-contrat-studio-start-work.md](decisions/DEC-0159-l2-contrat-studio-start-work.md) |
+| DEC-0160 | L2 : claim_task idempotent (no-op même machine) + Idempotency-Key, sans bump de contrat | proposed | [decisions/DEC-0160-l2-claim-idempotent.md](decisions/DEC-0160-l2-claim-idempotent.md) |
+| DEC-0161 | L2/AIB-H : reprise de session (filtres agent/open, clôture des périmées, jamais sur lecture) | proposed | [decisions/DEC-0161-l2-session-resume-cloture.md](decisions/DEC-0161-l2-session-resume-cloture.md) |

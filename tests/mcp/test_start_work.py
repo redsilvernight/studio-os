@@ -20,9 +20,7 @@ async def test_start_work_claims_resumes_and_replays(
 ) -> None:
     task = await studio_create_task(str(project.id), "Implement it", auth_ctx)
 
-    first = await studio_start_work(
-        str(project.id), str(agent.id), auth_ctx, task_id=task["id"]
-    )
+    first = await studio_start_work(str(project.id), str(agent.id), auth_ctx, task_id=task["id"])
     assert first["claimed"] is True
     assert first["resumed"] is False
     assert first["task"]["id"] == task["id"]
@@ -37,9 +35,7 @@ async def test_start_work_claims_resumes_and_replays(
     assert again == replayed
 
     # No key: still no second session, the open one is resumed.
-    resumed = await studio_start_work(
-        str(project.id), str(agent.id), auth_ctx, task_id=task["id"]
-    )
+    resumed = await studio_start_work(str(project.id), str(agent.id), auth_ctx, task_id=task["id"])
     assert resumed["resumed"] is True
     assert resumed["session"]["id"] == first["session"]["id"]
 
