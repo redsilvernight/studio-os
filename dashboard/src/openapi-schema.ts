@@ -449,7 +449,7 @@ export interface paths {
         };
         /**
          * List Sessions
-         * @description List work sessions, optionally filtered by task, restricted to sessions whose task belongs to an accessible project. A task of an inaccessible project answers `403 forbidden`.
+         * @description List work sessions, optionally filtered by task, restricted to sessions whose task belongs to an accessible project. A task of an inaccessible project answers `403 forbidden`. Each session carries derived presence (C1): `status` (`active|idle|expired|ended`) and `expires_at`, computed from `last_activity_at` at read time.
          */
         get: operations["list_sessions_api_v1_sessions_get"];
         put?: never;
@@ -4978,6 +4978,17 @@ export interface components {
             target_stable_key: string;
             target: components["schemas"]["RuntimeTarget"];
         };
+        /**
+         * SessionStatus
+         * @description Presence derived at read time (C1), never stored: `active`
+         *     (recent activity), `idle` (no activity past the idle threshold),
+         *     `expired` (no activity past the expire threshold — L2 closes these),
+         *     `ended` (`ended_at` set). Same pattern as `MachineStatus` from
+         *     `last_seen_at`, but driven by session-attached activity, never by a
+         *     dedicated agent heartbeat.
+         * @enum {string}
+         */
+        SessionStatus: "active" | "idle" | "expired" | "ended";
         /** Step */
         Step: {
             /**
@@ -5673,6 +5684,12 @@ export interface components {
             started_at: string;
             /** Ended At */
             ended_at?: string | null;
+            /** Last Activity At */
+            last_activity_at?: string | null;
+            /** @default active */
+            status: components["schemas"]["SessionStatus"];
+            /** Expires At */
+            expires_at?: string | null;
         };
         /** WorkSessionCreate */
         WorkSessionCreate: {

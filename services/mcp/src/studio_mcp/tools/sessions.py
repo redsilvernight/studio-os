@@ -9,6 +9,7 @@ from studio_api.db.models.work_session import WorkSessionModel
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services import sessions as sessions_service
 from studio_api.services.authz import Principal
+from studio_api.settings import get_settings
 from studio_contracts.sessions import WorkSessionCreate
 
 from studio_mcp.errors import run_tool
@@ -16,6 +17,8 @@ from studio_mcp.util import parse_uuid
 
 
 def _compact_session(work_session: WorkSessionModel) -> dict[str, Any]:
+    settings = get_settings()
+    expires_at = sessions_service.derive_session_expiry(work_session, settings)
     return {
         "id": str(work_session.id),
         "task_id": str(work_session.task_id),
@@ -23,6 +26,11 @@ def _compact_session(work_session: WorkSessionModel) -> dict[str, Any]:
         "agent_id": str(work_session.agent_id) if work_session.agent_id else None,
         "started_at": work_session.started_at.isoformat(),
         "ended_at": work_session.ended_at.isoformat() if work_session.ended_at else None,
+        "last_activity_at": work_session.last_activity_at.isoformat()
+        if work_session.last_activity_at
+        else None,
+        "status": sessions_service.derive_session_status(work_session, settings).value,
+        "expires_at": expires_at.isoformat() if expires_at else None,
     }
 
 
