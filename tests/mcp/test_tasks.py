@@ -44,12 +44,18 @@ async def test_claim_then_release_task(
     machine_model, _ = machine
     created = await studio_create_task(str(project.id), "Ship it", auth_ctx)
 
-    claimed = await studio_claim_task(created["id"], auth_ctx)
+    claimed = await studio_claim_task(created["id"], auth_ctx, verbose=False)
+    assert set(claimed) == {"id", "status", "version", "claimed_by_machine_id"}
     assert claimed["status"] == "in_progress"
     assert claimed["claimed_by_machine_id"] == str(machine_model.id)
 
-    released = await studio_release_task(created["id"], auth_ctx)
+    released = await studio_release_task(created["id"], auth_ctx, verbose=False)
+    assert set(released) == {"id", "status", "version", "claimed_by_machine_id"}
     assert released["claimed_by_machine_id"] is None
+
+    detailed = await studio_claim_task(created["id"], auth_ctx)
+    assert detailed["title"] == "Ship it"
+    assert "description" in detailed
 
 
 async def test_release_task_rejects_stale_expected_version(
@@ -99,9 +105,26 @@ async def test_update_task_rejects_stale_version(
 async def test_update_task_applies_new_title(auth_ctx: FakeContext, project: ProjectModel) -> None:
     created = await studio_create_task(str(project.id), "Rename me", auth_ctx)
     result = await studio_update_task(
-        created["id"], expected_version=created["version"], ctx=auth_ctx, title="New title"
+        created["id"],
+        expected_version=created["version"],
+        ctx=auth_ctx,
+        title="New title",
     )
     assert result["title"] == "New title"
+
+
+async def test_update_task_can_return_compact_response(
+    auth_ctx: FakeContext, project: ProjectModel
+) -> None:
+    created = await studio_create_task(str(project.id), "Compact update", auth_ctx)
+    result = await studio_update_task(
+        created["id"],
+        expected_version=created["version"],
+        ctx=auth_ctx,
+        status="blocked",
+        verbose=False,
+    )
+    assert set(result) == {"id", "status", "version", "claimed_by_machine_id"}
 
 
 async def test_create_task_idempotency_key_replay_returns_same_task(
@@ -145,6 +168,20 @@ async def test_claim_task_idempotency_key_replay_returns_original(
     second = await studio_claim_task(created["id"], auth_ctx, idempotency_key="mcp-claim-1")
     assert second["id"] == first["id"]
     assert second["version"] == first["version"]
+
+
+async def test_claim_task_idempotency_distinguishes_compact_response(
+    auth_ctx: FakeContext, project: ProjectModel
+) -> None:
+    created = await studio_create_task(str(project.id), "Response shape", auth_ctx)
+    await studio_claim_task(created["id"], auth_ctx, idempotency_key="mcp-claim-shape")
+    mismatch = await studio_claim_task(
+        created["id"],
+        auth_ctx,
+        idempotency_key="mcp-claim-shape",
+        verbose=False,
+    )
+    assert mismatch["error_code"] == "idempotency_key_payload_mismatch"
 
 
 async def test_claim_task_replay_without_key_is_a_noop(

@@ -162,6 +162,14 @@ def test_version_conflict_and_ownership_discoverable(tools: list[Tool]) -> None:
     assert "expected_version" in by_name["studio_update_task"].input_schema["properties"]
     assert "actor_not_owned" in (by_name["studio_log_ai_work"].description or "")
     assert "already_claimed" in (by_name["studio_claim_task"].description or "")
+    for name in (
+        "studio_update_task",
+        "studio_claim_task",
+        "studio_release_task",
+        "studio_start_session",
+    ):
+        verbose = by_name[name].input_schema["properties"]["verbose"]
+        assert verbose["default"] is True
 
 
 def test_event_identity_rules_without_internal_docs(tools: list[Tool]) -> None:

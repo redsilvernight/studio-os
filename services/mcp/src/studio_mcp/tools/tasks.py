@@ -17,7 +17,16 @@ from studio_mcp.errors import run_tool
 from studio_mcp.util import parse_uuid
 
 
-def _compact_task(task: TaskModel) -> dict[str, Any]:
+def _task_response(task: TaskModel, *, verbose: bool) -> dict[str, Any]:
+    if not verbose:
+        return {
+            "id": str(task.id),
+            "status": task.status,
+            "version": task.version,
+            "claimed_by_machine_id": (
+                str(task.claimed_by_machine_id) if task.claimed_by_machine_id else None
+            ),
+        }
     return {
         "id": str(task.id),
         "readable_id": task.readable_id,
@@ -42,7 +51,7 @@ async def studio_get_task(task_id: str, ctx: Context) -> dict[str, Any]:
         task = await tasks_service.read_task(session, principal, parsed)
         if task is None:
             return {"error_code": "not_found", "message": f"task {task_id} not found"}
-        return _compact_task(task)
+        return _task_response(task, verbose=True)
 
     return await run_tool(ctx, _handler)
 
@@ -55,7 +64,7 @@ async def studio_get_active_tasks(project_id: str, ctx: Context) -> dict[str, An
         if isinstance(parsed, dict):
             return parsed
         tasks = await projects_service.get_active_tasks(session, principal, parsed)
-        return {"tasks": [_compact_task(t) for t in tasks]}
+        return {"tasks": [_task_response(t, verbose=True) for t in tasks]}
 
     return await run_tool(ctx, _handler)
 
@@ -88,7 +97,7 @@ async def studio_create_task(
                 principal,
                 TaskCreate(project_id=parsed, title=title, description=description),
             )
-            return _compact_task(task)
+            return _task_response(task, verbose=True)
 
         request_hash = idempotency_service.hash_request(
             json.dumps(
@@ -110,10 +119,12 @@ async def studio_update_task(
     title: str | None = None,
     description: str | None = None,
     status: str | None = None,
+    verbose: bool = True,
 ) -> dict[str, Any]:
     """Update a task's title/description/status. `expected_version` must match
     the task's current `version` (optimistic concurrency) — a mismatch returns
-    `version_conflict` with the real server version, never a silent overwrite."""
+    `version_conflict` with the real server version, never a silent overwrite.
+    Pass `verbose=false` for the compact workflow response."""
 
     async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed = parse_uuid(task_id, "task_id")
@@ -128,7 +139,7 @@ async def studio_update_task(
             return {"error_code": "invalid_argument", "message": f"unknown status: {status!r}"}
         task_in = TaskUpdate(title=title, description=description, status=parsed_status)
         task = await tasks_service.update_task(session, principal, task, task_in, expected_version)
-        return _compact_task(task)
+        return _task_response(task, verbose=verbose)
 
     return await run_tool(ctx, _handler)
 
@@ -138,6 +149,7 @@ async def studio_claim_task(
     ctx: Context,
     agent_id: str | None = None,
     idempotency_key: str | None = None,
+    verbose: bool = True,
 ) -> dict[str, Any]:
     """Claim a task for the caller's machine (soft lock, sets status to
     in_progress). Fails with `already_claimed` if another machine holds it.
@@ -146,7 +158,8 @@ async def studio_claim_task(
     caller-generated `idempotency_key` when this call might be retried —
     replaying the same key with the same arguments returns the original
     claim instead of re-running it; the same key with different arguments
-    fails with `idempotency_key_payload_mismatch` (DEC-0027)."""
+    fails with `idempotency_key_payload_mismatch` (DEC-0027). Pass
+    `verbose=false` for the compact workflow response."""
 
     async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed = parse_uuid(task_id, "task_id")
@@ -168,10 +181,13 @@ async def studio_claim_task(
             claimed = await tasks_service.claim_task(
                 session, principal, task, principal.machine.id, parsed_agent_id
             )
-            return _compact_task(claimed)
+            return _task_response(claimed, verbose=verbose)
 
+        request_payload: dict[str, Any] = {"agent_id": agent_id}
+        if not verbose:
+            request_payload["verbose"] = False
         request_hash = idempotency_service.hash_request(
-            json.dumps({"agent_id": agent_id}, sort_keys=True).encode()
+            json.dumps(request_payload, sort_keys=True).encode()
         )
         return await idempotency_service.run_idempotent_dict(
             session,
@@ -185,10 +201,14 @@ async def studio_claim_task(
 
 
 async def studio_release_task(
-    task_id: str, ctx: Context, expected_version: int | None = None
+    task_id: str,
+    ctx: Context,
+    expected_version: int | None = None,
+    verbose: bool = True,
 ) -> dict[str, Any]:
     """Release a task's claim (clears claimed_by_machine_id/agent_id). An
-    optional `expected_version` rejects a stale read with `version_conflict`."""
+    optional `expected_version` rejects a stale read with `version_conflict`.
+    Pass `verbose=false` for the compact workflow response."""
 
     async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed = parse_uuid(task_id, "task_id")
@@ -198,6 +218,6 @@ async def studio_release_task(
         if task is None:
             return {"error_code": "not_found", "message": f"task {task_id} not found"}
         task = await tasks_service.release_task(session, principal, task, expected_version)
-        return _compact_task(task)
+        return _task_response(task, verbose=verbose)
 
     return await run_tool(ctx, _handler)
