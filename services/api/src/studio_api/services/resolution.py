@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.library import BindingRelation, LibraryKind, LibraryScope, VersionOrigin
 from studio_contracts.resolution import (
+    MAX_COMPOSITION_DEPTH,
     AgentResolutionSnapshot,
     NodeBinding,
     ResolutionErrorCode,
@@ -50,6 +51,14 @@ def _map_failure(failure: ResolutionFailure) -> HTTPException:
         return HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={"error_code": "runtime_incompatible", **failure.error.details},
+        )
+    if code in (
+        ResolutionErrorCode.COMPOSITION_CYCLE_DETECTED,
+        ResolutionErrorCode.COMPOSITION_DEPTH_EXCEEDED,
+    ):
+        return HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"error_code": code.value, **failure.error.details},
         )
     return HTTPException(
         status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -126,6 +135,62 @@ async def _load_node(
     )
 
 
+async def _load_composition_subgraph(
+    session: AsyncSession,
+    principal: Principal,
+    agent_node: ResolutionNode,
+    visited: frozenset[UUID],
+    depth: int,
+) -> list[ResolutionNode]:
+    """Loads every binding target reachable from one `AGENT_DEFINITION` node:
+    its direct rules/skills/profile/workflows, one level of skill->rule, and
+    recurses into `composes_agent` targets (DEC-0164).
+
+    Bounded by `MAX_COMPOSITION_DEPTH` and guarded on agent identity
+    (`visited`) so a cycle or an over-deep chain never drives unbounded DB
+    fetches. This is a defense against wasted queries only, not a second
+    source of truth: the pure core re-validates both bounds and is the one
+    that turns them into `composition_cycle_detected` /
+    `composition_depth_exceeded`.
+
+    Runtime candidates stay scoped to the requested root agent (and its own
+    model profile) in `resolve_full` below — a composed agent's own runtime
+    binding is not loaded here, so its `resolved.runtime` is `None` through
+    this path (a valid, documented outcome, never an error). Wiring runtime
+    candidates per composed node is left for a follow-up."""
+
+    if agent_node.resource_id in visited or depth > MAX_COMPOSITION_DEPTH:
+        return []
+    visited = visited | {agent_node.resource_id}
+
+    nodes: list[ResolutionNode] = []
+    for binding in agent_node.bindings:
+        node = await _load_node(
+            session,
+            principal,
+            binding.target_resource_id,
+            binding.target_version,
+            VersionOrigin.PIN,
+        )
+        nodes.append(node)
+        if node.kind == LibraryKind.SKILL:
+            for sub_binding in node.bindings:
+                nodes.append(
+                    await _load_node(
+                        session,
+                        principal,
+                        sub_binding.target_resource_id,
+                        sub_binding.target_version,
+                        VersionOrigin.PIN,
+                    )
+                )
+        elif node.kind == LibraryKind.AGENT_DEFINITION:
+            nodes.extend(
+                await _load_composition_subgraph(session, principal, node, visited, depth + 1)
+            )
+    return nodes
+
+
 async def resolve_full(
     session: AsyncSession,
     principal: Principal,
@@ -147,27 +212,7 @@ async def resolve_full(
     root = await _load_node(
         session, principal, resolved.resource_id, resolved.version, resolved.version_origin
     )
-    nodes: list[ResolutionNode] = []
-    for binding in root.bindings:
-        node = await _load_node(
-            session,
-            principal,
-            binding.target_resource_id,
-            binding.target_version,
-            VersionOrigin.PIN,
-        )
-        nodes.append(node)
-        if node.kind == LibraryKind.SKILL:
-            for sub_binding in node.bindings:
-                nodes.append(
-                    await _load_node(
-                        session,
-                        principal,
-                        sub_binding.target_resource_id,
-                        sub_binding.target_version,
-                        VersionOrigin.PIN,
-                    )
-                )
+    nodes = await _load_composition_subgraph(session, principal, root, frozenset(), 0)
     profile_key: tuple[LibraryKind, str] | None = None
     for binding in root.bindings:
         if binding.relation == BindingRelation.REQUIRES_MODEL_PROFILE:
