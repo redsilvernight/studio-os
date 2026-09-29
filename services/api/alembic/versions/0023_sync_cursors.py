@@ -1,15 +1,15 @@
 """sync cursors: per-session sync cursor and per-task handoff cursor
 
-Revision ID: 0022
-Revises: 0021
+Revision ID: 0023
+Revises: 0022
 Create Date: 2026-09-29
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0022"
-down_revision: str | None = "0021"
+revision: str = "0023"
+down_revision: str | None = "0022"
 
 
 def upgrade() -> None:
