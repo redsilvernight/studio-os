@@ -34,6 +34,18 @@ def _compact_session(work_session: WorkSessionModel) -> dict[str, Any]:
     }
 
 
+def _start_session_response(work_session: WorkSessionModel, *, verbose: bool) -> dict[str, Any]:
+    if verbose:
+        return _compact_session(work_session)
+    settings = get_settings()
+    return {
+        "id": str(work_session.id),
+        "task_id": str(work_session.task_id),
+        "agent_id": str(work_session.agent_id) if work_session.agent_id else None,
+        "status": sessions_service.derive_session_status(work_session, settings).value,
+    }
+
+
 async def studio_get_sessions(
     ctx: Context,
     task_id: str | None = None,
@@ -70,13 +82,18 @@ async def studio_get_sessions(
 
 
 async def studio_start_session(
-    task_id: str, ctx: Context, agent_id: str | None = None, idempotency_key: str | None = None
+    task_id: str,
+    ctx: Context,
+    agent_id: str | None = None,
+    idempotency_key: str | None = None,
+    verbose: bool = True,
 ) -> dict[str, Any]:
     """Start a work session on a task for the caller's machine. Pass a
     caller-generated `idempotency_key` when this call might be retried —
     replaying the same key with the same arguments returns the original
     session instead of starting a second one; the same key with different
-    arguments fails with `idempotency_key_payload_mismatch` (DEC-0027)."""
+    arguments fails with `idempotency_key_payload_mismatch` (DEC-0027). Pass
+    `verbose=false` for the compact workflow response."""
 
     async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed_task_id = parse_uuid(task_id, "task_id")
@@ -102,13 +119,13 @@ async def studio_start_session(
                     agent_id=parsed_agent_id,
                 ),
             )
-            return _compact_session(work_session)
+            return _start_session_response(work_session, verbose=verbose)
 
+        request_payload: dict[str, Any] = {"task_id": task_id, "agent_id": agent_id}
+        if not verbose:
+            request_payload["verbose"] = False
         request_hash = idempotency_service.hash_request(
-            json.dumps(
-                {"task_id": task_id, "agent_id": agent_id},
-                sort_keys=True,
-            ).encode()
+            json.dumps(request_payload, sort_keys=True).encode()
         )
         return await idempotency_service.run_idempotent_dict(
             session, idempotency_key, "MCP studio_start_session", request_hash, _create

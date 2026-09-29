@@ -67,6 +67,16 @@ Un agent ne doit normalement pas envoyer lui-meme plusieurs Go via MCP. Le MCP f
 ## Format
 Reponses compactes, champs utiles uniquement, filtres `project`, `task`, `since`, `limit`. Les erreurs doivent etre explicites et machine-readable.
 
+Les outils de workflow `studio_update_task`, `studio_claim_task`,
+`studio_release_task` et `studio_start_session` conservent leur reponse
+detaillee historique par defaut (`verbose=true`). Avec `verbose=false`, les
+trois outils Task renvoient uniquement `id`, `status`, `version` et
+`claimed_by_machine_id`; `studio_start_session` renvoie `id`, `task_id`,
+`agent_id` et `status`. Pour les outils rejouables, le mode historique garde
+l'empreinte d'idempotence anterieure ; le mode compact ajoute explicitement
+`verbose=false`, donc une meme cle utilisee avec les deux formes est rejetee
+comme payload different.
+
 ## Auth (DEC-0023)
 Chaque outil authentifie l'appelant individuellement (voir
 `TECH/04_AUTH_SYNC_CONTRACT.md` section "Auth MCP") — jamais un secret
