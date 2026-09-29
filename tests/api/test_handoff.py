@@ -8,9 +8,12 @@ from __future__ import annotations
 import uuid
 
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.agent import AgentModel
+from studio_api.db.models.ai_work import AIWorkLogModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
+from studio_api.db.models.work_session import WorkSessionModel
 
 
 async def _task(
@@ -347,3 +350,156 @@ async def test_end_session_releases_claims_and_emits_events(
         if e["event_type"] == "resource.released"
     ]
     assert {e["payload"]["claim_id"] for e in released} >= {claim_id}
+
+
+async def test_handoff_updates_preexisting_started_ai_work(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    machine: tuple[MachineModel, str],
+    agent: AgentModel,
+    project: ProjectModel,
+) -> None:
+    """R1: a `started` entry already linked to the session is updated with
+    the handoff's summary, final status and files — never silently reused,
+    never duplicated."""
+    task = await _task(client, auth_headers, project)
+    await _claim_task(client, auth_headers, str(task["id"]))
+    session_id = await _session(client, auth_headers, machine, agent, str(task["id"]))
+    started = await client.post(
+        "/api/v1/ai-work",
+        headers=auth_headers,
+        json={
+            "project_id": str(project.id),
+            "task_id": str(task["id"]),
+            "agent_id": str(agent.id),
+            "session_id": session_id,
+            "summary": "Work in progress",
+        },
+    )
+    assert started.status_code == 201
+    assert started.json()["status"] == "started"
+
+    version = await _task_version(client, auth_headers, str(task["id"]))
+    handoff = await client.post(
+        "/api/v1/handoff",
+        headers=auth_headers,
+        json={
+            "project_id": str(project.id),
+            "session_id": session_id,
+            "expected_version": version,
+            "task_status": {"status": "completed"},
+            "agent_id": str(agent.id),
+            "summary": "Close it",
+            "changed_files": ["a.py"],
+            "tests_run": ["pytest"],
+        },
+    )
+    assert handoff.status_code == 200
+    assert handoff.json()["ai_work_id"] == started.json()["id"]
+
+    work = await client.get(
+        "/api/v1/ai-work", headers=auth_headers, params={"project_id": str(project.id)}
+    )
+    assert len(work.json()) == 1
+    entry = work.json()[0]
+    assert entry["summary"] == "Close it"
+    assert entry["status"] == "completed"
+    assert entry["changed_files"] == ["a.py"]
+    assert entry["tests_run"] == ["pytest"]
+    assert entry["session_id"] == session_id
+
+
+async def test_end_already_ended_session_still_releases_claims(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    machine: tuple[MachineModel, str],
+    agent: AgentModel,
+    project: ProjectModel,
+) -> None:
+    """R2: the L3 fallback converges even when a previous partial failure
+    left the session ended with claims still active."""
+    task = await _task(client, auth_headers, project)
+    await _claim_task(client, auth_headers, str(task["id"]))
+    session_id = await _session(client, auth_headers, machine, agent, str(task["id"]))
+    ended = await client.patch(f"/api/v1/sessions/{session_id}/end", headers=auth_headers)
+    assert ended.status_code == 200
+
+    claim_id = await _resource_claim(client, auth_headers, project, str(task["id"]))
+    retry = await client.patch(f"/api/v1/sessions/{session_id}/end", headers=auth_headers)
+    assert retry.status_code == 200
+
+    claims = await client.get(
+        "/api/v1/claims", headers=auth_headers, params={"project_id": str(project.id)}
+    )
+    assert next(c for c in claims.json() if c["id"] == claim_id)["status"] == "released"
+
+
+async def test_update_ai_work_rejects_unknown_and_foreign_session(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    machine: tuple[MachineModel, str],
+    agent: AgentModel,
+    project: ProjectModel,
+) -> None:
+    task = await _task(client, auth_headers, project)
+    other = await _task(client, auth_headers, project)
+    foreign_session = await _session(client, auth_headers, machine, agent, str(other["id"]))
+    created = await client.post(
+        "/api/v1/ai-work",
+        headers=auth_headers,
+        json={
+            "project_id": str(project.id),
+            "task_id": str(task["id"]),
+            "agent_id": str(agent.id),
+            "summary": "Patch me",
+        },
+    )
+    work_id = created.json()["id"]
+
+    unknown = await client.patch(
+        f"/api/v1/ai-work/{work_id}",
+        headers=auth_headers,
+        json={"session_id": str(uuid.uuid4())},
+    )
+    assert unknown.status_code == 404
+
+    foreign = await client.patch(
+        f"/api/v1/ai-work/{work_id}", headers=auth_headers, json={"session_id": foreign_session}
+    )
+    assert foreign.status_code == 409
+    assert foreign.json()["detail"]["error_code"] == "invalid_session"
+
+
+async def test_session_delete_nulls_linked_ai_work_session_id(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    machine: tuple[MachineModel, str],
+    agent: AgentModel,
+    project: ProjectModel,
+    db_session: AsyncSession,
+) -> None:
+    """Migration 0022: the FK `ondelete=SET NULL` keeps the work entry when
+    its session row disappears."""
+    task = await _task(client, auth_headers, project)
+    session_id = await _session(client, auth_headers, machine, agent, str(task["id"]))
+    created = await client.post(
+        "/api/v1/ai-work",
+        headers=auth_headers,
+        json={
+            "project_id": str(project.id),
+            "task_id": str(task["id"]),
+            "agent_id": str(agent.id),
+            "session_id": session_id,
+            "summary": "Survives",
+        },
+    )
+    work_id = created.json()["id"]
+
+    work_session = await db_session.get(WorkSessionModel, uuid.UUID(session_id))
+    assert work_session is not None
+    await db_session.delete(work_session)
+    await db_session.commit()
+
+    work = await db_session.get(AIWorkLogModel, uuid.UUID(work_id))
+    assert work is not None
+    assert work.session_id is None

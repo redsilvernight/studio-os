@@ -48,7 +48,9 @@ requis seulement avec `task_status`), libere tous les claims de la tache
 `summary`, `ai_work_status` type, `session_id` valide), termine la session.
 Meme contrat que `POST /handoff` (`TECH/02_API_CONTRACT.md` § Handoff),
 `idempotency_key` optionnel. Autorisation avant le court-circuit
-d'idempotence (403 meme sur rejeu). Reponse compacte : ids + statuts
+d'idempotence (403 meme sur rejeu). `task_status`/`ai_work_status` inconnus
+repondent in-band (pas de 422 en MCP) : `invalid_task_status` /
+`invalid_ai_work_status`, meme vocabulaire que les services. Reponse compacte : ids + statuts
 seulement. Repli minimal : `end_session` libere les claims de la tache
 automatiquement.
 

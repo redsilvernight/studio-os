@@ -14,7 +14,7 @@ from typing import Any
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from studio_contracts.ai_work import AIWorkLogCreate, AIWorkStatus
+from studio_contracts.ai_work import AIWorkLogCreate, AIWorkLogUpdate, AIWorkStatus
 from studio_contracts.handoff import HandoffRequest, HandoffResult
 from studio_contracts.tasks import TaskStatus
 
@@ -108,6 +108,9 @@ async def handoff(
             refreshed = await tasks_service.get_task(session, task.id)
             if refreshed is None:
                 raise
+            # Convergence compares every field of TaskUpdate (title,
+            # description, status): keep this exhaustive if TaskUpdate grows,
+            # otherwise a retry could silently swallow a new field (DEC-0163).
             if (
                 (task_update.title is not None and refreshed.title != task_update.title)
                 or (
@@ -122,23 +125,43 @@ async def handoff(
     # Release all claims for the task
     released_claims = await claims_service.release_task_claims_by_task(session, principal, task)
 
-    # Log AI work if agent_id provided. A retry converges: an entry already
-    # linked to this session is reused instead of duplicated (DEC-0163).
+    # Log AI work if agent_id provided. A retry converges: the entry already
+    # logged for this (session, agent) pair is updated instead of duplicated,
+    # so a pre-existing `started` entry receives the handoff's summary, final
+    # status, files and tests instead of losing them. Earliest first:
+    # deterministic (DEC-0163).
     ai_work_id = None
     if request.agent_id is not None and request.summary is not None:
+        target_status = (
+            request.ai_work_status if request.ai_work_status is not None else AIWorkStatus.COMPLETED
+        )
         existing = (
             (
                 await session.execute(
-                    select(AIWorkLogModel).where(
+                    select(AIWorkLogModel)
+                    .where(
                         AIWorkLogModel.session_id == request.session_id,
+                        AIWorkLogModel.agent_id == request.agent_id,
                     )
+                    .order_by(AIWorkLogModel.started_at)
                 )
             )
             .scalars()
             .first()
         )
         if existing is not None:
-            ai_work_id = existing.id
+            updated = await ai_work_service.update_ai_work(
+                session,
+                principal,
+                existing,
+                AIWorkLogUpdate(
+                    summary=request.summary,
+                    status=target_status,
+                    changed_files=request.changed_files,
+                    tests_run=request.tests_run,
+                ),
+            )
+            ai_work_id = updated.id
         else:
             ai_work = await ai_work_service.create_ai_work(
                 session,
@@ -150,11 +173,7 @@ async def handoff(
                     machine_id=principal.machine.id,
                     session_id=request.session_id,
                     summary=request.summary,
-                    status=(
-                        request.ai_work_status
-                        if request.ai_work_status is not None
-                        else AIWorkStatus.COMPLETED
-                    ),
+                    status=target_status,
                     changed_files=request.changed_files or [],
                     tests_run=request.tests_run or [],
                 ),
