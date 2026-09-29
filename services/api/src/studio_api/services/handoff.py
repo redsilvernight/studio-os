@@ -9,21 +9,27 @@ Idempotent via `Idempotency-Key` (same key returns the original result)."""
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.ai_work import AIWorkLogCreate, AIWorkLogUpdate, AIWorkStatus
+from studio_contracts.coordination import CoordinationEmit
 from studio_contracts.handoff import HandoffRequest, HandoffResult
+from studio_contracts.sync import SyncResult
 from studio_contracts.tasks import TaskStatus
 
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.ai_work import AIWorkLogModel
+from studio_api.db.models.event import EventModel
 from studio_api.db.models.work_session import WorkSessionModel
 from studio_api.services import ai_work as ai_work_service
 from studio_api.services import claims as claims_service
+from studio_api.services import coordination as coordination_service
 from studio_api.services import sessions as sessions_service
+from studio_api.services import sync as sync_service
 from studio_api.services import tasks as tasks_service
 from studio_api.services.authz import (
     Principal,
@@ -31,6 +37,10 @@ from studio_api.services.authz import (
     ensure_machine_owned,
     ensure_project_access,
 )
+
+# Stable namespace: the `coordination.handoff` event id derives from the
+# session, so a replayed handoff never emits a second signal (C4).
+_HANDOFF_SIGNAL_NAMESPACE = uuid.UUID("6f1c3a52-0d4e-4b7a-9c1e-5a2d8e7b3f10")
 
 
 async def authorize_handoff(
@@ -75,6 +85,41 @@ async def handoff(
 
     # Verify session ownership
     ensure_machine_owned(principal, work_session.machine_id, "session", "end")
+
+    # C4: last bounded sync, then the optional `coordination.handoff` signal,
+    # both while the session is live and before the task can be closed (a
+    # completed target refuses signals). The sync is acknowledged: the caller
+    # receives it in this very response. A retry after the session already
+    # ended skips both — the handoff cursor below converges on what was acked.
+    last_sync: SyncResult | None = None
+    coordination_event_id: uuid.UUID | None = None
+    if work_session.ended_at is None:
+        last_sync = await sync_service.sync(
+            session,
+            principal,
+            session_id=request.session_id,
+            ack=work_session.sync_cursor_seq,
+        )
+        await sessions_service.ack_sync_cursor(session, request.session_id, last_sync.next_cursor)
+        if request.coordination is not None:
+            emitted = await coordination_service.emit(
+                session,
+                principal,
+                CoordinationEmit(
+                    from_session_id=request.session_id,
+                    intent="handoff",
+                    task_id=task.id,
+                    text=request.coordination.text,
+                    refs=request.coordination.refs,
+                    event_id=uuid.uuid5(_HANDOFF_SIGNAL_NAMESPACE, str(request.session_id)),
+                ),
+            )
+            coordination_event_id = emitted.event_id
+    elif request.coordination is not None:
+        # Retry after a partial failure: recover the signal already emitted.
+        signal_id = uuid.uuid5(_HANDOFF_SIGNAL_NAMESPACE, str(request.session_id))
+        if await session.get(EventModel, signal_id) is not None:
+            coordination_event_id = signal_id
 
     # Update task status if provided. A retry after a partial failure
     # converges instead of 409: when the version already moved but every
@@ -195,4 +240,7 @@ async def handoff(
         session_id=request.session_id,
         released_claims=[c.id for c in released_claims],
         ai_work_id=ai_work_id,
+        sync=last_sync,
+        handoff_cursor_seq=task.handoff_cursor_seq,
+        coordination_event_id=coordination_event_id,
     )

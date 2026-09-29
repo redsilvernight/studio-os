@@ -299,7 +299,10 @@ def create_server() -> MCPServer:
             "idempotency_key makes the call replay-safe: the same key returns the original result "
             "instead of running the composite again — a duplicate call returns the original result "
             "without a second status update, duplicate claim releases, duplicate AI work entry, or "
-            "second session end. Compact response: ids + statuses only. Requires a writer role."
+            "second session end. coordination_text (<=280 chars) optionally emits a "
+            "coordination.handoff signal on the task for its next session (delivered via "
+            "studio_sync, never re-emitted on replay). The response also carries the last bounded "
+            "sync block and the task's handoff_cursor_seq. Requires a writer role."
         ),
         annotations=_IDEMPOTENT_WRITE,
     )

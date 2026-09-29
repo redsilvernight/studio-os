@@ -27,6 +27,7 @@ from studio_contracts.project_context import (
     Why,
 )
 from studio_contracts.sessions import WorkSession
+from studio_contracts.sync import SyncResult
 from studio_contracts.tasks import Task, TaskStatus
 
 
@@ -71,11 +72,14 @@ class StartWorkResult(ContractModel):
     are set only on the with-task path; `claimed` tells whether the task is
     now claimed by the caller's machine; `resumed` tells whether the
     session was resumed (`True`) or created (`False`) — meaningless without
-    a task. `prepared_context` is present on every successful response
-    (bounded); `candidates` only on the no-task path. Replaying the same `Idempotency-Key` with the
-    same body returns the original result — never a second claim nor a
-    second session; a different body is `409
-    idempotency_key_payload_mismatch`."""
+    a task. `sync` (C4, additive) is the initial bounded `studio_sync` block of
+    the session, with-task path only: computed from the cursor the session
+    holds (inherited from the task's last handoff), never acknowledged here —
+    the agent acks `next_cursor` on its next `studio_sync`. `prepared_context`
+    is present on every successful response (bounded); `candidates` only on
+    the no-task path. Replaying the same `Idempotency-Key` with the same body
+    returns the original result — never a second claim nor a second session;
+    a different body is `409 idempotency_key_payload_mismatch`."""
 
     task: Task | None = None
     session: WorkSession | None = None
@@ -83,3 +87,4 @@ class StartWorkResult(ContractModel):
     resumed: bool = False
     prepared_context: PreparedContext | None = None
     candidates: list[StartWorkCandidate] = []
+    sync: SyncResult | None = None

@@ -42,6 +42,9 @@ Demarrer/reprendre en un appel : claim idempotent + reprise ou creation de
 session + contexte borne (avec `task_id`) ; contexte + `candidates` sans
 claim (sans `task_id`, AIB-G). Meme contrat que `POST /start-work`
 (`TECH/02_API_CONTRACT.md` § Start work), `idempotency_key` optionnel.
+C4 (additif) : avec `task_id`, la reponse porte aussi `sync`, le bloc
+`studio_sync` initial borne depuis le curseur de la session (herite du dernier
+handoff de la tache), sans ack ; `sync` est `null` sans `task_id`.
 
 ### studio_handoff (L3, additif, DEC-0163)
 Cloture en un appel : met a jour le statut de la tache (`expected_version`,
@@ -53,7 +56,11 @@ Meme contrat que `POST /handoff` (`TECH/02_API_CONTRACT.md` § Handoff),
 d'idempotence (403 meme sur rejeu). `task_status`/`ai_work_status` inconnus
 repondent in-band (pas de 422 en MCP) : `invalid_task_status` /
 `invalid_ai_work_status`, meme vocabulaire que les services. Reponse compacte : ids + statuts
-seulement. Repli minimal : `end_session` libere les claims de la tache
+seulement, plus (C4, additif) `sync` (dernier `studio_sync` borne, acquitte),
+`handoff_cursor_seq` (curseur que la prochaine session de la tache herite) et
+`coordination_event_id`. `coordination_text` (<= 280 caracteres) emet
+optionnellement un `coordination.handoff` sur la tache ; `event_id` derive de
+la session : jamais de doublon au rejeu. Repli minimal : `end_session` libere les claims de la tache
 automatiquement.
 
 ### studio_sync (C2, additif, DEC-0157)

@@ -5,6 +5,8 @@ Real Postgres through the shared savepoint fixtures."""
 
 from __future__ import annotations
 
+import json
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.machine import MachineModel
@@ -38,6 +40,22 @@ async def test_start_work_claims_resumes_and_replays(
     resumed = await studio_start_work(str(project.id), str(agent.id), auth_ctx, task_id=task["id"])
     assert resumed["resumed"] is True
     assert resumed["session"]["id"] == first["session"]["id"]
+
+
+async def test_start_work_returns_a_bounded_initial_sync_block(
+    auth_ctx: FakeContext, project: ProjectModel, agent: AgentModel
+) -> None:
+    task = await studio_create_task(str(project.id), "Sync me", auth_ctx)
+
+    result = await studio_start_work(str(project.id), str(agent.id), auth_ctx, task_id=task["id"])
+    block = result["sync"]
+    assert block["next_cursor"] >= 0
+    assert block["resync"] is False
+    assert len(json.dumps(block)) < 2000
+
+    # No-task path has no session, hence no sync block.
+    none = await studio_start_work(str(project.id), str(agent.id), auth_ctx)
+    assert none["sync"] is None
 
 
 async def test_start_work_without_task_lists_candidates_and_claims_nothing(
