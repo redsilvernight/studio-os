@@ -36,6 +36,8 @@ SKILL_TOOLS = {
         "studio_handoff",
         "studio_update_task",
         "studio_log_ai_work",
+        "studio_sync",
+        "studio_coordinate",
     },
     "studio-decision": {
         "studio_add_decision",
@@ -54,6 +56,7 @@ SKILL_TOOLS = {
         "studio_release_task",
         "studio_end_session",
         "studio_start_work",
+        "studio_sync",
     },
 }
 
@@ -164,3 +167,12 @@ def test_cross_harness_resume_uses_start_work_and_handoff():
     assert "studio_handoff" in text
     # Resume flow: Agent B uses studio_start_work to claim + resume
     assert "studio_start_work" in text
+
+
+def test_skills_teach_sync_checkpoints_and_handoff_signal():
+    task = _read(SKILLS["studio-task"])
+    for marker in ("studio_sync", "next_cursor", "ack", "coordination_text", "quoted data"):
+        assert marker in task, f"studio-task missing {marker}"
+    handoff = _read(SKILLS["studio-handoff"])
+    for marker in ("coordination.handoff", "coordination_text", "studio_sync"):
+        assert marker in handoff, f"studio-handoff missing {marker}"
