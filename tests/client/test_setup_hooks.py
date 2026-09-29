@@ -15,11 +15,15 @@ from studio_client import cli
 from studio_client.config import default_config_path
 from studio_client.hooks import (
     AGENT_STORE_REL,
+    GUARD_REL,
     HARNESSES,
     MANAGED_MARKER,
+    deploy_guard,
     deploy_hooks,
     detect_harnesses,
+    guard_state,
     is_managed,
+    render_guard,
     render_hook,
 )
 
@@ -33,7 +37,13 @@ def test_render_has_no_unsubstituted_placeholder() -> None:
         assert MANAGED_MARKER in rendered
         assert spec.harness in rendered
         assert spec.agent_key in rendered
-        for token in ("__HARNESS__", "__AGENT_KEY__", "__OUTPUT__", "__MANAGED_MARKER__"):
+        for token in (
+            "__HARNESS__",
+            "__AGENT_KEY__",
+            "__OUTPUT__",
+            "__MANAGED_MARKER__",
+            "__MODEL_BLOCK__",
+        ):
             assert token not in rendered
 
 
@@ -89,6 +99,42 @@ def test_deploy_dry_run_writes_nothing(tmp_path: Path) -> None:
     result = deploy_hooks(tmp_path, list(HARNESSES), dry_run=True)
     assert [r.status for r in result.reports] == ["would-deploy"] * len(HARNESSES)
     assert not any(tmp_path.rglob("*.ps1"))
+
+
+def test_render_guard_is_managed_and_has_no_placeholder() -> None:
+    """AIB L1 : le guard est versionne, porte le marqueur gere et bloque par
+    code 2 (jamais par un code d'erreur PowerShell)."""
+    rendered = render_guard()
+    assert MANAGED_MARKER in rendered
+    assert "__MANAGED_MARKER__" not in rendered
+    assert "exit 2" in rendered
+    assert "studio-git-guard" in rendered
+
+
+def test_deploy_guard_idempotent_and_never_overwrites_foreign(tmp_path: Path) -> None:
+    assert [r.status for r in deploy_guard(tmp_path).reports] == ["deployed"]
+    assert is_managed(tmp_path / GUARD_REL)
+    assert guard_state(tmp_path) == "guard-managed"
+    assert [r.status for r in deploy_guard(tmp_path).reports] == ["unchanged"]
+
+    (tmp_path / GUARD_REL).write_text("# operator's own guard", encoding="utf-8")
+    assert guard_state(tmp_path) == "guard-foreign"
+    assert [r.status for r in deploy_guard(tmp_path).reports] == ["needs-overwrite"]
+    assert (tmp_path / GUARD_REL).read_text(encoding="utf-8") == "# operator's own guard"
+    assert [r.status for r in deploy_guard(tmp_path, overwrite=True).reports] == ["overwritten"]
+    assert guard_state(tmp_path) == "guard-managed"
+
+
+def test_deploy_guard_dry_run_writes_nothing(tmp_path: Path) -> None:
+    assert [r.status for r in deploy_guard(tmp_path, dry_run=True).reports] == ["would-deploy"]
+    assert not (tmp_path / GUARD_REL).exists()
+
+
+def test_cli_setup_hooks_deploys_guard(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert cli.setup_hooks(["--home", str(tmp_path), "--harness", "opencode"]) == 0
+    out = capsys.readouterr().out
+    assert "git-guard: deployed" in out
+    assert is_managed(tmp_path / GUARD_REL)
 
 
 def test_detect_by_config_marker(tmp_path: Path) -> None:
@@ -177,6 +223,24 @@ def test_hook_matches_task_worktrees() -> None:
     rendered = render_hook(_SPECS["opencode"])
     assert "-wt-" in rendered
     assert "^[0-9a-fA-F]{8}$" in rendered
+
+
+def test_opencode_render_carries_the_model_protocol() -> None:
+    """AIB L1 : le template de hook OpenCode porte le bloc modele, resolu via
+    POST /agents/ensure avec une stable_key dediee par couple harness+modele."""
+    rendered = render_hook(_SPECS["opencode"])
+    assert "harness/modele" in rendered
+    assert "agents-ensure-opencode:" in rendered
+    assert "'--harness', 'opencode'" in rendered
+    assert "$modelRef = $payload.model" in rendered
+
+
+def test_claude_code_render_has_no_model_block() -> None:
+    """Sans regression Claude Code : la sortie JSON ne porte pas le bloc modele
+    (actif uniquement pour la sortie texte)."""
+    rendered = render_hook(_SPECS["claude-code"])
+    assert "harness/modele" not in rendered
+    assert "$modelAgentId" not in rendered
 
 
 def _run_hook(hook: Path, cwd: Path) -> subprocess.CompletedProcess[str]:
@@ -304,3 +368,120 @@ def test_hook_falls_back_to_the_profile_that_exists_without_a_channel(
     assert result.returncode == 0, result.stderr
     assert project_id in result.stdout
     assert "slug studio-os" in result.stdout
+
+
+@pytest.mark.skipif(_PS is None, reason="PowerShell absent de cette machine")
+def test_hook_emits_model_agent_line_from_ensured_agent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AIB L1 : un poste suivi dont le `studio-client` du PATH rend un agent
+    idempotent voit le hook resoudre l'agent du couple (harness, modele),
+    emettre la ligne `harness/modele` et cacher la cle scope modele dans
+    studio-agent.json (fail-open, aucun secret)."""
+    repo = tmp_path / "Studi'os"
+    repo.mkdir()
+    monkeypatch.delenv("STUDIO_CLIENT_CHANNEL", raising=False)
+    monkeypatch.delenv("STUDIO_CLIENT_CONFIG_FILE", raising=False)
+    if os.name == "nt":
+        monkeypatch.setenv("APPDATA", str(tmp_path))
+        profile = tmp_path / "StudioOS-Dev"
+    else:
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+        profile = tmp_path / "studio-os-dev"
+
+    project_id = "2a836038-153c-41cf-879a-73bd794760b0"
+    ws_dir = profile / "workspaces"
+    ws_dir.mkdir(parents=True)
+    (ws_dir / f"{project_id}.json").write_text(
+        json.dumps(
+            {
+                "project_id": project_id,
+                "project_slug": "studio-os",
+                "roots": {
+                    "workspace_root": str(repo),
+                    "repo_roots": [{"name": "Studi'os", "path": str(repo)}],
+                },
+                "profile": {"server_origin": "http://example.invalid"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    agent_id = "11111111-1111-1111-1111-111111111111"
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    if os.name == "nt":
+        (bindir / "studio-client.cmd").write_text(
+            f'@echo {{"id": "{agent_id}"}}\r\n', encoding="utf-8"
+        )
+    else:
+        stub = bindir / "studio-client"
+        stub.write_text(f'#!/bin/sh\necho \'{{"id": "{agent_id}"}}\'\n', encoding="utf-8")
+        stub.chmod(0o755)
+
+    env = os.environ.copy()
+    env["PATH"] = str(bindir) + os.pathsep + env.get("PATH", "")
+    env["HOME"] = str(tmp_path)
+    if os.name == "nt":
+        env["USERPROFILE"] = str(tmp_path)
+
+    hook = tmp_path / "hook-model.ps1"
+    hook.write_text(render_hook(_SPECS["opencode"]), encoding="utf-8")
+
+    (tmp_path / ".claude").mkdir(parents=True, exist_ok=True)
+
+    args = [_PS, "-NoProfile"]
+    if os.name == "nt":
+        args += ["-ExecutionPolicy", "Bypass"]
+    args += ["-File", str(hook)]
+    result = subprocess.run(
+        args,
+        input=json.dumps({"cwd": str(repo), "model": "opencode-go/deepseek-v4.1-flash"}),
+        capture_output=True,
+        text=True,
+        cwd=str(repo),
+        timeout=120,
+        env=env,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "harness/modele" in result.stdout
+    assert "opencode-go/deepseek-v4.1-flash" in result.stdout
+    assert agent_id in result.stdout
+
+    store = json.loads((tmp_path / ".claude" / "studio-agent.json").read_text(encoding="utf-8"))
+    assert store["opencode:opencode-go/deepseek-v4.1-flash"] == agent_id
+
+
+@pytest.mark.skipif(_PS is None, reason="PowerShell absent de cette machine")
+def test_guard_blocks_commit_on_protected_branch(tmp_path: Path) -> None:
+    """AIB L1 : le guard versionne bloque (code 2) un `git commit` direct sur
+    une branche protegee et autorise (code 0) une branche task/*."""
+    guard = tmp_path / "guard.ps1"
+    guard.write_text(render_guard(), encoding="utf-8")
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "phase/protected"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.email", "t@example.invalid"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=repo, check=True)
+
+    def run(command: str) -> int:
+        args = [_PS, "-NoProfile"]
+        if os.name == "nt":
+            args += ["-ExecutionPolicy", "Bypass"]
+        args += ["-File", str(guard)]
+        result = subprocess.run(
+            args,
+            input=json.dumps({"tool_input": {"command": command}, "cwd": str(repo)}),
+            capture_output=True,
+            text=True,
+            cwd=str(repo),
+            timeout=60,
+            env=os.environ.copy(),
+        )
+        return result.returncode
+
+    assert run("git commit -m wip") == 2
+    assert run("git status") == 0
+    subprocess.run(["git", "checkout", "-q", "-b", "task/abc"], cwd=repo, check=True)
+    assert run("git commit -m wip") == 0

@@ -29,7 +29,7 @@ from studio_client.context import (
     ContextPackageOptions,
 )
 from studio_client.errors import StudioApiError
-from studio_client.hooks import HARNESSES, deploy_hooks, detect_harnesses
+from studio_client.hooks import HARNESSES, deploy_guard, deploy_hooks, detect_harnesses
 from studio_client.knowledge import GraphifyGraphProvider, ScopePolicy, VaultMemoryProvider
 from studio_client.opencode_plugin import deploy_plugin
 from studio_client.outbox import OutboxStore, connect, default_outbox_path
@@ -183,6 +183,9 @@ def setup_hooks(argv: Sequence[str] | None = None) -> int:
         specs = [spec for spec in HARNESSES if spec.harness in installed]
         skipped = [spec.harness for spec in HARNESSES if spec.harness not in installed]
     result = deploy_hooks(home, specs, overwrite=args.overwrite, dry_run=args.dry_run)
+    if any(spec.harness in ("claude-code", "opencode") for spec in specs):
+        guard_result = deploy_guard(home, overwrite=args.overwrite, dry_run=args.dry_run)
+        result.reports.extend(guard_result.reports)
     if any(spec.harness == "opencode" for spec in specs):
         plugin_result = deploy_plugin(home, overwrite=args.overwrite, dry_run=args.dry_run)
         result.reports.extend(plugin_result.reports)
