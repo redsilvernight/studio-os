@@ -280,6 +280,11 @@ public de bootstrap, pas de secret d'environnement dedie.
   `expired` puis en cree une neuve ; une session `ended` n'est jamais
   reutilisee. Aucune cloture sur un chemin de lecture (`GET` reste pur,
   DEC-0080). Un client qui ignore ces regles n'observe aucun changement.
+- Repli L3 (DEC-0163) : `PATCH /sessions/{id}/end` libere desormais les
+  claims actifs de la tache detenus par la machine appelante, avec un
+  `resource.released` par claim (meme chemin que `release_claim`), avant de
+  marquer la session terminee — et aussi sur une session deja terminee, pour
+  converger apres un echec partiel.
 
 ### Start work (L2, additif, DEC-0159)
 - POST /start-work (body `StartWorkRequest`, reponse `StartWorkResult`) +
@@ -311,26 +316,34 @@ public de bootstrap, pas de secret d'environnement dedie.
   idempotency_key_payload_mismatch`. Un client qui n'appelle pas la route
   n'observe aucun changement.
 
-### Handoff (L3, additif, DEC-0162)
+### Handoff (L3, additif, DEC-0163)
 - POST /handoff — `HandoffRequest` body, `HandoffResult` response + MCP
   tool `studio_handoff` (same contract, `idempotency_key` optional,
   DEC-0027/DEC-0046/DEC-0048 : no version in payload). Composite in one
   call (composed services own their own commits: not a single database
   transaction, a mid-call failure converges on retry), no new table, no
   new event type: with `session_id`, updates the task status (with
-  `expected_version` for optimistic concurrency, like `update_task`),
-  releases all claims for the task, logs AI work (if `agent_id` +
-  `summary` provided), ends the session. The calling machine must own the
-  session (`409 forbidden` otherwise). `agent_id` must belong to the
-  caller's machine (`409 actor_not_owned`). Compact response: ids +
+  `expected_version` for optimistic concurrency, like `update_task` —
+  required only when `task_status` is provided, `422
+  missing_expected_version` otherwise), releases all claims for the task
+  (one `resource.released` per claim, before the session is marked ended —
+  and also on an already-ended session, so the fallback converges),
+  logs AI work (if `agent_id` +
+  `summary` provided, typed `ai_work_status`, `422` on unknown status,
+  existing entry of the (`session_id`, `agent_id`) pair updated rather than
+  duplicated, `session_id` validated), ends the
+  session. The calling machine must own the session (`403 forbidden`
+  otherwise). `agent_id` must belong to the caller's machine (`409
+  actor_not_owned`). Authorization runs before the idempotency replay
+  short-circuit (DEC-0036, DEC-0103 §12). Compact response: ids +
   statuses only, never full descriptions. Always `200`: the response
   fields tell a successful handoff; replaying the same `Idempotency-Key`
   with the same body returns the original result — no second status
   update, no duplicate claim releases, no duplicate AI work entry, no
   second session end; a different body is `409
-  idempotency_key_payload_mismatch`. Minimal fallback: `end_session` now
-  releases the task's claims automatically (L3 fallback). A client that
-  does not call the route observes no change.
+  idempotency_key_payload_mismatch`. Minimal fallback: `end_session`
+  releases the task's claims automatically (L3 fallback, DEC-0163). A
+  client that does not call the route observes no change.
 
 ### Claims
 - GET /claims
@@ -400,7 +413,14 @@ public de bootstrap, pas de secret d'environnement dedie.
   `PATCH`). `approved`/`changes_requested` ne sont jamais un statut initial :
   `409 invalid_status_transition` (DEC-0041, on ne s'auto-approuve pas). Un
   client qui omet ces champs n'observe aucun changement. `Idempotency-Key`
-  inchange : ces champs font partie du corps hache.
+  inchange : ces champs font partie du corps hache. Additif (L3, DEC-0163) :
+  `session_id` (FK WorkSession, nullable) lie l'entree a la session qui a
+  produit le travail ; `ai_work_status` du handoff est type `AIWorkStatus`
+  (`422` sur statut inconnu, jamais `500`). Resserrement (L3, DEC-0163) :
+  un `session_id` fourni est valide — session inexistante `404`, session
+  d'une autre machine `403`, d'une autre tache ou d'un autre projet `409
+  invalid_session` ; les clients existants qui envoyaient un `session_id`
+  arbitraire doivent le corriger.
 - PATCH /ai-work/{id}
 - GET /ai-work
 
