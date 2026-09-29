@@ -1,7 +1,7 @@
 ---
 id: DEC-0167
 title: 'AIB P3 : générateur local du bundle, offline d''abord'
-status: proposed
+status: accepted
 date: '2026-09-29'
 superseded_by: null
 source: docs/AI_BOOTSTRAP_ROADMAP.md
@@ -9,8 +9,8 @@ source: docs/AI_BOOTSTRAP_ROADMAP.md
 
 # DEC-0167 — AIB P3 : générateur local du bundle, offline d'abord
 
-Tâche `c691ac49` (étape P3, roadmap `53ca8479`). Statut `proposed` (en attente
-d'accord humain explicite — fichier et serveur alignés).
+Tâche `c691ac49` (étape P3, roadmap `53ca8479`). Statut `accepted` (accord
+humain du 2026-09-29 — fichier et serveur alignés).
 
 ## Contexte
 
