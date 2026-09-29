@@ -294,7 +294,17 @@ async function main() {
       const u = join(instDir, "uninstall.exe");
       if (existsSync(u)) await runSilent(u, ["/S", `_?=${instDir}`]);
     }
-    rmSync(root, { recursive: true, force: true });
+    cleanupRoot(root);
+  }
+}
+
+// Best-effort scratch cleanup: Windows can hold the install dir a moment after
+// uninstall (EBUSY); a leftover temp folder must not turn a passed run into an abort.
+function cleanupRoot(dir) {
+  try {
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
+  } catch (e) {
+    console.warn("temp cleanup skipped:", String(e));
   }
 }
 
@@ -570,7 +580,7 @@ async function upgradeMain(oldInstaller, expected) {
       const u = join(instDir, "uninstall.exe");
       if (existsSync(u)) await runSilent(u, ["/S", `_?=${instDir}`]);
     }
-    rmSync(root, { recursive: true, force: true });
+    cleanupRoot(root);
   }
 }
 
