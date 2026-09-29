@@ -289,9 +289,7 @@ def plan_bundle_sync(repo_root: Path | str) -> BundleSyncPlan:
             for entry in entries
         ],
     }
-    manifest_text = (
-        json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
-    )
+    manifest_text = json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
     return BundleSyncPlan(
         repo_root=root,
         entries=tuple(entries),
