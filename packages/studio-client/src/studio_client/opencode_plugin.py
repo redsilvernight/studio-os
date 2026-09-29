@@ -9,14 +9,14 @@ Scope notes, read before extending:
   being present; OpenCode loads `plugins/*.js` on start.
 - Paths are interpolated at deploy time from `home` (no machine-specific
   absolute path in the template).
-- The plugin calls two scripts: the managed session-start hook (deployed
-  by `setup-hooks` alongside) and `studio-git-guard.ps1`, which is still
-  hand-maintained — deploy reports its state (`guard-managed`,
-  `guard-missing`, `guard-foreign`) but never writes it. Versioning the
-  guard is a separate task.
+- The plugin calls two managed scripts: the session-start hook and
+  `studio-git-guard.ps1`, both deployed by `setup-hooks`. The plugin only
+  reports the guard state (`guard-managed`, `guard-missing`, `guard-foreign`)
+  in `detail`; it never writes either script.
 - Per-model agent lines (`harness/modele`) are read opportunistically:
-  with a managed session script they are simply absent (fail-open) until
-  the model protocol lands in the hook template (separate task).
+  a managed session script emits them once the model protocol (AIB L1) is
+  active for the harness's text output; absent, the block is simply skipped
+  (fail-open).
 """
 
 from __future__ import annotations
@@ -25,15 +25,16 @@ import os
 from pathlib import Path
 
 from studio_client.hooks import (
+    GUARD_REL,
     HARNESSES,
     MANAGED_MARKER,
     DeployReport,
     DeployResult,
+    guard_state,
     is_managed,
 )
 
 PLUGIN_REL = Path(".config") / "opencode" / "plugins" / "studio-os.js"
-GUARD_REL = Path(".claude") / "scripts" / "studio-git-guard.ps1"
 
 _PLUGIN_JS_TEMPLATE = """// Studio OS — plugin global OpenCode.
 // __MANAGED_MARKER__ (L1/setup-hooks). Fichier d'integration Studio OS :
@@ -189,15 +190,6 @@ def render_plugin(home: Path) -> str:
         .replace("__GUARD_SCRIPT__", guard_script)
         .replace("__SESSION_SCRIPT__", session_script)
     )
-
-
-def guard_state(home: Path) -> str:
-    """State of the hand-maintained guard script the plugin calls: the
-    plugin never writes it (separate versioning task), it only reports."""
-    target = home / GUARD_REL
-    if not target.is_file():
-        return "guard-missing"
-    return "guard-managed" if is_managed(target) else "guard-foreign"
 
 
 def deploy_plugin(
