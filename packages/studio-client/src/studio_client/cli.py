@@ -15,6 +15,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ValidationError
 from studio_contracts.auth import AgentCreate
+from studio_contracts.bootstrap import BootstrapFileState, OnModified
 from studio_contracts.builds import BuildStatus, ProducerJobKind, ProducerJobRequest
 from studio_contracts.claims import ResourceClaimCreate, ResourceType
 from studio_contracts.sessions import WorkSessionCreate
@@ -784,6 +785,108 @@ def _adapters_check(args: argparse.Namespace, config: ClientConfig | None) -> No
         raise SystemExit(1)
 
 
+def _bootstrap_init(args: argparse.Namespace, config: ClientConfig | None) -> None:
+    """Write the `.agents/bootstrap.json` manifest (P3, offline)."""
+    from studio_client.adapters import list_adapters
+    from studio_client.bootstrap import BootstrapError, make_manifest, write_manifest
+
+    _ = config
+    known = set(list_adapters())
+    harnesses = args.harness or sorted(known)
+    unknown = [harness for harness in harnesses if harness not in known]
+    if unknown:
+        print(
+            f"error: unknown harness {'/'.join(unknown)}; known: {', '.join(sorted(known))}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    manifest = make_manifest(
+        args.project_slug,
+        args.project_name,
+        harnesses,
+        description=args.description,
+        on_modified=OnModified(args.on_modified),
+    )
+    try:
+        path = write_manifest(args.repo_root, manifest, overwrite=args.overwrite)
+    except BootstrapError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
+    if args.json:
+        print(json.dumps({"manifest": str(path), "harnesses": harnesses}))
+    else:
+        print(f"Wrote {path} (harnesses: {', '.join(harnesses)}).")
+
+
+def _bootstrap_report(
+    args: argparse.Namespace, config: ClientConfig | None, *, emit_diff: bool
+) -> None:
+    from studio_client.bootstrap import BootstrapError, diff_text, load_manifest, observe
+
+    _ = config
+    try:
+        manifest = load_manifest(args.repo_root)
+        report = observe(args.repo_root, manifest)
+        diff = diff_text(args.repo_root, manifest) if emit_diff else ""
+    except BootstrapError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
+    if args.json:
+        payload: dict[str, Any] = {"report": report.model_dump(mode="json")}
+        if emit_diff:
+            payload["diff"] = diff
+        print(json.dumps(payload, indent=2))
+    elif emit_diff:
+        print(diff if diff else "no changes")
+    else:
+        for observed in report.files:
+            print(f"{observed.state.value:11} {observed.path}")
+        summary = report.summary
+        print(
+            f"absent={summary.absent} obsolete={summary.obsolete} "
+            f"modified={summary.modified} incompatible={summary.incompatible} "
+            f"up_to_date={summary.up_to_date}"
+        )
+    drifted = any(f.state is not BootstrapFileState.UP_TO_DATE for f in report.files)
+    if drifted or report.conflicts or report.needs_confirmation:
+        raise SystemExit(1)
+
+
+def _bootstrap_check(args: argparse.Namespace, config: ClientConfig | None) -> None:
+    _bootstrap_report(args, config, emit_diff=False)
+
+
+def _bootstrap_diff(args: argparse.Namespace, config: ClientConfig | None) -> None:
+    _bootstrap_report(args, config, emit_diff=True)
+
+
+def _bootstrap_sync(args: argparse.Namespace, config: ClientConfig | None) -> None:
+    from studio_client.bootstrap import (
+        BootstrapError,
+        apply_files,
+        load_manifest,
+        observe,
+        plan_files,
+    )
+
+    _ = config
+    try:
+        manifest = load_manifest(args.repo_root)
+        planned = plan_files(args.repo_root, manifest)
+        report = observe(args.repo_root, manifest, planned=planned)
+        written = apply_files(args.repo_root, manifest, report, planned=planned, confirm=args.yes)
+    except BootstrapError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
+    if args.json:
+        print(json.dumps({"written": written}))
+    elif written:
+        for path in written:
+            print(f"Wrote {path}.")
+    else:
+        print("Already up to date.")
+
+
 def _workspaces_register(args: argparse.Namespace, config: ClientConfig) -> None:
     from studio_contracts.local.identity import ProfileRef
     from studio_workspaces import WorkspaceStoreError, register_workspace
@@ -1424,6 +1527,52 @@ def _build_parser() -> argparse.ArgumentParser:
         _add_json_flag(bundle_command)
         bundle_command.set_defaults(func=_bundle_command)
 
+    bootstrap_parser = subparsers.add_parser(
+        "bootstrap", help="Generate the project AI bundle from `.agents/` (P3)."
+    )
+    bootstrap_sub = bootstrap_parser.add_subparsers(dest="bootstrap_command", required=True)
+
+    bootstrap_init = bootstrap_sub.add_parser(
+        "init", help="Write the `.agents/bootstrap.json` manifest."
+    )
+    bootstrap_init.add_argument("--project-slug", required=True)
+    bootstrap_init.add_argument("--project-name", required=True)
+    bootstrap_init.add_argument("--description")
+    bootstrap_init.add_argument(
+        "--harness",
+        action="append",
+        help="Target harness id (repeatable; default: every local adapter).",
+    )
+    bootstrap_init.add_argument("--on-modified", choices=["refuse", "ask"], default="refuse")
+    bootstrap_init.add_argument("--repo-root", default=".")
+    bootstrap_init.add_argument("--overwrite", action="store_true")
+    _add_json_flag(bootstrap_init)
+    bootstrap_init.set_defaults(func=_bootstrap_init)
+
+    bootstrap_check = bootstrap_sub.add_parser(
+        "check", help="Report bundle drift (exit 1 when out of date)."
+    )
+    bootstrap_check.add_argument("--repo-root", default=".")
+    _add_json_flag(bootstrap_check)
+    bootstrap_check.set_defaults(func=_bootstrap_check)
+
+    bootstrap_diff = bootstrap_sub.add_parser(
+        "diff", help="Print the unified diff needed to sync the bundle."
+    )
+    bootstrap_diff.add_argument("--repo-root", default=".")
+    _add_json_flag(bootstrap_diff)
+    bootstrap_diff.set_defaults(func=_bootstrap_diff)
+
+    bootstrap_sync = bootstrap_sub.add_parser(
+        "sync", help="Write missing or changed bundle files (idempotent)."
+    )
+    bootstrap_sync.add_argument("--repo-root", default=".")
+    bootstrap_sync.add_argument(
+        "--yes", action="store_true", help="Confirm replacements under the `ask` policy."
+    )
+    _add_json_flag(bootstrap_sync)
+    bootstrap_sync.set_defaults(func=_bootstrap_sync)
+
     return parser
 
 
@@ -1446,6 +1595,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         )
         or getattr(args, "rules_command", None) in ("sync",)
         or getattr(args, "bundle_command", None) in ("init", "check", "diff", "sync")
+        or getattr(args, "bootstrap_command", None) in ("init", "check", "diff", "sync")
     ):
         # Offline canonical commands need no server configuration.
         args.func(args, None)
