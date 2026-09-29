@@ -183,6 +183,11 @@ async def handoff(
     # End the session
     await sessions_service.end_session(session, principal, request.session_id)
 
+    # Advance the task's handoff cursor to the session's sync cursor (if any)
+    if work_session.sync_cursor_seq is not None:
+        task.handoff_cursor_seq = work_session.sync_cursor_seq
+        await session.commit()
+
     return HandoffResult(
         task_id=task.id,
         task_status=TaskStatus(task.status),

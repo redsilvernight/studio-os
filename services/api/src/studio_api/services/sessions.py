@@ -181,12 +181,18 @@ async def resume_or_start_session(
         await session.commit()
         await session.refresh(existing)
         await _emit_session_event(session, principal, existing, EventType.SESSION_ENDED)
+    handoff_cursor = None
+    if session_in.task_id is not None:
+        task = await tasks_service.get_task(session, session_in.task_id)
+        if task is not None:
+            handoff_cursor = task.handoff_cursor_seq
     work_session = WorkSessionModel(
         task_id=session_in.task_id,
         machine_id=session_in.machine_id,
         agent_id=session_in.agent_id,
         started_at=now,
         last_activity_at=now,
+        sync_cursor_seq=handoff_cursor,
     )
     session.add(work_session)
     await session.commit()
@@ -200,12 +206,18 @@ async def start_session(
 ) -> WorkSessionModel:
     await authorize_start(session, principal, session_in.task_id)
     now = datetime.now(UTC)
+    handoff_cursor = None
+    if session_in.task_id is not None:
+        task = await tasks_service.get_task(session, session_in.task_id)
+        if task is not None:
+            handoff_cursor = task.handoff_cursor_seq
     work_session = WorkSessionModel(
         task_id=session_in.task_id,
         machine_id=session_in.machine_id,
         agent_id=session_in.agent_id,
         started_at=now,
         last_activity_at=now,
+        sync_cursor_seq=handoff_cursor,
     )
     session.add(work_session)
     await session.commit()
@@ -287,4 +299,20 @@ async def touch_session(session: AsyncSession, session_id: uuid.UUID) -> WorkSes
     work_session.last_activity_at = datetime.now(UTC)
     await session.commit()
     await session.refresh(work_session)
+    return work_session
+
+
+async def ack_sync_cursor(
+    session: AsyncSession, session_id: uuid.UUID, seq: int
+) -> WorkSessionModel | None:
+    """Advance the session's sync cursor (C2, DEC-0157): the single writer
+    of `sync_cursor_seq`. Only moves forward — a stale ack is a no-op.
+    Returns the session, or `None` when unknown."""
+    work_session = await session.get(WorkSessionModel, session_id)
+    if work_session is None:
+        return None
+    if work_session.sync_cursor_seq is None or seq > work_session.sync_cursor_seq:
+        work_session.sync_cursor_seq = seq
+        await session.commit()
+        await session.refresh(work_session)
     return work_session

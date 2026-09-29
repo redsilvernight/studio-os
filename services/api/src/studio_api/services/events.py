@@ -7,6 +7,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.auth import Role
+from studio_contracts.coordination import COORDINATION_EVENT_PREFIX
 from studio_contracts.events import EventCreate, EventEnvelope, EventType
 
 from studio_api.db.models.agent import AgentModel
@@ -53,6 +54,15 @@ async def resolve_event_identity(
     """
     ensure_project_access(principal, event_in.project_id, "write")
     ensure_can_write(principal, "event")
+    if event_in.event_type.value.startswith(COORDINATION_EVENT_PREFIX):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "error_code": "coordination_reserved",
+                "message": "coordination.* events are emitted only through "
+                "POST /api/v1/coordination (studio_coordinate)",
+            },
+        )
     machine = principal.machine
     if event_in.machine_id is not None and event_in.machine_id != machine.id:
         raise HTTPException(

@@ -29,6 +29,7 @@ class WorkSession(ContractModel):
     started_at: datetime
     ended_at: datetime | None = None
     last_activity_at: datetime | None = None
+    sync_cursor_seq: int | None = None
     status: SessionStatus = SessionStatus.ACTIVE
     expires_at: datetime | None = None
 

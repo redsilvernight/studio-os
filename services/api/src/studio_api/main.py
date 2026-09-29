@@ -18,6 +18,7 @@ from studio_api.routers import (
     bootstrap_plan,
     builds,
     claims,
+    coordination,
     decisions,
     events,
     github,
@@ -37,6 +38,7 @@ from studio_api.routers import (
     runtimes,
     sessions,
     start_work,
+    sync,
     tasks,
     timeline,
     transfers,
@@ -248,6 +250,8 @@ def create_app() -> FastAPI:
     app.include_router(tasks.router)
     app.include_router(sessions.router)
     app.include_router(start_work.router)
+    app.include_router(sync.router)
+    app.include_router(coordination.router)
     app.include_router(handoff.router)
     app.include_router(claims.router)
     app.include_router(decisions.router)

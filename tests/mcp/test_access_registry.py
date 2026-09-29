@@ -124,6 +124,18 @@ PROBES: dict[str, tuple[Probe, ...]] = {
     "studio_handoff": (
         Probe({"project_id": "{pid}", "session_id": "{session}", "expected_version": 1}, "role"),
     ),
+    "studio_sync": (Probe({"session_id": "{session}"}),),
+    "studio_coordinate": (
+        Probe(
+            {
+                "from_session_id": "{session}",
+                "intent": "heads_up",
+                "task_id": "{task}",
+                "text": "x",
+            },
+            "role",
+        ),
+    ),
     "studio_end_session": (Probe({"session_id": "{session}"}),),
     "studio_log_ai_work": (
         Probe({"project_id": "{pid}", "summary": "x", "agent_id": "{outsider_agent}"}),

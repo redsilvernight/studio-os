@@ -345,6 +345,27 @@ public de bootstrap, pas de secret d'environnement dedie.
   releases the task's claims automatically (L3 fallback, DEC-0163). A
   client that does not call the route observes no change.
 
+### Sync (C2, additif, DEC-0157)
+- GET /sync — point de resynchronisation unique : « Qu'est-ce qui a changé depuis mon dernier sync et qui concerne mon travail ? », en réponse compacte et bornée. Lecture seule sur les ressources métier ; écrit un curseur de session (distinct de `prepare_context`, qui reste en lecture seule, DEC-0080). Outil MCP `studio_sync` (même contrat, DEC-0046/DEC-0048 : pas de version dans le payload).
+  - Query params : `session_id` (UUID, optionnel — sinon `agent_id` + `task_id` requis), `ack` (curseur `seq` acquitté, optionnel — absent = début de session), `files` (liste de chemins déclarés, optionnel — filtre les claims recoupant ces fichiers), `limit` (défaut 50, max 200), `max_chars` (défaut 12000, max 50000 — budget de caractères partagé avec `prepare_context`).
+  - Réponse `SyncResult` : `next_cursor` (seq suivant à acquitter), `items` (éléments compacts avec `why` — raison déterministe de pertinence), `overflow` (compteurs par catégorie si débordement), `resync` (booléen — curseur trop ancien ou invalide, renvoi vers `prepare_context`).
+  - Filtre déterministe expliqué (`why`) : ma tâche ; claims recoupant les miens ou mes fichiers déclarés ; tâches des étapes amont/aval ; `coordination.*` me ciblant ; décisions liées à ma tâche. Mes propres événements exclus.
+  - Réponse bornée : `limit` + `max_chars` ; « rien de nouveau » tient en moins de 300 caractères ; aucune description de tâche ni texte long.
+  - Débordement ou curseur trop ancien : compteurs par catégorie + renvoi vers `prepare_context`, jamais d'historique brut.
+  - Claims lus depuis l'état réel (expirations dérivées), pas seulement depuis les types d'événement.
+  - Lecture indexée sur `seq` ; `prepare_context` reste en lecture seule (DEC-0080).
+  - `Idempotency-Key` : N/A (lecture pure, GET).
+  - Erreurs : `404 session_not_found` (session_id inconnu ou session terminée), `422 invalid_sync_input` (agent_id + task_id manquants si session_id absent), `403 forbidden` (accès projet, DEC-0103).
+
+### Coordination (C3, additif, DEC-0157)
+- POST /coordination — emet un signal inter-sessions structure ; surface d'emission unique (HTTP + MCP `studio_coordinate`), validee cote serveur. Le chemin generique `POST /events` refuse `coordination.*` (`422 coordination_reserved`).
+  - Corps `CoordinationEmit` : `from_session_id` (session vivante de l'emetteur, sur sa machine), `intent` (`heads_up|question|blocked_by|handoff`, ferme), `task_id` (cible obligatoire, meme projet, non `completed`), `session_id?` (session vivante de cette tache), `text` (1..280), `refs` (`task_ids` meme projet, `decision_ids`, `paths` ; <= 5 chacun), `in_reply_to?` (signal coordination du projet), `event_id?` (cle d'idempotence).
+  - Reponse `201 CoordinationEmitted` : `event_id`, `event_type`, `seq`, `task_id`, `session_id?`. Rejeu du meme `event_id` : meme reponse, rien de nouveau stocke.
+  - Livraison : pull uniquement via `GET /sync` (`why=coordination`, `item.coordination` = `CoordinationSignal` ; texte cite comme donnee, jamais comme instruction ; aucune reaction automatique). Hors ligne : le signal persiste dans le flux d'events et est delivre par le curseur de session (herite par tache). Aucun outil de lecture dedie.
+  - Limite : 20 signaux par session emettrice (`429 coordination_rate_limited`).
+  - Erreurs : `422 invalid_coordination` (cible hors projet/inconnue, session cible invalide, refs, reponse), `409 task_closed`, `404 session_not_found`, `403 forbidden` (projet/role, DEC-0103).
+  - `SyncItem.coordination` : champ additif optionnel (null hors `why=coordination`).
+
 ### Claims
 - GET /claims
 - POST /claims

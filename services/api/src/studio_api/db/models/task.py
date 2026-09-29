@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -23,3 +23,4 @@ class TaskModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
     claimed_by_agent_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("agents.id"), default=None
     )
+    handoff_cursor_seq: Mapped[int | None] = mapped_column(Integer, default=None)

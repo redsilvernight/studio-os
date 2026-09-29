@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey
+from sqlalchemy import DateTime, ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -21,3 +21,4 @@ class WorkSessionModel(UUIDPKMixin, Base):
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     last_activity_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    sync_cursor_seq: Mapped[int | None] = mapped_column(Integer, default=None)

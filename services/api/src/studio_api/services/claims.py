@@ -53,6 +53,13 @@ def paths_conflict(a_path: str, a_type: str, b_path: str, b_type: str) -> bool:
     return _conflicts(a_path, a_type, b_path, b_type)
 
 
+async def active_claims(session: AsyncSession, project_id: uuid.UUID) -> list[ResourceClaimModel]:
+    """Public read of live claims (real state with derived expiry), for
+    read-only consumers (e.g. sync relevance) that must not depend on claim
+    event types being emitted."""
+    return await _active_claims(session, project_id)
+
+
 async def list_claims(
     session: AsyncSession, principal: Principal, project_id: uuid.UUID | None = None
 ) -> list[ResourceClaimModel]:

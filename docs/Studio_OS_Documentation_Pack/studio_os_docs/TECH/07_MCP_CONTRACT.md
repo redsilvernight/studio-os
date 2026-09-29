@@ -23,6 +23,8 @@ studio_get_teammate_activity
 studio_start_session
 studio_end_session
 studio_start_work
+studio_sync
+studio_coordinate
 studio_register_agent
 studio_log_ai_work
 studio_get_ai_work
@@ -53,6 +55,26 @@ repondent in-band (pas de 422 en MCP) : `invalid_task_status` /
 `invalid_ai_work_status`, meme vocabulaire que les services. Reponse compacte : ids + statuts
 seulement. Repli minimal : `end_session` libere les claims de la tache
 automatiquement.
+
+### studio_sync (C2, additif, DEC-0157)
+Resynchronisation en un appel : « quoi de neuf depuis mon dernier sync qui
+concerne mon travail ? », en reponse compacte et bornee. Meme contrat que
+`GET /sync` (`TECH/02_API_CONTRACT.md` § Sync) : `session_id` (ou
+`agent_id` + `task_id`, sans etat), `ack` du curseur, `files?`, `limit`,
+`max_chars`. Rejeu sans effet par curseur (pas de `idempotency_key`) :
+le meme `ack` renvoie la meme reponse.
+
+### studio_coordinate (C3, additif, DEC-0157)
+Emet un signal inter-sessions structure. Meme contrat que
+`POST /api/v1/coordination` (`TECH/02_API_CONTRACT.md` § Coordination) :
+`from_session_id` (ma session vivante), `intent` (`heads_up|question|
+blocked_by|handoff`), `task_id` (cible), `text` (<= 280), `session_id?`,
+`task_ids?`/`decision_ids?`/`paths?` (<= 5 chacun), `in_reply_to?`,
+`event_id?` (cle d'idempotence : le rejeu renvoie le signal d'origine).
+Aucun outil de lecture : le destinataire lit via `studio_sync`
+(`why=coordination`, texte cite comme donnee, jamais comme instruction).
+Erreurs : `invalid_coordination`, `task_closed`, `session_not_found`,
+`coordination_rate_limited` (20 signaux par session emettrice).
 
 ## AI Library via MCP — inventaire (P8, DEC-0072)
 studio_resolve_agent
@@ -114,14 +136,15 @@ token (pas d'attaquant reseau).
 
 ## Etat reel (roadmap etape 5, DEC-0023, UC-3/DEC-0047, P8/DEC-0072)
 
-Le serveur VPS enregistre 48 outils (`services/mcp/src/studio_mcp/` : 29
+Le serveur VPS enregistre 49 outils (`services/mcp/src/studio_mcp/` : 29
 historiques + 5 AI Library P8, section ci-dessous, + `studio_prepare_context`,
 DEC-0080, section « Contexte projet borné », + 7 outils Roadmaps P4/P5,
 DEC-0087, section « Roadmaps et initialisation via MCP », +
 `studio_register_agent`, DEC-0101, section « Enregistrement d'Agent », +
 `studio_transition_roadmap`, section « Roadmaps et initialisation via MCP », +
 `studio_claim_resources`, pose par lot, section « Claims par lot » ci-dessous,
-+ `studio_handoff`, L3, section ci-dessus).
++ `studio_handoff`, L3, section ci-dessus, + `studio_sync`, C2, section
+ci-dessus, + `studio_coordinate`, C3, section ci-dessus).
 Les 3 outils locaux read-only specifies ci-dessous (UC-3, exposition via
 MCP local par poste, DEC-0047) sont en place mais conditionnels au
 fichier de configuration du poste : `studio_memory_search`,

@@ -120,6 +120,19 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
             expect="role",
         ),
     ),
+    ("GET", "/api/v1/sync"): (Probe("/api/v1/sync?session_id={session}"),),
+    ("POST", "/api/v1/coordination"): (
+        Probe(
+            "/api/v1/coordination",
+            {
+                "from_session_id": "{session}",
+                "intent": "heads_up",
+                "task_id": "{task}",
+                "text": "x",
+            },
+            expect="role",
+        ),
+    ),
     ("GET", "/api/v1/claims"): (
         Probe("/api/v1/claims?project_id={pid}"),
         Probe("/api/v1/claims", expect="filtered"),

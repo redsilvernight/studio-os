@@ -63,6 +63,8 @@ roadmap.created, roadmap.updated, roadmap.proposed, roadmap.approved, roadmap.ch
 
 marketing.candidate.created, marketing.post.published
 
+coordination.heads_up, coordination.question, coordination.blocked_by, coordination.handoff (C3, additif, DEC-0157) — signaux inter-sessions ; emis uniquement par `POST /api/v1/coordination` / `studio_coordinate` (le chemin generique `POST /events` les refuse : `422 coordination_reserved`). Cible `task_id` (colonne de l'event), payload : `intent`, `task_id`, `from_session_id`, `text` (<= 280), `refs{task_ids,decision_ids,paths}`, `session_id?`, `in_reply_to?`. Lecture uniquement via `studio_sync`.
+
 ## Emission serveur GitHub/Producer (etape 9.1, DEC-0059)
 
 `git.branch.changed`, `git.commit`, `git.pr.opened`, `git.pr.merged` et
