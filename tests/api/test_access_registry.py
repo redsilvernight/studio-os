@@ -222,6 +222,7 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
     ("POST", "/api/v1/resolutions"): (
         Probe("/api/v1/resolutions", {"stable_key": "some-agent", "project_id": "{pid}"}),
     ),
+    ("POST", "/api/v1/bootstrap-plan"): (Probe("/api/v1/bootstrap-plan", {"project_id": "{pid}"}),),
     ("GET", "/api/v1/ai-work"): (
         Probe("/api/v1/ai-work?project_id={pid}"),
         Probe("/api/v1/ai-work", expect="filtered"),

@@ -15,6 +15,7 @@ from studio_api.routers import (
     agents,
     ai_work,
     auth,
+    bootstrap_plan,
     builds,
     claims,
     decisions,
@@ -152,6 +153,11 @@ OPENAPI_TAG_DESCRIPTIONS: dict[str, str] = {
         "Register, read, update under optimistic concurrency, and logically "
         "revoke. No secret is ever accepted or stored."
     ),
+    "bootstrap-plan": (
+        "Read-only aggregated bootstrap plan of a project (AIB-B): agents resolved "
+        "through `resolve_full`, merged into deterministic, harness-agnostic "
+        "artifacts with provenance, segment and content hash."
+    ),
     "resolutions": (
         "Canonical full resolution of an `AgentDefinition` to its "
         "`ResolvedAgentDefinition` (P5 engine via `resolve_full`): "
@@ -250,6 +256,7 @@ def create_app() -> FastAPI:
     app.include_router(runtime_bindings.router)
     app.include_router(runtimes.router)
     app.include_router(resolutions.router)
+    app.include_router(bootstrap_plan.router)
     app.include_router(agents.router)
     app.include_router(ai_work.router)
     app.include_router(review_queue.router)

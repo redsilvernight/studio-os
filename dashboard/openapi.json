@@ -5065,6 +5065,95 @@
     ]
    }
   },
+  "/api/v1/bootstrap-plan": {
+   "post": {
+    "tags": [
+     "bootstrap-plan"
+    ],
+    "summary": "Build Bootstrap Plan",
+    "description": "Read-only aggregated bootstrap plan of a project: the agent definitions visible in the project context (or the named `agent_keys`) resolved through `resolve_full`, merged into one de-duplicated artifact list (agents, model profiles, skills, rules) with exact version, provenance, `common`/`project` segment, `required_by` and a content hash, plus a `plan_hash`. Deterministic (no timestamp, sorted) and harness-agnostic. Any failing agent fails the whole plan with the `POST /resolutions` error: unknown or invisible definition `404 definition_not_found`, incompatible runtime `422`. Pure read: safe to retry, no `Idempotency-Key` needed.",
+    "operationId": "build_bootstrap_plan_api_v1_bootstrap_plan_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/BootstrapPlanRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/BootstrapPlan"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Resolution refused, nothing stored (pure read): the winning runtime choice does not satisfy the linked model profile requirements (`runtime_incompatible`, with `level`, `matched_kind`, `matched_stable_key` and `unsatisfied` \u2014 never a silent fallback to another runtime), or the loaded snapshot is internally inconsistent (`invalid_resolution_input`, including a duplicated session override key). Missing or invisible definitions answer 404 `definition_not_found` instead, never a hint of their existence.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "runtime_incompatible",
+          "level": "user",
+          "matched_kind": "agent_definition",
+          "matched_stable_key": "...",
+          "unsatisfied": [
+           "coding: required"
+          ]
+         }
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ]
+   }
+  },
   "/api/v1/agents": {
    "get": {
     "tags": [
@@ -12740,6 +12829,159 @@
     ],
     "title": "BindingRelation",
     "description": "Closed vocabulary of Library Binding types.\n\nEvery allowed `(source kind, target kind)` couple maps to exactly one\nrelation (see `_BINDING_MATRIX`) \u2014 the relation is a label on that\ncouple, never a free-form string. Unknown values are rejected by\nPydantic before any existence check runs."
+   },
+   "BootstrapPlan": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "agent_keys": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Agent Keys",
+      "default": []
+     },
+     "artifacts": {
+      "items": {
+       "$ref": "#/components/schemas/BootstrapPlanArtifact"
+      },
+      "type": "array",
+      "title": "Artifacts",
+      "default": []
+     },
+     "plan_hash": {
+      "type": "string",
+      "title": "Plan Hash"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id",
+     "plan_hash"
+    ],
+    "title": "BootstrapPlan",
+    "description": "`plan_hash` covers `(kind, stable_key, scope, version, content_hash)` of\nevery artifact in order: two equal hashes mean two equal expected bundles."
+   },
+   "BootstrapPlanArtifact": {
+    "properties": {
+     "resource_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Resource Id"
+     },
+     "kind": {
+      "$ref": "#/components/schemas/LibraryKind"
+     },
+     "stable_key": {
+      "type": "string",
+      "title": "Stable Key"
+     },
+     "scope": {
+      "$ref": "#/components/schemas/LibraryScope"
+     },
+     "segment": {
+      "$ref": "#/components/schemas/BootstrapSegment"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "version_origin": {
+      "$ref": "#/components/schemas/VersionOrigin"
+     },
+     "deprecated": {
+      "type": "boolean",
+      "title": "Deprecated",
+      "default": false
+     },
+     "title": {
+      "type": "string",
+      "title": "Title",
+      "default": ""
+     },
+     "content_hash": {
+      "type": "string",
+      "title": "Content Hash"
+     },
+     "required_by": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Required By",
+      "default": []
+     },
+     "provenance": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/studio_contracts__resolution__Provenance"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "paths": {
+      "items": {
+       "$ref": "#/components/schemas/RulePath"
+      },
+      "type": "array",
+      "title": "Paths",
+      "default": []
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "resource_id",
+     "kind",
+     "stable_key",
+     "scope",
+     "segment",
+     "version",
+     "version_origin",
+     "content_hash"
+    ],
+    "title": "BootstrapPlanArtifact",
+    "description": "One expected artifact, de-duplicated by `(resource_id, version)`.\n`required_by` lists the agent stable keys that need it; `provenance`\n(agents, skills) or `paths` (rules) explains why this version was chosen."
+   },
+   "BootstrapPlanRequest": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "agent_keys": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "maxItems": 50,
+      "title": "Agent Keys"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id"
+    ],
+    "title": "BootstrapPlanRequest",
+    "description": "`agent_keys` empty selects every active agent definition visible in the\nproject context; otherwise exactly the named ones (unknown or invisible key\nfails closed with the public `definition_not_found`)."
+   },
+   "BootstrapSegment": {
+    "type": "string",
+    "enum": [
+     "common",
+     "project"
+    ],
+    "title": "BootstrapSegment",
+    "description": "Common (Studio-wide or user-owned) versus project-owned artifact."
    },
    "Build": {
     "properties": {
@@ -21452,6 +21694,10 @@
   {
    "name": "runtimes",
    "description": "Declared runtimes (P6 registry, generic \u2014 never provider-specific). Register, read, update under optimistic concurrency, and logically revoke. No secret is ever accepted or stored."
+  },
+  {
+   "name": "bootstrap-plan",
+   "description": "Read-only aggregated bootstrap plan of a project (AIB-B): agents resolved through `resolve_full`, merged into deterministic, harness-agnostic artifacts with provenance, segment and content hash."
   },
   {
    "name": "resolutions",

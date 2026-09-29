@@ -940,6 +940,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bootstrap-plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Build Bootstrap Plan
+         * @description Read-only aggregated bootstrap plan of a project: the agent definitions visible in the project context (or the named `agent_keys`) resolved through `resolve_full`, merged into one de-duplicated artifact list (agents, model profiles, skills, rules) with exact version, provenance, `common`/`project` segment, `required_by` and a content hash, plus a `plan_hash`. Deterministic (no timestamp, sorted) and harness-agnostic. Any failing agent fails the whole plan with the `POST /resolutions` error: unknown or invisible definition `404 definition_not_found`, incompatible runtime `422`. Pure read: safe to retry, no `Idempotency-Key` needed.
+         */
+        post: operations["build_bootstrap_plan_api_v1_bootstrap_plan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agents": {
         parameters: {
             query?: never;
@@ -2420,6 +2440,95 @@ export interface components {
          * @enum {string}
          */
         BindingRelation: "requires_model_profile" | "uses_skill" | "applies_rule" | "composes_agent" | "references_workflow" | "refines_skill_rule";
+        /**
+         * BootstrapPlan
+         * @description `plan_hash` covers `(kind, stable_key, scope, version, content_hash)` of
+         *     every artifact in order: two equal hashes mean two equal expected bundles.
+         */
+        BootstrapPlan: {
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /**
+             * Agent Keys
+             * @default []
+             */
+            agent_keys: string[];
+            /**
+             * Artifacts
+             * @default []
+             */
+            artifacts: components["schemas"]["BootstrapPlanArtifact"][];
+            /** Plan Hash */
+            plan_hash: string;
+        };
+        /**
+         * BootstrapPlanArtifact
+         * @description One expected artifact, de-duplicated by `(resource_id, version)`.
+         *     `required_by` lists the agent stable keys that need it; `provenance`
+         *     (agents, skills) or `paths` (rules) explains why this version was chosen.
+         */
+        BootstrapPlanArtifact: {
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            kind: components["schemas"]["LibraryKind"];
+            /** Stable Key */
+            stable_key: string;
+            scope: components["schemas"]["LibraryScope"];
+            segment: components["schemas"]["BootstrapSegment"];
+            /** Version */
+            version: number;
+            version_origin: components["schemas"]["VersionOrigin"];
+            /**
+             * Deprecated
+             * @default false
+             */
+            deprecated: boolean;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /** Content Hash */
+            content_hash: string;
+            /**
+             * Required By
+             * @default []
+             */
+            required_by: string[];
+            provenance?: components["schemas"]["studio_contracts__resolution__Provenance"] | null;
+            /**
+             * Paths
+             * @default []
+             */
+            paths: components["schemas"]["RulePath"][];
+        };
+        /**
+         * BootstrapPlanRequest
+         * @description `agent_keys` empty selects every active agent definition visible in the
+         *     project context; otherwise exactly the named ones (unknown or invisible key
+         *     fails closed with the public `definition_not_found`).
+         */
+        BootstrapPlanRequest: {
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Agent Keys */
+            agent_keys?: string[];
+        };
+        /**
+         * BootstrapSegment
+         * @description Common (Studio-wide or user-owned) versus project-owned artifact.
+         * @enum {string}
+         */
+        BootstrapSegment: "common" | "project";
         /**
          * Build
          * @description A CI build observed on a project's GitHub repository.
@@ -10488,6 +10597,98 @@ export interface operations {
                      *       "detail": {
                      *         "error_code": "runtime_not_found"
                      *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Resolution refused, nothing stored (pure read): the winning runtime choice does not satisfy the linked model profile requirements (`runtime_incompatible`, with `level`, `matched_kind`, `matched_stable_key` and `unsatisfied` — never a silent fallback to another runtime), or the loaded snapshot is internally inconsistent (`invalid_resolution_input`, including a duplicated session override key). Missing or invisible definitions answer 404 `definition_not_found` instead, never a hint of their existence. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "runtime_incompatible",
+                     *         "level": "user",
+                     *         "matched_kind": "agent_definition",
+                     *         "matched_stable_key": "...",
+                     *         "unsatisfied": [
+                     *           "coding: required"
+                     *         ]
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    build_bootstrap_plan_api_v1_bootstrap_plan_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BootstrapPlanRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BootstrapPlan"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
                      *     }
                      */
                     "application/json": unknown;
