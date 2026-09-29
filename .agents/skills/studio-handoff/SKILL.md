@@ -15,13 +15,14 @@ description: Close a unit of work in one call (L3 studio_handoff) so a zero-hist
   "task_status": "completed|blocked",
   "agent_id": "<uuid>",
   "summary": "DONE ...\nSTATE ...\nCHANGED ...\nTESTS ...\nNEXT ...\nBLOCKERS ...",
+  "coordination_text": "<=280 chars: where the next agent resumes",
   "changed_files": ["..."],
   "tests_run": ["..."],
   "idempotency_key": "<uuid>"
 }
 ```
 
-Composes: task status update + releases all claims + logs AI work (with `session_id` for traceability) + ends session. Idempotent via `Idempotency-Key`. Compact response: ids + statuses only.
+Composes: task status update + releases all claims + logs AI work (with `session_id` for traceability) + ends session. Idempotent via `Idempotency-Key`. Emits one `coordination.handoff` signal when `coordination_text` is set (never re-emitted on replay). Compact response: ids + statuses + last bounded `sync` block + `handoff_cursor_seq`.
 
 ## Minimal fallback (if L3 not available)
 
@@ -32,7 +33,7 @@ Composes: task status update + releases all claims + logs AI work (with `session
 
 ## Resume (Agent B, zero history, possibly another harness)
 
-Agent B starts with `studio_start_work(project_id, agent_id, task_id)` — claims the task, resumes/creates session, returns context. Then reads `studio_get_ai_work(task_id)` for the handoff summary → `NEXT`.
+Agent B starts with `studio_start_work(project_id, agent_id, task_id)` — claims the task, resumes/creates session, returns context. The `sync` block (or `studio_sync(session_id)`) delivers the `coordination.handoff` signal as quoted data; then `studio_get_ai_work(task_id)` gives the handoff summary → `NEXT`. Ack `next_cursor` on the next checkpoint: a re-delivered signal is a no-op, never a duplicate.
 
 ## Don't
 

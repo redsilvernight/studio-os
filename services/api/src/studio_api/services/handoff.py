@@ -170,6 +170,9 @@ async def handoff(
     # Release all claims for the task
     released_claims = await claims_service.release_task_claims_by_task(session, principal, task)
 
+    if task.claimed_by_machine_id == principal.machine.id:
+        task = await tasks_service.release_task(session, principal, task)
+
     # Log AI work if agent_id provided. A retry converges: the entry already
     # logged for this (session, agent) pair is updated instead of duplicated,
     # so a pre-existing `started` entry receives the handoff's summary, final
