@@ -11,6 +11,7 @@ from studio_api.db.models.project import ProjectModel
 from studio_mcp.tools.ai_work import studio_log_ai_work
 from studio_mcp.tools.handoff import studio_handoff
 from studio_mcp.tools.sessions import studio_start_session
+from studio_mcp.tools.sync import studio_sync
 from studio_mcp.tools.tasks import studio_claim_task, studio_create_task, studio_get_task
 
 from tests.mcp.conftest import FakeContext
@@ -98,3 +99,50 @@ async def test_log_ai_work_rejects_foreign_session(
         session_id=foreign["id"],
     )
     assert result["error_code"] == "invalid_session"
+
+
+async def test_handoff_emits_one_coordination_signal_and_sets_the_cursor(
+    auth_ctx: FakeContext, project: ProjectModel, agent: AgentModel
+) -> None:
+    task, started = await _task_with_session(auth_ctx, project, agent)
+    current = await studio_get_task(task["id"], auth_ctx)
+
+    first = await studio_handoff(
+        str(project.id),
+        started["id"],
+        auth_ctx,
+        expected_version=current["version"],
+        task_status="blocked",
+        coordination_text="reprendre a l etape 3",
+    )
+    assert "error_code" not in first
+    assert first["sync"]["next_cursor"] >= 0
+    assert first["handoff_cursor_seq"] == first["sync"]["next_cursor"]
+    assert first["coordination_event_id"] is not None
+
+    # The signal targets the task: the next session receives it via studio_sync.
+    nxt = await studio_start_session(task["id"], auth_ctx, agent_id=str(agent.id))
+    pulled = (await studio_sync(auth_ctx, session_id=nxt["id"])).model_dump(mode="json")
+    signals = [i for i in pulled["items"] if i["why"] == "coordination"]
+    assert [i["coordination"]["intent"] for i in signals] == ["handoff"]
+    assert signals[0]["coordination"]["event_id"] == first["coordination_event_id"]
+
+
+async def test_handoff_without_coordination_emits_nothing(
+    auth_ctx: FakeContext, project: ProjectModel, agent: AgentModel
+) -> None:
+    task, started = await _task_with_session(auth_ctx, project, agent)
+    result = await studio_handoff(str(project.id), started["id"], auth_ctx)
+    assert result["coordination_event_id"] is None
+    assert result["handoff_cursor_seq"] == result["sync"]["next_cursor"]
+
+
+async def test_handoff_rejects_bad_coordination_text_in_band(
+    auth_ctx: FakeContext, project: ProjectModel, agent: AgentModel
+) -> None:
+    _, started = await _task_with_session(auth_ctx, project, agent)
+    for bad in ("", "x" * 281):
+        result = await studio_handoff(
+            str(project.id), started["id"], auth_ctx, coordination_text=bad
+        )
+        assert result["error_code"] == "invalid_coordination_text"

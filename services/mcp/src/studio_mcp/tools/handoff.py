@@ -9,7 +9,8 @@ from studio_api.services import handoff as handoff_service
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services.authz import Principal
 from studio_contracts.ai_work import AIWorkStatus
-from studio_contracts.handoff import HandoffRequest
+from studio_contracts.coordination import COORDINATION_TEXT_MAX
+from studio_contracts.handoff import HandoffCoordination, HandoffRequest
 from studio_contracts.tasks import TaskStatus, TaskUpdate
 
 from studio_mcp.errors import run_tool
@@ -27,6 +28,7 @@ async def studio_handoff(
     ai_work_status: str | None = None,
     changed_files: list[str] | None = None,
     tests_run: list[str] | None = None,
+    coordination_text: str | None = None,
     idempotency_key: str | None = None,
 ) -> dict[str, Any]:
     """Close a work session in one call (L3 handoff). `project_id` and
@@ -39,8 +41,11 @@ async def studio_handoff(
     same key returns the original result instead of running the composite
     again — a duplicate call returns the original result without a second
     status update, duplicate claim releases, duplicate AI work entry, or
-    second session end. Compact response: ids + statuses only. Requires a
-    writer role."""
+    second session end. `coordination_text` (<=280 chars) optionally emits a
+    `coordination.handoff` signal on the task for its next session (delivered
+    through `studio_sync`, never re-emitted on replay). The response also
+    carries the last bounded `sync` block and the task's `handoff_cursor_seq`.
+    Requires a writer role."""
 
     async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed_project = parse_uuid(project_id, "project_id")
@@ -77,6 +82,14 @@ async def studio_handoff(
                     "message": f"unknown AI work status {ai_work_status!r}",
                 }
 
+        if coordination_text is not None and not (
+            1 <= len(coordination_text) <= COORDINATION_TEXT_MAX
+        ):
+            return {
+                "error_code": "invalid_coordination_text",
+                "message": f"coordination_text must be 1..{COORDINATION_TEXT_MAX} characters",
+            }
+
         request = HandoffRequest(
             project_id=parsed_project,
             session_id=parsed_session,
@@ -87,6 +100,11 @@ async def studio_handoff(
             ai_work_status=parsed_ai_work_status,
             changed_files=changed_files,
             tests_run=tests_run,
+            coordination=(
+                HandoffCoordination(text=coordination_text)
+                if coordination_text is not None
+                else None
+            ),
         )
 
         await handoff_service.authorize_handoff(session, principal, request)
@@ -107,6 +125,7 @@ async def studio_handoff(
                     "ai_work_status": ai_work_status,
                     "changed_files": changed_files,
                     "tests_run": tests_run,
+                    "coordination_text": coordination_text,
                 },
                 sort_keys=True,
             ).encode()

@@ -54,3 +54,14 @@ réaction automatique chaînée ; limite d'émission par session.
 
 GitWatcher enrichi, impact Graphify, relais temps réel du daemon : différés à
 l'étape C5 (dogfooding), go/no-go par décision.
+
+## Complément C4 (start_work / handoff)
+
+- `studio_start_work` (avec tâche) renvoie le bloc `sync` initial borné, sans
+  ack de `next_cursor` (les seules écritures sont le curseur de base et
+  l'activité de session).
+- `studio_handoff` fait un dernier sync acquitté, pose le curseur de handoff
+  de la tâche (hérité par la session suivante) et peut émettre
+  `coordination.handoff` (`event_id` dérivé de la session : rejeu sans
+  doublon), avant la mise à jour du statut (une tâche terminée refuse les
+  signaux). Additif : contrats L2/L3, TECH/02 § C4 et TECH/07.

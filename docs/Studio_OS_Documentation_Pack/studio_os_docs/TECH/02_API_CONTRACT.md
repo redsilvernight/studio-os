@@ -316,6 +316,23 @@ public de bootstrap, pas de secret d'environnement dedie.
   idempotency_key_payload_mismatch`. Un client qui n'appelle pas la route
   n'observe aucun changement.
 
+### C4 : sync dans start-work et handoff (additif, DEC-0157)
+- `StartWorkResult.sync` (`SyncResult | null`) : avec `task_id`, bloc initial
+  borne calcule depuis le curseur de la session (herite de
+  `handoff_cursor_seq` de la tache), lecture seule (aucun ack : au moins une
+  livraison) ; `null` sans `task_id`. Seules ecritures : curseur de base et activite de
+  session.
+- `HandoffRequest.coordination` (`{text <= 280, refs}`, optionnel) : emet un
+  `coordination.handoff` sur la tache, avant la mise a jour du statut (une
+  tache `completed` refuse les signaux), apres le dernier sync (le signal
+  n'y figure pas) ; `event_id` = uuid5(session) : rejeu sans doublon.
+  `HandoffResult` gagne `sync` (dernier `studio_sync`, acquitte),
+  `handoff_cursor_seq` et `coordination_event_id`. Sync et emission sont
+  sautes si la session est deja terminee (rejeu apres echec partiel) ;
+  `coordination_event_id` est alors retrouve par son id derive, `sync` reste
+  `null`. Un
+  client qui ignore ces champs n'observe aucun changement.
+
 ### Handoff (L3, additif, DEC-0163)
 - POST /handoff — `HandoffRequest` body, `HandoffResult` response + MCP
   tool `studio_handoff` (same contract, `idempotency_key` optional,

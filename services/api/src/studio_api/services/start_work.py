@@ -30,6 +30,7 @@ from studio_api.db.models.work_session import WorkSessionModel
 from studio_api.services import candidates as candidates_service
 from studio_api.services import project_context as context_service
 from studio_api.services import sessions as sessions_service
+from studio_api.services import sync as sync_service
 from studio_api.services import tasks as tasks_service
 from studio_api.services.authz import (
     Principal,
@@ -116,12 +117,24 @@ async def start_work(
             max_chars=request.max_chars,
             agent_stable_key=request.agent_stable_key,
         )
+        # C4: initial bounded sync block from the session's inherited cursor.
+        # No ack of `next_cursor` (a lost response redelivers, at-least-once); the
+        # only writes are the sync's own baseline cursor and session activity.
+        initial_sync = await sync_service.sync(
+            session,
+            principal,
+            session_id=work_session.id,
+            files=request.files,
+            limit=request.limit,
+            max_chars=request.max_chars,
+        )
         return StartWorkResult(
             task=Task.model_validate(claimed),
             session=_session_contract(work_session, settings),
             claimed=True,
             resumed=resumed,
             prepared_context=context,
+            sync=initial_sync,
         )
 
     context = await context_service.prepare_project_context(
