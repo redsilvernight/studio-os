@@ -61,6 +61,14 @@ export function claimTask(client: StudioClient, taskId: string): Promise<Task> {
   return unwrap(client.POST("/api/v1/tasks/{task_id}/claim", { params: { path: { task_id: taskId } } }));
 }
 
-export function releaseTask(client: StudioClient, taskId: string): Promise<Task> {
-  return unwrap(client.POST("/api/v1/tasks/{task_id}/release", { params: { path: { task_id: taskId } } }));
+/** `version` (facultatif) : `If-Match-Version` — une version périmée donne `409 version_conflict`. */
+export function releaseTask(client: StudioClient, taskId: string, version?: number): Promise<Task> {
+  return unwrap(
+    client.POST("/api/v1/tasks/{task_id}/release", {
+      params: {
+        path: { task_id: taskId },
+        ...(version === undefined ? {} : { header: { "If-Match-Version": version } }),
+      },
+    }),
+  );
 }

@@ -1,6 +1,6 @@
 [package]
 name = "studio-desktop"
-version = "0.1.0"
+version = "0.5.0"
 description = "Studi'OS Desktop - Tauri 2 shell with managed daemon lifecycle"
 edition = "2021"
 rust-version = "1.77"
@@ -28,6 +28,7 @@ tauri-plugin-updater = "2"
 # Keychain), never in a file or the webview storage.
 keyring = { version = "3", features = ["windows-native", "apple-native"] }
 regex = { version = "1", default-features = false, features = ["std", "unicode-perl", "unicode-case", "perf"] }
+getrandom = "0.3"
 
 [target.'cfg(windows)'.dependencies]
 # Read-only: tells a persistent WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS apart from

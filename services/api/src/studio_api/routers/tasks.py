@@ -128,23 +128,52 @@ async def update_task(
     description=(
         "Claim a task for the caller's machine (sets status to "
         "in_progress). Requires a writer role. Fails with "
-        "`already_claimed` if another machine holds it."
+        "`already_claimed` if another machine holds it. Re-claiming a task "
+        "this machine already holds while it is still `in_progress` with the "
+        "same agent is a no-op (no version bump, no duplicate event), so a "
+        "replayed call is safe even without an `Idempotency-Key`. Accepts "
+        "`Idempotency-Key` for safe retries: the same key returns the "
+        "original claim instead of re-running it."
     ),
     responses={
         **RESP_401_UNAUTHORIZED,
         **RESP_403_FORBIDDEN,
         **RESP_404_NOT_FOUND,
         **RESP_409_ALREADY_CLAIMED,
+        **RESP_409_IDEMPOTENCY,
     },
 )
-async def claim_task(task_id: UUID, session: DbSession, principal: CurrentPrincipal) -> Task:
+async def claim_task(
+    task_id: UUID,
+    request: Request,
+    session: DbSession,
+    principal: CurrentPrincipal,
+    idempotency_key: str | None = Header(
+        default=None, alias="Idempotency-Key", description=IDEMPOTENCY_KEY_DESCRIPTION
+    ),
+) -> Task:
     task = await tasks_service.get_task(session, task_id)
     if task is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
-    task = await tasks_service.claim_task(
-        session, principal, task, principal.machine.id, agent_id=None
+    # Ahead of the idempotency replay short-circuit (DEC-0036).
+    tasks_service.authorize_claim(principal, task)
+
+    async def _claim() -> Task:
+        return Task.model_validate(
+            await tasks_service.claim_task(
+                session, principal, task, principal.machine.id, agent_id=None
+            )
+        )
+
+    return await idempotency_service.run_idempotent(
+        session,
+        request,
+        idempotency_key,
+        f"POST /tasks/{task_id}/claim",
+        Task,
+        _claim,
+        status.HTTP_200_OK,
     )
-    return Task.model_validate(task)
 
 
 @router.post(
@@ -153,13 +182,26 @@ async def claim_task(task_id: UUID, session: DbSession, principal: CurrentPrinci
     description=(
         "Release a task's claim. Only the machine holding the claim (or a "
         "privileged role) may release it; anyone else receives `403 "
-        "forbidden`."
+        "forbidden`. The `If-Match-Version` header is optional: when sent, a "
+        "stale version is rejected with the live server version."
     ),
-    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
+    responses={
+        **RESP_401_UNAUTHORIZED,
+        **RESP_403_FORBIDDEN,
+        **RESP_404_NOT_FOUND,
+        **RESP_409_VERSION_CONFLICT,
+    },
 )
-async def release_task(task_id: UUID, session: DbSession, principal: CurrentPrincipal) -> Task:
+async def release_task(
+    task_id: UUID,
+    session: DbSession,
+    principal: CurrentPrincipal,
+    if_match_version: int | None = Header(
+        default=None, alias="If-Match-Version", description=IF_MATCH_VERSION_DESCRIPTION
+    ),
+) -> Task:
     task = await tasks_service.get_task(session, task_id)
     if task is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
-    task = await tasks_service.release_task(session, principal, task)
+    task = await tasks_service.release_task(session, principal, task, if_match_version)
     return Task.model_validate(task)

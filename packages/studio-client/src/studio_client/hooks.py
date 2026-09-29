@@ -24,18 +24,53 @@ try {
     if (-not $cwd) { $cwd = (Get-Location).Path }
 
     $norm = {
-        param($p) [IO.Path]::GetFullPath([string]$p).TrimEnd('\\', '/').Replace('/', '\\')
+        param($p) [IO.Path]::GetFullPath([string]$p).TrimEnd('\\', '/')
     }
     $here = & $norm $cwd
+    $sep = [IO.Path]::DirectorySeparatorChar
     $under = {
-        param($root) $r = & $norm $root
-        $here.Equals($r, 'OrdinalIgnoreCase') -or $here.StartsWith($r + '\\', 'OrdinalIgnoreCase')
+        param($root)
+        $r = & $norm $root
+        if ($here.Equals($r, 'OrdinalIgnoreCase')) { return $true }
+        if ($here.StartsWith($r + $sep, 'OrdinalIgnoreCase')) { return $true }
+        $parent = [IO.Path]::GetDirectoryName($r)
+        $leaf = [IO.Path]::GetFileName($r)
+        if (-not $parent -or -not $leaf) { return $false }
+        $prefix = $parent + $sep + $leaf + '-wt-'
+        if (-not $here.StartsWith($prefix, 'OrdinalIgnoreCase')) { return $false }
+        $rest = $here.Substring($prefix.Length)
+        $cut = $rest.IndexOfAny([char[]]@('\\', '/'))
+        if ($cut -ge 0) { $rest = $rest.Substring(0, $cut) }
+        return [bool]($rest -match '^[0-9a-fA-F]{8}$')
     }
     $tracked = $false
     $projectInfo = $null
     $wsServerOrigin = $null
 
-    $wsDir = Join-Path $env:APPDATA 'StudioOS\\workspaces'
+    $isWin = [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
+    $dev = $false
+    if ($env:STUDIO_CLIENT_CHANNEL) { $dev = $env:STUDIO_CLIENT_CHANNEL -eq 'dev' }
+    $profileDir = $null
+    if ($isWin) {
+        $appData = $env:APPDATA
+        if (-not $appData) { $appData = Join-Path $HOME 'AppData\\Roaming' }
+        $devDir = Join-Path $appData 'StudioOS-Dev'
+        $prodDir = Join-Path $appData 'StudioOS'
+        if (-not $env:STUDIO_CLIENT_CHANNEL) {
+            $dev = (Test-Path -LiteralPath $devDir) -and -not (Test-Path -LiteralPath $prodDir)
+        }
+        $profileDir = if ($dev) { $devDir } else { $prodDir }
+    } else {
+        $xdg = $env:XDG_CONFIG_HOME
+        if (-not $xdg) { $xdg = Join-Path $HOME '.config' }
+        $devDir = Join-Path $xdg 'studio-os-dev'
+        $prodDir = Join-Path $xdg 'studio-os'
+        if (-not $env:STUDIO_CLIENT_CHANNEL) {
+            $dev = (Test-Path -LiteralPath $devDir) -and -not (Test-Path -LiteralPath $prodDir)
+        }
+        $profileDir = if ($dev) { $devDir } else { $prodDir }
+    }
+    $wsDir = Join-Path $profileDir 'workspaces'
     if (Test-Path -LiteralPath $wsDir) {
         foreach ($f in Get-ChildItem -LiteralPath $wsDir -Filter *.json) {
             $ws = Get-Content -LiteralPath $f.FullName -Raw | ConvertFrom-Json
@@ -57,7 +92,7 @@ try {
         }
     }
 
-    $cfgDefault = Join-Path $env:APPDATA 'StudioOS\\config.toml'
+    $cfgDefault = Join-Path $profileDir 'config.toml'
     $envCfg = $env:STUDIO_CLIENT_CONFIG_FILE
     $configPath = if ($envCfg) { $envCfg } else { $cfgDefault }
     if (-not $tracked -and (Test-Path -LiteralPath $configPath)) {
@@ -136,6 +171,7 @@ class HarnessSpec:
     output: str
     config_markers: tuple[str, ...] = ()
     binaries: tuple[str, ...] = ()
+    register_hint: str = ""
 
 
 HARNESSES: tuple[HarnessSpec, ...] = (
@@ -147,6 +183,11 @@ HARNESSES: tuple[HarnessSpec, ...] = (
         output="json",
         config_markers=(".claude.json", ".claude/settings.json"),
         binaries=("claude",),
+        register_hint=(
+            "register in .claude/settings.json under hooks.SessionStart "
+            '({{"matcher": "startup|resume", "hooks": [{{"type": "command", '
+            '"command": "pwsh -NoProfile -File \\"{target}\\"", "timeout": 30}}]}})'
+        ),
     ),
     HarnessSpec(
         harness="opencode",
@@ -156,6 +197,24 @@ HARNESSES: tuple[HarnessSpec, ...] = (
         output="text",
         config_markers=(".config/opencode/opencode.jsonc", ".config/opencode/opencode.json"),
         binaries=("opencode",),
+        register_hint=(
+            "session wiring is the managed studio-os.js plugin (deployed by "
+            "setup-hooks next to the script); restart OpenCode to load it"
+        ),
+    ),
+    HarnessSpec(
+        harness="codex",
+        label="Codex",
+        hook_rel=Path(".codex") / "studio-session-start-codex.ps1",
+        agent_key="codex",
+        output="text",
+        config_markers=(".codex/config.toml", ".codex/hooks.json"),
+        binaries=("codex",),
+        register_hint=(
+            "register in .codex/hooks.json under hooks.SessionStart "
+            '({{"matcher": "startup|resume", "hooks": [{{"type": "command", '
+            '"command": "pwsh -NoProfile -File \\"{target}\\"", "timeout": 30}}]}})'
+        ),
     ),
 )
 

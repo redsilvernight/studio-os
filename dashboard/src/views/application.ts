@@ -35,6 +35,7 @@ import { dsPageHeader } from "../ds/ds";
 import { configTabsHtml } from "./configuration";
 import { loadOnboardingState, saveOnboardingState } from "../onboarding/state";
 import { stepById } from "../onboarding/steps";
+import { allNotes, openWhatsNew, whatsNewSectionHtml } from "../releaseNotes";
 import "./configuration.css";
 
 const DESCRIPTION = "Identité, serveur et état de l'application qui exécute ce tableau de bord.";
@@ -331,7 +332,7 @@ export function applicationPageHtml(
         `Impossible de lire l'identité Desktop${failure ? ` : ${esc(failure)}` : ""}.</div>`;
     body =
       `<section class="settings-domain"><h2>Application</h2>${identity}</section>` +
-      (section ? serverSectionHtml(section, form) + assistantSectionHtml(section, info) + onboardingSectionHtml() + diagnosticsHtml(section, info, diag, form) : "");
+      (section ? serverSectionHtml(section, form) + assistantSectionHtml(section, info) + onboardingSectionHtml() + whatsNewSectionHtml() + diagnosticsHtml(section, info, diag, form) : "");
   } else {
     body =
       `<section class="settings-domain"><h2>Application</h2>` +
@@ -435,6 +436,9 @@ function bindActions(root: HTMLElement, platform: Platform, shell: DesktopShell,
   root.querySelector("[data-action=relaunch-onboarding]")?.addEventListener("click", () => {
     saveOnboardingState({ schema: 1, status: "in_progress", current: "bienvenue" });
     location.hash = "#/bienvenue";
+  });
+  root.querySelector("[data-action=open-whats-new]")?.addEventListener("click", () => {
+    openWhatsNew(document, allNotes());
   });
   const keepOpen = (form: ApplicationFormState): Promise<void> => again({ ...form, diagnosticsOpen: true });
   root.querySelector("[data-action=open-logs]")?.addEventListener("click", () => {

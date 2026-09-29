@@ -110,6 +110,29 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
         Probe("/api/v1/sessions", {"task_id": "{task}", "machine_id": "{outsider_machine}"}),
     ),
     ("PATCH", "/api/v1/sessions/{session_id}/end"): (Probe("/api/v1/sessions/{session}/end"),),
+    ("POST", "/api/v1/start-work"): (
+        Probe("/api/v1/start-work", {"project_id": "{pid}", "agent_id": "{outsider_agent}"}),
+    ),
+    ("POST", "/api/v1/handoff"): (
+        Probe(
+            "/api/v1/handoff",
+            {"project_id": "{pid}", "session_id": "{session}", "expected_version": 1},
+            expect="role",
+        ),
+    ),
+    ("GET", "/api/v1/sync"): (Probe("/api/v1/sync?session_id={session}"),),
+    ("POST", "/api/v1/coordination"): (
+        Probe(
+            "/api/v1/coordination",
+            {
+                "from_session_id": "{session}",
+                "intent": "heads_up",
+                "task_id": "{task}",
+                "text": "x",
+            },
+            expect="role",
+        ),
+    ),
     ("GET", "/api/v1/claims"): (
         Probe("/api/v1/claims?project_id={pid}"),
         Probe("/api/v1/claims", expect="filtered"),
@@ -212,6 +235,7 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
     ("POST", "/api/v1/resolutions"): (
         Probe("/api/v1/resolutions", {"stable_key": "some-agent", "project_id": "{pid}"}),
     ),
+    ("POST", "/api/v1/bootstrap-plan"): (Probe("/api/v1/bootstrap-plan", {"project_id": "{pid}"}),),
     ("GET", "/api/v1/ai-work"): (
         Probe("/api/v1/ai-work?project_id={pid}"),
         Probe("/api/v1/ai-work", expect="filtered"),

@@ -1,7 +1,11 @@
-"""`agents ensure` (workflow W2): the session-start hook finds this machine's
-harness agent or registers it (CC-1/DEC-0045, public registration without
-authority; DEC-0053 metadata echoed verbatim), so `studio_start_session` and
-`studio_log_ai_work` receive a stable `agent_id` instead of null."""
+"""`agents ensure` (workflow W2, AIB-I): the session-start hook finds this
+machine's harness agent or registers it through `POST /agents/ensure`
+(CC-1/DEC-0045, public registration without authority; DEC-0053 metadata
+echoed verbatim), so `studio_start_session` and `studio_log_ai_work` receive
+a stable `agent_id` instead of null. The server matches on the local stable
+key (`agents-ensure-{harness}` by default), scoped to the calling machine —
+never on `(harness, display_name)` — so a retried hook registers no
+duplicate."""
 
 from __future__ import annotations
 
@@ -15,6 +19,7 @@ import pytest
 from studio_client import cli
 from studio_client.api_client import StudioApiClient
 from studio_client.config import ClientConfig
+from studio_client.errors import StudioApiError
 from studio_client.tokens import MemoryTokenStore
 from studio_contracts.auth import AgentCreate
 
@@ -22,6 +27,7 @@ MACHINE_ID = uuid4()
 OTHER_MACHINE_ID = uuid4()
 AGENT_ID = uuid4()
 NOW = "2026-09-24T20:00:00Z"
+STABLE_KEY = "agents-ensure-opencode"
 
 
 def _config() -> ClientConfig:
@@ -44,6 +50,7 @@ def _agent_payload(
     machine_id: Any = MACHINE_ID,
     display_name: str = "studio-opencode",
     harness: str | None = "opencode",
+    stable_key: str | None = STABLE_KEY,
 ) -> dict[str, Any]:
     return {
         "id": str(agent_id),
@@ -54,109 +61,91 @@ def _agent_payload(
         "harness": harness,
         "provider": None,
         "model": None,
+        "stable_key": stable_key,
         "version": 1,
         "created_at": NOW,
         "updated_at": NOW,
     }
 
 
-def _machine_payload(machine_id: Any = MACHINE_ID) -> dict[str, Any]:
-    return {
-        "id": str(machine_id),
-        "owner_user_id": str(uuid4()),
-        "display_name": "test-machine",
-        "last_seen_at": None,
-        "status": "online",
-        "version": 1,
-        "created_at": NOW,
-        "updated_at": NOW,
-    }
+def _ensure_payload(created: bool, **overrides: Any) -> dict[str, Any]:
+    return {"agent": _agent_payload(**overrides), "created": created}
 
 
 def _client(handler: Any) -> StudioApiClient:
     return StudioApiClient(_config(), _token_store(), transport=httpx.MockTransport(handler))
 
 
-def _agent_in() -> AgentCreate:
-    return AgentCreate(display_name="studio-opencode", harness="opencode")
-
-
-async def test_ensure_returns_existing_without_post() -> None:
-    calls: list[str] = []
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        calls.append(f"{request.method} {request.url.path}")
-        if request.url.path == "/api/v1/machines/me":
-            return httpx.Response(200, json=_machine_payload())
-        assert request.url.path == "/api/v1/agents"
-        assert request.method == "GET"
-        return httpx.Response(200, json=[_agent_payload()])
-
-    async with _client(handler) as client:
-        agent, created = await client.ensure_agent(_agent_in(), idempotency_key="k1")
-    assert created is False
-    assert agent.id == AGENT_ID
-    assert "POST /api/v1/agents" not in calls
+def _agent_in(**overrides: Any) -> AgentCreate:
+    fields: dict[str, Any] = {
+        "display_name": "studio-opencode",
+        "harness": "opencode",
+        "stable_key": STABLE_KEY,
+    }
+    fields.update(overrides)
+    return AgentCreate(**fields)
 
 
 async def test_ensure_registers_when_absent() -> None:
     seen: dict[str, str] = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/api/v1/machines/me":
-            return httpx.Response(200, json=_machine_payload())
-        if request.method == "GET":
-            return httpx.Response(200, json=[])
-        assert request.url.path == "/api/v1/agents"
-        seen["idempotency_key"] = request.headers.get("Idempotency-Key", "")
+        assert request.url.path == "/api/v1/agents/ensure"
+        assert request.method == "POST"
         body = json.loads(request.content.decode())
         assert body["display_name"] == "studio-opencode"
         assert body["harness"] == "opencode"
-        return httpx.Response(201, json=_agent_payload())
+        assert body["stable_key"] == STABLE_KEY
+        seen["idempotency"] = request.headers.get("Idempotency-Key", "")
+        return httpx.Response(201, json=_ensure_payload(True))
 
     async with _client(handler) as client:
-        agent, created = await client.ensure_agent(_agent_in(), idempotency_key="stable-k")
+        agent, created = await client.ensure_agent(_agent_in())
     assert created is True
     assert agent.id == AGENT_ID
-    assert seen["idempotency_key"] == "stable-k"
+    assert agent.stable_key == STABLE_KEY
+    assert seen["idempotency"] == ""
 
 
-async def test_ensure_ignores_other_machines_agents() -> None:
-    posts = 0
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        nonlocal posts
-        if request.url.path == "/api/v1/machines/me":
-            return httpx.Response(200, json=_machine_payload())
-        if request.method == "GET":
-            return httpx.Response(200, json=[_agent_payload(machine_id=OTHER_MACHINE_ID)])
-        posts += 1
-        return httpx.Response(201, json=_agent_payload())
-
-    async with _client(handler) as client:
-        _, created = await client.ensure_agent(_agent_in(), idempotency_key="k2")
-    assert created is True
-    assert posts == 1
-
-
-async def test_ensure_ignores_harness_mismatch() -> None:
-    posts = 0
+async def test_ensure_returns_found_agent() -> None:
+    calls: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
-        nonlocal posts
-        if request.url.path == "/api/v1/machines/me":
-            return httpx.Response(200, json=_machine_payload())
-        if request.method == "GET":
-            return httpx.Response(
-                200, json=[_agent_payload(harness="claude-code", display_name="studio-x")]
-            )
-        posts += 1
-        return httpx.Response(201, json=_agent_payload())
+        calls.append(f"{request.method} {request.url.path}")
+        assert request.url.path == "/api/v1/agents/ensure"
+        return httpx.Response(200, json=_ensure_payload(False))
 
     async with _client(handler) as client:
-        _, created = await client.ensure_agent(_agent_in(), idempotency_key="k3")
+        agent, created = await client.ensure_agent(_agent_in())
+    assert created is False
+    assert agent.id == AGENT_ID
+    assert calls == ["POST /api/v1/agents/ensure"]
+
+
+async def test_ensure_mismatch_raises_explicit_error() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            409, json={"detail": {"error_code": "idempotency_key_payload_mismatch"}}
+        )
+
+    async with _client(handler) as client:
+        with pytest.raises(StudioApiError) as exc:
+            await client.ensure_agent(_agent_in(display_name="renamed"))
+    assert exc.value.error_code == "idempotency_key_payload_mismatch"
+
+
+async def test_ensure_without_stable_key_registers() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content.decode())
+        assert body["stable_key"] is None
+        return httpx.Response(201, json=_ensure_payload(True, stable_key=None))
+
+    async with _client(handler) as client:
+        agent, created = await client.ensure_agent(
+            AgentCreate(display_name="studio-opencode", harness="opencode")
+        )
     assert created is True
-    assert posts == 1
+    assert agent.stable_key is None
 
 
 async def test_list_and_register_agents() -> None:
@@ -178,13 +167,12 @@ def test_cli_agents_ensure_registers(
 ) -> None:
     monkeypatch.setenv("STUDIO_CLIENT_API_BASE_URL", "http://test")
     monkeypatch.setenv("STUDIO_CLIENT_MACHINE_TOKEN", "test-token")
+    seen: dict[str, Any] = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/api/v1/machines/me":
-            return httpx.Response(200, json=_machine_payload())
-        if request.method == "GET":
-            return httpx.Response(200, json=[])
-        return httpx.Response(201, json=_agent_payload())
+        assert request.url.path == "/api/v1/agents/ensure"
+        seen.update(json.loads(request.content.decode()))
+        return httpx.Response(201, json=_ensure_payload(True))
 
     def fake_run(config: ClientConfig, action: Any) -> Any:
         async def _go() -> Any:
@@ -197,3 +185,26 @@ def test_cli_agents_ensure_registers(
     cli.main(["agents", "ensure", "--harness", "opencode"])
     out = capsys.readouterr().out
     assert f"Registered agent {AGENT_ID} (studio-opencode)." in out
+    assert seen["stable_key"] == "agents-ensure-opencode"
+
+
+def test_cli_agents_ensure_finds_existing(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("STUDIO_CLIENT_API_BASE_URL", "http://test")
+    monkeypatch.setenv("STUDIO_CLIENT_MACHINE_TOKEN", "test-token")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=_ensure_payload(False))
+
+    def fake_run(config: ClientConfig, action: Any) -> Any:
+        async def _go() -> Any:
+            async with _client(handler) as client:
+                return await action(client)
+
+        return asyncio.run(_go())
+
+    monkeypatch.setattr(cli, "_run", fake_run)
+    cli.main(["agents", "ensure", "--harness", "opencode", "--stable-key", "custom-key"])
+    out = capsys.readouterr().out
+    assert f"Found agent {AGENT_ID} (studio-opencode)." in out

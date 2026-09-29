@@ -58,6 +58,16 @@ class ResolutionErrorCode(StrEnum):
     UNRESOLVABLE_DEPENDENCY = "unresolvable_dependency"
     RUNTIME_INCOMPATIBLE = "runtime_incompatible"
     INVALID_RESOLUTION_INPUT = "invalid_resolution_input"
+    COMPOSITION_CYCLE_DETECTED = "composition_cycle_detected"
+    COMPOSITION_DEPTH_EXCEEDED = "composition_depth_exceeded"
+
+
+MAX_COMPOSITION_DEPTH = 8
+"""Fail-closed bound on `composes_agent` recursion depth (DEC-0164 §3).
+
+Never an unbounded recursion, in the pure core or in the DB loader
+(`resolve_full`): a chain longer than this raises `composition_depth_exceeded`
+instead of recursing further."""
 
 
 class ResolutionError(ContractModel):
@@ -170,9 +180,10 @@ class ResolvedModelProfile(ContractModel):
 
 class PreservedReference(ContractModel):
     """A `composes_agent` / `references_workflow` dependency, preserved with
-    identity, exact version and provenance — never expanded: workflow
-    execution semantics belong to P11 and agent-composition execution has no
-    defined semantics yet (library bindings, resolution engine)."""
+    identity, exact version and provenance. `references_workflow` is never
+    expanded (workflow execution semantics belong to P11). `composes_agent`
+    is additionally described by `ResolvedComposedAgent.resolved` — this
+    reference alone still carries no execution semantics."""
 
     resource_id: UUID
     kind: LibraryKind
@@ -212,9 +223,23 @@ class ResolvedAgentDefinition(ContractModel):
     skills: list[ResolvedSkill] = []
     model_profile: ResolvedModelProfile | None = None
     requirements: CapabilityRequirement = CapabilityRequirement()
-    composed_agents: list[PreservedReference] = []
+    composed_agents: list[ResolvedComposedAgent] = []
     workflows: list[PreservedReference] = []
     runtime: ResolvedRuntime | None = None
+
+
+class ResolvedComposedAgent(ContractModel):
+    """One `composes_agent` dependency, resolved: the reference itself
+    (identity, exact version, provenance — same shape as before) plus its
+    own complete, independently resolved `ResolvedAgentDefinition`. Built by
+    the same pure core recursing on its own sub-graph — never a second
+    resolver, never merged/flattened into the parent's rules or skills."""
+
+    reference: PreservedReference
+    resolved: ResolvedAgentDefinition
+
+
+ResolvedAgentDefinition.model_rebuild()
 
 
 class NodeBinding(ContractModel):
@@ -359,21 +384,15 @@ def resolve_agent(snapshot: AgentResolutionSnapshot) -> ResolvedAgentDefinition:
     """Pure assembly: snapshot in, resolved definition or structured error out.
 
     Pipeline: root validation → direct dependency partition → skill→rule
-    transitive expansion (exactly one defined level) → rule dedup with merged
-    paths → model-profile requirements → runtime selection → compatibility
-    judgment (`selection → compatibility → success | structured
-    incompatibility`, never `search until compatible`)."""
-
-    root = snapshot.agent
-    if root.kind != LibraryKind.AGENT_DEFINITION:
-        raise _fail(
-            ResolutionErrorCode.INVALID_RESOLUTION_INPUT,
-            reason="root_not_agent_definition",
-            kind=root.kind.value,
-        )
+    transitive expansion (exactly one defined level, the only one
+    structurally possible) → rule dedup with merged paths → model-profile
+    requirements → `composes_agent` recursive expansion (DEC-0164, same core,
+    cycle- and depth-guarded) → runtime selection → compatibility judgment
+    (`selection → compatibility → success | structured incompatibility`,
+    never `search until compatible`)."""
 
     index: dict[tuple[UUID, int], ResolutionNode] = {}
-    for node in [root, *snapshot.nodes]:
+    for node in [snapshot.agent, *snapshot.nodes]:
         key = (node.resource_id, node.version)
         existing = index.get(key)
         if existing is not None and existing != node:
@@ -384,6 +403,42 @@ def resolve_agent(snapshot: AgentResolutionSnapshot) -> ResolvedAgentDefinition:
                 version=node.version,
             )
         index[key] = node
+
+    return _resolve_node(snapshot.agent, snapshot, index, visited=frozenset(), depth=0)
+
+
+def _resolve_node(
+    root: ResolutionNode,
+    snapshot: AgentResolutionSnapshot,
+    index: dict[tuple[UUID, int], ResolutionNode],
+    visited: frozenset[UUID],
+    depth: int,
+) -> ResolvedAgentDefinition:
+    """One node of the `composes_agent` tree, resolved by the same pipeline
+    as the root (DEC-0164). `visited` is the chain of agent identities from
+    the true root to this node (fail-closed on a repeat = a cycle); `depth`
+    is the number of `composes_agent` edges crossed to reach it."""
+
+    if root.kind != LibraryKind.AGENT_DEFINITION:
+        raise _fail(
+            ResolutionErrorCode.INVALID_RESOLUTION_INPUT,
+            reason="root_not_agent_definition",
+            kind=root.kind.value,
+        )
+    if root.resource_id in visited:
+        raise _fail(
+            ResolutionErrorCode.COMPOSITION_CYCLE_DETECTED,
+            resource_id=str(root.resource_id),
+            stable_key=root.stable_key,
+        )
+    if depth > MAX_COMPOSITION_DEPTH:
+        raise _fail(
+            ResolutionErrorCode.COMPOSITION_DEPTH_EXCEEDED,
+            resource_id=str(root.resource_id),
+            stable_key=root.stable_key,
+            max_depth=MAX_COMPOSITION_DEPTH,
+        )
+    visited = visited | {root.resource_id}
 
     def _lookup(binding: NodeBinding, via: str) -> ResolutionNode:
         node = index.get((binding.target_resource_id, binding.target_version))
@@ -605,7 +660,13 @@ def resolve_agent(snapshot: AgentResolutionSnapshot) -> ResolvedAgentDefinition:
             ),
         )
 
-    composed_agents = [_preserved(node, BindingRelation.COMPOSES_AGENT) for node in composed_nodes]
+    composed_agents = [
+        ResolvedComposedAgent(
+            reference=_preserved(node, BindingRelation.COMPOSES_AGENT),
+            resolved=_resolve_node(node, snapshot, index, visited, depth + 1),
+        )
+        for node in composed_nodes
+    ]
     workflows = [_preserved(node, BindingRelation.REFERENCES_WORKFLOW) for node in workflow_nodes]
 
     agent_key = (LibraryKind.AGENT_DEFINITION, root.stable_key)

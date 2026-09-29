@@ -451,12 +451,16 @@ def render_shared_body(
 
     if resolved.composed_agents:
         names = ", ".join(
-            sorted(f"{r.kind.value}:{r.stable_key}" for r in resolved.composed_agents)
+            sorted(
+                f"{c.reference.kind.value}:{c.reference.stable_key}"
+                for c in resolved.composed_agents
+            )
         )
         warnings.append(
             AdapterWarning(
-                "composed_agents_not_expanded",
-                f"composed agent refs preserved, not expanded: {names}",
+                "composed_agents_resolved_not_rendered",
+                f"composed agents resolved recursively (DEC-0164) but not rendered "
+                f"by this adapter: {names}",
             )
         )
     if resolved.workflows:

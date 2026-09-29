@@ -17,17 +17,17 @@ import {
   verifyArtifact,
 } from "./promote-channel.mjs";
 
-const INSTALLER = "StudiOS-Setup-dev.exe";
+const INSTALLER = "StudiOS-Setup-prod.exe";
 const URL_BASE = "https://github.com/o/r/releases/download/desktop-prod";
 const TARGET = updaterTarget();
 
-function fixture({ channel = "dev", apiUrl = "https://api.example.test" } = {}) {
+function fixture({ channel = "prod", apiUrl = "https://api.example.test" } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "studio-promote-"));
   writeFileSync(join(dir, INSTALLER), Buffer.from("promotable-installer-bytes"));
   writeFileSync(join(dir, `${INSTALLER}.sig`), "dW50cnVzdGVkIHNpZwo=\n");
   const manifest = buildManifest({
     bundleDir: dir,
-    urlBase: "https://github.com/o/r/releases/download/desktop-dev",
+    urlBase: "https://github.com/o/r/releases/download/desktop-prod",
     channel,
     version: "0.1.0",
     assetName: INSTALLER,
@@ -59,7 +59,7 @@ test("promotion rewrites the manifest and keeps version, signature and hash", ()
     assert.equal(promoted.version, manifest.version);
     assert.equal(promoted.pub_date, manifest.pub_date);
     assert.equal(promoted.channel, "stable");
-    assert.equal(promoted.promoted_from, "beta");
+    assert.equal(promoted.promoted_from, "stable");
     assert.equal(promoted.schema_version, 1);
     assert.equal(promoted.platforms[TARGET].signature, manifest.platforms[TARGET].signature);
     assert.equal(promoted.artifacts[TARGET].sha256, manifest.artifacts[TARGET].sha256);
@@ -93,6 +93,18 @@ test("an unknown target lane or an unsigned source is refused", () => {
       () => artifactOf({ ...manifest, artifacts: {} }),
       /carries no .* artifact/,
     );
+  });
+});
+
+test("a Dev artefact never reaches the stable lane, nor an unlabelled one (DEC-0162)", () => {
+  withFixture({ channel: "dev" }, ({ manifest }) => {
+    assert.throws(() => promoteManifest(manifest, { to: "stable", urlBase: URL_BASE }), /lane_mismatch/);
+    assert.equal(promoteManifest(manifest, { to: "beta", urlBase: URL_BASE }).channel, "beta");
+  });
+  withFixture({}, ({ manifest }) => {
+    assert.throws(() => promoteManifest(manifest, { to: "beta", urlBase: URL_BASE }), /lane_mismatch/);
+    const { channel: _dropped, ...unlabelled } = manifest;
+    assert.throws(() => promoteManifest(unlabelled, { to: "stable", urlBase: URL_BASE }), /lane_mismatch/);
   });
 });
 

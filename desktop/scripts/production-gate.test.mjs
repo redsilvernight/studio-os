@@ -69,7 +69,7 @@ async function fixture(overrides = {}) {
         schema_version: 1,
         version: tag === "desktop-dev" ? "1.0.1" : "1.0.0",
         channel: tag === "desktop-dev" ? "beta" : "stable",
-        api_origin: tag === "desktop-dev" && state.betaOrigin ? state.betaOrigin : origin,
+        api_origin: tag === "desktop-dev" ? (state.betaOrigin ?? "http://127.0.0.1:8765") : origin,
         artifacts: { ["windows-x86_64"]: { file, size_bytes: 1234, sha256: "a".repeat(64) } },
         platforms: { ["windows-x86_64"]: { url: `${origin}/assets/${tag}/${file}`, signature: "signed" } },
       });

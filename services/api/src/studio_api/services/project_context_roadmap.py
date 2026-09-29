@@ -342,6 +342,27 @@ async def _build_item(
     return item
 
 
+async def current_step_linked_task_ids(
+    session: AsyncSession, principal: Principal, project_id: uuid.UUID
+) -> list[uuid.UUID]:
+    """The linked Task ids of the active roadmap's current step, in the same
+    total order the context facade uses (AIB-G candidates). Empty when the
+    project has no active roadmap or no current step — never an error."""
+    summaries = list(
+        await roadmaps_service.list_roadmaps(
+            session, principal, project_id, RoadmapStatus.ACTIVE, 1
+        )
+    )
+    if not summaries:
+        return []
+    detail = await roadmaps_service.get_roadmap(session, principal, summaries[0].id)
+    current = next(
+        (step for _, step in _ordered_steps(detail) if step.key == detail.current_step_key),
+        None,
+    )
+    return _step_task_ids(current) if current is not None else []
+
+
 def _overview(
     summaries: list[RoadmapSummary], limit: int, selection: RoadmapSelection
 ) -> RoadmapOverview | None:

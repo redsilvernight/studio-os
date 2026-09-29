@@ -70,7 +70,11 @@ class Agent(VersionedModel):
     from the machine owner's role alone. `agent_profile`, `harness`,
     `provider` and `model` are optional additive observability metadata:
     open strings, never whitelisted, never a capability or compatibility
-    condition, never read to make a decision."""
+    condition, never read to make a decision. `stable_key` (AIB-I, additive)
+    is the local stable key set by `agents ensure` (default
+    `agents-ensure-{harness}`), unique per owning machine: the idempotent
+    lookup key for session-start, never an authorization input, and never
+    `AgentDefinition.stable_key` (a resolution parameter, not an identity)."""
 
     id: UUID
     machine_id: UUID | None = None
@@ -80,6 +84,7 @@ class Agent(VersionedModel):
     harness: str | None = None
     provider: str | None = None
     model: str | None = None
+    stable_key: str | None = None
 
 
 class AgentCreate(IdempotentCreate):
@@ -90,7 +95,10 @@ class AgentCreate(IdempotentCreate):
     server-generated `Agent.id` is). `agent_profile`, `harness`, `provider`
     and `model` are optional open-string observability metadata: any value
     is accepted, unknown values are never rejected, and none of them is ever
-    required."""
+    required. `stable_key` (AIB-I, additive, optional) is the local stable
+    key for `POST /agents/ensure`: same machine + same key returns the
+    existing agent, same key + different metadata is `409
+    idempotency_key_payload_mismatch`. Never `AgentDefinition.stable_key`."""
 
     display_name: str
     agent_kind: str = ""
@@ -98,6 +106,15 @@ class AgentCreate(IdempotentCreate):
     harness: str | None = None
     provider: str | None = None
     model: str | None = None
+    stable_key: str | None = None
+
+
+class AgentEnsureResult(ContractModel):
+    """Result of `POST /agents/ensure` (AIB-I, additive): the caller's own
+    machine's agent for `stable_key`, plus whether this call created it."""
+
+    agent: Agent
+    created: bool
 
 
 class UserCreate(ContractModel):

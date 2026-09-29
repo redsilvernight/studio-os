@@ -4,9 +4,10 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.auth import Role
+from studio_contracts.coordination import COORDINATION_EVENT_PREFIX
 from studio_contracts.events import EventCreate, EventEnvelope, EventType
 
 from studio_api.db.models.agent import AgentModel
@@ -53,6 +54,15 @@ async def resolve_event_identity(
     """
     ensure_project_access(principal, event_in.project_id, "write")
     ensure_can_write(principal, "event")
+    if event_in.event_type.value.startswith(COORDINATION_EVENT_PREFIX):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "error_code": "coordination_reserved",
+                "message": "coordination.* events are emitted only through "
+                "POST /api/v1/coordination (studio_coordinate)",
+            },
+        )
     machine = principal.machine
     if event_in.machine_id is not None and event_in.machine_id != machine.id:
         raise HTTPException(
@@ -128,6 +138,22 @@ def publish_event(event: EventModel) -> None:
     )
 
 
+async def _insert_and_notify(session: AsyncSession, event_in: EventCreate) -> EventModel:
+    """Flush the new row, then queue a NOTIFY carrying its `seq` in the same
+    transaction (DEC-0156): PostgreSQL delivers it to every listening process
+    at commit only, never on rollback."""
+    event = _new_event_row(event_in)
+    session.add(event)
+    await session.flush()
+    # `seq` is read server-side: it is an identity column the ORM may not
+    # have fetched back yet at this point.
+    await session.execute(
+        text("SELECT pg_notify(:channel, seq::text) FROM events WHERE id = :id"),
+        {"channel": event_stream.NOTIFY_CHANNEL, "id": event.id},
+    )
+    return event
+
+
 async def stage_event(session: AsyncSession, event_in: EventCreate) -> EventModel:
     """Insert the event in the caller's transaction (flush only, no commit) so a
     unit of work and its audit trail become durable atomically. The caller
@@ -136,21 +162,18 @@ async def stage_event(session: AsyncSession, event_in: EventCreate) -> EventMode
     existing = await session.get(EventModel, event_in.event_id)
     if existing is not None:
         return existing
-    event = _new_event_row(event_in)
-    session.add(event)
-    await session.flush()
-    return event
+    return await _insert_and_notify(session, event_in)
 
 
 async def create_event(session: AsyncSession, event_in: EventCreate) -> EventModel:
     """Idempotent on `event_id`: a replay (offline queue retry, at-least-once
-    delivery) returns the already-stored row instead of inserting a duplicate."""
+    delivery) returns the already-stored row instead of inserting a duplicate,
+    and notifies nobody."""
     existing = await session.get(EventModel, event_in.event_id)
     if existing is not None:
         return existing
 
-    event = _new_event_row(event_in)
-    session.add(event)
+    event = await _insert_and_notify(session, event_in)
     await session.commit()
     await session.refresh(event)
     publish_event(event)

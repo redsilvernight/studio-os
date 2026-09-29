@@ -10,6 +10,8 @@ import { resetActorNames, setActorNames } from "../actorNames";
 import {
   aiWorkStatusLabel,
   aiWorkStatusTone,
+  canReleaseTask,
+  releaseTaskConfirmText,
   sessionStateLabel,
   taskConflictNotice,
   taskDetailErrorHtml,
@@ -186,6 +188,43 @@ describe("prise en charge (claim/release machine)", () => {
     const named = taskDetailHtml(data({ task: held }));
     expect(named).toContain('title="abcdef12-3456">flo-laptop</span>');
     resetActorNames();
+  });
+
+  it("confirmation de libération : nomme la machine et l'agent détenteurs", () => {
+    const held = {
+      ...(baseTask as unknown as Record<string, unknown>),
+      claimed_by_machine_id: "abcdef12-3456",
+      claimed_by_agent_id: "agent-9876",
+    } as never;
+    setActorNames([{ id: "abcdef12-3456", display_name: "flo-laptop" }], [{ id: "agent-9876", display_name: "claude-dev" }]);
+    const text = releaseTaskConfirmText(held);
+    expect(text).toContain("machine flo-laptop");
+    expect(text).toContain("agent claude-dev");
+    expect(text).toContain("détenteur ou à un administrateur");
+    expect(text).not.toContain("<");
+    resetActorNames();
+  });
+
+  it("libérer : détenteur ou admin seulement (indice UI, identité inconnue = actif)", () => {
+    const held = {
+      ...(baseTask as unknown as Record<string, unknown>),
+      claimed_by_machine_id: "abcdef12-3456",
+    } as never;
+    const me = { user_id: "u1", display_name: "Flo", email: "f@x", role: "developer", machine_id: "abcdef12-3456" };
+    expect(canReleaseTask(held, true, me)).toBe(true);
+    expect(canReleaseTask(held, true, { ...me, machine_id: "other" })).toBe(false);
+    expect(canReleaseTask(held, true, { ...me, machine_id: "other", role: "admin" })).toBe(true);
+    expect(canReleaseTask(held, true, null)).toBe(true);
+    expect(canReleaseTask(held, false, me)).toBe(false);
+    expect(canReleaseTask(baseTask, true, me)).toBe(false);
+
+    const other = taskDetailHtml(data({ task: held, canRelease: false }));
+    expect(other).not.toContain('id="task-head-release"');
+    expect(other).toContain("data-release disabled");
+    expect(other).toContain("ou un administrateur, peut la libérer");
+    const admin = taskDetailHtml(data({ task: held, canRelease: true }));
+    expect(admin).toContain('id="task-head-release"');
+    expect(admin).not.toContain("data-release disabled");
   });
 
   it("lecture seule : actions désactivées sans disparaître", () => {

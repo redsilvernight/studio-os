@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-127 decision(s). Detail complet dans chaque ADR lie.
+135 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -72,7 +72,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0048 | CC-3 : evolution des contrats MCP par discovery + schemas, sans version par payload | active | [decisions/DEC-0048-evolution-contrats-mcp-sans-version-payload.md](decisions/DEC-0048-evolution-contrats-mcp-sans-version-payload.md) |
 | DEC-0049 | Sous-etape 8.4 (roadmap) : Review Queue agregee, aucune nouvelle table, revue limitee au travail IA | active | [decisions/DEC-0049-review-queue-agregation-sans-nouvelle-table.md](decisions/DEC-0049-review-queue-agregation-sans-nouvelle-table.md) |
 | DEC-0050 | Question ouverte n°3 (etape 8) : auth dashboard V0 ratifiee, token machine reutilise, aucune nouvelle mecanique | superseded | [decisions/DEC-0050-auth-dashboard-ratification-token-machine-v0.md](decisions/DEC-0050-auth-dashboard-ratification-token-machine-v0.md) |
-| DEC-0051 | Question ouverte n°4 (etape 8) : notifications derivees de la Review Queue, timeline sur les events, aucune entite Notification persistee | active | [decisions/DEC-0051-notifications-derivees-review-queue-timeline.md](decisions/DEC-0051-notifications-derivees-review-queue-timeline.md) |
+| DEC-0051 | Question ouverte n°4 (etape 8) : notifications derivees de la Review Queue, timeline sur les events, aucune entite Notification persistee | superseded | [decisions/DEC-0051-notifications-derivees-review-queue-timeline.md](decisions/DEC-0051-notifications-derivees-review-queue-timeline.md) |
 | DEC-0052 | UC-4 : documentation model-agnostic du consommateur (roles fonctionnels, zero couplage modele) | active | [decisions/DEC-0052-uc-4-documentation-model-agnostic.md](decisions/DEC-0052-uc-4-documentation-model-agnostic.md) |
 | DEC-0053 | UC-5 : metadonnees runtime additives agent_profile/harness/provider/model sur Agent et AIWorkLog | active | [decisions/DEC-0053-uc-5-metadonnees-runtime-additives-agent-aiworklog.md](decisions/DEC-0053-uc-5-metadonnees-runtime-additives-agent-aiworklog.md) |
 | DEC-0054 | UC-6 : guide dintegration dun consommateur externe, sans connaissance interne | active | [decisions/DEC-0054-uc-6-guide-integration-consommateur-externe.md](decisions/DEC-0054-uc-6-guide-integration-consommateur-externe.md) |
@@ -149,3 +149,11 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0152 | AIB-J : seul le proprietaire de la machine peut y lancer une tache | accepted | [decisions/DEC-0152-aib-j-autorisation-lancement.md](decisions/DEC-0152-aib-j-autorisation-lancement.md) |
 | DEC-0154 | P0 : reconciliation Desktop livree, ordre tranche, matrice validee | accepted | [decisions/DEC-0154-p0-reconciliation-desktop-ordre.md](decisions/DEC-0154-p0-reconciliation-desktop-ordre.md) |
 | DEC-0155 | P0 : vocabulaire harness canonique kebab-case | accepted | [decisions/DEC-0155-p0-vocabulaire-harness.md](decisions/DEC-0155-p0-vocabulaire-harness.md) |
+| DEC-0156 | Fan-out temps réel multi-process : NOTIFY PostgreSQL post-commit (étend DEC-0018) | accepted | [decisions/DEC-0156-fanout-multi-process-listen-notify.md](decisions/DEC-0156-fanout-multi-process-listen-notify.md) |
+| DEC-0157 | Coordination inter-sessions en pull : curseur par session, studio_sync et coordination.* (remplace DEC-0051) | accepted | [decisions/DEC-0157-coordination-inter-sessions-pull.md](decisions/DEC-0157-coordination-inter-sessions-pull.md) |
+| DEC-0159 | L2 : contrat studio_start_work composite (claim + reprise + contexte, AIB-G) | proposed | [decisions/DEC-0159-l2-contrat-studio-start-work.md](decisions/DEC-0159-l2-contrat-studio-start-work.md) |
+| DEC-0160 | L2 : claim_task idempotent (no-op même machine) + Idempotency-Key, sans bump de contrat | proposed | [decisions/DEC-0160-l2-claim-idempotent.md](decisions/DEC-0160-l2-claim-idempotent.md) |
+| DEC-0161 | L2/AIB-H : reprise de session (filtres agent/open, clôture des périmées, jamais sur lecture) | proposed | [decisions/DEC-0161-l2-session-resume-cloture.md](decisions/DEC-0161-l2-session-resume-cloture.md) |
+| DEC-0162 | Desktop : deux builds Prod/Dev distincts et serveur local Dev | accepted | [decisions/DEC-0162-desktop-deux-builds-prod-dev.md](decisions/DEC-0162-desktop-deux-builds-prod-dev.md) |
+| DEC-0163 | L3 : handoff composite en un appel + repli end_session (claims, ai_work, session) | accepted | [decisions/DEC-0163-l3-handoff-cloture.md](decisions/DEC-0163-l3-handoff-cloture.md) |
+| DEC-0164 | AI Bootstrap P2 : expansion récursive de composed_agent dans le moteur P5, sans second moteur | active | [decisions/DEC-0164-p2-expansion-composed-agents.md](decisions/DEC-0164-p2-expansion-composed-agents.md) |

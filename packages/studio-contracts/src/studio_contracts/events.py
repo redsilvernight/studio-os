@@ -95,6 +95,11 @@ class EventType(StrEnum):
     MARKETING_CANDIDATE_CREATED = "marketing.candidate.created"
     MARKETING_POST_PUBLISHED = "marketing.post.published"
 
+    COORDINATION_HEADS_UP = "coordination.heads_up"
+    COORDINATION_QUESTION = "coordination.question"
+    COORDINATION_BLOCKED_BY = "coordination.blocked_by"
+    COORDINATION_HANDOFF = "coordination.handoff"
+
 
 ActorType = Literal["user", "agent", "system"]
 

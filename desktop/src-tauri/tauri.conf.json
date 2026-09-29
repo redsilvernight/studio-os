@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Studio OS Desktop",
+  "productName": "Studi’OS Desktop",
   "mainBinaryName": "studio-desktop",
-  "identifier": "dev.studio-os.desktop",
+  "identifier": "stable.studio-os.desktop",
   "build": {
     "frontendDist": "../.build/dashboard",
     "devUrl": "http://localhost:5173"
@@ -20,7 +20,7 @@
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.ico"],
     "publisher": "Studio OS",
     "category": "DeveloperTool",
-    "shortDescription": "Studio OS Desktop",
+    "shortDescription": "Studi’OS Desktop",
     "longDescription": "Desktop client for Studio OS: local workspaces, knowledge and code graph, with a bundled local daemon.",
     "windows": {
       "allowDowngrades": false,

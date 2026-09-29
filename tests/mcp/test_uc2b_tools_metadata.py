@@ -65,6 +65,10 @@ WRITE_TOOLS = {
     "studio_supersede_decision",
     "studio_start_session",
     "studio_end_session",
+    "studio_start_work",
+    "studio_handoff",
+    "studio_sync",
+    "studio_coordinate",
     "studio_register_agent",
     "studio_log_ai_work",
     "studio_emit_event",
@@ -93,7 +97,7 @@ def _by_name(tools: list[Tool]) -> dict[str, Tool]:
 
 
 def test_all_tools_have_external_descriptions(tools: list[Tool]) -> None:
-    assert len(tools) == 47
+    assert len(tools) == 51
     for tool in tools:
         assert tool.description, f"{tool.name} has no description"
         assert len(tool.description) >= 40, f"{tool.name} description is stub-like"
@@ -129,6 +133,9 @@ def test_idempotency_and_event_id_discoverable(tools: list[Tool]) -> None:
     by_name = _by_name(tools)
     for name in (
         "studio_create_task",
+        "studio_claim_task",
+        "studio_start_work",
+        "studio_handoff",
         "studio_claim_resource",
         "studio_claim_resources",
         "studio_add_decision",
@@ -157,6 +164,26 @@ def test_version_conflict_and_ownership_discoverable(tools: list[Tool]) -> None:
     assert "expected_version" in by_name["studio_update_task"].input_schema["properties"]
     assert "actor_not_owned" in (by_name["studio_log_ai_work"].description or "")
     assert "already_claimed" in (by_name["studio_claim_task"].description or "")
+    for name in (
+        "studio_update_task",
+        "studio_claim_task",
+        "studio_release_task",
+        "studio_start_session",
+    ):
+        verbose = by_name[name].input_schema["properties"]["verbose"]
+        assert verbose["default"] is True
+
+
+def test_workflow_context_controls_are_discoverable(tools: list[Tool]) -> None:
+    by_name = _by_name(tools)
+    context_schema = by_name["studio_prepare_context"].input_schema
+    assert "objective" in context_schema["properties"]
+    assert "objective" not in context_schema.get("required", [])
+    assert "known_ids" in context_schema["properties"]
+
+    tasks_schema = by_name["studio_get_active_tasks"].input_schema
+    for name in ("title_prefix", "limit", "fields"):
+        assert name in tasks_schema["properties"]
 
 
 def test_event_identity_rules_without_internal_docs(tools: list[Tool]) -> None:

@@ -2,13 +2,18 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.claims import ResourceClaimCreate
+from studio_contracts.events import EventCreate, EventType
 
 from studio_api.db.models.claim import ResourceClaimModel
+from studio_api.db.models.task import TaskModel
+from studio_api.services import events as events_service
+from studio_api.services import tasks as tasks_service
 from studio_api.services.authz import (
     Principal,
     ensure_can_write,
@@ -48,6 +53,13 @@ def paths_conflict(a_path: str, a_type: str, b_path: str, b_type: str) -> bool:
     return _conflicts(a_path, a_type, b_path, b_type)
 
 
+async def active_claims(session: AsyncSession, project_id: uuid.UUID) -> list[ResourceClaimModel]:
+    """Public read of live claims (real state with derived expiry), for
+    read-only consumers (e.g. sync relevance) that must not depend on claim
+    event types being emitted."""
+    return await _active_claims(session, project_id)
+
+
 async def list_claims(
     session: AsyncSession, principal: Principal, project_id: uuid.UUID | None = None
 ) -> list[ResourceClaimModel]:
@@ -61,6 +73,48 @@ async def list_claims(
         stmt = stmt.where(visible)
     result = await session.execute(stmt)
     return list(result.scalars().all())
+
+
+async def _commit_with_event(
+    session: AsyncSession,
+    principal: Principal,
+    claim: ResourceClaimModel,
+    event_type: EventType,
+    extra: dict[str, Any] | None = None,
+) -> ResourceClaimModel:
+    """Commits the claim write and its `resource.*` event atomically, then fans
+    the event out (TECH/03_EVENT_CONTRACT.md, emission serveur Claims)."""
+    actor_type, actor_id = await tasks_service.event_actor(
+        session, principal, claim.claimed_by_agent_id
+    )
+    await session.flush()
+    event = await events_service.stage_event(
+        session,
+        EventCreate(
+            event_id=uuid.uuid4(),
+            event_type=event_type,
+            project_id=claim.project_id,
+            task_id=claim.task_id,
+            machine_id=principal.machine.id,
+            actor_type=actor_type,
+            actor_id=actor_id,
+            client_timestamp=datetime.now(UTC),
+            payload={
+                "claim_id": str(claim.id),
+                "resource_path": claim.resource_path,
+                "resource_type": claim.resource_type,
+                "status": claim.status,
+                "claimed_by_machine_id": str(claim.claimed_by_machine_id),
+                "expires_at": claim.expires_at.isoformat(),
+                **(extra or {}),
+            },
+        ),
+    )
+    await session.commit()
+    await session.refresh(claim)
+    await session.refresh(event)
+    events_service.publish_event(event)
+    return claim
 
 
 def authorize_create(principal: Principal, project_id: uuid.UUID) -> None:
@@ -93,9 +147,8 @@ async def create_claim(
         expires_at=now + timedelta(seconds=claim_in.ttl_seconds),
     )
     session.add(claim)
-    await session.commit()
-    await session.refresh(claim)
-    return claim
+    await session.flush()
+    return await _commit_with_event(session, principal, claim, EventType.RESOURCE_CLAIMED)
 
 
 async def has_conflict(session: AsyncSession, claim: ResourceClaimModel) -> bool:
@@ -114,12 +167,13 @@ async def renew_claim(
 ) -> ResourceClaimModel:
     ensure_project_access(principal, claim.project_id, "write")
     ensure_machine_owned(principal, claim.claimed_by_machine_id, "claim", "renew")
+    if claim.status == "released":
+        # A released claim stays released: no write, no `resource.renewed`.
+        return claim
     now = datetime.now(UTC)
     claim.renewed_at = now
     claim.expires_at = now + timedelta(seconds=claim.ttl_seconds)
-    await session.commit()
-    await session.refresh(claim)
-    return claim
+    return await _commit_with_event(session, principal, claim, EventType.RESOURCE_RENEWED)
 
 
 async def release_claim(
@@ -127,11 +181,19 @@ async def release_claim(
 ) -> ResourceClaimModel:
     ensure_project_access(principal, claim.project_id, "write")
     ensure_machine_owned(principal, claim.claimed_by_machine_id, "claim", "release")
+    if claim.status == "released":
+        # Releasing twice is harmless: no second write, no second event.
+        return claim
+    previous_status = claim.status
     claim.status = "released"
     claim.released_at = datetime.now(UTC)
-    await session.commit()
-    await session.refresh(claim)
-    return claim
+    return await _commit_with_event(
+        session,
+        principal,
+        claim,
+        EventType.RESOURCE_RELEASED,
+        {"previous_status": previous_status},
+    )
 
 
 async def get_claim(session: AsyncSession, claim_id: uuid.UUID) -> ResourceClaimModel:
@@ -139,3 +201,28 @@ async def get_claim(session: AsyncSession, claim_id: uuid.UUID) -> ResourceClaim
     if claim is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "claim not found")
     return claim
+
+
+async def release_task_claims_by_task(
+    session: AsyncSession, principal: Principal, task: TaskModel
+) -> list[ResourceClaimModel]:
+    """Release all active claims for a given task. Used by L3 handoff and
+    the `end_session` fallback. Each release goes through `release_claim`
+    so a `resource.released` event is emitted per claim, exactly like a
+    single release. Idempotent: already-released claims are skipped
+    without error; claims held by another machine are never touched."""
+    ensure_project_access(principal, task.project_id, "write")
+    result = await session.execute(
+        select(ResourceClaimModel).where(
+            ResourceClaimModel.task_id == task.id,
+            ResourceClaimModel.status == "active",
+        )
+    )
+    claims = list(result.scalars().all())
+    released = []
+    for claim in claims:
+        # Ownership check per claim: only the holding machine can release.
+        if claim.claimed_by_machine_id != principal.machine.id:
+            continue
+        released.append(await release_claim(session, principal, claim))
+    return released

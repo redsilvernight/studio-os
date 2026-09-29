@@ -585,12 +585,15 @@ async def test_p13_expansion_direct_and_transitive_with_dedup(
     assert resolved["skills"][0]["version_origin"] == "pin"
 
 
-async def test_p13_composed_agent_and_workflow_preserved_not_expanded(
+async def test_p13_composed_agent_resolved_workflow_preserved_not_expanded(
     client: AsyncClient,
     db_session: AsyncSession,
     auth_headers: dict[str, str],
     p13_admin: tuple[Principal, dict[str, str]],
 ) -> None:
+    """DEC-0164 (post-P13 follow-up): `composed_agents` is now recursively
+    resolved through the same public `POST /resolutions` endpoint P13 gated;
+    `workflows` (P11) is untouched and still preserved without expansion."""
     admin, _ = p13_admin
     await _create(db_session, admin, AGENT, "pres-child", _agent_content("child"))
     await _create(
@@ -622,13 +625,14 @@ async def test_p13_composed_agent_and_workflow_preserved_not_expanded(
     )
 
     resolved = (await _resolve(client, auth_headers, "pres-root")).json()
-    assert [c["stable_key"] for c in resolved["composed_agents"]] == ["pres-child"]
+    assert [c["reference"]["stable_key"] for c in resolved["composed_agents"]] == ["pres-child"]
     assert [w["stable_key"] for w in resolved["workflows"]] == ["pres-flow"]
-    assert resolved["composed_agents"][0]["relation"] == "composes_agent"
+    assert resolved["composed_agents"][0]["reference"]["relation"] == "composes_agent"
     assert resolved["workflows"][0]["relation"] == "references_workflow"
-    # Preserved identity, never expanded: the composed agent's own dependency
-    # does not leak into the root's resolved rules.
+    # The composed agent's own dependency does not leak into the root's own
+    # resolved rules (each node's `rules` stays local to that node).
     assert resolved["rules"] == []
+    assert resolved["composed_agents"][0]["resolved"]["agent"]["stable_key"] == "pres-child"
 
 
 # ---------------------------------------------------------------------------

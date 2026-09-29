@@ -79,6 +79,9 @@ jobs:
       - name: Version coherence gate
         run: npm run version:check
         working-directory: desktop
+      - name: Release notes gate (a release must ship its note)
+        run: node scripts/release-notes.mjs --check
+        working-directory: desktop
       - name: Build the installer with the update mechanism compiled in
         shell: pwsh
         run: |

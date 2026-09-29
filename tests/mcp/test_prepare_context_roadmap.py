@@ -120,7 +120,7 @@ async def _done(
 
 
 async def _prepare(ctx: FakeContext, project: ProjectModel, objective: str, **kwargs: Any):
-    return dump(await studio_prepare_context(str(project.id), objective, ctx, **kwargs))
+    return dump(await studio_prepare_context(str(project.id), ctx, objective=objective, **kwargs))
 
 
 def _all_strings(value: Any) -> list[str]:

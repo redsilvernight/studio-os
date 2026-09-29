@@ -1,17 +1,14 @@
 name: Desktop channels
 
-# The living GitHub release of the unsigned Desktop beta lane, replaced by every
-# new build of `dev`: tag `desktop-dev`, pre-release, installs side by side with
-# Prod (own identity and data, `--channel dev`). The API / storage origins baked
-# into the build come from the `desktop-dev` GitHub environment variables, so no
-# deployment address lives in the code. Unsigned: SmartScreen / Smart App Control
-# may warn or block. Signed builds stay in desktop-release.yml.
+# The two living Desktop releases are real, channel-specific builds (DEC-0162):
+# `dev` publishes `desktop-dev`, while `deploy/flo-laptop` publishes
+# `desktop-prod`. Their identities, data directories, updater feeds and server
+# origins are distinct. Deployment addresses live only in the matching GitHub
+# environment (`desktop-dev` / `desktop-prod`). Unsigned builds may trigger a
+# SmartScreen / Smart App Control warning; signed candidates stay in
+# desktop-release.yml.
 #
-# The stable lane (`desktop-prod`) is NEVER built here: it is a promotion of the
-# same artefact by manifest (DEC-0108), driven by desktop-promote.yml, so a build
-# is validated on beta before it reaches stable and no rebuild ever re-signs it.
-#
-# B6 auto-update: each build is versioned `<canonical>-dev.<run_number>`, so
+# B6 auto-update: each build is versioned `<canonical>-<channel>.<run_number>`, so
 # every build is a newer release than the one installed. When the environment
 # holds the minisign updater key (STUDIO_UPDATER_PUBKEY,
 # TAURI_SIGNING_PRIVATE_KEY[_PASSWORD], docs/DESKTOP_B4_KEY_RUNBOOK.md) the
@@ -22,23 +19,16 @@ name: Desktop channels
 
 on:
   push:
-    branches: [dev]
-    paths:
-      - "desktop/**"
-      - "dashboard/**"
-      - "packages/studio-client/**"
-      - "packages/studio-code-graph/**"
-      - "packages/studio-contracts/**"
-      - "packages/studio-workspaces/**"
-      - "uv.lock"
-      - ".github/workflows/desktop-channels.yml"
+    branches: [dev, deploy/flo-laptop]
+  # A manual run rebuilds the channel of the selected ref; any other ref is
+  # skipped, so a Prod build can only ever come from `deploy/flo-laptop`.
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: desktop-channel-dev
+  group: desktop-channel-${{ github.ref_name == 'dev' && 'dev' || github.ref_name == 'deploy/flo-laptop' && 'prod' || github.ref_name }}
   cancel-in-progress: true
 
 env:
@@ -46,13 +36,16 @@ env:
 
 jobs:
   installer:
+    # Branch -> channel is fixed (DEC-0162): dev -> desktop-dev,
+    # deploy/flo-laptop -> desktop-prod. No other ref ever builds a channel.
+    if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/deploy/flo-laptop'
     runs-on: windows-latest
     timeout-minutes: 60
-    environment: desktop-dev
+    environment: ${{ github.ref_name == 'dev' && 'desktop-dev' || 'desktop-prod' }}
     env:
-      STUDIO_DESKTOP_CHANNEL: dev
-      STUDIO_DESKTOP_API_URL: ${{ vars.STUDIO_DESKTOP_API_URL }}
-      STUDIO_DESKTOP_STORAGE_URL: ${{ vars.STUDIO_DESKTOP_STORAGE_URL }}
+      STUDIO_DESKTOP_CHANNEL: ${{ github.ref_name == 'dev' && 'dev' || 'prod' }}
+      STUDIO_DESKTOP_API_URL: ${{ github.ref_name == 'dev' && 'http://127.0.0.1:8765' || vars.STUDIO_DESKTOP_API_URL }}
+      STUDIO_DESKTOP_STORAGE_URL: ${{ github.ref_name == 'dev' && 'http://127.0.0.1:8766' || vars.STUDIO_DESKTOP_STORAGE_URL }}
       STUDIO_UPDATER_PUBKEY: ${{ secrets.STUDIO_UPDATER_PUBKEY }}
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -62,6 +55,13 @@ jobs:
         shell: pwsh
         run: |
           if (-not $env:STUDIO_DESKTOP_API_URL) { "::error title=config::STUDIO_DESKTOP_API_URL is not set on the environment"; exit 1 }
+          if ($env:STUDIO_DESKTOP_CHANNEL -eq "dev") {
+            if ($env:STUDIO_DESKTOP_API_URL -ne "http://127.0.0.1:8765") { "::error title=config::Dev API must be the packaged loopback server"; exit 1 }
+            if ($env:STUDIO_DESKTOP_STORAGE_URL -ne "http://127.0.0.1:8766") { "::error title=config::Dev storage must be the packaged loopback server"; exit 1 }
+          } elseif (-not $env:STUDIO_DESKTOP_API_URL.StartsWith("https://")) {
+            "::error title=config::Prod API must use HTTPS"
+            exit 1
+          }
       - name: Updater feed of this channel (only with the updater key)
         shell: pwsh
         run: |
@@ -75,6 +75,11 @@ jobs:
         with:
           node-version: 22
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # Dependencies only (the app crate is rebuilt): shared by both Desktop workflows.
+          workspaces: desktop/src-tauri -> target
+          shared-key: desktop
       - name: Sync workspace
         run: uv sync --all-packages
       - name: Install Node dependencies
@@ -104,7 +109,12 @@ jobs:
       - name: Update feed manifest (latest.json, only when the updater is compiled in)
         if: hashFiles('desktop/src-tauri/target/release/bundle/nsis/*.sig') != ''
         shell: pwsh
-        run: node scripts/update-manifest.mjs --url-base "https://github.com/${{ github.repository }}/releases/download/desktop-$env:STUDIO_DESKTOP_CHANNEL" --asset-name "StudiOS-Setup-$env:STUDIO_DESKTOP_CHANNEL.exe" --api-url "$env:STUDIO_DESKTOP_API_URL"
+        # The feed points at a versioned asset name: a new build never overwrites
+        # the bytes the published latest.json still describes (see publication).
+        run: |
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          node scripts/update-manifest.mjs --url-base "https://github.com/${{ github.repository }}/releases/download/desktop-$env:STUDIO_DESKTOP_CHANNEL" --asset-name "StudiOS-Setup-$env:STUDIO_DESKTOP_CHANNEL-$version.exe" --api-url "$env:STUDIO_DESKTOP_API_URL"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         working-directory: desktop
       - name: Keep the previous release of this channel (release N of the update test)
         if: hashFiles('desktop/src-tauri/target/release/bundle/nsis/*.sig') != ''
@@ -118,6 +128,7 @@ jobs:
           $version = (Get-Content desktop/package.json | ConvertFrom-Json).version
           if (-not (Test-Path $feed)) { "::notice title=update-test::the previous release has no updater (no latest.json): N -> N+1 is proven from the next build on"; exit 0 }
           $previous = (Get-Content $feed | ConvertFrom-Json).version
+          "UPDATE_TEST_PREVIOUS=$previous" >> $env:GITHUB_ENV
           if ($previous -eq $version) { "::notice title=update-test::the previous release already is $version (re-run): nothing to update"; exit 0 }
           "UPDATE_TEST_FROM=$(Join-Path $dir "StudiOS-Setup-$env:STUDIO_DESKTOP_CHANNEL.exe")" >> $env:GITHUB_ENV
           "Update test: $previous -> $version" >> $env:GITHUB_STEP_SUMMARY
@@ -134,11 +145,16 @@ jobs:
           $short = "${{ github.sha }}".Substring(0, 7)
           $source = Get-ChildItem desktop/src-tauri/target/release/bundle/nsis/*.exe | Select-Object -First 1
           $asset = Join-Path $env:RUNNER_TEMP "StudiOS-Setup-$channel.exe"
+          $versioned = Join-Path $env:RUNNER_TEMP "StudiOS-Setup-$channel-$version.exe"
           Copy-Item $source.FullName $asset
+          Copy-Item $source.FullName $versioned
           $hash = (Get-FileHash $asset -Algorithm SHA256).Hash.ToLower()
+          # Upload order is the atomicity: the versioned installer first, then the
+          # feed that names it (one asset swap), then the moving manual-download
+          # name. An updater never sees a feed whose bytes are not yet published.
           $assets = @($asset)
           $manifest = "desktop/src-tauri/target/release/bundle/nsis/latest.json"
-          if (Test-Path $manifest) { $assets += (Resolve-Path $manifest).Path }
+          if (Test-Path $manifest) { $assets = @($versioned, (Resolve-Path $manifest).Path, $asset) }
           $notes = @(
             "Studi'OS Desktop $label $version, built from ${{ github.ref_name }} at ${{ github.sha }} and checked by npm run test:install.",
             "",
@@ -150,6 +166,7 @@ jobs:
           function Invoke-Checked([string] $step, [scriptblock] $command) {
             $out = & $command 2>&1
             if ($LASTEXITCODE -ne 0) { "::error title=${step}::$(($out | Out-String).Trim() -replace "`r?`n", " ")"; exit 1 }
+            $out
           }
           $title = "Studi'OS Desktop $label $version ($short)"
           # @(...) keeps a one-element array: an `if` expression would unroll it to a
@@ -157,12 +174,26 @@ jobs:
           $flags = @(if ($channel -eq "dev") { @("--prerelease", "--latest=false") } else { @("--latest") })
           # Never delete before publishing: a failed step must leave the previous
           # release downloadable. The tag is moved with git first, so a refusal
-          # stops here with git's own reason and nothing else changed.
-          Invoke-Checked "git push tag" { git push -q -f origin "${{ github.sha }}:refs/tags/$tag" }
+          # stops here with git's own reason and nothing else changed. The lease
+          # refuses the move if another run (e.g. a restore) moved it meanwhile.
+          $remote = Invoke-Checked "git ls-remote" { git ls-remote origin "refs/tags/$tag" }
+          $expected = if ($remote) { ("$remote" -split "\s+")[0] } else { "" }
+          Invoke-Checked "git push tag" { git push -q "--force-with-lease=refs/tags/${tag}:$expected" origin "${{ github.sha }}:refs/tags/$tag" }
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) {
-            Invoke-Checked "gh release upload" { gh release upload $tag @($assets) --clobber }
+            foreach ($file in $assets) { Invoke-Checked "gh release upload" { gh release upload $tag $file --clobber } }
             Invoke-Checked "gh release edit" { gh release edit $tag --title $title --notes $notes @flags }
+            # Prune versioned installers older than the previous one: an updater
+            # that read the previous feed just before the swap can still finish.
+            $keep = @("StudiOS-Setup-$channel-$version.exe")
+            if ($env:UPDATE_TEST_PREVIOUS) { $keep += "StudiOS-Setup-$channel-$env:UPDATE_TEST_PREVIOUS.exe" }
+            $names = Invoke-Checked "gh release view" { gh release view $tag --json assets --jq ".assets[].name" }
+            foreach ($name in @($names)) {
+              if ($name -like "StudiOS-Setup-$channel-*.exe" -and $name -notin $keep) {
+                gh release delete-asset $tag $name --yes 2>&1 | Out-Null
+                if ($LASTEXITCODE -ne 0) { "::warning title=prune::could not delete stale asset $name" }
+              }
+            }
           } else {
             Invoke-Checked "gh release create" { gh release create $tag @($assets) --verify-tag --title $title --notes $notes @flags }
           }

@@ -32,16 +32,12 @@ SKILL_TOOLS = {
         "studio_get_ai_work",
     },
     "studio-task": {
-        "studio_get_active_tasks",
-        "studio_get_project_state",
-        "studio_get_task",
-        "studio_claim_task",
-        "studio_claim_resource",
-        "studio_start_session",
+        "studio_start_work",
+        "studio_handoff",
         "studio_update_task",
         "studio_log_ai_work",
-        "studio_release_task",
-        "studio_release_resource",
+        "studio_sync",
+        "studio_coordinate",
     },
     "studio-decision": {
         "studio_add_decision",
@@ -52,13 +48,15 @@ SKILL_TOOLS = {
         "studio_prepare_context",
     },
     "studio-handoff": {
+        "studio_handoff",
         "studio_log_ai_work",
+        "studio_prepare_context",
+        "studio_get_ai_work",
         "studio_release_resource",
         "studio_release_task",
         "studio_end_session",
-        "studio_emit_event",
-        "studio_prepare_context",
-        "studio_get_ai_work",
+        "studio_start_work",
+        "studio_sync",
     },
 }
 
@@ -145,7 +143,9 @@ def test_handoff_skill_defines_resume_packet():
     text = _read(SKILLS["studio-handoff"])
     for marker in ("DONE", "STATE", "CHANGED", "TESTS", "NEXT", "BLOCKERS"):
         assert marker in text, f"studio-handoff missing {marker}"
-    assert "handoff.close" in text  # explicitly out of scope in P1
+    # L3: handoff.close is out of scope; studio_handoff is the single-call closer
+    assert "studio_handoff" in text
+    assert "studio_start_work" in text  # Resume uses start_work
 
 
 def test_decision_skill_uses_resolve_primitives():
@@ -153,3 +153,26 @@ def test_decision_skill_uses_resolve_primitives():
     assert "studio_add_decision" in text
     assert "studio_accept_decision" in text
     assert "studio_supersede_decision" in text
+
+
+def test_cross_harness_resume_uses_start_work_and_handoff():
+    """A fresh agent (possibly another harness) resumes a task using
+    L2/L3 composites: start_work → work → handoff. The skill text
+    should reference these two tools as the canonical flow."""
+    text = _read(SKILLS["studio-task"])
+    assert "studio_start_work" in text
+    assert "studio_handoff" in text
+
+    text = _read(SKILLS["studio-handoff"])
+    assert "studio_handoff" in text
+    # Resume flow: Agent B uses studio_start_work to claim + resume
+    assert "studio_start_work" in text
+
+
+def test_skills_teach_sync_checkpoints_and_handoff_signal():
+    task = _read(SKILLS["studio-task"])
+    for marker in ("studio_sync", "next_cursor", "ack", "coordination_text", "quoted data"):
+        assert marker in task, f"studio-task missing {marker}"
+    handoff = _read(SKILLS["studio-handoff"])
+    for marker in ("coordination.handoff", "coordination_text", "studio_sync"):
+        assert marker in handoff, f"studio-handoff missing {marker}"

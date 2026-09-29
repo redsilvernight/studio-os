@@ -25,8 +25,19 @@ class Settings(BaseSettings):
     transfer_project_quota_bytes: int = 100 * 1024**3
     multipart_abandon_after_days: int = 7
 
+    # Cross-process realtime fan-out (DEC-0156): the API listens for events
+    # committed by other processes (mcp, workers) and relays them over SSE.
+    realtime_listener_enabled: bool = True
+
     heartbeat_interval_seconds: int = 30
     heartbeat_offline_after_seconds: int = 90
+
+    # Session presence (C1, DEC-0157): derived at read from last_activity_at,
+    # never stored, never a heartbeat. A session with no activity past the
+    # idle threshold reads `idle`; past the expire threshold it reads
+    # `expired` (effective closing is L2, l2-resume).
+    session_idle_after_seconds: int = 1800
+    session_expire_after_seconds: int = 28800
 
     # CORS / middleware
     cors_origins: str = ""

@@ -77,9 +77,11 @@ def authorize_create(principal: Principal, project_id: uuid.UUID) -> None:
     ensure_can_write(principal, "task")
 
 
-async def _actor(
+async def event_actor(
     session: AsyncSession, principal: Principal, agent_id: uuid.UUID | None
 ) -> tuple[Literal["user", "agent"], uuid.UUID]:
+    """Actor of a server-emitted event: the declared agent when it is attached
+    to the calling machine, otherwise the machine's user."""
     if agent_id is not None:
         agent = await session.get(AgentModel, agent_id)
         if agent is not None and agent.machine_id == principal.machine.id:
@@ -97,7 +99,7 @@ async def _commit_with_event(
 ) -> TaskModel:
     """Commits the task write and its event atomically, then fans the event
     out to the SSE stream (TECH/03_EVENT_CONTRACT.md, emission serveur Tasks)."""
-    actor_type, actor_id = await _actor(session, principal, agent_id)
+    actor_type, actor_id = await event_actor(session, principal, agent_id)
     event = await events_service.stage_event(
         session,
         EventCreate(
@@ -177,6 +179,14 @@ async def update_task(
     )
 
 
+def authorize_claim(principal: Principal, task: TaskModel) -> None:
+    """Project (via the task) then role check of a claim, run ahead of the
+    idempotency replay short-circuit (DEC-0036, same pattern as
+    `sessions.authorize_start`)."""
+    ensure_project_access(principal, task.project_id, "write")
+    ensure_can_write(principal, "task")
+
+
 async def claim_task(
     session: AsyncSession,
     principal: Principal,
@@ -184,10 +194,22 @@ async def claim_task(
     machine_id: uuid.UUID,
     agent_id: uuid.UUID | None,
 ) -> TaskModel:
-    ensure_project_access(principal, task.project_id, "write")
-    ensure_can_write(principal, "task")
+    """Claim a task for `machine_id`. Idempotent by construction while the
+    task is already `in_progress` for this same machine and agent: it is
+    returned untouched — no version bump, no duplicate `task.started` — so a
+    replayed start is safe even without an `Idempotency-Key`. A differing
+    holder fails with `already_claimed`; re-claiming a released, blocked or
+    completed task (or with a different `agent_id`) is a real (re)claim
+    (version bump + `task.started`)."""
+    authorize_claim(principal, task)
     if task.claimed_by_machine_id is not None and task.claimed_by_machine_id != machine_id:
         raise HTTPException(status.HTTP_409_CONFLICT, detail={"error_code": "already_claimed"})
+    if (
+        task.status == "in_progress"
+        and task.claimed_by_machine_id == machine_id
+        and task.claimed_by_agent_id == agent_id
+    ):
+        return task
     previous_status = task.status
     task.claimed_by_machine_id = machine_id
     task.claimed_by_agent_id = agent_id
@@ -203,9 +225,22 @@ async def claim_task(
     )
 
 
-async def release_task(session: AsyncSession, principal: Principal, task: TaskModel) -> TaskModel:
+async def release_task(
+    session: AsyncSession,
+    principal: Principal,
+    task: TaskModel,
+    expected_version: int | None = None,
+) -> TaskModel:
+    """`expected_version` is optional: when given, a stale version is rejected
+    with `version_conflict` (like `update_task`) instead of releasing a claim
+    taken since the caller's read."""
     ensure_project_access(principal, task.project_id, "write")
     ensure_machine_owned(principal, task.claimed_by_machine_id, "task", "release")
+    if expected_version is not None and task.version != expected_version:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={"error_code": "version_conflict", "server_version": task.version},
+        )
     agent_id = task.claimed_by_agent_id
     task.claimed_by_machine_id = None
     task.claimed_by_agent_id = None

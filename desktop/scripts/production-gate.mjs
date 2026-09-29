@@ -13,6 +13,7 @@ export function parseArgs(argv) {
     stableTag: "desktop-prod",
     registration: "present",
     requireStable: false,
+    expectedBetaApiOrigin: "http://127.0.0.1:8765",
     githubApiBase: "https://api.github.com",
     timeoutMs: 15_000,
   };
@@ -29,6 +30,7 @@ export function parseArgs(argv) {
     const key = {
       "base-url": "baseUrl",
       "expected-api-origin": "expectedApiOrigin",
+      "expected-beta-api-origin": "expectedBetaApiOrigin",
       repo: "repo",
       "beta-tag": "betaTag",
       "stable-tag": "stableTag",
@@ -49,6 +51,7 @@ export function parseArgs(argv) {
   }
   options.baseUrl = normalizeOrigin(options.baseUrl);
   options.expectedApiOrigin = normalizeOrigin(options.expectedApiOrigin);
+  options.expectedBetaApiOrigin = normalizeOrigin(options.expectedBetaApiOrigin);
   options.githubApiBase = options.githubApiBase.replace(/\/+$/, "");
   if (!/^[^/]+\/[^/]+$/.test(options.repo)) throw new UsageError("--repo must be owner/name");
   return options;
@@ -102,7 +105,7 @@ function repositoryPath(repo) {
   return repo.split("/").map(encodeURIComponent).join("/");
 }
 
-async function checkRelease(options, fetchImpl, tag, channel) {
+async function checkRelease(options, fetchImpl, tag, channel, expectedApiOrigin) {
   const releaseUrl = `${options.githubApiBase}/repos/${repositoryPath(options.repo)}/releases/tags/${encodeURIComponent(tag)}`;
   const { body: release } = await fetchJson(releaseUrl, options, fetchImpl);
   assert(!release.draft, `${tag} is a draft release`);
@@ -111,7 +114,7 @@ async function checkRelease(options, fetchImpl, tag, channel) {
   const { body: manifest } = await fetchJson(manifestAsset.browser_download_url, options, fetchImpl);
   assert(manifest.schema_version === 1, `${tag} has unsupported schema_version`);
   assert(manifest.channel === channel, `${tag} channel is ${manifest.channel}, expected ${channel}`);
-  assert(normalizeOrigin(manifest.api_origin) === options.expectedApiOrigin, `${tag} api_origin is ${manifest.api_origin}`);
+  assert(normalizeOrigin(manifest.api_origin) === expectedApiOrigin, `${tag} api_origin is ${manifest.api_origin}`);
   const artifact = manifest.artifacts?.[PLATFORM];
   const platform = manifest.platforms?.[PLATFORM];
   assert(artifact?.file, `${tag} manifest has no ${PLATFORM} artifact file`);
@@ -176,9 +179,13 @@ export async function runGate(options, fetchImpl = fetch) {
       return { url, status: response.status, mode: options.registration };
     });
   }
-  await addCheck(result, "release.beta", () => checkRelease(options, fetchImpl, options.betaTag, "beta"));
+  await addCheck(result, "release.beta", () =>
+    checkRelease(options, fetchImpl, options.betaTag, "beta", options.expectedBetaApiOrigin),
+  );
   if (options.requireStable) {
-    await addCheck(result, "release.stable", () => checkRelease(options, fetchImpl, options.stableTag, "stable"));
+    await addCheck(result, "release.stable", () =>
+      checkRelease(options, fetchImpl, options.stableTag, "stable", options.expectedApiOrigin),
+    );
   }
   return result;
 }

@@ -357,6 +357,76 @@ async def test_invisible_definition_stays_not_found(
     assert exc_info.value.detail == {"error_code": "definition_not_found"}
 
 
+async def test_composed_agent_resolved_through_resolve_full(
+    db_session: AsyncSession, machine: tuple[MachineModel, str]
+) -> None:
+    """DEC-0164: `resolve_full` now loads and resolves the composed-agent
+    subgraph, not just a preserved reference."""
+    mine = await _principal(db_session, machine)
+    await _create(db_session, mine, RULE, "comp-rb", _rule_content("B's rule."))
+    await _create(
+        db_session,
+        mine,
+        AGENT,
+        "comp-b",
+        _agent_content(),
+        dependencies=[DependencyPin(kind=RULE, stable_key="comp-rb", version=1)],
+    )
+    await _create(
+        db_session,
+        mine,
+        AGENT,
+        "comp-a",
+        _agent_content(),
+        dependencies=[DependencyPin(kind=AGENT, stable_key="comp-b", version=1)],
+    )
+
+    resolved = await resolution_service.resolve_full(db_session, mine, AGENT, "comp-a")
+
+    assert resolved.rules == []
+    (composed,) = resolved.composed_agents
+    assert composed.reference.stable_key == "comp-b"
+    nested = composed.resolved
+    assert [r.stable_key for r in nested.rules] == ["comp-rb"]
+    assert nested.runtime is None
+
+
+async def test_composed_agent_cycle_fails_closed_through_resolve_full(
+    db_session: AsyncSession, machine: tuple[MachineModel, str]
+) -> None:
+    """A transitive identity cycle (A v2 -> B v1 -> A v1, same A resource_id)
+    surfaces as the structured `composition_cycle_detected` 422, not an
+    infinite DB walk nor a silent partial result."""
+    mine = await _principal(db_session, machine)
+    agent_a = await _create(db_session, mine, AGENT, "cyc-a", _agent_content())
+    await _create(
+        db_session,
+        mine,
+        AGENT,
+        "cyc-b",
+        _agent_content(),
+        dependencies=[DependencyPin(kind=AGENT, stable_key="cyc-a", version=1)],
+    )
+    await library_service.create_resource_version(
+        db_session,
+        mine,
+        agent_a,
+        LibraryVersionCreate(
+            title="v2",
+            content=_agent_content(),
+            dependencies=[DependencyPin(kind=AGENT, stable_key="cyc-b", version=1)],
+        ),
+    )
+    await db_session.refresh(agent_a)
+    await library_service.activate_resource_version(db_session, mine, agent_a, 2, agent_a.version)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await resolution_service.resolve_full(db_session, mine, AGENT, "cyc-a")
+
+    assert exc_info.value.status_code == 422
+    assert exc_info.value.detail["error_code"] == "composition_cycle_detected"
+
+
 async def test_session_override_wins_and_invalid_errors(
     db_session: AsyncSession,
     machine: tuple[MachineModel, str],

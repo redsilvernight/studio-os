@@ -36,6 +36,7 @@ from studio_contracts.resolution import (
     ProvenanceSource,
     ResolvedAgent,
     ResolvedAgentDefinition,
+    ResolvedComposedAgent,
     ResolvedModelProfile,
     ResolvedRule,
     ResolvedRuntime,
@@ -321,18 +322,24 @@ def test_requirements_never_become_concrete_model() -> None:
 # --- warnings / lossiness ---------------------------------------------------
 
 
-def test_workflows_and_composed_agents_warn_not_expand() -> None:
+def test_workflows_and_composed_agents_warn_not_rendered() -> None:
+    """DEC-0164: composed_agents are now recursively resolved, but the P10
+    adapters still only render the root agent — they warn rather than
+    silently drop the resolved sub-tree."""
     resolved = _resolved(None)
     resolved.composed_agents.append(
-        PreservedReference(
-            resource_id=_rid("other-agent"),
-            kind=AGENT,
-            stable_key="other-agent",
-            scope=LibraryScope.STUDIO,
-            version=1,
-            version_origin=VersionOrigin.ACTIVE,
-            relation=BindingRelation.COMPOSES_AGENT,
-            provenance=_prov("other-agent"),
+        ResolvedComposedAgent(
+            reference=PreservedReference(
+                resource_id=_rid("other-agent"),
+                kind=AGENT,
+                stable_key="other-agent",
+                scope=LibraryScope.STUDIO,
+                version=1,
+                version_origin=VersionOrigin.ACTIVE,
+                relation=BindingRelation.COMPOSES_AGENT,
+                provenance=_prov("other-agent"),
+            ),
+            resolved=_resolved("none"),
         )
     )
     resolved.workflows.append(
@@ -350,7 +357,7 @@ def test_workflows_and_composed_agents_warn_not_expand() -> None:
     for adapter_id in ("claude-code", "opencode", "codex"):
         result = get_adapter(adapter_id).translate(resolved)
         codes = {w.code for w in result.warnings}
-        assert "composed_agents_not_expanded" in codes
+        assert "composed_agents_resolved_not_rendered" in codes
         assert "workflows_not_expanded" in codes
 
 

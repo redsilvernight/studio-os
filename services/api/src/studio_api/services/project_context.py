@@ -24,8 +24,11 @@ Every returned item says which of the two selected it (`why`).
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 import uuid
+from collections.abc import Mapping
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,11 +41,13 @@ from studio_contracts.project_context import (
     ITEM_TEXT_CAP,
     LIBRARY_SCAN_CAP,
     MAX_FILES,
+    MAX_KNOWN_IDS,
     MAX_LIMIT,
     MAX_MATCHED_TERMS_SHOWN,
     MAX_MAX_CHARS,
     MAX_PATH_CHARS,
     MAX_QUERY_TERMS,
+    MAX_SOURCE_REFERENCES,
     MIN_MAX_CHARS,
     MIN_TERM_LENGTH,
     MIN_TEXT_CHARS,
@@ -88,11 +93,13 @@ __all__ = [
     "ITEM_TEXT_CAP",
     "LIBRARY_SCAN_CAP",
     "MAX_FILES",
+    "MAX_KNOWN_IDS",
     "MAX_LIMIT",
     "MAX_MATCHED_TERMS_SHOWN",
     "MAX_MAX_CHARS",
     "MAX_PATH_CHARS",
     "MAX_QUERY_TERMS",
+    "MAX_SOURCE_REFERENCES",
     "MIN_MAX_CHARS",
     "MIN_TERM_LENGTH",
     "MIN_TEXT_CHARS",
@@ -115,10 +122,12 @@ __all__ = [
     "prepare_project_context",
     "query_terms",
     "score",
+    "source_references",
     "tokens",
 ]
 
 _TOKEN_RE = re.compile(r"[^\W_]+")
+_SOURCE_RE = re.compile(r"^\s*(?:[-*]\s*)?sources?\s*:\s*(.+?)\s*$", re.IGNORECASE)
 _STOPWORDS = frozenset(
     (
         # English
@@ -183,6 +192,27 @@ def score(terms: list[str], title: str, body: str = "") -> tuple[int, list[str]]
             total += 1
             matched.append(term)
     return total, matched
+
+
+def source_references(description: str | None) -> list[str]:
+    if not description:
+        return []
+    references: list[str] = []
+    for line in description.splitlines():
+        match = _SOURCE_RE.match(line)
+        if match is None:
+            continue
+        value = match.group(1).strip()
+        if value and len(value) <= MAX_PATH_CHARS and value not in references:
+            references.append(value)
+        if len(references) == MAX_SOURCE_REFERENCES:
+            break
+    return references
+
+
+def _content_hash(value: object) -> str:
+    encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
 def _why(reason: Reason, matched: list[str]) -> Why:
@@ -263,20 +293,48 @@ class _BudgetSlice(_Budget):
         self._parent.used -= refund
 
 
-def _task_item(task: TaskModel, principal: Principal, why: Why, budget: _Budget) -> TaskItem | None:
+def _task_item(
+    task: TaskModel,
+    principal: Principal,
+    why: Why,
+    budget: _Budget,
+    known_ids: Mapping[uuid.UUID, str],
+) -> TaskItem | None:
+    content_hash = _content_hash(task.description or "")
+    if known_ids.get(task.id) == content_hash:
+        return TaskItem(
+            id=task.id,
+            readable_id=task.readable_id,
+            title=task.title,
+            status=task.status,
+            claimed_by_machine_id=task.claimed_by_machine_id,
+            claimed_by_self=task.claimed_by_machine_id == principal.machine.id,
+            content_hash=content_hash,
+            unchanged=True,
+            why=why,
+        )
     taken = budget.take(task.description or "")
     if taken is None:
         return None
     text, truncated = taken
+    references: list[str] = []
+    all_references = source_references(task.description)
+    for reference in all_references:
+        if not budget.take_whole(reference):
+            truncated = True
+            break
+        references.append(reference)
     return TaskItem(
         id=task.id,
         readable_id=task.readable_id,
         title=task.title,
         status=task.status,
         description=text or None,
+        source_references=references,
         truncated=truncated,
         claimed_by_machine_id=task.claimed_by_machine_id,
         claimed_by_self=task.claimed_by_machine_id == principal.machine.id,
+        content_hash=content_hash,
         why=why,
     )
 
@@ -290,6 +348,7 @@ async def _select_tasks(
     limit: int,
     budget: _Budget,
     omitted: dict[str, int],
+    known_ids: Mapping[uuid.UUID, str],
 ) -> tuple[TaskItem | None, list[TaskItem], int]:
     requested: TaskItem | None = None
     if task_id is not None:
@@ -298,7 +357,7 @@ async def _select_tasks(
         # facade never reveals that a task exists in another project.
         if task is None or task.project_id != project_id:
             raise _not_found(f"task {task_id} not found in project {project_id}")
-        requested = _task_item(task, principal, _why("requested", []), budget)
+        requested = _task_item(task, principal, _why("requested", []), budget, known_ids)
         if requested is None:
             omitted["task"] = 1
 
@@ -315,7 +374,7 @@ async def _select_tasks(
     for _, _, _, candidate, matched in ranked:
         if len(related) == limit:
             break
-        item = _task_item(candidate, principal, _why("lexical", matched), budget)
+        item = _task_item(candidate, principal, _why("lexical", matched), budget, known_ids)
         if item is None:
             omitted["related_tasks"] = omitted.get("related_tasks", 0) + 1
             continue
@@ -332,6 +391,7 @@ async def _select_decisions(
     limit: int,
     budget: _Budget,
     omitted: dict[str, int],
+    known_ids: Mapping[uuid.UUID, str],
 ) -> tuple[list[DecisionItem], int]:
     rows = [
         d
@@ -362,6 +422,22 @@ async def _select_decisions(
     for *_, row, why in ranked:
         if len(picked) == limit:
             break
+        content_hash = _content_hash(row.body)
+        if known_ids.get(row.id) == content_hash:
+            picked.append(
+                DecisionItem(
+                    id=row.id,
+                    readable_id=row.readable_id,
+                    title=row.title,
+                    status=row.status,
+                    task_id=row.task_id,
+                    body="",
+                    content_hash=content_hash,
+                    unchanged=True,
+                    why=why,
+                )
+            )
+            continue
         taken = budget.take(row.body)
         if taken is None:
             omitted["decisions"] = omitted.get("decisions", 0) + 1
@@ -375,6 +451,7 @@ async def _select_decisions(
                 status=row.status,
                 task_id=row.task_id,
                 body=body,
+                content_hash=content_hash,
                 truncated=truncated,
                 why=why,
             )
@@ -529,10 +606,33 @@ def _cap_str_list(values: list[str], cap: int = AIWORK_LIST_CAP) -> tuple[list[s
     return list(values), False
 
 
-def _ai_work_item(work: AIWorkLogModel, why: Why, budget: _Budget) -> AIWorkItem | None:
+def _ai_work_item(
+    work: AIWorkLogModel,
+    why: Why,
+    budget: _Budget,
+    known_ids: Mapping[uuid.UUID, str],
+) -> AIWorkItem | None:
     """One work entry as context: the summary spends free-text budget, the
     file/test lists are count-bounded instead. `None` means the section ran
     out of budget and the entry is counted, not silently dropped."""
+    content_hash = _content_hash(
+        {
+            "summary": work.summary or "",
+            "changed_files": list(work.changed_files or []),
+            "tests_run": list(work.tests_run or []),
+        }
+    )
+    if known_ids.get(work.id) == content_hash:
+        return AIWorkItem(
+            id=work.id,
+            status=work.status,
+            summary="",
+            started_at=work.started_at,
+            ended_at=work.ended_at,
+            content_hash=content_hash,
+            unchanged=True,
+            why=why,
+        )
     taken = budget.take(work.summary or "")
     if taken is None:
         return None
@@ -548,6 +648,7 @@ def _ai_work_item(work: AIWorkLogModel, why: Why, budget: _Budget) -> AIWorkItem
         tests_run=tests_run,
         started_at=work.started_at,
         ended_at=work.ended_at,
+        content_hash=content_hash,
         why=why,
     )
 
@@ -561,6 +662,7 @@ async def _select_ai_work(
     limit: int,
     budget: _Budget,
     omitted: dict[str, int],
+    known_ids: Mapping[uuid.UUID, str],
 ) -> tuple[list[AIWorkItem], int]:
     """Recent work relevant to the resume: entries on the requested task first
     (newest first — the handoff packet lives here), then entries whose summary
@@ -583,7 +685,7 @@ async def _select_ai_work(
     for _, _, row in linked:
         if len(picked) == limit:
             break
-        item = _ai_work_item(row, _why("linked_to_task", []), budget)
+        item = _ai_work_item(row, _why("linked_to_task", []), budget, known_ids)
         if item is None:
             omitted["ai_work"] = omitted.get("ai_work", 0) + 1
             continue
@@ -591,7 +693,7 @@ async def _select_ai_work(
     for _, _, _, row, matched in lexical:
         if len(picked) == limit:
             break
-        item = _ai_work_item(row, _why("lexical", matched), budget)
+        item = _ai_work_item(row, _why("lexical", matched), budget, known_ids)
         if item is None:
             omitted["ai_work"] = omitted.get("ai_work", 0) + 1
             continue
@@ -637,12 +739,13 @@ async def prepare_project_context(
     session: AsyncSession,
     principal: Principal,
     project_id: uuid.UUID,
-    objective: str,
+    objective: str | None,
     task_id: uuid.UUID | None = None,
     files: list[str] | None = None,
     limit: int = DEFAULT_LIMIT,
     max_chars: int = DEFAULT_MAX_CHARS,
     agent_stable_key: str | None = None,
+    known_ids: Mapping[uuid.UUID, str] | None = None,
 ) -> PreparedContext:
     """Select the shared context relevant to `objective` on one project.
 
@@ -655,16 +758,30 @@ async def prepare_project_context(
     rules/skills sort first and are flagged `agent_applies`, still bounded
     by `limit` and budget — resolution says what applies, disclosure
     decides what ships."""
-    objective = objective.strip()
-    if not objective or len(objective) > OBJECTIVE_MAX_CHARS:
-        raise _invalid(f"objective must be 1..{OBJECTIVE_MAX_CHARS} characters")
+    known_ids = known_ids or {}
     if not 1 <= limit <= MAX_LIMIT:
         raise _invalid(f"limit must be within 1..{MAX_LIMIT}")
     if not MIN_MAX_CHARS <= max_chars <= MAX_MAX_CHARS:
         raise _invalid(f"max_chars must be within {MIN_MAX_CHARS}..{MAX_MAX_CHARS}")
+    if len(known_ids) > MAX_KNOWN_IDS:
+        raise _invalid(f"known_ids accepts at most {MAX_KNOWN_IDS} ids")
     paths = _clean_files(files)
 
     project = await projects_service.get_project(session, principal, project_id)
+
+    if objective is None:
+        if task_id is None:
+            raise _invalid("objective is required when task_id is omitted")
+        objective_task = await tasks_service.get_task(session, task_id)
+        if objective_task is None or objective_task.project_id != project_id:
+            raise _not_found(f"task {task_id} not found in project {project_id}")
+        objective = f"{objective_task.title}\n{objective_task.description or ''}"[
+            :OBJECTIVE_MAX_CHARS
+        ].strip()
+    else:
+        objective = objective.strip()
+    if not objective or len(objective) > OBJECTIVE_MAX_CHARS:
+        raise _invalid(f"objective must be 1..{OBJECTIVE_MAX_CHARS} characters")
 
     terms = query_terms(objective)
     budget = _Budget(max_chars)
@@ -686,7 +803,7 @@ async def prepare_project_context(
     )
 
     task, related, related_total = await _select_tasks(
-        session, principal, project_id, task_id, terms, limit, budget, omitted
+        session, principal, project_id, task_id, terms, limit, budget, omitted, known_ids
     )
     claims, claims_total = await _select_claims(
         session, principal, project_id, task_id, paths, limit
@@ -716,9 +833,10 @@ async def prepare_project_context(
         limit,
         budget.slice(int(max_chars * AIWORK_BUDGET_SHARE)),
         omitted,
+        known_ids,
     )
     decisions, decisions_total = await _select_decisions(
-        session, principal, project_id, task_id, terms, limit, budget, omitted
+        session, principal, project_id, task_id, terms, limit, budget, omitted, known_ids
     )
     rules, rules_total, rules_capped = await _select_library(
         session,

@@ -22,8 +22,8 @@ export const ALLOW_INSECURE_ORIGIN_ENV = "STUDIO_DESKTOP_ALLOW_INSECURE_ORIGIN";
  * (`studio_client.config.default_config_path`) and the Desktop diagnostics.
  */
 export const CHANNELS = {
-  prod: { productName: "Studio OS Desktop", identifier: "dev.studio-os.desktop", dataDir: "StudioOS" },
-  dev: { productName: "Studio OS Desktop Dev", identifier: "dev.studio-os.desktop-dev", dataDir: "StudioOS-Dev" },
+  prod: { productName: "Studi’OS Desktop", identifier: "stable.studio-os.desktop", dataDir: "StudioOS" },
+  dev: { productName: "Studi’OS Desktop Dev", identifier: "dev.studio-os.desktop-dev", dataDir: "StudioOS-Dev" },
 };
 
 /** The channel of this build or test run: `--channel`, else STUDIO_DESKTOP_CHANNEL, else `prod`. */

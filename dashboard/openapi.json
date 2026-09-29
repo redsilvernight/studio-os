@@ -1590,7 +1590,7 @@
      "tasks"
     ],
     "summary": "Claim Task",
-    "description": "Claim a task for the caller's machine (sets status to in_progress). Requires a writer role. Fails with `already_claimed` if another machine holds it.",
+    "description": "Claim a task for the caller's machine (sets status to in_progress). Requires a writer role. Fails with `already_claimed` if another machine holds it. Re-claiming a task this machine already holds while it is still `in_progress` with the same agent is a no-op (no version bump, no duplicate event), so a replayed call is safe even without an `Idempotency-Key`. Accepts `Idempotency-Key` for safe retries: the same key returns the original claim instead of re-running it.",
     "operationId": "claim_task_api_v1_tasks__task_id__claim_post",
     "security": [
      {
@@ -1607,6 +1607,24 @@
        "format": "uuid",
        "title": "Task Id"
       }
+     },
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
      }
     ],
     "responses": {
@@ -1655,12 +1673,12 @@
       }
      },
      "409": {
-      "description": "Another machine already holds this task's claim (soft lock). Release by its owner, or pick another task \u2014 claims warn, they never queue.",
+      "description": "Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
       "content": {
        "application/json": {
         "example": {
          "detail": {
-          "error_code": "already_claimed"
+          "error_code": "idempotency_key_payload_mismatch"
          }
         }
        }
@@ -1685,7 +1703,7 @@
      "tasks"
     ],
     "summary": "Release Task",
-    "description": "Release a task's claim. Only the machine holding the claim (or a privileged role) may release it; anyone else receives `403 forbidden`.",
+    "description": "Release a task's claim. Only the machine holding the claim (or a privileged role) may release it; anyone else receives `403 forbidden`. The `If-Match-Version` header is optional: when sent, a stale version is rejected with the live server version.",
     "operationId": "release_task_api_v1_tasks__task_id__release_post",
     "security": [
      {
@@ -1702,6 +1720,24 @@
        "format": "uuid",
        "title": "Task Id"
       }
+     },
+     {
+      "name": "If-Match-Version",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version \u2014 re-read, merge, and retry. Updates never overwrite silently.",
+       "title": "If-Match-Version"
+      },
+      "description": "Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version \u2014 re-read, merge, and retry. Updates never overwrite silently."
      }
     ],
     "responses": {
@@ -1749,6 +1785,19 @@
        }
       }
      },
+     "409": {
+      "description": "Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version \u2014 re-read the object, merge, and retry with the new version.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
      "422": {
       "description": "Validation Error",
       "content": {
@@ -1768,7 +1817,7 @@
      "sessions"
     ],
     "summary": "List Sessions",
-    "description": "List work sessions, optionally filtered by task, restricted to sessions whose task belongs to an accessible project. A task of an inaccessible project answers `403 forbidden`.",
+    "description": "List work sessions, optionally filtered by task, agent and/or open state, restricted to sessions whose task belongs to an accessible project. A task of an inaccessible project answers `403 forbidden`. `open=true` returns only sessions never ended (the live ones). Each session carries derived presence (C1): `status` (`active|idle|expired|ended`) and `expires_at`, computed from `last_activity_at` at read time.",
     "operationId": "list_sessions_api_v1_sessions_get",
     "security": [
      {
@@ -1791,6 +1840,33 @@
         }
        ],
        "title": "Task Id"
+      }
+     },
+     {
+      "name": "agent_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Agent Id"
+      }
+     },
+     {
+      "name": "open",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "boolean",
+       "default": false,
+       "title": "Open"
       }
      }
     ],
@@ -2016,6 +2092,223 @@
         }
        }
       }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/start-work": {
+   "post": {
+    "tags": [
+     "start-work"
+    ],
+    "summary": "Start Work",
+    "description": "Start or resume work on a task in one call. Requires a writer role. With `task_id`: claim the task for the caller's machine (idempotent) + resume or create the agent's open session on it + the scoped project context. Without `task_id`: the project context plus the candidate tasks (current-step linked tasks first, then other unclaimed tasks), claiming nothing. `agent_id` must belong to the caller's machine (`409 actor_not_owned`). Always `200`: the response fields (`resumed`, `candidates`) tell a resumed session from a new one, so the status never varies under replay. Accepts `Idempotency-Key`: the same key returns the original result instead of claiming or starting again.",
+    "operationId": "start_work_api_v1_start_work_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/StartWorkRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/StartWorkResult"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "idempotency_key_payload_mismatch"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/handoff": {
+   "post": {
+    "tags": [
+     "handoff"
+    ],
+    "summary": "Handoff",
+    "description": "Close a work session in one call. Requires a writer role. Updates the task status (with `expected_version` for optimistic concurrency), releases all claims for the task, logs AI work (if `agent_id` + `summary` provided), and ends the session. The calling machine must own the session. `agent_id` must belong to the caller's machine. Compact response: ids + statuses only. Accepts `Idempotency-Key`: the same key returns the original result instead of running the composite again.",
+    "operationId": "handoff_api_v1_handoff_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/HandoffRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HandoffResult"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Invalid session (no task), version conflict, or actor_not_owned."
      },
      "422": {
       "description": "Validation Error",
@@ -4772,6 +5065,95 @@
     ]
    }
   },
+  "/api/v1/bootstrap-plan": {
+   "post": {
+    "tags": [
+     "bootstrap-plan"
+    ],
+    "summary": "Build Bootstrap Plan",
+    "description": "Read-only aggregated bootstrap plan of a project: the agent definitions visible in the project context (or the named `agent_keys`) resolved through `resolve_full`, merged into one de-duplicated artifact list (agents, model profiles, skills, rules) with exact version, provenance, `common`/`project` segment, `required_by` and a content hash, plus a `plan_hash`. Deterministic (no timestamp, sorted) and harness-agnostic. Any failing agent fails the whole plan with the `POST /resolutions` error: unknown or invisible definition `404 definition_not_found`, incompatible runtime `422`. Pure read: safe to retry, no `Idempotency-Key` needed.",
+    "operationId": "build_bootstrap_plan_api_v1_bootstrap_plan_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/BootstrapPlanRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/BootstrapPlan"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Resolution refused, nothing stored (pure read): the winning runtime choice does not satisfy the linked model profile requirements (`runtime_incompatible`, with `level`, `matched_kind`, `matched_stable_key` and `unsatisfied` \u2014 never a silent fallback to another runtime), or the loaded snapshot is internally inconsistent (`invalid_resolution_input`, including a duplicated session override key). Missing or invisible definitions answer 404 `definition_not_found` instead, never a hint of their existence.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "runtime_incompatible",
+          "level": "user",
+          "matched_kind": "agent_definition",
+          "matched_stable_key": "...",
+          "unsatisfied": [
+           "coding: required"
+          ]
+         }
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ]
+   }
+  },
   "/api/v1/agents": {
    "get": {
     "tags": [
@@ -4912,6 +5294,80 @@
       }
      }
     }
+   }
+  },
+  "/api/v1/agents/ensure": {
+   "post": {
+    "tags": [
+     "agents"
+    ],
+    "summary": "Ensure Agent",
+    "description": "Server-side `agents ensure` (AIB-I, additive): find this machine's agent for `AgentCreate.stable_key` or register it, so a retried session-start hook never registers a duplicate \u2014 even after the idempotency table forgot the original call. `machine_id` is always derived from the credential, never sent. Same machine + same key + same metadata returns the existing agent (`created=false`, `200`); same key + different metadata is `409 idempotency_key_payload_mismatch`, never a silent second agent. Without a `stable_key` this is a plain registration (`created=true`, `201`). The `stable_key` itself is the replay key (same pattern as `event_id` for `POST /events` and the natural key of `PUT /projects/{id}/members/{user_id}`), so no `Idempotency-Key` is needed here. Authorization: `ensure_can_write` \u2014 `readonly` -> `403 forbidden`. Confers no permission.",
+    "operationId": "ensure_agent_api_v1_agents_ensure_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AgentCreate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AgentEnsureResult"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "`idempotency_key_payload_mismatch`: same stable key, different body."
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ]
    }
   },
   "/api/v1/ai-work": {
@@ -11668,6 +12124,10 @@
  },
  "components": {
   "schemas": {
+   "AIWorkItem": {
+    "additionalProperties": true,
+    "type": "object"
+   },
    "AIWorkLog": {
     "properties": {
      "id": {
@@ -11708,6 +12168,18 @@
        }
       ],
       "title": "Machine Id"
+     },
+     "session_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Session Id"
      },
      "summary": {
       "type": "string",
@@ -11805,7 +12277,7 @@
      "started_at"
     ],
     "title": "AIWorkLog",
-    "description": "A work entry. `agent_profile`, `harness`, `provider` and `model` are\noptional additive observability metadata \u2014 open strings snapshotting the\nruntime that produced the work, never whitelisted, never an\nauthorization or capability input."
+    "description": "A work entry. `agent_profile`, `harness`, `provider` and `model` are\noptional additive observability metadata \u2014 open strings snapshotting the\nruntime that produced the work, never whitelisted, never an\nauthorization or capability input. `session_id` (L3) links the entry to\nthe work session that produced it for handoff traceability."
    },
    "AIWorkLogCreate": {
     "properties": {
@@ -11842,6 +12314,18 @@
        }
       ],
       "title": "Machine Id"
+     },
+     "session_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Session Id"
      },
      "summary": {
       "type": "string",
@@ -11920,7 +12404,7 @@
      "summary"
     ],
     "title": "AIWorkLogCreate",
-    "description": "`status`, `changed_files` and `tests_run` are optional additive\nfields so work already finished can be logged in one call: a terminal\nstatus sets `ended_at`. `approved`/`changes_requested` are never a valid\ninitial status (they only exit `review_requested`)."
+    "description": "`status`, `changed_files` and `tests_run` are optional additive\nfields so work already finished can be logged in one call: a terminal\nstatus sets `ended_at`. `approved`/`changes_requested` are never a valid\ninitial status (they only exit `review_requested`). `session_id` (L3)\nlinks the entry to the work session that produced it for handoff\ntraceability."
    },
    "AIWorkLogUpdate": {
     "properties": {
@@ -11972,6 +12456,18 @@
        }
       ],
       "title": "Tests Run"
+     },
+     "session_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Session Id"
      }
     },
     "additionalProperties": false,
@@ -12030,6 +12526,20 @@
     ],
     "title": "AccountStatus",
     "description": "Derived, never stored: `disabled` when `disabled_at` is set, else\n`pending` while `email_verified_at` is null, else `active`. Only an\n`active` account gets a principal; the state is orthogonal to project\naccess."
+   },
+   "ActiveWork": {
+    "properties": {
+     "claims": {
+      "items": {
+       "$ref": "#/components/schemas/ClaimItem"
+      },
+      "type": "array",
+      "title": "Claims",
+      "default": []
+     }
+    },
+    "type": "object",
+    "title": "ActiveWork"
    },
    "Agent": {
     "properties": {
@@ -12115,6 +12625,17 @@
        }
       ],
       "title": "Model"
+     },
+     "stable_key": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stable Key"
      }
     },
     "additionalProperties": false,
@@ -12128,7 +12649,7 @@
      "agent_kind"
     ],
     "title": "Agent",
-    "description": "Provenance identity attached to one machine: who did the work, for\naudit and attribution. Never an authorization input \u2014 permissions come\nfrom the machine owner's role alone. `agent_profile`, `harness`,\n`provider` and `model` are optional additive observability metadata:\nopen strings, never whitelisted, never a capability or compatibility\ncondition, never read to make a decision."
+    "description": "Provenance identity attached to one machine: who did the work, for\naudit and attribution. Never an authorization input \u2014 permissions come\nfrom the machine owner's role alone. `agent_profile`, `harness`,\n`provider` and `model` are optional additive observability metadata:\nopen strings, never whitelisted, never a capability or compatibility\ncondition, never read to make a decision. `stable_key` (AIB-I, additive)\nis the local stable key set by `agents ensure` (default\n`agents-ensure-{harness}`), unique per owning machine: the idempotent\nlookup key for session-start, never an authorization input, and never\n`AgentDefinition.stable_key` (a resolution parameter, not an identity)."
    },
    "AgentCreate": {
     "properties": {
@@ -12184,6 +12705,17 @@
        }
       ],
       "title": "Model"
+     },
+     "stable_key": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stable Key"
      }
     },
     "additionalProperties": false,
@@ -12192,7 +12724,26 @@
      "display_name"
     ],
     "title": "AgentCreate",
-    "description": "Public registration of a provenance identity: `machine_id` is always\nderived from the authenticated machine, never client-supplied.\n`display_name` and `agent_kind` are free-form metadata \u2014 never\nauthorization inputs, never the canonical identity (the\nserver-generated `Agent.id` is). `agent_profile`, `harness`, `provider`\nand `model` are optional open-string observability metadata: any value\nis accepted, unknown values are never rejected, and none of them is ever\nrequired."
+    "description": "Public registration of a provenance identity: `machine_id` is always\nderived from the authenticated machine, never client-supplied.\n`display_name` and `agent_kind` are free-form metadata \u2014 never\nauthorization inputs, never the canonical identity (the\nserver-generated `Agent.id` is). `agent_profile`, `harness`, `provider`\nand `model` are optional open-string observability metadata: any value\nis accepted, unknown values are never rejected, and none of them is ever\nrequired. `stable_key` (AIB-I, additive, optional) is the local stable\nkey for `POST /agents/ensure`: same machine + same key returns the\nexisting agent, same key + different metadata is `409\nidempotency_key_payload_mismatch`. Never `AgentDefinition.stable_key`."
+   },
+   "AgentEnsureResult": {
+    "properties": {
+     "agent": {
+      "$ref": "#/components/schemas/Agent"
+     },
+     "created": {
+      "type": "boolean",
+      "title": "Created"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "agent",
+     "created"
+    ],
+    "title": "AgentEnsureResult",
+    "description": "Result of `POST /agents/ensure` (AIB-I, additive): the caller's own\nmachine's agent for `stable_key`, plus whether this call created it."
    },
    "AgentResolutionRequest": {
     "properties": {
@@ -12278,6 +12829,161 @@
     ],
     "title": "BindingRelation",
     "description": "Closed vocabulary of Library Binding types.\n\nEvery allowed `(source kind, target kind)` couple maps to exactly one\nrelation (see `_BINDING_MATRIX`) \u2014 the relation is a label on that\ncouple, never a free-form string. Unknown values are rejected by\nPydantic before any existence check runs."
+   },
+   "BootstrapPlan": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "agent_keys": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Agent Keys",
+      "default": []
+     },
+     "artifacts": {
+      "items": {
+       "$ref": "#/components/schemas/BootstrapPlanArtifact"
+      },
+      "type": "array",
+      "title": "Artifacts",
+      "default": []
+     },
+     "plan_hash": {
+      "type": "string",
+      "title": "Plan Hash"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id",
+     "plan_hash"
+    ],
+    "title": "BootstrapPlan",
+    "description": "`plan_hash` covers `(kind, stable_key, scope, version, content_hash)` of\nevery artifact in order: two equal hashes mean two equal expected bundles."
+   },
+   "BootstrapPlanArtifact": {
+    "properties": {
+     "resource_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Resource Id"
+     },
+     "kind": {
+      "$ref": "#/components/schemas/LibraryKind"
+     },
+     "stable_key": {
+      "type": "string",
+      "title": "Stable Key"
+     },
+     "scope": {
+      "$ref": "#/components/schemas/LibraryScope"
+     },
+     "segment": {
+      "$ref": "#/components/schemas/BootstrapSegment"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "version_origin": {
+      "$ref": "#/components/schemas/VersionOrigin"
+     },
+     "deprecated": {
+      "type": "boolean",
+      "title": "Deprecated",
+      "default": false
+     },
+     "title": {
+      "type": "string",
+      "title": "Title",
+      "default": ""
+     },
+     "content_hash": {
+      "type": "string",
+      "title": "Content Hash"
+     },
+     "required_by": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Required By",
+      "default": []
+     },
+     "provenance": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/studio_contracts__resolution__Provenance"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "paths": {
+      "items": {
+       "$ref": "#/components/schemas/RulePath"
+      },
+      "type": "array",
+      "title": "Paths",
+      "default": []
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "resource_id",
+     "kind",
+     "stable_key",
+     "scope",
+     "segment",
+     "version",
+     "version_origin",
+     "content_hash"
+    ],
+    "title": "BootstrapPlanArtifact",
+    "description": "One expected artifact, de-duplicated by `(resource_id, version)`.\n`required_by` lists the agent stable keys that need it; `provenance`\n(agents, skills) or `paths` (rules) explains why this version was chosen."
+   },
+   "BootstrapPlanRequest": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "agent_keys": {
+      "items": {
+       "type": "string",
+       "maxLength": 200,
+       "minLength": 1
+      },
+      "type": "array",
+      "maxItems": 50,
+      "title": "Agent Keys"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id"
+    ],
+    "title": "BootstrapPlanRequest",
+    "description": "`agent_keys` empty selects every active agent definition visible in the\nproject context; otherwise exactly the named ones (unknown or invisible key\nfails closed with the public `definition_not_found`)."
+   },
+   "BootstrapSegment": {
+    "type": "string",
+    "enum": [
+     "common",
+     "project"
+    ],
+    "title": "BootstrapSegment",
+    "description": "Common (Studio-wide or user-owned) versus project-owned artifact."
    },
    "Build": {
     "properties": {
@@ -12542,6 +13248,63 @@
     ],
     "title": "ChangePasswordRequest"
    },
+   "ClaimItem": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "resource_path": {
+      "type": "string",
+      "title": "Resource Path"
+     },
+     "resource_type": {
+      "type": "string",
+      "title": "Resource Type"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "claimed_by_machine_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Claimed By Machine Id"
+     },
+     "claimed_by_self": {
+      "type": "boolean",
+      "title": "Claimed By Self"
+     },
+     "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Expires At"
+     },
+     "why": {
+      "$ref": "#/components/schemas/Why"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "resource_path",
+     "resource_type",
+     "claimed_by_machine_id",
+     "claimed_by_self",
+     "expires_at",
+     "why"
+    ],
+    "title": "ClaimItem"
+   },
    "ClaimStatus": {
     "type": "string",
     "enum": [
@@ -12551,6 +13314,60 @@
     ],
     "title": "ClaimStatus",
     "description": "A claim past `expires_at` is not active regardless of stored status.\nA claim is a soft lock: it warns, it never blocks a Git operation or a\nfile write."
+   },
+   "ContextLimits": {
+    "additionalProperties": true,
+    "type": "object"
+   },
+   "ContextStep": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "title": "Key"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "state": {
+      "$ref": "#/components/schemas/StepState"
+     },
+     "available": {
+      "type": "boolean",
+      "title": "Available"
+     },
+     "waiting_on": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Waiting On"
+     },
+     "acceptance_criteria": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Acceptance Criteria"
+     },
+     "linked_task_ids": {
+      "items": {
+       "type": "string",
+       "format": "uuid"
+      },
+      "type": "array",
+      "title": "Linked Task Ids"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "key",
+     "title",
+     "state",
+     "available"
+    ],
+    "title": "ContextStep"
    },
    "Decision": {
     "properties": {
@@ -12681,6 +13498,10 @@
      "proposed_by_id"
     ],
     "title": "DecisionCreate"
+   },
+   "DecisionItem": {
+    "additionalProperties": true,
+    "type": "object"
    },
    "DecisionStatus": {
     "type": "string",
@@ -13306,6 +14127,165 @@
     },
     "type": "object",
     "title": "HTTPValidationError"
+   },
+   "HandoffRequest": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "session_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Session Id"
+     },
+     "expected_version": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expected Version"
+     },
+     "task_status": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/TaskUpdate"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "agent_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Agent Id"
+     },
+     "summary": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 2000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Summary"
+     },
+     "ai_work_status": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/AIWorkStatus"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "changed_files": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array",
+        "maxItems": 100
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Changed Files"
+     },
+     "tests_run": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array",
+        "maxItems": 100
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Tests Run"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id",
+     "session_id"
+    ],
+    "title": "HandoffRequest",
+    "description": "Composite handoff input. `project_id` and `session_id` are required.\n`expected_version` is the task version for optimistic concurrency on\nthe status update (like `update_task`); required only when `task_status`\nis provided. `task_status` is optional:\nwhen provided, updates the task status (e.g. `completed`, `blocked`).\n`agent_id` + `summary` are optional: when both present, logs an AI\nwork entry with the given status (default `completed`) linked to the\nsession for traceability. `changed_files`/`tests_run` are passed\nthrough to the AI work entry. All composed steps are idempotent on\ntheir own; the `Idempotency-Key` covers the whole composite."
+   },
+   "HandoffResult": {
+    "properties": {
+     "task_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Task Id"
+     },
+     "task_status": {
+      "$ref": "#/components/schemas/TaskStatus"
+     },
+     "task_version": {
+      "type": "integer",
+      "title": "Task Version"
+     },
+     "session_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Session Id"
+     },
+     "released_claims": {
+      "items": {
+       "type": "string",
+       "format": "uuid"
+      },
+      "type": "array",
+      "title": "Released Claims"
+     },
+     "ai_work_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ai Work Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "task_id",
+     "task_status",
+     "task_version",
+     "session_id",
+     "released_claims"
+    ],
+    "title": "HandoffResult",
+    "description": "Compact result: ids + statuses only, never full descriptions.\nReplaying the same `Idempotency-Key` with the same body returns the\noriginal result \u2014 no second status update, no duplicate claim\nreleases, no duplicate AI work entry, no second session end."
    },
    "HeartbeatRequest": {
     "properties": {
@@ -14080,6 +15060,67 @@
     ],
     "title": "LibraryDeprecate",
     "description": "Deprecation replaces deletion: flips `status`, keeps\nhistory and `active_version`. Same optimistic-concurrency guard."
+   },
+   "LibraryItem": {
+    "properties": {
+     "kind": {
+      "type": "string",
+      "enum": [
+       "rule",
+       "skill"
+      ],
+      "title": "Kind"
+     },
+     "stable_key": {
+      "type": "string",
+      "title": "Stable Key"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "scope": {
+      "type": "string",
+      "title": "Scope"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "version_origin": {
+      "type": "string",
+      "title": "Version Origin"
+     },
+     "text": {
+      "type": "string",
+      "title": "Text"
+     },
+     "truncated": {
+      "type": "boolean",
+      "title": "Truncated",
+      "default": false
+     },
+     "why": {
+      "$ref": "#/components/schemas/Why"
+     },
+     "agent_applies": {
+      "type": "boolean",
+      "title": "Agent Applies",
+      "default": false
+     }
+    },
+    "type": "object",
+    "required": [
+     "kind",
+     "stable_key",
+     "title",
+     "scope",
+     "version",
+     "version_origin",
+     "text",
+     "why"
+    ],
+    "title": "LibraryItem"
    },
    "LibraryKind": {
     "type": "string",
@@ -14866,6 +15907,10 @@
     "type": "object",
     "title": "PhaseUpdate"
    },
+   "PreparedContext": {
+    "additionalProperties": true,
+    "type": "object"
+   },
    "PreservedReference": {
     "properties": {
      "resource_id": {
@@ -14915,7 +15960,7 @@
      "provenance"
     ],
     "title": "PreservedReference",
-    "description": "A `composes_agent` / `references_workflow` dependency, preserved with\nidentity, exact version and provenance \u2014 never expanded: workflow\nexecution semantics belong to P11 and agent-composition execution has no\ndefined semantics yet (library bindings, resolution engine)."
+    "description": "A `composes_agent` / `references_workflow` dependency, preserved with\nidentity, exact version and provenance. `references_workflow` is never\nexpanded (workflow execution semantics belong to P11). `composes_agent`\nis additionally described by `ResolvedComposedAgent.resolved` \u2014 this\nreference alone still carries no execution semantics."
    },
    "ProducerJob": {
     "properties": {
@@ -15306,6 +16351,46 @@
     "title": "ProjectMember",
     "description": "A User's access to a project: granted or removed, never\nmodified \u2014 hence no `version`. `granted_by_user_id` is null only for the\nmigration backfill. `user_display_name` and `user_email` are read-only\nconveniences resolved from the member's User."
    },
+   "ProjectRef": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "slug": {
+      "type": "string",
+      "title": "Slug"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "truncated": {
+      "type": "boolean",
+      "title": "Truncated",
+      "default": false
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "slug",
+     "name"
+    ],
+    "title": "ProjectRef"
+   },
    "ProjectState": {
     "properties": {
      "project_id": {
@@ -15583,7 +16668,7 @@
      },
      "composed_agents": {
       "items": {
-       "$ref": "#/components/schemas/PreservedReference"
+       "$ref": "#/components/schemas/ResolvedComposedAgent"
       },
       "type": "array",
       "title": "Composed Agents",
@@ -15615,6 +16700,24 @@
     ],
     "title": "ResolvedAgentDefinition",
     "description": "Canonical P5 output: the complete logical agent specification.\n\nHarness-neutral (no harness-specific branch) and\nprovider-neutral (`provider_ref`/`model_ref` travel as opaque strings\nwhen a binding carries them; no vendor catalog lives here). Stable input\nfor P7 HTTP, P8 MCP, P9 Context Package and P10 adapters."
+   },
+   "ResolvedComposedAgent": {
+    "properties": {
+     "reference": {
+      "$ref": "#/components/schemas/PreservedReference"
+     },
+     "resolved": {
+      "$ref": "#/components/schemas/ResolvedAgentDefinition"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "reference",
+     "resolved"
+    ],
+    "title": "ResolvedComposedAgent",
+    "description": "One `composes_agent` dependency, resolved: the reference itself\n(identity, exact version, provenance \u2014 same shape as before) plus its\nown complete, independently resolved `ResolvedAgentDefinition`. Built by\nthe same pure core recursing on its own sub-graph \u2014 never a second\nresolver, never merged/flattened into the parent's rules or skills."
    },
    "ResolvedModelProfile": {
     "properties": {
@@ -16887,6 +17990,107 @@
     "title": "RoadmapImport",
     "description": "Create a `draft` from a full document (import, AI proposal, project\ninitialization). `submit=True` also moves it to `proposed` in the same\natomic operation (the proposal flow). Never creates Tasks."
    },
+   "RoadmapItem": {
+    "properties": {
+     "roadmap_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Roadmap Id"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "progress": {
+      "$ref": "#/components/schemas/Progress"
+     },
+     "current_phase_key": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Current Phase Key"
+     },
+     "current_step": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/RoadmapStepItem"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "upcoming_steps": {
+      "items": {
+       "$ref": "#/components/schemas/ContextStep"
+      },
+      "type": "array",
+      "maxItems": 5,
+      "title": "Upcoming Steps"
+     },
+     "blocking": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Blocking"
+     },
+     "draft_pending": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Draft Pending",
+      "default": 0
+     },
+     "status": {
+      "$ref": "#/components/schemas/RoadmapStatus"
+     },
+     "objective": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Objective"
+     },
+     "truncated": {
+      "type": "boolean",
+      "title": "Truncated",
+      "default": false
+     },
+     "task_step": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/RoadmapStepItem"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "why": {
+      "$ref": "#/components/schemas/Why"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "roadmap_id",
+     "title",
+     "progress",
+     "status",
+     "why"
+    ],
+    "title": "RoadmapItem",
+    "description": "`RoadmapContext` extended with the fields a consumer needs to\ntrust it: status, provenance, truncation and the step of the requested Task."
+   },
    "RoadmapOrigin": {
     "type": "string",
     "enum": [
@@ -16896,6 +18100,68 @@
     ],
     "title": "RoadmapOrigin",
     "description": "How content entered Studio OS. Self-declared by the writer: a workflow\nguard, not a security boundary; the boundary is the role."
+   },
+   "RoadmapOverview": {
+    "properties": {
+     "counts": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "type": "object",
+      "title": "Counts"
+     },
+     "draft_pending": {
+      "type": "integer",
+      "title": "Draft Pending"
+     },
+     "others": {
+      "items": {
+       "$ref": "#/components/schemas/RoadmapRef"
+      },
+      "type": "array",
+      "title": "Others",
+      "default": []
+     }
+    },
+    "type": "object",
+    "required": [
+     "counts",
+     "draft_pending"
+    ],
+    "title": "RoadmapOverview",
+    "description": "Roadmaps other than the active one, by reference: what is waiting for a\nhuman decision (`draft_pending`) or finished."
+   },
+   "RoadmapRef": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "status": {
+      "$ref": "#/components/schemas/RoadmapStatus"
+     },
+     "progress": {
+      "$ref": "#/components/schemas/Progress"
+     },
+     "truncated": {
+      "type": "boolean",
+      "title": "Truncated",
+      "default": false
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "title",
+     "status",
+     "progress"
+    ],
+    "title": "RoadmapRef"
    },
    "RoadmapRevision": {
     "properties": {
@@ -17121,6 +18387,91 @@
     ],
     "title": "RoadmapStatus"
    },
+   "RoadmapStepItem": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "title": "Key"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "state": {
+      "$ref": "#/components/schemas/StepState"
+     },
+     "available": {
+      "type": "boolean",
+      "title": "Available"
+     },
+     "waiting_on": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Waiting On"
+     },
+     "acceptance_criteria": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Acceptance Criteria"
+     },
+     "linked_task_ids": {
+      "items": {
+       "type": "string",
+       "format": "uuid"
+      },
+      "type": "array",
+      "title": "Linked Task Ids"
+     },
+     "objective": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Objective"
+     },
+     "truncated": {
+      "type": "boolean",
+      "title": "Truncated",
+      "default": false
+     },
+     "criteria_total": {
+      "type": "integer",
+      "title": "Criteria Total",
+      "default": 0
+     },
+     "criteria_checked": {
+      "type": "integer",
+      "title": "Criteria Checked",
+      "default": 0
+     },
+     "linked_tasks": {
+      "items": {
+       "$ref": "#/components/schemas/RoadmapTaskRef"
+      },
+      "type": "array",
+      "title": "Linked Tasks",
+      "default": []
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "key",
+     "title",
+     "state",
+     "available"
+    ],
+    "title": "RoadmapStepItem",
+    "description": "A step the agent may work on now: the shared `ContextStep` plus its\nobjective and the Tasks tied to it. `acceptance_criteria` lists the criteria\nstill to satisfy (already checked ones are only counted)."
+   },
    "RoadmapSummary": {
     "properties": {
      "created_at": {
@@ -17219,6 +18570,58 @@
      "progress"
     ],
     "title": "RoadmapSummary"
+   },
+   "RoadmapTaskRef": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "title": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Title"
+     },
+     "status": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Status"
+     },
+     "in_context": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "task",
+         "related_tasks"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "In Context"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id"
+    ],
+    "title": "RoadmapTaskRef",
+    "description": "A Task linked to a step: a bare reference when the package already\ncarries it (`in_context`), a title and status otherwise."
    },
    "RoadmapTransition": {
     "type": "string",
@@ -17963,6 +19366,184 @@
     "title": "SessionRuntimeOverride",
     "description": "One ephemeral session-level runtime choice carried by a resolution\nrequest (P7). Same key shape as a stored binding\n(`target_kind`, `target_stable_key`) plus the concrete `target` \u2014 but\nnever persisted: the router forwards it as resolution context only\n(`session_overrides`), and the service validates it exactly like a\nstored choice (unknown machine 404, another user's machine 403)."
    },
+   "SessionStatus": {
+    "type": "string",
+    "enum": [
+     "active",
+     "idle",
+     "expired",
+     "ended"
+    ],
+    "title": "SessionStatus",
+    "description": "Presence derived at read time (C1), never stored: `active`\n(recent activity), `idle` (no activity past the idle threshold),\n`expired` (no activity past the expire threshold \u2014 L2 closes these),\n`ended` (`ended_at` set). Same pattern as `MachineStatus` from\n`last_seen_at`, but driven by session-attached activity, never by a\ndedicated agent heartbeat."
+   },
+   "StartWorkCandidate": {
+    "properties": {
+     "task_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Task Id"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "status": {
+      "$ref": "#/components/schemas/TaskStatus"
+     },
+     "why": {
+      "$ref": "#/components/schemas/Why"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "task_id",
+     "title",
+     "status",
+     "why"
+    ],
+    "title": "StartWorkCandidate",
+    "description": "One unclaimed task a fresh start could pick up (no-task path only):\ncompact by construction \u2014 id, title, status, plus the `why` relation that\nsurfaced it (`active_roadmap` for the current step, `project_scope` for\nanother unclaimed project task), never the description."
+   },
+   "StartWorkRequest": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "agent_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Agent Id"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "objective": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 1000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Objective"
+     },
+     "agent_stable_key": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Agent Stable Key"
+     },
+     "files": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array",
+        "maxItems": 20
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Files"
+     },
+     "limit": {
+      "type": "integer",
+      "title": "Limit",
+      "default": 5
+     },
+     "max_chars": {
+      "type": "integer",
+      "title": "Max Chars",
+      "default": 12000
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id",
+     "agent_id"
+    ],
+    "title": "StartWorkRequest",
+    "description": "Composite start-work input. `project_id` and `agent_id` are required:\nthe agent must belong to the caller's own machine (`409 actor_not_owned`\notherwise \u2014 same rule as `POST /ai-work`). `task_id` selects\nthe mode: with it, claim (idempotent for the same machine) + resume or\ncreate the agent's open session on the task + scoped context; without\nit, context + candidates only, never a claim nor a session (AIB-G).\n`objective` defaults server-side (`reprendre la t\u00e2che <titre>` /\n`vue projet`) when omitted. `files` follows the `prepare_context`\nbounds (at most 20 cleaned paths); `limit`/`max_chars` are passed\nthrough to `prepare_context` unchanged."
+   },
+   "StartWorkResult": {
+    "properties": {
+     "task": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Task"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "session": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/WorkSession"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "claimed": {
+      "type": "boolean",
+      "title": "Claimed",
+      "default": false
+     },
+     "resumed": {
+      "type": "boolean",
+      "title": "Resumed",
+      "default": false
+     },
+     "prepared_context": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/PreparedContext"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "candidates": {
+      "items": {
+       "$ref": "#/components/schemas/StartWorkCandidate"
+      },
+      "type": "array",
+      "title": "Candidates",
+      "default": []
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "StartWorkResult",
+    "description": "One call, one replayable result \u2014 not a single database transaction:\nthe composed services commit their own steps, so a partial failure\nconverges on the next call. `task`/`session`\nare set only on the with-task path; `claimed` tells whether the task is\nnow claimed by the caller's machine; `resumed` tells whether the\nsession was resumed (`True`) or created (`False`) \u2014 meaningless without\na task. `prepared_context` is present on every successful response\n(bounded); `candidates` only on the no-task path. Replaying the same `Idempotency-Key` with the\nsame body returns the original result \u2014 never a second claim nor a\nsecond session; a different body is `409\nidempotency_key_payload_mismatch`."
+   },
    "Step": {
     "properties": {
      "created_at": {
@@ -18649,6 +20230,10 @@
      "title"
     ],
     "title": "TaskCreate"
+   },
+   "TaskItem": {
+    "additionalProperties": true,
+    "type": "object"
    },
    "TaskPlanItem": {
     "properties": {
@@ -19678,6 +21263,37 @@
     "title": "VersionOrigin",
     "description": "How an effective version was picked: P2 shadowing selection yields\n`lock`/`active`; an exact version-pinned dependency edge yields `pin`.\nOnly the P5 resolved output emits `pin` \u2014 `LibraryResolution` (P2) still\nemits `lock`/`active` alone (P5, additive)."
    },
+   "Why": {
+    "properties": {
+     "reason": {
+      "type": "string",
+      "enum": [
+       "requested",
+       "linked_to_task",
+       "task_claim",
+       "path_conflict",
+       "project_scope",
+       "lexical",
+       "active_roadmap"
+      ],
+      "title": "Reason"
+     },
+     "matched_terms": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Matched Terms",
+      "default": []
+     }
+    },
+    "type": "object",
+    "required": [
+     "reason"
+    ],
+    "title": "Why",
+    "description": "Why an item was selected \u2014 the only relations Studi'OS knows how to\nestablish: a structural link, or an exact-token overlap with the objective."
+   },
    "WorkSession": {
     "properties": {
      "id": {
@@ -19723,6 +21339,34 @@
        }
       ],
       "title": "Ended At"
+     },
+     "last_activity_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Activity At"
+     },
+     "status": {
+      "$ref": "#/components/schemas/SessionStatus",
+      "default": "active"
+     },
+     "expires_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expires At"
      }
     },
     "additionalProperties": false,
@@ -20052,6 +21696,10 @@
   {
    "name": "runtimes",
    "description": "Declared runtimes (P6 registry, generic \u2014 never provider-specific). Register, read, update under optimistic concurrency, and logically revoke. No secret is ever accepted or stored."
+  },
+  {
+   "name": "bootstrap-plan",
+   "description": "Read-only aggregated bootstrap plan of a project (AIB-B): agents resolved through `resolve_full`, merged into deterministic, harness-agnostic artifacts with provenance, segment and content hash."
   },
   {
    "name": "resolutions",
