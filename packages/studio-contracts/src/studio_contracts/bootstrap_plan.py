@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import json
 from enum import StrEnum
+from typing import Annotated
 from uuid import UUID
 
 from pydantic import Field
@@ -25,6 +26,8 @@ from studio_contracts.resolution import Provenance, RulePath
 
 MAX_BOOTSTRAP_PLAN_AGENTS = 50
 MAX_AGENT_KEY = 200
+
+AgentKey = Annotated[str, Field(min_length=1, max_length=MAX_AGENT_KEY)]
 
 
 class BootstrapSegment(StrEnum):
@@ -50,7 +53,7 @@ class BootstrapPlanRequest(ContractModel):
     fails closed with the public `definition_not_found`)."""
 
     project_id: UUID
-    agent_keys: list[str] = Field(default_factory=list, max_length=MAX_BOOTSTRAP_PLAN_AGENTS)
+    agent_keys: list[AgentKey] = Field(default_factory=list, max_length=MAX_BOOTSTRAP_PLAN_AGENTS)
 
 
 class BootstrapPlanArtifact(ContractModel):

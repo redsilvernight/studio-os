@@ -12959,7 +12959,9 @@
      },
      "agent_keys": {
       "items": {
-       "type": "string"
+       "type": "string",
+       "maxLength": 200,
+       "minLength": 1
       },
       "type": "array",
       "maxItems": 50,

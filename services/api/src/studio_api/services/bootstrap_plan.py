@@ -191,15 +191,21 @@ async def _discover_agent_keys(
         (LibraryScope.USER, None),
         (LibraryScope.PROJECT, project_id),
     ):
-        rows = await library_service.list_resources(
-            session,
-            principal,
-            kind=LibraryKind.AGENT_DEFINITION.value,
-            scope=scope.value,
-            project_id=scoped_project,
-            limit=_DISCOVERY_PAGE,
-        )
-        keys.update(row.stable_key for row in rows if row.status == "active")
+        offset = 0
+        while True:
+            rows = await library_service.list_resources(
+                session,
+                principal,
+                kind=LibraryKind.AGENT_DEFINITION.value,
+                scope=scope.value,
+                project_id=scoped_project,
+                limit=_DISCOVERY_PAGE,
+                offset=offset,
+            )
+            keys.update(row.stable_key for row in rows if row.status == "active")
+            if len(rows) < _DISCOVERY_PAGE:
+                break
+            offset += _DISCOVERY_PAGE
     return sorted(keys)
 
 

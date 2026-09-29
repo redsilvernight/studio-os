@@ -216,3 +216,23 @@ async def test_http_route_returns_plan(
         headers=auth_headers,
     )
     assert missing.status_code == 404
+
+
+async def test_discovery_over_limit_is_refused(
+    db_session: AsyncSession,
+    machine: tuple[MachineModel, str],
+    project: ProjectModel,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mine = await _principal(db_session, machine)
+    await _world(db_session, mine)
+    monkeypatch.setattr(plan_service, "MAX_BOOTSTRAP_PLAN_AGENTS", 1)
+
+    with pytest.raises(HTTPException) as exc:
+        await plan_service.build_bootstrap_plan(
+            db_session, mine, BootstrapPlanRequest(project_id=project.id)
+        )
+
+    assert exc.value.status_code == 422
+    assert isinstance(exc.value.detail, dict)
+    assert exc.value.detail["reason"] == "too_many_agents"
