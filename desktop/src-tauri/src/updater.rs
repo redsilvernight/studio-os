@@ -306,6 +306,7 @@ mod tests {
 
     fn app_with(keys_pub: &str, endpoint: &str) -> tauri::App<tauri::test::MockRuntime> {
         let mut context = tauri::test::mock_context(tauri::test::noop_assets());
+        context.package_info_mut().version = env!("CARGO_PKG_VERSION").parse().expect("semver");
         context.config_mut().plugins.0.insert(
             "updater".into(),
             serde_json::json!({

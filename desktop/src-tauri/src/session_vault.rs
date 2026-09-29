@@ -5,7 +5,7 @@
 
 /// Upper bound shared with the API (`RefreshRequest.refresh_token`).
 const MAX_SECRET_LEN: usize = 256;
-const SERVICE: &str = "dev.studio-os.desktop.session";
+const SERVICE: &str = "stable.studio-os.desktop.session";
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum VaultError {

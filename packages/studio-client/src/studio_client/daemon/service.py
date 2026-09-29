@@ -107,7 +107,7 @@ from studio_client.data_format import DataFormatError, ensure_data_format
 from studio_client.outbox import OutboxIdentityError
 from studio_client.tokens import KeyringTokenStore, TokenStore
 
-DAEMON_VERSION = "0.1.0"
+DAEMON_VERSION = "0.5.0"
 WORKSPACE_CAPABILITIES: tuple[str, ...] = ("workspace.config",)
 _WORKSPACE_COMMANDS = frozenset(
     {

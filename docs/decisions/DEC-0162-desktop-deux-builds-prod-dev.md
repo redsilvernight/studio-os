@@ -22,7 +22,7 @@ Prod à l'instance Flo-laptop.
    `dev.studio-os.desktop-dev`, les données `StudioOS-Dev` et une origine
    loopback.
 2. Un push sur `deploy/flo-laptop` construit `desktop-prod` avec
-   `--channel prod`, l'identité `dev.studio-os.desktop`, les données `StudioOS`
+   `--channel prod`, l'identité `stable.studio-os.desktop`, les données `StudioOS`
    et l'origine HTTPS configurée dans l'environnement GitHub `desktop-prod`.
    L'origine compilée de chaque canal est fixe ; les anciens overrides locaux
    ne peuvent pas reconnecter Dev à Prod ni Prod à une autre instance.
@@ -44,4 +44,9 @@ Prod à l'instance Flo-laptop.
   exact de la branche source.
 - Docker Desktop est une dépendance explicite de la distribution Dev locale,
   jamais de la distribution Prod.
+- L'identité Prod est `stable.studio-os.desktop` (service de coffre
+  `stable.studio-os.desktop.session`), et non plus `dev.studio-os.desktop` qui
+  prêtait à confusion avec Dev. Les installations Prod héritées de DEC-0137
+  (0.1.0) ne migrent pas leurs réglages ni leur session : réinstallation et
+  reconnexion. La première release Prod native est la 0.5.0.
 - DEC-0137 reste l'historique du mécanisme remplacé et est supersédée.
