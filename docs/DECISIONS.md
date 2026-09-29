@@ -155,4 +155,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0160 | L2 : claim_task idempotent (no-op même machine) + Idempotency-Key, sans bump de contrat | proposed | [decisions/DEC-0160-l2-claim-idempotent.md](decisions/DEC-0160-l2-claim-idempotent.md) |
 | DEC-0161 | L2/AIB-H : reprise de session (filtres agent/open, clôture des périmées, jamais sur lecture) | proposed | [decisions/DEC-0161-l2-session-resume-cloture.md](decisions/DEC-0161-l2-session-resume-cloture.md) |
 | DEC-0162 | Desktop : deux builds Prod/Dev distincts et serveur local Dev | accepted | [decisions/DEC-0162-desktop-deux-builds-prod-dev.md](decisions/DEC-0162-desktop-deux-builds-prod-dev.md) |
-| DEC-0163 | L3 : handoff composite en un appel + repli end_session (claims, ai_work, session) | proposed | [decisions/DEC-0163-l3-handoff-cloture.md](decisions/DEC-0163-l3-handoff-cloture.md) |
+| DEC-0163 | L3 : handoff composite en un appel + repli end_session (claims, ai_work, session) | accepted | [decisions/DEC-0163-l3-handoff-cloture.md](decisions/DEC-0163-l3-handoff-cloture.md) |

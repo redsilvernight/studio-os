@@ -1,7 +1,7 @@
 ---
 id: DEC-0163
 title: 'L3 : handoff composite en un appel + repli end_session (claims, ai_work, session)'
-status: proposed
+status: accepted
 date: '2026-09-29'
 superseded_by: null
 source: docs/AI_BOOTSTRAP_ROADMAP.md
@@ -9,8 +9,8 @@ source: docs/AI_BOOTSTRAP_ROADMAP.md
 
 # DEC-0163 — Handoff composite L3 + repli `end_session`
 
-Roadmap AIB rév. 4, étape L3 (`studio_handoff`). Statut `proposed` (en attente de
-validation humaine — fichier et serveur alignés à l'acceptation).
+Roadmap AIB rév. 4, étape L3 (`studio_handoff`). Statut `accepted` (validation
+humaine le 2026-09-29 — fichier et serveur alignés).
 
 Remplace les citations erronées de DEC-0162 sur `POST /handoff` et
 `studio_handoff` (DEC-0162 reste `desktop-deux-builds-prod-dev`, sans rapport).
