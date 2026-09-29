@@ -168,7 +168,10 @@ Append-only.
 
 ## AIWorkLog
 `id`, `task_id` (FK Task, nullable), `project_id` (FK Project), `agent_id`
-(FK Agent), `machine_id` (FK Machine, nullable), `summary`, `status`
+(FK Agent), `machine_id` (FK Machine, nullable), `session_id` (FK
+WorkSession, nullable, `ondelete=SET NULL`, indexe — L3, DEC-0163 : le lien
+vers la session qui a produit le travail, valide a l'ecriture — meme
+tache/projet/machine — pour la tracabilite du handoff), `summary`, `status`
 (`started|completed|failed|review_requested|approved|changes_requested`,
 miroir des event types `ai_work.*`), `changed_files` (liste de strings),
 `tests_run` (liste de strings), `started_at`, `ended_at` (nullable),

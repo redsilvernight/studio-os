@@ -41,13 +41,16 @@ session + contexte borne (avec `task_id`) ; contexte + `candidates` sans
 claim (sans `task_id`, AIB-G). Meme contrat que `POST /start-work`
 (`TECH/02_API_CONTRACT.md` § Start work), `idempotency_key` optionnel.
 
-### studio_handoff (L3, additif, DEC-0162)
-Cloture en un appel : met a jour le statut de la tache (`expected_version`),
-libere tous les claims de la tache, journalise `ai_work` (si `agent_id` +
-`summary`), termine la session. Meme contrat que `POST /handoff`
-(`TECH/02_API_CONTRACT.md` § Handoff), `idempotency_key` optionnel.
-Reponse compacte : ids + statuts seulement. Repli minimal : `end_session`
-libere maintenant les claims de la tache automatiquement.
+### studio_handoff (L3, additif, DEC-0163)
+Cloture en un appel : met a jour le statut de la tache (`expected_version`,
+requis seulement avec `task_status`), libere tous les claims de la tache
+(un `resource.released` par claim), journalise `ai_work` (si `agent_id` +
+`summary`, `ai_work_status` type, `session_id` valide), termine la session.
+Meme contrat que `POST /handoff` (`TECH/02_API_CONTRACT.md` § Handoff),
+`idempotency_key` optionnel. Autorisation avant le court-circuit
+d'idempotence (403 meme sur rejeu). Reponse compacte : ids + statuts
+seulement. Repli minimal : `end_session` libere les claims de la tache
+automatiquement.
 
 ## AI Library via MCP — inventaire (P8, DEC-0072)
 studio_resolve_agent

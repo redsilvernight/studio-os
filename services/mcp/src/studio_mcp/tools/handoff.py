@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.services import handoff as handoff_service
 from studio_api.services import idempotency as idempotency_service
 from studio_api.services.authz import Principal
+from studio_contracts.ai_work import AIWorkStatus
 from studio_contracts.handoff import HandoffRequest
 from studio_contracts.tasks import TaskStatus, TaskUpdate
 
@@ -18,8 +19,8 @@ from studio_mcp.util import parse_uuid
 async def studio_handoff(
     project_id: str,
     session_id: str,
-    expected_version: int,
     ctx: Context,
+    expected_version: int | None = None,
     task_status: str | None = None,
     agent_id: str | None = None,
     summary: str | None = None,
@@ -28,10 +29,11 @@ async def studio_handoff(
     tests_run: list[str] | None = None,
     idempotency_key: str | None = None,
 ) -> dict[str, Any]:
-    """Close a work session in one call (L3 handoff). `project_id`,
-    `session_id` (UUID strings) and `expected_version` are required.
-    `task_status` (e.g. "completed", "blocked") optionally updates the
-    task. `agent_id` + `summary` optionally logs an AI work entry linked
+    """Close a work session in one call (L3 handoff). `project_id` and
+    `session_id` (UUID strings) are required. `task_status` (e.g.
+    "completed", "blocked") optionally updates the task, with
+    `expected_version` for optimistic concurrency (required only then).
+    `agent_id` + `summary` optionally logs an AI work entry linked
     to the session. `agent_id` must belong to the caller's machine.
     Caller-generated `idempotency_key` makes the call replay-safe: the
     same key returns the original result instead of running the composite
@@ -56,7 +58,24 @@ async def studio_handoff(
 
         task_update = None
         if task_status is not None:
-            task_update = TaskUpdate(status=TaskStatus(task_status))
+            try:
+                parsed_status = TaskStatus(task_status)
+            except ValueError:
+                return {
+                    "error_code": "invalid_task_status",
+                    "message": f"unknown task status {task_status!r}",
+                }
+            task_update = TaskUpdate(status=parsed_status)
+
+        parsed_ai_work_status = None
+        if ai_work_status is not None:
+            try:
+                parsed_ai_work_status = AIWorkStatus(ai_work_status)
+            except ValueError:
+                return {
+                    "error_code": "invalid_ai_work_status",
+                    "message": f"unknown AI work status {ai_work_status!r}",
+                }
 
         request = HandoffRequest(
             project_id=parsed_project,
@@ -65,10 +84,12 @@ async def studio_handoff(
             task_status=task_update,
             agent_id=parsed_agent,
             summary=summary,
-            ai_work_status=ai_work_status,
+            ai_work_status=parsed_ai_work_status,
             changed_files=changed_files,
             tests_run=tests_run,
         )
+
+        await handoff_service.authorize_handoff(session, principal, request)
 
         async def _create() -> dict[str, Any]:
             result = await handoff_service.handoff(session, principal, request)

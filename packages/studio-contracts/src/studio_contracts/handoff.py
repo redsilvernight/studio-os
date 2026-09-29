@@ -12,6 +12,7 @@ from uuid import UUID
 
 from pydantic import Field
 
+from studio_contracts.ai_work import AIWorkStatus
 from studio_contracts.common import ContractModel, IdempotentCreate
 from studio_contracts.tasks import TaskStatus, TaskUpdate
 
@@ -19,7 +20,8 @@ from studio_contracts.tasks import TaskStatus, TaskUpdate
 class HandoffRequest(IdempotentCreate):
     """Composite handoff input. `project_id` and `session_id` are required.
     `expected_version` is the task version for optimistic concurrency on
-    the status update (like `update_task`). `task_status` is optional:
+    the status update (like `update_task`); required only when `task_status`
+    is provided. `task_status` is optional:
     when provided, updates the task status (e.g. `completed`, `blocked`).
     `agent_id` + `summary` are optional: when both present, logs an AI
     work entry with the given status (default `completed`) linked to the
@@ -29,11 +31,11 @@ class HandoffRequest(IdempotentCreate):
 
     project_id: UUID
     session_id: UUID
-    expected_version: int
+    expected_version: int | None = None
     task_status: TaskUpdate | None = None
     agent_id: UUID | None = None
     summary: str | None = Field(default=None, max_length=2000)
-    ai_work_status: str | None = Field(default=None, max_length=32)
+    ai_work_status: AIWorkStatus | None = None
     changed_files: list[str] | None = Field(default=None, max_length=100)
     tests_run: list[str] | None = Field(default=None, max_length=100)
 
