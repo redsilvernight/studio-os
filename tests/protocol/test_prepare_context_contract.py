@@ -86,6 +86,7 @@ def test_prepared_context_additive_and_minimal():
         id=uuid.uuid4(),
         status="completed",
         summary="DONE .. NEXT ..",
+        content_hash="0" * 64,
         started_at=datetime.now(UTC),
         why=ctx.Why(reason="linked_to_task"),
     )

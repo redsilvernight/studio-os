@@ -16,6 +16,20 @@ from studio_contracts.tasks import TaskCreate, TaskStatus, TaskUpdate
 from studio_mcp.errors import run_tool
 from studio_mcp.util import parse_uuid
 
+_ACTIVE_TASK_FIELDS = frozenset(
+    {
+        "id",
+        "readable_id",
+        "project_id",
+        "title",
+        "description",
+        "status",
+        "version",
+        "claimed_by_machine_id",
+    }
+)
+_MAX_ACTIVE_TASK_LIMIT = 100
+
 
 def _task_response(task: TaskModel, *, verbose: bool) -> dict[str, Any]:
     if not verbose:
@@ -56,15 +70,64 @@ async def studio_get_task(task_id: str, ctx: Context) -> dict[str, Any]:
     return await run_tool(ctx, _handler)
 
 
-async def studio_get_active_tasks(project_id: str, ctx: Context) -> dict[str, Any]:
-    """List active (created/in_progress/blocked) tasks for a project_id (UUID string)."""
+async def studio_get_active_tasks(
+    project_id: str,
+    ctx: Context,
+    title_prefix: str | None = None,
+    limit: int | None = None,
+    fields: list[str] | None = None,
+) -> dict[str, Any]:
+    """List active tasks for a project. Historical calls remain unbounded;
+    set `limit` (1..100) for a bounded deterministic response. Optionally
+    filter by case-insensitive `title_prefix` and select response `fields`;
+    `id` is always included."""
 
     async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed = parse_uuid(project_id, "project_id")
         if isinstance(parsed, dict):
             return parsed
+        if limit is not None and not 1 <= limit <= _MAX_ACTIVE_TASK_LIMIT:
+            return {
+                "error_code": "invalid_argument",
+                "message": f"limit must be within 1..{_MAX_ACTIVE_TASK_LIMIT}",
+            }
+        prefix = title_prefix.strip().casefold() if title_prefix is not None else None
+        if title_prefix is not None and not prefix:
+            return {
+                "error_code": "invalid_argument",
+                "message": "title_prefix must not be empty",
+            }
+        selected_fields = _ACTIVE_TASK_FIELDS if fields is None else frozenset(fields) | {"id"}
+        unknown_fields = selected_fields - _ACTIVE_TASK_FIELDS
+        if unknown_fields:
+            return {
+                "error_code": "invalid_argument",
+                "message": f"unknown fields: {', '.join(sorted(unknown_fields))}",
+            }
         tasks = await projects_service.get_active_tasks(session, principal, parsed)
-        return {"tasks": [_task_response(t, verbose=True) for t in tasks]}
+        controls_requested = title_prefix is not None or limit is not None or fields is not None
+        ordered = (
+            sorted(tasks, key=lambda task: (task.title.casefold(), str(task.id)))
+            if controls_requested
+            else tasks
+        )
+        if prefix is not None:
+            ordered = [task for task in ordered if task.title.casefold().startswith(prefix)]
+        total = len(ordered)
+        selected = ordered if limit is None else ordered[:limit]
+        items = [
+            {
+                key: value
+                for key, value in _task_response(task, verbose=True).items()
+                if key in selected_fields
+            }
+            for task in selected
+        ]
+        return {
+            "tasks": items,
+            "returned": len(items),
+            "additional_available": total - len(items),
+        }
 
     return await run_tool(ctx, _handler)
 

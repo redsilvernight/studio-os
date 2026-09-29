@@ -38,6 +38,40 @@ async def test_get_active_tasks_lists_created_task(
     assert any(t["id"] == created["id"] for t in result["tasks"])
 
 
+async def test_get_active_tasks_filters_limits_and_selects_fields(
+    auth_ctx: FakeContext, project: ProjectModel
+) -> None:
+    await studio_create_task(str(project.id), "Beta task", auth_ctx)
+    alpha = await studio_create_task(str(project.id), "Alpha task", auth_ctx)
+    await studio_create_task(str(project.id), "Alpine task", auth_ctx)
+
+    result = await studio_get_active_tasks(
+        str(project.id),
+        auth_ctx,
+        title_prefix="al",
+        limit=1,
+        fields=["title", "status"],
+    )
+
+    assert result == {
+        "tasks": [{"id": alpha["id"], "title": "Alpha task", "status": "created"}],
+        "returned": 1,
+        "additional_available": 1,
+    }
+
+
+async def test_get_active_tasks_rejects_invalid_bounds_and_fields(
+    auth_ctx: FakeContext, project: ProjectModel
+) -> None:
+    bad_limit = await studio_get_active_tasks(str(project.id), auth_ctx, limit=0)
+    assert bad_limit["error_code"] == "invalid_argument"
+
+    bad_fields = await studio_get_active_tasks(
+        str(project.id), auth_ctx, fields=["title", "secret"]
+    )
+    assert bad_fields["error_code"] == "invalid_argument"
+
+
 async def test_claim_then_release_task(
     auth_ctx: FakeContext, project: ProjectModel, machine: tuple[MachineModel, str]
 ) -> None:

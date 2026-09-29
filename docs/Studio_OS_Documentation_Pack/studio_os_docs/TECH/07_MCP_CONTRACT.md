@@ -77,6 +77,22 @@ l'empreinte d'idempotence anterieure ; le mode compact ajoute explicitement
 `verbose=false`, donc une meme cle utilisee avec les deux formes est rejetee
 comme payload different.
 
+`studio_prepare_context` accepte un `objective` optionnel lorsqu'un `task_id`
+est fourni : le serveur derive alors les termes depuis le titre et la
+description de cette tache, sans effet de bord. `known_ids` est une map de 100
+UUID maximum vers le `content_hash` SHA-256 renvoye precedemment. Une
+correspondance exacte marque la Task, Decision ou AIWork `unchanged=true` :
+l'item reste present, mais son texte long n'est pas renvoye ni debite du
+budget. Un hash absent ou obsolete renvoie le contenu courant. Une Task peut
+exposer `source_references`, liste deterministe des lignes `Source:` / `Sources:`
+de sa description, elle aussi plafonnee et debitee de `max_chars`.
+
+`studio_get_active_tasks` preserve la liste historique complete quand `limit`
+est omis. Il accepte un mode borne explicite (`limit` de 1 a 100), trie par
+titre puis UUID, `title_prefix` (insensible a la casse) et une allowlist
+`fields`; `id` est toujours renvoye. La reponse indique `returned` et
+`additional_available`.
+
 ## Auth (DEC-0023)
 Chaque outil authentifie l'appelant individuellement (voir
 `TECH/04_AUTH_SYNC_CONTRACT.md` section "Auth MCP") — jamais un secret
@@ -364,14 +380,16 @@ Voie recommandée pour amorcer le contexte d'un agent : un appel, lecture
 seule, réponse bornée et déterministe. Les outils `get/list/discover`
 restent disponibles pour les besoins précis ou avancés.
 
-Entrée : `project_id` (UUID) et `objective` (1..1000 car.) requis ;
-optionnels `task_id` (doit appartenir au projet, sinon `not_found` —
-`forbidden` si son projet est inaccessible, voir « Accès projet » ci-dessous),
+Entrée : `project_id` (UUID) requis et `objective` (1..1000 car.) optionnel si
+`task_id` est fourni (sinon requis, derive du titre et de la description) ;
+`task_id` doit appartenir au projet, sinon `not_found` (`forbidden` si son
+projet est inaccessible, voir « Accès projet » ci-dessous) ;
 `files` (≤ 20 chemins), `limit` (1..20, défaut 5, éléments par catégorie),
 `max_chars` (1000..50000, défaut 12000, budget de texte libre),
 `agent_stable_key` (définition d'agent résolue via le Resolution Engine :
 ses rules/skills applicables trient en premier, `agent_applies: true`,
-toujours bornés par `limit`/budget — P3).
+toujours bornés par `limit`/budget — P3), et `known_ids` (map UUID vers
+`content_hash`, 100 entrées maximum).
 
 Sortie `PreparedContext | McpError` (enveloppée sous `result`) :
 `project`, `query_terms`, `task`, `related_tasks`, `decisions`, `rules`,

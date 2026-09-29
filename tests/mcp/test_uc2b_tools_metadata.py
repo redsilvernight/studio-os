@@ -172,6 +172,18 @@ def test_version_conflict_and_ownership_discoverable(tools: list[Tool]) -> None:
         assert verbose["default"] is True
 
 
+def test_workflow_context_controls_are_discoverable(tools: list[Tool]) -> None:
+    by_name = _by_name(tools)
+    context_schema = by_name["studio_prepare_context"].input_schema
+    assert "objective" in context_schema["properties"]
+    assert "objective" not in context_schema.get("required", [])
+    assert "known_ids" in context_schema["properties"]
+
+    tasks_schema = by_name["studio_get_active_tasks"].input_schema
+    for name in ("title_prefix", "limit", "fields"):
+        assert name in tasks_schema["properties"]
+
+
 def test_event_identity_rules_without_internal_docs(tools: list[Tool]) -> None:
     description = _by_name(tools)["studio_emit_event"].description or ""
     for fragment in (

@@ -88,7 +88,9 @@ def _agent(summary: str) -> dict[str, object]:
 
 
 async def _prepare(auth_ctx, project, objective, **kwargs):
-    return dump(await studio_prepare_context(str(project.id), objective, auth_ctx, **kwargs))
+    return dump(
+        await studio_prepare_context(str(project.id), auth_ctx, objective=objective, **kwargs)
+    )
 
 
 async def test_agent_bindings_win_over_lexical_only(

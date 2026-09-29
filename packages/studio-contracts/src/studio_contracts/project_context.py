@@ -55,7 +55,9 @@ MIN_TEXT_CHARS = 200
 OBJECTIVE_MAX_CHARS = 1_000
 MAX_QUERY_TERMS = 24
 MAX_FILES = 20
+MAX_KNOWN_IDS = 100
 MAX_PATH_CHARS = 500
+MAX_SOURCE_REFERENCES = 10
 LIBRARY_SCAN_CAP = 200
 MIN_TERM_LENGTH = 3
 MAX_MATCHED_TERMS_SHOWN = 5
@@ -98,10 +100,23 @@ class TaskItem(BaseModel):
     title: str
     status: str
     description: str | None = None
+    source_references: list[str] = []
     truncated: bool = False
     claimed_by_machine_id: uuid.UUID | None = None
     claimed_by_self: bool = False
+    content_hash: str | None = None
+    unchanged: bool = False
     why: Why
+
+    @model_serializer(mode="wrap")
+    def _drop_known_text(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        data: dict[str, Any] = handler(self)
+        if self.unchanged:
+            for name in ("description", "source_references", "truncated"):
+                data.pop(name, None)
+        else:
+            data.pop("unchanged", None)
+        return data
 
 
 class DecisionItem(BaseModel):
@@ -111,8 +126,19 @@ class DecisionItem(BaseModel):
     status: str
     task_id: uuid.UUID | None = None
     body: str
+    content_hash: str | None = None
     truncated: bool = False
+    unchanged: bool = False
     why: Why
+
+    @model_serializer(mode="wrap")
+    def _drop_known_text(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        data: dict[str, Any] = handler(self)
+        if self.unchanged:
+            data.pop("truncated", None)
+        else:
+            data.pop("unchanged", None)
+        return data
 
 
 class LibraryItem(BaseModel):
@@ -157,7 +183,19 @@ class AIWorkItem(BaseModel):
     tests_run: list[str] = []
     started_at: datetime
     ended_at: datetime | None = None
+    content_hash: str | None = None
+    unchanged: bool = False
     why: Why
+
+    @model_serializer(mode="wrap")
+    def _drop_known_text(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        data: dict[str, Any] = handler(self)
+        if self.unchanged:
+            for name in ("truncated", "changed_files", "tests_run"):
+                data.pop(name, None)
+        else:
+            data.pop("unchanged", None)
+        return data
 
 
 class ContextLimits(BaseModel):
