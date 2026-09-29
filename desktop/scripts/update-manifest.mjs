@@ -23,6 +23,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { arg, buildChannel, flag, tauriDir } from "./lib.mjs";
 import { canonicalVersion } from "./version.mjs";
+import { readReleaseNote } from "./release-notes.mjs";
 import { sha256Of } from "./release-artifacts.mjs";
 
 /** The platform key `tauri-plugin-updater` looks a release up under (2.12). */
@@ -82,7 +83,7 @@ export function buildManifest({ bundleDir, urlBase, channel = "prod", version, i
   const origin = apiOrigin(apiUrl);
   return {
     version: release,
-    notes: notes ?? `Studi'OS Desktop ${release}`,
+    notes: notes ?? readReleaseNote(release) ?? `Studi'OS Desktop ${release}`,
     pub_date: pubDate ?? new Date().toISOString(),
     platforms: { [target]: { url, signature } },
     schema_version: 1,

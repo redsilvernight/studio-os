@@ -66,6 +66,9 @@ jobs:
       - name: Version coherence
         run: npm run version:check
         working-directory: desktop
+      - name: Release notes gate (a release must ship its note)
+        run: node scripts/release-notes.mjs --check
+        working-directory: desktop
       - name: Rust format, lint and tests
         run: |
           cargo fmt --manifest-path src-tauri/Cargo.toml --check

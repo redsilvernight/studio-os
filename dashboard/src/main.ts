@@ -18,6 +18,7 @@
 import { apiBaseUrl, createApiClient } from "./api";
 import { showClientUpdateAdvisory, showClientUpgradeRequired as showUpgradeRequired } from "./clientUpgradeUi";
 import { checkUpdateAtStart, paintUpdateBanner } from "./updateAtStart";
+import { checkWhatsNewAtStart } from "./releaseNotes";
 import { loadActorNames } from "./actorNames";
 import { resolveApiUrl } from "./config";
 import { clearToken, getToken, hasToken, setToken } from "./auth";
@@ -522,6 +523,7 @@ export function boot(): void {
     await resumeSession();
     start();
     void checkUpdateAtStart(platform);
+    void checkWhatsNewAtStart(platform);
   });
 }
 
