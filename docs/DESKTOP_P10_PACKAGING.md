@@ -67,7 +67,7 @@ le shell lance le daemon. Aucun script shell généré, aucune modification du P
 |---|---|---|---|
 | `<install>\` | Binaires, sidecar | Remplacé | Supprimé |
 | `%APPDATA%\StudioOS` | `config.toml`, `state.db`, `outbox.db`, `format.json`, `logs\`, `diagnostics\`, `backups\` | Conservé (migration sauvegardée) | Conservé, sauf case « supprimer les données » cochée |
-| `%APPDATA%\dev.studio-os.desktop` | Réglages du shell (`settings.json`) | Conservé | Conservé, sauf case cochée |
+| `%APPDATA%\stable.studio-os.desktop` | Réglages du shell (`settings.json`) | Conservé | Conservé, sauf case cochée |
 | Gestionnaire d'identifiants Windows | Identité machine, jetons | Conservé | **Conservé** (étape manuelle, voir §14) |
 | Vaults, dépôts, `.studio` | Choisis par l'utilisateur, hors installation | Jamais touchés | Jamais touchés |
 
@@ -89,7 +89,7 @@ un daemon d'un autre canal ou de développement n'est pas touché.
 
 `uninstall.exe` supprime les fichiers et la clé de registre HKCU. Les données §5 sont conservées
 par défaut, y compris en mode silencieux. La case « supprimer les données de l'application »
-(décochée par défaut) supprime `%APPDATA%\dev.studio-os.desktop`, `%LOCALAPPDATA%\dev.studio-os.desktop`
+(décochée par défaut) supprime `%APPDATA%\stable.studio-os.desktop`, `%LOCALAPPDATA%\stable.studio-os.desktop`
 et `%APPDATA%\StudioOS`. Aucun Vault, projet ni dépôt n'est jamais supprimé.
 
 ## 8. Mise à jour

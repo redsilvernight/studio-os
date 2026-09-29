@@ -22,7 +22,7 @@ export const ALLOW_INSECURE_ORIGIN_ENV = "STUDIO_DESKTOP_ALLOW_INSECURE_ORIGIN";
  * (`studio_client.config.default_config_path`) and the Desktop diagnostics.
  */
 export const CHANNELS = {
-  prod: { productName: "Studi’OS Desktop", identifier: "dev.studio-os.desktop", dataDir: "StudioOS" },
+  prod: { productName: "Studi’OS Desktop", identifier: "stable.studio-os.desktop", dataDir: "StudioOS" },
   dev: { productName: "Studi’OS Desktop Dev", identifier: "dev.studio-os.desktop-dev", dataDir: "StudioOS-Dev" },
 };
 

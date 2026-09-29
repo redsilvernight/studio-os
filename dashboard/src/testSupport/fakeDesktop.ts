@@ -70,7 +70,7 @@ export const DIAGNOSTICS: DesktopDiagnostics = {
   locations: {
     daemon_data_dir: "~\\AppData\\Roaming\\StudioOS",
     logs_dir: "~\\AppData\\Roaming\\StudioOS\\logs",
-    shell_settings_dir: "~\\AppData\\Roaming\\dev.studio-os.desktop",
+    shell_settings_dir: "~\\AppData\\Roaming\\stable.studio-os.desktop",
     install_dir: "~\\AppData\\Local\\Programs\\Studio OS Desktop",
     data_format: { state: "supported", format: 1 },
     logs: [{ name: "daemon.log", bytes: 2048 }],
