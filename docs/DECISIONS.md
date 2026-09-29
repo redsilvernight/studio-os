@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-134 decision(s). Detail complet dans chaque ADR lie.
+135 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -156,3 +156,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0161 | L2/AIB-H : reprise de session (filtres agent/open, clôture des périmées, jamais sur lecture) | proposed | [decisions/DEC-0161-l2-session-resume-cloture.md](decisions/DEC-0161-l2-session-resume-cloture.md) |
 | DEC-0162 | Desktop : deux builds Prod/Dev distincts et serveur local Dev | accepted | [decisions/DEC-0162-desktop-deux-builds-prod-dev.md](decisions/DEC-0162-desktop-deux-builds-prod-dev.md) |
 | DEC-0163 | L3 : handoff composite en un appel + repli end_session (claims, ai_work, session) | accepted | [decisions/DEC-0163-l3-handoff-cloture.md](decisions/DEC-0163-l3-handoff-cloture.md) |
+| DEC-0164 | AI Bootstrap P2 : expansion récursive de composed_agent dans le moteur P5, sans second moteur | active | [decisions/DEC-0164-p2-expansion-composed-agents.md](decisions/DEC-0164-p2-expansion-composed-agents.md) |

@@ -504,6 +504,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/handoff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handoff
+         * @description Close a work session in one call. Requires a writer role. Updates the task status (with `expected_version` for optimistic concurrency), releases all claims for the task, logs AI work (if `agent_id` + `summary` provided), and ends the session. The calling machine must own the session. `agent_id` must belong to the caller's machine. Compact response: ids + statuses only. Accepts `Idempotency-Key`: the same key returns the original result instead of running the composite again.
+         */
+        post: operations["handoff_api_v1_handoff_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/claims": {
         parameters: {
             query?: never;
@@ -2090,53 +2110,16 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /**
-         * AIWorkItem
-         * @description One AI work entry relevant to the objective (P2.3): the handoff resume
-         *     packet. `truncated` covers the summary as well as the capped file/test
-         *     lists — anything cut is counted, never silently dropped, via
-         *     `additional_available` / `omitted_for_budget`.
-         */
         AIWorkItem: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Status */
-            status: string;
-            /** Summary */
-            summary: string;
-            /**
-             * Truncated
-             * @default false
-             */
-            truncated: boolean;
-            /**
-             * Changed Files
-             * @default []
-             */
-            changed_files: string[];
-            /**
-             * Tests Run
-             * @default []
-             */
-            tests_run: string[];
-            /**
-             * Started At
-             * Format: date-time
-             */
-            started_at: string;
-            /** Ended At */
-            ended_at?: string | null;
-            why: components["schemas"]["Why"];
+            [key: string]: unknown;
         };
         /**
          * AIWorkLog
          * @description A work entry. `agent_profile`, `harness`, `provider` and `model` are
          *     optional additive observability metadata — open strings snapshotting the
          *     runtime that produced the work, never whitelisted, never an
-         *     authorization or capability input.
+         *     authorization or capability input. `session_id` (L3) links the entry to
+         *     the work session that produced it for handoff traceability.
          */
         AIWorkLog: {
             /**
@@ -2158,6 +2141,8 @@ export interface components {
             agent_id: string;
             /** Machine Id */
             machine_id?: string | null;
+            /** Session Id */
+            session_id?: string | null;
             /** Summary */
             summary: string;
             /** @default started */
@@ -2193,7 +2178,9 @@ export interface components {
          * @description `status`, `changed_files` and `tests_run` are optional additive
          *     fields so work already finished can be logged in one call: a terminal
          *     status sets `ended_at`. `approved`/`changes_requested` are never a valid
-         *     initial status (they only exit `review_requested`).
+         *     initial status (they only exit `review_requested`). `session_id` (L3)
+         *     links the entry to the work session that produced it for handoff
+         *     traceability.
          */
         AIWorkLogCreate: {
             /** Task Id */
@@ -2210,6 +2197,8 @@ export interface components {
             agent_id: string;
             /** Machine Id */
             machine_id?: string | null;
+            /** Session Id */
+            session_id?: string | null;
             /** Summary */
             summary: string;
             /** @default started */
@@ -2242,6 +2231,8 @@ export interface components {
             changed_files?: string[] | null;
             /** Tests Run */
             tests_run?: string[] | null;
+            /** Session Id */
+            session_id?: string | null;
         };
         /**
          * AIWorkStatus
@@ -2657,29 +2648,8 @@ export interface components {
              */
             proposed_by_id: string;
         };
-        /** DecisionItem */
         DecisionItem: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Readable Id */
-            readable_id: string;
-            /** Title */
-            title: string;
-            /** Status */
-            status: string;
-            /** Task Id */
-            task_id?: string | null;
-            /** Body */
-            body: string;
-            /**
-             * Truncated
-             * @default false
-             */
-            truncated: boolean;
-            why: components["schemas"]["Why"];
+            [key: string]: unknown;
         };
         /**
          * DecisionStatus
@@ -2969,6 +2939,69 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * HandoffRequest
+         * @description Composite handoff input. `project_id` and `session_id` are required.
+         *     `expected_version` is the task version for optimistic concurrency on
+         *     the status update (like `update_task`); required only when `task_status`
+         *     is provided. `task_status` is optional:
+         *     when provided, updates the task status (e.g. `completed`, `blocked`).
+         *     `agent_id` + `summary` are optional: when both present, logs an AI
+         *     work entry with the given status (default `completed`) linked to the
+         *     session for traceability. `changed_files`/`tests_run` are passed
+         *     through to the AI work entry. All composed steps are idempotent on
+         *     their own; the `Idempotency-Key` covers the whole composite.
+         */
+        HandoffRequest: {
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /** Expected Version */
+            expected_version?: number | null;
+            task_status?: components["schemas"]["TaskUpdate"] | null;
+            /** Agent Id */
+            agent_id?: string | null;
+            /** Summary */
+            summary?: string | null;
+            ai_work_status?: components["schemas"]["AIWorkStatus"] | null;
+            /** Changed Files */
+            changed_files?: string[] | null;
+            /** Tests Run */
+            tests_run?: string[] | null;
+        };
+        /**
+         * HandoffResult
+         * @description Compact result: ids + statuses only, never full descriptions.
+         *     Replaying the same `Idempotency-Key` with the same body returns the
+         *     original result — no second status update, no duplicate claim
+         *     releases, no duplicate AI work entry, no second session end.
+         */
+        HandoffResult: {
+            /**
+             * Task Id
+             * Format: uuid
+             */
+            task_id: string;
+            task_status: components["schemas"]["TaskStatus"];
+            /** Task Version */
+            task_version: number;
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /** Released Claims */
+            released_claims: string[];
+            /** Ai Work Id */
+            ai_work_id?: string | null;
         };
         /** HeartbeatRequest */
         HeartbeatRequest: {
@@ -3740,9 +3773,10 @@ export interface components {
         /**
          * PreservedReference
          * @description A `composes_agent` / `references_workflow` dependency, preserved with
-         *     identity, exact version and provenance — never expanded: workflow
-         *     execution semantics belong to P11 and agent-composition execution has no
-         *     defined semantics yet (library bindings, resolution engine).
+         *     identity, exact version and provenance. `references_workflow` is never
+         *     expanded (workflow execution semantics belong to P11). `composes_agent`
+         *     is additionally described by `ResolvedComposedAgent.resolved` (DEC-0164)
+         *     — this reference alone still carries no execution semantics.
          */
         PreservedReference: {
             /**
@@ -4110,13 +4144,25 @@ export interface components {
              * Composed Agents
              * @default []
              */
-            composed_agents: components["schemas"]["PreservedReference"][];
+            composed_agents: components["schemas"]["ResolvedComposedAgent"][];
             /**
              * Workflows
              * @default []
              */
             workflows: components["schemas"]["PreservedReference"][];
             runtime?: components["schemas"]["ResolvedRuntime"] | null;
+        };
+        /**
+         * ResolvedComposedAgent
+         * @description One `composes_agent` dependency, resolved (DEC-0164): the reference
+         *     itself (identity, exact version, provenance — same shape as before) plus
+         *     its own complete, independently resolved `ResolvedAgentDefinition`. Built
+         *     by the same pure core recursing on its own sub-graph — never a second
+         *     resolver, never merged/flattened into the parent's rules or skills.
+         */
+        ResolvedComposedAgent: {
+            reference: components["schemas"]["PreservedReference"];
+            resolved: components["schemas"]["ResolvedAgentDefinition"];
         };
         /** ResolvedModelProfile */
         ResolvedModelProfile: {
@@ -5631,34 +5677,8 @@ export interface components {
             /** Description */
             description?: string | null;
         };
-        /** TaskItem */
         TaskItem: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Readable Id */
-            readable_id?: string | null;
-            /** Title */
-            title: string;
-            /** Status */
-            status: string;
-            /** Description */
-            description?: string | null;
-            /**
-             * Truncated
-             * @default false
-             */
-            truncated: boolean;
-            /** Claimed By Machine Id */
-            claimed_by_machine_id?: string | null;
-            /**
-             * Claimed By Self
-             * @default false
-             */
-            claimed_by_self: boolean;
-            why: components["schemas"]["Why"];
+            [key: string]: unknown;
         };
         /**
          * TaskPlanItem
@@ -8126,6 +8146,95 @@ export interface operations {
                      */
                     "application/json": unknown;
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    handoff_api_v1_handoff_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HandoffRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HandoffResult"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Invalid session (no task), version conflict, or actor_not_owned. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

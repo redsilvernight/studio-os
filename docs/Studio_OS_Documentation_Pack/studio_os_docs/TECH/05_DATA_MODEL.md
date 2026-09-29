@@ -409,12 +409,20 @@ voir la section P4 ci-dessus.)
 `ResolvedAgentDefinition` (`studio_contracts/resolution.py`, coeur pur
 sans SQL/HTTP/LLM/horloge) : agent + rules + skills + model_profile 0..1
 aux versions exactes epinglees, `CapabilityRequirement` exacte (aucune
-exigence implicite sans profil), references `composes_agent`/
-`references_workflow` preservees sans expansion (workflow = definition
-declarative P11/DEC-0075, jamais executee par le resolver),
-runtime gagnant + niveau + verdict. Seule transitivite : `skill → rule`
-un niveau ; meme rule par deux chemins = un objet + un `RulePath` par
-chemin. Provenance structuree (`source`, `resource_id`, `stable_key`,
+exigence implicite sans profil), `references_workflow` preserve sans
+expansion (workflow = definition declarative P11/DEC-0075, jamais executee
+par le resolver), runtime gagnant + niveau + verdict. Seule transitivite
+structurelle directe : `skill → rule` un niveau (aucune arete sortante sur
+`RULE`, c'est le seul niveau possible) ; meme rule par deux chemins = un
+objet + un `RulePath` par chemin, localement a chaque noeud (aucune fusion
+entre arbres). `composes_agent` est resolu recursivement depuis P2/DEC-0164
+(`ResolvedComposedAgent{reference: PreservedReference, resolved:
+ResolvedAgentDefinition}`) : chaque agent compose porte son propre arbre
+resolu independant, produit par le meme coeur pur qui recurse sur son
+sous-graphe — jamais un second moteur. Garde-fous fermes : identite deja
+visitee sur le chemin de composition → `composition_cycle_detected`,
+profondeur > `MAX_COMPOSITION_DEPTH` (8) → `composition_depth_exceeded`.
+Provenance structuree (`source`, `resource_id`, `stable_key`,
 `scope`, `version`, `version_origin` — dont `pin` additif emis par la
 seule sortie P5 — `locked`, `relation`, `binding_level`, `via`).
 Precedence unique et partagee avec P4 (`select_runtime` : `session >
@@ -425,13 +433,22 @@ inchange). Selection puis jugement : incompatible explicite =
 jamais de `null` silencieux ; sans choix `runtime = null` valide ;
 `unknown != compatible`. Erreurs fermees
 (`definition_not_found`/`unresolvable_dependency`/`runtime_incompatible`/
-`invalid_resolution_input`), dependances invisibles toujours
-`404 definition_not_found` (non-oracle). Acquisition (`resolve_full`)
-: racine P2, visibilite/liveness P4, puis coeur
-pur — exposee par `POST /resolutions` (body `AgentResolutionRequest`,
-`session_overrides` ephemeres, reponse `ResolvedAgentDefinition`
-complete). Harness-neutral et provider-neutral (`provider_ref`/`model_ref`
-opaques). Frontiere P6 : aucun catalogue, aucune discovery.
+`invalid_resolution_input`/`composition_cycle_detected`/
+`composition_depth_exceeded`), dependances invisibles toujours
+`404 definition_not_found` (non-oracle), les deux nouveaux codes composition
+en `422` (meme famille que `invalid_resolution_input`). Acquisition
+(`resolve_full`) : racine P2, visibilite/liveness P4, chargement transitif
+du sous-graphe `composes_agent` borne/garde-cycle (defense en profondeur,
+le coeur pur revalide), puis coeur pur — exposee par `POST /resolutions`
+(body `AgentResolutionRequest`, `session_overrides` ephemeres, reponse
+`ResolvedAgentDefinition` complete). Limite connue (DEC-0164) : les
+candidats runtime charges par `resolve_full` restent scopes a l'agent
+racine (et son propre profil) — un agent compose n'a pas ses propres
+candidats charges, donc `resolved.runtime` est toujours `null` pour un
+noeud compose via ce chemin (sortie valide, pas une erreur), jusqu'a un
+suivi qui etend le chargement des candidats par noeud. Harness-neutral et
+provider-neutral (`provider_ref`/`model_ref` opaques). Frontiere P6 :
+aucun catalogue, aucune discovery.
 
 ## AI Library — P11 Workflow definition (DEC-0075, sans DDL)
 

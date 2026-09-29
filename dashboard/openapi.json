@@ -2219,6 +2219,110 @@
     }
    }
   },
+  "/api/v1/handoff": {
+   "post": {
+    "tags": [
+     "handoff"
+    ],
+    "summary": "Handoff",
+    "description": "Close a work session in one call. Requires a writer role. Updates the task status (with `expected_version` for optimistic concurrency), releases all claims for the task, logs AI work (if `agent_id` + `summary` provided), and ends the session. The calling machine must own the session. `agent_id` must belong to the caller's machine. Compact response: ids + statuses only. Accepts `Idempotency-Key`: the same key returns the original result instead of running the composite again.",
+    "operationId": "handoff_api_v1_handoff_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/HandoffRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HandoffResult"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Invalid session (no task), version conflict, or actor_not_owned."
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/claims": {
    "get": {
     "tags": [
@@ -11932,72 +12036,8 @@
  "components": {
   "schemas": {
    "AIWorkItem": {
-    "properties": {
-     "id": {
-      "type": "string",
-      "format": "uuid",
-      "title": "Id"
-     },
-     "status": {
-      "type": "string",
-      "title": "Status"
-     },
-     "summary": {
-      "type": "string",
-      "title": "Summary"
-     },
-     "truncated": {
-      "type": "boolean",
-      "title": "Truncated",
-      "default": false
-     },
-     "changed_files": {
-      "items": {
-       "type": "string"
-      },
-      "type": "array",
-      "title": "Changed Files",
-      "default": []
-     },
-     "tests_run": {
-      "items": {
-       "type": "string"
-      },
-      "type": "array",
-      "title": "Tests Run",
-      "default": []
-     },
-     "started_at": {
-      "type": "string",
-      "format": "date-time",
-      "title": "Started At"
-     },
-     "ended_at": {
-      "anyOf": [
-       {
-        "type": "string",
-        "format": "date-time"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Ended At"
-     },
-     "why": {
-      "$ref": "#/components/schemas/Why"
-     }
-    },
-    "type": "object",
-    "required": [
-     "id",
-     "status",
-     "summary",
-     "started_at",
-     "why"
-    ],
-    "title": "AIWorkItem",
-    "description": "One AI work entry relevant to the objective (P2.3): the handoff resume\npacket. `truncated` covers the summary as well as the capped file/test\nlists \u2014 anything cut is counted, never silently dropped, via\n`additional_available` / `omitted_for_budget`."
+    "additionalProperties": true,
+    "type": "object"
    },
    "AIWorkLog": {
     "properties": {
@@ -12039,6 +12079,18 @@
        }
       ],
       "title": "Machine Id"
+     },
+     "session_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Session Id"
      },
      "summary": {
       "type": "string",
@@ -12136,7 +12188,7 @@
      "started_at"
     ],
     "title": "AIWorkLog",
-    "description": "A work entry. `agent_profile`, `harness`, `provider` and `model` are\noptional additive observability metadata \u2014 open strings snapshotting the\nruntime that produced the work, never whitelisted, never an\nauthorization or capability input."
+    "description": "A work entry. `agent_profile`, `harness`, `provider` and `model` are\noptional additive observability metadata \u2014 open strings snapshotting the\nruntime that produced the work, never whitelisted, never an\nauthorization or capability input. `session_id` (L3) links the entry to\nthe work session that produced it for handoff traceability."
    },
    "AIWorkLogCreate": {
     "properties": {
@@ -12173,6 +12225,18 @@
        }
       ],
       "title": "Machine Id"
+     },
+     "session_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Session Id"
      },
      "summary": {
       "type": "string",
@@ -12251,7 +12315,7 @@
      "summary"
     ],
     "title": "AIWorkLogCreate",
-    "description": "`status`, `changed_files` and `tests_run` are optional additive\nfields so work already finished can be logged in one call: a terminal\nstatus sets `ended_at`. `approved`/`changes_requested` are never a valid\ninitial status (they only exit `review_requested`)."
+    "description": "`status`, `changed_files` and `tests_run` are optional additive\nfields so work already finished can be logged in one call: a terminal\nstatus sets `ended_at`. `approved`/`changes_requested` are never a valid\ninitial status (they only exit `review_requested`). `session_id` (L3)\nlinks the entry to the work session that produced it for handoff\ntraceability."
    },
    "AIWorkLogUpdate": {
     "properties": {
@@ -12303,6 +12367,18 @@
        }
       ],
       "title": "Tests Run"
+     },
+     "session_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Session Id"
      }
     },
     "additionalProperties": false,
@@ -13180,59 +13256,8 @@
     "title": "DecisionCreate"
    },
    "DecisionItem": {
-    "properties": {
-     "id": {
-      "type": "string",
-      "format": "uuid",
-      "title": "Id"
-     },
-     "readable_id": {
-      "type": "string",
-      "title": "Readable Id"
-     },
-     "title": {
-      "type": "string",
-      "title": "Title"
-     },
-     "status": {
-      "type": "string",
-      "title": "Status"
-     },
-     "task_id": {
-      "anyOf": [
-       {
-        "type": "string",
-        "format": "uuid"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Task Id"
-     },
-     "body": {
-      "type": "string",
-      "title": "Body"
-     },
-     "truncated": {
-      "type": "boolean",
-      "title": "Truncated",
-      "default": false
-     },
-     "why": {
-      "$ref": "#/components/schemas/Why"
-     }
-    },
-    "type": "object",
-    "required": [
-     "id",
-     "readable_id",
-     "title",
-     "status",
-     "body",
-     "why"
-    ],
-    "title": "DecisionItem"
+    "additionalProperties": true,
+    "type": "object"
    },
    "DecisionStatus": {
     "type": "string",
@@ -13858,6 +13883,165 @@
     },
     "type": "object",
     "title": "HTTPValidationError"
+   },
+   "HandoffRequest": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "session_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Session Id"
+     },
+     "expected_version": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expected Version"
+     },
+     "task_status": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/TaskUpdate"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "agent_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Agent Id"
+     },
+     "summary": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 2000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Summary"
+     },
+     "ai_work_status": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/AIWorkStatus"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "changed_files": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array",
+        "maxItems": 100
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Changed Files"
+     },
+     "tests_run": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array",
+        "maxItems": 100
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Tests Run"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id",
+     "session_id"
+    ],
+    "title": "HandoffRequest",
+    "description": "Composite handoff input. `project_id` and `session_id` are required.\n`expected_version` is the task version for optimistic concurrency on\nthe status update (like `update_task`); required only when `task_status`\nis provided. `task_status` is optional:\nwhen provided, updates the task status (e.g. `completed`, `blocked`).\n`agent_id` + `summary` are optional: when both present, logs an AI\nwork entry with the given status (default `completed`) linked to the\nsession for traceability. `changed_files`/`tests_run` are passed\nthrough to the AI work entry. All composed steps are idempotent on\ntheir own; the `Idempotency-Key` covers the whole composite."
+   },
+   "HandoffResult": {
+    "properties": {
+     "task_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Task Id"
+     },
+     "task_status": {
+      "$ref": "#/components/schemas/TaskStatus"
+     },
+     "task_version": {
+      "type": "integer",
+      "title": "Task Version"
+     },
+     "session_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Session Id"
+     },
+     "released_claims": {
+      "items": {
+       "type": "string",
+       "format": "uuid"
+      },
+      "type": "array",
+      "title": "Released Claims"
+     },
+     "ai_work_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ai Work Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "task_id",
+     "task_status",
+     "task_version",
+     "session_id",
+     "released_claims"
+    ],
+    "title": "HandoffResult",
+    "description": "Compact result: ids + statuses only, never full descriptions.\nReplaying the same `Idempotency-Key` with the same body returns the\noriginal result \u2014 no second status update, no duplicate claim\nreleases, no duplicate AI work entry, no second session end."
    },
    "HeartbeatRequest": {
     "properties": {
@@ -15532,7 +15716,7 @@
      "provenance"
     ],
     "title": "PreservedReference",
-    "description": "A `composes_agent` / `references_workflow` dependency, preserved with\nidentity, exact version and provenance \u2014 never expanded: workflow\nexecution semantics belong to P11 and agent-composition execution has no\ndefined semantics yet (library bindings, resolution engine)."
+    "description": "A `composes_agent` / `references_workflow` dependency, preserved with\nidentity, exact version and provenance. `references_workflow` is never\nexpanded (workflow execution semantics belong to P11). `composes_agent`\nis additionally described by `ResolvedComposedAgent.resolved` (DEC-0164)\n\u2014 this reference alone still carries no execution semantics."
    },
    "ProducerJob": {
     "properties": {
@@ -16240,7 +16424,7 @@
      },
      "composed_agents": {
       "items": {
-       "$ref": "#/components/schemas/PreservedReference"
+       "$ref": "#/components/schemas/ResolvedComposedAgent"
       },
       "type": "array",
       "title": "Composed Agents",
@@ -16272,6 +16456,24 @@
     ],
     "title": "ResolvedAgentDefinition",
     "description": "Canonical P5 output: the complete logical agent specification.\n\nHarness-neutral (no harness-specific branch) and\nprovider-neutral (`provider_ref`/`model_ref` travel as opaque strings\nwhen a binding carries them; no vendor catalog lives here). Stable input\nfor P7 HTTP, P8 MCP, P9 Context Package and P10 adapters."
+   },
+   "ResolvedComposedAgent": {
+    "properties": {
+     "reference": {
+      "$ref": "#/components/schemas/PreservedReference"
+     },
+     "resolved": {
+      "$ref": "#/components/schemas/ResolvedAgentDefinition"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "reference",
+     "resolved"
+    ],
+    "title": "ResolvedComposedAgent",
+    "description": "One `composes_agent` dependency, resolved (DEC-0164): the reference\nitself (identity, exact version, provenance \u2014 same shape as before) plus\nits own complete, independently resolved `ResolvedAgentDefinition`. Built\nby the same pure core recursing on its own sub-graph \u2014 never a second\nresolver, never merged/flattened into the parent's rules or skills."
    },
    "ResolvedModelProfile": {
     "properties": {
@@ -19786,76 +19988,8 @@
     "title": "TaskCreate"
    },
    "TaskItem": {
-    "properties": {
-     "id": {
-      "type": "string",
-      "format": "uuid",
-      "title": "Id"
-     },
-     "readable_id": {
-      "anyOf": [
-       {
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Readable Id"
-     },
-     "title": {
-      "type": "string",
-      "title": "Title"
-     },
-     "status": {
-      "type": "string",
-      "title": "Status"
-     },
-     "description": {
-      "anyOf": [
-       {
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Description"
-     },
-     "truncated": {
-      "type": "boolean",
-      "title": "Truncated",
-      "default": false
-     },
-     "claimed_by_machine_id": {
-      "anyOf": [
-       {
-        "type": "string",
-        "format": "uuid"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Claimed By Machine Id"
-     },
-     "claimed_by_self": {
-      "type": "boolean",
-      "title": "Claimed By Self",
-      "default": false
-     },
-     "why": {
-      "$ref": "#/components/schemas/Why"
-     }
-    },
-    "type": "object",
-    "required": [
-     "id",
-     "title",
-     "status",
-     "why"
-    ],
-    "title": "TaskItem"
+    "additionalProperties": true,
+    "type": "object"
    },
    "TaskPlanItem": {
     "properties": {
