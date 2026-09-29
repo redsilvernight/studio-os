@@ -6,6 +6,7 @@ from pathlib import Path
 
 MANAGED_MARKER = "Studio OS managed by setup-hooks"
 AGENT_STORE_REL = Path(".claude") / "studio-agent.json"
+GUARD_REL = Path(".claude") / "scripts" / "studio-git-guard.ps1"
 
 _HOOK_PS_TEMPLATE = """# Studio OS — demarrage de session (__HARNESS_LABEL__).
 # __MANAGED_MARKER__ (W2b/DEC-0100). Fichier d'integration Studio OS :
@@ -17,9 +18,14 @@ $ErrorActionPreference = 'Stop'
 $OutputFormat = '__OUTPUT__'
 try {
     $cwd = $null
+    $modelRef = $null
     try {
         $raw = [Console]::In.ReadToEnd()
-        if ($raw) { $cwd = ($raw | ConvertFrom-Json).cwd }
+        if ($raw) {
+            $payload = ($raw | ConvertFrom-Json)
+            $cwd = $payload.cwd
+            $modelRef = $payload.model
+        }
     } catch {}
     if (-not $cwd) { $cwd = (Get-Location).Path }
 
@@ -149,8 +155,110 @@ try {
             $lines += "agent_id __HARNESS_LABEL__ manquant (hors ligne ou sans credential) :"
             $lines += 'le signaler en cloture, ne pas chercher de jeton.'
         }
+__MODEL_BLOCK__
         $lines | Write-Output
     }
+} catch {
+    exit 0
+}
+"""
+
+_MODEL_BLOCK_PS = """
+    # Bloc modele (AIB L1, sortie texte) : un agent par couple (harness, modele).
+    # Cache local "__AGENT_KEY__:<provider>/<model>" dans studio-agent.json.
+    # Resolu via POST /agents/ensure (idempotent, stable_key dedie), fail-open.
+    if ($modelRef) {
+        $cacheKey = "__AGENT_KEY__:$modelRef"
+        $modelAgentId = $null
+        try {
+            if (Test-Path -LiteralPath $agentPath) {
+                $stored = Get-Content -LiteralPath $agentPath -Raw | ConvertFrom-Json
+                $modelAgentId = $stored."$cacheKey"
+            }
+        } catch {}
+        if (-not $modelAgentId) {
+            try {
+                $haveClient = Get-Command studio-client -ErrorAction SilentlyContinue
+                if ($wsServerOrigin -and $haveClient) {
+                    $env:STUDIO_CLIENT_API_BASE_URL = $wsServerOrigin
+                    $prov = $null
+                    $mid = [string]$modelRef
+                    $slash = $mid.IndexOf('/')
+                    if ($slash -ge 0) {
+                        $prov = $mid.Substring(0, $slash)
+                        $mid = $mid.Substring($slash + 1)
+                    }
+                    $ensureArgs = @(
+                        'agents', 'ensure',
+                        '--harness', '__HARNESS__',
+                        '--model', $mid,
+                        '--stable-key', "agents-ensure-__HARNESS__:$modelRef",
+                        '--json'
+                    )
+                    if ($prov) { $ensureArgs += @('--provider', $prov) }
+                    $ensured = (& studio-client @ensureArgs 2>$null | ConvertFrom-Json)
+                    if ($ensured -and $ensured.id) {
+                        $modelAgentId = [string]$ensured.id
+                        $doc = @{}
+                        try {
+                            $rawDoc = Get-Content -LiteralPath $agentPath -Raw -ErrorAction Stop
+                            $parsedDoc = $rawDoc | ConvertFrom-Json -ErrorAction Stop
+                            foreach ($p in $parsedDoc.PSObject.Properties) {
+                                $doc[$p.Name] = $p.Value
+                            }
+                        } catch {}
+                        $doc[$cacheKey] = $modelAgentId
+                        $docJson = $doc | ConvertTo-Json -Compress
+                        $docJson | Set-Content -LiteralPath $agentPath -Encoding utf8
+                    }
+                }
+            } catch {}
+        }
+        if ($modelAgentId) {
+            $lines += "agent_id Studio OS de ce harness/modele ($modelRef) : " +
+                "$modelAgentId (studio_start_session, studio_log_ai_work)."
+        }
+    }
+"""
+
+_GUARD_PS_TEMPLATE = """# __MANAGED_MARKER__ (L1/setup-hooks). Fichier d'integration Studio OS :
+# safe a regenerer via `studio-client setup-hooks`. Bloque un `git commit`
+# direct sur une branche protegee (roadmap/*, phase/*, ou master/main avec une
+# branche `roadmap`) ; les fusions par git merge apres approbation passent.
+# Sortie 2 = commande bloquee, 0 = autorisee ; fail-open (jamais 1). Aucun
+# secret, aucun chemin absolu.
+$ErrorActionPreference = 'Stop'
+try {
+    $in = [Console]::In.ReadToEnd() | ConvertFrom-Json
+    $cmd = [string]$in.tool_input.command
+    $commitRe = '(^|[;&|\\r\\n]|&&|\\|\\|)' +
+        '\\s*(rtk\\s+)?git(\\s+-[Cc]\\s+\\S+)*\\s+commit\\b'
+    if ($cmd -notmatch $commitRe) { exit 0 }
+
+    $cwd = if ($in.cwd) { $in.cwd } else { (Get-Location).Path }
+    Push-Location -LiteralPath $cwd
+    try {
+        $branch = (git branch --show-current 2>$null)
+        if (-not $branch) { exit 0 }
+        git rev-parse -q --verify MERGE_HEAD *> $null
+        if ($LASTEXITCODE -eq 0) { exit 0 }
+        $protected = $branch -like 'roadmap/*' -or $branch -like 'phase/*'
+        if (-not $protected -and $branch -in @('master', 'main')) {
+            $roadmapRef = git for-each-ref --count=1 --format='%(refname)' `
+                refs/heads/roadmap 2>$null
+            $protected = [bool]$roadmapRef
+        }
+    } finally {
+        Pop-Location
+    }
+    if ($protected) {
+        $msg = "studio-git-guard: commit direct interdit sur '$branch'. " +
+            "Travailler sur une branche task/* (skill studio-git-flow) ; " +
+            "les fusions se font par git merge apres approbation."
+        [Console]::Error.WriteLine($msg)
+        exit 2
+    }
+    exit 0
 } catch {
     exit 0
 }
@@ -169,6 +277,7 @@ class HarnessSpec:
     hook_rel: Path
     agent_key: str
     output: str
+    model_protocol: bool = False
     config_markers: tuple[str, ...] = ()
     binaries: tuple[str, ...] = ()
     register_hint: str = ""
@@ -195,6 +304,7 @@ HARNESSES: tuple[HarnessSpec, ...] = (
         hook_rel=Path(".config") / "opencode" / "scripts" / "studio-session-start-opencode.ps1",
         agent_key="opencode",
         output="text",
+        model_protocol=True,
         config_markers=(".config/opencode/opencode.jsonc", ".config/opencode/opencode.json"),
         binaries=("opencode",),
         register_hint=(
@@ -221,10 +331,14 @@ HARNESSES: tuple[HarnessSpec, ...] = (
 
 def render_hook(spec: HarnessSpec) -> str:
     """Render the versioned session-start hook for `spec`. Pure text: no
-    secret, no absolute path, no network — the harness name and agent key
-    are the only interpolations."""
+    secret, no absolute path — the harness name, agent key, output format,
+    managed marker and (text harnesses) the per-model agent block are the
+    only interpolations. The model block reads/writes only the non-secret
+    agent id store; any network call goes through `studio-client`."""
+    model_block = _MODEL_BLOCK_PS if spec.model_protocol else ""
     return (
-        _HOOK_PS_TEMPLATE.replace("__HARNESS__", spec.harness)
+        _HOOK_PS_TEMPLATE.replace("__MODEL_BLOCK__", model_block)
+        .replace("__HARNESS__", spec.harness)
         .replace("__HARNESS_LABEL__", spec.label)
         .replace("__AGENT_KEY__", spec.agent_key)
         .replace("__OUTPUT__", spec.output)
@@ -324,4 +438,64 @@ def deploy_hooks(
         result.reports.append(
             DeployReport(spec.harness, str(target), "overwritten" if overwrite else "deployed")
         )
+    return result
+
+
+def render_guard() -> str:
+    """Render the versioned git guard. Pure text: only the managed marker is
+    interpolated — no secret, no absolute path, no machine-specific value."""
+    return _GUARD_PS_TEMPLATE.replace("__MANAGED_MARKER__", MANAGED_MARKER)
+
+
+def guard_state(home: Path) -> str:
+    """State of the git guard the harnesses call: `guard-missing`,
+    `guard-managed` or `guard-foreign`."""
+    target = home / GUARD_REL
+    if not target.is_file():
+        return "guard-missing"
+    return "guard-managed" if is_managed(target) else "guard-foreign"
+
+
+def deploy_guard(
+    home: Path,
+    *,
+    overwrite: bool = False,
+    dry_run: bool = False,
+) -> DeployResult:
+    """Write the managed git guard under `home`. Same semantics as
+    `deploy_hooks`: idempotent (`unchanged`), a foreign file is never
+    overwritten without `overwrite=True` (`needs-overwrite`), `dry_run`
+    writes nothing, atomic replace, no secret written."""
+    result = DeployResult()
+    target = home / GUARD_REL
+    if target.is_file():
+        if is_managed(target) and not overwrite:
+            result.reports.append(DeployReport("git-guard", str(target), "unchanged"))
+            return result
+        if not is_managed(target) and not overwrite:
+            result.reports.append(
+                DeployReport(
+                    "git-guard",
+                    str(target),
+                    "needs-overwrite",
+                    "foreign guard file present; rerun with --overwrite",
+                )
+            )
+            return result
+    if dry_run:
+        result.reports.append(
+            DeployReport(
+                "git-guard",
+                str(target),
+                "would-deploy" if not target.is_file() else "would-overwrite",
+            )
+        )
+        return result
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_name(target.name + ".tmp")
+    tmp.write_text(render_guard(), encoding="utf-8")
+    os.replace(tmp, target)
+    result.reports.append(
+        DeployReport("git-guard", str(target), "overwritten" if overwrite else "deployed")
+    )
     return result
