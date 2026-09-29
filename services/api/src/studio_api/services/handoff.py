@@ -9,6 +9,8 @@ Idempotent via `Idempotency-Key` (same key returns the original result)."""
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -96,7 +98,8 @@ async def handoff(
                 request.expected_version,
             )
         except HTTPException as exc:
-            detail = exc.detail if isinstance(exc.detail, dict) else {}
+            raw_detail = exc.detail
+            detail: dict[str, Any] = raw_detail if isinstance(raw_detail, dict) else {}
             if (
                 exc.status_code != status.HTTP_409_CONFLICT
                 or detail.get("error_code") != "version_conflict"
