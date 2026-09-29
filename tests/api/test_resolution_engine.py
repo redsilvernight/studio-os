@@ -20,6 +20,7 @@ from studio_contracts.library import (
     VersionOrigin,
 )
 from studio_contracts.resolution import (
+    MAX_COMPOSITION_DEPTH,
     AgentResolutionSnapshot,
     NodeBinding,
     ResolutionErrorCode,
@@ -423,7 +424,10 @@ def test_duplicate_live_candidates_are_invalid_input() -> None:
     assert exc_info.value.error.error_code == ResolutionErrorCode.INVALID_RESOLUTION_INPUT
 
 
-def test_composed_agents_and_workflows_preserved_not_expanded() -> None:
+def test_composed_agent_resolved_workflow_preserved_not_expanded() -> None:
+    """DEC-0164: composed_agent is now recursively resolved (own full
+    ResolvedAgentDefinition); references_workflow is untouched by DEC-0164
+    and still preserved without expansion (P11 territory)."""
     other = _node(AGENT, "other", _agent_content(), origin=VersionOrigin.ACTIVE)
     flow = _node(
         WORKFLOW,
@@ -442,12 +446,173 @@ def test_composed_agents_and_workflows_preserved_not_expanded() -> None:
     )
     resolved = resolve_agent(_snapshot(agent, [other, flow]))
 
-    assert [r.stable_key for r in resolved.composed_agents] == ["other"]
+    assert [c.reference.stable_key for c in resolved.composed_agents] == ["other"]
     assert [r.stable_key for r in resolved.workflows] == ["flow"]
     assert resolved.rules == []
     assert resolved.skills == []
-    assert resolved.composed_agents[0].relation == BindingRelation.COMPOSES_AGENT
+    assert resolved.composed_agents[0].reference.relation == BindingRelation.COMPOSES_AGENT
     assert resolved.workflows[0].relation == BindingRelation.REFERENCES_WORKFLOW
+
+    nested = resolved.composed_agents[0].resolved
+    assert nested.agent.stable_key == "other"
+    assert nested.agent.version_origin == VersionOrigin.ACTIVE
+    assert nested.composed_agents == []
+
+
+def test_composed_agent_multi_level_recursion() -> None:
+    """A -> B -> C, each level with its own rule: DEC-0164's actual multi-
+    level expansion. No cross-tree merging: each node's `rules` list only
+    ever contains that node's own rules."""
+    rule_c = _node(RULE, "rc", _rule_content("C's own rule."))
+    agent_c = _node(
+        AGENT, "c", _agent_content(), bindings=[_pin(BindingRelation.APPLIES_RULE, rule_c)]
+    )
+    rule_b = _node(RULE, "rb", _rule_content("B's own rule."))
+    agent_b = _node(
+        AGENT,
+        "b",
+        _agent_content(),
+        bindings=[
+            _pin(BindingRelation.APPLIES_RULE, rule_b),
+            _pin(BindingRelation.COMPOSES_AGENT, agent_c),
+        ],
+    )
+    agent_a = _node(
+        AGENT, "a", _agent_content(), bindings=[_pin(BindingRelation.COMPOSES_AGENT, agent_b)]
+    )
+
+    resolved = resolve_agent(_snapshot(agent_a, [agent_b, agent_c, rule_b, rule_c]))
+
+    assert resolved.rules == []
+    (composed_b,) = resolved.composed_agents
+    assert composed_b.reference.stable_key == "b"
+    nested_b = composed_b.resolved
+    assert [r.stable_key for r in nested_b.rules] == ["rb"]
+    (composed_c,) = nested_b.composed_agents
+    assert composed_c.reference.stable_key == "c"
+    nested_c = composed_c.resolved
+    assert [r.stable_key for r in nested_c.rules] == ["rc"]
+    assert nested_c.composed_agents == []
+
+
+def test_composed_agent_direct_cycle_fails_closed() -> None:
+    agent = _node(AGENT, "a", _agent_content())
+    agent.bindings = [_pin(BindingRelation.COMPOSES_AGENT, agent)]
+
+    with pytest.raises(ResolutionFailure) as excinfo:
+        resolve_agent(_snapshot(agent, [agent]))
+
+    assert excinfo.value.error.error_code == ResolutionErrorCode.COMPOSITION_CYCLE_DETECTED
+
+
+def test_composed_agent_transitive_cycle_fails_closed() -> None:
+    agent_b = _node(AGENT, "b", _agent_content())
+    agent_a = _node(
+        AGENT, "a", _agent_content(), bindings=[_pin(BindingRelation.COMPOSES_AGENT, agent_b)]
+    )
+    agent_b.bindings = [_pin(BindingRelation.COMPOSES_AGENT, agent_a)]
+
+    with pytest.raises(ResolutionFailure) as excinfo:
+        resolve_agent(_snapshot(agent_a, [agent_b]))
+
+    assert excinfo.value.error.error_code == ResolutionErrorCode.COMPOSITION_CYCLE_DETECTED
+
+
+def test_composed_agent_depth_exceeded_fails_closed() -> None:
+    """A straight composition chain one level deeper than MAX_COMPOSITION_DEPTH
+    allows must fail closed, never recurse unbounded."""
+    nodes: list[ResolutionNode] = []
+    tail = _node(AGENT, "n0", _agent_content())
+    nodes.append(tail)
+    for level in range(1, MAX_COMPOSITION_DEPTH + 2):
+        current = _node(
+            AGENT,
+            f"n{level}",
+            _agent_content(),
+            bindings=[_pin(BindingRelation.COMPOSES_AGENT, tail)],
+        )
+        nodes.append(current)
+        tail = current
+
+    with pytest.raises(ResolutionFailure) as excinfo:
+        resolve_agent(_snapshot(tail, nodes))
+
+    assert excinfo.value.error.error_code == ResolutionErrorCode.COMPOSITION_DEPTH_EXCEEDED
+
+
+def test_composed_agent_same_dependency_from_two_branches_not_merged() -> None:
+    """The same rule reachable from both a composed agent and its parent stays
+    two independent objects, one per node's own `rules` list — DEC-0164 does
+    not introduce cross-tree dedup (plan-agnosticism, task 5a9dd677)."""
+    shared_rule_content = _rule_content("Shared text, independently pinned.")
+    rule_for_a = _node(RULE, "shared", shared_rule_content, version=1)
+    rule_for_b = _node(RULE, "shared", shared_rule_content, version=1)
+    agent_b = _node(
+        AGENT, "b", _agent_content(), bindings=[_pin(BindingRelation.APPLIES_RULE, rule_for_b)]
+    )
+    agent_a = _node(
+        AGENT,
+        "a",
+        _agent_content(),
+        bindings=[
+            _pin(BindingRelation.APPLIES_RULE, rule_for_a),
+            _pin(BindingRelation.COMPOSES_AGENT, agent_b),
+        ],
+    )
+
+    resolved = resolve_agent(_snapshot(agent_a, [agent_b, rule_for_a, rule_for_b]))
+
+    assert [r.stable_key for r in resolved.rules] == ["shared"]
+    nested_b = resolved.composed_agents[0].resolved
+    assert [r.stable_key for r in nested_b.rules] == ["shared"]
+
+
+def test_composed_agent_diamond_shape_not_flagged_as_cycle() -> None:
+    """A composes both B and C, and B and C both compose the same D: a
+    legitimate diamond, not a cycle. `visited` must be threaded per-branch
+    (by value), never shared/mutated across sibling recursion calls."""
+    agent_d = _node(AGENT, "d", _agent_content())
+    agent_b = _node(
+        AGENT, "b", _agent_content(), bindings=[_pin(BindingRelation.COMPOSES_AGENT, agent_d)]
+    )
+    agent_c = _node(
+        AGENT, "c", _agent_content(), bindings=[_pin(BindingRelation.COMPOSES_AGENT, agent_d)]
+    )
+    agent_a = _node(
+        AGENT,
+        "a",
+        _agent_content(),
+        bindings=[
+            _pin(BindingRelation.COMPOSES_AGENT, agent_b),
+            _pin(BindingRelation.COMPOSES_AGENT, agent_c),
+        ],
+    )
+
+    resolved = resolve_agent(_snapshot(agent_a, [agent_b, agent_c, agent_d]))
+
+    stable_keys = {c.reference.stable_key for c in resolved.composed_agents}
+    assert stable_keys == {"b", "c"}
+    for composed in resolved.composed_agents:
+        (grandchild,) = composed.resolved.composed_agents
+        assert grandchild.reference.stable_key == "d"
+        assert grandchild.resolved.composed_agents == []
+
+
+def test_composed_agent_tree_deterministic_across_permutations() -> None:
+    rule_b = _node(RULE, "rb", _rule_content())
+    agent_b = _node(
+        AGENT, "b", _agent_content(), bindings=[_pin(BindingRelation.APPLIES_RULE, rule_b)]
+    )
+    agent_a = _node(
+        AGENT, "a", _agent_content(), bindings=[_pin(BindingRelation.COMPOSES_AGENT, agent_b)]
+    )
+    nodes = [agent_b, rule_b]
+
+    first = resolve_agent(_snapshot(agent_a, nodes))
+    second = resolve_agent(_snapshot(agent_a, list(reversed(nodes))))
+
+    assert first == second
+    assert first.model_dump_json() == second.model_dump_json()
 
 
 def test_deterministic_same_snapshot_same_result() -> None:
