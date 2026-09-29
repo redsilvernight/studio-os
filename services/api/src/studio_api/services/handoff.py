@@ -9,13 +9,17 @@ Idempotent via `Idempotency-Key` (same key returns the original result)."""
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from studio_contracts.ai_work import AIWorkLogCreate, AIWorkStatus
+from studio_contracts.ai_work import AIWorkLogCreate, AIWorkLogUpdate, AIWorkStatus
 from studio_contracts.handoff import HandoffRequest, HandoffResult
 from studio_contracts.tasks import TaskStatus
 
 from studio_api.db.models.agent import AgentModel
+from studio_api.db.models.ai_work import AIWorkLogModel
 from studio_api.db.models.work_session import WorkSessionModel
 from studio_api.services import ai_work as ai_work_service
 from studio_api.services import claims as claims_service
@@ -72,43 +76,109 @@ async def handoff(
     # Verify session ownership
     ensure_machine_owned(principal, work_session.machine_id, "session", "end")
 
-    # Update task status if provided
+    # Update task status if provided. A retry after a partial failure
+    # converges instead of 409: when the version already moved but every
+    # requested field is applied, the update is treated as done (DEC-0163).
     if request.task_status is not None:
+        if request.expected_version is None:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={
+                    "error_code": "missing_expected_version",
+                    "message": "expected_version is required when task_status is provided",
+                },
+            )
         task_update = request.task_status
-        task = await tasks_service.update_task(
-            session,
-            principal,
-            task,
-            task_update,
-            request.expected_version,
-        )
+        try:
+            task = await tasks_service.update_task(
+                session,
+                principal,
+                task,
+                task_update,
+                request.expected_version,
+            )
+        except HTTPException as exc:
+            raw_detail = exc.detail
+            detail: dict[str, Any] = raw_detail if isinstance(raw_detail, dict) else {}
+            if (
+                exc.status_code != status.HTTP_409_CONFLICT
+                or detail.get("error_code") != "version_conflict"
+            ):
+                raise
+            refreshed = await tasks_service.get_task(session, task.id)
+            if refreshed is None:
+                raise
+            # Convergence compares every field of TaskUpdate (title,
+            # description, status): keep this exhaustive if TaskUpdate grows,
+            # otherwise a retry could silently swallow a new field (DEC-0163).
+            if (
+                (task_update.title is not None and refreshed.title != task_update.title)
+                or (
+                    task_update.description is not None
+                    and refreshed.description != task_update.description
+                )
+                or (task_update.status is not None and refreshed.status != task_update.status.value)
+            ):
+                raise
+            task = refreshed
 
     # Release all claims for the task
     released_claims = await claims_service.release_task_claims_by_task(session, principal, task)
 
-    # Log AI work if agent_id provided
+    # Log AI work if agent_id provided. A retry converges: the entry already
+    # logged for this (session, agent) pair is updated instead of duplicated,
+    # so a pre-existing `started` entry receives the handoff's summary, final
+    # status, files and tests instead of losing them. Earliest first:
+    # deterministic (DEC-0163).
     ai_work_id = None
     if request.agent_id is not None and request.summary is not None:
-        ai_work = await ai_work_service.create_ai_work(
-            session,
-            principal,
-            AIWorkLogCreate(
-                task_id=task.id,
-                project_id=request.project_id,
-                agent_id=request.agent_id,
-                machine_id=principal.machine.id,
-                session_id=request.session_id,
-                summary=request.summary,
-                status=(
-                    AIWorkStatus(request.ai_work_status)
-                    if request.ai_work_status is not None
-                    else AIWorkStatus.COMPLETED
-                ),
-                changed_files=request.changed_files or [],
-                tests_run=request.tests_run or [],
-            ),
+        target_status = (
+            request.ai_work_status if request.ai_work_status is not None else AIWorkStatus.COMPLETED
         )
-        ai_work_id = ai_work.id
+        existing = (
+            (
+                await session.execute(
+                    select(AIWorkLogModel)
+                    .where(
+                        AIWorkLogModel.session_id == request.session_id,
+                        AIWorkLogModel.agent_id == request.agent_id,
+                    )
+                    .order_by(AIWorkLogModel.started_at)
+                )
+            )
+            .scalars()
+            .first()
+        )
+        if existing is not None:
+            updated = await ai_work_service.update_ai_work(
+                session,
+                principal,
+                existing,
+                AIWorkLogUpdate(
+                    summary=request.summary,
+                    status=target_status,
+                    changed_files=request.changed_files,
+                    tests_run=request.tests_run,
+                ),
+            )
+            ai_work_id = updated.id
+        else:
+            ai_work = await ai_work_service.create_ai_work(
+                session,
+                principal,
+                AIWorkLogCreate(
+                    task_id=task.id,
+                    project_id=request.project_id,
+                    agent_id=request.agent_id,
+                    machine_id=principal.machine.id,
+                    session_id=request.session_id,
+                    summary=request.summary,
+                    status=target_status,
+                    changed_files=request.changed_files or [],
+                    tests_run=request.tests_run or [],
+                ),
+            )
+            ai_work_id = ai_work.id
 
     # End the session
     await sessions_service.end_session(session, principal, request.session_id)

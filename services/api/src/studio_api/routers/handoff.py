@@ -47,6 +47,8 @@ async def handoff(
         default=None, alias="Idempotency-Key", description=IDEMPOTENCY_KEY_DESCRIPTION
     ),
 ) -> HandoffResult:
+    await handoff_service.authorize_handoff(session, principal, request_in)
+
     async def _run() -> HandoffResult:
         return await handoff_service.handoff(session, principal, request_in)
 

@@ -199,9 +199,11 @@ async def get_claim(session: AsyncSession, claim_id: uuid.UUID) -> ResourceClaim
 async def release_task_claims_by_task(
     session: AsyncSession, principal: Principal, task: TaskModel
 ) -> list[ResourceClaimModel]:
-    """Release all active claims for a given task. Used by L3 handoff
-    fallback when a session ends. Idempotent: already-released claims
-    are skipped without error."""
+    """Release all active claims for a given task. Used by L3 handoff and
+    the `end_session` fallback. Each release goes through `release_claim`
+    so a `resource.released` event is emitted per claim, exactly like a
+    single release. Idempotent: already-released claims are skipped
+    without error; claims held by another machine are never touched."""
     ensure_project_access(principal, task.project_id, "write")
     result = await session.execute(
         select(ResourceClaimModel).where(
@@ -212,14 +214,8 @@ async def release_task_claims_by_task(
     claims = list(result.scalars().all())
     released = []
     for claim in claims:
-        # Ownership check per claim: only the holding machine can release
+        # Ownership check per claim: only the holding machine can release.
         if claim.claimed_by_machine_id != principal.machine.id:
             continue
-        claim.status = "released"
-        claim.released_at = datetime.now(UTC)
-        released.append(claim)
-    if released:
-        await session.commit()
-        for claim in released:
-            await session.refresh(claim)
+        released.append(await release_claim(session, principal, claim))
     return released

@@ -222,6 +222,14 @@ async def end_session(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "session not found")
     await _ensure_task_project_access(session, principal, work_session.task_id, "write")
     ensure_machine_owned(principal, work_session.machine_id, "session", "end")
+    # L3 fallback: release the task's claims before marking the session ended
+    # so a mid-call failure retries cleanly, and also on the already-ended
+    # path so a previous partial failure still converges (DEC-0163). Releases
+    # are idempotent with one `resource.released` per claim.
+    if work_session.task_id is not None:
+        task = await tasks_service.get_task(session, work_session.task_id)
+        if task is not None:
+            await claims_service.release_task_claims_by_task(session, principal, task)
     if work_session.ended_at is not None:
         return work_session
     now = datetime.now(UTC)
@@ -230,11 +238,6 @@ async def end_session(
     await session.commit()
     await session.refresh(work_session)
     await _emit_session_event(session, principal, work_session, EventType.SESSION_ENDED)
-    # Release all claims for this task (L3 handoff minimal fallback)
-    if work_session.task_id is not None:
-        task = await tasks_service.get_task(session, work_session.task_id)
-        if task is not None:
-            await claims_service.release_task_claims_by_task(session, principal, task)
     return work_session
 
 
