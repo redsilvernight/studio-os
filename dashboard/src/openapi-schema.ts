@@ -3775,8 +3775,8 @@ export interface components {
          * @description A `composes_agent` / `references_workflow` dependency, preserved with
          *     identity, exact version and provenance. `references_workflow` is never
          *     expanded (workflow execution semantics belong to P11). `composes_agent`
-         *     is additionally described by `ResolvedComposedAgent.resolved` (DEC-0164)
-         *     — this reference alone still carries no execution semantics.
+         *     is additionally described by `ResolvedComposedAgent.resolved` — this
+         *     reference alone still carries no execution semantics.
          */
         PreservedReference: {
             /**
@@ -4154,10 +4154,10 @@ export interface components {
         };
         /**
          * ResolvedComposedAgent
-         * @description One `composes_agent` dependency, resolved (DEC-0164): the reference
-         *     itself (identity, exact version, provenance — same shape as before) plus
-         *     its own complete, independently resolved `ResolvedAgentDefinition`. Built
-         *     by the same pure core recursing on its own sub-graph — never a second
+         * @description One `composes_agent` dependency, resolved: the reference itself
+         *     (identity, exact version, provenance — same shape as before) plus its
+         *     own complete, independently resolved `ResolvedAgentDefinition`. Built by
+         *     the same pure core recursing on its own sub-graph — never a second
          *     resolver, never merged/flattened into the parent's rules or skills.
          */
         ResolvedComposedAgent: {

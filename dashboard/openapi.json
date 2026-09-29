@@ -15716,7 +15716,7 @@
      "provenance"
     ],
     "title": "PreservedReference",
-    "description": "A `composes_agent` / `references_workflow` dependency, preserved with\nidentity, exact version and provenance. `references_workflow` is never\nexpanded (workflow execution semantics belong to P11). `composes_agent`\nis additionally described by `ResolvedComposedAgent.resolved` (DEC-0164)\n\u2014 this reference alone still carries no execution semantics."
+    "description": "A `composes_agent` / `references_workflow` dependency, preserved with\nidentity, exact version and provenance. `references_workflow` is never\nexpanded (workflow execution semantics belong to P11). `composes_agent`\nis additionally described by `ResolvedComposedAgent.resolved` \u2014 this\nreference alone still carries no execution semantics."
    },
    "ProducerJob": {
     "properties": {
@@ -16473,7 +16473,7 @@
      "resolved"
     ],
     "title": "ResolvedComposedAgent",
-    "description": "One `composes_agent` dependency, resolved (DEC-0164): the reference\nitself (identity, exact version, provenance \u2014 same shape as before) plus\nits own complete, independently resolved `ResolvedAgentDefinition`. Built\nby the same pure core recursing on its own sub-graph \u2014 never a second\nresolver, never merged/flattened into the parent's rules or skills."
+    "description": "One `composes_agent` dependency, resolved: the reference itself\n(identity, exact version, provenance \u2014 same shape as before) plus its\nown complete, independently resolved `ResolvedAgentDefinition`. Built by\nthe same pure core recursing on its own sub-graph \u2014 never a second\nresolver, never merged/flattened into the parent's rules or skills."
    },
    "ResolvedModelProfile": {
     "properties": {
