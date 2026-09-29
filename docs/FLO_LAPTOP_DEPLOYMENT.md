@@ -1,7 +1,20 @@
 # Déploiement local sur Flo-laptop
 
-Flo-laptop se déploie avec une commande PowerShell lancée localement sur la
-machine. Il n’y a ni runner GitHub auto-hébergé, ni polling, ni SSH/WinRM entrant.
+Flo-laptop se déploie de deux façons, toutes deux lancées localement sur la
+machine. Il n’y a ni runner GitHub auto-hébergé, ni SSH/WinRM entrant.
+
+- **Automatique (production)** : la tâche planifiée Windows `StudioOS-DeployPoll`
+  (enregistrée par `docker/install-deploy-task.ps1`, toutes les 5 minutes) exécute
+  `docker/deploy-poll.ps1`, présent sur la branche `deploy/flo-laptop`. Quand la
+  pointe de cette branche change, il construit `api mcp dashboard`, applique Alembic,
+  recrée les services et attend `/healthz` (180 s). En cas d’échec il remet le code
+  précédent ; les migrations ne sont jamais annulées et aucune sauvegarde n’est
+  faite : sauvegarder PostgreSQL avant de pousser une migration sensible. L’état et
+  les logs sont dans `%LOCALAPPDATA%\studio-os-deploy` (`deployed.rev`,
+  `failed.rev`, `deploy-AAAAMMJJ.log`). Le poll n’est pas un runner : il ne fait que
+  tirer une branche que vous avez poussée.
+- **Manuelle (commit précis)** : la procédure ci-dessous.
+
 Le dépôt étant public, un runner permanent ayant accès à Docker et aux volumes de
 production créerait une frontière de confiance inutilement dangereuse.
 
