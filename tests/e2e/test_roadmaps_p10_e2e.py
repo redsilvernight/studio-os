@@ -149,7 +149,7 @@ async def _transition(client: AsyncClient, actor: Actor, roadmap: Json, name: st
 
 
 async def _context(actor: Actor, project_id: str, objective: str = "work on the plan") -> Json:
-    return dump(await studio_prepare_context(project_id, objective, actor.ctx))
+    return dump(await studio_prepare_context(project_id, actor.ctx, objective=objective))
 
 
 async def _bootstrap_active(
