@@ -960,9 +960,11 @@ def _workspaces_register(args: argparse.Namespace, config: ClientConfig) -> None
 
 def _rules_sync(args: argparse.Namespace, config: ClientConfig | None) -> None:
     """Regenerate rule projections (P3): `.claude/rules/*.md` plus the
-    AGENTS.md rules block, both from `.agents/rules/`. Never merges."""
+    AGENTS.md rules block, both from `.agents/rules/`. Every replaced file is
+    backed up first."""
     import re
 
+    from studio_client.bootstrap import backup_file, backup_root_for
     from studio_client.canonical import (
         canonical_rule_keys,
         load_rule_meta,
@@ -972,6 +974,7 @@ def _rules_sync(args: argparse.Namespace, config: ClientConfig | None) -> None:
 
     _ = config
     root = Path(args.repo_root)
+    backup_root = backup_root_for(root)
     written: list[str] = []
     for key in canonical_rule_keys(root):
         applies_to, body = load_rule_meta(root, key)
@@ -979,6 +982,8 @@ def _rules_sync(args: argparse.Namespace, config: ClientConfig | None) -> None:
         if target.exists() and not args.overwrite:
             print(f"skip {target} (exists, pass --overwrite)")
             continue
+        if target.exists():
+            backup_file(root, target.relative_to(root).as_posix(), backup_root)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(render_claude_rule(key, applies_to, body), encoding="utf-8")
         written.append(str(target))
@@ -995,6 +1000,7 @@ def _rules_sync(args: argparse.Namespace, config: ClientConfig | None) -> None:
     if count != 1:
         print("error: AGENTS.md rules block markers not found", file=sys.stderr)
         raise SystemExit(1) from None
+    backup_file(root, "AGENTS.md", backup_root)
     agents_md.write_text(updated, encoding="utf-8")
     written.append(str(agents_md))
     if args.json:
