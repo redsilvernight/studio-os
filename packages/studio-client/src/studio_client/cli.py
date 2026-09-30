@@ -887,6 +887,45 @@ def _bootstrap_sync(args: argparse.Namespace, config: ClientConfig | None) -> No
         print("Already up to date.")
 
 
+def _bootstrap_rollback(args: argparse.Namespace, config: ClientConfig | None) -> None:
+    from studio_client.bootstrap import BootstrapError, list_backups, rollback
+
+    _ = config
+    if args.list:
+        backups = list_backups(args.repo_root)
+        if args.json:
+            payload: dict[str, Any] = {
+                "backups": [
+                    {
+                        "id": backup.directory.name,
+                        "created_at": backup.created_at,
+                        "status": backup.status,
+                        "entries": len(backup.entries),
+                    }
+                    for backup in backups
+                ]
+            }
+            print(json.dumps(payload, indent=2))
+        elif not backups:
+            print("No bootstrap backups.")
+        else:
+            for backup in backups:
+                print(f"{backup.directory.name} {backup.status} {len(backup.entries)} files")
+        return
+    try:
+        undone = rollback(args.repo_root, backup_id=args.backup_id, force=args.force)
+    except BootstrapError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
+    if args.json:
+        print(json.dumps({"rolled_back": undone}))
+    elif undone:
+        for path in undone:
+            print(f"Rolled back {path}.")
+    else:
+        print("Nothing to roll back.")
+
+
 def _workspaces_register(args: argparse.Namespace, config: ClientConfig) -> None:
     from studio_contracts.local.identity import ProfileRef
     from studio_workspaces import WorkspaceStoreError, register_workspace
@@ -1454,6 +1493,22 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_json_flag(bootstrap_sync)
     bootstrap_sync.set_defaults(func=_bootstrap_sync)
 
+    bootstrap_rollback = bootstrap_sub.add_parser(
+        "rollback", help="Undo the latest sync (restore replaced files, delete created ones)."
+    )
+    bootstrap_rollback.add_argument("--repo-root", default=".")
+    bootstrap_rollback.add_argument(
+        "--backup-id", help="Backup directory name to roll back (default: latest)."
+    )
+    bootstrap_rollback.add_argument(
+        "--force", action="store_true", help="Roll back even if a file changed since the backup."
+    )
+    bootstrap_rollback.add_argument(
+        "--list", action="store_true", help="List available backups and exit."
+    )
+    _add_json_flag(bootstrap_rollback)
+    bootstrap_rollback.set_defaults(func=_bootstrap_rollback)
+
     return parser
 
 
@@ -1475,7 +1530,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             and getattr(args, "from_canonical", False)
         )
         or getattr(args, "rules_command", None) in ("sync",)
-        or getattr(args, "bootstrap_command", None) in ("init", "check", "diff", "sync")
+        or getattr(args, "bootstrap_command", None) in ("init", "check", "diff", "sync", "rollback")
     ):
         # Offline canonical commands need no server configuration.
         args.func(args, None)
