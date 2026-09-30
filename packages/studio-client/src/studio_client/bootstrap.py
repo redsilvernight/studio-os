@@ -19,6 +19,7 @@ import hashlib
 import json
 import os
 import shutil
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -36,7 +37,7 @@ from studio_contracts.bootstrap import (
 )
 from studio_contracts.initialization import InitializationProjectSpec
 
-from studio_client.adapters import AdapterError, get_adapter
+from studio_client.adapters import AdapterError, get_adapter, sanitize_agent_filename
 from studio_client.canonical import (
     AGENTS_BEGIN_MARKER,
     AGENTS_END_MARKER,
@@ -75,12 +76,17 @@ class BootstrapError(RuntimeError):
 @dataclass(frozen=True)
 class PlannedFile:
     """One expected output. `block` marks a managed block merged into an
-    existing file (`AGENTS.md`, `CLAUDE.md`) rather than a whole-file artifact."""
+    existing file (`AGENTS.md`, `CLAUDE.md`) rather than a whole-file artifact.
+    `incompatible` marks a projection the harness cannot represent (its
+    `content` is empty and `message` says why); `observe` reports it as
+    `INCOMPATIBLE` without touching the disk, and `sync` always refuses it."""
 
     path: str
     content: str
     kind: str
     block: bool = False
+    incompatible: bool = False
+    message: str | None = None
 
     @property
     def markers(self) -> tuple[str, str]:
@@ -178,7 +184,18 @@ def plan_files(repo_root: Path | str, manifest: BootstrapManifest) -> list[Plann
         for key in agent_keys:
             try:
                 result = adapter.translate(build_offline_resolved(root, key))
-            except (AdapterError, ValueError, OSError) as exc:
+            except AdapterError as exc:
+                files.append(
+                    PlannedFile(
+                        path=f"{adapter.managed_dir}/{sanitize_agent_filename(key)}.md",
+                        content="",
+                        kind="agent",
+                        incompatible=True,
+                        message=f"{ref.id}: {exc.message}",
+                    )
+                )
+                continue
+            except (ValueError, OSError) as exc:
                 raise BootstrapError(f"cannot project agent {key!r} to {ref.id!r}: {exc}") from exc
             for artifact in result.artifacts:
                 files.append(
@@ -235,13 +252,29 @@ def observe(
     manifest: BootstrapManifest,
     *,
     planned: list[PlannedFile] | None = None,
+    managed_hashes: Mapping[str, str] | None = None,
 ) -> BootstrapDryRunReport:
-    """Read-only: the current state of every planned file as a P1 report."""
+    """Read-only: the current state of every planned file as a P1 report.
+
+    `managed_hashes` maps a planned path to the sha256 of the normalized
+    content this tool last generated for it (the AIB-C marker store feeds it;
+    `drift.load_managed_hashes` reads that shape). With it, a file that
+    differs from the bundle but still carries its managed hash is reported
+    `OBSOLETE` instead of `MODIFIED`; without it, behavior is unchanged.
+    `INCOMPATIBLE` planned files are reported as-is, never read from disk."""
     root = Path(repo_root)
     planned = planned if planned is not None else plan_files(root, manifest)
+    hashes = dict(managed_hashes) if managed_hashes is not None else {}
     reports: list[BootstrapFileReport] = []
     for item in planned:
-        state = _observe_state(root, item)
+        if item.incompatible:
+            reports.append(
+                BootstrapFileReport(
+                    path=item.path, state=BootstrapFileState.INCOMPATIBLE, message=item.message
+                )
+            )
+            continue
+        state = _observe_state(root, item, hashes.get(item.path))
         if state is BootstrapFileState.ABSENT:
             reports.append(BootstrapFileReport(path=item.path, state=state))
         else:
@@ -263,6 +296,8 @@ def diff_text(
     planned = planned if planned is not None else plan_files(root, manifest)
     chunks: list[str] = []
     for item in planned:
+        if item.incompatible:
+            continue
         target = _target(root, item.path)
         current = _normalize(target.read_text(encoding="utf-8")) if target.is_file() else ""
         expected = _normalize(item.content)
@@ -305,7 +340,12 @@ def apply_files(
     if report.needs_confirmation and not confirm:
         raise BootstrapError("policy 'ask': explicit confirmation required (pass confirm=True)")
     by_path = {item.path: item for item in planned}
-    pending = [f for f in report.files if f.state is not BootstrapFileState.UP_TO_DATE]
+    pending = [
+        f
+        for f in report.files
+        if f.state is not BootstrapFileState.UP_TO_DATE
+        and f.state is not BootstrapFileState.INCOMPATIBLE
+    ]
     if not pending:
         return []
     backup_root = root / Path(*BACKUP_RELATIVE_DIR.split("/")) / _timestamp()
@@ -396,7 +436,11 @@ def sync(
     return report, written
 
 
-def _observe_state(root: Path, item: PlannedFile) -> BootstrapFileState:
+def _observe_state(
+    root: Path, item: PlannedFile, managed_hash: str | None = None
+) -> BootstrapFileState:
+    from studio_client.drift import classify_state
+
     target = _target(root, item.path)
     if item.block:
         if not target.is_file():
@@ -410,8 +454,15 @@ def _observe_state(root: Path, item: PlannedFile) -> BootstrapFileState:
         return BootstrapFileState.ABSENT
     if not target.is_file():
         return BootstrapFileState.ABSENT
-    if _normalize(target.read_text(encoding="utf-8")) == _normalize(item.content):
+    current = _normalize(target.read_text(encoding="utf-8"))
+    desired = _normalize(item.content)
+    state = classify_state(current, desired, managed_hash)
+    if state == "missing":
+        return BootstrapFileState.ABSENT
+    if state == "current":
         return BootstrapFileState.UP_TO_DATE
+    if state == "outdated":
+        return BootstrapFileState.OBSOLETE
     return BootstrapFileState.MODIFIED
 
 
