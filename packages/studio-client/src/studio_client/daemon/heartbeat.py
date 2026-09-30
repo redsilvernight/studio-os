@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from studio_client.api_client import StudioApiClient
+from studio_client.capabilities import CapabilitiesProvider
 from studio_client.config import ClientConfig
 from studio_client.errors import StudioApiError
 from studio_client.outbox import OutboxReplayer, OutboxStore, ReplayOutcome
@@ -44,6 +45,7 @@ class HeartbeatDaemon:
         sleep: SleepFn | None = None,
         random_fn: Callable[[], float] | None = None,
         replayer: OutboxReplayer | None = None,
+        capabilities_provider: CapabilitiesProvider | None = None,
     ) -> None:
         if config.machine_id is None:
             raise ValueError("ClientConfig.machine_id must be set to run the heartbeat daemon")
@@ -64,6 +66,7 @@ class HeartbeatDaemon:
         self._sleep = sleep or asyncio.sleep
         self._random = random_fn or random.random
         self._replayer = replayer
+        self._capabilities_provider = capabilities_provider
         self._stop_event = asyncio.Event()
         self.last_attempt_at: datetime | None = None
         self.last_success_at: datetime | None = None
@@ -85,7 +88,12 @@ class HeartbeatDaemon:
         while not self._stop_event.is_set():
             self.last_attempt_at = datetime.now(UTC)
             try:
-                await self._client.send_heartbeat(self._machine_id, self._agent_id)
+                capabilities = None
+                if self._capabilities_provider is not None:
+                    capabilities = self._capabilities_provider()
+                await self._client.send_heartbeat(
+                    self._machine_id, self._agent_id, capabilities
+                )
             except StudioApiError as error:
                 self.last_error = error
                 logger.warning("heartbeat failed", exc_info=True)

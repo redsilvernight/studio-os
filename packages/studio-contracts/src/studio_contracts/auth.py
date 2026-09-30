@@ -4,6 +4,8 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
+from pydantic import Field
+
 from studio_contracts.common import ContractModel, IdempotentCreate, VersionedModel
 
 
@@ -144,10 +146,32 @@ class MachineCreated(Machine):
     credential: str
 
 
+class HarnessCapability(ContractModel):
+    """One harness as reported by a machine (AIB R1, DEC-0171). IDs and
+    stable tokens only: never a path, secret, fingerprint or file listing."""
+
+    harness_id: str
+    detected: bool
+    configured: bool
+    version: str | None = None
+
+
+class MachineCapabilities(ContractModel):
+    """Additive capability report of a machine (AIB R1, DEC-0171).
+    `project_ids` holds registered project UUIDs only — never a path."""
+
+    harnesses: list[HarnessCapability] = Field(default=[])
+    project_ids: list[UUID] = Field(default=[])
+    accepts_launches: bool = False
+    running_launches: int = Field(default=0, ge=0)
+    max_launches: int = Field(default=1, ge=1)
+
+
 class HeartbeatRequest(ContractModel):
     machine_id: UUID
     agent_id: UUID | None = None
     client_timestamp: datetime
+    capabilities: MachineCapabilities | None = None
 
 
 class HeartbeatResponse(ContractModel):
@@ -155,3 +179,4 @@ class HeartbeatResponse(ContractModel):
     status: MachineStatus
     last_seen_at: datetime
     server_timestamp: datetime
+    capabilities: MachineCapabilities | None = None

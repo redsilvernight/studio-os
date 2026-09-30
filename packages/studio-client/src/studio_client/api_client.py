@@ -14,6 +14,7 @@ from studio_contracts.auth import (
     AgentEnsureResult,
     HeartbeatRequest,
     HeartbeatResponse,
+    MachineCapabilities,
     Machine,
     MachineCreate,
     MachineCreated,
@@ -245,10 +246,16 @@ class StudioApiClient:
         return result.agent, result.created
 
     async def send_heartbeat(
-        self, machine_id: UUID, agent_id: UUID | None = None
+        self,
+        machine_id: UUID,
+        agent_id: UUID | None = None,
+        capabilities: MachineCapabilities | None = None,
     ) -> HeartbeatResponse:
         payload = HeartbeatRequest(
-            machine_id=machine_id, agent_id=agent_id, client_timestamp=datetime.now(UTC)
+            machine_id=machine_id,
+            agent_id=agent_id,
+            client_timestamp=datetime.now(UTC),
+            capabilities=capabilities,
         )
         response = await self._request(
             "POST",

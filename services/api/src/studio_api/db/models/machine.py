@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -23,3 +24,4 @@ class MachineModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
         DateTime(timezone=True), default=None
     )
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    capabilities: Mapped[dict[str, object] | None] = mapped_column(JSONB, default=None)

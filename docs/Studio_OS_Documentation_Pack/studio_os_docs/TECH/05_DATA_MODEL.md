@@ -94,9 +94,13 @@ presente de nouveau revoque la famille.
 `id`, `owner_user_id` (FK User), `display_name`, `credential_hash` (token
 opaque hashe, jamais le token en clair — DEC-0003 `docs/DECISIONS.md`),
 `credential_revoked_at` (nullable), `last_seen_at` (nullable, alimente par
-`POST /heartbeats`), + champs communs mutables. `status` (`online|idle|offline`)
-n'est PAS stocke : derive de `last_seen_at` a la lecture
-(`TECH/04_AUTH_SYNC_CONTRACT.md`).
+`POST /heartbeats`), `capabilities` (JSONB nullable, rapport
+`MachineCapabilities` rafraichi par chaque heartbeat qui en envoie un —
+harnesses par `harness_id`, `project_ids` UUID seuls, opt-in et occupation ;
+jamais un chemin ni un secret — DEC-0171, migration Alembic `0024`,
+additive et reversible), + champs communs mutables. `status`
+(`online|idle|offline`) n'est PAS stocke : derive de `last_seen_at` a la
+lecture (`TECH/04_AUTH_SYNC_CONTRACT.md`).
 
 ## Agent
 `id`, `machine_id` (FK Machine, nullable — un agent garde son identite

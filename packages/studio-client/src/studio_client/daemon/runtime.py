@@ -29,6 +29,7 @@ from studio_contracts.local.handshake import ProtocolVersion
 from studio_contracts.local.identity import IdentityBinding, ProfileRef, partition_key
 
 from studio_client.api_client import StudioApiClient
+from studio_client.capabilities import build_capabilities
 from studio_client.config import ClientConfig, GitWatchConfig, default_config_path
 from studio_client.daemon.heartbeat import HeartbeatDaemon, build_godot_watchers
 from studio_client.daemon.workspace_watch import (
@@ -292,6 +293,7 @@ class DaemonRuntime:
                     self.config,
                     agent_id=self.agent_id,
                     replayer=replayer,
+                    capabilities_provider=lambda: build_capabilities(self.config),
                 )
                 self._watchers = build_godot_watchers(self.config, store)
                 self._workspace_watches = WorkspaceWatchSet(
