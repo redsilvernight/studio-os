@@ -412,7 +412,12 @@ running_launches, max_launches}` : `harness_id`/`version` sont des
 `CapabilityToken` (regex sans separateur ni lettre de lecteur — un chemin
 n'y est pas representable), `detected` (outil present) vs `configured`
 (cable pour Studio OS) ; jamais un chemin, un secret, une empreinte ni un
-contenu de fichier. Absent, seul `last_seen_at` est mis a jour et le
+contenu de fichier. `bootstrap?` (AIB P6, additif) : liste optionnelle
+`ProjectBootstrapStatus {project_id, checked_at, summary}` (comptes
+`BootstrapFileSummary` du `bootstrap check` local de la machine, jamais un
+chemin ni un nom de fichier), absente quand rien n'est rapporte ; c'est
+l'observation de la machine, pas une comparaison avec le plan serveur ;
+un serveur anterieur rejette (422, `extra=forbid`) un heartbeat qui le porte : deployer le serveur avant les clients. Absent, seul `last_seen_at` est mis a jour et le
 rapport precedent est conserve ; present, il est persiste
 (`machines.capabilities` + `machines.capabilities_reported_at`) et renvoye
 en echo (`HeartbeatResponse.capabilities?`, DEC-0171). `machine_id` du

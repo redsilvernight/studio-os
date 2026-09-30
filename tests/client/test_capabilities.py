@@ -127,3 +127,27 @@ def test_daemon_sends_provider_capabilities(tmp_path: Path) -> None:
     asyncio.run(one_beat())
     assert seen["capabilities"] is not None
     assert seen["capabilities"].harnesses[0].harness_id == "stub-harness"
+
+
+def test_bootstrap_statuses_report_counts_only_for_repos_with_manifest(tmp_path: Path) -> None:
+    from studio_client.bootstrap import make_manifest, write_manifest
+    from studio_client.capabilities import bootstrap_statuses
+
+    with_manifest = tmp_path / "with"
+    without = tmp_path / "without"
+    with_manifest.mkdir()
+    without.mkdir()
+    write_manifest(with_manifest, make_manifest("p", "P", ["claude-code"]))
+    project_a, project_b = uuid4(), uuid4()
+    config = _config(
+        git_watches=[
+            {"repo_path": str(with_manifest), "project_id": str(project_a)},
+            {"repo_path": str(without), "project_id": str(project_b)},
+        ]
+    )
+    (status,) = bootstrap_statuses(config)
+    assert status.project_id == project_a
+    assert status.summary.up_to_date == 0
+    assert status.summary.absent > 0
+    dumped = status.model_dump_json()
+    assert str(tmp_path) not in dumped and "with" not in dumped.replace(str(project_a), "")

@@ -105,3 +105,43 @@ async def test_desired_plan_summary_or_public_error(
         assert "desired_error" not in body
     else:
         assert isinstance(body["desired_error"], str)
+
+
+async def test_applied_bootstrap_is_the_machine_observation(
+    client: AsyncClient, auth_headers: dict[str, str], machine: tuple[MachineModel, str]
+) -> None:
+    model, _ = machine
+    project_id = await _project(client, auth_headers)
+    other = str(uuid.uuid4())
+    checked_at = datetime.now(UTC).isoformat()
+
+    def _status_entry(pid: str, **counts: int) -> dict[str, Any]:
+        return {"project_id": pid, "checked_at": checked_at, "summary": counts}
+
+    await _heartbeat(
+        client,
+        auth_headers,
+        model.id,
+        {"bootstrap": [_status_entry(other, up_to_date=3)]},
+    )
+    body = await _status(client, auth_headers, project_id)
+    (entry,) = [m for m in body["machines"] if m["machine_id"] == str(model.id)]
+    assert "bootstrap" not in entry
+
+    await _heartbeat(
+        client,
+        auth_headers,
+        model.id,
+        {"bootstrap": [_status_entry(project_id, up_to_date=3, modified=1)]},
+    )
+    body = await _status(client, auth_headers, project_id)
+    (entry,) = [m for m in body["machines"] if m["machine_id"] == str(model.id)]
+    assert entry["bootstrap"]["in_sync"] is False
+    assert entry["bootstrap"]["summary"]["modified"] == 1
+
+    await _heartbeat(
+        client, auth_headers, model.id, {"bootstrap": [_status_entry(project_id, up_to_date=4)]}
+    )
+    body = await _status(client, auth_headers, project_id)
+    (entry,) = [m for m in body["machines"] if m["machine_id"] == str(model.id)]
+    assert entry["bootstrap"]["in_sync"] is True

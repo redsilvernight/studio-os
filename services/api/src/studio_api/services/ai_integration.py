@@ -8,11 +8,13 @@ from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.ai_integration import (
     AiIntegrationStatus,
+    AppliedBootstrap,
     DesiredIntegration,
     ReportedMachineIntegration,
     ReportFreshness,
 )
 from studio_contracts.auth import MachineCapabilities, Role
+from studio_contracts.bootstrap import BootstrapFileSummary
 from studio_contracts.bootstrap_plan import BootstrapPlanRequest
 
 from studio_api.db.models.machine import MachineModel
@@ -23,6 +25,11 @@ from studio_api.services.authz import Principal, ensure_project_access
 from studio_api.settings import Settings
 
 _UNKNOWN_ERROR = "plan_unavailable"
+
+
+def _in_sync(summary: BootstrapFileSummary) -> bool:
+    drifted = summary.absent + summary.obsolete + summary.modified + summary.incompatible
+    return drifted == 0 and summary.up_to_date > 0
 
 
 def reported_view(
@@ -39,11 +46,21 @@ def reported_view(
         )
     capabilities = MachineCapabilities.model_validate(machine.capabilities)
     stale = now - reported_at > timedelta(seconds=settings.heartbeat_offline_after_seconds)
+    applied = next((b for b in capabilities.bootstrap or [] if b.project_id == project_id), None)
     return ReportedMachineIntegration(
         machine_id=machine.id,
         display_name=machine.display_name,
         status=status,
         freshness=ReportFreshness.STALE if stale else ReportFreshness.FRESH,
+        bootstrap=(
+            None
+            if applied is None
+            else AppliedBootstrap(
+                checked_at=applied.checked_at,
+                summary=applied.summary,
+                in_sync=_in_sync(applied.summary),
+            )
+        ),
         reported_at=reported_at,
         project_registered=project_id in capabilities.project_ids,
         harnesses=capabilities.harnesses,

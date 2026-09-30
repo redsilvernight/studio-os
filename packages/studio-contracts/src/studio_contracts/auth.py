@@ -7,6 +7,7 @@ from uuid import UUID
 
 from pydantic import Field, StringConstraints
 
+from studio_contracts.bootstrap import BootstrapFileSummary
 from studio_contracts.common import ContractModel, IdempotentCreate, VersionedModel
 
 
@@ -164,6 +165,17 @@ class HarnessReport(ContractModel):
     configured: bool = False
 
 
+class ProjectBootstrapStatus(ContractModel):
+    """Machine-observed state of one project's AI bundle (AIB P6): the result
+    of the machine's own local `bootstrap check` at `checked_at`. Counts only
+    - never a path or file name. It says what the machine observed, not what
+    the server expects."""
+
+    project_id: UUID
+    checked_at: datetime
+    summary: BootstrapFileSummary
+
+
 class MachineCapabilities(ContractModel):
     """Machine-reported launch aptitude (AIB R1, additive). Ids only - never a
     path, hostname or secret. The server stores the latest report with its
@@ -174,6 +186,7 @@ class MachineCapabilities(ContractModel):
     accepts_launches: bool = False
     running_launches: int = Field(default=0, ge=0)
     max_launches: int = Field(default=0, ge=0)
+    bootstrap: list[ProjectBootstrapStatus] | None = Field(default=None, max_length=256)
 
 
 class HeartbeatRequest(ContractModel):
