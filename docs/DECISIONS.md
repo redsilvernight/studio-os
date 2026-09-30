@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-138 decision(s). Detail complet dans chaque ADR lie.
+139 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -159,4 +159,5 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0164 | AI Bootstrap P2 : expansion récursive de composed_agent dans le moteur P5, sans second moteur | active | [decisions/DEC-0164-p2-expansion-composed-agents.md](decisions/DEC-0164-p2-expansion-composed-agents.md) |
 | DEC-0167 | AIB P3 : générateur local du bundle, offline d'abord | accepted | [decisions/DEC-0167-aib-p3-generateur-local-bundle-offline.md](decisions/DEC-0167-aib-p3-generateur-local-bundle-offline.md) |
 | DEC-0168 | AIB-D : loader runtime fusion .agents/ projet + Library, source injectee | accepted | [decisions/DEC-0168-aib-d-loader-runtime-fusion.md](decisions/DEC-0168-aib-d-loader-runtime-fusion.md) |
+| DEC-0171 | AIB R1 : rapport de capacites machine additif au heartbeat (IDs seuls) | accepted | [decisions/DEC-0171-aib-r1-rapport-capacites-machine.md](decisions/DEC-0171-aib-r1-rapport-capacites-machine.md) |
 | DEC-0172 | AIB P7 : définition du bootstrap permanent et cibles d'actions manuelles | proposed | [decisions/DEC-0172-aib-p7-onboarding-metriques.md](decisions/DEC-0172-aib-p7-onboarding-metriques.md) |

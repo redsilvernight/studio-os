@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter
-from studio_contracts.auth import HeartbeatRequest, HeartbeatResponse
+from studio_contracts.auth import HeartbeatRequest, HeartbeatResponse, MachineCapabilities
 
 from studio_api.deps import CurrentMachine, DbSession
 from studio_api.openapi_meta import RESP_401_UNAUTHORIZED, RESP_409_MACHINE_ID_MISMATCH
@@ -14,6 +14,7 @@ router = APIRouter(prefix="/api/v1/heartbeats", tags=["heartbeats"])
 @router.post(
     "",
     response_model=HeartbeatResponse,
+    response_model_exclude_none=True,
     description=(
         "Report machine presence. Any authenticated machine may "
         "heartbeat, including read-only ones — this is the one write "
@@ -29,9 +30,16 @@ async def post_heartbeat(
 ) -> HeartbeatResponse:
     settings = get_settings()
     machine, now = await heartbeats_service.record_heartbeat(session, machine, req, settings)
+    stored = machine.capabilities
+    echo = (
+        MachineCapabilities.model_validate(stored)
+        if req.capabilities is not None and stored is not None
+        else None
+    )
     return HeartbeatResponse(
         machine_id=machine.id,
         status=heartbeats_service.derive_status(machine, settings),
         last_seen_at=now,
         server_timestamp=now,
+        capabilities=echo,
     )

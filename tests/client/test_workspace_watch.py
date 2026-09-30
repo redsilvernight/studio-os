@@ -263,7 +263,9 @@ async def test_daemon_runtime_applies_plans_at_start_and_stops_them(
             return None
 
     class FakeHeartbeat:
-        def __init__(self, _client, _config, *, agent_id=None, replayer=None):
+        def __init__(
+            self, _client, _config, *, agent_id=None, replayer=None, capabilities_provider=None
+        ):
             self.stop = asyncio.Event()
             self.last_attempt_at = None
             self.last_success_at = None
@@ -317,7 +319,9 @@ async def test_daemon_runtime_hot_reloads_configured_git_watches(
             return None
 
     class FakeHeartbeat:
-        def __init__(self, _client, _config, *, agent_id=None, replayer=None):
+        def __init__(
+            self, _client, _config, *, agent_id=None, replayer=None, capabilities_provider=None
+        ):
             self.stop = asyncio.Event()
             self.last_attempt_at = None
             self.last_success_at = None

@@ -42,6 +42,89 @@ async def test_heartbeat_rejects_body_machine_id_different_from_authenticated_ma
     assert response.json()["detail"]["error_code"] == "machine_id_mismatch"
 
 
+async def test_heartbeat_persists_and_echoes_capabilities(
+    client: AsyncClient, auth_headers: dict[str, str], machine: tuple[MachineModel, str]
+) -> None:
+    machine_model, _ = machine
+    capabilities = {
+        "harnesses": [
+            {
+                "harness_id": "claude-code",
+                "detected": True,
+                "configured": True,
+                "version": "2.1.0",
+            }
+        ],
+        "project_ids": [],
+        "accepts_launches": True,
+        "running_launches": 0,
+        "max_launches": 2,
+    }
+    response = await client.post(
+        "/api/v1/heartbeats",
+        headers=auth_headers,
+        json={
+            "machine_id": str(machine_model.id),
+            "client_timestamp": datetime.now(UTC).isoformat(),
+            "capabilities": capabilities,
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["capabilities"] == capabilities
+
+    bare = await client.post(
+        "/api/v1/heartbeats",
+        headers=auth_headers,
+        json={
+            "machine_id": str(machine_model.id),
+            "client_timestamp": datetime.now(UTC).isoformat(),
+        },
+    )
+    assert bare.status_code == 200
+    assert "capabilities" not in bare.json()
+
+    again = await client.post(
+        "/api/v1/heartbeats",
+        headers=auth_headers,
+        json={
+            "machine_id": str(machine_model.id),
+            "client_timestamp": datetime.now(UTC).isoformat(),
+            "capabilities": capabilities,
+        },
+    )
+    assert again.status_code == 200
+    assert again.json()["capabilities"] == capabilities
+
+
+async def test_heartbeat_rejects_capability_paths_and_secrets(
+    client: AsyncClient, auth_headers: dict[str, str], machine: tuple[MachineModel, str]
+) -> None:
+    machine_model, _ = machine
+    response = await client.post(
+        "/api/v1/heartbeats",
+        headers=auth_headers,
+        json={
+            "machine_id": str(machine_model.id),
+            "client_timestamp": datetime.now(UTC).isoformat(),
+            "capabilities": {
+                "harnesses": [
+                    {
+                        "harness_id": "claude-code",
+                        "detected": True,
+                        "configured": True,
+                        "managed_files": ["~/.claude.json"],
+                    }
+                ],
+                "project_ids": [],
+                "accepts_launches": False,
+                "running_launches": 0,
+                "max_launches": 1,
+            },
+        },
+    )
+    assert response.status_code == 422
+
+
 def test_derive_status_thresholds() -> None:
     settings = Settings(heartbeat_interval_seconds=30, heartbeat_offline_after_seconds=90)
 

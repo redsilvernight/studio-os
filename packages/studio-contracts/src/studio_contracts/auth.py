@@ -153,12 +153,19 @@ letter, so a filesystem path cannot be represented."""
 
 
 class HarnessReport(ContractModel):
+    """One harness as reported by a machine (AIB R1): `detected` means the
+    tool is present on the machine, `configured` means it is wired for
+    Studio OS. IDs and stable tokens only: never a path, secret,
+    fingerprint or file listing."""
+
     harness_id: CapabilityToken
     version: CapabilityToken | None = None
+    detected: bool = False
+    configured: bool = False
 
 
 class MachineCapabilities(ContractModel):
-    """Machine-reported launch aptitude (AIB R1, additive). Ids only — never a
+    """Machine-reported launch aptitude (AIB R1, additive). Ids only - never a
     path, hostname or secret. The server stores the latest report with its
     reception time and never presents a stale one as current."""
 
@@ -184,6 +191,7 @@ class HeartbeatResponse(ContractModel):
     status: MachineStatus
     last_seen_at: datetime
     server_timestamp: datetime
+    capabilities: MachineCapabilities | None = None
 
 
 class IneligibilityReason(StrEnum):

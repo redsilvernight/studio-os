@@ -83,6 +83,8 @@ class ClientConfig(BaseSettings):
     # Spreads concurrent machines' heartbeats instead of a synchronized
     # thundering herd hitting the server every interval at once.
     heartbeat_jitter_ratio: float = 0.1
+    launch_opt_in: bool = False
+    max_concurrent_launches: int = 1
     # Canonical Git watching: one entry per repository (`[[git_watches]]` in
     # TOML, a JSON array in `STUDIO_CLIENT_GIT_WATCHES`). The historical
     # `git_watch_repo_path` + `git_watch_project_id` pair is still accepted as

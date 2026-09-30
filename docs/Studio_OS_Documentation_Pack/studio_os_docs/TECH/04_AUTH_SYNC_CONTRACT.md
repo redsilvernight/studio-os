@@ -403,14 +403,26 @@ lieu de bloquer la file.
 Intervalle nominal: 30 s. Etat derive de `last_seen_at` avec seuils configurables.
 
 `POST /heartbeats` — requete `HeartbeatRequest {machine_id, agent_id?,
-client_timestamp}`, reponse `HeartbeatResponse {machine_id, status,
-last_seen_at, server_timestamp}`. `machine_id` du corps doit egaler la
-machine authentifiee, sinon `409 machine_id_mismatch` (DEC-0035) — jamais
-ignore silencieusement. `status` (`online|idle|offline`) est calcule a la
-reponse a partir de `last_seen_at` et des seuils
-`heartbeat_interval_seconds` (defaut 30s, "online" en dessous de 1.5x) /
-`heartbeat_offline_after_seconds` (defaut 90s, "idle" en dessous, "offline"
-au-dela) — jamais mis en cache tel quel cote client.
+client_timestamp, capabilities?}`, reponse `HeartbeatResponse {machine_id,
+status, last_seen_at, server_timestamp, capabilities?}`.
+`capabilities` (AIB R1, additif — contrat e1963627, etendu DEC-0171)
+est le rapport `MachineCapabilities {harnesses[] {harness_id, version?,
+detected, configured}, project_ids[] (UUID seuls), accepts_launches,
+running_launches, max_launches}` : `harness_id`/`version` sont des
+`CapabilityToken` (regex sans separateur ni lettre de lecteur — un chemin
+n'y est pas representable), `detected` (outil present) vs `configured`
+(cable pour Studio OS) ; jamais un chemin, un secret, une empreinte ni un
+contenu de fichier. Absent, seul `last_seen_at` est mis a jour et le
+rapport precedent est conserve ; present, il est persiste
+(`machines.capabilities` + `machines.capabilities_reported_at`) et renvoye
+en echo (`HeartbeatResponse.capabilities?`, DEC-0171). `machine_id` du
+corps doit egaler la machine authentifiee,
+sinon `409 machine_id_mismatch` (DEC-0035) — jamais ignore
+silencieusement. `status` (`online|idle|offline`) est calcule a la reponse a
+partir de `last_seen_at` et des seuils `heartbeat_interval_seconds` (defaut
+30s, "online" en dessous de 1.5x) / `heartbeat_offline_after_seconds`
+(defaut 90s, "idle" en dessous, "offline" au-dela) — jamais mis en cache tel
+quel cote client.
 
 ## Conflits de mise a jour
 Les objets mutables utilisent `updated_at` et idealement une version entiere. En cas de conflit, le client doit recevoir 409 avec la version serveur courante.

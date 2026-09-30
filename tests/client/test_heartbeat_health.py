@@ -17,7 +17,9 @@ def _cleanup_transfer_storage() -> None:
 
 
 class OkClient:
-    async def send_heartbeat(self, machine_id: Any, agent_id: Any) -> None:
+    async def send_heartbeat(
+        self, machine_id: Any, agent_id: Any, capabilities: Any = None
+    ) -> None:
         return None
 
 
