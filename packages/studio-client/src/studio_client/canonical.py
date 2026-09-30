@@ -131,7 +131,7 @@ def canonical_skill_keys(repo_root: Path | str) -> list[str]:
 
     Only directories holding a `SKILL.md` with a mapping frontmatter
     qualify; anything else is ignored, never projected."""
-    keys = []
+    keys: list[str] = []
     skills_dir = Path(repo_root) / ".agents" / "skills"
     if not skills_dir.is_dir():
         return keys
