@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
+from typing import Annotated
 from uuid import UUID
+
+from pydantic import Field, StringConstraints
 
 from studio_contracts.common import ContractModel, IdempotentCreate, VersionedModel
 
@@ -144,10 +147,36 @@ class MachineCreated(Machine):
     credential: str
 
 
+CapabilityToken = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$")]
+"""Opaque identifier or version string: no separator, whitespace or drive
+letter, so a filesystem path cannot be represented."""
+
+
+class HarnessReport(ContractModel):
+    harness_id: CapabilityToken
+    version: CapabilityToken | None = None
+
+
+class MachineCapabilities(ContractModel):
+    """Machine-reported launch aptitude (AIB R1, additive). Ids only — never a
+    path, hostname or secret. The server stores the latest report with its
+    reception time and never presents a stale one as current."""
+
+    harnesses: list[HarnessReport] = Field(default_factory=list, max_length=32)
+    project_ids: list[UUID] = Field(default_factory=list, max_length=256)
+    accepts_launches: bool = False
+    running_launches: int = Field(default=0, ge=0)
+    max_launches: int = Field(default=0, ge=0)
+
+
 class HeartbeatRequest(ContractModel):
+    """`capabilities` is optional and additive: absent, the previous report
+    is kept untouched."""
+
     machine_id: UUID
     agent_id: UUID | None = None
     client_timestamp: datetime
+    capabilities: MachineCapabilities | None = None
 
 
 class HeartbeatResponse(ContractModel):
@@ -155,3 +184,34 @@ class HeartbeatResponse(ContractModel):
     status: MachineStatus
     last_seen_at: datetime
     server_timestamp: datetime
+
+
+class IneligibilityReason(StrEnum):
+    """Deterministic, evaluated in this declaration order."""
+
+    OFFLINE = "offline"
+    NO_CAPABILITIES_REPORT = "no_capabilities_report"
+    CAPABILITIES_STALE = "capabilities_stale"
+    OWNER_NO_PROJECT_ACCESS = "owner_no_project_access"
+    PROJECT_NOT_REGISTERED = "project_not_registered"
+    LAUNCHES_NOT_ACCEPTED = "launches_not_accepted"
+    HARNESS_INCOMPATIBLE = "harness_incompatible"
+    AT_CAPACITY = "at_capacity"
+
+
+class MachineEligibility(ContractModel):
+    machine_id: UUID
+    display_name: str
+    status: MachineStatus
+    eligible: bool
+    reasons: list[IneligibilityReason] = Field(default_factory=list)
+    harnesses: list[HarnessReport] = Field(default_factory=list)
+    free_slots: int = 0
+    reported_at: datetime | None = None
+
+
+class EligibleMachines(ContractModel):
+    task_id: UUID
+    project_id: UUID
+    harness_id: CapabilityToken | None = None
+    machines: list[MachineEligibility]
