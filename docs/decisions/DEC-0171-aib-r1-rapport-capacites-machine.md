@@ -1,7 +1,7 @@
 ---
 id: DEC-0171
 title: 'AIB R1 : rapport de capacites machine additif au heartbeat (IDs seuls)'
-status: proposed
+status: accepted
 date: '2026-09-30'
 superseded_by: null
 source: docs/AI_BOOTSTRAP_ROADMAP.md
@@ -9,8 +9,8 @@ source: docs/AI_BOOTSTRAP_ROADMAP.md
 
 # DEC-0171 — rapport de capacites machine (AIB R1)
 
-Roadmap AIB rev. 4, etape R1 (tache `f91e49e0`). Statut `proposed` (en attente
-de validation humaine — fichier et serveur alignes a l'acceptation).
+Roadmap AIB rev. 4, etape R1 (tache `f91e49e0`). Statut `accepted` (accord
+humain du 2026-09-30 ; fichier et serveur alignes).
 
 ## Decide
 
