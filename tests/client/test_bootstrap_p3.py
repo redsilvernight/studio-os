@@ -20,7 +20,12 @@ from studio_client.bootstrap import (
     observe,
     plan_files,
 )
-from studio_client.canonical import AGENTS_BEGIN_MARKER, AGENTS_END_MARKER
+from studio_client.canonical import (
+    AGENTS_BEGIN_MARKER,
+    AGENTS_END_MARKER,
+    CLAUDE_BEGIN_MARKER,
+    CLAUDE_END_MARKER,
+)
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -182,3 +187,41 @@ def test_observe_is_read_only(tmp_path: Path) -> None:
     assert report.summary.absent == len(plan_files(repo, manifest))
     after = sorted(p.relative_to(repo).as_posix() for p in repo.rglob("*") if p.is_file())
     assert before == after
+
+
+MINE = "# Mine" + chr(10) * 2 + "user rule" + chr(10)
+
+
+def test_claude_md_block_preserves_user_content_and_is_idempotent(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    (repo / "CLAUDE.md").write_text(MINE, encoding="utf-8")
+    _init(repo)
+    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+
+    text = (repo / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "user rule" in text
+    assert CLAUDE_BEGIN_MARKER in text and CLAUDE_END_MARKER in text
+    backups = list((repo / ".studio-os" / "backups" / "bootstrap").rglob("CLAUDE.md"))
+    assert backups and backups[0].read_text(encoding="utf-8") == MINE
+
+    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    assert (repo / "CLAUDE.md").read_text(encoding="utf-8") == text
+
+
+def test_unbalanced_claude_md_markers_are_refused(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    broken = f"{CLAUDE_BEGIN_MARKER}" + chr(10) + "half" + chr(10)
+    (repo / "CLAUDE.md").write_text(broken, encoding="utf-8")
+    _init(repo)
+    with pytest.raises(SystemExit):
+        cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    assert (repo / "CLAUDE.md").read_text(encoding="utf-8") == broken
+
+
+def test_rules_sync_backs_up_agents_md(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _init(repo)
+    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    cli.main(["rules", "sync", "--repo-root", str(repo), "--overwrite"])
+    backups = list((repo / ".studio-os" / "backups" / "bootstrap").rglob("AGENTS.md"))
+    assert backups

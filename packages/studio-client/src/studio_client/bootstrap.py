@@ -38,16 +38,20 @@ from studio_client.adapters import AdapterError, get_adapter
 from studio_client.canonical import (
     AGENTS_BEGIN_MARKER,
     AGENTS_END_MARKER,
+    CLAUDE_BEGIN_MARKER,
+    CLAUDE_END_MARKER,
     build_offline_resolved,
     canonical_agent_keys,
     canonical_rule_keys,
     load_rule_meta,
     render_agents_rules_block,
+    render_claude_md_block,
     render_claude_rule,
 )
 
 MANIFEST_RELATIVE_PATH = ".agents/bootstrap.json"
 AGENTS_MD_PATH = "AGENTS.md"
+CLAUDE_MD_PATH = "CLAUDE.md"
 BACKUP_RELATIVE_DIR = ".studio-os/backups/bootstrap"
 _RULE_DIR = ".claude/rules"
 HASH_PREFIX = "sha256:"
@@ -60,12 +64,18 @@ class BootstrapError(RuntimeError):
 @dataclass(frozen=True)
 class PlannedFile:
     """One expected output. `block` marks a managed block merged into an
-    existing file (`AGENTS.md`) rather than a whole-file artifact."""
+    existing file (`AGENTS.md`, `CLAUDE.md`) rather than a whole-file artifact."""
 
     path: str
     content: str
     kind: str
     block: bool = False
+
+    @property
+    def markers(self) -> tuple[str, str]:
+        if self.path == CLAUDE_MD_PATH:
+            return CLAUDE_BEGIN_MARKER, CLAUDE_END_MARKER
+        return AGENTS_BEGIN_MARKER, AGENTS_END_MARKER
 
 
 def manifest_path(repo_root: Path | str) -> Path:
@@ -121,7 +131,7 @@ def write_manifest(
 
 def plan_files(repo_root: Path | str, manifest: BootstrapManifest) -> list[PlannedFile]:
     """Deterministic expected output: agent projections per targeted harness,
-    then rule projections, then the `AGENTS.md` managed block."""
+    then rule projections, then the `AGENTS.md` and `CLAUDE.md` managed blocks."""
     root = Path(repo_root)
     files: list[PlannedFile] = []
     agent_keys = canonical_agent_keys(root)
@@ -155,6 +165,11 @@ def plan_files(repo_root: Path | str, manifest: BootstrapManifest) -> list[Plann
     files.append(
         PlannedFile(
             path=AGENTS_MD_PATH, content=render_agents_rules_block(root), kind="block", block=True
+        )
+    )
+    files.append(
+        PlannedFile(
+            path=CLAUDE_MD_PATH, content=render_claude_md_block(root), kind="block", block=True
         )
     )
     return files
@@ -199,7 +214,7 @@ def diff_text(
         if item.block:
             if expected.rstrip("\n") in current:
                 continue
-            expected = _merge_block(current, item.content)
+            expected = _merge_block(current, item.content, item.markers)
         elif current == expected:
             continue
         chunks.append(
@@ -245,7 +260,7 @@ def apply_files(
             _backup(root, item.path, backup_root)
         if item.block:
             existing = target.read_text(encoding="utf-8") if target.is_file() else ""
-            _write_text(target, _merge_block(existing, item.content))
+            _write_text(target, _merge_block(existing, item.content, item.markers))
         else:
             _write_text(target, item.content)
         written.append(item.path)
@@ -270,7 +285,8 @@ def _observe_state(root: Path, item: PlannedFile) -> BootstrapFileState:
         text = _normalize(target.read_text(encoding="utf-8"))
         if _normalize(item.content).rstrip("\n") in text:
             return BootstrapFileState.UP_TO_DATE
-        if AGENTS_BEGIN_MARKER in text and AGENTS_END_MARKER in text:
+        begin, end = item.markers
+        if begin in text and end in text:
             return BootstrapFileState.MODIFIED
         return BootstrapFileState.ABSENT
     if not target.is_file():
@@ -280,12 +296,15 @@ def _observe_state(root: Path, item: PlannedFile) -> BootstrapFileState:
     return BootstrapFileState.MODIFIED
 
 
-def _merge_block(existing: str, block: str) -> str:
+def _merge_block(existing: str, block: str, markers: tuple[str, str]) -> str:
+    begin, end_marker = markers
     existing = _normalize(existing)
     expected = _normalize(block)
-    if AGENTS_BEGIN_MARKER in existing and AGENTS_END_MARKER in existing:
-        start = existing.index(AGENTS_BEGIN_MARKER)
-        end = existing.index(AGENTS_END_MARKER) + len(AGENTS_END_MARKER)
+    if (begin in existing) != (end_marker in existing):
+        raise BootstrapError(f"unbalanced managed block markers ({begin}); fix the file by hand")
+    if begin in existing:
+        start = existing.index(begin)
+        end = existing.index(end_marker) + len(end_marker)
         tail = existing[end:]
         if tail.startswith("\n"):
             tail = tail[1:]
@@ -311,6 +330,14 @@ def _safe_target(root: Path, relative: str) -> Path:
     except ValueError:
         raise BootstrapError(f"refusing to write outside the repository: {relative}") from None
     return target
+
+
+def backup_root_for(root: Path) -> Path:
+    return root / Path(*BACKUP_RELATIVE_DIR.split("/")) / _timestamp()
+
+
+def backup_file(root: Path, relative: str, backup_root: Path) -> Path:
+    return _backup(root, relative, backup_root)
 
 
 def _backup(root: Path, relative: str, backup_root: Path) -> Path:

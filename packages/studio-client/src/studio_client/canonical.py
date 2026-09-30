@@ -259,6 +259,22 @@ def render_claude_rule(stable_key: str, applies_to: list[str], body: str) -> str
 
 AGENTS_BEGIN_MARKER = "<!-- BEGIN GENERATED RULES from .agents/rules -->"
 AGENTS_END_MARKER = "<!-- END GENERATED RULES -->"
+CLAUDE_BEGIN_MARKER = "<!-- BEGIN STUDIO-OS MANAGED -->"
+CLAUDE_END_MARKER = "<!-- END STUDIO-OS MANAGED -->"
+_PROTOCOL_RULE_KEY = "studio-protocol"
+
+
+def render_claude_md_block(repo_root: Path | str) -> str:
+    """The CLAUDE.md managed section: a pointer to the canonical `.agents/`
+    sources, importing the protocol rule when the project has one."""
+    lines = [
+        CLAUDE_BEGIN_MARKER,
+        "Règles et skills canoniques : `.agents/` (projections régénérées).",
+    ]
+    if _PROTOCOL_RULE_KEY in canonical_rule_keys(repo_root):
+        lines.append(f"@.agents/rules/{_PROTOCOL_RULE_KEY}.md")
+    lines.append(CLAUDE_END_MARKER)
+    return "\n".join(lines) + "\n"
 
 
 def render_agents_rules_block(repo_root: Path | str) -> str:
