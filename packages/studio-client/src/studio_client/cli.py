@@ -953,6 +953,64 @@ def _bootstrap_rollback(args: argparse.Namespace, config: ClientConfig | None) -
         print("Nothing to roll back.")
 
 
+def _bootstrap_scan(args: argparse.Namespace, config: ClientConfig | None) -> None:
+    """Scan the committed shared AI configuration for absolute paths/secrets (P8)."""
+    from studio_client.bootstrap import BootstrapError
+    from studio_client.team_rebuild import scan_committed_files
+
+    _ = config
+    try:
+        issues = scan_committed_files(args.repo_root)
+    except BootstrapError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
+    if args.json:
+        print(json.dumps({"issues": [vars(issue) for issue in issues]}))
+    else:
+        for issue in issues:
+            print(f"{issue.kind}\t{issue.path}:{issue.line}")
+        if not issues:
+            print("Committed files are clean.")
+    if issues:
+        raise SystemExit(1)
+
+
+def _bootstrap_rebuild(args: argparse.Namespace, config: ClientConfig) -> None:
+    """Rebuild this machine's configuration from the committed manifest (P8)."""
+    from studio_contracts.local.identity import ProfileRef
+    from studio_workspaces import WorkspaceStoreError
+
+    from studio_client.bootstrap import BootstrapError
+    from studio_client.team_rebuild import rebuild
+
+    project_id = _parse_uuid(args.project_id, field="project_id")
+    registry_dir = Path(args.registry_dir) if args.registry_dir else default_config_path().parent
+    try:
+        profile = ProfileRef(
+            profile_id=config.profile_id, server_origin=origin_of(config.api_base_url)
+        )
+        result = rebuild(args.repo_root, registry_dir, profile, project_id, confirm=args.yes)
+    except BootstrapError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
+    except WorkspaceStoreError as exc:
+        print(f"error: {exc} ({exc.code.value})", file=sys.stderr)
+        raise SystemExit(1) from None
+    summary = {
+        "workspace": result.registration.action.value,
+        "workspace_id": str(result.registration.config.workspace_id),
+        "written": result.written,
+    }
+    if args.json:
+        print(json.dumps(summary))
+    else:
+        print(f"workspace {summary['workspace']} ({summary['workspace_id']})")
+        for path in result.written:
+            print(f"Wrote {path}.")
+        if not result.written:
+            print("Already up to date.")
+
+
 def _workspaces_register(args: argparse.Namespace, config: ClientConfig) -> None:
     from studio_contracts.local.identity import ProfileRef
     from studio_workspaces import WorkspaceStoreError, register_workspace
@@ -1610,6 +1668,28 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_json_flag(bootstrap_sync)
     bootstrap_sync.set_defaults(func=_bootstrap_sync)
 
+    bootstrap_scan = bootstrap_sub.add_parser(
+        "scan", help="Fail if committed AI config holds an absolute path or a secret (P8)."
+    )
+    bootstrap_scan.add_argument("--repo-root", default=".")
+    _add_json_flag(bootstrap_scan)
+    bootstrap_scan.set_defaults(func=_bootstrap_scan)
+
+    bootstrap_rebuild = bootstrap_sub.add_parser(
+        "rebuild",
+        help="Rebuild this machine's config from the committed manifest (P8).",
+    )
+    bootstrap_rebuild.add_argument("--repo-root", default=".")
+    bootstrap_rebuild.add_argument("--project-id", required=True, help="Project UUID.")
+    bootstrap_rebuild.add_argument(
+        "--registry-dir", help="Workspace registry directory (default: the daemon's)."
+    )
+    bootstrap_rebuild.add_argument(
+        "--yes", action="store_true", help="Confirm replacements under the `ask` policy."
+    )
+    _add_json_flag(bootstrap_rebuild)
+    bootstrap_rebuild.set_defaults(func=_bootstrap_rebuild)
+
     bootstrap_rollback = bootstrap_sub.add_parser(
         "rollback", help="Undo the latest sync (restore replaced files, delete created ones)."
     )
@@ -1647,7 +1727,8 @@ def main(argv: Sequence[str] | None = None) -> None:
             and getattr(args, "from_canonical", False)
         )
         or getattr(args, "rules_command", None) in ("sync",)
-        or getattr(args, "bootstrap_command", None) in ("init", "check", "diff", "sync", "rollback")
+        or getattr(args, "bootstrap_command", None)
+        in ("init", "check", "diff", "sync", "rollback", "scan")
     ):
         # Offline canonical commands need no server configuration.
         args.func(args, None)
