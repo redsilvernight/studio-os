@@ -5,8 +5,6 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from studio_contracts.auth import MachineCapabilities
-
 from studio_client.capabilities import build_capabilities, registered_project_ids
 from studio_client.config import ClientConfig
 from studio_client.daemon.heartbeat import HeartbeatDaemon
@@ -18,6 +16,7 @@ from studio_client.harness.base import (
     HarnessContext,
 )
 from studio_client.harness.registry import HarnessRegistry
+from studio_contracts.auth import MachineCapabilities
 
 
 def _config(**overrides: Any) -> ClientConfig:
@@ -76,9 +75,7 @@ def test_build_capabilities_reports_ids_and_opt_in() -> None:
         launch_opt_in=True,
         max_concurrent_launches=3,
     )
-    registry = HarnessRegistry(
-        [StubAdapter(Detection(DetectionState.CONFIGURED, version="1.0"))]
-    )
+    registry = HarnessRegistry([StubAdapter(Detection(DetectionState.CONFIGURED, version="1.0"))])
     caps = build_capabilities(config, registry=registry, running_launches=2)
     assert caps.project_ids == [project]
     assert caps.accepts_launches is True
@@ -92,9 +89,7 @@ def test_build_capabilities_reports_ids_and_opt_in() -> None:
 
 def test_build_capabilities_defaults_to_closed() -> None:
     config = _config()
-    registry = HarnessRegistry(
-        [StubAdapter(Detection(DetectionState.NOT_INSTALLED))]
-    )
+    registry = HarnessRegistry([StubAdapter(Detection(DetectionState.NOT_INSTALLED))])
     caps = build_capabilities(config, registry=registry)
     assert caps.project_ids == []
     assert caps.accepts_launches is False
@@ -117,9 +112,7 @@ def test_daemon_sends_provider_capabilities(tmp_path: Path) -> None:
         config,
         capabilities_provider=lambda: build_capabilities(
             config,
-            registry=HarnessRegistry(
-                [StubAdapter(Detection(DetectionState.CONFIGURED))]
-            ),
+            registry=HarnessRegistry([StubAdapter(Detection(DetectionState.CONFIGURED))]),
         ),
     )
 

@@ -81,7 +81,19 @@ async def test_heartbeat_persists_and_echoes_capabilities(
         },
     )
     assert bare.status_code == 200
-    assert bare.json()["capabilities"] == capabilities
+    assert "capabilities" not in bare.json()
+
+    again = await client.post(
+        "/api/v1/heartbeats",
+        headers=auth_headers,
+        json={
+            "machine_id": str(machine_model.id),
+            "client_timestamp": datetime.now(UTC).isoformat(),
+            "capabilities": capabilities,
+        },
+    )
+    assert again.status_code == 200
+    assert again.json()["capabilities"] == capabilities
 
 
 async def test_heartbeat_rejects_capability_paths_and_secrets(

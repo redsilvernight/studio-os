@@ -14,8 +14,8 @@ from studio_contracts.auth import (
     AgentEnsureResult,
     HeartbeatRequest,
     HeartbeatResponse,
-    MachineCapabilities,
     Machine,
+    MachineCapabilities,
     MachineCreate,
     MachineCreated,
 )
