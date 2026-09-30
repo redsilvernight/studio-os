@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import difflib
-import hashlib
 import json
 import os
 import re
@@ -16,8 +15,7 @@ from typing import Any, Literal
 from uuid import UUID
 
 from studio_client.context.library import LibraryContextItem, LibraryContextProvider
-
-SyncState = Literal["current", "missing", "outdated", "locally_modified"]
+from studio_client.drift import SyncState, classify_state
 
 _STABLE_KEY_RE = re.compile(r"\A[a-z0-9][a-z0-9._-]{0,199}\Z")
 _MANIFEST_SCHEMA_VERSION = 1
@@ -335,12 +333,7 @@ def _plan_target(
     except UnicodeDecodeError as exc:
         raise SkillSyncError(f"skill target is not valid UTF-8: {path}") from exc
     current_hash = _sha256(current)
-    if current == rendered:
-        state: SyncState = "current"
-    elif managed_hash is not None and current_hash == managed_hash:
-        state = "outdated"
-    else:
-        state = "locally_modified"
+    state = classify_state(current, rendered, managed_hash)
     return SkillTargetPlan(harness, path, state, current, current_hash)
 
 
@@ -417,4 +410,6 @@ def _atomic_write(path: Path, text: str) -> None:
 
 
 def _sha256(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+    from studio_client.drift import hash_text
+
+    return hash_text(text)
