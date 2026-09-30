@@ -17,6 +17,7 @@ from uuid import UUID
 from pydantic import Field
 
 from studio_contracts.auth import HarnessReport, MachineStatus
+from studio_contracts.bootstrap import BootstrapFileSummary
 from studio_contracts.common import ContractModel
 
 
@@ -38,10 +39,21 @@ class DesiredIntegration(ContractModel):
     artifact_counts: dict[str, int] = Field(default_factory=dict)
 
 
+class AppliedBootstrap(ContractModel):
+    """The machine's own last local check of this project's AI bundle.
+    `in_sync` is true only when every planned file was observed up to date;
+    it is machine-observed, never inferred by the server."""
+
+    checked_at: datetime
+    summary: BootstrapFileSummary
+    in_sync: bool
+
+
 class ReportedMachineIntegration(ContractModel):
     """What one machine reported, and only that. `harnesses` are the
     machine's own `detected`/`configured` claims; `project_registered` is
-    `None` when the machine never reported."""
+    `None` when the machine never reported; `bootstrap` is `None` until the
+    machine has reported a local check of this project."""
 
     machine_id: UUID
     display_name: str
@@ -50,6 +62,7 @@ class ReportedMachineIntegration(ContractModel):
     reported_at: datetime | None = None
     project_registered: bool | None = None
     harnesses: list[HarnessReport] = Field(default_factory=list)
+    bootstrap: AppliedBootstrap | None = None
 
 
 class AiIntegrationStatus(ContractModel):

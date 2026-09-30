@@ -802,7 +802,7 @@ absente = etat valide. Le serveur ne decide rien : il valide et applique.
   kind) ou `desired_error` (code public) si le plan est impossible a construire. `machines` = les
   machines de l'appelant (toutes pour `admin`) avec le dernier rapport de capacites (R1) :
   `freshness` (`fresh` | `stale` | `never_reported`), `reported_at`, `project_registered`,
-  `harnesses` (revendications `detected`/`configured` de la machine). Aucune ecriture n'est
+  `harnesses` (revendications `detected`/`configured` de la machine). `bootstrap?` (`checked_at`, comptes par etat, `in_sync`) = dernier `bootstrap check` local du poste pour ce projet, absent tant qu'il n'a rien rapporte ; `in_sync` = tous les fichiers observes a jour. Aucune ecriture n'est
   affirmee par le serveur (les champs sans valeur sont absents de la reponse, pas `null`) ; un poste sans rapport ou perime est signale comme tel. Acces projet
   identique aux autres routes (`403` unique, pas d'oracle d'existence).
 

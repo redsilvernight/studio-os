@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
-from studio_contracts.auth import HarnessReport, MachineCapabilities
+from studio_contracts.auth import HarnessReport, MachineCapabilities, ProjectBootstrapStatus
 
 from studio_client.config import ClientConfig
 from studio_client.harness.base import DetectionState, HarnessContext
@@ -41,6 +42,30 @@ def registered_project_ids(config: ClientConfig) -> list[UUID]:
     return sorted(ordered)
 
 
+def bootstrap_statuses(
+    config: ClientConfig, *, now: datetime | None = None
+) -> list[ProjectBootstrapStatus]:
+    """Local, read-only `bootstrap check` of every watched repository that has
+    a manifest: state counts only, never a path. A repository without a valid
+    manifest, or unreadable, is left out - absence means "not reported"."""
+    from studio_client.bootstrap import BootstrapError, load_manifest, observe
+
+    checked_at = now if now is not None else datetime.now(UTC)
+    statuses: dict[UUID, ProjectBootstrapStatus] = {}
+    for watch in config.git_watches:
+        if watch.project_id in statuses:
+            continue
+        try:
+            manifest = load_manifest(watch.repo_path)
+            report = observe(watch.repo_path, manifest)
+        except (BootstrapError, OSError):
+            continue
+        statuses[watch.project_id] = ProjectBootstrapStatus(
+            project_id=watch.project_id, checked_at=checked_at, summary=report.summary
+        )
+    return [statuses[project_id] for project_id in sorted(statuses)]
+
+
 def build_capabilities(
     config: ClientConfig,
     *,
@@ -69,4 +94,5 @@ def build_capabilities(
         accepts_launches=config.launch_opt_in,
         running_launches=running_launches,
         max_launches=config.max_concurrent_launches,
+        bootstrap=bootstrap_statuses(config) or None,
     )
