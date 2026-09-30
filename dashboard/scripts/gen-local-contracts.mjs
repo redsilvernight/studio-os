@@ -66,6 +66,10 @@ const MODELS = [
   "KnowledgeInitVaultResult",
   "HarnessVerifyRequest",
   "HarnessVerifyResult",
+  "SkillsCheckRequest",
+  "SkillsCheckResult",
+  "SkillCheckEntry",
+  "SkillTargetState",
 ];
 
 // Line endings are not content: a Windows checkout may hold CRLF where the

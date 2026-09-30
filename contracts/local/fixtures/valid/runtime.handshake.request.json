@@ -19,6 +19,7 @@
         "knowledge.read",
         "publication.plan",
         "publication.publish",
+        "skills.read",
         "workspace.config"
       ],
       "component_version": "0.1.0",
