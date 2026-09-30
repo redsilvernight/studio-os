@@ -1,7 +1,7 @@
 ---
 id: DEC-0168
 title: 'AIB-D : loader runtime fusion .agents/ projet + Library, source injectee'
-status: proposed
+status: accepted
 date: '2026-09-30'
 superseded_by: null
 source: docs/AI_BOOTSTRAP_ROADMAP.md
