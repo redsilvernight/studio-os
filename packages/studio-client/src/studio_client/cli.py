@@ -985,6 +985,50 @@ def _workspaces_register(args: argparse.Namespace, config: ClientConfig) -> None
         print(f"{summary['action']}	{summary['workspace_id']}	{summary['workspace_root']}")
 
 
+def _library_publish(args: argparse.Namespace, config: ClientConfig) -> None:
+    """Publish canonical `.agents/` rules, skills and agent definitions to the
+    Library (P4). Reads are always allowed; nothing is written with
+    `--dry-run`, and nothing activates without `--activate`."""
+    from studio_contracts.library import LibraryScope
+
+    from studio_client.publish import PublishError, build_publish_items, publish_items
+
+    scope = LibraryScope(args.scope)
+    project_id = UUID(args.project_id) if args.project_id else None
+    kinds = tuple(args.kind) if args.kind else ("rule", "skill", "agent")
+    try:
+        items = build_publish_items(args.repo_root, kinds=kinds, keys=args.key)
+
+        async def action(client: StudioApiClient) -> Any:
+            return await publish_items(
+                client,
+                items,
+                scope=scope,
+                project_id=project_id,
+                activate=args.activate,
+                dry_run=args.dry_run,
+            )
+
+        results = _run(config, action)
+    except (PublishError, FileNotFoundError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
+    if args.json:
+        print(
+            json.dumps(
+                {"dry_run": args.dry_run, "results": [vars(result) for result in results]},
+                indent=2,
+            )
+        )
+        return
+    for result in results:
+        suffix = " (activated)" if result.activated else ""
+        print(f"{result.kind}\t{result.stable_key}\tv{result.version}\t{result.action}{suffix}")
+    changed = sum(1 for result in results if result.action != "unchanged")
+    verb = "would publish" if args.dry_run else "published"
+    print(f"{verb} {changed} of {len(results)} resources")
+
+
 def _rules_sync(args: argparse.Namespace, config: ClientConfig | None) -> None:
     """Regenerate rule projections (P3): `.claude/rules/*.md` plus the
     AGENTS.md rules block, both from `.agents/rules/`. Every replaced file is
@@ -1490,6 +1534,35 @@ def _build_parser() -> argparse.ArgumentParser:
             )
         _add_json_flag(skills_command)
         skills_command.set_defaults(func=_skills_command)
+
+    library_parser = subparsers.add_parser("library", help="Library publication (P4).")
+    library_sub = library_parser.add_subparsers(dest="library_command", required=True)
+    library_publish = library_sub.add_parser(
+        "publish",
+        help="Publish `.agents/` rules, skills, agents to the Library (drafts unless --activate).",
+    )
+    library_publish.add_argument("--repo-root", default=".", help="Repository root.")
+    library_publish.add_argument(
+        "--scope", choices=("studio", "project"), default="project", help="Target scope."
+    )
+    library_publish.add_argument("--project-id", help="Project UUID (required for project scope).")
+    library_publish.add_argument(
+        "--kind",
+        action="append",
+        choices=("rule", "skill", "agent"),
+        help="Restrict to a kind (repeatable); default all.",
+    )
+    library_publish.add_argument(
+        "--key", action="append", default=[], help="Restrict to a stable key (repeatable)."
+    )
+    library_publish.add_argument(
+        "--activate", action="store_true", help="Activate the published versions."
+    )
+    library_publish.add_argument(
+        "--dry-run", action="store_true", help="Report what would change; write nothing."
+    )
+    _add_json_flag(library_publish)
+    library_publish.set_defaults(func=_library_publish)
 
     bootstrap_parser = subparsers.add_parser(
         "bootstrap", help="Generate the project AI bundle from `.agents/` (P3)."
