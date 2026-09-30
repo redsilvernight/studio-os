@@ -103,6 +103,9 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
     ("GET", "/api/v1/tasks/{task_id}/eligible-machines"): (
         Probe("/api/v1/tasks/{task}/eligible-machines"),
     ),
+    ("GET", "/api/v1/projects/{project_id}/ai-integration"): (
+        Probe("/api/v1/projects/{pid}/ai-integration"),
+    ),
     ("PATCH", "/api/v1/tasks/{task_id}"): (
         Probe("/api/v1/tasks/{task}", {"title": "x"}, headers=_V1),
     ),

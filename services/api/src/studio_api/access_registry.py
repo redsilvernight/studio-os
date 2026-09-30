@@ -92,6 +92,7 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     ("PATCH", "/api/v1/tasks/{task_id}"): _P,
     ("POST", "/api/v1/tasks/{task_id}/claim"): _P,
     ("GET", "/api/v1/tasks/{task_id}/eligible-machines"): _P,
+    ("GET", "/api/v1/projects/{project_id}/ai-integration"): _P,
     ("POST", "/api/v1/tasks/{task_id}/release"): _P,
     ("GET", "/api/v1/sessions"): _P,
     ("POST", "/api/v1/sessions"): _P,

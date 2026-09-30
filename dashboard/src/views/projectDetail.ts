@@ -19,6 +19,7 @@ import { taskStatusLabel, taskStatusTone } from "../taskStatus";
 import { describeError, esc, fmtTime } from "../ui";
 import { fetchIdentity } from "../identityApi";
 import { renderActivityInto } from "./activity";
+import { renderAiIntegrationInto } from "./aiIntegration";
 import { renderClaimsInto } from "./claims";
 import { renderDecisionsV2 as renderDecisions } from "./decisionsV2";
 import { renderMembersInto } from "./members";
@@ -30,7 +31,15 @@ type ProjectState = components["schemas"]["ProjectState"];
 type Task = components["schemas"]["Task"];
 type ResourceClaim = components["schemas"]["ResourceClaim"];
 
-export type ProjectTab = "overview" | "roadmap" | "tasks" | "claims" | "activity" | "decisions" | "members";
+export type ProjectTab =
+  | "overview"
+  | "roadmap"
+  | "tasks"
+  | "claims"
+  | "activity"
+  | "decisions"
+  | "members"
+  | "ai-integration";
 
 export interface ProjectDetailContext {
   client: StudioClient;
@@ -46,6 +55,7 @@ export const PROJECT_TABS: ReadonlyArray<{ id: ProjectTab; label: string; suffix
   { id: "activity", label: "Activité", suffix: "/activity" },
   { id: "decisions", label: "Décisions", suffix: "/decisions" },
   { id: "members", label: "Membres", suffix: "/members" },
+  { id: "ai-integration", label: "Intégration IA", suffix: "/ai-integration" },
 ];
 
 /** Libellés FR des statuts (source unique : taskStatus.ts, UI-5). */
@@ -274,6 +284,10 @@ export async function renderProjectDetail(
       isAdmin: identity?.role === "admin",
       selfId: identity?.user_id ?? null,
     });
+    return;
+  }
+  if (tab === "ai-integration") {
+    await renderAiIntegrationInto(panel, { client: ctx.client, projectId: project.id });
     return;
   }
   const intro = document.createElement("p");

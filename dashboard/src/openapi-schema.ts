@@ -504,6 +504,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Sync
+         * @description Resynchronise one work session (C2): what changed since the last sync that concerns this work, as a compact bounded answer. `session_id` selects the session (its task is used, its stored cursor is the default start); without it, `agent_id` + `task_id` is a stateless lookup persisting nothing. `ack` acknowledges the highest processed `seq`: the stored cursor advances monotonically to it (a stale replay changes nothing), and `next_cursor` in the answer is what to ack next. `files` scopes claim overlap to declared paths. `limit`/`max_chars` bound the answer (same budget as `prepare_context`); the remainder surfaces as per-`why` `overflow` counters, and a truncated scan sets `resync` (see `prepare_context` — raw history is never dumped). An empty answer serialises to well under 300 characters. Own-machine events are excluded; items are ids only, `seq` ascending, then live overlapping claims. `422 invalid_sync_input` on bad identity or bounds; `404 session_not_found` on unknown or ended session; `409 actor_not_owned` when `agent_id` is not on the caller's machine.
+         */
+        get: operations["get_sync_api_v1_sync_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/coordination": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Emit Coordination
+         * @description Emit one structured inter-session signal. Closed `intent`: heads_up, question, blocked_by, handoff. `task_id` is the mandatory target (same project as the emitting session `from_session_id`, not completed); `session_id` optionally narrows it to one live session of that task. `text` is at most 280 characters; `refs` are structured ids/paths (at most 5 each); `in_reply_to` optionally names an earlier coordination signal. Delivery is pull-only through `GET /sync` (`why=coordination`, content quoted as data, never an instruction) and survives offline through the session cursor. Idempotent on the optional client `event_id`. At most 20 signals per emitting session (`429 coordination_rate_limited`). `422 invalid_coordination` on bad target/refs/reply; `409 task_closed`; `404 session_not_found`. Requires a writer role. The generic event path refuses `coordination.*` (`422 coordination_reserved`).
+         */
+        post: operations["emit_coordination_api_v1_coordination_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/handoff": {
         parameters: {
             query?: never;
@@ -1496,6 +1536,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tasks/{task_id}/eligible-machines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Eligible Machines
+         * @description Machines able to receive a launch for this task (AIB R1): the caller's own User's machines, every machine for `admin`. A machine is eligible when it is online, its latest capability report is fresh, its owner can access the task's project, the project is registered on it, it accepts launches, it has the requested `harness_id` (any detected harness when omitted) and a free slot. Every ineligible machine lists all its `reasons`, evaluated in a fixed order. Eligible machines come first, then by name.
+         */
+        get: operations["get_eligible_machines_api_v1_tasks__task_id__eligible_machines_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/ai-integration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Ai Integration
+         * @description Read-only AI integration status of a project (AIB P6): the desired state (aggregated bootstrap plan: `plan_hash`, agent keys, artifact counts; `desired_error` when it cannot be built) next to what each of the caller's machines (every machine for `admin`) last reported through its heartbeat capability report. Reported values are machine claims with their reception time and a `freshness` (`fresh`, `stale`, `never_reported`): the server never asserts a write on a machine it has not been told about. Inaccessible and unknown projects answer the same `403`.
+         */
+        get: operations["get_ai_integration_api_v1_projects__project_id__ai_integration_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users": {
         parameters: {
             query?: never;
@@ -2410,6 +2490,40 @@ export interface components {
              */
             session_overrides: components["schemas"]["SessionRuntimeOverride"][];
         };
+        /**
+         * AiIntegrationStatus
+         * @description `desired` is `None` when the plan cannot be built; `desired_error`
+         *     then carries the public error code (never a stack or a path). `machines`
+         *     are the caller's own machines (every machine for `admin`).
+         */
+        AiIntegrationStatus: {
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            desired?: components["schemas"]["DesiredIntegration"] | null;
+            /** Desired Error */
+            desired_error?: string | null;
+            /** Machines */
+            machines?: components["schemas"]["ReportedMachineIntegration"][];
+        };
+        /**
+         * AppliedBootstrap
+         * @description The machine's own last local check of this project's AI bundle.
+         *     `in_sync` is true only when every planned file was observed up to date;
+         *     it is machine-observed, never inferred by the server.
+         */
+        AppliedBootstrap: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            summary: components["schemas"]["BootstrapFileSummary"];
+            /** In Sync */
+            in_sync: boolean;
+        };
         /** AuthIdentity */
         AuthIdentity: {
             /**
@@ -2440,6 +2554,38 @@ export interface components {
          * @enum {string}
          */
         BindingRelation: "requires_model_profile" | "uses_skill" | "applies_rule" | "composes_agent" | "references_workflow" | "refines_skill_rule";
+        /**
+         * BootstrapFileSummary
+         * @description State counts: the glanceable roll-up of a dry-run, mirroring
+         *     `InitializationSummary` (created/reused/skipped).
+         */
+        BootstrapFileSummary: {
+            /**
+             * Absent
+             * @default 0
+             */
+            absent: number;
+            /**
+             * Obsolete
+             * @default 0
+             */
+            obsolete: number;
+            /**
+             * Modified
+             * @default 0
+             */
+            modified: number;
+            /**
+             * Incompatible
+             * @default 0
+             */
+            incompatible: number;
+            /**
+             * Up To Date
+             * @default 0
+             */
+            up_to_date: number;
+        };
         /**
          * BootstrapPlan
          * @description `plan_hash` covers `(kind, stable_key, scope, version, content_hash)` of
@@ -2704,6 +2850,97 @@ export interface components {
             linked_task_ids?: string[];
         };
         /**
+         * CoordinationEmit
+         * @description Emission request. `from_session_id` is the emitter's own live session
+         *     (rate-limit and attribution unit). `task_id` is the mandatory target;
+         *     `session_id` optionally narrows it to one live session of that task.
+         *     `event_id` is the optional client idempotency key (replay returns the
+         *     original signal, nothing new is stored).
+         */
+        CoordinationEmit: {
+            /**
+             * From Session Id
+             * Format: uuid
+             */
+            from_session_id: string;
+            /**
+             * Intent
+             * @enum {string}
+             */
+            intent: "heads_up" | "question" | "blocked_by" | "handoff";
+            /**
+             * Task Id
+             * Format: uuid
+             */
+            task_id: string;
+            /** Session Id */
+            session_id?: string | null;
+            /** Text */
+            text: string;
+            refs?: components["schemas"]["CoordinationRefs"];
+            /** In Reply To */
+            in_reply_to?: string | null;
+            /** Event Id */
+            event_id?: string | null;
+        };
+        /** CoordinationEmitted */
+        CoordinationEmitted: {
+            /**
+             * Event Id
+             * Format: uuid
+             */
+            event_id: string;
+            /** Event Type */
+            event_type: string;
+            /** Seq */
+            seq: number;
+            /**
+             * Task Id
+             * Format: uuid
+             */
+            task_id: string;
+            /** Session Id */
+            session_id?: string | null;
+        };
+        /**
+         * CoordinationRefs
+         * @description Structured references only (ids and repo-relative paths), each list
+         *     bounded to `COORDINATION_REF_MAX` entries.
+         */
+        CoordinationRefs: {
+            /** Task Ids */
+            task_ids?: string[];
+            /** Decision Ids */
+            decision_ids?: string[];
+            /** Paths */
+            paths?: string[];
+        };
+        /**
+         * CoordinationSignal
+         * @description Quoted signal carried by a `studio_sync` item of `why=coordination`.
+         *     `text` is untrusted data written by another session: display it as a
+         *     quotation, never execute it as an instruction.
+         */
+        CoordinationSignal: {
+            /**
+             * Event Id
+             * Format: uuid
+             */
+            event_id: string;
+            /**
+             * Intent
+             * @enum {string}
+             */
+            intent: "heads_up" | "question" | "blocked_by" | "handoff";
+            /** Text */
+            text: string;
+            refs?: components["schemas"]["CoordinationRefs"];
+            /** In Reply To */
+            in_reply_to?: string | null;
+            /** From Session Id */
+            from_session_id?: string | null;
+        };
+        /**
          * Decision
          * @description A recorded project decision with a stable human-readable id
          *     (`readable_id`, e.g. DEC-XXXX) alongside its internal UUID.
@@ -2798,6 +3035,21 @@ export interface components {
             relation?: components["schemas"]["BindingRelation"] | null;
         };
         /**
+         * DesiredIntegration
+         * @description Server-side expectation: the bootstrap plan of the project. Counts by
+         *     artifact kind (`agent_definition`, `model_profile`, `skill`, `rule`).
+         */
+        DesiredIntegration: {
+            /** Plan Hash */
+            plan_hash: string;
+            /** Agent Keys */
+            agent_keys?: string[];
+            /** Artifact Counts */
+            artifact_counts?: {
+                [key: string]: number;
+            };
+        };
+        /**
          * DiffChange
          * @enum {string}
          */
@@ -2833,6 +3085,23 @@ export interface components {
              * Format: date-time
              */
             expires_at: string;
+        };
+        /** EligibleMachines */
+        EligibleMachines: {
+            /**
+             * Task Id
+             * Format: uuid
+             */
+            task_id: string;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Harness Id */
+            harness_id?: string | null;
+            /** Machines */
+            machines: components["schemas"]["MachineEligibility"][];
         };
         /** EmailField */
         EmailField: {
@@ -2955,7 +3224,7 @@ export interface components {
          *     or removed — readers should tolerate unknown types.
          * @enum {string}
          */
-        EventType: "project.created" | "task.created" | "task.started" | "task.updated" | "task.blocked" | "task.completed" | "session.started" | "session.ended" | "resource.claimed" | "resource.renewed" | "resource.released" | "resource.conflict" | "decision.proposed" | "decision.created" | "decision.accepted" | "decision.superseded" | "library.version.created" | "library.version.activated" | "library.resource.deprecated" | "library.lock.set" | "library.lock.released" | "roadmap.created" | "roadmap.updated" | "roadmap.proposed" | "roadmap.approved" | "roadmap.changes_requested" | "roadmap.rejected" | "roadmap.activated" | "roadmap.completed" | "roadmap.archived" | "roadmap.hydrated" | "agent.started" | "agent.stopped" | "ai_work.started" | "ai_work.completed" | "ai_work.failed" | "ai_work.review_requested" | "ai_work.approved" | "ai_work.changes_requested" | "git.commit" | "git.branch.changed" | "git.pr.opened" | "git.pr.merged" | "graph.updated" | "memory.proposed" | "memory.updated" | "godot.started" | "godot.stopped" | "recording.started" | "recording.finished" | "recording.marker.created" | "build.started" | "build.succeeded" | "build.failed" | "producer.job.requested" | "producer.job.completed" | "producer.job.failed" | "transfer.created" | "transfer.uploading" | "transfer.ready" | "transfer.downloaded" | "transfer.expired" | "transfer.deleted" | "marketing.candidate.created" | "marketing.post.published";
+        EventType: "project.created" | "task.created" | "task.started" | "task.updated" | "task.blocked" | "task.completed" | "session.started" | "session.ended" | "resource.claimed" | "resource.renewed" | "resource.released" | "resource.conflict" | "decision.proposed" | "decision.created" | "decision.accepted" | "decision.superseded" | "library.version.created" | "library.version.activated" | "library.resource.deprecated" | "library.lock.set" | "library.lock.released" | "roadmap.created" | "roadmap.updated" | "roadmap.proposed" | "roadmap.approved" | "roadmap.changes_requested" | "roadmap.rejected" | "roadmap.activated" | "roadmap.completed" | "roadmap.archived" | "roadmap.hydrated" | "agent.started" | "agent.stopped" | "ai_work.started" | "ai_work.completed" | "ai_work.failed" | "ai_work.review_requested" | "ai_work.approved" | "ai_work.changes_requested" | "git.commit" | "git.branch.changed" | "git.pr.opened" | "git.pr.merged" | "graph.updated" | "memory.proposed" | "memory.updated" | "godot.started" | "godot.stopped" | "recording.started" | "recording.finished" | "recording.marker.created" | "build.started" | "build.succeeded" | "build.failed" | "producer.job.requested" | "producer.job.completed" | "producer.job.failed" | "transfer.created" | "transfer.uploading" | "transfer.ready" | "transfer.downloaded" | "transfer.expired" | "transfer.deleted" | "marketing.candidate.created" | "marketing.post.published" | "coordination.heads_up" | "coordination.question" | "coordination.blocked_by" | "coordination.handoff";
         /**
          * GitHubIntegration
          * @description Per-project GitHub wiring. At most one row per project in
@@ -3050,6 +3319,18 @@ export interface components {
             detail?: components["schemas"]["ValidationError"][];
         };
         /**
+         * HandoffCoordination
+         * @description Optional `coordination.handoff` signal (C4, additive)
+         *     emitted on the handed-off task, delivered to its next session through
+         *     `studio_sync`. The event id is derived from the session, so a replay
+         *     never emits a second signal. `text` is quoted data for the recipient.
+         */
+        HandoffCoordination: {
+            /** Text */
+            text: string;
+            refs?: components["schemas"]["CoordinationRefs"];
+        };
+        /**
          * HandoffRequest
          * @description Composite handoff input. `project_id` and `session_id` are required.
          *     `expected_version` is the task version for optimistic concurrency on
@@ -3085,13 +3366,17 @@ export interface components {
             changed_files?: string[] | null;
             /** Tests Run */
             tests_run?: string[] | null;
+            coordination?: components["schemas"]["HandoffCoordination"] | null;
         };
         /**
          * HandoffResult
          * @description Compact result: ids + statuses only, never full descriptions.
          *     Replaying the same `Idempotency-Key` with the same body returns the
          *     original result — no second status update, no duplicate claim
-         *     releases, no duplicate AI work entry, no second session end.
+         *     releases, no duplicate AI work entry, no second session end. C4 adds:
+         *     `sync` (last bounded `studio_sync` answer, acknowledged), the task's new
+         *     `handoff_cursor_seq` that the next session inherits, and the emitted
+         *     `coordination_event_id` when a `coordination` signal was requested.
          */
         HandoffResult: {
             /**
@@ -3111,8 +3396,40 @@ export interface components {
             released_claims: string[];
             /** Ai Work Id */
             ai_work_id?: string | null;
+            sync?: components["schemas"]["SyncResult"] | null;
+            /** Handoff Cursor Seq */
+            handoff_cursor_seq?: number | null;
+            /** Coordination Event Id */
+            coordination_event_id?: string | null;
         };
-        /** HeartbeatRequest */
+        /**
+         * HarnessReport
+         * @description One harness as reported by a machine (AIB R1): `detected` means the
+         *     tool is present on the machine, `configured` means it is wired for
+         *     Studio OS. IDs and stable tokens only: never a path, secret,
+         *     fingerprint or file listing.
+         */
+        HarnessReport: {
+            /** Harness Id */
+            harness_id: string;
+            /** Version */
+            version?: string | null;
+            /**
+             * Detected
+             * @default false
+             */
+            detected: boolean;
+            /**
+             * Configured
+             * @default false
+             */
+            configured: boolean;
+        };
+        /**
+         * HeartbeatRequest
+         * @description `capabilities` is optional and additive: absent, the previous report
+         *     is kept untouched.
+         */
         HeartbeatRequest: {
             /**
              * Machine Id
@@ -3126,6 +3443,7 @@ export interface components {
              * Format: date-time
              */
             client_timestamp: string;
+            capabilities?: components["schemas"]["MachineCapabilities"] | null;
         };
         /** HeartbeatResponse */
         HeartbeatResponse: {
@@ -3145,6 +3463,7 @@ export interface components {
              * Format: date-time
              */
             server_timestamp: string;
+            capabilities?: components["schemas"]["MachineCapabilities"] | null;
         };
         /**
          * HydrationAction
@@ -3240,6 +3559,12 @@ export interface components {
             items?: components["schemas"]["HydrationItem"][];
             counts?: components["schemas"]["HydrationCounts"];
         };
+        /**
+         * IneligibilityReason
+         * @description Deterministic, evaluated in this declaration order.
+         * @enum {string}
+         */
+        IneligibilityReason: "offline" | "no_capabilities_report" | "capabilities_stale" | "owner_no_project_access" | "project_not_registered" | "launches_not_accepted" | "harness_incompatible" | "at_capacity";
         /** InitializationAction */
         InitializationAction: {
             section: components["schemas"]["InitializationSection"];
@@ -3755,6 +4080,35 @@ export interface components {
             status: components["schemas"]["MachineStatus"];
         };
         /**
+         * MachineCapabilities
+         * @description Machine-reported launch aptitude (AIB R1, additive). Ids only - never a
+         *     path, hostname or secret. The server stores the latest report with its
+         *     reception time and never presents a stale one as current.
+         */
+        MachineCapabilities: {
+            /** Harnesses */
+            harnesses?: components["schemas"]["HarnessReport"][];
+            /** Project Ids */
+            project_ids?: string[];
+            /**
+             * Accepts Launches
+             * @default false
+             */
+            accepts_launches: boolean;
+            /**
+             * Running Launches
+             * @default 0
+             */
+            running_launches: number;
+            /**
+             * Max Launches
+             * @default 0
+             */
+            max_launches: number;
+            /** Bootstrap */
+            bootstrap?: components["schemas"]["ProjectBootstrapStatus"][] | null;
+        };
+        /**
          * MachineCreate
          * @description `owner_user_id` is optional (A5): absent, the machine belongs to the
          *     caller's own User. A non-admin may only name itself — the server never
@@ -3803,6 +4157,30 @@ export interface components {
             status: components["schemas"]["MachineStatus"];
             /** Credential */
             credential: string;
+        };
+        /** MachineEligibility */
+        MachineEligibility: {
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Display Name */
+            display_name: string;
+            status: components["schemas"]["MachineStatus"];
+            /** Eligible */
+            eligible: boolean;
+            /** Reasons */
+            reasons?: components["schemas"]["IneligibilityReason"][];
+            /** Harnesses */
+            harnesses?: components["schemas"]["HarnessReport"][];
+            /**
+             * Free Slots
+             * @default 0
+             */
+            free_slots: number;
+            /** Reported At */
+            reported_at?: string | null;
         };
         /**
          * MachineStatus
@@ -4018,6 +4396,26 @@ export interface components {
              */
             archived: boolean;
         };
+        /**
+         * ProjectBootstrapStatus
+         * @description Machine-observed state of one project's AI bundle (AIB P6): the result
+         *     of the machine's own local `bootstrap check` at `checked_at`. Counts only
+         *     - never a path or file name. It says what the machine observed, not what
+         *     the server expects.
+         */
+        ProjectBootstrapStatus: {
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            summary: components["schemas"]["BootstrapFileSummary"];
+        };
         /** ProjectCreate */
         ProjectCreate: {
             /** Slug */
@@ -4175,6 +4573,38 @@ export interface components {
             /** Expected Roadmap Version */
             expected_roadmap_version: number;
             provenance?: components["schemas"]["WriteProvenance"];
+        };
+        /**
+         * ReportFreshness
+         * @description `fresh`: reported within the offline threshold. `stale`: older than
+         *     that, shown for information only. `never_reported`: no report at all.
+         * @enum {string}
+         */
+        ReportFreshness: "fresh" | "stale" | "never_reported";
+        /**
+         * ReportedMachineIntegration
+         * @description What one machine reported, and only that. `harnesses` are the
+         *     machine's own `detected`/`configured` claims; `project_registered` is
+         *     `None` when the machine never reported; `bootstrap` is `None` until the
+         *     machine has reported a local check of this project.
+         */
+        ReportedMachineIntegration: {
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Display Name */
+            display_name: string;
+            status: components["schemas"]["MachineStatus"];
+            freshness: components["schemas"]["ReportFreshness"];
+            /** Reported At */
+            reported_at?: string | null;
+            /** Project Registered */
+            project_registered?: boolean | null;
+            /** Harnesses */
+            harnesses?: components["schemas"]["HarnessReport"][];
+            bootstrap?: components["schemas"]["AppliedBootstrap"] | null;
         };
         /** ResetPasswordRequest */
         ResetPasswordRequest: {
@@ -5538,11 +5968,14 @@ export interface components {
          *     are set only on the with-task path; `claimed` tells whether the task is
          *     now claimed by the caller's machine; `resumed` tells whether the
          *     session was resumed (`True`) or created (`False`) — meaningless without
-         *     a task. `prepared_context` is present on every successful response
-         *     (bounded); `candidates` only on the no-task path. Replaying the same `Idempotency-Key` with the
-         *     same body returns the original result — never a second claim nor a
-         *     second session; a different body is `409
-         *     idempotency_key_payload_mismatch`.
+         *     a task. `sync` (C4, additive) is the initial bounded `studio_sync` block of
+         *     the session, with-task path only: computed from the cursor the session
+         *     holds (inherited from the task's last handoff), never acknowledged here —
+         *     the agent acks `next_cursor` on its next `studio_sync`. `prepared_context`
+         *     is present on every successful response (bounded); `candidates` only on
+         *     the no-task path. Replaying the same `Idempotency-Key` with the same body
+         *     returns the original result — never a second claim nor a second session;
+         *     a different body is `409 idempotency_key_payload_mismatch`.
          */
         StartWorkResult: {
             task?: components["schemas"]["Task"] | null;
@@ -5563,6 +5996,7 @@ export interface components {
              * @default []
              */
             candidates: components["schemas"]["StartWorkCandidate"][];
+            sync?: components["schemas"]["SyncResult"] | null;
         };
         /** Step */
         Step: {
@@ -5736,6 +6170,66 @@ export interface components {
             /** Tasks */
             tasks?: components["schemas"]["TaskPlanItem"][] | null;
             provenance?: components["schemas"]["WriteProvenance"];
+        };
+        /**
+         * SyncItem
+         * @description One compact sync element, ids only — never a task description nor
+         *     any long text. `seq`/`event_type` are set on `event` items;
+         *     `claim_id`/`resource_path` on `claim` items (live claim state, no `seq`).
+         *     `why` names the deterministic filter branch that surfaced it.
+         */
+        SyncItem: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "event" | "claim";
+            /**
+             * Why
+             * @enum {string}
+             */
+            why: "own_task" | "decision" | "claim_overlap" | "roadmap_dependency" | "coordination";
+            /** Seq */
+            seq?: number | null;
+            /** Event Type */
+            event_type?: string | null;
+            /** Task Id */
+            task_id?: string | null;
+            /** Claim Id */
+            claim_id?: string | null;
+            /** Resource Path */
+            resource_path?: string | null;
+            coordination?: components["schemas"]["CoordinationSignal"] | null;
+        };
+        /**
+         * SyncResult
+         * @description Bounded sync answer. `next_cursor` is the highest delivered `seq`
+         *     (unchanged when nothing new); ack it on the next call to advance.
+         *     `overflow` counts matched-but-unreturned items per `why` category;
+         *     `resync` (scan truncated) refers to `prepare_context` for the full
+         *     picture — raw history is never dumped. An empty answer serializes to
+         *     well under 300 characters.
+         */
+        SyncResult: {
+            /** Next Cursor */
+            next_cursor: number;
+            /**
+             * Items
+             * @default []
+             */
+            items: components["schemas"]["SyncItem"][];
+            /**
+             * Overflow
+             * @default {}
+             */
+            overflow: {
+                [key: string]: number;
+            };
+            /**
+             * Resync
+             * @default false
+             */
+            resync: boolean;
         };
         /** Task */
         Task: {
@@ -6281,6 +6775,8 @@ export interface components {
             ended_at?: string | null;
             /** Last Activity At */
             last_activity_at?: string | null;
+            /** Sync Cursor Seq */
+            sync_cursor_seq?: number | null;
             /** @default active */
             status: components["schemas"]["SessionStatus"];
             /** Expires At */
@@ -8251,6 +8747,185 @@ export interface operations {
                      *       "detail": {
                      *         "error_code": "idempotency_key_payload_mismatch"
                      *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_sync_api_v1_sync_get: {
+        parameters: {
+            query?: {
+                session_id?: string | null;
+                agent_id?: string | null;
+                task_id?: string | null;
+                ack?: number | null;
+                files?: string[] | null;
+                limit?: number;
+                max_chars?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncResult"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Provenance mismatch: the referenced agent identity is unknown or attached to another machine. Register an agent for the caller's own authenticated machine first (`POST /agents`), then reference it. Never silently attributed across machines. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "actor_not_owned",
+                     *         "message": "agent_id must be an agent attached to the authenticated machine"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    emit_coordination_api_v1_coordination_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoordinationEmit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoordinationEmitted"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
                      *     }
                      */
                     "application/json": unknown;
@@ -13238,6 +13913,148 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_eligible_machines_api_v1_tasks__task_id__eligible_machines_get: {
+        parameters: {
+            query?: {
+                harness_id?: string | null;
+            };
+            header?: never;
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EligibleMachines"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_ai_integration_api_v1_projects__project_id__ai_integration_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiIntegrationStatus"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
                      *     }
                      */
                     "application/json": unknown;
