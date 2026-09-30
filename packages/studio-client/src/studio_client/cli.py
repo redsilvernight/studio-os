@@ -605,6 +605,21 @@ def _adapters_list(args: argparse.Namespace, config: ClientConfig) -> None:
             print(f"{adapter_id}\t{get_adapter(adapter_id).managed_dir}")
 
 
+def _fetch_library_snapshot(
+    args: argparse.Namespace, config: ClientConfig | None, stable_key: str
+) -> Any:
+    """Fetch one Library snapshot for `--with-library` (P4/AIB-D, DEC-0168).
+    Fail closed: transport/auth errors exit inside `_run`, never fall back
+    to offline silently."""
+    assert config is not None  # Library fetch needs the API configuration.
+    project_id = _parse_uuid(args.project_id, field="project_id") if args.project_id else None
+
+    async def action(client: StudioApiClient) -> Any:
+        return await client.fetch_library_snapshot(stable_key, project_id=project_id)
+
+    return _run(config, action)
+
+
 def _adapters_export(args: argparse.Namespace, config: ClientConfig | None) -> None:
     """Resolve one AgentDefinition over P7 HTTP, then project it locally
     with `studio_client.adapters` (P10/DEC-0074).
@@ -621,11 +636,19 @@ def _adapters_export(args: argparse.Namespace, config: ClientConfig | None) -> N
         print(f"error: {exc.message} ({exc.code.value})", file=sys.stderr)
         raise SystemExit(1) from None
 
+    if args.with_library and not args.from_canonical:
+        print("error: --with-library requires --from-canonical", file=sys.stderr)
+        raise SystemExit(1)
+
     if args.from_canonical:
-        from studio_client.canonical import build_offline_resolved
+        from studio_client.canonical import build_merged_resolved, build_offline_resolved
 
         try:
-            resolved = build_offline_resolved(args.repo_root, args.stable_key)
+            if args.with_library:
+                library = _fetch_library_snapshot(args, config, args.stable_key)
+                resolved = build_merged_resolved(args.repo_root, args.stable_key, library=library)
+            else:
+                resolved = build_offline_resolved(args.repo_root, args.stable_key)
             result = adapter.translate(resolved)
         except (AdapterError, ValueError, OSError) as exc:
             print(f"error: {exc}", file=sys.stderr)
@@ -714,6 +737,7 @@ def _adapters_check(args: argparse.Namespace, config: ClientConfig | None) -> No
     every mismatch and exits non-zero."""
     from studio_client.adapters import AdapterError, get_adapter, list_adapters
     from studio_client.canonical import (
+        build_merged_resolved,
         build_offline_resolved,
         canonical_agent_keys,
         canonical_rule_keys,
@@ -722,7 +746,6 @@ def _adapters_check(args: argparse.Namespace, config: ClientConfig | None) -> No
         render_claude_rule,
     )
 
-    _ = config
     root = Path(args.repo_root)
     adapter_ids = [args.adapter] if args.adapter else list_adapters()
     keys = [args.stable_key] if args.stable_key else canonical_agent_keys(root)
@@ -737,7 +760,11 @@ def _adapters_check(args: argparse.Namespace, config: ClientConfig | None) -> No
         for key in keys:
             checked += 1
             try:
-                resolved = build_offline_resolved(root, key)
+                if args.with_library:
+                    library = _fetch_library_snapshot(args, config, key)
+                    resolved = build_merged_resolved(root, key, library=library)
+                else:
+                    resolved = build_offline_resolved(root, key)
                 result = adapter.translate(resolved)
             except (AdapterError, ValueError, OSError) as exc:
                 failures.append({"adapter": adapter_id, "key": key, "error": str(exc)})
@@ -1399,6 +1426,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Build from `.agents/definitions/` files (authoring source, no server).",
     )
     adapters_export.add_argument(
+        "--with-library",
+        action="store_true",
+        help="Merge the Library snapshot over --from-canonical (needs API access).",
+    )
+    adapters_export.add_argument(
         "--repo-root",
         default=".",
         help="Repository root for --from-canonical and check (default: cwd).",
@@ -1413,6 +1445,12 @@ def _build_parser() -> argparse.ArgumentParser:
     adapters_check.add_argument("--adapter", help="Check one adapter id (default: all).")
     adapters_check.add_argument("--stable-key", help="Check one agent key (default: all).")
     adapters_check.add_argument("--repo-root", default=".", help="Repository root.")
+    adapters_check.add_argument("--project-id", help="Project UUID for --with-library.")
+    adapters_check.add_argument(
+        "--with-library",
+        action="store_true",
+        help="Merge the Library snapshot per key before translating (needs API access).",
+    )
     _add_json_flag(adapters_check)
     adapters_check.set_defaults(func=_adapters_check)
 
