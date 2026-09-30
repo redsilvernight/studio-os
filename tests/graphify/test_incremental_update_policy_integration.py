@@ -158,13 +158,12 @@ def test_project_with_ledger_module_can_record_an_attempt(
     assert cost_path.exists()
 
 
-def test_extract_chunk_reports_which_backend_succeeded(
+def test_extract_chunk_reports_the_bonsai_backend(
     incremental_update_module: ModuleType, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     module = incremental_update_module
 
-    def fake_call_backend(backend: str, prompt: str, files: list[str], timeout: int = 900) -> str:
-        assert backend == "qwen"
+    def fake_call_backend(prompt: str, files: list[str], timeout: int = 900) -> str:
         return '{"nodes": [], "edges": [], "hyperedges": []}'
 
     monkeypatch.setattr(module, "call_backend", fake_call_backend)
@@ -173,10 +172,9 @@ def test_extract_chunk_reports_which_backend_succeeded(
         1,
         ["a.md"],
         {"a.md": "a.md"},
-        "qwen",
     )
     assert err is None
-    assert backend_used == "qwen"
+    assert backend_used == "bonsai"
     assert data == {"nodes": [], "edges": [], "hyperedges": []}
 
 
@@ -216,9 +214,7 @@ def test_extract_chunk_reports_no_backend_on_total_failure(
 ) -> None:
     module = incremental_update_module
 
-    def failing_call_backend(
-        backend: str, prompt: str, files: list[str], timeout: int = 900
-    ) -> str:
+    def failing_call_backend(prompt: str, files: list[str], timeout: int = 900) -> str:
         raise RuntimeError("boom")
 
     monkeypatch.setattr(module, "call_backend", failing_call_backend)
@@ -227,7 +223,6 @@ def test_extract_chunk_reports_no_backend_on_total_failure(
         1,
         ["a.md"],
         {"a.md": "a.md"},
-        "qwen",
     )
     assert err is not None
     assert backend_used is None
