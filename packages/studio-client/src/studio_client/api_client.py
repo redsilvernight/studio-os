@@ -47,6 +47,7 @@ from studio_contracts.transfers import (
 )
 from studio_contracts.version import VersionInfo
 
+from studio_client.canonical import LibrarySnapshot
 from studio_client.config import ClientConfig
 from studio_client.errors import StudioApiError, TransportError, error_from_response
 from studio_client.retry import RetryPolicy, is_retryable, sleep
@@ -629,6 +630,17 @@ class StudioApiClient:
             idempotent=True,
         )
         return ResolvedAgentDefinition.model_validate(response.json())
+
+    async def fetch_library_snapshot(
+        self, stable_key: str, *, project_id: UUID | None = None
+    ) -> LibrarySnapshot:
+        """Pre-fetch the Library side of a P4 runtime fusion (AIB-D,
+        DEC-0168): `resolve_full` over HTTP, reduced to the merge surface.
+        Pure read, same retry terms as `resolve_agent`. Carries the
+        project context so locks and User > Project > Studio precedence
+        apply server-side; the merge itself never re-decides versions."""
+        resolved = await self.resolve_agent(stable_key, project_id=project_id)
+        return LibrarySnapshot.from_resolved(resolved)
 
     async def send_mutation(
         self, method: str, path: str, payload: dict[str, Any], *, idempotency_key: str

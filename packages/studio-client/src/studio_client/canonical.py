@@ -11,6 +11,12 @@ Two canonical stores, one precedence rule (P3.2):
 * files (`.agents/`) win at *authoring* time — review, diff, anti-drift check;
 * the AI Library wins at *resolution* time — `resolve_full` never reads files.
 
+Runtime fusion (P4/AIB-D, DEC-0168): `build_merged_resolved` takes an
+injected `LibrarySnapshot` — project files win per piece when present,
+Library entries fill the gaps, anything missing on both sides fails
+exactly like the offline path. This module stays pure: the snapshot is
+pre-fetched by the caller (see `StudioApiClient.fetch_library_snapshot`).
+
 Publishing a file to the Library strips file-only keys (`instructions`,
 `triggers`, `edit_policy`, `tools`) and pins versions server-side; see
 `to_publish_payload`. Generated harness files always derive from the files,
@@ -129,45 +135,107 @@ def _prov(key: str, relation: BindingRelation | None = None) -> Provenance:
     )
 
 
-def build_offline_resolved(repo_root: Path | str, stable_key: str) -> ResolvedAgentDefinition:
-    """Authoring-time effective snapshot: the canonical agent plus the exact
-    rule/skill texts it references, as version 1 / ACTIVE / STUDIO. Deterministic:
-    same files always yield the same definition. Runtime resolution
-    (`resolve_full`) remains the only version-truthful path."""
-    root = Path(repo_root)
-    agent = load_definition(root, stable_key)
-    rules = [
-        ResolvedRule(
-            resource_id=_namespace("resource", key),
-            stable_key=key,
-            scope=LibraryScope.STUDIO,
-            version=1,
-            version_origin=VersionOrigin.ACTIVE,
-            title=key,
-            content={
-                "content_schema": "studio.library.rule/v1",
-                "text": load_rule_text(root, key),
-            },
-            paths=[],
+@dataclass(frozen=True)
+class LibrarySnapshot:
+    """One agent definition resolved from the AI Library (`resolve_full`
+    over HTTP), reduced to the harness-projection surface: agent head,
+    rules, skills, requirements. Built by the caller via
+    `LibrarySnapshot.from_resolved`, never fetched here — this module
+    stays pure (no network, no DB, no subprocess)."""
+
+    agent: ResolvedAgent
+    rules: dict[str, ResolvedRule]
+    skills: dict[str, ResolvedSkill]
+    requirements: CapabilityRequirement
+
+    @classmethod
+    def from_resolved(cls, resolved: ResolvedAgentDefinition) -> LibrarySnapshot:
+        """Reduce a `resolve_full` answer to the merge surface. Entries
+        without usable text are rejected: a half-present Library piece
+        must fail loudly, never project an empty harness file."""
+        rules = {}
+        for rule in resolved.rules:
+            text = rule.content.get("text")
+            if not isinstance(text, str):
+                raise ValueError(f"library snapshot: rule {rule.stable_key!r} has no text content")
+            rules[rule.stable_key] = rule
+        skills = {}
+        for skill in resolved.skills:
+            text = skill.content.get("text")
+            if not isinstance(text, str):
+                raise ValueError(
+                    f"library snapshot: skill {skill.stable_key!r} has no text content"
+                )
+            skills[skill.stable_key] = skill
+        return cls(
+            agent=resolved.agent,
+            rules=rules,
+            skills=skills,
+            requirements=resolved.requirements,
         )
-        for key in agent.rules
-    ]
-    skills = [
-        ResolvedSkill(
-            resource_id=_namespace("resource", key),
-            stable_key=key,
-            scope=LibraryScope.STUDIO,
-            version=1,
-            version_origin=VersionOrigin.ACTIVE,
-            title=key,
-            content={
-                "content_schema": "studio.library.skill/v1",
-                "text": load_skill_text(root, key),
-            },
-            provenance=_prov(key, BindingRelation.USES_SKILL),
-        )
-        for key in agent.skills
-    ]
+
+
+def _resolved_rule(
+    key: str,
+    text: str,
+    *,
+    resource_id: uuid.UUID,
+    scope: LibraryScope,
+    version: int,
+    version_origin: VersionOrigin,
+    title: str | None = None,
+    paths: list[Any] | None = None,
+) -> ResolvedRule:
+    return ResolvedRule(
+        resource_id=resource_id,
+        stable_key=key,
+        scope=scope,
+        version=version,
+        version_origin=version_origin,
+        title=title if title is not None else key,
+        content={
+            "content_schema": "studio.library.rule/v1",
+            "text": text,
+        },
+        paths=paths if paths is not None else [],
+    )
+
+
+def _resolved_skill(
+    key: str,
+    text: str,
+    *,
+    resource_id: uuid.UUID,
+    scope: LibraryScope,
+    version: int,
+    version_origin: VersionOrigin,
+    title: str | None = None,
+    provenance: Provenance | None = None,
+) -> ResolvedSkill:
+    return ResolvedSkill(
+        resource_id=resource_id,
+        stable_key=key,
+        scope=scope,
+        version=version,
+        version_origin=version_origin,
+        title=title if title is not None else key,
+        content={
+            "content_schema": "studio.library.skill/v1",
+            "text": text,
+        },
+        provenance=provenance if provenance is not None else _prov(key, BindingRelation.USES_SKILL),
+    )
+
+
+def _resolved_agent_head(
+    agent: CanonicalAgent,
+    *,
+    resource_id: uuid.UUID,
+    scope: LibraryScope,
+    version: int,
+    version_origin: VersionOrigin,
+    provenance: Provenance,
+) -> ResolvedAgent:
     content: dict[str, object] = {
         "content_schema": "studio.library.agent_definition/v1",
         "summary": agent.summary,
@@ -179,18 +247,209 @@ def build_offline_resolved(repo_root: Path | str, stable_key: str) -> ResolvedAg
         "edit_policy": agent.edit_policy,
         "tools": list(agent.tools),
     }
-    resolved_agent = ResolvedAgent(
-        resource_id=_namespace("resource", f"agent:{stable_key}"),
+    return ResolvedAgent(
+        resource_id=resource_id,
         kind=AGENT,
-        stable_key=stable_key,
+        stable_key=agent.stable_key,
+        scope=scope,
+        version=version,
+        version_origin=version_origin,
+        title=agent.title,
+        content=content,
+        provenance=provenance,
+    )
+
+
+def build_offline_resolved(repo_root: Path | str, stable_key: str) -> ResolvedAgentDefinition:
+    """Authoring-time effective snapshot: the canonical agent plus the exact
+    rule/skill texts it references, as version 1 / ACTIVE / STUDIO. Deterministic:
+    same files always yield the same definition. Runtime resolution
+    (`resolve_full`) remains the only version-truthful path."""
+    root = Path(repo_root)
+    agent = load_definition(root, stable_key)
+    rules = [
+        _resolved_rule(
+            key,
+            load_rule_text(root, key),
+            resource_id=_namespace("resource", key),
+            scope=LibraryScope.STUDIO,
+            version=1,
+            version_origin=VersionOrigin.ACTIVE,
+        )
+        for key in agent.rules
+    ]
+    skills = [
+        _resolved_skill(
+            key,
+            load_skill_text(root, key),
+            resource_id=_namespace("resource", key),
+            scope=LibraryScope.STUDIO,
+            version=1,
+            version_origin=VersionOrigin.ACTIVE,
+        )
+        for key in agent.skills
+    ]
+    resolved_agent = _resolved_agent_head(
+        agent,
+        resource_id=_namespace("resource", f"agent:{stable_key}"),
         scope=LibraryScope.STUDIO,
         version=1,
         version_origin=VersionOrigin.ACTIVE,
-        title=agent.title,
-        content=content,
         provenance=_prov(f"agent:{stable_key}"),
     )
     requirements = CapabilityRequirement.model_validate(agent.requirements)
+    return ResolvedAgentDefinition(
+        agent=resolved_agent,
+        rules=rules,
+        skills=skills,
+        requirements=requirements,
+    )
+
+
+def _file_or_library_text(
+    root: Path,
+    kind: str,
+    key: str,
+    library: LibrarySnapshot,
+) -> tuple[str, ResolvedRule | ResolvedSkill | None]:
+    """Project file text win, Library entry second. A corrupt project file
+    (`ValueError`) always raises — it must never silently fall back. Only a
+    missing file (`FileNotFoundError`) falls back; missing on both sides
+    raises the same `FileNotFoundError` the offline path raises."""
+    loader = load_rule_text if kind == "rule" else load_skill_text
+    try:
+        return loader(root, key), None
+    except FileNotFoundError:
+        pass
+    if kind == "rule":
+        entry: ResolvedRule | ResolvedSkill | None = library.rules.get(key)
+    else:
+        entry = library.skills.get(key)
+    if entry is None:
+        path = root / ".agents" / ("rules" if kind == "rule" else "skills")
+        raise FileNotFoundError(
+            f"{path}: no project file and no Library entry for {key!r}"
+        ) from None
+    text = entry.content.get("text")
+    if not isinstance(text, str):  # pragma: no cover - guarded by from_resolved
+        raise ValueError(f"library snapshot: {kind} {key!r} has no text content")
+    return text, entry
+
+
+def build_merged_resolved(
+    repo_root: Path | str,
+    stable_key: str,
+    *,
+    library: LibrarySnapshot | None = None,
+) -> ResolvedAgentDefinition:
+    """Runtime fusion (P4/AIB-D, DEC-0168): the project `.agents/` authoring
+    source merged with a pre-fetched `LibrarySnapshot`, per piece. Project
+    files win when present (review/diff/anti-drift source); Library entries
+    fill the gaps, so a near-empty repo (manifest + managed blocks) still
+    resolves the studio resources. `library=None` is the strict offline
+    path, identical to `build_offline_resolved`. Library-backed pieces
+    carry their real identity and provenance (version-truthful);
+    Library-backed heads default the file-only keys the Library never
+    carries (`instructions`, `triggers`, `edit_policy`, `tools`). This
+    function never re-decides versions (DEC-0144): it only picks whole
+    pieces from the two sources."""
+    if library is None:
+        return build_offline_resolved(repo_root, stable_key)
+    if library.agent.stable_key != stable_key:
+        raise ValueError(
+            f"library snapshot is for {library.agent.stable_key!r}, not {stable_key!r}"
+        )
+    root = Path(repo_root)
+    try:
+        agent = load_definition(root, stable_key)
+    except FileNotFoundError:
+        agent = None
+    if agent is None:
+        head_source = CanonicalAgent(
+            stable_key=stable_key,
+            title=library.agent.title,
+            summary=str(library.agent.content.get("summary") or ""),
+            intended_use=str(library.agent.content.get("intended_use") or ""),
+        )
+        keys_rules = list(library.rules)
+        keys_skills = list(library.skills)
+        resolved_agent = _resolved_agent_head(
+            head_source,
+            resource_id=library.agent.resource_id,
+            scope=library.agent.scope,
+            version=library.agent.version,
+            version_origin=library.agent.version_origin,
+            provenance=library.agent.provenance,
+        )
+        requirements = library.requirements
+    else:
+        keys_rules = list(agent.rules)
+        keys_skills = list(agent.skills)
+        resolved_agent = _resolved_agent_head(
+            agent,
+            resource_id=_namespace("resource", f"agent:{stable_key}"),
+            scope=LibraryScope.STUDIO,
+            version=1,
+            version_origin=VersionOrigin.ACTIVE,
+            provenance=_prov(f"agent:{stable_key}"),
+        )
+        requirements = CapabilityRequirement.model_validate(agent.requirements)
+    rules = []
+    for key in keys_rules:
+        text, entry = _file_or_library_text(root, "rule", key, library)
+        if entry is None:
+            rules.append(
+                _resolved_rule(
+                    key,
+                    text,
+                    resource_id=_namespace("resource", key),
+                    scope=LibraryScope.STUDIO,
+                    version=1,
+                    version_origin=VersionOrigin.ACTIVE,
+                )
+            )
+        else:
+            assert isinstance(entry, ResolvedRule)
+            rules.append(
+                _resolved_rule(
+                    key,
+                    text,
+                    resource_id=entry.resource_id,
+                    scope=entry.scope,
+                    version=entry.version,
+                    version_origin=entry.version_origin,
+                    title=entry.title,
+                    paths=list(entry.paths),
+                )
+            )
+    skills = []
+    for key in keys_skills:
+        text, entry = _file_or_library_text(root, "skill", key, library)
+        if entry is None:
+            skills.append(
+                _resolved_skill(
+                    key,
+                    text,
+                    resource_id=_namespace("resource", key),
+                    scope=LibraryScope.STUDIO,
+                    version=1,
+                    version_origin=VersionOrigin.ACTIVE,
+                )
+            )
+        else:
+            assert isinstance(entry, ResolvedSkill)
+            skills.append(
+                _resolved_skill(
+                    key,
+                    text,
+                    resource_id=entry.resource_id,
+                    scope=entry.scope,
+                    version=entry.version,
+                    version_origin=entry.version_origin,
+                    title=entry.title,
+                    provenance=entry.provenance,
+                )
+            )
     return ResolvedAgentDefinition(
         agent=resolved_agent,
         rules=rules,
