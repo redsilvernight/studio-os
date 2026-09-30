@@ -35,6 +35,7 @@
         "harness.apply",
         "harness.rollback",
         "harness.verify",
+        "skills.check",
         "publication.preview",
         "publication.publish"
       ],

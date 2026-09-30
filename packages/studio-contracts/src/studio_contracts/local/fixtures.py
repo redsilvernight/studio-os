@@ -119,6 +119,13 @@ from studio_contracts.local.publication import (
     PublicationResult,
     SharedStatusSummary,
 )
+from studio_contracts.local.skills import (
+    SkillCheckEntry,
+    SkillHarnessTarget,
+    SkillsCheckResult,
+    SkillSyncState,
+    SkillTargetState,
+)
 from studio_contracts.local.workspace import (
     CodeGraphConfig,
     GitState,
@@ -176,6 +183,7 @@ DESKTOP_CAPABILITIES = [
     "knowledge.read",
     "publication.plan",
     "publication.publish",
+    "skills.read",
     "workspace.config",
 ]
 REQUIRED_CAPABILITIES = ["daemon.control", "identity.view", "workspace.config"]
@@ -1417,6 +1425,41 @@ def build_fixtures() -> list[LocalFixture]:
         details={"method": "studio_get_projects"},
     )
 
+    fixtures["skills.check.result"] = SkillsCheckResult(
+        skills=[
+            SkillCheckEntry(
+                stable_key="studio-handoff",
+                version=5,
+                targets=[
+                    SkillTargetState(
+                        harness=SkillHarnessTarget.AGENTS, state=SkillSyncState.CURRENT
+                    ),
+                    SkillTargetState(
+                        harness=SkillHarnessTarget.ASSISTANT, state=SkillSyncState.LOCALLY_MODIFIED
+                    ),
+                ],
+            ),
+            SkillCheckEntry(
+                stable_key="studio-session",
+                version=3,
+                targets=[
+                    SkillTargetState(
+                        harness=SkillHarnessTarget.AGENTS, state=SkillSyncState.MISSING
+                    ),
+                    SkillTargetState(
+                        harness=SkillHarnessTarget.ASSISTANT, state=SkillSyncState.OUTDATED
+                    ),
+                ],
+            ),
+        ],
+        current=1,
+        missing=1,
+        outdated=1,
+        locally_modified=1,
+        in_sync=False,
+        checked_at=NOW,
+    )
+
     fixtures["publication.plan.preview"] = _publication_plan()
     fixtures["publication.result.published"] = PublicationResult(
         plan_id="pub-0001", outcome=PublicationOutcome.PUBLISHED, published_at=NOW
@@ -1754,6 +1797,21 @@ def build_invalid_fixtures() -> list[InvalidFixture]:
                 ),
             ),
             "a missing token is a condition, not a failure: it carries no error",
+        ),
+        InvalidFixture(
+            "skills.check.in_sync_with_drift",
+            "SkillsCheckResult",
+            _with("skills.check.result", add_field("in_sync", True)),
+            "in_sync is true only when no target is missing or drifted",
+        ),
+        InvalidFixture(
+            "skills.check.path_leak",
+            "SkillsCheckResult",
+            _with(
+                "skills.check.result",
+                lambda data: data["skills"][0].__setitem__("path", "C:/Users/dev/.claude/skills"),
+            ),
+            "a skill entry carries no filesystem path",
         ),
         InvalidFixture(
             "publication.publish_unconfirmed",

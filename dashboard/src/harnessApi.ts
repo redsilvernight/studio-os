@@ -43,7 +43,7 @@ async function negotiate(platform: Platform): Promise<void> {
   }
 }
 
-async function call<T>(platform: Platform, command: Command, payload: Record<string, unknown>): Promise<HarnessOutcome<T>> {
+export async function call<T>(platform: Platform, command: Command, payload: Record<string, unknown>): Promise<HarnessOutcome<T>> {
   let answer = await platform.request(command, payload);
   if (!answer.ok && answer.error.code === "capability_missing") {
     await negotiate(platform);

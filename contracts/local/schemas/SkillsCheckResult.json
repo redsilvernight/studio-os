@@ -1,0 +1,123 @@
+{
+  "$defs": {
+    "SkillCheckEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "stable_key": {
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,199}$",
+          "title": "Stable Key",
+          "type": "string"
+        },
+        "targets": {
+          "items": {
+            "$ref": "#/$defs/SkillTargetState"
+          },
+          "maxItems": 2,
+          "minItems": 1,
+          "title": "Targets",
+          "type": "array"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "stable_key",
+        "version",
+        "targets"
+      ],
+      "title": "SkillCheckEntry",
+      "type": "object"
+    },
+    "SkillHarnessTarget": {
+      "enum": [
+        "agents",
+        "assistant"
+      ],
+      "title": "SkillHarnessTarget",
+      "type": "string"
+    },
+    "SkillSyncState": {
+      "enum": [
+        "current",
+        "missing",
+        "outdated",
+        "locally_modified"
+      ],
+      "title": "SkillSyncState",
+      "type": "string"
+    },
+    "SkillTargetState": {
+      "additionalProperties": false,
+      "description": "State of one harness copy of a skill. The contract carries no path and\nno skill content: only which harness directory and how it compares.",
+      "properties": {
+        "harness": {
+          "$ref": "#/$defs/SkillHarnessTarget"
+        },
+        "state": {
+          "$ref": "#/$defs/SkillSyncState"
+        }
+      },
+      "required": [
+        "harness",
+        "state"
+      ],
+      "title": "SkillTargetState",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Effective Studio-scope Library skills compared with the two global\nharness directories. `in_sync` is true only when every target is current.",
+  "properties": {
+    "checked_at": {
+      "format": "date-time",
+      "title": "Checked At",
+      "type": "string"
+    },
+    "current": {
+      "minimum": 0,
+      "title": "Current",
+      "type": "integer"
+    },
+    "in_sync": {
+      "title": "In Sync",
+      "type": "boolean"
+    },
+    "locally_modified": {
+      "minimum": 0,
+      "title": "Locally Modified",
+      "type": "integer"
+    },
+    "missing": {
+      "minimum": 0,
+      "title": "Missing",
+      "type": "integer"
+    },
+    "outdated": {
+      "minimum": 0,
+      "title": "Outdated",
+      "type": "integer"
+    },
+    "skills": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/SkillCheckEntry"
+      },
+      "maxItems": 500,
+      "title": "Skills",
+      "type": "array"
+    }
+  },
+  "required": [
+    "current",
+    "missing",
+    "outdated",
+    "locally_modified",
+    "in_sync",
+    "checked_at"
+  ],
+  "title": "SkillsCheckResult",
+  "type": "object"
+}

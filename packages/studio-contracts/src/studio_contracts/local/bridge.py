@@ -73,6 +73,7 @@ from studio_contracts.local.publication import (
     PublicationPublishRequest,
     PublicationResult,
 )
+from studio_contracts.local.skills import SkillsCheckRequest, SkillsCheckResult
 from studio_contracts.local.workspace import (
     LocalWorkspaceConfig,
     WorkspaceConfirmRootsRequest,
@@ -147,6 +148,7 @@ class BridgeCommand(StrEnum):
     HARNESS_APPLY = "harness.apply"
     HARNESS_ROLLBACK = "harness.rollback"
     HARNESS_VERIFY = "harness.verify"
+    SKILLS_CHECK = "skills.check"
     PUBLICATION_PREVIEW = "publication.preview"
     PUBLICATION_PUBLISH = "publication.publish"
 
@@ -338,6 +340,7 @@ BRIDGE_COMMANDS: dict[BridgeCommand, CommandSpec] = dict(
             HarnessVerifyResult,
             "harness.verify",
         ),
+        _spec(BridgeCommand.SKILLS_CHECK, SkillsCheckRequest, SkillsCheckResult, "skills.read"),
         _spec(
             BridgeCommand.PUBLICATION_PREVIEW,
             PublicationPreviewRequest,

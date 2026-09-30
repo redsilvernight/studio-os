@@ -10,6 +10,7 @@ import socketserver
 import sys
 import threading
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TextIO
@@ -76,6 +77,7 @@ from studio_contracts.local.knowledge import (
     KnowledgeReindexRequest,
     KnowledgeSearchRequest,
 )
+from studio_contracts.local.skills import SkillsCheckRequest, SkillsCheckResult
 from studio_contracts.local.workspace import (
     WorkspaceConfirmRootsRequest,
     WorkspaceGetConfigRequest,
@@ -103,6 +105,7 @@ from studio_client.daemon.runtime import (
     InstanceLock,
     WorkspaceSource,
 )
+from studio_client.daemon.skills_bridge import check_skills
 from studio_client.data_format import DataFormatError, ensure_data_format
 from studio_client.outbox import OutboxIdentityError
 from studio_client.tokens import KeyringTokenStore, TokenStore
@@ -170,6 +173,7 @@ SERVED = frozenset(
         BridgeCommand.HARNESS_APPLY,
         BridgeCommand.HARNESS_ROLLBACK,
         BridgeCommand.HARNESS_VERIFY,
+        BridgeCommand.SKILLS_CHECK,
     }
 )
 _LOCAL_FEATURE_COMMANDS = frozenset(
@@ -233,8 +237,10 @@ class DaemonController:
         token_store: TokenStore | None = None,
         enroll_transport: httpx.BaseTransport | None = None,
         git_watch_source: GitWatchSource | None = None,
+        skills_home: Callable[[], Path] = Path.home,
     ) -> None:
         self.config = config
+        self._skills_home = skills_home
         self._token_store: TokenStore = token_store or KeyringTokenStore("studio-os")
         self._enroll_transport = enroll_transport
         self.data_root = data_root or default_config_path().parent
@@ -378,6 +384,9 @@ class DaemonController:
         ):
             raise ValueError("instance mismatch")
         return health
+
+    def skills_check(self) -> SkillsCheckResult:
+        return check_skills(self.config, self._token_store, home=self._skills_home())
 
     def identity_view(self) -> IdentityView:
         profile = self._profile()
@@ -688,6 +697,7 @@ class BridgeService:
                             "daemon.health",
                             "identity.view",
                             "identity.enroll",
+                            "skills.read",
                             *(
                                 WORKSPACE_CAPABILITIES
                                 if self.controller.workspace_bridge is not None
@@ -709,6 +719,9 @@ class BridgeService:
             return self.controller.identity_view()
         if request.command is BridgeCommand.IDENTITY_ENROLL:
             return self.controller.enroll(IdentityEnrollRequest.model_validate(request.payload))
+        if request.command is BridgeCommand.SKILLS_CHECK:
+            SkillsCheckRequest.model_validate(request.payload)
+            return self.controller.skills_check()
         if request.command in _WORKSPACE_COMMANDS:
             return self._workspace(request)
         if request.command in _LOCAL_FEATURE_COMMANDS:

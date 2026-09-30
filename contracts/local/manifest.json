@@ -131,6 +131,16 @@
       "reason": "a missing token is a condition, not a failure: it carries no error"
     },
     {
+      "model": "SkillsCheckResult",
+      "name": "skills.check.in_sync_with_drift",
+      "reason": "in_sync is true only when no target is missing or drifted"
+    },
+    {
+      "model": "SkillsCheckResult",
+      "name": "skills.check.path_leak",
+      "reason": "a skill entry carries no filesystem path"
+    },
+    {
       "model": "PublicationPublishRequest",
       "name": "publication.publish_unconfirmed",
       "reason": "publication requires explicit confirmation"
@@ -226,6 +236,10 @@
     "SecretReference",
     "SecretReferenceStatus",
     "SharedStatusSummary",
+    "SkillCheckEntry",
+    "SkillTargetState",
+    "SkillsCheckRequest",
+    "SkillsCheckResult",
     "WatcherConfig",
     "WorkspaceConfirmRootsRequest",
     "WorkspaceConfirmRootsResult",
@@ -581,6 +595,10 @@
     {
       "model": "HandshakeRequest",
       "name": "runtime.handshake.request"
+    },
+    {
+      "model": "SkillsCheckResult",
+      "name": "skills.check.result"
     },
     {
       "model": "LocalWorkspaceConfig",
