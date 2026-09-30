@@ -1035,104 +1035,6 @@ def _skills_command(args: argparse.Namespace, config: ClientConfig) -> None:
         raise SystemExit(1) from None
 
 
-def _bundle_command(args: argparse.Namespace, config: ClientConfig | None) -> None:
-    """Inspect or synchronize the full project AI bundle (P3)."""
-    from studio_client.bundle_sync import (
-        BundleSyncConflictError,
-        BundleSyncError,
-        apply_bundle_sync,
-        check_bundle,
-        diff_bundle_plan,
-        init_bundle,
-    )
-
-    _ = config
-    root = Path(args.repo_root)
-
-    try:
-        if args.bundle_command == "init":
-            plan = init_bundle(root)
-            if args.json:
-                print(
-                    json.dumps(
-                        {
-                            "files": len(plan.entries),
-                            "missing": len(plan.missing),
-                            "outdated": len(plan.outdated),
-                            "locally_modified": len(plan.locally_modified),
-                            "manifest": str(plan.manifest_path),
-                        },
-                        indent=2,
-                    )
-                )
-            else:
-                print(f"bundle: {len(plan.entries)} files")
-                print(f"  missing: {len(plan.missing)}")
-                print(f"  outdated: {len(plan.outdated)}")
-                print(f"  locally_modified: {len(plan.locally_modified)}")
-                print(f"manifest: {plan.manifest_path}")
-            return
-
-        if args.bundle_command == "check":
-            plan, failures = check_bundle(root)
-            if args.json:
-                print(
-                    json.dumps(
-                        {
-                            "files": len(plan.entries),
-                            "failures": failures,
-                        },
-                        indent=2,
-                    )
-                )
-            else:
-                for failure in failures:
-                    print(f"drift: {failure}")
-                print(f"checked {len(plan.entries)} files, failures {len(failures)}")
-            if failures:
-                raise SystemExit(1)
-            return
-
-        if args.bundle_command == "diff":
-            plan, _ = check_bundle(root)
-            print(diff_bundle_plan(plan), end="")
-            return
-
-        if args.bundle_command == "sync":
-            plan, failures = check_bundle(root)
-            if failures and not args.overwrite:
-                locally_modified = [f for f in failures if f.startswith("locally_modified:")]
-                if locally_modified:
-                    raise BundleSyncConflictError(
-                        f"refusing to overwrite locally modified files (use --overwrite): "
-                        f"{', '.join(locally_modified)}"
-                    )
-            result = apply_bundle_sync(plan, overwrite=args.overwrite)
-            payload = {
-                "files": len(plan.entries),
-                "written": [str(path) for path in result.written],
-                "backups": [str(path) for path in result.backups],
-                "manifest": str(result.manifest_path),
-            }
-            if args.json:
-                print(json.dumps(payload, indent=2))
-            else:
-                print(
-                    f"synchronized {payload['files']} files; "
-                    f"wrote {len(result.written)} files; "
-                    f"created {len(result.backups)} backups"
-                )
-                print(f"manifest: {result.manifest_path}")
-            return
-
-    except BundleSyncConflictError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        raise SystemExit(1) from None
-    except BundleSyncError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        raise SystemExit(1) from None
-
-
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="studio-client")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -1506,27 +1408,6 @@ def _build_parser() -> argparse.ArgumentParser:
         _add_json_flag(skills_command)
         skills_command.set_defaults(func=_skills_command)
 
-    bundle_parser = subparsers.add_parser(
-        "bundle", help="Synchronize the full project AI bundle (rules, agents, CLAUDE.md)."
-    )
-    bundle_sub = bundle_parser.add_subparsers(dest="bundle_command", required=True)
-    for command, help_text in (
-        ("init", "Initialize the bundle manifest without writing."),
-        ("check", "Report missing or drifted bundle files."),
-        ("diff", "Show the changes needed to synchronize the bundle."),
-        ("sync", "Write all bundle files and the manifest."),
-    ):
-        bundle_command = bundle_sub.add_parser(command, help=help_text)
-        bundle_command.add_argument("--repo-root", default=".", help="Repository root.")
-        if command == "sync":
-            bundle_command.add_argument(
-                "--overwrite",
-                action="store_true",
-                help="Back up and replace locally modified files.",
-            )
-        _add_json_flag(bundle_command)
-        bundle_command.set_defaults(func=_bundle_command)
-
     bootstrap_parser = subparsers.add_parser(
         "bootstrap", help="Generate the project AI bundle from `.agents/` (P3)."
     )
@@ -1594,7 +1475,6 @@ def main(argv: Sequence[str] | None = None) -> None:
             and getattr(args, "from_canonical", False)
         )
         or getattr(args, "rules_command", None) in ("sync",)
-        or getattr(args, "bundle_command", None) in ("init", "check", "diff", "sync")
         or getattr(args, "bootstrap_command", None) in ("init", "check", "diff", "sync")
     ):
         # Offline canonical commands need no server configuration.

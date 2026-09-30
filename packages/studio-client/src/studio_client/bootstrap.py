@@ -16,6 +16,7 @@ from __future__ import annotations
 import difflib
 import hashlib
 import json
+import os
 import shutil
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -326,7 +327,10 @@ def _write_text(path: Path, text: str, *, overwrite: bool = True) -> None:
         raise BootstrapError(f"refusing to overwrite existing {path}")
     tmp = path.parent / f".{path.name}.studio-tmp"
     try:
-        tmp.write_text(text, encoding="utf-8")
+        with tmp.open("w", encoding="utf-8", newline="") as stream:
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
         tmp.replace(path)
     except OSError as exc:
         if tmp.exists():
