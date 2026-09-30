@@ -23,6 +23,9 @@ async def record_heartbeat(
         )
     now = datetime.now(UTC)
     machine.last_seen_at = now
+    if req.capabilities is not None:
+        machine.capabilities = req.capabilities.model_dump(mode="json")
+        machine.capabilities_reported_at = now
     await session.commit()
     await session.refresh(machine)
     return machine, now
