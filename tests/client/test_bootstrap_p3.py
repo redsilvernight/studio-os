@@ -403,3 +403,94 @@ def test_rollback_list_reports_journal(tmp_path: Path, capsys: pytest.CaptureFix
     assert len(payload["backups"]) == 1
     assert payload["backups"][0]["status"] == "applied"
     assert payload["backups"][0]["entries"] > 0
+
+
+def test_skills_sync_writes_verbatim_copies_and_is_idempotent(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from studio_client.canonical import canonical_skill_keys
+
+    repo = _repo(tmp_path)
+    _init(repo)
+    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    capsys.readouterr()
+
+    keys = canonical_skill_keys(repo)
+    assert len(keys) == 7
+    planned = {item.path for item in plan_files(repo, load_manifest(repo)) if item.kind == "skill"}
+    assert planned == {f".claude/skills/{key}/SKILL.md" for key in keys}
+    for key in keys:
+        source = (repo / ".agents" / "skills" / key / "SKILL.md").read_text(encoding="utf-8")
+        target = repo / ".claude" / "skills" / key / "SKILL.md"
+        assert target.read_text(encoding="utf-8") == source
+
+    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    assert capsys.readouterr().out.strip() == "Already up to date."
+
+
+def test_skills_modified_is_refused_under_refuse_policy(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _init(repo)
+    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+
+    target = repo / ".claude" / "skills" / "studio-task" / "SKILL.md"
+    edited = target.read_text(encoding="utf-8") + "\nuser edit\n"
+    target.write_text(edited, encoding="utf-8")
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    assert excinfo.value.code == 1
+    assert target.read_text(encoding="utf-8") == edited
+
+
+def test_skills_rollback_removes_created_copies(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _init(repo)
+    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+    assert list((repo / ".claude" / "skills").rglob("SKILL.md"))
+
+    cli.main(["bootstrap", "rollback", "--repo-root", str(repo)])
+
+    assert not [p for p in (repo / ".claude" / "skills").rglob("*") if p.is_file()]
+
+
+def test_skills_multi_harness_projects_per_harness(tmp_path: Path) -> None:
+    from studio_client.canonical import canonical_skill_keys
+
+    repo = _repo(tmp_path)
+    cli.main(
+        [
+            "bootstrap",
+            "init",
+            "--project-slug",
+            "demo",
+            "--project-name",
+            "Demo",
+            "--harness",
+            "claude-code",
+            "--harness",
+            "opencode",
+            "--repo-root",
+            str(repo),
+        ]
+    )
+    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+
+    keys = canonical_skill_keys(repo)
+    for key in keys:
+        for base in (".claude", ".opencode"):
+            source = (repo / ".agents" / "skills" / key / "SKILL.md").read_text(encoding="utf-8")
+            target = repo / base / "skills" / key / "SKILL.md"
+            assert target.read_text(encoding="utf-8") == source
+
+
+def test_skills_crlf_on_disk_is_not_drift(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _init(repo)
+    cli.main(["bootstrap", "sync", "--repo-root", str(repo)])
+
+    target = repo / ".claude" / "skills" / "studio-task" / "SKILL.md"
+    crlf = target.read_text(encoding="utf-8").replace("\n", "\r\n")
+    target.write_bytes(crlf.encode("utf-8"))
+
+    cli.main(["bootstrap", "check", "--repo-root", str(repo)])

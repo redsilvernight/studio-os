@@ -117,6 +117,39 @@ def load_skill_text(repo_root: Path | str, stable_key: str) -> str:
     return body
 
 
+def load_skill_source(repo_root: Path | str, stable_key: str) -> str:
+    """Raw text of the canonical skill, frontmatter included.
+
+    Harness projections carry the file verbatim: `SKILL.md` is already the
+    harness-native format, so no envelope is added here."""
+    path = Path(repo_root) / ".agents" / "skills" / stable_key / "SKILL.md"
+    return path.read_text(encoding="utf-8")
+
+
+def canonical_skill_keys(repo_root: Path | str) -> list[str]:
+    """Stable keys of every canonical skill, sorted.
+
+    Only directories holding a `SKILL.md` with a mapping frontmatter
+    qualify; anything else is ignored, never projected."""
+    keys = []
+    skills_dir = Path(repo_root) / ".agents" / "skills"
+    if not skills_dir.is_dir():
+        return keys
+    for child in sorted(skills_dir.iterdir(), key=lambda p: p.name):
+        if not child.is_dir():
+            continue
+        path = child / "SKILL.md"
+        if not path.is_file():
+            continue
+        try:
+            data, _ = _split_frontmatter(path.read_text(encoding="utf-8"), source=str(path))
+        except ValueError:
+            continue
+        if isinstance(data, dict):
+            keys.append(child.name)
+    return keys
+
+
 def _prov(key: str, relation: BindingRelation | None = None) -> Provenance:
     return Provenance(
         source=ProvenanceSource.ACTIVE_POINTER,

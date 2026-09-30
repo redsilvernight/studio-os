@@ -45,7 +45,9 @@ from studio_client.canonical import (
     build_offline_resolved,
     canonical_agent_keys,
     canonical_rule_keys,
+    canonical_skill_keys,
     load_rule_meta,
+    load_skill_source,
     render_agents_rules_block,
     render_claude_md_block,
     render_claude_rule,
@@ -58,6 +60,11 @@ BACKUP_RELATIVE_DIR = ".studio-os/backups/bootstrap"
 JOURNAL_NAME = "journal.json"
 JOURNAL_SCHEMA_VERSION = 1
 _RULE_DIR = ".claude/rules"
+_SKILL_DIRS = {
+    "claude-code": ".claude/skills",
+    "codex": ".codex/skills",
+    "opencode": ".opencode/skills",
+}
 HASH_PREFIX = "sha256:"
 
 
@@ -158,7 +165,8 @@ def write_manifest(
 
 def plan_files(repo_root: Path | str, manifest: BootstrapManifest) -> list[PlannedFile]:
     """Deterministic expected output: agent projections per targeted harness,
-    then rule projections, then the `AGENTS.md` and `CLAUDE.md` managed blocks."""
+    then rule projections, then skill projections per targeted harness, then
+    the `AGENTS.md` and `CLAUDE.md` managed blocks."""
     root = Path(repo_root)
     files: list[PlannedFile] = []
     agent_keys = canonical_agent_keys(root)
@@ -189,6 +197,26 @@ def plan_files(repo_root: Path | str, manifest: BootstrapManifest) -> list[Plann
                 kind="rule",
             )
         )
+    skill_keys = canonical_skill_keys(root)
+    skill_sources: dict[str, str] = {}
+    for key in skill_keys:
+        try:
+            skill_sources[key] = load_skill_source(root, key)
+        except OSError as exc:
+            raise BootstrapError(f"cannot read skill {key!r}: {exc}") from exc
+    for ref in manifest.harnesses:
+        try:
+            skills_dir = _SKILL_DIRS[ref.id]
+        except KeyError:
+            raise BootstrapError(f"harness {ref.id!r} has no skills target") from None
+        for key in skill_keys:
+            files.append(
+                PlannedFile(
+                    path=f"{skills_dir}/{key}/SKILL.md",
+                    content=skill_sources[key],
+                    kind="skill",
+                )
+            )
     files.append(
         PlannedFile(
             path=AGENTS_MD_PATH, content=render_agents_rules_block(root), kind="block", block=True
