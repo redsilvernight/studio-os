@@ -8,7 +8,8 @@ the generation policy; the dry-run report conforms to the P1 contract
 (`BootstrapDryRunReport`).
 
 No network, no resolution engine: `resolve_full` stays the only
-version-truthful path (DEC-0144). A second run of `sync` writes nothing.
+version-truthful path (DEC-0144). A second run of `sync` writes nothing, and
+`rollback` restores the exact state before the last `sync` from its journal.
 """
 
 from __future__ import annotations
@@ -50,6 +51,8 @@ from studio_client.canonical import (
 MANIFEST_RELATIVE_PATH = ".agents/bootstrap.json"
 AGENTS_MD_PATH = "AGENTS.md"
 BACKUP_RELATIVE_DIR = ".studio-os/backups/bootstrap"
+JOURNAL_NAME = "journal.json"
+JOURNAL_SCHEMA_VERSION = 1
 _RULE_DIR = ".claude/rules"
 HASH_PREFIX = "sha256:"
 
@@ -67,6 +70,29 @@ class PlannedFile:
     content: str
     kind: str
     block: bool = False
+
+
+@dataclass(frozen=True)
+class BackupEntry:
+    """One file a `sync` run touched: `created` (delete to undo) or `replaced`
+    (restore `backup` to undo). `after_label` is the label of what the run
+    wrote, used to detect a later edit before rolling back."""
+
+    path: str
+    action: str
+    backup: str | None
+    after_label: str
+
+
+@dataclass(frozen=True)
+class BackupJournal:
+    """The record of one `sync` run, stored beside its backups. `status` moves
+    from `applied` to `rolled_back` so the same run is never undone twice."""
+
+    directory: Path
+    created_at: str
+    status: str
+    entries: list[BackupEntry]
 
 
 def manifest_path(repo_root: Path | str) -> Path:
@@ -226,7 +252,8 @@ def apply_files(
     confirm: bool = False,
 ) -> list[str]:
     """Write only the files whose state is not `up_to_date`, backing up every
-    replaced file. Conflicting or needs-confirmation reports are refused."""
+    replaced file and recording a journal so the run can be rolled back.
+    Conflicting or needs-confirmation reports are refused."""
     root = Path(repo_root)
     planned = planned if planned is not None else plan_files(root, manifest)
     if any(conflict.blocking for conflict in report.conflicts):
@@ -235,22 +262,85 @@ def apply_files(
     if report.needs_confirmation and not confirm:
         raise BootstrapError("policy 'ask': explicit confirmation required (pass confirm=True)")
     by_path = {item.path: item for item in planned}
+    pending = [f for f in report.files if f.state is not BootstrapFileState.UP_TO_DATE]
+    if not pending:
+        return []
     backup_root = root / Path(*BACKUP_RELATIVE_DIR.split("/")) / _timestamp()
     written: list[str] = []
-    for observed in report.files:
-        if observed.state is BootstrapFileState.UP_TO_DATE:
-            continue
+    entries: list[BackupEntry] = []
+    for observed in pending:
         item = by_path[observed.path]
         target = _safe_target(root, item.path)
-        if target.exists():
+        replaced = target.exists()
+        if replaced:
             _backup(root, item.path, backup_root)
         if item.block:
             existing = target.read_text(encoding="utf-8") if target.is_file() else ""
-            _write_text(target, _merge_block(existing, item.content))
+            content = _merge_block(existing, item.content)
         else:
-            _write_text(target, item.content)
+            content = item.content
+        _write_text(target, content)
+        entries.append(
+            BackupEntry(
+                path=item.path,
+                action="replaced" if replaced else "created",
+                backup=item.path if replaced else None,
+                after_label=_label(content),
+            )
+        )
         written.append(item.path)
+    _write_journal(backup_root, entries)
     return written
+
+
+def rollback(
+    repo_root: Path | str,
+    *,
+    backup_id: str | None = None,
+    force: bool = False,
+) -> list[str]:
+    """Undo a previous `sync`: restore every replaced file byte for byte and
+    delete every created file. Refuses when a file changed since that run
+    (unless `force`), so a local edit is never clobbered silently. Validation
+    runs over every entry before anything is written, so a refusal leaves the
+    working tree untouched. The journal is marked `rolled_back`, making a second
+    rollback of the same run an explicit error."""
+    root = Path(repo_root)
+    journal = _read_journal(_find_backup_dir(root, backup_id))
+    if journal.status == "rolled_back":
+        raise BootstrapError(f"backup {journal.directory.name} was already rolled back")
+    planned: list[tuple[str, Path, BackupEntry]] = []
+    for entry in journal.entries:
+        target = _safe_target(root, entry.path)
+        _check_rollback_entry(journal.directory, target, entry, force=force)
+        planned.append((entry.path, target, entry))
+    undone: list[str] = []
+    for path, target, entry in planned:
+        if entry.action == "created":
+            if target.exists():
+                target.unlink()
+                undone.append(path)
+        else:
+            if entry.backup is None:
+                raise BootstrapError(f"backup file missing for {entry.path}")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(journal.directory / Path(*entry.backup.split("/")), target)
+            undone.append(path)
+    _write_journal(
+        journal.directory, journal.entries, status="rolled_back", created_at=journal.created_at
+    )
+    return undone
+
+
+def list_backups(repo_root: Path | str) -> list[BackupJournal]:
+    """Every readable sync journal under the backup directory, newest first."""
+    journals: list[BackupJournal] = []
+    for directory in _backup_dirs(Path(repo_root)):
+        try:
+            journals.append(_read_journal(directory))
+        except BootstrapError:
+            continue
+    return journals
 
 
 def sync(
@@ -321,6 +411,116 @@ def _backup(root: Path, relative: str, backup_root: Path) -> Path:
     return destination
 
 
+def _backup_dirs(root: Path) -> list[Path]:
+    base = root / Path(*BACKUP_RELATIVE_DIR.split("/"))
+    if not base.is_dir():
+        return []
+    return sorted(
+        (child for child in base.iterdir() if child.is_dir()),
+        key=lambda child: child.name,
+        reverse=True,
+    )
+
+
+def _find_backup_dir(root: Path, backup_id: str | None) -> Path:
+    if backup_id is not None and ("/" in backup_id or "\\" in backup_id or ".." in backup_id):
+        raise BootstrapError(f"invalid backup id {backup_id!r}")
+    directories = _backup_dirs(root)
+    if backup_id is not None:
+        for directory in directories:
+            if directory.name == backup_id:
+                return directory
+        raise BootstrapError(f"no bootstrap backup with id {backup_id!r}")
+    for directory in directories:
+        if (directory / JOURNAL_NAME).is_file():
+            return directory
+    raise BootstrapError(
+        "no bootstrap backup to roll back; run `studio-client bootstrap sync` first"
+    )
+
+
+def _write_journal(
+    directory: Path,
+    entries: list[BackupEntry],
+    *,
+    status: str = "applied",
+    created_at: str | None = None,
+) -> None:
+    directory.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": JOURNAL_SCHEMA_VERSION,
+        "created_at": created_at or datetime.now(UTC).isoformat(),
+        "status": status,
+        "entries": [
+            {
+                "path": entry.path,
+                "action": entry.action,
+                "backup": entry.backup,
+                "after_label": entry.after_label,
+            }
+            for entry in entries
+        ],
+    }
+    (directory / JOURNAL_NAME).write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+
+
+def _read_journal(directory: Path) -> BackupJournal:
+    path = directory / JOURNAL_NAME
+    if not path.is_file():
+        raise BootstrapError(f"backup {directory.name} has no journal; cannot roll back")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise BootstrapError(f"cannot read backup journal {path}: {exc}") from exc
+    if not isinstance(data, dict) or data.get("schema_version") != JOURNAL_SCHEMA_VERSION:
+        raise BootstrapError(f"unsupported backup journal in {directory.name}")
+    rows = data.get("entries")
+    if not isinstance(rows, list):
+        raise BootstrapError(f"malformed backup journal in {directory.name}")
+    try:
+        entries = [
+            BackupEntry(
+                path=str(row["path"]),
+                action=str(row["action"]),
+                backup=str(row["backup"]) if row.get("backup") is not None else None,
+                after_label=str(row["after_label"]),
+            )
+            for row in rows
+        ]
+    except (KeyError, TypeError, AttributeError) as exc:
+        raise BootstrapError(f"malformed backup journal in {directory.name}") from exc
+    return BackupJournal(
+        directory=directory,
+        created_at=str(data.get("created_at", "")),
+        status=str(data.get("status", "applied")),
+        entries=entries,
+    )
+
+
+def _check_rollback_entry(
+    directory: Path, target: Path, entry: BackupEntry, *, force: bool
+) -> None:
+    if entry.action not in ("created", "replaced"):
+        raise BootstrapError(f"unknown rollback action {entry.action!r} for {entry.path}")
+    if entry.action == "replaced":
+        if entry.backup is None:
+            raise BootstrapError(f"backup file missing for {entry.path}")
+        backup = directory / Path(*entry.backup.split("/"))
+        if not backup.is_file():
+            raise BootstrapError(f"backup file missing for {entry.path}")
+    if target.exists() and not target.is_file():
+        raise BootstrapError(f"refusing to roll back a non-file target: {entry.path}")
+    if target.is_file() and not force:
+        current = _label(target.read_text(encoding="utf-8"))
+        if current != entry.after_label:
+            raise BootstrapError(
+                f"{entry.path} changed since the backup; refusing to roll back "
+                "(pass --force to override)"
+            )
+
+
 def _write_text(path: Path, text: str, *, overwrite: bool = True) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists() and not overwrite:
@@ -350,4 +550,4 @@ def _label(content: str) -> str:
 
 
 def _timestamp() -> str:
-    return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    return datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
