@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from studio_contracts.auth import MachineCapabilities
+
 from studio_client.capabilities import build_capabilities, registered_project_ids
 from studio_client.config import ClientConfig
 from studio_client.daemon.heartbeat import HeartbeatDaemon
@@ -85,6 +87,7 @@ def test_build_capabilities_reports_ids_and_opt_in() -> None:
     assert harness.harness_id == "stub-harness"
     assert harness.detected is True and harness.configured is True
     assert harness.version == "1.0"
+    assert MachineCapabilities.model_validate(caps.model_dump(mode="json")) == caps
 
 
 def test_build_capabilities_defaults_to_closed() -> None:

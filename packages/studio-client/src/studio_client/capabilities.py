@@ -5,7 +5,7 @@ from collections.abc import Callable
 from pathlib import Path
 from uuid import UUID
 
-from studio_contracts.auth import HarnessCapability, MachineCapabilities
+from studio_contracts.auth import HarnessReport, MachineCapabilities
 
 from studio_client.config import ClientConfig
 from studio_client.harness.base import DetectionState, HarnessContext
@@ -53,7 +53,7 @@ def build_capabilities(
     active_registry = registry if registry is not None else HarnessRegistry(default_adapters())
     active_ctx = ctx if ctx is not None else neutral_context(config)
     harnesses = [
-        HarnessCapability(
+        HarnessReport(
             harness_id=adapter.harness_id,
             detected=detection.state is not DetectionState.NOT_INSTALLED
             and detection.state is not DetectionState.UNAVAILABLE,

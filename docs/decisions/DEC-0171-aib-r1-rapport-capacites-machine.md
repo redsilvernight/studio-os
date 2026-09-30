@@ -16,20 +16,43 @@ de validation humaine — fichier et serveur alignes a l'acceptation).
 
 - `POST /api/v1/heartbeats` accepte un rapport de capacites optionnel
   `MachineCapabilities` dans `HeartbeatRequest.capabilities` : harnesses
-  detectes (`harness_id` + etat + version), `project_ids` enregistres (UUID
-  seuls), opt-in `accepts_launches`, occupation `running_launches` /
-  `max_launches`.
-- Le rapport est persiste en colonne JSONB nullable `machines.capabilities`
-  (migration Alembic `0024`, reversible) et renvoye en echo dans
+  detectes, `project_ids` enregistres (UUID seuls), opt-in
+  `accepts_launches`, occupation `running_launches` / `max_launches`.
+- Le rapport est persiste en colonnes `machines.capabilities` (JSONB
+  nullable) + `machines.capabilities_reported_at` (migration Alembic
+  `0024`, reversible) et renvoye en echo dans
   `HeartbeatResponse.capabilities`.
 - Gate roadmap : **aucun chemin, secret, empreinte ni contenu de fichier**
   dans le rapport. `managed_files`, `credential_fingerprint` et `repo_path`
-  sont explicitement exclus ; toute donnee est un ID stable.
+  sont explicitement exclus ; `harness_id`/`version` sont des
+  `CapabilityToken` (regex sans separateur — un chemin n'y est pas
+  representable).
 - Cote client, `studio_client/capabilities.py` construit le rapport depuis
   `HarnessRegistry.detect_all` + `ClientConfig` (`git_watches`,
   `godot_watch_project_id`, `launch_opt_in`, `max_concurrent_launches`) ;
   `HeartbeatDaemon` l'envoie a chaque battement via un fournisseur injecte
   (defaut : aucun rapport, comportement inchange).
+
+## Convergence avec e1963627 (mer present : merge de `origin/dev`)
+
+La tache soeur e1963627 a merge avant (contrat canonique :
+`CapabilityToken`, `HarnessReport{harness_id, version}`,
+`MachineCapabilities` bornee, endpoint d'eligibilite, migration `0024` a
+deux colonnes). DEC-0171 **etend** ce canon au lieu de le dupliquer :
+
+- `HarnessReport` gagne `detected` / `configured` (additifs, `False` par
+  defaut) : la distinction « outil present » vs « cable pour Studio OS »
+  qu'exige le gate R1, sans changer la logique d'eligibilite (match sur
+  `harness_id` uniquement).
+- `HeartbeatResponse.capabilities?` (echo) : additif, consomme par le
+  client pour confirmer la reception ; l'endpoint d'eligibilite reste
+  l'API de lecture.
+- Migration `0024` : celle d'e1963627 fait foi (la version f91e49e0 a un
+  seul connecteur est abandonnee) ; `Machine.capabilities_reported_at`
+  est renseigne a chaque rapport.
+- Endpoint `GET /tasks/{id}/eligible-machines` et sa doc contrat restent
+  du cote e1963627 (deja merge) ; la doc `TECH/04` + `TECH/05` du present
+  changement couvre le rapport et l'echo.
 
 ## Additif, pas de bump
 

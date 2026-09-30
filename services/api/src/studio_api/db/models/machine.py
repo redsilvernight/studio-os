@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB
@@ -24,4 +25,7 @@ class MachineModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
         DateTime(timezone=True), default=None
     )
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
-    capabilities: Mapped[dict[str, object] | None] = mapped_column(JSONB, default=None)
+    capabilities: Mapped[dict[str, Any] | None] = mapped_column(JSONB, default=None)
+    capabilities_reported_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None
+    )
