@@ -56,6 +56,16 @@ function artifactLabel(kind: string): string {
   return ARTIFACT_LABEL[kind] ?? kind;
 }
 
+const BOOTSTRAP_STATE_LABEL = {
+  up_to_date: "À jour",
+  obsolete: "Obsolètes",
+  modified: "Modifiés",
+  absent: "Absents",
+  incompatible: "Incompatibles",
+} as const;
+
+const BOOTSTRAP_STATE_ORDER = ["up_to_date", "obsolete", "modified", "absent", "incompatible"] as const;
+
 /** État désiré (serveur) : le plan de bootstrap, ou l'erreur publique qui l'a empêché. */
 export function desiredHtml(
   desired: DesiredIntegration | null | undefined,
@@ -129,6 +139,26 @@ export function resyncInstructionHtml(machine: ReportedMachineIntegration): stri
   );
 }
 
+/** Dernier contrôle local du bundle IA rapporté par le poste, ou son absence. */
+function bootstrapBlockHtml(machine: ReportedMachineIntegration): string {
+  const bootstrap = machine.bootstrap;
+  if (bootstrap === null || bootstrap === undefined) {
+    if (machine.freshness === "never_reported") return "";
+    return `<p class="ds-list-sub">Aucun état de bootstrap local rapporté par le poste.</p>`;
+  }
+  const sync = bootstrap.in_sync
+    ? dsBadge("Bundle à jour", "success")
+    : dsBadge("Bundle à mettre à jour", "warning");
+  const counts = BOOTSTRAP_STATE_ORDER.map(
+    (key) =>
+      `<li class="ds-list-item"><div class="grow">${esc(BOOTSTRAP_STATE_LABEL[key])}</div>${dsBadge(String(bootstrap.summary[key]), "neutral")}</li>`,
+  ).join("");
+  return (
+    `<div class="ai-bootstrap"><p class="ds-list-sub">État du bundle IA observé par le poste, ` +
+    `vérifié le ${fmtTime(bootstrap.checked_at)} — ${sync}</p><ul class="ds-list">${counts}</ul></div>`
+  );
+}
+
 /** Un poste et ce qu'il a rapporté, plus l'action de resynchronisation (instruction). */
 export function machineItemHtml(machine: ReportedMachineIntegration): string {
   const presence = activityLabelFr(machine.status, "canonical");
@@ -157,7 +187,7 @@ export function machineItemHtml(machine: ReportedMachineIntegration): string {
     `<div class="ds-list-sub">${esc(reported)} · ${esc(freshness)}</div></div>` +
     `${dsBadge(presence.label, presence.tone)} ${dsBadge(freshness, FRESHNESS_TONE[machine.freshness])}` +
     `</div>` +
-    `<div class="ai-machine-body"><p class="ds-list-sub">${registered}</p>${harnessBlock}</div>` +
+    `<div class="ai-machine-body"><p class="ds-list-sub">${registered}</p>${harnessBlock}${bootstrapBlockHtml(machine)}</div>` +
     `<div class="ai-machine-actions"><button type="button" class="ds-btn ds-btn--sm" data-resync="${esc(machine.machine_id)}">Resynchroniser…</button></div>` +
     resyncInstructionHtml(machine) +
     `</li>`

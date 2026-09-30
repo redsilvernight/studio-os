@@ -13272,6 +13272,31 @@
     "title": "AiIntegrationStatus",
     "description": "`desired` is `None` when the plan cannot be built; `desired_error`\nthen carries the public error code (never a stack or a path). `machines`\nare the caller's own machines (every machine for `admin`)."
    },
+   "AppliedBootstrap": {
+    "properties": {
+     "checked_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Checked At"
+     },
+     "summary": {
+      "$ref": "#/components/schemas/BootstrapFileSummary"
+     },
+     "in_sync": {
+      "type": "boolean",
+      "title": "In Sync"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "checked_at",
+     "summary",
+     "in_sync"
+    ],
+    "title": "AppliedBootstrap",
+    "description": "The machine's own last local check of this project's AI bundle.\n`in_sync` is true only when every planned file was observed up to date;\nit is machine-observed, never inferred by the server."
+   },
    "AuthIdentity": {
     "properties": {
      "user_id": {
@@ -13319,6 +13344,39 @@
     ],
     "title": "BindingRelation",
     "description": "Closed vocabulary of Library Binding types.\n\nEvery allowed `(source kind, target kind)` couple maps to exactly one\nrelation (see `_BINDING_MATRIX`) \u2014 the relation is a label on that\ncouple, never a free-form string. Unknown values are rejected by\nPydantic before any existence check runs."
+   },
+   "BootstrapFileSummary": {
+    "properties": {
+     "absent": {
+      "type": "integer",
+      "title": "Absent",
+      "default": 0
+     },
+     "obsolete": {
+      "type": "integer",
+      "title": "Obsolete",
+      "default": 0
+     },
+     "modified": {
+      "type": "integer",
+      "title": "Modified",
+      "default": 0
+     },
+     "incompatible": {
+      "type": "integer",
+      "title": "Incompatible",
+      "default": 0
+     },
+     "up_to_date": {
+      "type": "integer",
+      "title": "Up To Date",
+      "default": 0
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "BootstrapFileSummary",
+    "description": "State counts: the glanceable roll-up of a dry-run, mirroring\n`InitializationSummary` (created/reused/skipped)."
    },
    "BootstrapPlan": {
     "properties": {
@@ -16563,6 +16621,21 @@
       "minimum": 0.0,
       "title": "Max Launches",
       "default": 0
+     },
+     "bootstrap": {
+      "anyOf": [
+       {
+        "items": {
+         "$ref": "#/components/schemas/ProjectBootstrapStatus"
+        },
+        "type": "array",
+        "maxItems": 256
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Bootstrap"
      }
     },
     "additionalProperties": false,
@@ -17202,6 +17275,32 @@
     ],
     "title": "Project"
    },
+   "ProjectBootstrapStatus": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "checked_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Checked At"
+     },
+     "summary": {
+      "$ref": "#/components/schemas/BootstrapFileSummary"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id",
+     "checked_at",
+     "summary"
+    ],
+    "title": "ProjectBootstrapStatus",
+    "description": "Machine-observed state of one project's AI bundle (AIB P6): the result\nof the machine's own local `bootstrap check` at `checked_at`. Counts only\n- never a path or file name. It says what the machine observed, not what\nthe server expects."
+   },
    "ProjectCreate": {
     "properties": {
      "slug": {
@@ -17623,6 +17722,16 @@
       },
       "type": "array",
       "title": "Harnesses"
+     },
+     "bootstrap": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/AppliedBootstrap"
+       },
+       {
+        "type": "null"
+       }
+      ]
      }
     },
     "additionalProperties": false,
@@ -17634,7 +17743,7 @@
      "freshness"
     ],
     "title": "ReportedMachineIntegration",
-    "description": "What one machine reported, and only that. `harnesses` are the\nmachine's own `detected`/`configured` claims; `project_registered` is\n`None` when the machine never reported."
+    "description": "What one machine reported, and only that. `harnesses` are the\nmachine's own `detected`/`configured` claims; `project_registered` is\n`None` when the machine never reported; `bootstrap` is `None` until the\nmachine has reported a local check of this project."
    },
    "ResetPasswordRequest": {
     "properties": {

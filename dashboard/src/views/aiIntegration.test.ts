@@ -107,6 +107,42 @@ describe("machineItemHtml", () => {
     expect(html).toContain("Enregistrement inconnu");
     expect(html).not.toContain("Non configuré");
   });
+
+  it("bundle local rapporté : à jour, daté, avec les comptes par état", () => {
+    const html = machineItemHtml(
+      machine({
+        bootstrap: {
+          checked_at: "2026-09-30T20:00:00Z",
+          in_sync: true,
+          summary: { absent: 0, obsolete: 0, modified: 0, incompatible: 0, up_to_date: 7 },
+        },
+      }),
+    );
+    expect(html).toContain("Bundle à jour");
+    expect(html).toContain("vérifié le");
+    expect(html).toContain("À jour");
+    expect(html).not.toContain("Bundle à mettre à jour");
+  });
+
+  it("bundle local en dérive : signalé comme à mettre à jour", () => {
+    const html = machineItemHtml(
+      machine({
+        bootstrap: {
+          checked_at: "2026-09-30T20:00:00Z",
+          in_sync: false,
+          summary: { absent: 2, obsolete: 1, modified: 0, incompatible: 0, up_to_date: 4 },
+        },
+      }),
+    );
+    expect(html).toContain("Bundle à mettre à jour");
+    expect(html).toContain("Absents");
+    expect(html).toContain("Obsolètes");
+  });
+
+  it("aucun contrôle local rapporté : le dit sans supposer", () => {
+    const html = machineItemHtml(machine({ bootstrap: null }));
+    expect(html).toContain("Aucun état de bootstrap local rapporté par le poste");
+  });
 });
 
 describe("aiIntegrationHtml", () => {

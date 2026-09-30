@@ -2508,6 +2508,22 @@ export interface components {
             /** Machines */
             machines?: components["schemas"]["ReportedMachineIntegration"][];
         };
+        /**
+         * AppliedBootstrap
+         * @description The machine's own last local check of this project's AI bundle.
+         *     `in_sync` is true only when every planned file was observed up to date;
+         *     it is machine-observed, never inferred by the server.
+         */
+        AppliedBootstrap: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            summary: components["schemas"]["BootstrapFileSummary"];
+            /** In Sync */
+            in_sync: boolean;
+        };
         /** AuthIdentity */
         AuthIdentity: {
             /**
@@ -2538,6 +2554,38 @@ export interface components {
          * @enum {string}
          */
         BindingRelation: "requires_model_profile" | "uses_skill" | "applies_rule" | "composes_agent" | "references_workflow" | "refines_skill_rule";
+        /**
+         * BootstrapFileSummary
+         * @description State counts: the glanceable roll-up of a dry-run, mirroring
+         *     `InitializationSummary` (created/reused/skipped).
+         */
+        BootstrapFileSummary: {
+            /**
+             * Absent
+             * @default 0
+             */
+            absent: number;
+            /**
+             * Obsolete
+             * @default 0
+             */
+            obsolete: number;
+            /**
+             * Modified
+             * @default 0
+             */
+            modified: number;
+            /**
+             * Incompatible
+             * @default 0
+             */
+            incompatible: number;
+            /**
+             * Up To Date
+             * @default 0
+             */
+            up_to_date: number;
+        };
         /**
          * BootstrapPlan
          * @description `plan_hash` covers `(kind, stable_key, scope, version, content_hash)` of
@@ -4057,6 +4105,8 @@ export interface components {
              * @default 0
              */
             max_launches: number;
+            /** Bootstrap */
+            bootstrap?: components["schemas"]["ProjectBootstrapStatus"][] | null;
         };
         /**
          * MachineCreate
@@ -4346,6 +4396,26 @@ export interface components {
              */
             archived: boolean;
         };
+        /**
+         * ProjectBootstrapStatus
+         * @description Machine-observed state of one project's AI bundle (AIB P6): the result
+         *     of the machine's own local `bootstrap check` at `checked_at`. Counts only
+         *     - never a path or file name. It says what the machine observed, not what
+         *     the server expects.
+         */
+        ProjectBootstrapStatus: {
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            summary: components["schemas"]["BootstrapFileSummary"];
+        };
         /** ProjectCreate */
         ProjectCreate: {
             /** Slug */
@@ -4515,7 +4585,8 @@ export interface components {
          * ReportedMachineIntegration
          * @description What one machine reported, and only that. `harnesses` are the
          *     machine's own `detected`/`configured` claims; `project_registered` is
-         *     `None` when the machine never reported.
+         *     `None` when the machine never reported; `bootstrap` is `None` until the
+         *     machine has reported a local check of this project.
          */
         ReportedMachineIntegration: {
             /**
@@ -4533,6 +4604,7 @@ export interface components {
             project_registered?: boolean | null;
             /** Harnesses */
             harnesses?: components["schemas"]["HarnessReport"][];
+            bootstrap?: components["schemas"]["AppliedBootstrap"] | null;
         };
         /** ResetPasswordRequest */
         ResetPasswordRequest: {
