@@ -223,3 +223,45 @@
 .claims-form > button {
   justify-self: start;
 }
+
+/* Onglet Intégration IA : état désiré vs rapporté, action en mode instruction. */
+.ai-desired {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--ds-space-4);
+}
+.ai-desired h3 {
+  margin: 0 0 var(--ds-space-2);
+  font-size: var(--ds-text-sm);
+}
+.ai-machine {
+  display: grid;
+  gap: var(--ds-space-2);
+  padding: var(--ds-space-3) 0;
+  border-top: 1px solid var(--line);
+}
+.ai-machine:first-child {
+  border-top: 0;
+}
+.ai-machine-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ds-space-3);
+  flex-wrap: wrap;
+}
+.ai-machine-actions {
+  display: flex;
+  gap: var(--ds-space-2);
+}
+.ai-resync {
+  display: grid;
+  gap: var(--ds-space-2);
+  justify-items: start;
+}
+.ai-refresh {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-3);
+  margin-top: var(--ds-space-4);
+}
+

@@ -2219,6 +2219,279 @@
     }
    }
   },
+  "/api/v1/sync": {
+   "get": {
+    "tags": [
+     "sync"
+    ],
+    "summary": "Get Sync",
+    "description": "Resynchronise one work session (C2): what changed since the last sync that concerns this work, as a compact bounded answer. `session_id` selects the session (its task is used, its stored cursor is the default start); without it, `agent_id` + `task_id` is a stateless lookup persisting nothing. `ack` acknowledges the highest processed `seq`: the stored cursor advances monotonically to it (a stale replay changes nothing), and `next_cursor` in the answer is what to ack next. `files` scopes claim overlap to declared paths. `limit`/`max_chars` bound the answer (same budget as `prepare_context`); the remainder surfaces as per-`why` `overflow` counters, and a truncated scan sets `resync` (see `prepare_context` \u2014 raw history is never dumped). An empty answer serialises to well under 300 characters. Own-machine events are excluded; items are ids only, `seq` ascending, then live overlapping claims. `422 invalid_sync_input` on bad identity or bounds; `404 session_not_found` on unknown or ended session; `409 actor_not_owned` when `agent_id` is not on the caller's machine.",
+    "operationId": "get_sync_api_v1_sync_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "session_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Session Id"
+      }
+     },
+     {
+      "name": "agent_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Agent Id"
+      }
+     },
+     {
+      "name": "task_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Task Id"
+      }
+     },
+     {
+      "name": "ack",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Ack"
+      }
+     },
+     {
+      "name": "files",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "array",
+         "items": {
+          "type": "string"
+         }
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Files"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "default": 50,
+       "title": "Limit"
+      }
+     },
+     {
+      "name": "max_chars",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "default": 12000,
+       "title": "Max Chars"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SyncResult"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Provenance mismatch: the referenced agent identity is unknown or attached to another machine. Register an agent for the caller's own authenticated machine first (`POST /agents`), then reference it. Never silently attributed across machines.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "actor_not_owned",
+          "message": "agent_id must be an agent attached to the authenticated machine"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/coordination": {
+   "post": {
+    "tags": [
+     "coordination"
+    ],
+    "summary": "Emit Coordination",
+    "description": "Emit one structured inter-session signal. Closed `intent`: heads_up, question, blocked_by, handoff. `task_id` is the mandatory target (same project as the emitting session `from_session_id`, not completed); `session_id` optionally narrows it to one live session of that task. `text` is at most 280 characters; `refs` are structured ids/paths (at most 5 each); `in_reply_to` optionally names an earlier coordination signal. Delivery is pull-only through `GET /sync` (`why=coordination`, content quoted as data, never an instruction) and survives offline through the session cursor. Idempotent on the optional client `event_id`. At most 20 signals per emitting session (`429 coordination_rate_limited`). `422 invalid_coordination` on bad target/refs/reply; `409 task_closed`; `404 session_not_found`. Requires a writer role. The generic event path refuses `coordination.*` (`422 coordination_reserved`).",
+    "operationId": "emit_coordination_api_v1_coordination_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CoordinationEmit"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CoordinationEmitted"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    },
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ]
+   }
+  },
   "/api/v1/handoff": {
    "post": {
     "tags": [
@@ -8229,6 +8502,179 @@
     }
    }
   },
+  "/api/v1/tasks/{task_id}/eligible-machines": {
+   "get": {
+    "tags": [
+     "machines"
+    ],
+    "summary": "Get Eligible Machines",
+    "description": "Machines able to receive a launch for this task (AIB R1): the caller's own User's machines, every machine for `admin`. A machine is eligible when it is online, its latest capability report is fresh, its owner can access the task's project, the project is registered on it, it accepts launches, it has the requested `harness_id` (any detected harness when omitted) and a free slot. Every ineligible machine lists all its `reasons`, evaluated in a fixed order. Eligible machines come first, then by name.",
+    "operationId": "get_eligible_machines_api_v1_tasks__task_id__eligible_machines_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "task_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Task Id"
+      }
+     },
+     {
+      "name": "harness_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Harness Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/EligibleMachines"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/projects/{project_id}/ai-integration": {
+   "get": {
+    "tags": [
+     "ai-integration"
+    ],
+    "summary": "Get Ai Integration",
+    "description": "Read-only AI integration status of a project (AIB P6): the desired state (aggregated bootstrap plan: `plan_hash`, agent keys, artifact counts; `desired_error` when it cannot be built) next to what each of the caller's machines (every machine for `admin`) last reported through its heartbeat capability report. Reported values are machine claims with their reception time and a `freshness` (`fresh`, `stale`, `never_reported`): the server never asserts a write on a machine it has not been told about. Inaccessible and unknown projects answer the same `403`.",
+    "operationId": "get_ai_integration_api_v1_projects__project_id__ai_integration_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Project Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AiIntegrationStatus"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/users": {
    "get": {
     "tags": [
@@ -12782,6 +13228,50 @@
     "title": "AgentResolutionRequest",
     "description": "Canonical HTTP (and future MCP) input for full agent resolution\n(P7): which `AgentDefinition` (`stable_key`, kind fixed \u2014\nthe engine only resolves agent definitions), in which project\ncontext, with which ephemeral session overrides. Identity always\ncomes from auth, never from this body. The response is the complete\n`ResolvedAgentDefinition`, never a simplified shape."
    },
+   "AiIntegrationStatus": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "desired": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/DesiredIntegration"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "desired_error": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Desired Error"
+     },
+     "machines": {
+      "items": {
+       "$ref": "#/components/schemas/ReportedMachineIntegration"
+      },
+      "type": "array",
+      "title": "Machines"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id"
+    ],
+    "title": "AiIntegrationStatus",
+    "description": "`desired` is `None` when the plan cannot be built; `desired_error`\nthen carries the public error code (never a stack or a path). `machines`\nare the caller's own machines (every machine for `admin`)."
+   },
    "AuthIdentity": {
     "properties": {
      "user_id": {
@@ -13369,6 +13859,221 @@
     ],
     "title": "ContextStep"
    },
+   "CoordinationEmit": {
+    "properties": {
+     "from_session_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "From Session Id"
+     },
+     "intent": {
+      "type": "string",
+      "enum": [
+       "heads_up",
+       "question",
+       "blocked_by",
+       "handoff"
+      ],
+      "title": "Intent"
+     },
+     "task_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Task Id"
+     },
+     "session_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Session Id"
+     },
+     "text": {
+      "type": "string",
+      "maxLength": 280,
+      "minLength": 1,
+      "title": "Text"
+     },
+     "refs": {
+      "$ref": "#/components/schemas/CoordinationRefs"
+     },
+     "in_reply_to": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "In Reply To"
+     },
+     "event_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Event Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "from_session_id",
+     "intent",
+     "task_id",
+     "text"
+    ],
+    "title": "CoordinationEmit",
+    "description": "Emission request. `from_session_id` is the emitter's own live session\n(rate-limit and attribution unit). `task_id` is the mandatory target;\n`session_id` optionally narrows it to one live session of that task.\n`event_id` is the optional client idempotency key (replay returns the\noriginal signal, nothing new is stored)."
+   },
+   "CoordinationEmitted": {
+    "properties": {
+     "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Event Id"
+     },
+     "event_type": {
+      "type": "string",
+      "title": "Event Type"
+     },
+     "seq": {
+      "type": "integer",
+      "title": "Seq"
+     },
+     "task_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Task Id"
+     },
+     "session_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Session Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "event_id",
+     "event_type",
+     "seq",
+     "task_id"
+    ],
+    "title": "CoordinationEmitted"
+   },
+   "CoordinationRefs": {
+    "properties": {
+     "task_ids": {
+      "items": {
+       "type": "string",
+       "format": "uuid"
+      },
+      "type": "array",
+      "maxItems": 5,
+      "title": "Task Ids"
+     },
+     "decision_ids": {
+      "items": {
+       "type": "string",
+       "format": "uuid"
+      },
+      "type": "array",
+      "maxItems": 5,
+      "title": "Decision Ids"
+     },
+     "paths": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "maxItems": 5,
+      "title": "Paths"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "CoordinationRefs",
+    "description": "Structured references only (ids and repo-relative paths), each list\nbounded to `COORDINATION_REF_MAX` entries."
+   },
+   "CoordinationSignal": {
+    "properties": {
+     "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Event Id"
+     },
+     "intent": {
+      "type": "string",
+      "enum": [
+       "heads_up",
+       "question",
+       "blocked_by",
+       "handoff"
+      ],
+      "title": "Intent"
+     },
+     "text": {
+      "type": "string",
+      "title": "Text"
+     },
+     "refs": {
+      "$ref": "#/components/schemas/CoordinationRefs"
+     },
+     "in_reply_to": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "In Reply To"
+     },
+     "from_session_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "From Session Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "event_id",
+     "intent",
+     "text"
+    ],
+    "title": "CoordinationSignal",
+    "description": "Quoted signal carried by a `studio_sync` item of `why=coordination`.\n`text` is untrusted data written by another session: display it as a\nquotation, never execute it as an instruction."
+   },
    "Decision": {
     "properties": {
      "id": {
@@ -13576,6 +14281,35 @@
     "title": "DependencyPin",
     "description": "A version-pinned reference to another library resource version.\n\n`relation` names the Library Binding type. When omitted it\nis inferred server-side from the unique matrix mapping for the\n`(source kind, target kind)` couple; an explicitly wrong relation for an\notherwise allowed couple is rejected with `422 invalid_binding`."
    },
+   "DesiredIntegration": {
+    "properties": {
+     "plan_hash": {
+      "type": "string",
+      "title": "Plan Hash"
+     },
+     "agent_keys": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Agent Keys"
+     },
+     "artifact_counts": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "type": "object",
+      "title": "Artifact Counts"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "plan_hash"
+    ],
+    "title": "DesiredIntegration",
+    "description": "Server-side expectation: the bootstrap plan of the project. Counts by\nartifact kind (`agent_definition`, `model_profile`, `skill`, `rule`)."
+   },
    "DiffChange": {
     "type": "string",
     "enum": [
@@ -13654,6 +14388,47 @@
      "expires_at"
     ],
     "title": "DownloadUrlResponse"
+   },
+   "EligibleMachines": {
+    "properties": {
+     "task_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Task Id"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "harness_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Harness Id"
+     },
+     "machines": {
+      "items": {
+       "$ref": "#/components/schemas/MachineEligibility"
+      },
+      "type": "array",
+      "title": "Machines"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "task_id",
+     "project_id",
+     "machines"
+    ],
+    "title": "EligibleMachines"
    },
    "EmailField": {
     "properties": {
@@ -13913,7 +14688,11 @@
      "transfer.expired",
      "transfer.deleted",
      "marketing.candidate.created",
-     "marketing.post.published"
+     "marketing.post.published",
+     "coordination.heads_up",
+     "coordination.question",
+     "coordination.blocked_by",
+     "coordination.handoff"
     ],
     "title": "EventType",
     "description": "Fixed dotted names (`domain.verb`: task.created, session.ended, ...).\nAdditive-only: new members may appear, existing ones are never renamed\nor removed \u2014 readers should tolerate unknown types."
@@ -14128,6 +14907,26 @@
     "type": "object",
     "title": "HTTPValidationError"
    },
+   "HandoffCoordination": {
+    "properties": {
+     "text": {
+      "type": "string",
+      "maxLength": 280,
+      "minLength": 1,
+      "title": "Text"
+     },
+     "refs": {
+      "$ref": "#/components/schemas/CoordinationRefs"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "text"
+    ],
+    "title": "HandoffCoordination",
+    "description": "Optional `coordination.handoff` signal (C4, additive)\nemitted on the handed-off task, delivered to its next session through\n`studio_sync`. The event id is derived from the session, so a replay\nnever emits a second signal. `text` is quoted data for the recipient."
+   },
    "HandoffRequest": {
     "properties": {
      "project_id": {
@@ -14224,6 +15023,16 @@
        }
       ],
       "title": "Tests Run"
+     },
+     "coordination": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/HandoffCoordination"
+       },
+       {
+        "type": "null"
+       }
+      ]
      }
     },
     "additionalProperties": false,
@@ -14273,6 +15082,39 @@
        }
       ],
       "title": "Ai Work Id"
+     },
+     "sync": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/SyncResult"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "handoff_cursor_seq": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Handoff Cursor Seq"
+     },
+     "coordination_event_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Coordination Event Id"
      }
     },
     "additionalProperties": false,
@@ -14285,7 +15127,45 @@
      "released_claims"
     ],
     "title": "HandoffResult",
-    "description": "Compact result: ids + statuses only, never full descriptions.\nReplaying the same `Idempotency-Key` with the same body returns the\noriginal result \u2014 no second status update, no duplicate claim\nreleases, no duplicate AI work entry, no second session end."
+    "description": "Compact result: ids + statuses only, never full descriptions.\nReplaying the same `Idempotency-Key` with the same body returns the\noriginal result \u2014 no second status update, no duplicate claim\nreleases, no duplicate AI work entry, no second session end. C4 adds:\n`sync` (last bounded `studio_sync` answer, acknowledged), the task's new\n`handoff_cursor_seq` that the next session inherits, and the emitted\n`coordination_event_id` when a `coordination` signal was requested."
+   },
+   "HarnessReport": {
+    "properties": {
+     "harness_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$",
+      "title": "Harness Id"
+     },
+     "version": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Version"
+     },
+     "detected": {
+      "type": "boolean",
+      "title": "Detected",
+      "default": false
+     },
+     "configured": {
+      "type": "boolean",
+      "title": "Configured",
+      "default": false
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "harness_id"
+    ],
+    "title": "HarnessReport",
+    "description": "One harness as reported by a machine (AIB R1): `detected` means the\ntool is present on the machine, `configured` means it is wired for\nStudio OS. IDs and stable tokens only: never a path, secret,\nfingerprint or file listing."
    },
    "HeartbeatRequest": {
     "properties": {
@@ -14310,6 +15190,16 @@
       "type": "string",
       "format": "date-time",
       "title": "Client Timestamp"
+     },
+     "capabilities": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/MachineCapabilities"
+       },
+       {
+        "type": "null"
+       }
+      ]
      }
     },
     "additionalProperties": false,
@@ -14318,7 +15208,8 @@
      "machine_id",
      "client_timestamp"
     ],
-    "title": "HeartbeatRequest"
+    "title": "HeartbeatRequest",
+    "description": "`capabilities` is optional and additive: absent, the previous report\nis kept untouched."
    },
    "HeartbeatResponse": {
     "properties": {
@@ -14339,6 +15230,16 @@
       "type": "string",
       "format": "date-time",
       "title": "Server Timestamp"
+     },
+     "capabilities": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/MachineCapabilities"
+       },
+       {
+        "type": "null"
+       }
+      ]
      }
     },
     "additionalProperties": false,
@@ -14550,6 +15451,21 @@
     ],
     "title": "HydrationResult",
     "description": "Same shape for preview (`applied=False`, nothing written) and apply\n(`applied=True`). On apply, `create` items carry the new `task_id`.\n`applicable=False` (preview of a non-`active` roadmap) carries\n`not_applicable_reason`; apply never returns it (it fails instead)."
+   },
+   "IneligibilityReason": {
+    "type": "string",
+    "enum": [
+     "offline",
+     "no_capabilities_report",
+     "capabilities_stale",
+     "owner_no_project_access",
+     "project_not_registered",
+     "launches_not_accepted",
+     "harness_incompatible",
+     "at_capacity"
+    ],
+    "title": "IneligibilityReason",
+    "description": "Deterministic, evaluated in this declaration order."
    },
    "InitializationAction": {
     "properties": {
@@ -15612,6 +16528,48 @@
     "title": "Machine",
     "description": "A machine owns its own revocable credential: an opaque token whose\nhash alone is stored server-side, so a leaked database never leaks\naccess."
    },
+   "MachineCapabilities": {
+    "properties": {
+     "harnesses": {
+      "items": {
+       "$ref": "#/components/schemas/HarnessReport"
+      },
+      "type": "array",
+      "maxItems": 32,
+      "title": "Harnesses"
+     },
+     "project_ids": {
+      "items": {
+       "type": "string",
+       "format": "uuid"
+      },
+      "type": "array",
+      "maxItems": 256,
+      "title": "Project Ids"
+     },
+     "accepts_launches": {
+      "type": "boolean",
+      "title": "Accepts Launches",
+      "default": false
+     },
+     "running_launches": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Running Launches",
+      "default": 0
+     },
+     "max_launches": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Max Launches",
+      "default": 0
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "MachineCapabilities",
+    "description": "Machine-reported launch aptitude (AIB R1, additive). Ids only - never a\npath, hostname or secret. The server stores the latest report with its\nreception time and never presents a stale one as current."
+   },
    "MachineCreate": {
     "properties": {
      "owner_user_id": {
@@ -15703,6 +16661,66 @@
     ],
     "title": "MachineCreated",
     "description": "Returned once, at creation time: the opaque credential in clear text.\nNever retrievable again afterwards \u2014 only its hash is stored."
+   },
+   "MachineEligibility": {
+    "properties": {
+     "machine_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Machine Id"
+     },
+     "display_name": {
+      "type": "string",
+      "title": "Display Name"
+     },
+     "status": {
+      "$ref": "#/components/schemas/MachineStatus"
+     },
+     "eligible": {
+      "type": "boolean",
+      "title": "Eligible"
+     },
+     "reasons": {
+      "items": {
+       "$ref": "#/components/schemas/IneligibilityReason"
+      },
+      "type": "array",
+      "title": "Reasons"
+     },
+     "harnesses": {
+      "items": {
+       "$ref": "#/components/schemas/HarnessReport"
+      },
+      "type": "array",
+      "title": "Harnesses"
+     },
+     "free_slots": {
+      "type": "integer",
+      "title": "Free Slots",
+      "default": 0
+     },
+     "reported_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reported At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "machine_id",
+     "display_name",
+     "status",
+     "eligible"
+    ],
+    "title": "MachineEligibility"
    },
    "MachineStatus": {
     "type": "string",
@@ -16548,6 +17566,75 @@
     ],
     "title": "Reorder",
     "description": "Atomic reorder: the complete ordered list of sibling keys. It must be\na permutation of the current siblings (`422 invalid_roadmap`,\n`invalid_reorder`); the roadmap version is checked and bumped."
+   },
+   "ReportFreshness": {
+    "type": "string",
+    "enum": [
+     "fresh",
+     "stale",
+     "never_reported"
+    ],
+    "title": "ReportFreshness",
+    "description": "`fresh`: reported within the offline threshold. `stale`: older than\nthat, shown for information only. `never_reported`: no report at all."
+   },
+   "ReportedMachineIntegration": {
+    "properties": {
+     "machine_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Machine Id"
+     },
+     "display_name": {
+      "type": "string",
+      "title": "Display Name"
+     },
+     "status": {
+      "$ref": "#/components/schemas/MachineStatus"
+     },
+     "freshness": {
+      "$ref": "#/components/schemas/ReportFreshness"
+     },
+     "reported_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reported At"
+     },
+     "project_registered": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Project Registered"
+     },
+     "harnesses": {
+      "items": {
+       "$ref": "#/components/schemas/HarnessReport"
+      },
+      "type": "array",
+      "title": "Harnesses"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "machine_id",
+     "display_name",
+     "status",
+     "freshness"
+    ],
+    "title": "ReportedMachineIntegration",
+    "description": "What one machine reported, and only that. `harnesses` are the\nmachine's own `detected`/`configured` claims; `project_registered` is\n`None` when the machine never reported."
    },
    "ResetPasswordRequest": {
     "properties": {
@@ -19537,12 +20624,22 @@
       "type": "array",
       "title": "Candidates",
       "default": []
+     },
+     "sync": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/SyncResult"
+       },
+       {
+        "type": "null"
+       }
+      ]
      }
     },
     "additionalProperties": false,
     "type": "object",
     "title": "StartWorkResult",
-    "description": "One call, one replayable result \u2014 not a single database transaction:\nthe composed services commit their own steps, so a partial failure\nconverges on the next call. `task`/`session`\nare set only on the with-task path; `claimed` tells whether the task is\nnow claimed by the caller's machine; `resumed` tells whether the\nsession was resumed (`True`) or created (`False`) \u2014 meaningless without\na task. `prepared_context` is present on every successful response\n(bounded); `candidates` only on the no-task path. Replaying the same `Idempotency-Key` with the\nsame body returns the original result \u2014 never a second claim nor a\nsecond session; a different body is `409\nidempotency_key_payload_mismatch`."
+    "description": "One call, one replayable result \u2014 not a single database transaction:\nthe composed services commit their own steps, so a partial failure\nconverges on the next call. `task`/`session`\nare set only on the with-task path; `claimed` tells whether the task is\nnow claimed by the caller's machine; `resumed` tells whether the\nsession was resumed (`True`) or created (`False`) \u2014 meaningless without\na task. `sync` (C4, additive) is the initial bounded `studio_sync` block of\nthe session, with-task path only: computed from the cursor the session\nholds (inherited from the task's last handoff), never acknowledged here \u2014\nthe agent acks `next_cursor` on its next `studio_sync`. `prepared_context`\nis present on every successful response (bounded); `candidates` only on\nthe no-task path. Replaying the same `Idempotency-Key` with the same body\nreturns the original result \u2014 never a second claim nor a second session;\na different body is `409 idempotency_key_payload_mismatch`."
    },
    "Step": {
     "properties": {
@@ -20106,6 +21203,140 @@
     "type": "object",
     "title": "StepUpdate",
     "description": "Content edit (`PATCH`, `If-Match-Version` = step version). On an\n`active` roadmap a *content* edit that `is_agent_write` becomes a pending\nproposal instead of being applied. Editing `tasks` never modifies or\ndeletes existing Tasks or links: a removed plan item leaves its link (and\nits `hydration_key`) in place, and re-adding it makes it `reuse` again.\nEditing `acceptance_criteria` clears the step's `criteria_checked`."
+   },
+   "SyncItem": {
+    "properties": {
+     "kind": {
+      "type": "string",
+      "enum": [
+       "event",
+       "claim"
+      ],
+      "title": "Kind"
+     },
+     "why": {
+      "type": "string",
+      "enum": [
+       "own_task",
+       "decision",
+       "claim_overlap",
+       "roadmap_dependency",
+       "coordination"
+      ],
+      "title": "Why"
+     },
+     "seq": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Seq"
+     },
+     "event_type": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Event Type"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     },
+     "claim_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Claim Id"
+     },
+     "resource_path": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Resource Path"
+     },
+     "coordination": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/CoordinationSignal"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "kind",
+     "why"
+    ],
+    "title": "SyncItem",
+    "description": "One compact sync element, ids only \u2014 never a task description nor\nany long text. `seq`/`event_type` are set on `event` items;\n`claim_id`/`resource_path` on `claim` items (live claim state, no `seq`).\n`why` names the deterministic filter branch that surfaced it."
+   },
+   "SyncResult": {
+    "properties": {
+     "next_cursor": {
+      "type": "integer",
+      "title": "Next Cursor"
+     },
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/SyncItem"
+      },
+      "type": "array",
+      "title": "Items",
+      "default": []
+     },
+     "overflow": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "type": "object",
+      "title": "Overflow",
+      "default": {}
+     },
+     "resync": {
+      "type": "boolean",
+      "title": "Resync",
+      "default": false
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "next_cursor"
+    ],
+    "title": "SyncResult",
+    "description": "Bounded sync answer. `next_cursor` is the highest delivered `seq`\n(unchanged when nothing new); ack it on the next call to advance.\n`overflow` counts matched-but-unreturned items per `why` category;\n`resync` (scan truncated) refers to `prepare_context` for the full\npicture \u2014 raw history is never dumped. An empty answer serializes to\nwell under 300 characters."
    },
    "Task": {
     "properties": {
@@ -21351,6 +22582,17 @@
        }
       ],
       "title": "Last Activity At"
+     },
+     "sync_cursor_seq": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Sync Cursor Seq"
      },
      "status": {
       "$ref": "#/components/schemas/SessionStatus",

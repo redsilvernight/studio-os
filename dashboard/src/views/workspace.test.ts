@@ -54,7 +54,7 @@ const claim = (resource_path: string, expires_at: string) =>
 const NOW = new Date("2026-09-12T10:00:00Z").getTime();
 
 describe("PROJECT_TABS", () => {
-  it("sept onglets adossés à des capacités réelles, jamais décoratifs", () => {
+  it("huit onglets adossés à des capacités réelles, jamais décoratifs", () => {
     expect(PROJECT_TABS.map((t) => t.id)).toEqual([
       "overview",
       "roadmap",
@@ -63,6 +63,7 @@ describe("PROJECT_TABS", () => {
       "activity",
       "decisions",
       "members",
+      "ai-integration",
     ]);
   });
 });
@@ -77,6 +78,7 @@ describe("workspaceTabsHtml", () => {
     expect(html).toContain(`href="#/projects/${ID}/claims"`);
     expect(html).toContain(`href="#/projects/${ID}/activity"`);
     expect(html).toContain(`href="#/projects/${ID}/decisions"`);
+    expect(html).toContain(`href="#/projects/${ID}/ai-integration"`);
   });
 
   it("onglets accessibles : tablist, sélection unique, page courante", () => {
