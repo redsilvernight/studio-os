@@ -91,9 +91,7 @@ class HeartbeatDaemon:
                 capabilities = None
                 if self._capabilities_provider is not None:
                     capabilities = self._capabilities_provider()
-                await self._client.send_heartbeat(
-                    self._machine_id, self._agent_id, capabilities
-                )
+                await self._client.send_heartbeat(self._machine_id, self._agent_id, capabilities)
             except StudioApiError as error:
                 self.last_error = error
                 logger.warning("heartbeat failed", exc_info=True)

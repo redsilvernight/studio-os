@@ -153,9 +153,9 @@ letter, so a filesystem path cannot be represented."""
 
 
 class HarnessReport(ContractModel):
-    """One harness as reported by a machine (AIB R1, DEC-0171 extends the
-    e1963627 report): `detected` (tool present) vs `configured` (wired for
-    Studio OS). IDs and stable tokens only: never a path, secret,
+    """One harness as reported by a machine (AIB R1): `detected` means the
+    tool is present on the machine, `configured` means it is wired for
+    Studio OS. IDs and stable tokens only: never a path, secret,
     fingerprint or file listing."""
 
     harness_id: CapabilityToken
