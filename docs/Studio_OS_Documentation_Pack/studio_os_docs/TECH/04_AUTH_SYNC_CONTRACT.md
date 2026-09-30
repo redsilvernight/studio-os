@@ -416,7 +416,8 @@ contenu de fichier. `bootstrap?` (AIB P6, additif) : liste optionnelle
 `ProjectBootstrapStatus {project_id, checked_at, summary}` (comptes
 `BootstrapFileSummary` du `bootstrap check` local de la machine, jamais un
 chemin ni un nom de fichier), absente quand rien n'est rapporte ; c'est
-l'observation de la machine, pas une comparaison avec le plan serveur. Absent, seul `last_seen_at` est mis a jour et le
+l'observation de la machine, pas une comparaison avec le plan serveur ;
+un serveur anterieur rejette (422, `extra=forbid`) un heartbeat qui le porte : deployer le serveur avant les clients. Absent, seul `last_seen_at` est mis a jour et le
 rapport precedent est conserve ; present, il est persiste
 (`machines.capabilities` + `machines.capabilities_reported_at`) et renvoye
 en echo (`HeartbeatResponse.capabilities?`, DEC-0171). `machine_id` du
