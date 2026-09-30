@@ -1,0 +1,133 @@
+{
+  "format": "studio.p7.onboarding-metrics/v1",
+  "scenario": {
+    "project": "blank-godot",
+    "phases": [
+      "blank-godot",
+      "init-claude-code",
+      "sync",
+      "add-opencode-codex",
+      "sync-idempotent"
+    ],
+    "harnesses": [
+      "claude-code",
+      "opencode",
+      "codex"
+    ]
+  },
+  "sync_output": {
+    "files": 9,
+    "bytes": 4115,
+    "by_kind": {
+      "agent": {
+        "files": 3,
+        "bytes": 2782
+      },
+      "rule": {
+        "files": 1,
+        "bytes": 134
+      },
+      "skill": {
+        "files": 3,
+        "bytes": 792
+      },
+      "block": {
+        "files": 2,
+        "bytes": 407
+      }
+    },
+    "by_harness": {
+      "claude-code": {
+        "files": 3,
+        "bytes": 1329
+      },
+      "opencode": {
+        "files": 2,
+        "bytes": 1186
+      },
+      "codex": {
+        "files": 2,
+        "bytes": 1193
+      },
+      "shared": {
+        "files": 2,
+        "bytes": 407
+      }
+    },
+    "first_harness_files": 5,
+    "added_harness_files": 4,
+    "idempotent_second_sync_writes": 0
+  },
+  "permanent_bootstrap": {
+    "files": 6,
+    "bytes": 1526,
+    "breakdown": {
+      "agents_sources": {
+        "files": 3,
+        "bytes": 807
+      },
+      "manifest": {
+        "files": 1,
+        "bytes": 312
+      },
+      "managed_blocks": {
+        "files": 2,
+        "bytes": 407
+      }
+    }
+  },
+  "generated_projections": {
+    "files": 7,
+    "bytes": 3708
+  },
+  "harness_parity": {
+    "sources_unchanged": true,
+    "opencode_added_without_source_change": true,
+    "codex_added_without_source_change": true
+  },
+  "manual_actions": {
+    "onboarding": {
+      "count": 3,
+      "items": [
+        {
+          "id": "init",
+          "description": "Declare the target harnesses and project identity.",
+          "command": "studio-client bootstrap init --project-slug blank-godot --project-name \"Blank Godot\" --harness claude-code"
+        },
+        {
+          "id": "sync",
+          "description": "Generate the managed block and the projections.",
+          "command": "studio-client bootstrap sync"
+        },
+        {
+          "id": "open-harness",
+          "description": "Open the harness at the repository root.",
+          "command": "cd <repo> && claude"
+        }
+      ]
+    },
+    "add_harness": {
+      "count": 2,
+      "items": [
+        {
+          "id": "init-overwrite",
+          "description": "Re-declare the harness set (adds OpenCode and Codex).",
+          "command": "studio-client bootstrap init --overwrite --harness claude-code --harness opencode --harness codex"
+        },
+        {
+          "id": "sync",
+          "description": "Regenerate the projections from the same sources.",
+          "command": "studio-client bootstrap sync"
+        }
+      ]
+    }
+  },
+  "second_agent_resume": {
+    "covered_by": "tests/mcp/test_agent_loop_sync_e2e.py",
+    "bootstrap_is_harness_neutral": true
+  },
+  "on_demand_context": {
+    "counted_here": false,
+    "note": "Library/Resolution context is fetched live by studio_prepare_context; it is not parked in the repository."
+  }
+}
