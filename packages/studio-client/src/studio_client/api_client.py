@@ -27,7 +27,14 @@ from studio_contracts.builds import (
 from studio_contracts.claims import ResourceClaim, ResourceClaimCreate
 from studio_contracts.decisions import Decision
 from studio_contracts.events import EventCreate, EventEnvelope
-from studio_contracts.library import LibraryProjectLock, LibraryResource, LibraryVersion
+from studio_contracts.library import (
+    LibraryActivate,
+    LibraryProjectLock,
+    LibraryResource,
+    LibraryResourceCreate,
+    LibraryVersion,
+    LibraryVersionCreate,
+)
 from studio_contracts.project_state import ProjectState
 from studio_contracts.projects import Project
 from studio_contracts.resolution import AgentResolutionRequest, ResolvedAgentDefinition
@@ -604,6 +611,42 @@ class StudioApiClient:
     async def list_library_versions(self, resource_id: UUID) -> list[LibraryVersion]:
         response = await self._request("GET", f"/api/v1/library/{resource_id}/versions")
         return [LibraryVersion.model_validate(item) for item in response.json()]
+
+    async def create_library_resource(
+        self, resource_in: LibraryResourceCreate, *, idempotency_key: str
+    ) -> LibraryResource:
+        response = await self._request(
+            "POST",
+            "/api/v1/library",
+            json=resource_in.model_dump(mode="json"),
+            extra_headers={"Idempotency-Key": idempotency_key},
+            idempotent=True,
+        )
+        return LibraryResource.model_validate(response.json())
+
+    async def create_library_version(
+        self, resource_id: UUID, version_in: LibraryVersionCreate, *, idempotency_key: str
+    ) -> LibraryVersion:
+        response = await self._request(
+            "POST",
+            f"/api/v1/library/{resource_id}/versions",
+            json=version_in.model_dump(mode="json"),
+            extra_headers={"Idempotency-Key": idempotency_key},
+            idempotent=True,
+        )
+        return LibraryVersion.model_validate(response.json())
+
+    async def activate_library_version(
+        self, resource_id: UUID, activate_in: LibraryActivate, *, idempotency_key: str
+    ) -> LibraryResource:
+        response = await self._request(
+            "POST",
+            f"/api/v1/library/{resource_id}/activate",
+            json=activate_in.model_dump(mode="json"),
+            extra_headers={"Idempotency-Key": idempotency_key},
+            idempotent=True,
+        )
+        return LibraryResource.model_validate(response.json())
 
     async def list_library_locks(
         self, *, project_id: UUID | None = None
