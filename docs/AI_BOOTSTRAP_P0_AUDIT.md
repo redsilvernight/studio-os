@@ -1,6 +1,6 @@
 # Studi'OS — Project AI Bootstrap : P0 Audit & matrice de réutilisation
 
-Statut : **AUDIT TERMINÉ — décisions PROPOSÉES, aucune acceptée** (voir §10)
+Statut : **AUDIT TERMINÉ — décisions ACCEPTÉES le 27/09** (voir §10)
 Date : 2026-09-21
 Source : [StudiOS_Roadmap_Project_AI_Bootstrap.pdf](StudiOS_Roadmap_Project_AI_Bootstrap.pdf)
 Roadmap hydratée : [AI_BOOTSTRAP_ROADMAP.md](AI_BOOTSTRAP_ROADMAP.md)
@@ -229,9 +229,9 @@ Réellement nouveau : contrat/manifest de bootstrap ; plan agrégé ; commandes 
 (si retenue) ; états de drift + hash ; publication des skills studio-* ; loader
 `.agents/` paramétrable ; statut rapporté par le poste ; section Dashboard.
 
-## 10. Propositions de DEC (statut : `proposed`, non numérotées)
+## 10. Propositions de DEC (acceptées le 27/09 : fiches DEC-0143…0147)
 
-Aucune n'est acceptée. Aucun numéro n'est réservé. La collision de branches sur
+Aucune n'est en attente. Aucun numéro n'est réservé. La collision de branches sur
 `DEC-0090…0094` est résolue dans `dev` : chaque fiche du dépôt possède désormais
 un numéro unique. Conformément à DEC-0088/DEC-0089, le `Decision.readable_id`
 serveur reste un identifiant distinct et n'entraîne aucune renumérotation des
@@ -245,8 +245,9 @@ fiches canoniques du dépôt :
 | DEC-0093 — contrats locaux | DEC-0093 |
 | DEC-0094 — daemon lifecycle | DEC-0094 |
 
-Les propositions AIB-A…J recevront les prochains numéros libres du dépôt lors de
-leur acceptation. `scripts.adr_index --check` garantit l'unicité et la cohérence
+Les propositions AIB-A…J ont reçu les fiches DEC-0143…0152 lors de leur
+acceptation le 27/09 (entrée serveur AIB-C recréée comme DEC-0153).
+`scripts.adr_index --check` garantit l'unicité et la cohérence
 du registre ; il est exécuté par la CI.
 
 | ID provisoire | Proposition | Alternatives rejetées | Pourquoi une DEC |
@@ -310,7 +311,7 @@ bloquants du §8 sont levés (`LocalWorkspaceConfig`, `HarnessService`, bridge).
 | Canal serveur→machine | **absent** | aucun mécanisme de demande tirée par le daemon |
 | Lancement de harness | **absent** | ni CLI ni Desktop ne lancent un harness |
 
-### 13.2 Propositions de DEC supplémentaires (statut : `proposed`)
+### 13.2 Propositions de DEC supplémentaires (acceptées le 27/09 : fiches DEC-0148…0152)
 
 | ID provisoire | Proposition | Alternatives rejetées |
 |---|---|---|
