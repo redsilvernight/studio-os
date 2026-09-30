@@ -1,0 +1,69 @@
+{
+  "$defs": {
+    "SkillHarnessTarget": {
+      "enum": [
+        "agents",
+        "assistant"
+      ],
+      "title": "SkillHarnessTarget",
+      "type": "string"
+    },
+    "SkillSyncState": {
+      "enum": [
+        "current",
+        "missing",
+        "outdated",
+        "locally_modified"
+      ],
+      "title": "SkillSyncState",
+      "type": "string"
+    },
+    "SkillTargetState": {
+      "additionalProperties": false,
+      "description": "State of one harness copy of a skill. The contract carries no path and\nno skill content: only which harness directory and how it compares.",
+      "properties": {
+        "harness": {
+          "$ref": "#/$defs/SkillHarnessTarget"
+        },
+        "state": {
+          "$ref": "#/$defs/SkillSyncState"
+        }
+      },
+      "required": [
+        "harness",
+        "state"
+      ],
+      "title": "SkillTargetState",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "stable_key": {
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,199}$",
+      "title": "Stable Key",
+      "type": "string"
+    },
+    "targets": {
+      "items": {
+        "$ref": "#/$defs/SkillTargetState"
+      },
+      "maxItems": 2,
+      "minItems": 1,
+      "title": "Targets",
+      "type": "array"
+    },
+    "version": {
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "stable_key",
+    "version",
+    "targets"
+  ],
+  "title": "SkillCheckEntry",
+  "type": "object"
+}

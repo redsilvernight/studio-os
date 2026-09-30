@@ -38,6 +38,7 @@ un test échoue si l'export diverge des builders Python.
 | `code_graph` | `CodeGraphProvider` |
 | `harness` | `HarnessAdapter` |
 | `graph` | Schéma de graphe commun |
+| `skills` | État des skills Library sur le poste (`skills.check`) |
 | `publication` | Politique local/partagé |
 | `fixtures`, `export` | Fixtures nommées et export JSON |
 
@@ -51,7 +52,7 @@ un test échoue si l'export diverge des builders Python.
   capability optionnelle est inconnue du démon (`missing_optional`), et
   `install_optional_component` seulement quand un composant présent n'est pas
   prêt (`degraded`).
-- **Bridge** : 34 commandes et 4 événements, table `CommandSpec` par commande
+- **Bridge** : 35 commandes et 4 événements, table `CommandSpec` par commande
   (capability, mutation, annulation, délai, tailles). Aucune primitive shell,
   filesystem arbitraire, spawn ou proxy HTTP ; `allowlist_violations()` doit
   renvoyer `[]`.
@@ -62,6 +63,14 @@ un test échoue si l'export diverge des builders Python.
   muter la configuration du harness. `VerifyState` : `unconfigured`,
   `configured`, `token_missing` (configuration en place, aucun jeton machine
   disponible ; sans `error`, ajout additif DEC-0104), `verified`, `failed`.
+  `skills.check` (additif, tâche 167368b1) sous la capability optionnelle
+  `skills.read` : lecture seule, requête vide ; le démon résout la Library, le
+  profil et le répertoire personnel. Le résultat ne porte que, par skill
+  (`stable_key`, `version`), l'état (`current`, `missing`, `outdated`,
+  `locally_modified`) de chacune des deux cibles globales, nommées par rôle
+  (`agents`, `assistant`) pour rester neutres vis-à-vis des fournisseurs, avec
+  des compteurs et `in_sync` cohérents (validés). Ni contenu de skill ni chemin
+  absolu ne sortent du démon ; un Desktop sans `skills.read` ignore la commande.
   Ajouts additifs DEC-0104 §2 : `HarnessChange.scope` (`workspace` par défaut
   | `user`, cible alors relative au home) et `HarnessPreviewRequest.renew`
   (défaut `false` : renouvelle l'identifiant dédié de l'outil).

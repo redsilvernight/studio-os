@@ -321,6 +321,17 @@
     },
     {
       "cancellable": false,
+      "capability": "skills.read",
+      "command": "skills.check",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "SkillsCheckRequest",
+      "response": "SkillsCheckResult",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
       "capability": "workspace.config",
       "command": "workspace.confirm_roots",
       "max_request_bytes": 65536,

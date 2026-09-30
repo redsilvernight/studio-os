@@ -72,7 +72,7 @@ function rig(): { platform: ReturnType<typeof fakeDesktop>; state: Rig } {
   };
   const platform = fakeDesktop({
     request: (async (command: string, payload: Record<string, unknown> = {}) => {
-      state.calls.push({ command, payload });
+      if (command !== "skills.check") state.calls.push({ command, payload });
       if (command === "harness.detect") {
         return ok({ harnesses: Object.entries(state.states).map(([id, s]) => status(id, s)) });
       }
@@ -480,5 +480,47 @@ describe("Settings › Intégrations IA (Desktop)", () => {
   it("escapes hostile text coming from the daemon", () => {
     const html = integrationsHtml([status("claude-code", "detected", { display_name: "<img src=x onerror=alert(1)>" }) as never]);
     expect(html).not.toContain("<img src=x");
+  });
+});
+
+describe("skills.check section", () => {
+  const skillsResult = {
+    checked_at: "2026-09-30T10:00:00Z",
+    current: 1,
+    missing: 1,
+    outdated: 0,
+    locally_modified: 0,
+    in_sync: false,
+    skills: [
+      {
+        stable_key: "studio-git-flow",
+        version: 5,
+        targets: [
+          { harness: "agents", state: "current" },
+          { harness: "assistant", state: "missing" },
+        ],
+      },
+    ],
+  };
+
+  it("shows the read-only skills state next to the harnesses", async () => {
+    const { platform } = rig();
+    const base = platform.request;
+    (platform as { request: unknown }).request = async (command: string, payload: Record<string, unknown> = {}) =>
+      command === "skills.check" ? ok(skillsResult) : (base as (c: string, p: Record<string, unknown>) => Promise<BridgeAnswer>)(command, payload);
+    const root = await mount(platform);
+    const section = root.querySelector('[data-testid="skills"]');
+    expect(section?.getAttribute("data-in-sync")).toBe("false");
+    expect(section?.textContent).toContain("studio-git-flow");
+    expect(section?.textContent).toContain("Absent");
+    expect(root.querySelector("[data-harness]")).not.toBeNull();
+    expect(root.textContent).not.toMatch(/[A-Za-z]:[\/]|SKILL\.md/);
+  });
+
+  it("keeps the harness list when the skills check is unavailable", async () => {
+    const { platform } = rig();
+    const root = await mount(platform);
+    expect(root.querySelector('[data-testid="skills"]')).toBeNull();
+    expect(root.querySelector("[data-harness]")).not.toBeNull();
   });
 });

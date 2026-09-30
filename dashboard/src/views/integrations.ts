@@ -29,6 +29,13 @@ import {
   type HarnessStatus,
   type HarnessVerifyResult,
 } from "../harnessApi";
+import {
+  SKILL_STATE_LABELS,
+  SKILL_STATE_TONES,
+  SKILL_TARGET_LABELS,
+  checkSkills,
+  type SkillsCheckResult,
+} from "../skillsApi";
 import { esc } from "../ui";
 import { configTabsHtml } from "./configuration";
 import { loadOnboardingState } from "../onboarding/state";
@@ -45,6 +52,8 @@ export interface IntegrationsView {
   confirmRestore?: string;
   /** The last connection check, for one harness. */
   verify?: HarnessVerifyResult;
+  /** Library skills on this machine (read-only); absent when the check is unavailable. */
+  skills?: SkillsCheckResult;
 }
 
 function header(): string {
@@ -163,6 +172,33 @@ function harnessHtml(status: HarnessStatus, view: IntegrationsView): string {
   );
 }
 
+export function skillsHtml(result: SkillsCheckResult): string {
+  const skills = result.skills ?? [];
+  const summary = result.in_sync
+    ? dsBadge("Synchronisés", "success")
+    : dsBadge("À resynchroniser", "warning");
+  const rows = skills
+    .map(
+      (skill) =>
+        `<li data-skill="${esc(skill.stable_key)}"><code class="mono">${esc(skill.stable_key)}</code> · v${skill.version} ` +
+        skill.targets
+          .map(
+            (target) =>
+              `<span data-target="${esc(target.harness)}">${esc(SKILL_TARGET_LABELS[target.harness])} : ${dsBadge(SKILL_STATE_LABELS[target.state], SKILL_STATE_TONES[target.state])}</span>`,
+          )
+          .join(" ") +
+        `</li>`,
+    )
+    .join("");
+  return (
+    `<section class="settings-domain" data-testid="skills" data-in-sync="${result.in_sync}">` +
+    `<h2>Skills de la bibliothèque sur ce poste</h2>` +
+    `<p class="settings-intro">${summary} ${result.current} à jour · ${result.missing} absents · ${result.outdated} obsolètes · ${result.locally_modified} modifiés localement. Lecture seule : aucune skill n'est écrite depuis cette page.</p>` +
+    (skills.length === 0 ? "" : `<ul class="skills-list">${rows}</ul>`) +
+    `</section>`
+  );
+}
+
 export function integrationsHtml(harnesses: HarnessStatus[], view: IntegrationsView = {}): string {
   const notice = view.notice ? `<p class="settings-notice" role="status" data-testid="notice">${esc(view.notice)}</p>` : "";
   const error = view.error ? `<p class="ds-field-error" role="alert" data-testid="error">${esc(view.error)}</p>` : "";
@@ -175,7 +211,8 @@ export function integrationsHtml(harnesses: HarnessStatus[], view: IntegrationsV
     `<p class="settings-intro">Studi'OS ne gère ni modèle, ni abonnement, ni clé de fournisseur : seule la connexion du harnais au MCP Studi'OS est configurée. Chaque outil reçoit son propre identifiant Studi'OS, rangé dans sa seule configuration utilisateur et jamais affiché ; les fichiers du projet n'en contiennent aucun.</p>` +
     notice +
     error +
-    `<div class="integrations-list">${list}</div></section>`
+    `<div class="integrations-list">${list}</div></section>` +
+    (view.skills ? skillsHtml(view.skills) : "")
   );
 }
 
@@ -198,7 +235,10 @@ export async function renderIntegrations(
     root.innerHTML = integrationsHtml([], { ...view, error: harnessErrorMessage(detected.error) });
     return;
   }
-  root.innerHTML = integrationsHtml(detected.value.harnesses ?? [], view);
+  // Best effort: an unavailable check never hides the harness list.
+  const skills = await checkSkills(platform).catch(() => null);
+  const withSkills = skills?.ok ? { ...view, skills: skills.value } : view;
+  root.innerHTML = integrationsHtml(detected.value.harnesses ?? [], withSkills);
   bind(root, workspaceId, platform, view.plan);
 }
 
