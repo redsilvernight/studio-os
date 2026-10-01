@@ -195,9 +195,7 @@ def create_server() -> MCPServer:
     server.add_tool(
         studio_list_task_launches,
         name="studio_list_task_launches",
-        description=(
-            "List task launches of a project_id (UUID string), oldest first — read-only."
-        ),
+        description=("List task launches of a project_id (UUID string), oldest first — read-only."),
         annotations=_READ_ONLY,
     )
     server.add_tool(
