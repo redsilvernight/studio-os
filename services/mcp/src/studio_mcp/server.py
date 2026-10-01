@@ -49,6 +49,11 @@ from studio_mcp.tools.roadmaps import (
 from studio_mcp.tools.sessions import studio_end_session, studio_get_sessions, studio_start_session
 from studio_mcp.tools.start_work import studio_start_work
 from studio_mcp.tools.sync import studio_sync
+from studio_mcp.tools.task_launches import (
+    studio_get_task_launch,
+    studio_list_task_launches,
+    studio_pull_pending_launches,
+)
 from studio_mcp.tools.tasks import (
     studio_claim_task,
     studio_create_task,
@@ -177,6 +182,33 @@ def create_server() -> MCPServer:
             "never creates anything."
         ),
         annotations=_IDEMPOTENT_WRITE,
+    )
+    server.add_tool(
+        studio_get_task_launch,
+        name="studio_get_task_launch",
+        description=(
+            "Get one task launch by launch_id (UUID string) — read-only. "
+            "Unknown ids fail with not_found."
+        ),
+        annotations=_READ_ONLY,
+    )
+    server.add_tool(
+        studio_list_task_launches,
+        name="studio_list_task_launches",
+        description=(
+            "List task launches of a project_id (UUID string), oldest first — read-only."
+        ),
+        annotations=_READ_ONLY,
+    )
+    server.add_tool(
+        studio_pull_pending_launches,
+        name="studio_pull_pending_launches",
+        description=(
+            "Pull the caller's own machine pending task launches (at most 20, oldest "
+            "first) — read-only, changes nothing. The daemon calls this to learn which "
+            "launches target it."
+        ),
+        annotations=_READ_ONLY,
     )
     server.add_tool(
         studio_get_resource_claims,

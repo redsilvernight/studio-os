@@ -817,7 +817,7 @@ absente = etat valide. Le serveur ne decide rien : il valide et applique.
   affirmee par le serveur (les champs sans valeur sont absents de la reponse, pas `null`) ; un poste sans rapport ou perime est signale comme tel. Acces projet
   identique aux autres routes (`403` unique, pas d'oracle d'existence).
 
-### Task launches (AIB R2, additif, contrat fige — routes a implementer)
+### Task launches (AIB R2, additif, contrat fige — implemente)
 Ressource `TaskLaunch` (`studio_contracts.task_launch`) : demande typee de demarrer une tache sur
 une machine cible. Donnees seules, jamais une commande : ids et cles stables uniquement
 (`task_id`, `machine_id`, `harness_id`, `agent_stable_key?`, `expires_in_seconds`) ; champs

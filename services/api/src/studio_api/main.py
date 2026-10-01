@@ -41,6 +41,7 @@ from studio_api.routers import (
     sessions,
     start_work,
     sync,
+    task_launches,
     tasks,
     timeline,
     transfers,
@@ -250,6 +251,7 @@ def create_app() -> FastAPI:
     app.include_router(accounts.router, prefix="/api/v1")
     app.include_router(projects.router)
     app.include_router(tasks.router)
+    app.include_router(task_launches.router)
     app.include_router(sessions.router)
     app.include_router(start_work.router)
     app.include_router(sync.router)

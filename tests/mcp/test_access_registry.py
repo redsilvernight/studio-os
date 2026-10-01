@@ -15,6 +15,7 @@ import hashlib
 import json
 import uuid
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 import pytest
@@ -24,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.build import BuildModel
 from studio_api.db.models.machine import MachineModel
+from studio_api.db.models.task_launch import TaskLaunchModel
 from studio_api.services import projects as projects_service
 from studio_api.services.authz import load_principal
 from studio_contracts.initialization import ProjectInitializationPlan
@@ -74,6 +76,8 @@ PROBES: dict[str, tuple[Probe, ...]] = {
     "studio_get_project_state": (Probe({"project_id": "{pid}"}),),
     "studio_prepare_context": (Probe({"project_id": "{pid}", "objective": "anything"}),),
     "studio_get_task": (Probe({"task_id": "{task}"}),),
+    "studio_get_task_launch": (Probe({"launch_id": "{launch}"}),),
+    "studio_list_task_launches": (Probe({"project_id": "{pid}"}),),
     "studio_get_active_tasks": (Probe({"project_id": "{pid}"}),),
     "studio_create_task": (Probe({"project_id": "{pid}", "title": "x"}),),
     "studio_update_task": (Probe({"task_id": "{task}", "expected_version": 1, "title": "x"}),),
@@ -311,6 +315,18 @@ async def _build_world(
 
     pid = str(project.id)
     task = _ok(await studio_create_task(pid, "t", member))["id"]
+    launch = TaskLaunchModel(
+        project_id=project.id,
+        task_id=uuid.UUID(task),
+        machine_id=member_machine.id,
+        requested_by_user_id=member_machine.owner_user_id,
+        harness_id="claude-code",
+        status="requested",
+        reason_code="none",
+        expires_at=datetime.now(UTC) + timedelta(seconds=900),
+    )
+    db_session.add(launch)
+    await db_session.flush()
     session = _ok(await studio_start_session(task, member))["id"]
     claim = _ok(await studio_claim_resource(pid, "a.py", "file", 600, member))["id"]
     decision = _ok(await studio_add_decision("d", "d", member, project_id=pid))["id"]
@@ -359,6 +375,7 @@ async def _build_world(
         "pid": pid,
         "slug": slug,
         "task": task,
+        "launch": str(launch.id),
         "session": session,
         "claim": claim,
         "decision": decision,

@@ -30,6 +30,7 @@ from studio_api.db.models.roadmap import (
 )
 from studio_api.db.models.runtime import RuntimeBindingModel, RuntimeModel
 from studio_api.db.models.task import TaskModel
+from studio_api.db.models.task_launch import TaskLaunchModel
 from studio_api.db.models.transfer import TransferModel
 from studio_api.db.models.user import UserModel
 from studio_api.db.models.work_session import WorkSessionModel
@@ -45,6 +46,7 @@ __all__ = [
     "MachineLaunchGrantModel",
     "ProjectMembershipModel",
     "TaskModel",
+    "TaskLaunchModel",
     "WorkSessionModel",
     "ResourceClaimModel",
     "DecisionModel",

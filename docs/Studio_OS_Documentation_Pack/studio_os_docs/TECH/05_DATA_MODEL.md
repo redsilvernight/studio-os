@@ -280,6 +280,19 @@ une proposition, l'appelant cree les sous-taches via `POST /tasks`.
 `build_id` (FK Build, nullable, additif optionnel) relie un artefact a
 son build. Quotas (DEC-0019) et autorisation Transfer inchanges.
 
+## TaskLaunch (AIB R2, DEC-0173, migration Alembic `0026`)
+
+Demande typee de demarrer une tache sur une machine cible, donnees seules
+jamais une commande. `id`, `project_id` (FK Project), `task_id` (FK Task),
+`machine_id` (FK Machine cible), `requested_by_user_id` (FK User, demandeur
+AIB-J fixe a la creation), `harness_id`, `agent_stable_key` (nullable),
+`status` (`requested|accepted|preparing|running|succeeded|failed|cancelled|
+rejected|expired`, miroir des transitions `ALLOWED_TRANSITIONS`),
+`reason_code` (vocabulaire ferme), `session_id` (FK WorkSession, nullable,
+lie par la machine), `output_excerpt` (borne, expurge par la machine),
+`expires_at`, `finished_at` (nullable), + `created_at`/`updated_at`/
+`version` (concurrence optimiste, `409` + version serveur si perime).
+
 ## AI Library — P1 (DEC-0062/0063/0064, migration Alembic `0009`)
 
 Definitions IA reutilisables (`rule|skill|agent_definition|model_profile|
