@@ -16,12 +16,17 @@ from studio_client.daemon.launch_settings_bridge import (
 )
 from studio_client.daemon.local_features import LocalFeatureError
 from studio_client.daemon.service import BridgeService, DaemonController
+from studio_client.harness.registry import HarnessRegistry, default_adapters
 from studio_client.tokens import MemoryTokenStore
 from studio_contracts.local.bridge import BridgeRequest
 from studio_contracts.local.handshake import HandshakeRequest
 from studio_contracts.local.launch import LaunchSettingsSaveRequest, LaunchSettingsView
 
 ORIGIN = "https://studio.example"
+
+
+def _known_harness() -> str:
+    return sorted(a.harness_id for a in HarnessRegistry(default_adapters()).adapters())[0]
 
 
 def _config(**extra) -> ClientConfig:
@@ -148,3 +153,36 @@ def test_denied_without_capability(tmp_path: Path) -> None:
 def test_handshake_offers_launch_settings(tmp_path: Path) -> None:
     answer = _negotiate(BridgeService(_controller(tmp_path)), ["daemon.control", "launch.settings"])
     assert "launch.settings" in json.dumps(answer)
+
+
+def test_stored_settings_drive_policy_and_capabilities(tmp_path: Path) -> None:
+    from studio_client.capabilities import build_capabilities
+    from studio_client.daemon.launch_policy import build_launch_policy
+
+    controller = _controller(tmp_path, launch_opt_in=False)
+    registry = HarnessRegistry(default_adapters())
+    closed = effective_launch_config(controller.config, tmp_path)
+    assert build_launch_policy(closed, registry=registry).opt_in is False
+    assert build_capabilities(closed, registry=registry).accepts_launches is False
+
+    controller.save_launch_settings(
+        LaunchSettingsSaveRequest(**_save(max_concurrent=3, harnesses=(_known_harness(),)))
+    )
+    effective = effective_launch_config(controller.config, tmp_path)
+    policy = build_launch_policy(effective, registry=registry)
+    capabilities = build_capabilities(effective, registry=registry)
+    assert policy.opt_in is True and policy.max_concurrent == 3
+    assert policy.allowed_harnesses == frozenset({_known_harness()})
+    assert capabilities.accepts_launches is True and capabilities.max_launches == 3
+
+
+def test_corrupt_file_closes_policy_and_capabilities(tmp_path: Path) -> None:
+    from studio_client.capabilities import build_capabilities
+    from studio_client.daemon.launch_policy import build_launch_policy
+
+    (tmp_path / SETTINGS_FILE).write_text("{", encoding="utf-8")
+    config = _config(launch_opt_in=True, launch_allowed_harnesses=(_known_harness(),))
+    effective = effective_launch_config(config, tmp_path)
+    assert build_launch_policy(effective).opt_in is False
+    assert build_launch_policy(effective).allowed_harnesses == frozenset()
+    assert build_capabilities(effective).accepts_launches is False
