@@ -68,6 +68,7 @@ class FakeHeartbeat:
         replayer=None,
         capabilities_provider=None,
         launch_puller=None,
+        launch_executor=None,
     ) -> None:
         self.stop = asyncio.Event()
         self.last_attempt_at = None
