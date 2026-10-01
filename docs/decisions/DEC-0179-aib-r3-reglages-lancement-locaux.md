@@ -1,7 +1,7 @@
 ---
 id: DEC-0179
 title: 'AIB R3 : reglages de lancement locaux persistes dans launch_settings.json'
-status: proposed
+status: accepted
 date: '2026-10-01'
 superseded_by: null
 source: docs/AI_BOOTSTRAP_ROADMAP.md
@@ -10,7 +10,7 @@ source: docs/AI_BOOTSTRAP_ROADMAP.md
 # DEC-0179 — réglages de lancement locaux (AIB R3)
 
 Tâches `d4c076ab` (commandes bridge), `fdd305e5` (application au runtime) et
-`60fc6c30` (cette décision). Statut `proposed` jusqu'à accord humain ; fichier et
+`60fc6c30` (cette décision). Statut `accepted` (accord humain du 2026-10-01 ; fichier et
 serveur alignés.
 
 ## Décide
