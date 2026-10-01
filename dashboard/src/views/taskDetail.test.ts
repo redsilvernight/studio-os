@@ -11,6 +11,7 @@ import {
   aiWorkStatusLabel,
   aiWorkStatusTone,
   canReleaseTask,
+  launchSectionHtml,
   releaseTaskConfirmText,
   sessionStateLabel,
   taskConflictNotice,
@@ -301,5 +302,34 @@ describe("statuts IA et sessions (unités)", () => {
   it("session ouverte vs terminée", () => {
     expect(sessionStateLabel(sessionOpen)).toEqual({ label: "En cours", tone: "info" });
     expect(sessionStateLabel(sessionClosed)).toEqual({ label: "Terminée", tone: "neutral" });
+  });
+});
+
+describe("launchSectionHtml (AIB R4)", () => {
+  it("rend le panneau « Lancer sur… » avec les machines éligibles", () => {
+    const html = launchSectionHtml(
+      data({
+        launch: {
+          machines: [
+            {
+              machine_id: "m1",
+              display_name: "flo-laptop",
+              status: "online",
+              eligible: true,
+              free_slots: 1,
+            } as never,
+          ],
+          agents: [],
+          latest: null,
+        },
+      }),
+    );
+    expect(html).toContain('id="task-launch-panel"');
+    expect(html).toContain("Lancer sur…");
+    expect(html).toContain("flo-laptop");
+  });
+
+  it("sans données : indisponibilité affichée, aucun état inventé", () => {
+    expect(launchSectionHtml(data())).toContain("Machines éligibles indisponibles");
   });
 });
