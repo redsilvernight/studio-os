@@ -144,3 +144,15 @@ class ClaudeCodeAdapter(JsonMcpAdapter):
 
     def build_entry(self, mcp_url: str, token: str) -> dict[str, object]:
         return {"type": "http", "url": mcp_url, "headers": {"Authorization": f"Bearer {token}"}}
+
+    def headless_argv(self, prompt: str) -> tuple[str, ...]:
+        return (
+            "-p",
+            prompt,
+            "--output-format",
+            "text",
+            "--permission-mode",
+            "acceptEdits",
+            "--allowedTools",
+            "Read,Edit,Write,Bash,Grep,Glob",
+        )

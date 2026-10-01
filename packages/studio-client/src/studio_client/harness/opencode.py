@@ -152,3 +152,6 @@ class OpenCodeAdapter(JsonMcpAdapter):
             "oauth": False,
             "headers": {"Authorization": f"Bearer {token}"},
         }
+
+    def headless_argv(self, prompt: str) -> tuple[str, ...]:
+        return ("run", "--auto", prompt)

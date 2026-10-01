@@ -216,3 +216,6 @@ class CodexAdapter(JsonMcpAdapter):
 
     def build_entry(self, mcp_url: str, token: str) -> dict[str, object]:
         return {"url": mcp_url, "headers": {"Authorization": f"Bearer {token}"}}
+
+    def headless_argv(self, prompt: str) -> tuple[str, ...]:
+        return ("-a", "never", "exec", "--sandbox", "workspace-write", prompt)
