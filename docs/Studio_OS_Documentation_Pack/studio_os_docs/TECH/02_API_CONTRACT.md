@@ -175,6 +175,17 @@ que l'adresse existe ou non ; les e-mails partent apres la reponse.
   a laquelle appartient le credential presente, `status` derive comme dans la
   liste. Toute machine authentifiee peut lire. Sert au daemon local a
   connaitre son propre `id` a partir du seul credential.
+- GET|PUT|DELETE /machines/{machine_id}/launch-grants[/{user_id}] (AIB-J, additif) —
+  droit de lancer du travail sur une machine, accorde par son proprietaire (ou `admin`) a
+  un autre User (`MachineLaunchGrant`, `studio_contracts.launch_grants`). `PUT` : corps
+  optionnel `{project_id?, expires_at?}` (`expires_at` futur, sinon `422`) ; `201` a la
+  creation, `200` + droit inchange si deja accorde (revoquer puis re-accorder pour le
+  modifier) ; naturellement idempotent, sans `Idempotency-Key`. `DELETE` : `204` idempotent.
+  Proprietaire ou `admin` seulement ; un autre appelant recoit le meme `403` que la machine
+  existe ou non (un `admin` recoit `404` pour une machine inconnue). S'accorder ou se
+  retirer le droit a soi-meme : `403 self_modification_forbidden`, avant toute lecture.
+  `404` si l'utilisateur ou le projet vise n'existe pas ; `project_id` exige l'acces a ce
+  projet.
 - POST /machines (A5, additif : libre-service, DU-0/A) — tout principal
   authentifie (machine ou JWT) dont le role n'est pas `agent` cree une
   machine dont son propre User est proprietaire. Pour un non-admin, le

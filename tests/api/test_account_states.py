@@ -239,6 +239,8 @@ def test_every_user_targeted_mutation_is_covered() -> None:
         ("POST", "/api/v1/users/{user_id}/revoke-sessions"),
         ("PUT", "/api/v1/projects/{project_id}/members/{user_id}"),
         ("DELETE", "/api/v1/projects/{project_id}/members/{user_id}"),
+        ("PUT", "/api/v1/machines/{machine_id}/launch-grants/{user_id}"),
+        ("DELETE", "/api/v1/machines/{machine_id}/launch-grants/{user_id}"),
     }
     assert not [
         (method, path)
@@ -266,7 +268,7 @@ async def test_no_endpoint_modifies_the_callers_own_account(
 
     response = await client.request(
         method,
-        path.format(user_id=admin_id, project_id=project.id),
+        path.format(user_id=admin_id, project_id=project.id, machine_id=uuid.uuid4()),
         headers=admin_auth_headers,
     )
 
