@@ -279,6 +279,12 @@ Acces projet — regles (DEC-0103 §7-12) :
   transferts dont il est emetteur/destinataire) : toujours visibles de leur
   proprietaire, avec ou sans membership. Un compte actif a 0 membership est
   valide et ne voit que celles-ci.
+- **Lancement a distance (AIB-J)** : lancer du travail sur une machine = proprietaire de la
+  machine, `admin`, ou un User titulaire d'un droit actif de la table
+  `machine_launch_grants` (non expire, projet nul ou egal a celui de la tache). Dans tous
+  les cas le role n'est pas `readonly` et le projet de la tache est accessible a l'appelant :
+  un droit n'elargit jamais l'acces projet, ni ne vaut pour une autre machine. Tout refus =
+  un `403 forbidden` unique, sans indiquer la condition en cause.
 - **Co-membership non transitive** : une membership ne donne jamais acces aux
   ressources globales d'un co-membre (`GET /machines`, `GET /agents` deviennent
   self/admin en version 2 — rupture, `TECH/02_API_CONTRACT.md`). Une session n'est visible que via `session → task → project`
