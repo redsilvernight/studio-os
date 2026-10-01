@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-139 decision(s). Detail complet dans chaque ADR lie.
+140 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -161,3 +161,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0168 | AIB-D : loader runtime fusion .agents/ projet + Library, source injectee | accepted | [decisions/DEC-0168-aib-d-loader-runtime-fusion.md](decisions/DEC-0168-aib-d-loader-runtime-fusion.md) |
 | DEC-0171 | AIB R1 : rapport de capacites machine additif au heartbeat (IDs seuls) | accepted | [decisions/DEC-0171-aib-r1-rapport-capacites-machine.md](decisions/DEC-0171-aib-r1-rapport-capacites-machine.md) |
 | DEC-0172 | AIB P7 : définition du bootstrap permanent et cibles d'actions manuelles | proposed | [decisions/DEC-0172-aib-p7-onboarding-metriques.md](decisions/DEC-0172-aib-p7-onboarding-metriques.md) |
+| DEC-0173 | AIB R2 : contrat TaskLaunch (demande de lancement typee, jamais une commande) | proposed | [decisions/DEC-0173-aib-r2-contrat-task-launch.md](decisions/DEC-0173-aib-r2-contrat-task-launch.md) |

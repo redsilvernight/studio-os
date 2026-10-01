@@ -134,3 +134,15 @@ reservation. `actor_type="agent"` si l'agent de la reservation est rattache a
 la machine appelante, sinon `user`. Cles `payload` documentees (ignorables) :
 `claim_id`, `resource_path`, `resource_type`, `status`,
 `claimed_by_machine_id`, `expires_at`, `previous_status` (sur `released`).
+
+## Emission serveur TaskLaunch (AIB R2, additif, contrat fige)
+Les transitions d'un `TaskLaunch` (02_API_CONTRACT « Task launches ») emettent leur
+evenement dans la meme transaction que l'etat (`stage_event`) : `task_launch.requested`
+(creation ; un rejeu `Idempotency-Key` n'emet rien), `task_launch.accepted`,
+`task_launch.rejected`, `task_launch.cancelled`, `task_launch.expired`, et
+`task_launch.finished` (`succeeded` ou `failed`). `preparing` et `running` sont lisibles
+par l'etat, sans evenement dedie. `schema_version` inchange (types nouveaux, ignorables par un
+ancien client). Un refus (403, 409) n'emet rien ; un tirage n'emet rien. `task_id` = celui du
+lancement ; `actor_type="user"` pour `requested`/`cancelled`, `agent` pour les rapports de la
+machine, `system` pour `expired`. `payload` (ignorables) : `launch_id`, `machine_id`,
+`harness_id`, `status`, `previous_status`, `reason_code` ; jamais de texte libre ni de sortie.

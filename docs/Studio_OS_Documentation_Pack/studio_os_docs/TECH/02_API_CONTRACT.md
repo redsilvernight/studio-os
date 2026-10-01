@@ -806,6 +806,33 @@ absente = etat valide. Le serveur ne decide rien : il valide et applique.
   affirmee par le serveur (les champs sans valeur sont absents de la reponse, pas `null`) ; un poste sans rapport ou perime est signale comme tel. Acces projet
   identique aux autres routes (`403` unique, pas d'oracle d'existence).
 
+### Task launches (AIB R2, additif, contrat fige — routes a implementer)
+Ressource `TaskLaunch` (`studio_contracts.task_launch`) : demande typee de demarrer une tache sur
+une machine cible. Donnees seules, jamais une commande : ids et cles stables uniquement
+(`task_id`, `machine_id`, `harness_id`, `agent_stable_key?`, `expires_in_seconds`) ; champs
+inconnus refuses, donc ni ligne de commande, argument, chemin, ni variable d'environnement
+representables. `reason_code` = vocabulaire ferme, jamais du texte libre.
+- POST /projects/{project_id}/task-launches (`Idempotency-Key`, `TaskLaunchCreate`) -> `TaskLaunch`
+  `requested`. Rejoue = meme lancement ; corps different = `409 idempotency_key_payload_mismatch`.
+  Autorisation (AIB-J) : proprietaire de la machine cible ou droit explicite accorde par lui,
+  sinon `403` unique. Tache, projet et machine doivent correspondre ; machine sans opt-in ou
+  rapport perime (R1) = `409` explicite.
+- GET /task-launches/{id} ; GET /projects/{project_id}/task-launches (page) — lecture.
+- POST /task-launches/{id}/cancel (`TaskLaunchCancel`) — demandeur seul, lancement non terminal.
+- GET /machines/{machine_id}/task-launches/pending -> `TaskLaunchPull` — tirage par le daemon de
+  la machine cible seule ; lancements non terminaux, plus anciens d'abord, au plus 20 ; sans effet
+  de bord.
+- POST /task-launches/{id}/report (`TaskLaunchMachineReport`) — machine cible seule ;
+  `expected_version` obligatoire (`409` + version serveur si perime) ; `session_id` lie la session.
+Cycle : `requested -> accepted -> preparing -> running -> succeeded|failed`, plus
+`requested -> rejected` (machine), `cancelled` (demandeur) et `expired` (serveur seul, jamais
+rapporte par la machine). Etats terminaux sans sortie ; toute paire non listee dans
+`ALLOWED_TRANSITIONS` = `409 invalid_launch_transition`, mauvais acteur = `403`. Seule la machine
+cible rapporte l'execution ; `output_excerpt` borne (4000 car.) et expurge par la machine.
+Expiration serveur (defaut 900 s, max 86400 s) : `expired_unpulled` si jamais tire,
+`expired_timeout` sinon. Evenements (additif) : `task_launch.requested|accepted|rejected|
+cancelled|expired|finished`, charge utile = ids + statut + `reason_code`, aucun texte libre.
+
 ### GitHub, Builds & Producer (etape 9.1, additif, DEC-0059)
 - POST /github/webhook — ingress webhook GitHub (`push`, `pull_request`,
   `workflow_run`). **Sans Bearer** : authentifie par `X-Hub-Signature-256`
