@@ -85,7 +85,8 @@ class ClientConfig(BaseSettings):
     heartbeat_jitter_ratio: float = 0.1
     launch_opt_in: bool = False
     max_concurrent_launches: int = 1
-    # Default deny: a remote launch is refused unless its harness id is listed.
+    # Harness ids this machine agrees to start for a remote launch. Empty =
+    # none: opting in never allows a harness implicitly (AIB R3).
     launch_allowed_harnesses: tuple[str, ...] = ()
     # Canonical Git watching: one entry per repository (`[[git_watches]]` in
     # TOML, a JSON array in `STUDIO_CLIENT_GIT_WATCHES`). The historical

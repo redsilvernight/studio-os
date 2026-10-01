@@ -12,8 +12,8 @@ from uuid import UUID
 from studio_client.api_client import StudioApiClient
 from studio_client.capabilities import CapabilitiesProvider
 from studio_client.config import ClientConfig
+from studio_client.daemon.launch_puller import LaunchPuller
 from studio_client.errors import StudioApiError
-from studio_client.launch import LaunchPuller
 from studio_client.outbox import OutboxReplayer, OutboxStore, ReplayOutcome
 from studio_client.watchers import GitWatcher, GodotWatcher, PollingWatcher
 
@@ -103,7 +103,8 @@ class HeartbeatDaemon:
                 self.last_attempt_at = self.last_success_at
                 self.last_error = None
                 await self._replay_outbox()
-                await self._pull_launches()
+                if self._launch_puller is not None and await self._launch_puller.poll():
+                    await self._replay_outbox()
             if self._stop_event.is_set():
                 break
             await self._wait(self._next_delay())
@@ -115,10 +116,6 @@ class HeartbeatDaemon:
             self.last_replay = await self._replayer.replay_ready()
         except StudioApiError:
             logger.warning("outbox replay failed", exc_info=True)
-
-    async def _pull_launches(self) -> None:
-        if self._launch_puller is not None:
-            await self._launch_puller.poll()
 
     async def _wait(self, delay: float) -> None:
         """Waits up to `delay`, but returns as soon as `request_stop()` is
