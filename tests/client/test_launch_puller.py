@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 import pytest
 from studio_client.daemon.launch_policy import LaunchPolicy
 from studio_client.daemon.launch_puller import LaunchPuller
+from studio_client.daemon.launch_report import LaunchReporter
 from studio_client.errors import StudioApiError
 from studio_client.outbox import OutboxStore
 from studio_client.outbox.models import OutboxTable
@@ -96,7 +97,9 @@ def _puller(
     tmp_path: Path, client: FakeClient, policy: LaunchPolicy
 ) -> tuple[LaunchPuller, OutboxStore]:
     store = OutboxStore(connect(tmp_path / "outbox.sqlite3"))
-    puller = LaunchPuller(client, store, MACHINE, lambda: policy)  # type: ignore[arg-type]
+    puller = LaunchPuller(  # type: ignore[arg-type]
+        client, MACHINE, lambda: policy, LaunchReporter(store)
+    )
     return puller, store
 
 
@@ -108,8 +111,8 @@ def _reports(store: OutboxStore) -> list[tuple[str, str]]:
 def test_accepts_then_rejects_over_capacity(tmp_path: Path) -> None:
     first, second = _launch(), _launch()
     puller, store = _puller(tmp_path, FakeClient([first, second]), _policy())
-    decided = asyncio.run(puller.poll())
-    assert [launch.id for launch in decided] == [first.id, second.id]
+    accepted = asyncio.run(puller.poll())
+    assert [launch.id for launch in accepted] == [first.id]
     rows = store.list_pending(OutboxTable.MUTATIONS)
     by_path = {str(r.extra["path"]): r.payload for r in rows}
     assert by_path[f"/api/v1/task-launches/{first.id}/report"]["status"] == "accepted"

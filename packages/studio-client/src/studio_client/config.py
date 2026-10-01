@@ -91,6 +91,10 @@ class ClientConfig(BaseSettings):
     # Hard ceiling on a single non-interactive harness run; past it the process
     # tree is killed and the launch reported failed (AIB R3).
     launch_timeout_seconds: float = 3600.0
+    # Interval at which a running launch is re-read by id to observe a
+    # requester cancellation or a server expiry (the pending pull hides
+    # terminal statuses). One GET per active launch per interval.
+    launch_status_poll_seconds: float = 30.0
     # Canonical Git watching: one entry per repository (`[[git_watches]]` in
     # TOML, a JSON array in `STUDIO_CLIENT_GIT_WATCHES`). The historical
     # `git_watch_repo_path` + `git_watch_project_id` pair is still accepted as

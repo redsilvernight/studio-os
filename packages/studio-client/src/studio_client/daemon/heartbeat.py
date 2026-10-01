@@ -12,6 +12,7 @@ from uuid import UUID
 from studio_client.api_client import StudioApiClient
 from studio_client.capabilities import CapabilitiesProvider
 from studio_client.config import ClientConfig
+from studio_client.daemon.launch_executor import LaunchExecutor
 from studio_client.daemon.launch_puller import LaunchPuller
 from studio_client.errors import StudioApiError
 from studio_client.outbox import OutboxReplayer, OutboxStore, ReplayOutcome
@@ -48,6 +49,7 @@ class HeartbeatDaemon:
         replayer: OutboxReplayer | None = None,
         capabilities_provider: CapabilitiesProvider | None = None,
         launch_puller: LaunchPuller | None = None,
+        launch_executor: LaunchExecutor | None = None,
     ) -> None:
         if config.machine_id is None:
             raise ValueError("ClientConfig.machine_id must be set to run the heartbeat daemon")
@@ -70,6 +72,7 @@ class HeartbeatDaemon:
         self._replayer = replayer
         self._capabilities_provider = capabilities_provider
         self._launch_puller = launch_puller
+        self._launch_executor = launch_executor
         self._stop_event = asyncio.Event()
         self.last_attempt_at: datetime | None = None
         self.last_success_at: datetime | None = None
@@ -103,8 +106,13 @@ class HeartbeatDaemon:
                 self.last_attempt_at = self.last_success_at
                 self.last_error = None
                 await self._replay_outbox()
-                if self._launch_puller is not None and await self._launch_puller.poll():
-                    await self._replay_outbox()
+                if self._launch_puller is not None:
+                    accepted = await self._launch_puller.poll()
+                    if accepted:
+                        await self._replay_outbox()
+                        if self._launch_executor is not None:
+                            for launch in accepted:
+                                self._launch_executor.submit(launch)
             if self._stop_event.is_set():
                 break
             await self._wait(self._next_delay())

@@ -27,19 +27,30 @@ from studio_contracts.local.daemon_control import (
 )
 from studio_contracts.local.handshake import ProtocolVersion
 from studio_contracts.local.identity import IdentityBinding, ProfileRef, partition_key
+from studio_contracts.task_launch import TaskLaunch
 
 from studio_client.api_client import StudioApiClient
-from studio_client.capabilities import build_capabilities
+from studio_client.capabilities import build_capabilities, neutral_context
 from studio_client.config import ClientConfig, GitWatchConfig, default_config_path
 from studio_client.daemon.heartbeat import HeartbeatDaemon, build_godot_watchers
+from studio_client.daemon.launch_executor import LaunchExecutor, ResolvedLaunch
 from studio_client.daemon.launch_policy import build_launch_policy
+from studio_client.daemon.launch_prepare import LaunchPreparer
 from studio_client.daemon.launch_puller import LaunchPuller
+from studio_client.daemon.launch_report import LaunchReporter
+from studio_client.daemon.launch_runner import LaunchRunner
 from studio_client.daemon.workspace_watch import (
     RepoObservation,
     WorkspaceWatchLike,
     WorkspaceWatchSet,
 )
-from studio_client.errors import AuthenticationError, ServerError, TransportError
+from studio_client.errors import (
+    AuthenticationError,
+    ServerError,
+    StudioApiError,
+    TransportError,
+)
+from studio_client.harness.registry import HarnessRegistry
 from studio_client.outbox import (
     OutboxIdentityError,
     OutboxReplayer,
@@ -132,6 +143,43 @@ def server_origin(api_base_url: str) -> str:
     return f"{parsed.scheme.lower()}://{parsed.netloc.lower()}"
 
 
+def _launch_secrets() -> tuple[str, ...]:
+    """Literal secrets a launched harness could echo in its output. The machine
+    token lives in the environment only in headless/CI runs; the harness's own
+    MCP credential is masked by `redact_text`'s `Bearer` rule."""
+    token = os.environ.get("STUDIO_CLIENT_MACHINE_TOKEN")
+    return (token,) if token else ()
+
+
+def build_launch_resolver(
+    client: StudioApiClient, registry: HarnessRegistry, config: ClientConfig
+) -> Callable[[TaskLaunch], Awaitable[ResolvedLaunch | None]]:
+    """Resolves a launch to the repository, task title, adapter and probing
+    context. `None` means the launch cannot be prepared locally (its project is
+    not watched, or the harness is unknown)."""
+
+    async def resolve(launch: TaskLaunch) -> ResolvedLaunch | None:
+        repo_root = config.git_repo_for_project(launch.project_id)
+        if repo_root is None:
+            return None
+        adapter = registry.get(launch.harness_id)
+        if adapter is None:
+            return None
+        title: str | None = None
+        try:
+            title = (await client.get_task(launch.task_id)).title
+        except StudioApiError:
+            _LOGGER.warning("launch task title unavailable; using a generic slug", exc_info=True)
+        return ResolvedLaunch(
+            repo_root=repo_root,
+            task_title=title,
+            adapter=adapter,
+            ctx=neutral_context(config),
+        )
+
+    return resolve
+
+
 class DaemonRuntime:
     def __init__(
         self,
@@ -174,6 +222,7 @@ class DaemonRuntime:
         self._store: OutboxStore | None = None
         self._heartbeat: HeartbeatDaemon | None = None
         self._replayer: OutboxReplayer | None = None
+        self._launch_executor: LaunchExecutor | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._watchers: list[PollingWatcher] = []
         self._workspace_watches: WorkspaceWatchSet | None = None
@@ -290,18 +339,35 @@ class DaemonRuntime:
                 )
                 replayer = OutboxReplayer(store, client, policy, active_binding=self.binding)
                 self._replayer = replayer
+                registry = HarnessRegistry()
+                reporter = LaunchReporter(store)
+                executor = LaunchExecutor(
+                    client=client,
+                    reporter=reporter,
+                    preparer=LaunchPreparer(),
+                    runner=LaunchRunner(),
+                    resolve=build_launch_resolver(client, registry, self.config),
+                    timeout_seconds=self.config.launch_timeout_seconds,
+                    poll_seconds=self.config.launch_status_poll_seconds,
+                    secrets=_launch_secrets(),
+                )
+                self._launch_executor = executor
+                executor.start()
                 self._heartbeat = HeartbeatDaemon(
                     client,
                     self.config,
                     agent_id=self.agent_id,
                     replayer=replayer,
-                    capabilities_provider=lambda: build_capabilities(self.config),
+                    capabilities_provider=lambda: build_capabilities(
+                        self.config, registry=registry, running_launches=executor.running
+                    ),
                     launch_puller=LaunchPuller(
                         client,
-                        store,
                         self.binding.machine_id,
-                        lambda: build_launch_policy(self.config),
+                        lambda: build_launch_policy(self.config, registry=registry),
+                        reporter,
                     ),
+                    launch_executor=executor,
                 )
                 self._watchers = build_godot_watchers(self.config, store)
                 self._workspace_watches = WorkspaceWatchSet(
@@ -324,6 +390,9 @@ class DaemonRuntime:
             if self._workspace_watches is not None:
                 await self._workspace_watches.stop()
                 self._workspace_watches = None
+            if self._launch_executor is not None:
+                await self._launch_executor.aclose()
+                self._launch_executor = None
             if self._store is not None:
                 self._store.connection.close()
             self._store = None
