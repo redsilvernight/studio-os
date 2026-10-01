@@ -164,4 +164,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0173 | AIB R2 : contrat TaskLaunch (demande de lancement typee, jamais une commande) | accepted | [decisions/DEC-0173-aib-r2-contrat-task-launch.md](decisions/DEC-0173-aib-r2-contrat-task-launch.md) |
 | DEC-0175 | AIB-J : droits de lancement sur une machine (table dediee, owner ou droit explicite) | accepted | [decisions/DEC-0175-aib-j-droits-de-lancement-machine.md](decisions/DEC-0175-aib-j-droits-de-lancement-machine.md) |
 | DEC-0176 | AIB R3 : lancement non interactif des harness (permissions bornees, timeout dur) | accepted | [decisions/DEC-0176-aib-r3-lancement-harness-non-interactif.md](decisions/DEC-0176-aib-r3-lancement-harness-non-interactif.md) |
-| DEC-0177 | AIB R3 : annulation d'un lancement en cours livree par GET polling | proposed | [decisions/DEC-0177-aib-r3-annulation-par-polling-get.md](decisions/DEC-0177-aib-r3-annulation-par-polling-get.md) |
+| DEC-0177 | AIB R3 : annulation d'un lancement en cours livree par GET polling | accepted | [decisions/DEC-0177-aib-r3-annulation-par-polling-get.md](decisions/DEC-0177-aib-r3-annulation-par-polling-get.md) |
