@@ -88,6 +88,9 @@ class ClientConfig(BaseSettings):
     # Harness ids this machine agrees to start for a remote launch. Empty =
     # none: opting in never allows a harness implicitly (AIB R3).
     launch_allowed_harnesses: tuple[str, ...] = ()
+    # Hard ceiling on a single non-interactive harness run; past it the process
+    # tree is killed and the launch reported failed (AIB R3).
+    launch_timeout_seconds: float = 3600.0
     # Canonical Git watching: one entry per repository (`[[git_watches]]` in
     # TOML, a JSON array in `STUDIO_CLIENT_GIT_WATCHES`). The historical
     # `git_watch_repo_path` + `git_watch_project_id` pair is still accepted as

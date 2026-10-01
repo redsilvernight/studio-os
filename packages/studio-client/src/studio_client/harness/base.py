@@ -22,6 +22,7 @@ from studio_contracts.local.harness import ChangeKind
 
 from studio_client.config import client_channel
 from studio_client.harness.fsafe import Document, sha256_hex
+from studio_client.harness.probe import locate_executable
 
 STUDIO_MCP_SERVER_NAME = "studio-os-dev" if client_channel() == "dev" else "studio-os"
 
@@ -132,6 +133,7 @@ class HarnessAdapter(ABC):
     harness_id: str
     display_name: str
     capabilities: tuple[str, ...] = ("mcp.config",)
+    executable_names: tuple[str, ...] = ()
 
     @abstractmethod
     def detect(self, ctx: HarnessContext) -> Detection:
@@ -159,6 +161,26 @@ class HarnessAdapter(ABC):
     @abstractmethod
     def build_entry(self, mcp_url: str, token: str) -> dict[str, object]:
         """This harness's syntax for Studi'OS's MCP server with `token`."""
+
+    def resolve_executable(self, ctx: HarnessContext) -> Path:
+        """The harness's own executable, found only in an absolute PATH entry
+        outside the workspace (a repository never chooses what is launched).
+        Raises `AdapterRefusal('executable_not_found')` when absent."""
+        executable = locate_executable(
+            self.executable_names,
+            path_env=ctx.env_value("PATH"),
+            excluded_dirs=[ctx.workspace_root],
+        )
+        if executable is None:
+            raise AdapterRefusal("executable_not_found")
+        return executable
+
+    def headless_argv(self, prompt: str) -> tuple[str, ...]:
+        """The arguments (after the executable) that run `prompt` once and exit
+        without a human, bounded to the least autonomy the harness can still
+        work with. The default refuses: a harness with no non-interactive mode
+        is never launched blind (`AdapterRefusal('headless_unsupported')`)."""
+        raise AdapterRefusal("headless_unsupported")
 
 
 def system_env() -> Mapping[str, str]:
