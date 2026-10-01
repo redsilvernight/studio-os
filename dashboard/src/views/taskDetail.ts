@@ -36,8 +36,18 @@ import { fetchIdentity, type AuthIdentity } from "../identityApi";
 import { newIdempotencyKey } from "../claimsApi";
 import { listLibraryResources } from "../libraryApi";
 import { postResolution } from "../resolutionApi";
-import { createTaskLaunch, getEligibleMachines, listTaskLaunches } from "../taskLaunchesApi";
 import {
+  cancelTaskLaunch,
+  createTaskLaunch,
+  getEligibleMachines,
+  getTaskLaunch,
+  listTaskLaunches,
+  type TaskLaunch,
+} from "../taskLaunchesApi";
+import {
+  canCancelLaunch,
+  cancelLaunchConfirmText,
+  isTerminalLaunch,
   launchConfirmText,
   launchPanelHtml,
   selectedMachine,
@@ -199,7 +209,7 @@ function sessionsSectionHtml(sessions: SessionRow[] | null): string {
         .join("") +
       `</ul>`;
   }
-  return `<section class="task-detail-section" aria-label="Sessions">${dsSectionHeader(`Sessions (${sessions === null ? "?" : sessions.length})`)}${body}</section>`;
+  return `<section class="task-detail-section" id="task-sessions" aria-label="Sessions">${dsSectionHeader(`Sessions (${sessions === null ? "?" : sessions.length})`)}${body}</section>`;
 }
 
 function aiWorkSectionHtml(worklogs: WorkRow[] | null): string {
@@ -233,7 +243,7 @@ function aiWorkSectionHtml(worklogs: WorkRow[] | null): string {
         .join("") +
       `</ul>`;
   }
-  return `<section class="task-detail-section" aria-label="Travail IA">${dsSectionHeader(`Travail IA (${worklogs === null ? "?" : worklogs.length})`)}${body}</section>`;
+  return `<section class="task-detail-section" id="task-ai-work" aria-label="Travail IA">${dsSectionHeader(`Travail IA (${worklogs === null ? "?" : worklogs.length})`)}${body}</section>`;
 }
 
 function techDetailsHtml(task: Task): string {
@@ -290,12 +300,14 @@ export function launchSectionHtml(data: TaskDetailData): string {
   const state: LaunchPanelState = {
     data: data.launch ?? null,
     authed: data.authed,
+    canCancel: false,
     selectedMachineId: "",
     selectedHarnessId: "",
     agentStableKey: "",
     preview: null,
     previewLoading: false,
     previewError: "",
+    latestLoading: false,
     notice: "",
     error: "",
   };
@@ -373,7 +385,7 @@ export async function renderTaskDetail(root: HTMLElement, baseCtx: TaskDetailCon
     // Best-effort : sections « indisponible », compteur omis, page intacte.
   }
 
-  const launch = ctx.authed ? await loadLaunchData(ctx.client, task) : null;
+  const launch = ctx.authed ? await loadLaunchData(ctx.client, task, sessions) : null;
   paint(root, ctx, { task, sessions, worklogs, taskClaims, notice: "", authed: ctx.authed, launch });
 }
 
@@ -486,6 +498,8 @@ function bind(root: HTMLElement, ctx: TaskDetailContext, data: TaskDetailData): 
   bindLaunchPanel(root, ctx, task, data.launch ?? null);
 }
 
+const LAUNCH_POLL_INTERVAL_MS = 5000;
+
 function bindLaunchPanel(
   root: HTMLElement,
   ctx: TaskDetailContext,
@@ -498,15 +512,25 @@ function bindLaunchPanel(
   const state: LaunchPanelState = {
     data: initial,
     authed: true,
+    canCancel: initial !== null && initial.latest !== null ? canCancelLaunch(initial.latest, ctx.identity) : false,
     selectedMachineId: "",
     selectedHarnessId: "",
     agentStableKey: "",
     preview: null,
     previewLoading: false,
     previewError: "",
+    latestLoading: false,
     notice: "",
     error: "",
   };
+  let pollTimer: number | null = null;
+
+  /** Adopte une lecture serveur comme seule vérité affichée. */
+  function applyLatest(launch: TaskLaunch): void {
+    if (state.data === null) return;
+    state.data = { ...state.data, latest: launch };
+    state.canCancel = canCancelLaunch(launch, ctx.identity);
+  }
 
   function bindPanel(): void {
     container.querySelector<HTMLSelectElement>("#launch-machine")?.addEventListener("change", (event) => {
@@ -529,11 +553,28 @@ function bindLaunchPanel(
     });
     container.querySelector("[data-action=launch-preview]")?.addEventListener("click", () => void doPreview());
     container.querySelector("[data-action=launch-submit]")?.addEventListener("click", () => void doLaunch());
+    container.querySelector("[data-action=launch-refresh]")?.addEventListener("click", () => void doRefresh(false));
+    container.querySelector("[data-action=launch-cancel]")?.addEventListener("click", () => void doCancel());
   }
 
   function render(): void {
     container.innerHTML = launchPanelHtml(state);
     bindPanel();
+    schedulePoll();
+  }
+
+  /** Suivi borné : relit l'état tant que le lancement n'est pas terminal. */
+  function schedulePoll(): void {
+    if (pollTimer !== null) {
+      window.clearTimeout(pollTimer);
+      pollTimer = null;
+    }
+    const latest = state.data?.latest ?? null;
+    if (latest === null || isTerminalLaunch(latest.status) || !container.isConnected) return;
+    pollTimer = window.setTimeout(() => {
+      pollTimer = null;
+      void doRefresh(true);
+    }, LAUNCH_POLL_INTERVAL_MS);
   }
 
   async function doPreview(): Promise<void> {
@@ -552,6 +593,72 @@ function bindLaunchPanel(
       state.previewError = describeError(error);
     } finally {
       state.previewLoading = false;
+      render();
+    }
+  }
+
+  async function doRefresh(silent: boolean): Promise<void> {
+    const latest = state.data?.latest ?? null;
+    if (latest === null) return;
+    if (silent && !container.isConnected) return;
+    if (!silent) {
+      state.latestLoading = true;
+      state.error = "";
+      render();
+    }
+    try {
+      const [fresh, sessions] = await Promise.all([
+        getTaskLaunch(ctx.client, latest.id),
+        fetchJson<SessionRow[]>(ctx.client, "/api/v1/sessions", { task_id: task.id }).catch(() => null),
+      ]);
+      applyLatest(fresh);
+      if (sessions !== null && state.data !== null) state.data = { ...state.data, sessions };
+      if (!silent) state.notice = "";
+    } catch (error) {
+      if (!silent) state.error = describeError(error);
+    } finally {
+      if (!silent) state.latestLoading = false;
+      render();
+    }
+  }
+
+  /** Relit un lancement précis après un conflit : aucune réapplication aveugle. */
+  async function reloadLatest(note: string): Promise<void> {
+    const latest = state.data?.latest ?? null;
+    if (latest === null) return;
+    try {
+      const fresh = await getTaskLaunch(ctx.client, latest.id);
+      applyLatest(fresh);
+      state.notice = note;
+    } catch (error) {
+      state.error = describeError(error);
+    }
+  }
+
+  async function doCancel(): Promise<void> {
+    const latest = state.data?.latest ?? null;
+    if (latest === null || !state.canCancel) return;
+    if (!window.confirm(cancelLaunchConfirmText(latest))) return;
+    state.error = "";
+    state.notice = "";
+    const button = container.querySelector<HTMLButtonElement>("[data-action=launch-cancel]");
+    if (button !== null) button.disabled = true;
+    try {
+      const cancelled = await cancelTaskLaunch(ctx.client, latest.id, latest.version);
+      applyLatest(cancelled);
+      state.notice = "Lancement annulé : le poste cible n'exécutera pas (ou plus) cette demande.";
+      dsNotify("Lancement annulé.", "success");
+    } catch (error) {
+      if (error instanceof ApiError && error.errorCode === "version_conflict") {
+        await reloadLatest("Ce lancement a changé ailleurs : état rechargé — vérifiez avant d'annuler à nouveau.");
+      } else if (error instanceof ApiError && error.errorCode === "invalid_launch_transition") {
+        await reloadLatest("Ce lancement est déjà terminé : état rechargé.");
+      } else if (error instanceof ApiError && error.errorCode === "forbidden") {
+        state.error = "Seul le demandeur de ce lancement (ou un administrateur) peut l'annuler.";
+      } else {
+        state.error = describeError(error);
+      }
+    } finally {
       render();
     }
   }
@@ -577,7 +684,7 @@ function bindLaunchPanel(
         },
         newIdempotencyKey(),
       );
-      if (state.data !== null) state.data = { ...state.data, latest: created };
+      applyLatest(created);
       state.notice = "Lancement demandé : en attente de la machine cible, qui seule rapporte l'exécution.";
       dsNotify("Lancement demandé.", "success");
       render();
@@ -648,7 +755,11 @@ async function doRelease(root: HTMLElement, ctx: TaskDetailContext, task: Task):
   }
 }
 
-async function loadLaunchData(client: StudioClient, task: Task): Promise<LaunchPanelData | null> {
+async function loadLaunchData(
+  client: StudioClient,
+  task: Task,
+  sessions: SessionRow[] | null,
+): Promise<LaunchPanelData | null> {
   const [machines, agents, launches] = await Promise.allSettled([
     getEligibleMachines(client, task.id),
     listLibraryResources(client, { kind: "agent_definition", projectId: task.project_id, limit: 100 }),
@@ -669,6 +780,7 @@ async function loadLaunchData(client: StudioClient, task: Task): Promise<LaunchP
     machines: machineList,
     agents: agentOptions,
     latest: forTask.length === 0 ? null : (forTask[forTask.length - 1] ?? null),
+    sessions,
   };
 }
 
@@ -684,17 +796,23 @@ async function readComplements(
     setMsg(root, "Rechargement impossible.", describeError(error));
     throw error;
   }
-  const launch = ctx.authed ? await loadLaunchData(ctx.client, fresh) : null;
+  let sessions: SessionRow[] | null = null;
+  let worklogs: WorkRow[] | null = null;
+  let taskClaims: number | null = null;
   try {
-    const [sessions, worklogs, claims] = await Promise.all([
+    const [fetchedSessions, fetchedWork, fetchedClaims] = await Promise.all([
       fetchJson<SessionRow[]>(ctx.client, "/api/v1/sessions", { task_id: fresh.id }),
       fetchJson<WorkRow[]>(ctx.client, "/api/v1/ai-work", { task_id: fresh.id }),
       fetchJson<{ id: string; task_id?: string | null }[]>(ctx.client, "/api/v1/claims", { project_id: fresh.project_id }),
     ]);
-    return { task: fresh, sessions, worklogs, taskClaims: claims.filter((claim) => claim.task_id === fresh.id).length, launch };
+    sessions = fetchedSessions;
+    worklogs = fetchedWork;
+    taskClaims = fetchedClaims.filter((claim) => claim.task_id === fresh.id).length;
   } catch {
-    return { task: fresh, sessions: null, worklogs: null, taskClaims: null, launch };
+    // Best-effort : sections « indisponible », compteur omis, page intacte.
   }
+  const launch = ctx.authed ? await loadLaunchData(ctx.client, fresh, sessions) : null;
+  return { task: fresh, sessions, worklogs, taskClaims, launch };
 }
 
 async function importSessionsWork(

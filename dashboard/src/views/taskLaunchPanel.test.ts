@@ -1,16 +1,31 @@
 import { describe, expect, it } from "vitest";
+import type { AuthIdentity } from "../identityApi";
 import type { ResolvedAgentDefinition } from "../resolutionApi";
 import type { MachineEligibility, TaskLaunch } from "../taskLaunchesApi";
 import {
+  canCancelLaunch,
+  cancelLaunchConfirmText,
   ineligibilityReasonLabel,
+  isTerminalLaunch,
   launchConfirmText,
   launchPanelHtml,
+  launchReasonCodeLabel,
+  linkedSessionHtml,
   machineOptionLabel,
   previewLines,
   taskLaunchStatusLabel,
   taskLaunchStatusTone,
   type LaunchPanelState,
 } from "./taskLaunchPanel";
+
+const identity = (overrides: Partial<AuthIdentity> = {}): AuthIdentity => ({
+  user_id: "u1",
+  display_name: "Dev",
+  email: "dev@example.test",
+  role: "developer",
+  machine_id: "m1",
+  ...overrides,
+});
 
 const machine = (overrides: Partial<MachineEligibility> = {}): MachineEligibility =>
   ({
@@ -43,12 +58,14 @@ const launch = (overrides: Partial<TaskLaunch> = {}): TaskLaunch =>
 const state = (overrides: Partial<LaunchPanelState> = {}): LaunchPanelState => ({
   data: { machines: [machine()], agents: [{ stable_key: "review-helper" }], latest: null },
   authed: true,
+  canCancel: false,
   selectedMachineId: "",
   selectedHarnessId: "",
   agentStableKey: "",
   preview: null,
   previewLoading: false,
   previewError: "",
+  latestLoading: false,
   notice: "",
   error: "",
   ...overrides,
@@ -176,6 +193,71 @@ describe("previewLines / launchConfirmText", () => {
     expect(text).toContain("flo-laptop");
     expect(text).toContain("claude-code");
     expect(text).toContain("review-helper");
+    expect(text).not.toContain("<");
+  });
+});
+
+describe("suivi et annulation (AIB R4)", () => {
+  it("identifie les statuts terminaux", () => {
+    expect(isTerminalLaunch("requested")).toBe(false);
+    expect(isTerminalLaunch("running")).toBe(false);
+    expect(isTerminalLaunch("succeeded")).toBe(true);
+    expect(isTerminalLaunch("cancelled")).toBe(true);
+  });
+
+  it("seul le demandeur ou un administrateur annule, et seulement un non terminal", () => {
+    const running = launch({ status: "running", requested_by_user_id: "u1" });
+    expect(canCancelLaunch(running, identity({ user_id: "u1" }))).toBe(true);
+    expect(canCancelLaunch(running, identity({ user_id: "u2" }))).toBe(false);
+    expect(canCancelLaunch(running, identity({ user_id: "u2", role: "admin" }))).toBe(true);
+    expect(canCancelLaunch(running, null)).toBe(false);
+    expect(canCancelLaunch(launch({ status: "succeeded" }), identity({ role: "admin" }))).toBe(false);
+  });
+
+  it("traduit les codes de motif en clair", () => {
+    expect(launchReasonCodeLabel("cancelled_by_requester")).toContain("annulé");
+    expect(launchReasonCodeLabel("expired_timeout")).toContain("expiré");
+    expect(launchReasonCodeLabel("unknown_code")).toBe("unknown_code");
+  });
+
+  it("bouton annuler présent seulement si canCancel", () => {
+    const data = { machines: [], agents: [], latest: launch({ status: "running" }) };
+    expect(launchPanelHtml(state({ data, canCancel: true }))).toContain('data-action="launch-cancel"');
+    expect(launchPanelHtml(state({ data, canCancel: false }))).not.toContain('data-action="launch-cancel"');
+  });
+
+  it("bouton actualiser toujours présent, désactivé pendant le chargement", () => {
+    const data = { machines: [], agents: [], latest: launch({ status: "running" }) };
+    expect(launchPanelHtml(state({ data }))).toContain('data-action="launch-refresh"');
+    expect(launchPanelHtml(state({ data, latestLoading: true }))).toContain('data-action="launch-refresh" disabled');
+  });
+
+  it("session liée : lien et état résolus, handoff proposé si terminée", () => {
+    const sessionId = "abcdefgh-1234-4111-8111-000000000000";
+    const running = launch({ status: "running", session_id: sessionId });
+    const open = state({
+      data: { machines: [], agents: [], latest: running, sessions: [{ id: sessionId, ended_at: null }] },
+    });
+    const openHtml = linkedSessionHtml(open, running);
+    expect(openHtml).toContain("#task-sessions");
+    expect(openHtml).toContain("en cours");
+    expect(openHtml).not.toContain("#task-ai-work");
+
+    const ended = state({
+      data: { machines: [], agents: [], latest: running, sessions: [{ id: sessionId, ended_at: "2026-10-01T10:05:00Z" }] },
+    });
+    const endedHtml = linkedSessionHtml(ended, running);
+    expect(endedHtml).toContain("terminée");
+    expect(endedHtml).toContain("#task-ai-work");
+  });
+
+  it("sans session liée, aucun lien", () => {
+    expect(linkedSessionHtml(state(), launch())).toBe("");
+  });
+
+  it("confirmation d'annulation nomme le lancement sans HTML", () => {
+    const text = cancelLaunchConfirmText(launch());
+    expect(text).toContain("Annuler le lancement");
     expect(text).not.toContain("<");
   });
 });

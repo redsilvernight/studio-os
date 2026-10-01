@@ -81,9 +81,42 @@ const RESOLVED = {
   runtime: null,
 };
 
+type Launch = Record<string, unknown>;
+
 interface Captured {
   idempotencyKeys: (string | null)[];
   bodies: unknown[];
+  cancelCalls: { launchId: string; body: unknown }[];
+  /** Lancement simulé côté serveur : seule source de vérité du suivi. */
+  launch: Launch | null;
+  cancelConflict: boolean;
+  sessionEnded: boolean;
+}
+
+function launchFixture(overrides: Launch = {}): Launch {
+  return {
+    id: "l-existing",
+    project_id: P1,
+    task_id: TASK_ID,
+    machine_id: "m-ok",
+    requested_by_user_id: "u-e2e",
+    harness_id: "claude-code",
+    agent_stable_key: null,
+    status: "running",
+    reason_code: "none",
+    session_id: null,
+    output_excerpt: null,
+    created_at: "2026-10-01T10:00:00Z",
+    updated_at: "2026-10-01T10:00:00Z",
+    expires_at: "2026-10-01T10:15:00Z",
+    version: 3,
+    finished_at: null,
+    ...overrides,
+  };
+}
+
+function newCaptured(launch: Launch | null = null): Captured {
+  return { idempotencyKeys: [], bodies: [], cancelCalls: [], launch, cancelConflict: false, sessionEnded: false };
 }
 
 function apiStub(captured: Captured) {
@@ -105,31 +138,67 @@ function apiStub(captured: Captured) {
     }
     if (url.includes("/api/v1/tasks/") && url.endsWith("/eligible-machines")) return json(200, ELIGIBLE);
     if (url.includes("/api/v1/library")) return json(200, AGENTS);
+
+    // Annulation (demandeur ou admin), version courante exigée par le serveur.
+    if (method === "POST" && /\/task-launches\/[^/]+\/cancel$/.test(url)) {
+      const launchId = url.split("/").slice(-2)[0] ?? "";
+      captured.cancelCalls.push({ launchId, body: req.postDataJSON() });
+      if (captured.cancelConflict) {
+        captured.cancelConflict = false;
+        return json(409, { detail: { error_code: "version_conflict", server_version: 5 } });
+      }
+      captured.launch = {
+        ...(captured.launch ?? launchFixture()),
+        status: "cancelled",
+        reason_code: "cancelled_by_requester",
+        finished_at: "2026-10-01T10:05:00Z",
+        version: 4,
+      };
+      return json(200, captured.launch);
+    }
+
+    // Création : POST /projects/{pid}/task-launches.
     if (method === "POST" && url.includes("/task-launches")) {
       captured.idempotencyKeys.push(req.headers()["idempotency-key"] ?? null);
       captured.bodies.push(req.postDataJSON());
-      return json(201, {
-        id: "l-new",
-        project_id: P1,
-        task_id: TASK_ID,
-        machine_id: "m-ok",
-        requested_by_user_id: "u-e2e",
-        harness_id: "claude-code",
-        agent_stable_key: "review-helper",
-        status: "requested",
-        reason_code: "none",
-        session_id: null,
-        output_excerpt: null,
-        created_at: "2026-10-01T10:00:00Z",
-        updated_at: "2026-10-01T10:00:00Z",
-        expires_at: "2026-10-01T10:15:00Z",
-        version: 1,
-        finished_at: null,
+      captured.launch = launchFixture({ id: "l-new", status: "requested", version: 1, agent_stable_key: "review-helper" });
+      return json(201, captured.launch);
+    }
+
+    // Lecture d'un lancement : GET /task-launches/{id}.
+    if (method === "GET" && /\/task-launches\/[^/]+$/.test(url) && !url.includes("/projects/")) {
+      if (captured.launch === null) return json(404, { detail: { error_code: "not_found" } });
+      return json(200, captured.launch);
+    }
+
+    // Liste des lancements d'un projet.
+    if (method === "GET" && url.includes("/projects/") && /\/task-launches(\?|$)/.test(url)) {
+      return json(200, {
+        items: captured.launch === null ? [] : [captured.launch],
+        limit: 100,
+        offset: 0,
+        total: captured.launch === null ? 0 : 1,
       });
     }
-    if (url.includes("/task-launches")) return json(200, { items: [], limit: 100, offset: 0, total: 0 });
+
     if (method === "POST" && url.includes("/api/v1/resolutions")) return json(200, RESOLVED);
-    if (url.includes("/api/v1/sessions")) return json(200, []);
+    if (url.includes("/api/v1/sessions")) {
+      const sessionId = captured.launch?.session_id;
+      return json(
+        200,
+        typeof sessionId === "string"
+          ? [
+              {
+                id: sessionId,
+                machine_id: "m-ok",
+                agent_id: null,
+                started_at: "2026-10-01T10:00:00Z",
+                ended_at: captured.sessionEnded ? "2026-10-01T10:05:00Z" : null,
+              },
+            ]
+          : [],
+      );
+    }
     if (url.includes("/api/v1/ai-work")) return json(200, []);
     if (url.includes("/api/v1/claims")) return json(200, []);
     if (/\/api\/v1\/tasks\/[^/]+$/.test(url)) return json(200, TASK);
@@ -166,7 +235,7 @@ function watchErrors(page: Page): { csp: string[]; fatal: Error[] } {
 }
 
 test("sélecteur : poste inéligible non sélectionnable, harnais et aperçu pilotés", async ({ page }) => {
-  const captured: Captured = { idempotencyKeys: [], bodies: [] };
+  const captured = newCaptured();
   const errors = watchErrors(page);
   await openTaskDetail(page, captured);
 
@@ -190,7 +259,7 @@ test("sélecteur : poste inéligible non sélectionnable, harnais et aperçu pil
 });
 
 test("lancement : POST typé avec Idempotency-Key, état rapporté affiché", async ({ page }) => {
-  const captured: Captured = { idempotencyKeys: [], bodies: [] };
+  const captured = newCaptured();
   const errors = watchErrors(page);
   await openTaskDetail(page, captured);
 
@@ -208,6 +277,76 @@ test("lancement : POST typé avec Idempotency-Key, état rapporté affiché", as
     harness_id: "claude-code",
     agent_stable_key: "review-helper",
   });
+
+  expect(errors.fatal).toEqual([]);
+  expect(errors.csp).toEqual([]);
+});
+
+test("suivi : l'actualisation relit l'état rapporté par le poste", async ({ page }) => {
+  const captured = newCaptured(launchFixture({ status: "running" }));
+  const errors = watchErrors(page);
+  await openTaskDetail(page, captured);
+
+  await expect(page.locator('[data-testid="launch-latest"]')).toContainText("En cours");
+  captured.launch = launchFixture({ status: "succeeded", version: 4, finished_at: "2026-10-01T10:05:00Z" });
+  await page.locator('[data-action="launch-refresh"]').click();
+  await expect(page.locator('[data-testid="launch-latest"]')).toContainText("Terminé (succès)");
+
+  expect(errors.fatal).toEqual([]);
+  expect(errors.csp).toEqual([]);
+});
+
+test("annulation : POST versionné, état annulé affiché", async ({ page }) => {
+  const captured = newCaptured(launchFixture({ status: "running", version: 3 }));
+  const errors = watchErrors(page);
+  await openTaskDetail(page, captured);
+
+  await page.locator('[data-action="launch-cancel"]').click();
+  await expect(page.locator('[data-testid="launch-latest"]')).toContainText("Annulé");
+  expect(captured.cancelCalls).toHaveLength(1);
+  expect(captured.cancelCalls[0]?.body).toEqual({ expected_version: 3 });
+  await expect(page.locator('[data-action="launch-cancel"]')).toHaveCount(0);
+
+  expect(errors.fatal).toEqual([]);
+  expect(errors.csp).toEqual([]);
+});
+
+test("conflit de version : relecture et message, aucune réapplication aveugle", async ({ page }) => {
+  const captured = newCaptured(launchFixture({ status: "running", version: 3 }));
+  captured.cancelConflict = true;
+  const errors = watchErrors(page);
+  await openTaskDetail(page, captured);
+
+  await page.locator('[data-action="launch-cancel"]').click();
+  await expect(page.locator('[data-testid="launch-panel"]')).toContainText("a changé ailleurs");
+  expect(captured.cancelCalls).toHaveLength(1);
+  await expect(page.locator('[data-testid="launch-latest"]')).toContainText("En cours");
+
+  expect(errors.fatal).toEqual([]);
+  expect(errors.csp).toEqual([]);
+});
+
+test("session liée : lien vers la session puis vers le handoff une fois terminée", async ({ page }) => {
+  const captured = newCaptured(
+    launchFixture({ status: "running", session_id: "sess-0000-4111-8111-000000000001" }),
+  );
+  const errors = watchErrors(page);
+  await openTaskDetail(page, captured);
+
+  await expect(page.locator('[data-testid="launch-session-link"]')).toHaveAttribute("href", "#task-sessions");
+  await expect(page.locator('[data-testid="launch-session-link"]')).toContainText("en cours");
+  await expect(page.locator('[data-testid="launch-handoff-link"]')).toHaveCount(0);
+
+  captured.sessionEnded = true;
+  captured.launch = launchFixture({
+    status: "succeeded",
+    version: 4,
+    session_id: "sess-0000-4111-8111-000000000001",
+    finished_at: "2026-10-01T10:05:00Z",
+  });
+  await page.locator('[data-action="launch-refresh"]').click();
+  await expect(page.locator('[data-testid="launch-session-link"]')).toContainText("terminée");
+  await expect(page.locator('[data-testid="launch-handoff-link"]')).toHaveAttribute("href", "#task-ai-work");
 
   expect(errors.fatal).toEqual([]);
   expect(errors.csp).toEqual([]);
