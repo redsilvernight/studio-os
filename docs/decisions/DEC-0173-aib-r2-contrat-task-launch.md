@@ -1,7 +1,7 @@
 ---
 id: DEC-0173
 title: 'AIB R2 : contrat TaskLaunch (demande de lancement typee, jamais une commande)'
-status: proposed
+status: accepted
 date: '2026-10-01'
 superseded_by: null
 source: docs/AI_BOOTSTRAP_ROADMAP.md
@@ -9,7 +9,7 @@ source: docs/AI_BOOTSTRAP_ROADMAP.md
 
 # DEC-0173 — contrat TaskLaunch (AIB R2)
 
-Roadmap AIB, etape R2 (tache `cb5acf29`). Statut `proposed` jusqu'a accord humain.
+Roadmap AIB, etape R2 (tache `cb5acf29`). Statut `accepted` (accord humain du 2026-10-01 ; fichier et serveur alignes).
 
 ## Decide
 
