@@ -39,6 +39,7 @@ from studio_client.daemon.launch_prepare import LaunchPreparer
 from studio_client.daemon.launch_puller import LaunchPuller
 from studio_client.daemon.launch_report import LaunchReporter
 from studio_client.daemon.launch_runner import LaunchRunner
+from studio_client.daemon.launch_settings_bridge import effective_launch_config
 from studio_client.daemon.workspace_watch import (
     RepoObservation,
     WorkspaceWatchLike,
@@ -359,12 +360,17 @@ class DaemonRuntime:
                     agent_id=self.agent_id,
                     replayer=replayer,
                     capabilities_provider=lambda: build_capabilities(
-                        self.config, registry=registry, running_launches=executor.running
+                        effective_launch_config(self.config, self.data_root),
+                        registry=registry,
+                        running_launches=executor.running,
                     ),
                     launch_puller=LaunchPuller(
                         client,
                         self.binding.machine_id,
-                        lambda: build_launch_policy(self.config, registry=registry),
+                        lambda: build_launch_policy(
+                            effective_launch_config(self.config, self.data_root),
+                            registry=registry,
+                        ),
                         reporter,
                     ),
                     launch_executor=executor,
