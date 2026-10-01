@@ -169,6 +169,27 @@ async def test_create_task_project_mismatch_is_409(
     assert response.json()["detail"]["error_code"] == "task_project_mismatch"
 
 
+async def test_create_by_granted_user(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    machine: tuple[MachineModel, str],
+    other_machine: tuple[MachineModel, str],
+    other_auth_headers: dict[str, str],
+) -> None:
+    model, _ = machine
+    other_model, _ = other_machine
+    project_id, task_id, _ = await _ready_target(client, auth_headers, machine)
+    grant = await client.put(
+        f"/api/v1/machines/{model.id}/launch-grants/{other_model.owner_user_id}",
+        json={"project_id": project_id},
+        headers=auth_headers,
+    )
+    assert grant.status_code in (200, 201), grant.text
+    response = await _launch(client, other_auth_headers, project_id, task_id, str(model.id))
+    assert response.status_code == 201, response.text
+    assert response.json()["requested_by_user_id"] == str(other_model.owner_user_id)
+
+
 async def test_create_by_non_owner_is_403(
     client: AsyncClient,
     auth_headers: dict[str, str],

@@ -30,6 +30,7 @@ from studio_api.db.models.task_launch import TaskLaunchModel
 from studio_api.db.models.work_session import WorkSessionModel
 from studio_api.services import events as events_service
 from studio_api.services import heartbeats as heartbeats_service
+from studio_api.services import launch_grants as grants_service
 from studio_api.services import tasks as tasks_service
 from studio_api.services.authz import (
     Principal,
@@ -91,7 +92,8 @@ async def _commit_with_event(
     return launch
 
 
-def authorize_create(
+async def authorize_create(
+    session: AsyncSession,
     principal: Principal,
     project_id: uuid.UUID,
     task: TaskModel,
@@ -103,7 +105,8 @@ def authorize_create(
     """Project then role check of a launch creation, run ahead of the
     idempotency replay short-circuit (DEC-0036). Task/project/machine
     coherence and the target machine's launch aptitude are 409s, never
-    oracles: the project gate answers the single 403 first."""
+    oracles: the project gate answers the single 403 first. Who may
+    request (owner, admin or grantee) is AIB-J (`launch_grants`)."""
     ensure_project_access(principal, project_id, "write")
     ensure_can_write(principal, "task_launch")
     if task.project_id != project_id or launch_in.task_id != task.id:
@@ -116,11 +119,7 @@ def authorize_create(
             status.HTTP_409_CONFLICT,
             detail={"error_code": "launch_machine_mismatch"},
         )
-    if principal.role != Role.ADMIN and machine.owner_user_id != principal.user.id:
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN,
-            detail={"error_code": "forbidden", "resource": "task_launch", "action": "create"},
-        )
+    await grants_service.ensure_can_launch(session, principal, machine, project_id)
     capabilities: MachineCapabilities | None = None
     if machine.capabilities is not None:
         capabilities = MachineCapabilities.model_validate(machine.capabilities)

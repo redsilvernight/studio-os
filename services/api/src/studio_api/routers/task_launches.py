@@ -65,8 +65,8 @@ async def create_task_launch(
     machine = await launches_service.get_target_machine(session, launch_in.machine_id)
     if machine is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "machine not found")
-    launches_service.authorize_create(
-        principal, project_id, task, machine, launch_in, get_settings(), datetime.now(UTC)
+    await launches_service.authorize_create(
+        session, principal, project_id, task, machine, launch_in, get_settings(), datetime.now(UTC)
     )
 
     async def _create() -> TaskLaunch:
