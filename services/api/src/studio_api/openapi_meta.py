@@ -217,6 +217,22 @@ RESP_409_ALREADY_CLAIMED: ErrorResponses = {
     )
 }
 
+RESP_409_LAUNCH_TRANSITION: ErrorResponses = {
+    409: _json_response(
+        "Task launch refused, nothing stored: unknown pair "
+        "(`invalid_launch_transition` — only ALLOWED_TRANSITIONS pairs "
+        "move, terminal states have no exit), a linked session that does "
+        "not exist or belongs to another machine "
+        "(`invalid_launch_session`), a task/project/machine mismatch "
+        "(`task_project_mismatch`, `launch_machine_mismatch`), or a "
+        "target machine not able to launch right now "
+        "(`machine_capabilities_missing`, `machine_capabilities_stale`, "
+        "`machine_offline`, `machine_not_opted_in`, "
+        "`project_not_registered`).",
+        {"detail": {"error_code": "invalid_launch_transition"}},
+    )
+}
+
 RESP_409_LIBRARY: ErrorResponses = {
     409: _json_response(
         "Library reference conflict: the `stable_key` is already taken in "

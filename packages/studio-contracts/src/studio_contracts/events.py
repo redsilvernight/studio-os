@@ -21,6 +21,13 @@ class EventType(StrEnum):
     TASK_BLOCKED = "task.blocked"
     TASK_COMPLETED = "task.completed"
 
+    TASK_LAUNCH_REQUESTED = "task_launch.requested"
+    TASK_LAUNCH_ACCEPTED = "task_launch.accepted"
+    TASK_LAUNCH_REJECTED = "task_launch.rejected"
+    TASK_LAUNCH_CANCELLED = "task_launch.cancelled"
+    TASK_LAUNCH_EXPIRED = "task_launch.expired"
+    TASK_LAUNCH_FINISHED = "task_launch.finished"
+
     SESSION_STARTED = "session.started"
     SESSION_ENDED = "session.ended"
 
