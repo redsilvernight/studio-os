@@ -4,10 +4,12 @@
  * Le rendu ne fabrique jamais d'état : la machine cible est la seule à
  * rapporter l'exécution, l'UI affiche le statut du serveur tel quel. Un poste
  * hors ligne ou inéligible reste visible mais non sélectionnable, avec sa
- * raison.
+ * raison. Le suivi relit la même vérité serveur ; l'annulation n'est offerte
+ * qu'au demandeur (ou à un administrateur), sur un lancement non terminal.
  */
 import { dsBadge, dsEmptyState, dsField, dsSectionHeader, dsSkeleton } from "../ds/ds";
-import { esc, fmtTime } from "../ui";
+import { esc, fmtTime, shortId } from "../ui";
+import type { AuthIdentity } from "../identityApi";
 import type { ResolvedAgentDefinition } from "../resolutionApi";
 import type {
   HarnessReport,
@@ -21,21 +23,32 @@ export interface AgentOption {
   stable_key: string;
 }
 
+/** Session liée à un lancement, réduite à ce que l'UI affiche (état, handoff). */
+export interface LaunchSession {
+  id: string;
+  ended_at?: string | null;
+}
+
 export interface LaunchPanelData {
   machines: MachineEligibility[];
   agents: AgentOption[];
   latest: TaskLaunch | null;
+  /** Sessions de la tâche, pour résoudre l'état de la session liée (best-effort). */
+  sessions?: LaunchSession[] | null;
 }
 
 export interface LaunchPanelState {
   data: LaunchPanelData | null;
   authed: boolean;
+  /** Droit d'annuler le dernier lancement affiché, recalculé à chaque relecture. */
+  canCancel: boolean;
   selectedMachineId: string;
   selectedHarnessId: string;
   agentStableKey: string;
   preview: ResolvedAgentDefinition | null;
   previewLoading: boolean;
   previewError: string;
+  latestLoading: boolean;
   notice: string;
   error: string;
 }
@@ -51,6 +64,41 @@ const LAUNCH_STATUS_FR: Record<TaskLaunchStatus, string> = {
   rejected: "Refusé par le poste",
   expired: "Expiré",
 };
+
+const TERMINAL_LAUNCH_STATUSES: readonly TaskLaunchStatus[] = [
+  "succeeded",
+  "failed",
+  "cancelled",
+  "rejected",
+  "expired",
+];
+
+/** Un lancement terminal n'évolue plus : plus de suivi actif ni d'annulation. */
+export function isTerminalLaunch(status: TaskLaunchStatus): boolean {
+  return TERMINAL_LAUNCH_STATUSES.includes(status);
+}
+
+/**
+ * Indice UI (le serveur revérifie, DEC-0152) : seul le demandeur ou un
+ * administrateur annule, et seulement un lancement non terminal. Identité
+ * inconnue : le bouton reste masqué, jamais accordé par défaut.
+ */
+export function canCancelLaunch(
+  launch: TaskLaunch,
+  identity: AuthIdentity | null | undefined,
+): boolean {
+  if (isTerminalLaunch(launch.status)) return false;
+  if (identity === null || identity === undefined) return false;
+  if (identity.role === "admin") return true;
+  return identity.user_id === launch.requested_by_user_id;
+}
+
+export function cancelLaunchConfirmText(launch: TaskLaunch): string {
+  return (
+    `Annuler le lancement ${shortId(launch.id)} sur le poste ${shortId(launch.machine_id)} ? ` +
+    `Le serveur marque la demande annulée ; seule la machine cible rapporte ensuite l'arrêt de son exécution.`
+  );
+}
 
 export function taskLaunchStatusLabel(status: TaskLaunchStatus): string {
   return LAUNCH_STATUS_FR[status] ?? status;
@@ -86,6 +134,25 @@ const REASON_FR: Record<IneligibilityReason, string> = {
   harness_incompatible: "harnais incompatible",
   at_capacity: "capacité atteinte",
 };
+
+const REASON_CODE_FR: Record<string, string> = {
+  none: "aucun",
+  not_opted_in: "poste non opt-in",
+  project_not_registered: "projet non enregistré sur le poste",
+  harness_not_allowed: "harnais non autorisé",
+  harness_not_found: "harnais introuvable",
+  agent_not_found: "agent introuvable",
+  capacity_reached: "capacité atteinte",
+  preparation_failed: "préparation échouée",
+  harness_exited: "harnais interrompu",
+  cancelled_by_requester: "annulé par le demandeur",
+  expired_unpulled: "expiré sans avoir été tiré",
+  expired_timeout: "expiré (délai dépassé)",
+};
+
+export function launchReasonCodeLabel(reasonCode: string): string {
+  return REASON_CODE_FR[reasonCode] ?? reasonCode;
+}
 
 export function ineligibilityReasonLabel(reason: IneligibilityReason): string {
   return REASON_FR[reason] ?? reason;
@@ -173,7 +240,26 @@ function previewHtml(state: LaunchPanelState): string {
     .join("")}</ul>`;
 }
 
-function latestHtml(latest: TaskLaunch | null): string {
+/**
+ * Lien vers la session liée et, si elle est terminée, vers le travail IA /
+ * handoff de la tâche. L'état affiché vient des sessions chargées ; à défaut
+ * le lien reste, sans inventer d'état.
+ */
+export function linkedSessionHtml(state: LaunchPanelState, latest: TaskLaunch): string {
+  if (!latest.session_id) return "";
+  const linked = state.data?.sessions?.find((session) => session.id === latest.session_id) ?? null;
+  const ended = linked !== null && linked.ended_at !== null && linked.ended_at !== undefined && linked.ended_at !== "";
+  const stateLabel = linked === null ? "" : ended ? " (terminée)" : " (en cours)";
+  const sessionLink =
+    `<a href="#task-sessions" data-testid="launch-session-link">Session ${esc(shortId(latest.session_id))}${stateLabel}</a>`;
+  const handoff = ended
+    ? ` · <a href="#task-ai-work" data-testid="launch-handoff-link">voir le handoff / travail IA</a>`
+    : "";
+  return `<div class="ds-list-sub">${sessionLink}${handoff}</div>`;
+}
+
+export function latestHtml(state: LaunchPanelState): string {
+  const latest = state.data?.latest ?? null;
   if (latest === null) {
     return dsEmptyState("Aucun lancement", "Aucun lancement n'est enregistré pour cette tâche.");
   }
@@ -182,14 +268,23 @@ function latestHtml(latest: TaskLaunch | null): string {
     `Harnais ${esc(latest.harness_id)}`,
     latest.agent_stable_key ? `Agent ${esc(latest.agent_stable_key)}` : "Sans agent",
   ];
-  if (latest.session_id) details.push(`Session ${esc(latest.session_id)}`);
-  if (latest.reason_code !== "none") details.push(`Motif ${esc(latest.reason_code)}`);
+  if (latest.reason_code !== "none") details.push(`Motif ${esc(launchReasonCodeLabel(latest.reason_code))}`);
+  const actions =
+    `<div class="tasks-footer" data-testid="launch-actions">` +
+    `<button class="ds-btn" type="button" data-action="launch-refresh"${state.latestLoading ? " disabled" : ""}>` +
+    `${state.latestLoading ? "Actualisation…" : "Actualiser l'état"}</button>` +
+    (state.canCancel
+      ? `<button class="ds-btn ds-btn--danger" type="button" data-action="launch-cancel">Annuler le lancement</button>`
+      : "") +
+    `</div>`;
   return `<div class="ds-list-item" data-testid="launch-latest"><div class="grow">` +
     `<div class="ds-list-title">${esc(details.join(" · "))}</div>` +
     `<div class="ds-list-sub">Demandé ${esc(fmtTime(latest.created_at))} · expire ${esc(fmtTime(latest.expires_at))}` +
     (latest.finished_at ? ` · terminé ${esc(fmtTime(latest.finished_at))}` : "") +
     `</div>` +
+    linkedSessionHtml(state, latest) +
     (latest.output_excerpt ? `<pre class="mono">${esc(latest.output_excerpt)}</pre>` : "") +
+    actions +
     `</div>${dsBadge(taskLaunchStatusLabel(latest.status), taskLaunchStatusTone(latest.status))}</div>`;
 }
 
@@ -242,7 +337,7 @@ export function launchPanelHtml(state: LaunchPanelState): string {
   return `<section class="task-detail-section" aria-label="Lancer sur une machine" data-testid="launch-panel">` +
     `${header}${intro}${notice}${error}${form}` +
     `<div data-testid="launch-preview">${previewHtml(state)}</div>` +
-    `<p class="ds-list-sub"><strong>Dernier lancement</strong></p>` +
-    latestHtml(data.latest) +
+    `<p class="ds-list-sub"><strong>Dernier lancement</strong> — l'état affiché est celui rapporté par la machine cible.</p>` +
+    latestHtml(state) +
     `</section>`;
 }
