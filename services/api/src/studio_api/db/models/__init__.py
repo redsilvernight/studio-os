@@ -16,6 +16,7 @@ from studio_api.db.models.library import (
     LibraryResourceVersionModel,
 )
 from studio_api.db.models.machine import MachineModel
+from studio_api.db.models.machine_launch_grant import MachineLaunchGrantModel
 from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.project_membership import ProjectMembershipModel
 from studio_api.db.models.refresh_token import RefreshTokenModel
@@ -42,6 +43,7 @@ __all__ = [
     "MachineModel",
     "AgentModel",
     "ProjectModel",
+    "MachineLaunchGrantModel",
     "ProjectMembershipModel",
     "TaskModel",
     "TaskLaunchModel",
