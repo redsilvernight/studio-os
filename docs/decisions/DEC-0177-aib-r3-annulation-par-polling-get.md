@@ -1,7 +1,7 @@
 ---
 id: DEC-0177
 title: 'AIB R3 : annulation d''un lancement en cours livree par GET polling'
-status: proposed
+status: accepted
 date: '2026-10-01'
 superseded_by: null
 source: docs/AI_BOOTSTRAP_ROADMAP.md
@@ -9,7 +9,7 @@ source: docs/AI_BOOTSTRAP_ROADMAP.md
 
 # DEC-0177 — annulation en cours livrée par GET polling (AIB R3)
 
-Roadmap AIB, étape R3 (tâche `0c5ace15`). Statut `proposed` (à valider).
+Roadmap AIB, étape R3 (tâche `0c5ace15`). Statut `accepted` (accord humain du 2026-10-01 ; fichier et serveur alignés).
 
 ## Décide
 
