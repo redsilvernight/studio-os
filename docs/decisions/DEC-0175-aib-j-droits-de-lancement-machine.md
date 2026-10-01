@@ -1,15 +1,15 @@
 ---
-id: DEC-0174
+id: DEC-0175
 title: 'AIB-J : droits de lancement sur une machine (table dediee, owner ou droit explicite)'
-status: proposed
+status: accepted
 date: '2026-10-01'
 superseded_by: null
 source: docs/AI_BOOTSTRAP_ROADMAP.md
 ---
 
-# DEC-0174 — droits de lancement sur une machine (AIB-J)
+# DEC-0175 — droits de lancement sur une machine (AIB-J)
 
-Roadmap AIB, etape R2 (tache `1d8835ac`). Statut `proposed` : en attente d'accord humain.
+Roadmap AIB, etape R2 (tache `1d8835ac`). Statut `accepted` (accord humain du 2026-10-01 ; fichier et serveur alignes).
 
 ## Decide
 
