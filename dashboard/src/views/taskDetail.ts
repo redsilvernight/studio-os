@@ -33,6 +33,18 @@ import { taskClaimHint, taskStatusLabel, taskStatusTone } from "../taskStatus";
 import { agentLabel, agentRef, machineLabel, machineRef } from "../actorNames";
 import { describeError, esc, fmtTime, shortId } from "../ui";
 import { fetchIdentity, type AuthIdentity } from "../identityApi";
+import { newIdempotencyKey } from "../claimsApi";
+import { listLibraryResources } from "../libraryApi";
+import { postResolution } from "../resolutionApi";
+import { createTaskLaunch, getEligibleMachines, listTaskLaunches } from "../taskLaunchesApi";
+import {
+  launchConfirmText,
+  launchPanelHtml,
+  selectedMachine,
+  type AgentOption,
+  type LaunchPanelData,
+  type LaunchPanelState,
+} from "./taskLaunchPanel";
 
 export interface TaskDetailContext {
   client: StudioClient;
@@ -248,6 +260,8 @@ export interface TaskDetailData {
   authed: boolean;
   /** Absent = détenue et connecté (comportement historique). */
   canRelease?: boolean;
+  /** null/absent = données de lancement non chargées (best-effort). */
+  launch?: LaunchPanelData | null;
 }
 
 export function taskEditFormHtml(task: Task, authed: boolean): string {
@@ -270,6 +284,22 @@ export function taskEditFormHtml(task: Task, authed: boolean): string {
     `<div class="ds-dialog-actions"><button class="ds-btn ds-btn--primary" type="submit" id="task-edit-submit"${authed ? "" : " disabled"}>Enregistrer</button></div>` +
     (authed ? "" : `<p class="ds-list-sub">Lecture seule : connectez-vous pour modifier cette tâche.</p>`) +
     `</form>`;
+}
+
+export function launchSectionHtml(data: TaskDetailData): string {
+  const state: LaunchPanelState = {
+    data: data.launch ?? null,
+    authed: data.authed,
+    selectedMachineId: "",
+    selectedHarnessId: "",
+    agentStableKey: "",
+    preview: null,
+    previewLoading: false,
+    previewError: "",
+    notice: "",
+    error: "",
+  };
+  return `<div id="task-launch-panel">${launchPanelHtml(state)}</div>`;
 }
 
 export function taskDetailHtml(data: TaskDetailData): string {
@@ -307,6 +337,7 @@ export function taskDetailHtml(data: TaskDetailData): string {
       ? ""
       : `<p class="ds-list-sub">Réservations de ressources liées : ${data.taskClaims} — <a href="#/projects/${esc(task.project_id)}/claims">voir l'onglet Réservations du projet</a>.</p>`;
   return `<div class="tasks task-detail">${header}${notice}${overview}${edit}${claimSectionHtml(task, data.authed, canRelease)}` +
+    `${launchSectionHtml(data)}` +
     `<div data-msg class="ds-list-sub" role="status" aria-live="polite"></div>` +
     `${sessionsSectionHtml(data.sessions)}${aiWorkSectionHtml(data.worklogs)}${claimsLine}${techDetailsHtml(task)}</div>`;
 }
@@ -342,7 +373,8 @@ export async function renderTaskDetail(root: HTMLElement, baseCtx: TaskDetailCon
     // Best-effort : sections « indisponible », compteur omis, page intacte.
   }
 
-  paint(root, ctx, { task, sessions, worklogs, taskClaims, notice: "", authed: ctx.authed });
+  const launch = ctx.authed ? await loadLaunchData(ctx.client, task) : null;
+  paint(root, ctx, { task, sessions, worklogs, taskClaims, notice: "", authed: ctx.authed, launch });
 }
 
 function paint(root: HTMLElement, ctx: TaskDetailContext, data: TaskDetailData): void {
@@ -450,6 +482,112 @@ function bind(root: HTMLElement, ctx: TaskDetailContext, data: TaskDetailData): 
   root.querySelector("[data-release]")?.addEventListener("click", () => {
     void doRelease(root, ctx, task);
   });
+
+  bindLaunchPanel(root, ctx, task, data.launch ?? null);
+}
+
+function bindLaunchPanel(
+  root: HTMLElement,
+  ctx: TaskDetailContext,
+  task: Task,
+  initial: LaunchPanelData | null,
+): void {
+  const found = root.querySelector<HTMLElement>("#task-launch-panel");
+  if (found === null || !ctx.authed) return;
+  const container: HTMLElement = found;
+  const state: LaunchPanelState = {
+    data: initial,
+    authed: true,
+    selectedMachineId: "",
+    selectedHarnessId: "",
+    agentStableKey: "",
+    preview: null,
+    previewLoading: false,
+    previewError: "",
+    notice: "",
+    error: "",
+  };
+
+  function bindPanel(): void {
+    container.querySelector<HTMLSelectElement>("#launch-machine")?.addEventListener("change", (event) => {
+      state.selectedMachineId = (event.target as HTMLSelectElement).value;
+      state.selectedHarnessId = "";
+      state.preview = null;
+      state.previewError = "";
+      state.error = "";
+      render();
+    });
+    container.querySelector<HTMLSelectElement>("#launch-harness")?.addEventListener("change", (event) => {
+      state.selectedHarnessId = (event.target as HTMLSelectElement).value;
+      render();
+    });
+    container.querySelector<HTMLSelectElement>("#launch-agent")?.addEventListener("change", (event) => {
+      state.agentStableKey = (event.target as HTMLSelectElement).value;
+      state.preview = null;
+      state.previewError = "";
+      render();
+    });
+    container.querySelector("[data-action=launch-preview]")?.addEventListener("click", () => void doPreview());
+    container.querySelector("[data-action=launch-submit]")?.addEventListener("click", () => void doLaunch());
+  }
+
+  function render(): void {
+    container.innerHTML = launchPanelHtml(state);
+    bindPanel();
+  }
+
+  async function doPreview(): Promise<void> {
+    if (state.agentStableKey === "") return;
+    state.previewLoading = true;
+    state.previewError = "";
+    render();
+    try {
+      state.preview = await postResolution(ctx.client, {
+        stable_key: state.agentStableKey,
+        project_id: task.project_id,
+        session_overrides: [],
+      });
+    } catch (error) {
+      state.preview = null;
+      state.previewError = describeError(error);
+    } finally {
+      state.previewLoading = false;
+      render();
+    }
+  }
+
+  async function doLaunch(): Promise<void> {
+    const machine = selectedMachine(state);
+    if (machine === null || !machine.eligible || state.selectedHarnessId === "") return;
+    if (!window.confirm(launchConfirmText(machine, state.selectedHarnessId, state.agentStableKey))) return;
+    state.error = "";
+    state.notice = "";
+    const submit = container.querySelector<HTMLButtonElement>("[data-action=launch-submit]");
+    if (submit !== null) submit.disabled = true;
+    try {
+      const created = await createTaskLaunch(
+        ctx.client,
+        task.project_id,
+        {
+          task_id: task.id,
+          machine_id: machine.machine_id,
+          harness_id: state.selectedHarnessId,
+          ...(state.agentStableKey === "" ? {} : { agent_stable_key: state.agentStableKey }),
+          expires_in_seconds: 900,
+        },
+        newIdempotencyKey(),
+      );
+      if (state.data !== null) state.data = { ...state.data, latest: created };
+      state.notice = "Lancement demandé : en attente de la machine cible, qui seule rapporte l'exécution.";
+      dsNotify("Lancement demandé.", "success");
+      render();
+    } catch (error) {
+      state.error = describeError(error);
+      render();
+    }
+  }
+
+  render();
 }
 
 async function doClaim(root: HTMLElement, ctx: TaskDetailContext, taskId: string): Promise<void> {
@@ -510,6 +648,30 @@ async function doRelease(root: HTMLElement, ctx: TaskDetailContext, task: Task):
   }
 }
 
+async function loadLaunchData(client: StudioClient, task: Task): Promise<LaunchPanelData | null> {
+  const [machines, agents, launches] = await Promise.allSettled([
+    getEligibleMachines(client, task.id),
+    listLibraryResources(client, { kind: "agent_definition", projectId: task.project_id, limit: 100 }),
+    listTaskLaunches(client, task.project_id),
+  ]);
+  const machineList =
+    machines.status === "fulfilled" && Array.isArray(machines.value.machines) ? machines.value.machines : null;
+  if (machineList === null) return null;
+  const agentOptions: AgentOption[] =
+    agents.status === "fulfilled" && Array.isArray(agents.value)
+      ? agents.value
+          .filter((resource) => typeof resource.stable_key === "string")
+          .map((resource) => ({ stable_key: resource.stable_key }))
+      : [];
+  const rawLaunches = launches.status === "fulfilled" && Array.isArray(launches.value) ? launches.value : [];
+  const forTask = rawLaunches.filter((launch) => launch.task_id === task.id);
+  return {
+    machines: machineList,
+    agents: agentOptions,
+    latest: forTask.length === 0 ? null : (forTask[forTask.length - 1] ?? null),
+  };
+}
+
 async function readComplements(
   root: HTMLElement,
   ctx: TaskDetailContext,
@@ -522,15 +684,16 @@ async function readComplements(
     setMsg(root, "Rechargement impossible.", describeError(error));
     throw error;
   }
+  const launch = ctx.authed ? await loadLaunchData(ctx.client, fresh) : null;
   try {
     const [sessions, worklogs, claims] = await Promise.all([
       fetchJson<SessionRow[]>(ctx.client, "/api/v1/sessions", { task_id: fresh.id }),
       fetchJson<WorkRow[]>(ctx.client, "/api/v1/ai-work", { task_id: fresh.id }),
       fetchJson<{ id: string; task_id?: string | null }[]>(ctx.client, "/api/v1/claims", { project_id: fresh.project_id }),
     ]);
-    return { task: fresh, sessions, worklogs, taskClaims: claims.filter((claim) => claim.task_id === fresh.id).length };
+    return { task: fresh, sessions, worklogs, taskClaims: claims.filter((claim) => claim.task_id === fresh.id).length, launch };
   } catch {
-    return { task: fresh, sessions: null, worklogs: null, taskClaims: null };
+    return { task: fresh, sessions: null, worklogs: null, taskClaims: null, launch };
   }
 }
 
