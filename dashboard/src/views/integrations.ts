@@ -36,6 +36,17 @@ import {
   checkSkills,
   type SkillsCheckResult,
 } from "../skillsApi";
+import {
+  MAX_CONCURRENT,
+  MIN_CONCURRENT,
+  clampConcurrent,
+  getLaunchSettings,
+  launchSettingsErrorMessage,
+  offeredHarnesses,
+  saveLaunchSettings,
+  type LaunchSettings,
+  type LaunchSettingsView,
+} from "../launchSettingsApi";
 import { esc } from "../ui";
 import { configTabsHtml } from "./configuration";
 import { loadOnboardingState } from "../onboarding/state";
@@ -54,6 +65,12 @@ export interface IntegrationsView {
   verify?: HarnessVerifyResult;
   /** Library skills on this machine (read-only); absent when the check is unavailable. */
   skills?: SkillsCheckResult;
+  /** Remote-launch settings of this machine; absent when unavailable. */
+  launch?: LaunchSettingsView;
+  /** Edits awaiting the owner's explicit confirmation; nothing is saved before it. */
+  launchDraft?: LaunchSettings;
+  launchNotice?: string;
+  launchError?: string;
 }
 
 function header(): string {
@@ -199,6 +216,40 @@ export function skillsHtml(result: SkillsCheckResult): string {
   );
 }
 
+export function launchSettingsHtml(view: LaunchSettingsView, draft?: LaunchSettings, notice?: string, error?: string): string {
+  const shown = draft ?? view;
+  const allowed = new Set(shown.allowed_harnesses ?? []);
+  const offered = offeredHarnesses(view);
+  const detected = new Set(view.detected_harnesses ?? []);
+  const boxes = offered.length === 0
+    ? `<p class="settings-intro" data-testid="launch-no-harness">Aucun harnais détecté sur ce poste : aucun lancement ne pourra être accepté.</p>`
+    : offered
+        .map(
+          (id) =>
+            `<label class="settings-check"><input type="checkbox" data-launch-harness="${esc(id)}"${allowed.has(id) ? " checked" : ""}${draft ? " disabled" : ""}> <code class="mono">${esc(id)}</code>${detected.has(id) ? "" : " (non détecté)"}</label>`,
+        )
+        .join("");
+  const form =
+    `<label class="settings-check"><input type="checkbox" data-launch-field="opt_in"${shown.opt_in ? " checked" : ""}${draft ? " disabled" : ""}> Accepter les lancements demandés à distance sur ce poste</label>` +
+    `<label class="settings-field">Lancements simultanés maximum (${MIN_CONCURRENT} à ${MAX_CONCURRENT}) <input type="number" min="${MIN_CONCURRENT}" max="${MAX_CONCURRENT}" step="1" data-launch-field="max_concurrent" value="${shown.max_concurrent}"${draft ? " disabled" : ""}></label>` +
+    `<fieldset class="settings-field"><legend>Harnais autorisés</legend>${boxes}</fieldset>`;
+  const actions = draft
+    ? `<div class="settings-confirm" role="alert" data-testid="launch-confirm"><p>Enregistrer ces réglages ? Vous seul autorisez les lancements sur ce poste : ${draft.opt_in ? `ils seront acceptés (${draft.max_concurrent} simultané(s) au plus, ${(draft.allowed_harnesses ?? []).length} harnais autorisé(s))` : "aucun lancement ne sera accepté"}.</p>` +
+      `<button class="ds-btn ds-btn--primary" type="button" data-action="confirm-launch">Confirmer l'enregistrement</button> ` +
+      `<button class="ds-btn" type="button" data-action="cancel-launch">Annuler</button></div>`
+    : `<button class="ds-btn ds-btn--primary" type="button" data-action="save-launch">Enregistrer…</button>`;
+  return (
+    `<section class="settings-domain" data-testid="launch-settings" data-opt-in="${view.opt_in}">` +
+    `<h2>Lancements à distance sur ce poste</h2>` +
+    `<p class="settings-intro">${dsBadge(view.opt_in ? "Activés" : "Désactivés", view.opt_in ? "success" : "neutral")} Par défaut rien n'est accepté : seul le propriétaire du poste autorise les lancements et choisit les harnais permis.</p>` +
+    (notice ? `<p class="settings-notice" role="status" data-testid="launch-notice">${esc(notice)}</p>` : "") +
+    (error ? `<p class="ds-field-error" role="alert" data-testid="launch-error">${esc(error)}</p>` : "") +
+    form +
+    actions +
+    `</section>`
+  );
+}
+
 export function integrationsHtml(harnesses: HarnessStatus[], view: IntegrationsView = {}): string {
   const notice = view.notice ? `<p class="settings-notice" role="status" data-testid="notice">${esc(view.notice)}</p>` : "";
   const error = view.error ? `<p class="ds-field-error" role="alert" data-testid="error">${esc(view.error)}</p>` : "";
@@ -212,7 +263,8 @@ export function integrationsHtml(harnesses: HarnessStatus[], view: IntegrationsV
     notice +
     error +
     `<div class="integrations-list">${list}</div></section>` +
-    (view.skills ? skillsHtml(view.skills) : "")
+    (view.skills ? skillsHtml(view.skills) : "") +
+    (view.launch ? launchSettingsHtml(view.launch, view.launchDraft, view.launchNotice, view.launchError) : "")
   );
 }
 
@@ -237,13 +289,43 @@ export async function renderIntegrations(
   }
   // Best effort: an unavailable check never hides the harness list.
   const skills = await checkSkills(platform).catch(() => null);
-  const withSkills = skills?.ok ? { ...view, skills: skills.value } : view;
+  const launch = await getLaunchSettings(platform).catch(() => null);
+  const withSkills = {
+    ...view,
+    ...(skills?.ok ? { skills: skills.value } : {}),
+    ...(launch?.ok ? { launch: launch.value } : {}),
+  };
   root.innerHTML = integrationsHtml(detected.value.harnesses ?? [], withSkills);
-  bind(root, workspaceId, platform, view.plan);
+  bind(root, workspaceId, platform, view.plan, view.launchDraft);
 }
 
-function bind(root: HTMLElement, workspaceId: string, platform: Platform, shown: HarnessPlan | undefined): void {
+function readLaunchDraft(root: HTMLElement): LaunchSettings {
+  const field = (name: string): HTMLInputElement | null => root.querySelector<HTMLInputElement>(`[data-launch-field="${name}"]`);
+  return {
+    opt_in: field("opt_in")?.checked === true,
+    max_concurrent: clampConcurrent(Number(field("max_concurrent")?.value)),
+    allowed_harnesses: [...root.querySelectorAll<HTMLInputElement>("[data-launch-harness]")]
+      .filter((box) => box.checked)
+      .map((box) => box.dataset["launchHarness"] ?? ""),
+  };
+}
+
+function bindLaunch(root: HTMLElement, platform: Platform, draft: LaunchSettings | undefined, again: (view?: IntegrationsView) => Promise<void>): void {
+  root.querySelector("[data-action=save-launch]")?.addEventListener("click", () => void again({ launchDraft: readLaunchDraft(root) }));
+  root.querySelector("[data-action=cancel-launch]")?.addEventListener("click", () => void again());
+  root.querySelector("[data-action=confirm-launch]")?.addEventListener("click", () => {
+    if (draft === undefined) return;
+    void saveLaunchSettings(platform, draft).then((outcome) =>
+      outcome.ok
+        ? again({ launchNotice: "Réglages de lancement enregistrés ; ils s'appliquent sans redémarrage." })
+        : again({ launchDraft: draft, launchError: launchSettingsErrorMessage(outcome.error) }),
+    );
+  });
+}
+
+function bind(root: HTMLElement, workspaceId: string, platform: Platform, shown: HarnessPlan | undefined, draft?: LaunchSettings): void {
   const again = (view: IntegrationsView = {}): Promise<void> => renderIntegrations(root, workspaceId, platform, view);
+  bindLaunch(root, platform, draft, again);
   for (const card of root.querySelectorAll<HTMLElement>("[data-harness]")) {
     const adapterId = card.dataset["harness"] ?? "";
     card.querySelector("[data-action=preview]")?.addEventListener("click", () => {
