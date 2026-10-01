@@ -153,8 +153,9 @@ class TaskLaunchMachineReport(ContractModel):
 
 
 class TaskLaunchCancel(ContractModel):
-    """Requester cancel: `409` on a terminal launch. The target machine sees
-    the cancellation on its next pull and must stop the work."""
+    """Requester cancel: `409` on a terminal launch. The pending pull returns
+    non-terminal launches only, so the target machine observes the cancellation
+    by re-reading the launch by id and must stop the work."""
 
     expected_version: int
 
