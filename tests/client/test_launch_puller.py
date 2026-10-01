@@ -1,137 +1,151 @@
 from __future__ import annotations
 
-import json
+import asyncio
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
 
-import httpx
 import pytest
-from studio_client.api_client import StudioApiClient
-from studio_client.config import ClientConfig, GitWatchConfig
-from studio_client.launch import LaunchPolicy, LaunchPuller, evaluate_launch
-from studio_client.tokens import MemoryTokenStore
+from studio_client.daemon.launch_policy import LaunchPolicy
+from studio_client.daemon.launch_puller import LaunchPuller
+from studio_client.errors import StudioApiError
+from studio_client.outbox import OutboxStore
+from studio_client.outbox.models import OutboxTable
+from studio_client.outbox.store import connect
 from studio_contracts.task_launch import TaskLaunch, TaskLaunchReasonCode, TaskLaunchStatus
 
-MACHINE_ID = uuid4()
-PROJECT_ID = uuid4()
-
-
-def _config(**overrides: Any) -> ClientConfig:
-    params: dict[str, Any] = {
-        "api_base_url": "http://test",
-        "machine_id": MACHINE_ID,
-        "max_attempts": 1,
-        "launch_opt_in": True,
-        "launch_allowed_harnesses": ("claude-code",),
-        "git_watches": (GitWatchConfig(repo_path=".", project_id=PROJECT_ID),),
-    }
-    params.update(overrides)
-    return ClientConfig(**params)
+PROJECT = uuid4()
+MACHINE = uuid4()
 
 
 def _launch(
     *,
     status: TaskLaunchStatus = TaskLaunchStatus.REQUESTED,
     harness: str = "claude-code",
-    project_id: UUID = PROJECT_ID,
+    project_id: UUID = PROJECT,
+    version: int = 1,
 ) -> TaskLaunch:
+    now = datetime.now(UTC)
     return TaskLaunch(
         id=uuid4(),
-        version=3,
-        created_at=datetime.now(UTC),
-        updated_at=datetime.now(UTC),
+        created_at=now,
+        updated_at=now,
+        version=version,
         project_id=project_id,
         task_id=uuid4(),
-        machine_id=MACHINE_ID,
+        machine_id=MACHINE,
         requested_by_user_id=uuid4(),
         harness_id=harness,
         status=status,
-        expires_at=datetime.now(UTC) + timedelta(minutes=15),
+        expires_at=now + timedelta(minutes=15),
     )
 
 
+def _policy(**overrides: Any) -> LaunchPolicy:
+    base: dict[str, Any] = {
+        "opt_in": True,
+        "project_ids": frozenset({PROJECT}),
+        "allowed_harnesses": frozenset({"claude-code"}),
+        "detected_harnesses": frozenset({"claude-code"}),
+        "max_concurrent": 1,
+    }
+    base.update(overrides)
+    return LaunchPolicy(**base)
+
+
 @pytest.mark.parametrize(
-    ("config_overrides", "launch_kwargs", "running", "expected"),
+    ("overrides", "launch_kwargs", "active", "expected"),
     [
         ({}, {}, 0, TaskLaunchReasonCode.NONE),
-        ({"launch_opt_in": False}, {}, 0, TaskLaunchReasonCode.NOT_OPTED_IN),
+        ({"opt_in": False}, {}, 0, TaskLaunchReasonCode.NOT_OPTED_IN),
         ({}, {"project_id": uuid4()}, 0, TaskLaunchReasonCode.PROJECT_NOT_REGISTERED),
         ({}, {"harness": "codex"}, 0, TaskLaunchReasonCode.HARNESS_NOT_ALLOWED),
-        ({"launch_allowed_harnesses": ()}, {}, 0, TaskLaunchReasonCode.HARNESS_NOT_ALLOWED),
+        (
+            {"detected_harnesses": frozenset()},
+            {},
+            0,
+            TaskLaunchReasonCode.HARNESS_NOT_FOUND,
+        ),
         ({}, {}, 1, TaskLaunchReasonCode.CAPACITY_REACHED),
-        ({"max_concurrent_launches": 2}, {}, 1, TaskLaunchReasonCode.NONE),
+        ({"allowed_harnesses": frozenset()}, {}, 0, TaskLaunchReasonCode.HARNESS_NOT_ALLOWED),
     ],
 )
-def test_policy(
-    config_overrides: dict[str, Any],
+def test_policy_refusals(
+    overrides: dict[str, Any],
     launch_kwargs: dict[str, Any],
-    running: int,
+    active: int,
     expected: TaskLaunchReasonCode,
 ) -> None:
-    policy = LaunchPolicy.from_config(_config(**config_overrides))
-    assert evaluate_launch(policy, _launch(**launch_kwargs), running=running) is expected
+    assert _policy(**overrides).evaluate(_launch(**launch_kwargs), active=active) is expected
+
+
+class FakeClient:
+    def __init__(self, pending: list[TaskLaunch]) -> None:
+        self.pending = pending
+        self.fail = False
+
+    async def pull_pending_launches(self, machine_id: UUID) -> list[TaskLaunch]:
+        assert machine_id == MACHINE
+        if self.fail:
+            raise StudioApiError(503, "unavailable", "boom")
+        return self.pending
 
 
 def _puller(
-    pending: list[TaskLaunch], config: ClientConfig | None = None
-) -> tuple[LaunchPuller, list[dict[str, Any]]]:
-    reports: list[dict[str, Any]] = []
-    by_id = {str(launch.id): launch for launch in pending}
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        if request.method == "GET":
-            assert request.url.path == f"/api/v1/machines/{MACHINE_ID}/task-launches/pending"
-            return httpx.Response(
-                200, json={"items": [launch.model_dump(mode="json") for launch in pending]}
-            )
-        launch_id = request.url.path.split("/")[-2]
-        body = json.loads(request.content)
-        reports.append({"id": launch_id, **body})
-        updated = by_id[launch_id].model_copy(
-            update={"status": body["status"], "reason_code": body["reason_code"]}
-        )
-        return httpx.Response(200, json=updated.model_dump(mode="json"))
-
-    tokens = MemoryTokenStore()
-    tokens.set_token("http://test", "test-token")
-    cfg = config or _config()
-    client = StudioApiClient(cfg, tokens, transport=httpx.MockTransport(handler))
-    return LaunchPuller(client, cfg), reports
+    tmp_path: Path, client: FakeClient, policy: LaunchPolicy
+) -> tuple[LaunchPuller, OutboxStore]:
+    store = OutboxStore(connect(tmp_path / "outbox.sqlite3"))
+    puller = LaunchPuller(client, store, MACHINE, lambda: policy)  # type: ignore[arg-type]
+    return puller, store
 
 
-async def test_accepts_allowed_launch_and_reports_version() -> None:
-    puller, reports = _puller([_launch()])
-    outcome = await puller.poll()
-    assert [r["status"] for r in reports] == ["accepted"]
-    assert reports[0]["expected_version"] == 3
-    assert len(outcome.accepted) == 1
-    assert puller.running == 1
+def _reports(store: OutboxStore) -> list[tuple[str, str]]:
+    rows = store.list_pending(OutboxTable.MUTATIONS)
+    return [(str(row.extra["path"]), str(row.payload["status"])) for row in rows]
 
 
-async def test_rejects_with_closed_reason_when_not_opted_in() -> None:
-    puller, reports = _puller([_launch()], _config(launch_opt_in=False))
-    outcome = await puller.poll()
-    assert reports[0]["status"] == "rejected"
-    assert reports[0]["reason_code"] == "not_opted_in"
-    assert outcome.accepted == []
-    assert puller.running == 0
-
-
-async def test_concurrency_counts_active_and_accepted_in_same_poll() -> None:
-    active = _launch(status=TaskLaunchStatus.RUNNING)
+def test_accepts_then_rejects_over_capacity(tmp_path: Path) -> None:
     first, second = _launch(), _launch()
-    puller, reports = _puller([active, first, second], _config(max_concurrent_launches=2))
-    await puller.poll()
-    assert [(r["status"], r["reason_code"]) for r in reports] == [
-        ("accepted", "none"),
-        ("rejected", "capacity_reached"),
-    ]
-    assert puller.running == 2
+    puller, store = _puller(tmp_path, FakeClient([first, second]), _policy())
+    decided = asyncio.run(puller.poll())
+    assert [launch.id for launch in decided] == [first.id, second.id]
+    rows = store.list_pending(OutboxTable.MUTATIONS)
+    by_path = {str(r.extra["path"]): r.payload for r in rows}
+    assert by_path[f"/api/v1/task-launches/{first.id}/report"]["status"] == "accepted"
+    rejected = by_path[f"/api/v1/task-launches/{second.id}/report"]
+    assert rejected["status"] == "rejected"
+    assert rejected["reason_code"] == "capacity_reached"
+    assert rejected["expected_version"] == 1
 
 
-async def test_non_requested_launches_are_not_re_reported() -> None:
-    puller, reports = _puller([_launch(status=TaskLaunchStatus.ACCEPTED)])
-    await puller.poll()
-    assert reports == []
-    assert puller.running == 1
+def test_owned_launch_counts_and_is_not_redecided(tmp_path: Path) -> None:
+    running = _launch(status=TaskLaunchStatus.RUNNING)
+    queued = _launch()
+    puller, store = _puller(tmp_path, FakeClient([running, queued]), _policy())
+    asyncio.run(puller.poll())
+    assert _reports(store) == [(f"/api/v1/task-launches/{queued.id}/report", "rejected")]
+
+
+def test_repoll_before_server_update_does_not_duplicate(tmp_path: Path) -> None:
+    launch = _launch()
+    puller, store = _puller(tmp_path, FakeClient([launch]), _policy())
+    assert len(asyncio.run(puller.poll())) == 1
+    assert asyncio.run(puller.poll()) == []
+    assert len(store.list_pending(OutboxTable.MUTATIONS)) == 1
+
+
+def test_not_opted_in_rejects_everything(tmp_path: Path) -> None:
+    launch = _launch()
+    puller, store = _puller(tmp_path, FakeClient([launch]), _policy(opt_in=False))
+    asyncio.run(puller.poll())
+    [row] = store.list_pending(OutboxTable.MUTATIONS)
+    assert row.payload["reason_code"] == "not_opted_in"
+
+
+def test_pull_failure_is_swallowed(tmp_path: Path) -> None:
+    client = FakeClient([_launch()])
+    client.fail = True
+    puller, store = _puller(tmp_path, client, _policy())
+    assert asyncio.run(puller.poll()) == []
+    assert store.list_pending(OutboxTable.MUTATIONS) == []

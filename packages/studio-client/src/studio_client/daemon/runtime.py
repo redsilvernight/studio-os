@@ -32,13 +32,14 @@ from studio_client.api_client import StudioApiClient
 from studio_client.capabilities import build_capabilities
 from studio_client.config import ClientConfig, GitWatchConfig, default_config_path
 from studio_client.daemon.heartbeat import HeartbeatDaemon, build_godot_watchers
+from studio_client.daemon.launch_policy import build_launch_policy
+from studio_client.daemon.launch_puller import LaunchPuller
 from studio_client.daemon.workspace_watch import (
     RepoObservation,
     WorkspaceWatchLike,
     WorkspaceWatchSet,
 )
 from studio_client.errors import AuthenticationError, ServerError, TransportError
-from studio_client.launch import LaunchPuller
 from studio_client.outbox import (
     OutboxIdentityError,
     OutboxReplayer,
@@ -289,16 +290,18 @@ class DaemonRuntime:
                 )
                 replayer = OutboxReplayer(store, client, policy, active_binding=self.binding)
                 self._replayer = replayer
-                launch_puller = LaunchPuller(client, self.config)
                 self._heartbeat = HeartbeatDaemon(
                     client,
                     self.config,
                     agent_id=self.agent_id,
                     replayer=replayer,
-                    capabilities_provider=lambda: build_capabilities(
-                        self.config, running_launches=launch_puller.running
+                    capabilities_provider=lambda: build_capabilities(self.config),
+                    launch_puller=LaunchPuller(
+                        client,
+                        store,
+                        self.binding.machine_id,
+                        lambda: build_launch_policy(self.config),
                     ),
-                    launch_puller=launch_puller,
                 )
                 self._watchers = build_godot_watchers(self.config, store)
                 self._workspace_watches = WorkspaceWatchSet(
