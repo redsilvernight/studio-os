@@ -65,6 +65,7 @@ def run_git(args: Sequence[str], cwd: Path) -> GitResult:
     completed = subprocess.run(
         ["git", *args],
         cwd=cwd,
+        stdin=subprocess.DEVNULL,
         capture_output=True,
         text=True,
         encoding="utf-8",
