@@ -38,6 +38,7 @@ from studio_client.daemon.workspace_watch import (
     WorkspaceWatchSet,
 )
 from studio_client.errors import AuthenticationError, ServerError, TransportError
+from studio_client.launch import LaunchPuller
 from studio_client.outbox import (
     OutboxIdentityError,
     OutboxReplayer,
@@ -288,12 +289,16 @@ class DaemonRuntime:
                 )
                 replayer = OutboxReplayer(store, client, policy, active_binding=self.binding)
                 self._replayer = replayer
+                launch_puller = LaunchPuller(client, self.config)
                 self._heartbeat = HeartbeatDaemon(
                     client,
                     self.config,
                     agent_id=self.agent_id,
                     replayer=replayer,
-                    capabilities_provider=lambda: build_capabilities(self.config),
+                    capabilities_provider=lambda: build_capabilities(
+                        self.config, running_launches=launch_puller.running
+                    ),
+                    launch_puller=launch_puller,
                 )
                 self._watchers = build_godot_watchers(self.config, store)
                 self._workspace_watches = WorkspaceWatchSet(

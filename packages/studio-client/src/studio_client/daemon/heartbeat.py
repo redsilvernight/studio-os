@@ -13,6 +13,7 @@ from studio_client.api_client import StudioApiClient
 from studio_client.capabilities import CapabilitiesProvider
 from studio_client.config import ClientConfig
 from studio_client.errors import StudioApiError
+from studio_client.launch import LaunchPuller
 from studio_client.outbox import OutboxReplayer, OutboxStore, ReplayOutcome
 from studio_client.watchers import GitWatcher, GodotWatcher, PollingWatcher
 
@@ -46,6 +47,7 @@ class HeartbeatDaemon:
         random_fn: Callable[[], float] | None = None,
         replayer: OutboxReplayer | None = None,
         capabilities_provider: CapabilitiesProvider | None = None,
+        launch_puller: LaunchPuller | None = None,
     ) -> None:
         if config.machine_id is None:
             raise ValueError("ClientConfig.machine_id must be set to run the heartbeat daemon")
@@ -67,6 +69,7 @@ class HeartbeatDaemon:
         self._random = random_fn or random.random
         self._replayer = replayer
         self._capabilities_provider = capabilities_provider
+        self._launch_puller = launch_puller
         self._stop_event = asyncio.Event()
         self.last_attempt_at: datetime | None = None
         self.last_success_at: datetime | None = None
@@ -100,6 +103,7 @@ class HeartbeatDaemon:
                 self.last_attempt_at = self.last_success_at
                 self.last_error = None
                 await self._replay_outbox()
+                await self._pull_launches()
             if self._stop_event.is_set():
                 break
             await self._wait(self._next_delay())
@@ -111,6 +115,10 @@ class HeartbeatDaemon:
             self.last_replay = await self._replayer.replay_ready()
         except StudioApiError:
             logger.warning("outbox replay failed", exc_info=True)
+
+    async def _pull_launches(self) -> None:
+        if self._launch_puller is not None:
+            await self._launch_puller.poll()
 
     async def _wait(self, delay: float) -> None:
         """Waits up to `delay`, but returns as soon as `request_stop()` is

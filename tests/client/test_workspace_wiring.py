@@ -60,7 +60,14 @@ class FakeHeartbeat:
     instances: list[FakeHeartbeat] = []
 
     def __init__(
-        self, _client, _config, *, agent_id=None, replayer=None, capabilities_provider=None
+        self,
+        _client,
+        _config,
+        *,
+        agent_id=None,
+        replayer=None,
+        capabilities_provider=None,
+        launch_puller=None,
     ) -> None:
         self.stop = asyncio.Event()
         self.last_attempt_at = None
