@@ -41,6 +41,7 @@ from studio_contracts.projects import Project
 from studio_contracts.resolution import AgentResolutionRequest, ResolvedAgentDefinition
 from studio_contracts.review_queue import ReviewQueue
 from studio_contracts.sessions import WorkSession, WorkSessionCreate
+from studio_contracts.task_launch import TaskLaunch, TaskLaunchMachineReport, TaskLaunchPull
 from studio_contracts.tasks import Task, TaskCreate, TaskUpdate
 from studio_contracts.timeline import Timeline
 from studio_contracts.transfers import (
@@ -264,6 +265,20 @@ class StudioApiClient:
             idempotent=True,
         )
         return HeartbeatResponse.model_validate(response.json())
+
+    async def pull_pending_launches(self, machine_id: UUID) -> TaskLaunchPull:
+        response = await self._request(
+            "GET", f"/api/v1/machines/{machine_id}/task-launches/pending"
+        )
+        return TaskLaunchPull.model_validate(response.json())
+
+    async def report_launch(self, launch_id: UUID, report: TaskLaunchMachineReport) -> TaskLaunch:
+        response = await self._request(
+            "POST",
+            f"/api/v1/task-launches/{launch_id}/report",
+            json=report.model_dump(mode="json"),
+        )
+        return TaskLaunch.model_validate(response.json())
 
     async def post_event(self, event: EventCreate) -> EventEnvelope:
         """Idempotent by construction: `event.event_id` is the replay key
