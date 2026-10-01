@@ -1,0 +1,11 @@
+{
+  "data": {
+    "allowed_harnesses": [
+      "harness-a"
+    ],
+    "confirmed": true,
+    "max_concurrent": 2,
+    "opt_in": true
+  },
+  "model": "LaunchSettingsSaveRequest"
+}

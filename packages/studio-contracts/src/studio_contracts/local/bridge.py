@@ -67,6 +67,11 @@ from studio_contracts.local.knowledge import (
     KnowledgeSearchResult,
     KnowledgeStatus,
 )
+from studio_contracts.local.launch import (
+    LaunchSettingsRequest,
+    LaunchSettingsSaveRequest,
+    LaunchSettingsView,
+)
 from studio_contracts.local.publication import (
     PublicationPlan,
     PublicationPreviewRequest,
@@ -149,6 +154,8 @@ class BridgeCommand(StrEnum):
     HARNESS_ROLLBACK = "harness.rollback"
     HARNESS_VERIFY = "harness.verify"
     SKILLS_CHECK = "skills.check"
+    LAUNCH_GET_SETTINGS = "launch.get_settings"
+    LAUNCH_SAVE_SETTINGS = "launch.save_settings"
     PUBLICATION_PREVIEW = "publication.preview"
     PUBLICATION_PUBLISH = "publication.publish"
 
@@ -341,6 +348,19 @@ BRIDGE_COMMANDS: dict[BridgeCommand, CommandSpec] = dict(
             "harness.verify",
         ),
         _spec(BridgeCommand.SKILLS_CHECK, SkillsCheckRequest, SkillsCheckResult, "skills.read"),
+        _spec(
+            BridgeCommand.LAUNCH_GET_SETTINGS,
+            LaunchSettingsRequest,
+            LaunchSettingsView,
+            "launch.settings",
+        ),
+        _spec(
+            BridgeCommand.LAUNCH_SAVE_SETTINGS,
+            LaunchSettingsSaveRequest,
+            LaunchSettingsView,
+            "launch.settings",
+            mutating=True,
+        ),
         _spec(
             BridgeCommand.PUBLICATION_PREVIEW,
             PublicationPreviewRequest,

@@ -53,6 +53,8 @@ pub const SERVED_BY_DAEMON: &[&str] = &[
     "harness.rollback",
     "harness.verify",
     "skills.check",
+    "launch.get_settings",
+    "launch.save_settings",
 ];
 
 #[derive(Debug, Clone, Deserialize)]
@@ -104,8 +106,8 @@ mod tests {
     fn allowlist_matches_p1_export() {
         assert_eq!(
             all_commands().len(),
-            35,
-            "studio.local/v1 exports 35 commands"
+            37,
+            "studio.local/v1 exports 37 commands"
         );
         assert!(lookup("runtime.handshake").is_some());
         assert!(lookup("daemon.status").is_some());

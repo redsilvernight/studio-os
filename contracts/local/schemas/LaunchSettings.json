@@ -1,0 +1,32 @@
+{
+  "additionalProperties": false,
+  "description": "What this machine agrees to when a remote launch is requested for it.\nOpting in never allows a harness implicitly: `allowed_harnesses` is an\nexplicit list, and empty means none.",
+  "properties": {
+    "allowed_harnesses": {
+      "default": [],
+      "items": {
+        "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+        "type": "string"
+      },
+      "maxItems": 16,
+      "title": "Allowed Harnesses",
+      "type": "array"
+    },
+    "max_concurrent": {
+      "maximum": 8,
+      "minimum": 1,
+      "title": "Max Concurrent",
+      "type": "integer"
+    },
+    "opt_in": {
+      "title": "Opt In",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "opt_in",
+    "max_concurrent"
+  ],
+  "title": "LaunchSettings",
+  "type": "object"
+}

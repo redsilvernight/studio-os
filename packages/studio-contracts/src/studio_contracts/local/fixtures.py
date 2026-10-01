@@ -109,6 +109,7 @@ from studio_contracts.local.knowledge import (
     KnowledgeStatus,
     KnowledgeVaultState,
 )
+from studio_contracts.local.launch import LaunchSettingsSaveRequest, LaunchSettingsView
 from studio_contracts.local.provider import IndexInfo, IndexState, ProviderInfo
 from studio_contracts.local.publication import (
     DEFAULT_PUBLICATION_POLICY,
@@ -181,6 +182,7 @@ DESKTOP_CAPABILITIES = [
     "knowledge.index",
     "knowledge.init",
     "knowledge.read",
+    "launch.settings",
     "publication.plan",
     "publication.publish",
     "skills.read",
@@ -1460,6 +1462,16 @@ def build_fixtures() -> list[LocalFixture]:
         checked_at=NOW,
     )
 
+    fixtures["launch.settings.view"] = LaunchSettingsView(
+        opt_in=True,
+        max_concurrent=2,
+        allowed_harnesses=["harness-a"],
+        detected_harnesses=["harness-a", "harness-b"],
+    )
+    fixtures["launch.settings.save_request"] = LaunchSettingsSaveRequest(
+        opt_in=True, max_concurrent=2, allowed_harnesses=["harness-a"], confirmed=True
+    )
+
     fixtures["publication.plan.preview"] = _publication_plan()
     fixtures["publication.result.published"] = PublicationResult(
         plan_id="pub-0001", outcome=PublicationOutcome.PUBLISHED, published_at=NOW
@@ -1812,6 +1824,33 @@ def build_invalid_fixtures() -> list[InvalidFixture]:
                 lambda data: data["skills"][0].__setitem__("path", "C:/Users/dev/.claude/skills"),
             ),
             "a skill entry carries no filesystem path",
+        ),
+        InvalidFixture(
+            "launch.settings.save_unconfirmed",
+            "LaunchSettingsSaveRequest",
+            _with("launch.settings.save_request", add_field("confirmed", False)),
+            "saving the launch opt-in requires explicit confirmation",
+        ),
+        InvalidFixture(
+            "launch.settings.duplicate_harness",
+            "LaunchSettingsView",
+            _with(
+                "launch.settings.view",
+                add_field("allowed_harnesses", ["harness-a", "harness-a"]),
+            ),
+            "a harness is allowed at most once",
+        ),
+        InvalidFixture(
+            "launch.settings.concurrency_out_of_range",
+            "LaunchSettingsView",
+            _with("launch.settings.view", add_field("max_concurrent", 0)),
+            "concurrency is bounded between one and the documented maximum",
+        ),
+        InvalidFixture(
+            "launch.settings.path_leak",
+            "LaunchSettingsView",
+            _with("launch.settings.view", add_field("project_root", "C:/Users/dev/repo")),
+            "the settings view carries no filesystem path",
         ),
         InvalidFixture(
             "publication.publish_unconfirmed",

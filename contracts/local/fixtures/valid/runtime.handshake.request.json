@@ -17,6 +17,7 @@
         "knowledge.index",
         "knowledge.init",
         "knowledge.read",
+        "launch.settings",
         "publication.plan",
         "publication.publish",
         "skills.read",

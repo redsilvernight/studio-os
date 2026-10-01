@@ -1,0 +1,16 @@
+{
+  "data": {
+    "allowed_harnesses": [
+      "harness-a"
+    ],
+    "detected_harnesses": [
+      "harness-a",
+      "harness-b"
+    ],
+    "max_concurrent": 2,
+    "opt_in": true,
+    "project_root": "C:/Users/dev/repo"
+  },
+  "model": "LaunchSettingsView",
+  "reason": "the settings view carries no filesystem path"
+}

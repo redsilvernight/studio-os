@@ -1,0 +1,38 @@
+{
+  "additionalProperties": false,
+  "description": "Writing the opt-in is a deliberate act of the machine owner: nothing is\nsaved from a request that does not carry an explicit confirmation.",
+  "properties": {
+    "allowed_harnesses": {
+      "default": [],
+      "items": {
+        "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+        "type": "string"
+      },
+      "maxItems": 16,
+      "title": "Allowed Harnesses",
+      "type": "array"
+    },
+    "confirmed": {
+      "const": true,
+      "title": "Confirmed",
+      "type": "boolean"
+    },
+    "max_concurrent": {
+      "maximum": 8,
+      "minimum": 1,
+      "title": "Max Concurrent",
+      "type": "integer"
+    },
+    "opt_in": {
+      "title": "Opt In",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "opt_in",
+    "max_concurrent",
+    "confirmed"
+  ],
+  "title": "LaunchSettingsSaveRequest",
+  "type": "object"
+}

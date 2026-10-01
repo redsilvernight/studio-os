@@ -288,6 +288,28 @@
     },
     {
       "cancellable": false,
+      "capability": "launch.settings",
+      "command": "launch.get_settings",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "LaunchSettingsRequest",
+      "response": "LaunchSettingsView",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "launch.settings",
+      "command": "launch.save_settings",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": true,
+      "request": "LaunchSettingsSaveRequest",
+      "response": "LaunchSettingsView",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
       "capability": "publication.plan",
       "command": "publication.preview",
       "max_request_bytes": 65536,

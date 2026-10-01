@@ -77,6 +77,11 @@ from studio_contracts.local.knowledge import (
     KnowledgeReindexRequest,
     KnowledgeSearchRequest,
 )
+from studio_contracts.local.launch import (
+    LaunchSettingsRequest,
+    LaunchSettingsSaveRequest,
+    LaunchSettingsView,
+)
 from studio_contracts.local.skills import SkillsCheckRequest, SkillsCheckResult
 from studio_contracts.local.workspace import (
     WorkspaceConfirmRootsRequest,
@@ -91,6 +96,7 @@ from studio_workspaces.workspace_bridge import WorkspaceBridge
 from studio_client.config import ClientConfig, default_config_path, reload_git_watches
 from studio_client.daemon.desktop_origin import DesktopOriginError, desktop_client_config
 from studio_client.daemon.enrollment import EnrollmentError, enroll_machine
+from studio_client.daemon.launch_settings_bridge import get_launch_settings, save_launch_settings
 from studio_client.daemon.local_features import (
     FEATURE_CAPABILITIES,
     LocalFeatureError,
@@ -174,6 +180,8 @@ SERVED = frozenset(
         BridgeCommand.HARNESS_ROLLBACK,
         BridgeCommand.HARNESS_VERIFY,
         BridgeCommand.SKILLS_CHECK,
+        BridgeCommand.LAUNCH_GET_SETTINGS,
+        BridgeCommand.LAUNCH_SAVE_SETTINGS,
     }
 )
 _LOCAL_FEATURE_COMMANDS = frozenset(
@@ -387,6 +395,12 @@ class DaemonController:
 
     def skills_check(self) -> SkillsCheckResult:
         return check_skills(self.config, self._token_store, home=self._skills_home())
+
+    def launch_settings(self) -> LaunchSettingsView:
+        return get_launch_settings(self.config, self.data_root)
+
+    def save_launch_settings(self, request: LaunchSettingsSaveRequest) -> LaunchSettingsView:
+        return save_launch_settings(self.config, self.data_root, request)
 
     def identity_view(self) -> IdentityView:
         profile = self._profile()
@@ -698,6 +712,7 @@ class BridgeService:
                             "identity.view",
                             "identity.enroll",
                             "skills.read",
+                            "launch.settings",
                             *(
                                 WORKSPACE_CAPABILITIES
                                 if self.controller.workspace_bridge is not None
@@ -722,6 +737,13 @@ class BridgeService:
         if request.command is BridgeCommand.SKILLS_CHECK:
             SkillsCheckRequest.model_validate(request.payload)
             return self.controller.skills_check()
+        if request.command is BridgeCommand.LAUNCH_GET_SETTINGS:
+            LaunchSettingsRequest.model_validate(request.payload)
+            return self.controller.launch_settings()
+        if request.command is BridgeCommand.LAUNCH_SAVE_SETTINGS:
+            return self.controller.save_launch_settings(
+                LaunchSettingsSaveRequest.model_validate(request.payload)
+            )
         if request.command in _WORKSPACE_COMMANDS:
             return self._workspace(request)
         if request.command in _LOCAL_FEATURE_COMMANDS:
