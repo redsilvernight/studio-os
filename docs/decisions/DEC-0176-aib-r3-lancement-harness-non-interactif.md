@@ -1,7 +1,7 @@
 ---
 id: DEC-0176
 title: 'AIB R3 : lancement non interactif des harness (permissions bornees, timeout dur)'
-status: proposed
+status: accepted
 date: '2026-10-01'
 superseded_by: null
 source: docs/AI_BOOTSTRAP_ROADMAP.md
@@ -9,7 +9,7 @@ source: docs/AI_BOOTSTRAP_ROADMAP.md
 
 # DEC-0176 — lancement non interactif des harness (AIB R3)
 
-Roadmap AIB, etape R3 (tache `50ef918a`). Statut `proposed` (a valider).
+Roadmap AIB, etape R3 (tache `50ef918a`). Statut `accepted` (accord humain du 2026-10-01 ; fichier et serveur alignes).
 
 ## Decide
 
