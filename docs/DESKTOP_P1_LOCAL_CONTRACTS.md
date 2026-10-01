@@ -71,6 +71,17 @@ un test échoue si l'export diverge des builders Python.
   (`agents`, `assistant`) pour rester neutres vis-à-vis des fournisseurs, avec
   des compteurs et `in_sync` cohérents (validés). Ni contenu de skill ni chemin
   absolu ne sortent du démon ; un Desktop sans `skills.read` ignore la commande.
+  `launch.get_settings` / `launch.save_settings` (additifs, tâche d4c076ab, AIB-J)
+  sous la capability optionnelle `launch.settings` : le propriétaire de la machine
+  règle localement l'opt-in aux lancements à distance (`opt_in`), la limite de
+  concurrence (`max_concurrent`, 1 à 8) et la liste explicite des harnesses
+  autorisés (`allowed_harnesses`, vide = aucun : l'opt-in n'autorise jamais un
+  harness implicitement). `get` renvoie en plus `detected_harnesses` (identifiants
+  seuls). `save` exige `confirmed: true`, refuse un harness inconnu du démon et
+  écrit `launch_settings.json` de façon atomique dans le répertoire de données ;
+  un fichier illisible retombe sur « pas d'opt-in ». Ni chemin ni inventaire au-delà
+  des identifiants ne sortent du démon ; un Desktop sans `launch.settings` ignore
+  les commandes.
   Ajouts additifs DEC-0104 §2 : `HarnessChange.scope` (`workspace` par défaut
   | `user`, cible alors relative au home) et `HarnessPreviewRequest.renew`
   (défaut `false` : renouvelle l'identifiant dédié de l'outil).

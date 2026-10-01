@@ -1,0 +1,42 @@
+{
+  "additionalProperties": false,
+  "description": "The settings plus the harnesses this machine can currently offer, so the\nDesktop only proposes ids the daemon will accept. Ids only: no path, no\nversion, no inventory beyond the harness identifiers.",
+  "properties": {
+    "allowed_harnesses": {
+      "default": [],
+      "items": {
+        "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+        "type": "string"
+      },
+      "maxItems": 16,
+      "title": "Allowed Harnesses",
+      "type": "array"
+    },
+    "detected_harnesses": {
+      "default": [],
+      "items": {
+        "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+        "type": "string"
+      },
+      "maxItems": 16,
+      "title": "Detected Harnesses",
+      "type": "array"
+    },
+    "max_concurrent": {
+      "maximum": 8,
+      "minimum": 1,
+      "title": "Max Concurrent",
+      "type": "integer"
+    },
+    "opt_in": {
+      "title": "Opt In",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "opt_in",
+    "max_concurrent"
+  ],
+  "title": "LaunchSettingsView",
+  "type": "object"
+}

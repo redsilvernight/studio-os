@@ -141,6 +141,26 @@
       "reason": "a skill entry carries no filesystem path"
     },
     {
+      "model": "LaunchSettingsSaveRequest",
+      "name": "launch.settings.save_unconfirmed",
+      "reason": "saving the launch opt-in requires explicit confirmation"
+    },
+    {
+      "model": "LaunchSettingsView",
+      "name": "launch.settings.duplicate_harness",
+      "reason": "a harness is allowed at most once"
+    },
+    {
+      "model": "LaunchSettingsView",
+      "name": "launch.settings.concurrency_out_of_range",
+      "reason": "concurrency is bounded between one and the documented maximum"
+    },
+    {
+      "model": "LaunchSettingsView",
+      "name": "launch.settings.path_leak",
+      "reason": "the settings view carries no filesystem path"
+    },
+    {
       "model": "PublicationPublishRequest",
       "name": "publication.publish_unconfirmed",
       "reason": "publication requires explicit confirmation"
@@ -214,6 +234,10 @@
     "KnowledgeSearchRequest",
     "KnowledgeSearchResult",
     "KnowledgeStatus",
+    "LaunchSettings",
+    "LaunchSettingsRequest",
+    "LaunchSettingsSaveRequest",
+    "LaunchSettingsView",
     "LocalError",
     "LocalFeatures",
     "LocalWorkspaceConfig",
@@ -547,6 +571,14 @@
     {
       "model": "KnowledgeStatus",
       "name": "knowledge.status.unavailable"
+    },
+    {
+      "model": "LaunchSettingsSaveRequest",
+      "name": "launch.settings.save_request"
+    },
+    {
+      "model": "LaunchSettingsView",
+      "name": "launch.settings.view"
     },
     {
       "model": "PublicationPlan",
