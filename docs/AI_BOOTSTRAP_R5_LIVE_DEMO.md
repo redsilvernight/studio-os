@@ -138,3 +138,41 @@ Séquence réussie (scénario 1, extrait `events`) :
 - Refus local : lancement `3035cd22-…` → `status=rejected`, `reason_code=harness_not_allowed`.
 - Production : `GET https://flo-laptop.tailf61f85.ts.net/openapi.json` → aucun chemin `task-launches`,
   pas de `MachineCapabilities` ; heartbeat avec capacités → `422 extra_forbidden`.
+
+## 9. Complément 2026-10-02 — harness `claude-code` réel (tâche `484d1b70`)
+
+Objectif : rejouer la chaîne avec un vrai `claude` (jamais fait : CI = harness factice,
+R5 = `opencode` réel). État au 2026-10-02, branche `task/484d1b70-lancement-reel-claude` :
+
+- **`headless_argv` validé contre `claude` 2.1.272 réel** (`claude --help`, 302 lignes) :
+  `-p <prompt> --output-format text --permission-mode acceptEdits --allowedTools
+  Read,Edit,Write,Bash,Grep,Glob` (inchangé), plus en extra : `--mcp-config
+  <isolation>/studio-mcp.json --strict-mcp-config` (« Only use MCP servers from
+  --mcp-config, ignoring all other MCP configurations ») et `--model <modèle>`
+  quand `launch_models[claude-code]` est configuré. Sans modèle configuré, le défaut
+  du harness est conservé (aucune dépendance implicite ajoutée pour `opencode`/`codex` :
+  `headless_extra_argv` vaut `()` par défaut, contrat additif).
+- **Isolation MCP** : `headless_environment` écrit `<isolation>/studio-mcp.json` avec
+  `{"mcpServers": {"studio-os[-dev]": <entrée dédiée>}}` et refuse (`mcp_entry_missing`)
+  sans entrée Studio ; `obsidian-memory` et autres MCP globaux de l'opérateur ne sont
+  plus hérités. Même pattern que `opencode` (681e9206), adapté aux flags natifs de Claude.
+- **`TaskLaunch.session_id`** : déjà relié côté serveur (7180ae8c — `link_session_to_launch`
+  + `report.session_id`, garde `invalid_launch_session`, doc TECH/02 § Task launches,
+  lien Dashboard `launch-session-link`). Revalidé ici sur PostgreSQL réel :
+  `tests/api/test_task_launches.py` → **23 passed**.
+- **Annulation / coupure réseau** : chemins inchangés et harness-agnostiques (kill de
+  l'arbre, aucun rapport terminal, rejeu outbox) ; `tests/client/test_launch_executor.py`
+  + `test_launch_runner.py` + `test_launch_report.py` + `test_launch_puller.py` +
+  `test_launch_e2e_acceptance.py` → **41 passed**.
+- **Tests nouveaux** : `tests/harness/test_claude_headless_env.py` (4 tests : fichier
+  isolé, extra argv, défaut sans modèle, refus sans entrée) et
+  `tests/harness/test_real_headless_run.py` (vrai `claude -p … --strict-mcp-config`,
+  skippé si binaire absent **ou** non authentifié). Ciblés harness :
+  **11 passed, 1 skipped**.
+- **Run réel `claude` : NON EXÉCUTÉ.** Tentative le 2026-10-02 : `claude -p` accepte les
+  flags mais échoue avec `Failed to authenticate: OAuth session expired and could not
+  be refreshed`. Le test CI skippe proprement dans ce cas. Prochaine étape : `claude login`
+  sur le poste, puis (a) smoke test `test_real_headless_run.py` sans skip, (b) boucle
+  complète locale (API + daemon + `claude`, §2) avec vérification session + handoff +
+  `session_id` relié, (c) annulation réelle chronométrée.
+- **Hors périmètre (signalé seulement)** : promotion dev → master et déploiement VPS.
