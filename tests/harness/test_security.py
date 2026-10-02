@@ -162,8 +162,9 @@ def test_a_cmd_shim_is_followed_to_its_native_exe(
     native = shim_dir / "node_modules" / "opencode-ai" / "bin" / "opencode.exe"
     native.parent.mkdir(parents=True)
     native.write_bytes(b"MZ")
+    relative = os.sep.join(["", "node_modules", "opencode-ai", "bin", "opencode.exe"])
     (shim_dir / "opencode.cmd").write_text(
-        '@ECHO off\nSET dp0=%~dp0\n"%dp0%\\node_modules\\opencode-ai\\bin\\opencode.exe" %*\n',
+        f'@ECHO off\nSET dp0=%~dp0\n"%dp0%{relative}" %*\n',
         encoding="utf-8",
     )
     assert locate_executable(("opencode",), path_env=str(shim_dir)) == native
