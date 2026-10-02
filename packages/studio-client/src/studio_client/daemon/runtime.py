@@ -351,6 +351,7 @@ class DaemonRuntime:
                     timeout_seconds=self.config.launch_timeout_seconds,
                     poll_seconds=self.config.launch_status_poll_seconds,
                     secrets=_launch_secrets(),
+                    models=self.config.launch_models,
                 )
                 self._launch_executor = executor
                 executor.start()

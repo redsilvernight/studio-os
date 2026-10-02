@@ -14,7 +14,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable, Sequence
+import tempfile
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from uuid import UUID
@@ -80,7 +81,9 @@ class LaunchExecutor:
         poll_seconds: float = 30.0,
         secrets: Sequence[str] = (),
         max_output_chars: int = LAUNCH_MAX_OUTPUT_CHARS,
+        models: Mapping[str, str] | None = None,
     ) -> None:
+        self._models: Mapping[str, str] = models or {}
         self._client = client
         self._reporter = reporter
         self._preparer = preparer
@@ -194,10 +197,21 @@ class LaunchExecutor:
                     agent_stable_key=launch.agent_stable_key,
                 )
             )
-            self._reporter.report(launch, TaskLaunchStatus.RUNNING)
-            running = self._runner.start(executable, argv, worktree, env=ctx.env)
-            self._processes[launch.id] = running
-            result = await asyncio.to_thread(running.wait, self._timeout)
+            with tempfile.TemporaryDirectory(
+                prefix="studio-launch-", ignore_cleanup_errors=True
+            ) as isolation:
+                env = {
+                    **ctx.env,
+                    **resolved.adapter.headless_environment(
+                        ctx,
+                        model=self._models.get(launch.harness_id),
+                        isolation_dir=Path(isolation),
+                    ),
+                }
+                self._reporter.report(launch, TaskLaunchStatus.RUNNING)
+                running = self._runner.start(executable, argv, worktree, env=env)
+                self._processes[launch.id] = running
+                result = await asyncio.to_thread(running.wait, self._timeout)
             self._report_terminal(launch, result)
         except PreparationError as error:
             logger.warning("launch preparation failed at %s", error.step)

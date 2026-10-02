@@ -88,6 +88,10 @@ class ClientConfig(BaseSettings):
     # Harness ids this machine agrees to start for a remote launch. Empty =
     # none: opting in never allows a harness implicitly (AIB R3).
     launch_allowed_harnesses: tuple[str, ...] = ()
+    # Model imposed per harness id on a remote launch (`[launch_models]` in
+    # TOML), so a run never falls back to the tool's own default model. A
+    # harness absent here keeps its configured default.
+    launch_models: dict[str, str] = {}
     # Hard ceiling on a single non-interactive harness run; past it the process
     # tree is killed and the launch reported failed (AIB R3).
     launch_timeout_seconds: float = 3600.0

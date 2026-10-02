@@ -182,6 +182,15 @@ class HarnessAdapter(ABC):
         is never launched blind (`AdapterRefusal('headless_unsupported')`)."""
         raise AdapterRefusal("headless_unsupported")
 
+    def headless_environment(
+        self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path
+    ) -> dict[str, str]:
+        """Environment overrides for a launched run: the model to use and a
+        configuration that does not inherit the operator's other MCP servers.
+        `isolation_dir` is an empty private directory the caller removes after
+        the run. Nothing by default."""
+        return {}
+
 
 def system_env() -> Mapping[str, str]:
     return dict(os.environ)

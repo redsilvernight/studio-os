@@ -74,6 +74,12 @@ class FakeAdapter(HarnessAdapter):
     def headless_argv(self, prompt: str) -> tuple[str, ...]:
         return self._argv
 
+    def headless_environment(
+        self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path
+    ) -> dict[str, str]:
+        assert isolation_dir.is_dir()
+        return {"FAKE_MODEL": model or "", "FAKE_ISOLATION": str(isolation_dir)}
+
     def detect(self, ctx: HarnessContext) -> Any:
         raise NotImplementedError
 
@@ -112,6 +118,7 @@ def _executor(
     *,
     timeout: float = 30.0,
     secrets: tuple[str, ...] = (),
+    models: dict[str, str] | None = None,
 ) -> tuple[LaunchExecutor, OutboxStore]:
     store = OutboxStore(connect(tmp_path / "outbox.sqlite3"))
 
@@ -131,6 +138,7 @@ def _executor(
         resolve=resolve,
         timeout_seconds=timeout,
         secrets=secrets,
+        models=models,
     )
     return executor, store
 
@@ -150,6 +158,28 @@ async def test_success_reports_preparing_running_succeeded(tmp_path: Path) -> No
     assert [row.payload["status"] for row in rows] == ["preparing", "running", "succeeded"]
     assert [row.payload["expected_version"] for row in rows] == [1, 2, 3]
     assert rows[-1].payload["output_excerpt"].strip() == "ok"
+
+
+async def test_forced_model_and_isolation_reach_the_process_and_are_cleaned(
+    tmp_path: Path,
+) -> None:
+    repo = _repo(tmp_path)
+    script = "import os; print(os.environ['FAKE_MODEL'], os.environ['FAKE_ISOLATION'])"
+    executor, store = _executor(
+        tmp_path,
+        repo,
+        FakeAdapter(("-c", script)),
+        FakeClient(),
+        models={"fake": "provider/forced"},
+    )
+    launch = _launch()
+    executor.submit(launch)
+    await executor._tasks[launch.id]
+
+    rows = store.list_pending(OutboxTable.MUTATIONS)
+    model, isolation = str(rows[-1].payload["output_excerpt"]).split()
+    assert model == "provider/forced"
+    assert not Path(isolation).exists()
 
 
 async def test_nonzero_exit_reports_failed(tmp_path: Path) -> None:
