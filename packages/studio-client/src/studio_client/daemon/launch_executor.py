@@ -190,24 +190,30 @@ class LaunchExecutor:
             worktree = prepared.worktree.path
             ctx = replace(resolved.ctx, workspace_root=worktree, probe_cwd=worktree)
             executable = resolved.adapter.resolve_executable(ctx)
-            argv = resolved.adapter.headless_argv(
-                build_instruction(
-                    project_id=launch.project_id,
-                    task_id=launch.task_id,
-                    agent_stable_key=launch.agent_stable_key,
-                )
+            prompt = build_instruction(
+                project_id=launch.project_id,
+                task_id=launch.task_id,
+                agent_stable_key=launch.agent_stable_key,
             )
+            model = self._models.get(launch.harness_id)
             with tempfile.TemporaryDirectory(
                 prefix="studio-launch-", ignore_cleanup_errors=True
             ) as isolation:
+                isolation_dir = Path(isolation)
                 env = {
                     **ctx.env,
                     **resolved.adapter.headless_environment(
                         ctx,
-                        model=self._models.get(launch.harness_id),
-                        isolation_dir=Path(isolation),
+                        model=model,
+                        isolation_dir=isolation_dir,
                     ),
                 }
+                argv = (
+                    *resolved.adapter.headless_argv(prompt),
+                    *resolved.adapter.headless_extra_argv(
+                        ctx, model=model, isolation_dir=isolation_dir
+                    ),
+                )
                 self._reporter.report(launch, TaskLaunchStatus.RUNNING)
                 running = self._runner.start(executable, argv, worktree, env=env)
                 self._processes[launch.id] = running

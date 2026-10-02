@@ -182,6 +182,16 @@ class HarnessAdapter(ABC):
         is never launched blind (`AdapterRefusal('headless_unsupported')`)."""
         raise AdapterRefusal("headless_unsupported")
 
+    def headless_extra_argv(
+        self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path
+    ) -> tuple[str, ...]:
+        """Extra arguments appended after `headless_argv` once the launch
+        isolation directory exists: typically a forced `--model` and the flags
+        pointing at the isolated MCP configuration written by
+        `headless_environment` into `isolation_dir`. Nothing by default, so a
+        harness that needs no extra flag is unaffected."""
+        return ()
+
     def headless_environment(
         self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path
     ) -> dict[str, str]:
