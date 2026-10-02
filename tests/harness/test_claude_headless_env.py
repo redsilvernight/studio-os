@@ -108,3 +108,40 @@ def test_environment_refuses_without_the_studio_entry(tmp_path: Path) -> None:
         adapter.headless_environment(ctx, model="sonnet", isolation_dir=isolation)
 
     assert refusal.value.reason == "mcp_entry_missing"
+
+
+def _deploy_studio_hooks(home: Path) -> None:
+    scripts = home / ".claude" / "scripts"
+    scripts.mkdir(parents=True)
+    (scripts / "studio-session-start.ps1").write_text("# session", encoding="utf-8")
+    (scripts / "studio-git-guard.ps1").write_text("# guard", encoding="utf-8")
+
+
+def test_extra_argv_isolates_hooks_to_the_studio_ones(tmp_path: Path) -> None:
+    adapter = ClaudeCodeAdapter()
+    ctx = make_ctx(tmp_path)
+    _deploy_studio_hooks(ctx.home)
+    isolation = tmp_path / "isolation"
+    isolation.mkdir()
+
+    extra = adapter.headless_extra_argv(ctx, model=None, isolation_dir=isolation)
+
+    assert extra[extra.index("--setting-sources") + 1] == "project"
+    settings = json.loads(extra[extra.index("--settings") + 1])
+    session_cmd = settings["hooks"]["SessionStart"][0]["hooks"][0]["command"]
+    assert "studio-session-start.ps1" in session_cmd
+    guard = settings["hooks"]["PreToolUse"][0]
+    assert guard["matcher"] == "Bash|PowerShell"
+    assert "studio-git-guard.ps1" in guard["hooks"][0]["command"]
+
+
+def test_extra_argv_without_deployed_hooks_keeps_the_default_settings(tmp_path: Path) -> None:
+    adapter = ClaudeCodeAdapter()
+    ctx = make_ctx(tmp_path)
+    isolation = tmp_path / "isolation"
+    isolation.mkdir()
+
+    extra = adapter.headless_extra_argv(ctx, model=None, isolation_dir=isolation)
+
+    assert "--setting-sources" not in extra
+    assert "--settings" not in extra
