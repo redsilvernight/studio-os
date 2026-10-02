@@ -21,6 +21,8 @@ from pathlib import Path
 PROBE_TIMEOUT_SECONDS = 8.0
 MAX_PROBE_OUTPUT_BYTES = 4096
 _ALLOWED_SUFFIXES = (".exe", ".cmd") if sys.platform == "win32" else ("",)
+_SHIM_SUFFIXES = (".cmd", ".bat")
+_SHIM_READ_LIMIT = 16_384
 _PASSTHROUGH_ENV = (
     "PATH",
     "PATHEXT",
@@ -62,6 +64,35 @@ def _same_dir(left: Path, right: Path) -> bool:
         return False
 
 
+def _native_exe_behind_shim(shim: Path) -> Path | None:
+    """Follow a Windows `.cmd`/`.bat` shim (npm-style) to the native `.exe` it
+    launches. A harness installed through an npm shim is launched directly
+    instead of through `cmd.exe`, which the launcher refuses (cmd.exe re-parses
+    the command line and the prompt could be injected). Only an existing,
+    non-symlink `.exe` inside the shim's own directory tree is accepted;
+    anything else returns None and the shim is kept as-is."""
+    try:
+        text = shim.read_text(encoding="utf-8", errors="replace")[:_SHIM_READ_LIMIT]
+    except OSError:
+        return None
+    base = str(shim.parent)
+    for raw in re.findall(r'"?([^"\r\n]+?\.exe)"?', text, flags=re.IGNORECASE):
+        expanded = raw.strip().replace("%~dp0%", base).replace("%dp0%", base)
+        candidate = Path(expanded)
+        if not candidate.is_absolute() or candidate.suffix.lower() != ".exe":
+            continue
+        try:
+            if (
+                candidate.is_file()
+                and not candidate.is_symlink()
+                and _is_within(candidate.resolve(), shim.parent.resolve())
+            ):
+                return candidate
+        except OSError:
+            continue
+    return None
+
+
 def locate_executable(
     names: Sequence[str],
     *,
@@ -70,7 +101,9 @@ def locate_executable(
 ) -> Path | None:
     """First regular executable named `names[i]` in an absolute PATH entry,
     skipping the working directory, relative entries and `excluded_dirs`
-    (the workspace: a repository must not choose what Studi'OS launches)."""
+    (the workspace: a repository must not choose what Studi'OS launches). A
+    `.cmd` shim is followed to the native `.exe` it launches when one exists in
+    its own directory tree (npm layout)."""
     if not path_env:
         return None
     cwd = Path.cwd()
@@ -92,6 +125,10 @@ def locate_executable(
                 candidate = directory / f"{name}{suffix}"
                 try:
                     if candidate.is_file() and not candidate.is_symlink():
+                        if suffix in _SHIM_SUFFIXES:
+                            native = _native_exe_behind_shim(candidate)
+                            if native is not None:
+                                return native
                         return candidate
                 except OSError:
                     continue

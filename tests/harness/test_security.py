@@ -154,6 +154,34 @@ def test_a_native_exe_later_in_path_wins_over_an_earlier_cmd_shim(
     assert only_shim == shim_dir / "opencode.cmd"
 
 
+def test_a_cmd_shim_is_followed_to_its_native_exe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(probe_module, "_ALLOWED_SUFFIXES", (".exe", ".cmd"))
+    shim_dir = tmp_path / "npm"
+    native = shim_dir / "node_modules" / "opencode-ai" / "bin" / "opencode.exe"
+    native.parent.mkdir(parents=True)
+    native.write_bytes(b"MZ")
+    (shim_dir / "opencode.cmd").write_text(
+        '@ECHO off\nSET dp0=%~dp0\n"%dp0%\\node_modules\\opencode-ai\\bin\\opencode.exe" %*\n',
+        encoding="utf-8",
+    )
+    assert locate_executable(("opencode",), path_env=str(shim_dir)) == native
+
+
+def test_a_cmd_shim_targeting_outside_its_tree_is_not_followed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(probe_module, "_ALLOWED_SUFFIXES", (".exe", ".cmd"))
+    shim_dir = tmp_path / "npm"
+    shim_dir.mkdir()
+    outside = tmp_path / "elsewhere" / "opencode.exe"
+    outside.parent.mkdir()
+    outside.write_bytes(b"MZ")
+    (shim_dir / "opencode.cmd").write_text(f'@ECHO off\n"{outside}" %*\n', encoding="utf-8")
+    assert locate_executable(("opencode",), path_env=str(shim_dir)) == shim_dir / "opencode.cmd"
+
+
 def test_a_directory_named_like_the_executable_is_not_launched(tmp_path: Path) -> None:
     (tmp_path / "bin").mkdir()
     suffix = ".cmd" if sys.platform == "win32" else ""
