@@ -311,6 +311,12 @@ class DaemonRuntime:
                 self._workspace_inputs = list(workspaces)
         return await self.reconcile_workspace_watchers()
 
+    def _workspace_project_ids(self) -> tuple[UUID, ...]:
+        """Project IDs registered as Desktop workspaces. A workspace is a local
+        project registration, so it feeds both the capability report and the
+        local launch gate — not only the watchers."""
+        return tuple(watch.project_id for watch in self._workspace_inputs)
+
     async def _workspace_sync_loop(self) -> None:
         stop = self._stop_event
         if stop is None or (self._workspace_source is None and self._git_watch_source is None):
@@ -364,6 +370,7 @@ class DaemonRuntime:
                         effective_launch_config(self.config, self.data_root),
                         registry=registry,
                         running_launches=executor.running,
+                        extra_project_ids=self._workspace_project_ids(),
                     ),
                     launch_puller=LaunchPuller(
                         client,
@@ -371,6 +378,7 @@ class DaemonRuntime:
                         lambda: build_launch_policy(
                             effective_launch_config(self.config, self.data_root),
                             registry=registry,
+                            extra_project_ids=self._workspace_project_ids(),
                         ),
                         reporter,
                     ),

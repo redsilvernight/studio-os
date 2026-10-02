@@ -75,6 +75,7 @@ class FakeHeartbeat:
         self.last_success_at = None
         self.last_error = None
         self.last_replay = None
+        self.capabilities_provider = capabilities_provider
         FakeHeartbeat.instances.append(self)
 
     def request_stop(self) -> None:
@@ -177,6 +178,22 @@ async def test_the_product_source_drives_the_watcher_at_start(tmp_path: Path) ->
     assert source.calls[0] == runtime.profile
     await stop(runtime, task)
     assert RecordingWatcher.live_paths() == []
+
+
+async def test_workspace_projects_are_reported_in_the_heartbeat_capabilities(
+    tmp_path: Path,
+) -> None:
+    game = repo(tmp_path, "game")
+    source = Source()
+    source.entries = [entry(WS_A, game)]
+    runtime = make_runtime(tmp_path, source)
+    task = asyncio.create_task(runtime.run())
+    await until(lambda: len(source.calls) >= 1)
+    (heartbeat,) = FakeHeartbeat.instances
+    provider = heartbeat.capabilities_provider
+    assert provider is not None
+    assert provider().project_ids == [PROJECT]
+    await stop(runtime, task)
 
 
 async def test_a_workspace_without_repository_creates_no_watcher(tmp_path: Path) -> None:
