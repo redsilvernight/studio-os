@@ -138,3 +138,53 @@ Séquence réussie (scénario 1, extrait `events`) :
 - Refus local : lancement `3035cd22-…` → `status=rejected`, `reason_code=harness_not_allowed`.
 - Production : `GET https://flo-laptop.tailf61f85.ts.net/openapi.json` → aucun chemin `task-launches`,
   pas de `MachineCapabilities` ; heartbeat avec capacités → `422 extra_forbidden`.
+
+## 9. Complément 2026-10-02 — harness `claude-code` réel (tâche `484d1b70`)
+
+Objectif : rejouer la chaîne avec un vrai `claude` (jamais fait : CI = harness factice,
+R5 = `opencode` réel). État au 2026-10-02, branche `task/484d1b70-lancement-reel-claude` :
+
+- **`headless_argv` validé contre `claude` 2.1.272 réel** (`claude --help`, 302 lignes) :
+  `-p <prompt> --output-format text --permission-mode acceptEdits --allowedTools
+  Read,Edit,Write,Bash,Grep,Glob` (inchangé), plus en extra : `--mcp-config
+  <isolation>/studio-mcp.json --strict-mcp-config` (« Only use MCP servers from
+  --mcp-config, ignoring all other MCP configurations ») et `--model <modèle>`
+  quand `launch_models[claude-code]` est configuré. Sans modèle configuré, le défaut
+  du harness est conservé (aucune dépendance implicite ajoutée pour `opencode`/`codex` :
+  `headless_extra_argv` vaut `()` par défaut, contrat additif).
+- **Isolation MCP** : `headless_environment` écrit `<isolation>/studio-mcp.json` avec
+  `{"mcpServers": {"studio-os[-dev]": <entrée dédiée>}}` et refuse (`mcp_entry_missing`)
+  sans entrée Studio ; `obsidian-memory` et autres MCP globaux de l'opérateur ne sont
+  plus hérités. Même pattern que `opencode` (681e9206), adapté aux flags natifs de Claude.
+- **`TaskLaunch.session_id`** : déjà relié côté serveur (7180ae8c — `link_session_to_launch`
+  + `report.session_id`, garde `invalid_launch_session`, doc TECH/02 § Task launches,
+  lien Dashboard `launch-session-link`). Revalidé ici sur PostgreSQL réel :
+  `tests/api/test_task_launches.py` → **23 passed**.
+- **Annulation / coupure réseau** : chemins inchangés et harness-agnostiques (kill de
+  l'arbre, aucun rapport terminal, rejeu outbox) ; `tests/client/test_launch_executor.py`
+  + `test_launch_runner.py` + `test_launch_report.py` + `test_launch_puller.py` +
+  `test_launch_e2e_acceptance.py` → **41 passed**.
+- **Tests nouveaux** : `tests/harness/test_claude_headless_env.py` (4 tests : fichier
+  isolé, extra argv, défaut sans modèle, refus sans entrée) et
+  `tests/harness/test_real_headless_run.py` (vrai `claude -p … --strict-mcp-config`
+  sur l'argv production, skippé si binaire absent **ou** non authentifié — **passé
+  en réel ici**). Ciblés harness : **20 passed** (dont le run réel).
+- **Run réel `claude` : EXÉCUTÉ.** Stack démo locale (base `studio_claude_demo`,
+  API :8001, MCP `streamable-http` :8002, daemon depuis les sources, HOME démo avec
+  entrée studio-os locale + hooks `setup-hooks`, `launch_models={claude-code: sonnet}`) :
+  - smoke `claude -p` (argv production : isolation + `--strict-mcp-config` +
+    `--allowedTools …mcp__studio-os`, avec et sans `--model sonnet`) → **PING/PONG** ;
+  - boucle complète (lancement `28074dce`) : `requested → accepted → preparing →
+    running → **succeeded**`, session `ee712165`, **`session_id` relié au lancement**,
+    `HELLO_CLAUDE.md` (« Claude R5 OK ») dans `claude-demo-repo-wt-aab6c5fa`, handoff +
+    `ai_work` (`changed_files=[HELLO_CLAUDE.md]`, tâche restée `in_progress` par choix
+    de l'agent) ;
+  - **annulation réelle** (lancement `2e736b96`, `claude` en cours) : `running →
+    **cancelled** (`cancelled_by_requester`), arbre tué, **aucun rapport terminal**
+    ensuite, aucun processus restant ; `session_id` déjà relié avant le kill ;
+  - échecs intermédiaires instructifs (3 lancements `succeeded` sans travail) : sans
+    `agent_id` (hook non enregistré / worktree hors registros) et sans les outils MCP
+    dans `--allowedTools`, le modèle refuse proprement au lieu d'agir en aveugle.
+- **Coupure réseau** : non rejouée en réel avec `claude` ; couverte par le CI
+  (outbox + rejeu idempotent, harness-agnostique — mêmes chemins que ci-dessus).
+- **Hors périmètre (signalé seulement)** : promotion dev → master et déploiement VPS.

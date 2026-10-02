@@ -26,6 +26,7 @@ from studio_client.harness.json_mcp import JsonMcpAdapter
 from studio_client.harness.probe import ProbeFailure, locate_executable, run_probe
 
 _USER_CONFIG = ".claude.json"
+_ISOLATION_MCP_FILENAME = "studio-mcp.json"
 _MAX_USER_CONFIG_BYTES = 16 * 1024 * 1024
 _CLI_TIMEOUT_SECONDS = 30.0
 
@@ -145,6 +146,8 @@ class ClaudeCodeAdapter(JsonMcpAdapter):
     def build_entry(self, mcp_url: str, token: str) -> dict[str, object]:
         return {"type": "http", "url": mcp_url, "headers": {"Authorization": f"Bearer {token}"}}
 
+    _BASE_TOOLS = "Read,Edit,Write,Bash,Grep,Glob"
+
     def headless_argv(self, prompt: str) -> tuple[str, ...]:
         return (
             "-p",
@@ -153,6 +156,37 @@ class ClaudeCodeAdapter(JsonMcpAdapter):
             "text",
             "--permission-mode",
             "acceptEdits",
-            "--allowedTools",
-            "Read,Edit,Write,Bash,Grep,Glob",
         )
+
+    def headless_environment(
+        self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path
+    ) -> dict[str, str]:
+        entry = self.read_user_entry(ctx)
+        if entry is None:
+            raise AdapterRefusal("mcp_entry_missing")
+        payload = {"mcpServers": {STUDIO_MCP_SERVER_NAME: entry}}
+        try:
+            isolation_dir.mkdir(parents=True, exist_ok=True)
+            self._isolation_mcp_path(isolation_dir).write_text(
+                json.dumps(payload), encoding="utf-8"
+            )
+        except OSError:
+            raise AdapterRefusal("isolation_failed") from None
+        return {}
+
+    def headless_extra_argv(
+        self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path
+    ) -> tuple[str, ...]:
+        argv: tuple[str, ...] = (
+            "--mcp-config",
+            str(self._isolation_mcp_path(isolation_dir)),
+            "--strict-mcp-config",
+            "--allowedTools",
+            f"{self._BASE_TOOLS},mcp__{STUDIO_MCP_SERVER_NAME}",
+        )
+        if model:
+            argv += ("--model", model)
+        return argv
+
+    def _isolation_mcp_path(self, isolation_dir: Path) -> Path:
+        return isolation_dir / _ISOLATION_MCP_FILENAME

@@ -50,8 +50,6 @@ def test_instruction_carries_the_optional_stable_key() -> None:
                 "text",
                 "--permission-mode",
                 "acceptEdits",
-                "--allowedTools",
-                "Read,Edit,Write,Bash,Grep,Glob",
             ),
         ),
         (OpenCodeAdapter(), ("run", "--auto", "do the work")),
