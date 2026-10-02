@@ -50,7 +50,11 @@ def test_real_claude_headless_run_with_strict_isolated_mcp(tmp_path: Path) -> No
     isolation.mkdir()
     (home / ".claude.json").write_text(
         json.dumps(
-            {"mcpServers": {STUDIO_MCP_SERVER_NAME: {"type": "http", "url": "http://127.0.0.1:9/mcp"}}}
+            {
+                "mcpServers": {
+                    STUDIO_MCP_SERVER_NAME: {"type": "http", "url": "http://127.0.0.1:9/mcp"}
+                }
+            }
         ),
         encoding="utf-8",
     )
