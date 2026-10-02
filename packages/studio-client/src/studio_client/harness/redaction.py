@@ -19,6 +19,19 @@ SECRET_MARK = "<secret>"  # noqa: S105 — a marker, never a value
 _SECRET_CONTAINERS = ("headers", "env")
 _BEARER = "Bearer "
 _BEARER_TEXT = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+")
+_ANSI_ESCAPE = re.compile(
+    r"\x1b\[[0-?]*[ -/]*[@-~]"  # CSI: ESC [ ... final byte
+    r"|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)"  # OSC: ESC ] ... BEL or ST
+    r"|\x1b[@-Z\\-_]"  # other two-character escapes
+)
+
+
+def strip_ansi(text: str) -> str:
+    """Remove ANSI escape sequences (colours, cursor moves) from captured
+    terminal output and normalise line endings, so a human-facing excerpt stays
+    readable. Harness stdout is a terminal stream: without this the stored
+    excerpt is littered with `\\x1b[0m` and `\\r`."""
+    return _ANSI_ESCAPE.sub("", text).replace("\r\n", "\n").replace("\r", "\n")
 
 
 def is_reference(value: str) -> bool:

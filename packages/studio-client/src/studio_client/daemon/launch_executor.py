@@ -44,7 +44,7 @@ from studio_client.daemon.launch_runner import (
 )
 from studio_client.errors import StudioApiError
 from studio_client.harness.base import HarnessAdapter, HarnessContext
-from studio_client.harness.redaction import redact_text
+from studio_client.harness.redaction import redact_text, strip_ansi
 
 logger = logging.getLogger(__name__)
 
@@ -270,4 +270,4 @@ class LaunchExecutor:
             )
 
     def _excerpt(self, output: str) -> str:
-        return redact_text(output, secrets=self._secrets)[: self._max_chars]
+        return redact_text(strip_ansi(output), secrets=self._secrets)[: self._max_chars]
