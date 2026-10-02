@@ -9,7 +9,7 @@ from uuid import UUID
 from studio_contracts.auth import HarnessReport, MachineCapabilities, ProjectBootstrapStatus
 
 from studio_client.config import ClientConfig
-from studio_client.harness.base import DetectionState, HarnessContext
+from studio_client.harness.base import MCP_PATH, DetectionState, HarnessContext
 from studio_client.harness.registry import HarnessRegistry, default_adapters
 
 CapabilitiesProvider = Callable[[], MachineCapabilities | None]
@@ -17,11 +17,13 @@ CapabilitiesProvider = Callable[[], MachineCapabilities | None]
 
 def neutral_context(config: ClientConfig) -> HarnessContext:
     """Probing context for harness detection. Paths stay machine-local —
-    only IDs and stable tokens ever leave in the report."""
+    only IDs and stable tokens ever leave in the report. The MCP URL is the
+    endpoint the harness entries point at (`<origin>/mcp`), not the bare REST
+    base, so a correctly wired harness is detected as configured."""
     cwd = Path.cwd()
     return HarnessContext(
         workspace_root=cwd,
-        mcp_url=config.api_base_url,
+        mcp_url=config.api_base_url.rstrip("/") + MCP_PATH,
         env=dict(os.environ),
         probe_cwd=cwd,
     )

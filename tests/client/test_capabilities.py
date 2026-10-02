@@ -59,6 +59,13 @@ class StubAdapter(HarnessAdapter):
         raise NotImplementedError
 
 
+def test_neutral_context_uses_the_mcp_endpoint() -> None:
+    from studio_client.capabilities import neutral_context
+
+    ctx = neutral_context(_config(api_base_url="https://a.example/"))
+    assert ctx.mcp_url == "https://a.example/mcp"
+
+
 def test_registered_project_ids_collects_git_and_godot_without_paths() -> None:
     git_project = uuid4()
     godot_project = uuid4()

@@ -47,7 +47,7 @@ from studio_contracts.local.knowledge import (
 from studio_contracts.local.workspace import LocalWorkspaceConfig, WorkspaceScope
 
 from studio_client.harness.backup import BackupStore
-from studio_client.harness.base import system_env
+from studio_client.harness.base import MCP_PATH, system_env
 from studio_client.harness.credentials import (
     ApiCredentialProvisioner,
     CredentialProvisioner,
@@ -84,7 +84,6 @@ FEATURE_CAPABILITIES: tuple[str, ...] = (
     "harness.apply",
     "harness.verify",
 )
-MCP_PATH = "/mcp"
 
 WorkspaceConfigSource = Callable[[ProfileRef], Sequence[LocalWorkspaceConfig]]
 KnowledgeServiceFactory = Callable[[LocalWorkspaceConfig, Path], KnowledgeService | None]

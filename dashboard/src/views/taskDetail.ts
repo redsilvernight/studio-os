@@ -762,7 +762,7 @@ async function loadLaunchData(
 ): Promise<LaunchPanelData | null> {
   const [machines, agents, launches] = await Promise.allSettled([
     getEligibleMachines(client, task.id),
-    listLibraryResources(client, { kind: "agent_definition", projectId: task.project_id, limit: 100 }),
+    listLibraryResources(client, { kind: "agent_definition", limit: 100 }),
     listTaskLaunches(client, task.project_id),
   ]);
   const machineList =
