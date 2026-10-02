@@ -75,6 +75,7 @@ def locate_executable(
         return None
     cwd = Path.cwd()
     excluded = [directory.resolve() for directory in excluded_dirs if directory.exists()]
+    directories: list[Path] = []
     for raw in path_env.split(os.pathsep):
         entry = raw.strip().strip('"')
         if not entry or not os.path.isabs(entry):
@@ -84,8 +85,10 @@ def locate_executable(
             _is_within(directory.resolve(), block) for block in excluded
         ):
             continue
-        for name in names:
-            for suffix in _ALLOWED_SUFFIXES:
+        directories.append(directory)
+    for suffix in _ALLOWED_SUFFIXES:
+        for directory in directories:
+            for name in names:
                 candidate = directory / f"{name}{suffix}"
                 try:
                     if candidate.is_file() and not candidate.is_symlink():
