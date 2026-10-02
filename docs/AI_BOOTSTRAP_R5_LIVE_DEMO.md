@@ -166,13 +166,25 @@ R5 = `opencode` réel). État au 2026-10-02, branche `task/484d1b70-lancement-re
   `test_launch_e2e_acceptance.py` → **41 passed**.
 - **Tests nouveaux** : `tests/harness/test_claude_headless_env.py` (4 tests : fichier
   isolé, extra argv, défaut sans modèle, refus sans entrée) et
-  `tests/harness/test_real_headless_run.py` (vrai `claude -p … --strict-mcp-config`,
-  skippé si binaire absent **ou** non authentifié). Ciblés harness :
-  **11 passed, 1 skipped**.
-- **Run réel `claude` : NON EXÉCUTÉ.** Tentative le 2026-10-02 : `claude -p` accepte les
-  flags mais échoue avec `Failed to authenticate: OAuth session expired and could not
-  be refreshed`. Le test CI skippe proprement dans ce cas. Prochaine étape : `claude login`
-  sur le poste, puis (a) smoke test `test_real_headless_run.py` sans skip, (b) boucle
-  complète locale (API + daemon + `claude`, §2) avec vérification session + handoff +
-  `session_id` relié, (c) annulation réelle chronométrée.
+  `tests/harness/test_real_headless_run.py` (vrai `claude -p … --strict-mcp-config`
+  sur l'argv production, skippé si binaire absent **ou** non authentifié — **passé
+  en réel ici**). Ciblés harness : **20 passed** (dont le run réel).
+- **Run réel `claude` : EXÉCUTÉ.** Stack démo locale (base `studio_claude_demo`,
+  API :8001, MCP `streamable-http` :8002, daemon depuis les sources, HOME démo avec
+  entrée studio-os locale + hooks `setup-hooks`, `launch_models={claude-code: sonnet}`) :
+  - smoke `claude -p` (argv production : isolation + `--strict-mcp-config` +
+    `--allowedTools …mcp__studio-os`, avec et sans `--model sonnet`) → **PING/PONG** ;
+  - boucle complète (lancement `28074dce`) : `requested → accepted → preparing →
+    running → **succeeded**`, session `ee712165`, **`session_id` relié au lancement**,
+    `HELLO_CLAUDE.md` (« Claude R5 OK ») dans `claude-demo-repo-wt-aab6c5fa`, handoff +
+    `ai_work` (`changed_files=[HELLO_CLAUDE.md]`, tâche restée `in_progress` par choix
+    de l'agent) ;
+  - **annulation réelle** (lancement `2e736b96`, `claude` en cours) : `running →
+    **cancelled** (`cancelled_by_requester`), arbre tué, **aucun rapport terminal**
+    ensuite, aucun processus restant ; `session_id` déjà relié avant le kill ;
+  - échecs intermédiaires instructifs (3 lancements `succeeded` sans travail) : sans
+    `agent_id` (hook non enregistré / worktree hors registros) et sans les outils MCP
+    dans `--allowedTools`, le modèle refuse proprement au lieu d'agir en aveugle.
+- **Coupure réseau** : non rejouée en réel avec `claude` ; couverte par le CI
+  (outbox + rejeu idempotent, harness-agnostique — mêmes chemins que ci-dessus).
 - **Hors périmètre (signalé seulement)** : promotion dev → master et déploiement VPS.
