@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -49,9 +50,16 @@ def build_launch_policy(
     *,
     registry: HarnessRegistry | None = None,
     ctx: HarnessContext | None = None,
+    extra_project_ids: Iterable[UUID] = (),
 ) -> LaunchPolicy:
-    """Local launch gate from configuration plus live harness detection."""
-    capabilities = build_capabilities(config, registry=registry, ctx=ctx)
+    """Local launch gate from configuration plus live harness detection.
+
+    `extra_project_ids` mirrors `build_capabilities`: a project registered as a
+    Desktop workspace is honoured here too, so the server's eligibility and this
+    machine's own gate agree on what "registered" means."""
+    capabilities = build_capabilities(
+        config, registry=registry, ctx=ctx, extra_project_ids=extra_project_ids
+    )
     return LaunchPolicy(
         opt_in=config.launch_opt_in,
         project_ids=frozenset(capabilities.project_ids),

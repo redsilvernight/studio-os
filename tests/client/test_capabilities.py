@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -8,6 +9,7 @@ from uuid import uuid4
 from studio_client.capabilities import build_capabilities, registered_project_ids
 from studio_client.config import ClientConfig
 from studio_client.daemon.heartbeat import HeartbeatDaemon
+from studio_client.daemon.launch_policy import build_launch_policy
 from studio_client.harness.base import (
     AdapterPlan,
     Detection,
@@ -17,6 +19,7 @@ from studio_client.harness.base import (
 )
 from studio_client.harness.registry import HarnessRegistry
 from studio_contracts.auth import MachineCapabilities
+from studio_contracts.task_launch import TaskLaunch, TaskLaunchReasonCode, TaskLaunchStatus
 
 
 def _config(**overrides: Any) -> ClientConfig:
@@ -95,6 +98,40 @@ def test_build_capabilities_defaults_to_closed() -> None:
     assert caps.accepts_launches is False
     (harness,) = caps.harnesses
     assert harness.detected is False and harness.configured is False
+
+
+def test_workspace_projects_are_reported_and_honoured() -> None:
+    git_project, workspace_project = uuid4(), uuid4()
+    config = _config(
+        git_watches=[{"repo_path": "/tmp/repo", "project_id": git_project}],
+        launch_opt_in=True,
+        launch_allowed_harnesses=("stub-harness",),
+    )
+    registry = HarnessRegistry([StubAdapter(Detection(DetectionState.CONFIGURED))])
+
+    caps = build_capabilities(
+        config, registry=registry, extra_project_ids=[workspace_project, git_project]
+    )
+    assert caps.project_ids == sorted([git_project, workspace_project])
+
+    now = datetime.now(UTC)
+    launch = TaskLaunch(
+        id=uuid4(),
+        created_at=now,
+        updated_at=now,
+        version=1,
+        project_id=workspace_project,
+        task_id=uuid4(),
+        machine_id=uuid4(),
+        requested_by_user_id=uuid4(),
+        harness_id="stub-harness",
+        status=TaskLaunchStatus.REQUESTED,
+        expires_at=now + timedelta(minutes=15),
+    )
+    policy = build_launch_policy(config, registry=registry, extra_project_ids=[workspace_project])
+    assert policy.evaluate(launch, active=0) == TaskLaunchReasonCode.NONE
+    without = build_launch_policy(config, registry=registry)
+    assert without.evaluate(launch, active=0) == TaskLaunchReasonCode.PROJECT_NOT_REGISTERED
 
 
 def test_daemon_sends_provider_capabilities(tmp_path: Path) -> None:

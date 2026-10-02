@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
@@ -72,9 +72,15 @@ def build_capabilities(
     registry: HarnessRegistry | None = None,
     ctx: HarnessContext | None = None,
     running_launches: int = 0,
+    extra_project_ids: Iterable[UUID] = (),
 ) -> MachineCapabilities:
     """Pure report builder: detected harnesses (IDs + state + version),
-    registered project IDs, launch opt-in and occupancy."""
+    registered project IDs, launch opt-in and occupancy.
+
+    `extra_project_ids` adds projects registered by a local source other than
+    `config.git_watches` — namely the Desktop workspace registry (project ↔
+    folder), so a project registered there counts as registered on this machine
+    (AIB R1 + Desktop P5)."""
     active_registry = registry if registry is not None else HarnessRegistry(default_adapters())
     active_ctx = ctx if ctx is not None else neutral_context(config)
     harnesses = [
@@ -90,7 +96,7 @@ def build_capabilities(
     harnesses.sort(key=lambda entry: entry.harness_id)
     return MachineCapabilities(
         harnesses=harnesses,
-        project_ids=registered_project_ids(config),
+        project_ids=sorted({*registered_project_ids(config), *extra_project_ids}),
         accepts_launches=config.launch_opt_in,
         running_launches=running_launches,
         max_launches=config.max_concurrent_launches,
