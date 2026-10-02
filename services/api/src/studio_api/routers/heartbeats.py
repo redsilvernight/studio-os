@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter
-from studio_contracts.auth import HeartbeatRequest, HeartbeatResponse, MachineCapabilities
+from studio_contracts.auth import HeartbeatRequest, HeartbeatResponse
 
 from studio_api.deps import CurrentMachine, DbSession
 from studio_api.openapi_meta import RESP_401_UNAUTHORIZED, RESP_409_MACHINE_ID_MISMATCH
@@ -30,10 +30,9 @@ async def post_heartbeat(
 ) -> HeartbeatResponse:
     settings = get_settings()
     machine, now = await heartbeats_service.record_heartbeat(session, machine, req, settings)
-    stored = machine.capabilities
     echo = (
-        MachineCapabilities.model_validate(stored)
-        if req.capabilities is not None and stored is not None
+        heartbeats_service.parse_stored_capabilities(machine.capabilities)
+        if req.capabilities is not None
         else None
     )
     return HeartbeatResponse(

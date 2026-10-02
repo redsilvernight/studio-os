@@ -9,6 +9,7 @@ from httpx import AsyncClient
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.machine import MachineModel
+from studio_api.services.heartbeats import parse_stored_capabilities
 from studio_contracts.auth import HeartbeatRequest, MachineCapabilities
 
 
@@ -172,3 +173,35 @@ def test_report_rejects_unknown_fields_and_negative_counts() -> None:
 def test_heartbeat_capabilities_is_optional() -> None:
     request = HeartbeatRequest(machine_id=uuid.uuid4(), client_timestamp=datetime.now(UTC))
     assert request.capabilities is None
+
+
+def test_parse_stored_capabilities_ignores_foreign_fields() -> None:
+    parsed = parse_stored_capabilities(
+        {"os": "windows", "harnesses": [{"harness_id": "codex"}], "accepts_launches": True}
+    )
+    assert parsed is not None
+    assert parsed.accepts_launches is True
+    assert [harness.harness_id for harness in parsed.harnesses] == ["codex"]
+
+
+def test_parse_stored_capabilities_rejects_foreign_and_unreadable_blobs() -> None:
+    assert parse_stored_capabilities(None) is None
+    assert parse_stored_capabilities({"os": "windows", "arch": "x64", "tools": ["git"]}) is None
+    assert parse_stored_capabilities({"harnesses": [{"harness_id": "C:\\Users\\me"}]}) is None
+
+
+async def test_foreign_stored_capabilities_do_not_break_eligibility(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    machine: tuple[MachineModel, str],
+    db_session: AsyncSession,
+) -> None:
+    model, _ = machine
+    _, task_id = await _task(client, auth_headers)
+    model.capabilities = {"os": "windows", "arch": "x64", "tools": ["git"]}
+    model.capabilities_reported_at = datetime.now(UTC)
+    model.last_seen_at = datetime.now(UTC)
+    await db_session.commit()
+    entry = await _entry(client, auth_headers, task_id)
+    assert entry["eligible"] is False
+    assert entry["reasons"] == ["no_capabilities_report"]

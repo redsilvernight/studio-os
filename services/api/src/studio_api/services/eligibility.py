@@ -39,7 +39,7 @@ def evaluate(
     reasons: list[IneligibilityReason] = []
     capabilities: MachineCapabilities | None = None
     if machine.capabilities is not None:
-        capabilities = MachineCapabilities.model_validate(machine.capabilities)
+        capabilities = heartbeats_service.parse_stored_capabilities(machine.capabilities)
     reported_at = machine.capabilities_reported_at
 
     if status != MachineStatus.ONLINE:
