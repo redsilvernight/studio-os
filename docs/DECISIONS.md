@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-144 decision(s). Detail complet dans chaque ADR lie.
+145 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -166,3 +166,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0176 | AIB R3 : lancement non interactif des harness (permissions bornees, timeout dur) | accepted | [decisions/DEC-0176-aib-r3-lancement-harness-non-interactif.md](decisions/DEC-0176-aib-r3-lancement-harness-non-interactif.md) |
 | DEC-0177 | AIB R3 : annulation d'un lancement en cours livree par GET polling | accepted | [decisions/DEC-0177-aib-r3-annulation-par-polling-get.md](decisions/DEC-0177-aib-r3-annulation-par-polling-get.md) |
 | DEC-0179 | AIB R3 : reglages de lancement locaux persistes dans launch_settings.json | accepted | [decisions/DEC-0179-aib-r3-reglages-lancement-locaux.md](decisions/DEC-0179-aib-r3-reglages-lancement-locaux.md) |
+| DEC-0180 | AIB L2 : identite agent par (harnais, provider, modele) sur tous les harnais | accepted | [decisions/DEC-0180-identite-agent-par-harnais-provider-modele.md](decisions/DEC-0180-identite-agent-par-harnais-provider-modele.md) |
