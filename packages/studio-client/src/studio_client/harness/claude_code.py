@@ -20,6 +20,7 @@ from studio_client.harness.base import (
     STUDIO_MCP_SERVER_NAME,
     AdapterRefusal,
     HarnessContext,
+    machine_token_env,
 )
 from studio_client.harness.fsafe import read_document, resolve_target
 from studio_client.harness.json_mcp import JsonMcpAdapter
@@ -172,7 +173,7 @@ class ClaudeCodeAdapter(JsonMcpAdapter):
             )
         except OSError:
             raise AdapterRefusal("isolation_failed") from None
-        return {}
+        return machine_token_env(entry)
 
     def headless_extra_argv(
         self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path

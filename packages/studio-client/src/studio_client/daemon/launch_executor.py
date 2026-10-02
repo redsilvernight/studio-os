@@ -218,7 +218,10 @@ class LaunchExecutor:
                 running = self._runner.start(executable, argv, worktree, env=env)
                 self._processes[launch.id] = running
                 result = await asyncio.to_thread(running.wait, self._timeout)
-            self._report_terminal(launch, result)
+            harness_token = env.get("STUDIO_CLIENT_MACHINE_TOKEN", "")
+            self._report_terminal(
+                launch, result, extra_secrets=(harness_token,) if harness_token else ()
+            )
         except PreparationError as error:
             logger.warning("launch preparation failed at %s", error.step)
             self._reporter.report(
@@ -246,10 +249,12 @@ class LaunchExecutor:
             self._processes.pop(launch.id, None)
             self._tasks.pop(launch.id, None)
 
-    def _report_terminal(self, launch: TaskLaunch, result: LaunchResult) -> None:
+    def _report_terminal(
+        self, launch: TaskLaunch, result: LaunchResult, *, extra_secrets: tuple[str, ...] = ()
+    ) -> None:
         if launch.id in self._stopped:
             return
-        excerpt = self._excerpt(result.output)
+        excerpt = self._excerpt(result.output, extra_secrets)
         if result.timed_out:
             self._reporter.report(
                 launch,
@@ -269,5 +274,6 @@ class LaunchExecutor:
                 output_excerpt=excerpt,
             )
 
-    def _excerpt(self, output: str) -> str:
-        return redact_text(strip_ansi(output), secrets=self._secrets)[: self._max_chars]
+    def _excerpt(self, output: str, extra_secrets: tuple[str, ...] = ()) -> str:
+        secrets = (*self._secrets, *extra_secrets)
+        return redact_text(strip_ansi(output), secrets=secrets)[: self._max_chars]

@@ -55,6 +55,7 @@ def test_environment_forces_the_model_and_keeps_only_the_studio_mcp(tmp_path: Pa
     assert list(inline["mcp"]) == [STUDIO_MCP_SERVER_NAME]
     assert inline["mcp"][STUDIO_MCP_SERVER_NAME]["headers"]["Authorization"] == f"Bearer {TOKEN}"
     assert overrides["XDG_CONFIG_HOME"] == str(isolation)
+    assert overrides["STUDIO_CLIENT_MACHINE_TOKEN"] == TOKEN
     assert list(isolation.rglob("opencode.json")) == []
     assert (isolation / "opencode" / "plugins" / "studio-os.js").read_text() == "// plugin"
 

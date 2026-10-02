@@ -243,6 +243,28 @@ async def test_excerpt_strips_ansi_escapes(tmp_path: Path) -> None:
     assert excerpt.strip() == "green"
 
 
+class _MachineTokenAdapter(FakeAdapter):
+    def headless_environment(
+        self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path
+    ) -> dict[str, str]:
+        env = super().headless_environment(ctx, model=model, isolation_dir=isolation_dir)
+        env["STUDIO_CLIENT_MACHINE_TOKEN"] = "HARNESS-TOKEN-XYZ"  # noqa: S105 — test value
+        return env
+
+
+async def test_excerpt_redacts_the_harness_machine_token(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    script = "import os; print(os.environ.get('STUDIO_CLIENT_MACHINE_TOKEN'))"
+    executor, store = _executor(tmp_path, repo, _MachineTokenAdapter(("-c", script)), FakeClient())
+    launch = _launch()
+    executor.submit(launch)
+    await executor._tasks[launch.id]
+
+    excerpt = store.list_pending(OutboxTable.MUTATIONS)[-1].payload["output_excerpt"]
+    assert "HARNESS-TOKEN-XYZ" not in excerpt
+    assert "<token>" in excerpt
+
+
 async def test_terminal_before_start_reports_nothing(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     client = FakeClient()
