@@ -25,11 +25,18 @@ from studio_client.harness.base import (
 from studio_client.harness.fsafe import read_document, resolve_target
 from studio_client.harness.json_mcp import JsonMcpAdapter
 from studio_client.harness.probe import ProbeFailure, locate_executable, run_probe
+from studio_client.hooks import GUARD_REL, HARNESSES
 
 _USER_CONFIG = ".claude.json"
 _ISOLATION_MCP_FILENAME = "studio-mcp.json"
 _MAX_USER_CONFIG_BYTES = 16 * 1024 * 1024
 _CLI_TIMEOUT_SECONDS = 30.0
+_CLAUDE_SPEC = next(spec for spec in HARNESSES if spec.harness == "claude-code")
+
+
+def _hook_command(script: Path) -> dict[str, object]:
+    return {"type": "command", "command": f'pwsh -NoProfile -File "{script}"', "timeout": 10}
+
 
 CliRunner = Callable[[Path, Sequence[str], Mapping[str, str], Path], int]
 """Runs `executable args` (no shell, scrubbed env) and returns its exit code.
@@ -185,9 +192,30 @@ class ClaudeCodeAdapter(JsonMcpAdapter):
             "--allowedTools",
             f"{self._BASE_TOOLS},mcp__{STUDIO_MCP_SERVER_NAME}",
         )
+        settings = self.isolation_settings(ctx)
+        if settings is not None:
+            argv += ("--setting-sources", "project", "--settings", settings)
         if model:
             argv += ("--model", model)
         return argv
+
+    def isolation_settings(self, ctx: HarnessContext) -> str | None:
+        """Minimal settings JSON keeping only the Studio session hook (agent
+        identity) and the git guard. Combined with `--setting-sources project`
+        it keeps a remotely launched harness from running the operator's own
+        hooks (bonsai delegation, rtk, office hooks) that are meant for
+        interactive local sessions. `None` when the Studio session hook is not
+        deployed, leaving the previous behaviour unchanged."""
+        session_hook = ctx.home / _CLAUDE_SPEC.hook_rel
+        if not session_hook.is_file():
+            return None
+        hooks: dict[str, list[dict[str, object]]] = {
+            "SessionStart": [{"hooks": [_hook_command(session_hook)]}]
+        }
+        guard = ctx.home / GUARD_REL
+        if guard.is_file():
+            hooks["PreToolUse"] = [{"matcher": "Bash|PowerShell", "hooks": [_hook_command(guard)]}]
+        return json.dumps({"hooks": hooks})
 
     def _isolation_mcp_path(self, isolation_dir: Path) -> Path:
         return isolation_dir / _ISOLATION_MCP_FILENAME
