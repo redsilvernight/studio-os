@@ -153,18 +153,29 @@ def _launch_secrets() -> tuple[str, ...]:
 
 
 def build_launch_resolver(
-    client: StudioApiClient, registry: HarnessRegistry, config: ClientConfig
+    client: StudioApiClient,
+    registry: HarnessRegistry,
+    config: ClientConfig,
+    *,
+    workspace_repo: Callable[[UUID], Path | None] | None = None,
 ) -> Callable[[TaskLaunch], Awaitable[ResolvedLaunch | None]]:
     """Resolves a launch to the repository, task title, adapter and probing
-    context. `None` means the launch cannot be prepared locally (its project is
-    not watched, or the harness is unknown)."""
+    context. The repository comes from `git_watches`, else from a registered
+    workspace (`workspace_repo`). `None` means the launch cannot be prepared
+    locally (no known repository, or unknown harness)."""
 
     async def resolve(launch: TaskLaunch) -> ResolvedLaunch | None:
         repo_root = config.git_repo_for_project(launch.project_id)
+        if repo_root is None and workspace_repo is not None:
+            repo_root = workspace_repo(launch.project_id)
         if repo_root is None:
+            _LOGGER.warning(
+                "launch cannot be prepared: no repository for project %s", launch.project_id
+            )
             return None
         adapter = registry.get(launch.harness_id)
         if adapter is None:
+            _LOGGER.warning("launch cannot be prepared: unknown harness %s", launch.harness_id)
             return None
         title: str | None = None
         try:
@@ -317,6 +328,18 @@ class DaemonRuntime:
         local launch gate — not only the watchers."""
         return tuple(watch.project_id for watch in self._workspace_inputs)
 
+    def _workspace_repo_for(self, project_id: UUID) -> Path | None:
+        """First repository declared by a workspace of `project_id`, if any. A
+        workspace is a project registration, so its repository is a valid launch
+        root, just like a `git_watches` entry."""
+        for watch in self._workspace_inputs:
+            if watch.project_id != project_id:
+                continue
+            paths = watch.plan.repo_paths
+            if paths:
+                return Path(paths[0])
+        return None
+
     async def _workspace_sync_loop(self) -> None:
         stop = self._stop_event
         if stop is None or (self._workspace_source is None and self._git_watch_source is None):
@@ -353,7 +376,12 @@ class DaemonRuntime:
                     reporter=reporter,
                     preparer=LaunchPreparer(),
                     runner=LaunchRunner(),
-                    resolve=build_launch_resolver(client, registry, self.config),
+                    resolve=build_launch_resolver(
+                        client,
+                        registry,
+                        self.config,
+                        workspace_repo=self._workspace_repo_for,
+                    ),
                     timeout_seconds=self.config.launch_timeout_seconds,
                     poll_seconds=self.config.launch_status_poll_seconds,
                     secrets=_launch_secrets(),
