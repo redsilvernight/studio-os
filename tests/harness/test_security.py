@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 from studio_client.harness import fsafe
+from studio_client.harness import probe as probe_module
 from studio_client.harness.base import DetectionState
 from studio_client.harness.claude_code import ClaudeCodeAdapter
 from studio_client.harness.fsafe import FsError, resolve_target
@@ -133,6 +134,24 @@ def test_relative_and_current_directory_path_entries_are_ignored(tmp_path: Path)
         ("claude",), path_env=os.pathsep.join(["rel", ".", ""]), excluded_dirs=[]
     )
     assert found is None
+
+
+def test_a_native_exe_later_in_path_wins_over_an_earlier_cmd_shim(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(probe_module, "_ALLOWED_SUFFIXES", (".exe", ".cmd"))
+    shim_dir = tmp_path / "npm"
+    native_dir = tmp_path / "native"
+    shim_dir.mkdir()
+    native_dir.mkdir()
+    (shim_dir / "opencode.cmd").write_text("@echo off\n")
+    (native_dir / "opencode.exe").write_bytes(b"MZ")
+    found = locate_executable(
+        ("opencode",), path_env=os.pathsep.join([str(shim_dir), str(native_dir)])
+    )
+    assert found == native_dir / "opencode.exe"
+    only_shim = locate_executable(("opencode",), path_env=str(shim_dir))
+    assert only_shim == shim_dir / "opencode.cmd"
 
 
 def test_a_directory_named_like_the_executable_is_not_launched(tmp_path: Path) -> None:
