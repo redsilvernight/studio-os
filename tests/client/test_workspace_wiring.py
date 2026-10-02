@@ -196,6 +196,18 @@ async def test_workspace_projects_are_reported_in_the_heartbeat_capabilities(
     await stop(runtime, task)
 
 
+async def test_workspace_repository_is_available_to_the_launch_resolver(tmp_path: Path) -> None:
+    game = repo(tmp_path, "game")
+    source = Source()
+    source.entries = [entry(WS_A, game)]
+    runtime = make_runtime(tmp_path, source)
+    task = asyncio.create_task(runtime.run())
+    await until(lambda: len(source.calls) >= 1)
+    assert runtime._workspace_repo_for(PROJECT) == game  # noqa: SLF001
+    assert runtime._workspace_repo_for(uuid4()) is None  # noqa: SLF001
+    await stop(runtime, task)
+
+
 async def test_a_workspace_without_repository_creates_no_watcher(tmp_path: Path) -> None:
     source = Source()
     source.entries = [entry(WS_A)]
