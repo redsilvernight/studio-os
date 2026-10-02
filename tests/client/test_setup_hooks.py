@@ -53,6 +53,13 @@ def test_render_outputs_differ_per_harness() -> None:
     assert "'text'" in render_hook(_SPECS["codex"])
 
 
+def test_hook_scopes_the_agent_cache_by_server_origin() -> None:
+    for spec in HARNESSES:
+        rendered = render_hook(spec)
+        assert "${originKey}" in rendered
+        assert f"{spec.agent_key}:${{originKey}}" in rendered
+
+
 def test_codex_spec() -> None:
     spec = _SPECS["codex"]
     assert spec.agent_key == "codex"
@@ -449,7 +456,7 @@ def test_hook_emits_model_agent_line_from_ensured_agent(
     assert agent_id in result.stdout
 
     store = json.loads((tmp_path / ".claude" / "studio-agent.json").read_text(encoding="utf-8"))
-    assert store["opencode:opencode-go/deepseek-v4.1-flash"] == agent_id
+    assert store["opencode:http://example.invalid:opencode-go/deepseek-v4.1-flash"] == agent_id
 
 
 @pytest.mark.skipif(_PS is None, reason="PowerShell absent de cette machine")

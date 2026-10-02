@@ -113,10 +113,17 @@ try {
     if ($projectInfo) { $projText = $projectInfo }
     $base = 'Projet suivi par Studio OS ; ' + $projText + ' Branches : skill studio-git-flow.'
     $agentPath = Join-Path $HOME '.claude\\studio-agent.json'
+    # Le cache est scope par origine serveur : un id d'agent n'a de sens que sur
+    # le serveur qui l'a emis. Sans cela, un lancement sur une autre origine
+    # reutilise un id etranger, studio_start_work echoue et l'agent s'enregistre
+    # a nouveau a chaque lancement.
+    $originKey = if ($wsServerOrigin) { $wsServerOrigin } else { 'default' }
+    $baseAgentKey = "__AGENT_KEY__:${originKey}"
     $agentId = $null
     try {
         if (Test-Path -LiteralPath $agentPath) {
-            $agentId = (Get-Content -LiteralPath $agentPath -Raw | ConvertFrom-Json).'__AGENT_KEY__'
+            $storedAgent = Get-Content -LiteralPath $agentPath -Raw | ConvertFrom-Json
+            $agentId = $storedAgent.$baseAgentKey
         }
     } catch {}
     if (-not $agentId) {
@@ -134,7 +141,7 @@ try {
                         $parsed = $raw | ConvertFrom-Json -ErrorAction Stop
                         foreach ($p in $parsed.PSObject.Properties) { $doc[$p.Name] = $p.Value }
                     } catch {}
-                    $doc['__AGENT_KEY__'] = $agentId
+                    $doc[$baseAgentKey] = $agentId
                     $docJson = ($doc | ConvertTo-Json -Compress)
                     $docJson | Set-Content -LiteralPath $agentPath -Encoding utf8
                 }
@@ -168,7 +175,7 @@ _MODEL_BLOCK_PS = """
     # Cache local "__AGENT_KEY__:<provider>/<model>" dans studio-agent.json.
     # Resolu via POST /agents/ensure (idempotent, stable_key dedie), fail-open.
     if ($modelRef) {
-        $cacheKey = "__AGENT_KEY__:$modelRef"
+        $cacheKey = "__AGENT_KEY__:${originKey}:$modelRef"
         $modelAgentId = $null
         try {
             if (Test-Path -LiteralPath $agentPath) {

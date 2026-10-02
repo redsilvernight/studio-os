@@ -230,6 +230,19 @@ async def test_excerpt_is_redacted(tmp_path: Path) -> None:
     assert excerpt.count("<token>") == 2
 
 
+async def test_excerpt_strips_ansi_escapes(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    script = "print('\\x1b[0mgreen\\x1b[0m')"
+    executor, store = _executor(tmp_path, repo, FakeAdapter(("-c", script)), FakeClient())
+    launch = _launch()
+    executor.submit(launch)
+    await executor._tasks[launch.id]
+
+    excerpt = store.list_pending(OutboxTable.MUTATIONS)[-1].payload["output_excerpt"]
+    assert "\x1b" not in excerpt
+    assert excerpt.strip() == "green"
+
+
 async def test_terminal_before_start_reports_nothing(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     client = FakeClient()
