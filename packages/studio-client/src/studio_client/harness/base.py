@@ -27,6 +27,11 @@ from studio_client.harness.redaction import bearer_token
 
 STUDIO_MCP_SERVER_NAME = "studio-os-dev" if client_channel() == "dev" else "studio-os"
 
+MCP_PATH = "/mcp"
+"""Path of the MCP endpoint under the API origin. The harness MCP entry points
+at `<origin>/mcp`; a detection context must use the same URL, not the bare
+REST base, or a correctly wired harness looks `configuration_missing`."""
+
 
 def machine_token_env(entry: Mapping[str, object] | None) -> dict[str, str]:
     """Environment that makes a launched harness's own session hook authenticate
