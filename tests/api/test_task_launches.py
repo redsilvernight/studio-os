@@ -484,3 +484,60 @@ async def test_overdue_accepted_launch_expires_as_timeout(
         "task_launch.expired",
     ]
     assert events[-1]["payload"]["reason_code"] == "expired_timeout"
+
+
+async def _open_session(
+    client: AsyncClient, headers: dict[str, str], task_id: str, machine_id: str
+) -> str:
+    response = await client.post(
+        "/api/v1/sessions",
+        headers=headers,
+        json={"task_id": task_id, "machine_id": machine_id},
+    )
+    assert response.status_code in {200, 201}, response.text
+    return str(response.json()["id"])
+
+
+async def _report(
+    client: AsyncClient, headers: dict[str, str], launch_id: str, version: int, status: str
+) -> dict[str, Any]:
+    response = await client.post(
+        f"/api/v1/task-launches/{launch_id}/report",
+        json={"expected_version": version, "status": status},
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    body: dict[str, Any] = response.json()
+    return body
+
+
+async def test_session_on_task_and_machine_links_the_live_launch(
+    client: AsyncClient, auth_headers: dict[str, str], machine: tuple[MachineModel, str]
+) -> None:
+    project_id, task_id, machine_id = await _ready_target(client, auth_headers, machine)
+    launch = (await _launch(client, auth_headers, project_id, task_id, machine_id)).json()
+    accepted = await _report(client, auth_headers, launch["id"], launch["version"], "accepted")
+    session_id = await _open_session(client, auth_headers, task_id, machine_id)
+    fetched = await client.get(f"/api/v1/task-launches/{launch['id']}", headers=auth_headers)
+    assert fetched.status_code == 200, fetched.text
+    assert fetched.json()["session_id"] == session_id
+    assert fetched.json()["version"] == accepted["version"]
+    finished = await _report(client, auth_headers, launch["id"], accepted["version"], "preparing")
+    finished = await _report(client, auth_headers, launch["id"], finished["version"], "running")
+    finished = await _report(client, auth_headers, launch["id"], finished["version"], "succeeded")
+    assert finished["session_id"] == session_id
+
+
+async def test_session_opened_before_the_launch_does_not_link_it(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    machine: tuple[MachineModel, str],
+    db_session: AsyncSession,
+) -> None:
+    project_id, task_id, machine_id = await _ready_target(client, auth_headers, machine)
+    await _open_session(client, auth_headers, task_id, machine_id)
+    launch = (await _launch(client, auth_headers, project_id, task_id, machine_id)).json()
+    row = await db_session.get(TaskLaunchModel, uuid.UUID(launch["id"]))
+    assert row is not None
+    await db_session.refresh(row)
+    assert row.session_id is None

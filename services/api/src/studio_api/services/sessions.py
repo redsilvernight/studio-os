@@ -13,6 +13,7 @@ from studio_api.db.models.task import TaskModel
 from studio_api.db.models.work_session import WorkSessionModel
 from studio_api.services import claims as claims_service
 from studio_api.services import events as events_service
+from studio_api.services import task_launches as task_launches_service
 from studio_api.services import tasks as tasks_service
 from studio_api.services.authz import (
     Principal,
@@ -174,6 +175,7 @@ async def resume_or_start_session(
         existing.last_activity_at = now
         await session.commit()
         await session.refresh(existing)
+        await task_launches_service.link_session_to_launch(session, existing)
         return existing, True
     if existing is not None:
         existing.ended_at = now
@@ -197,6 +199,7 @@ async def resume_or_start_session(
     session.add(work_session)
     await session.commit()
     await session.refresh(work_session)
+    await task_launches_service.link_session_to_launch(session, work_session)
     await _emit_session_event(session, principal, work_session, EventType.SESSION_STARTED)
     return work_session, False
 
@@ -222,6 +225,7 @@ async def start_session(
     session.add(work_session)
     await session.commit()
     await session.refresh(work_session)
+    await task_launches_service.link_session_to_launch(session, work_session)
     await _emit_session_event(session, principal, work_session, EventType.SESSION_STARTED)
     return work_session
 

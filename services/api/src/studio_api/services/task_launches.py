@@ -325,6 +325,37 @@ async def _report_actor(
     return await tasks_service.event_actor(session, principal, None)
 
 
+_LINKABLE_STATUSES = (
+    TaskLaunchStatus.ACCEPTED.value,
+    TaskLaunchStatus.PREPARING.value,
+    TaskLaunchStatus.RUNNING.value,
+)
+
+
+async def link_session_to_launch(session: AsyncSession, work_session: WorkSessionModel) -> None:
+    """Attach a session opened on the launch's task and machine to the newest
+    unlinked live launch. Metadata only: `version` is untouched so the target
+    machine's next report keeps its `expected_version`."""
+    if work_session.task_id is None or work_session.machine_id is None:
+        return
+    result = await session.execute(
+        select(TaskLaunchModel)
+        .where(
+            TaskLaunchModel.task_id == work_session.task_id,
+            TaskLaunchModel.machine_id == work_session.machine_id,
+            TaskLaunchModel.session_id.is_(None),
+            TaskLaunchModel.status.in_(_LINKABLE_STATUSES),
+        )
+        .order_by(TaskLaunchModel.created_at.desc())
+        .limit(1)
+    )
+    launch = result.scalar_one_or_none()
+    if launch is None:
+        return
+    launch.session_id = work_session.id
+    await session.commit()
+
+
 async def report_launch(
     session: AsyncSession,
     principal: Principal,
@@ -362,7 +393,8 @@ async def report_launch(
     previous_status = launch.status
     launch.status = target.value
     launch.reason_code = report.reason_code.value
-    launch.session_id = report.session_id
+    if report.session_id is not None:
+        launch.session_id = report.session_id
     launch.output_excerpt = report.output_excerpt
     if target in TERMINAL_STATUSES:
         launch.finished_at = datetime.now(UTC)
