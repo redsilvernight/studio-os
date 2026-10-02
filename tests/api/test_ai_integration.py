@@ -145,3 +145,20 @@ async def test_applied_bootstrap_is_the_machine_observation(
     body = await _status(client, auth_headers, project_id)
     (entry,) = [m for m in body["machines"] if m["machine_id"] == str(model.id)]
     assert entry["bootstrap"]["in_sync"] is True
+
+
+async def test_foreign_stored_capabilities_do_not_break_ai_integration(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    machine: tuple[MachineModel, str],
+    db_session: AsyncSession,
+) -> None:
+    model, _ = machine
+    project_id = await _project(client, auth_headers)
+    model.capabilities = {"os": "linux", "arch": "x64", "tools": ["docker"]}
+    model.capabilities_reported_at = datetime.now(UTC)
+    await db_session.commit()
+    body = await _status(client, auth_headers, project_id)
+    (entry,) = [m for m in body["machines"] if m["machine_id"] == str(model.id)]
+    assert entry["freshness"] == "never_reported"
+    assert entry["harnesses"] == []

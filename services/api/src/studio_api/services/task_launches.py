@@ -122,7 +122,7 @@ async def authorize_create(
     await grants_service.ensure_can_launch(session, principal, machine, project_id)
     capabilities: MachineCapabilities | None = None
     if machine.capabilities is not None:
-        capabilities = MachineCapabilities.model_validate(machine.capabilities)
+        capabilities = heartbeats_service.parse_stored_capabilities(machine.capabilities)
     reported_at = machine.capabilities_reported_at
     if capabilities is None or reported_at is None:
         raise HTTPException(

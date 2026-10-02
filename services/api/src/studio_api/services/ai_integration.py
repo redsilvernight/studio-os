@@ -13,7 +13,7 @@ from studio_contracts.ai_integration import (
     ReportedMachineIntegration,
     ReportFreshness,
 )
-from studio_contracts.auth import MachineCapabilities, Role
+from studio_contracts.auth import Role
 from studio_contracts.bootstrap import BootstrapFileSummary
 from studio_contracts.bootstrap_plan import BootstrapPlanRequest
 
@@ -36,15 +36,15 @@ def reported_view(
     machine: MachineModel, *, project_id: uuid.UUID, settings: Settings, now: datetime
 ) -> ReportedMachineIntegration:
     status = heartbeats_service.derive_status(machine, settings)
+    capabilities = heartbeats_service.parse_stored_capabilities(machine.capabilities)
     reported_at = machine.capabilities_reported_at
-    if machine.capabilities is None or reported_at is None:
+    if capabilities is None or reported_at is None:
         return ReportedMachineIntegration(
             machine_id=machine.id,
             display_name=machine.display_name,
             status=status,
             freshness=ReportFreshness.NEVER_REPORTED,
         )
-    capabilities = MachineCapabilities.model_validate(machine.capabilities)
     stale = now - reported_at > timedelta(seconds=settings.heartbeat_offline_after_seconds)
     applied = next((b for b in capabilities.bootstrap or [] if b.project_id == project_id), None)
     return ReportedMachineIntegration(
