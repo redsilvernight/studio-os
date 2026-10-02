@@ -146,6 +146,8 @@ class ClaudeCodeAdapter(JsonMcpAdapter):
     def build_entry(self, mcp_url: str, token: str) -> dict[str, object]:
         return {"type": "http", "url": mcp_url, "headers": {"Authorization": f"Bearer {token}"}}
 
+    _BASE_TOOLS = "Read,Edit,Write,Bash,Grep,Glob"
+
     def headless_argv(self, prompt: str) -> tuple[str, ...]:
         return (
             "-p",
@@ -154,8 +156,6 @@ class ClaudeCodeAdapter(JsonMcpAdapter):
             "text",
             "--permission-mode",
             "acceptEdits",
-            "--allowedTools",
-            "Read,Edit,Write,Bash,Grep,Glob",
         )
 
     def headless_environment(
@@ -181,6 +181,8 @@ class ClaudeCodeAdapter(JsonMcpAdapter):
             "--mcp-config",
             str(self._isolation_mcp_path(isolation_dir)),
             "--strict-mcp-config",
+            "--allowedTools",
+            f"{self._BASE_TOOLS},mcp__{STUDIO_MCP_SERVER_NAME}",
         )
         if model:
             argv += ("--model", model)

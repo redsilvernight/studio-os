@@ -76,6 +76,8 @@ def test_extra_argv_forces_the_model_and_locks_mcp_to_the_isolated_file(
         "--mcp-config",
         str(isolation / "studio-mcp.json"),
         "--strict-mcp-config",
+        "--allowedTools",
+        f"Read,Edit,Write,Bash,Grep,Glob,mcp__{STUDIO_MCP_SERVER_NAME}",
         "--model",
         "sonnet",
     )
@@ -91,6 +93,9 @@ def test_extra_argv_without_model_keeps_the_harness_default(tmp_path: Path) -> N
 
     assert "--model" not in extra
     assert "--strict-mcp-config" in extra
+    allowed = extra[extra.index("--allowedTools") + 1]
+    assert allowed.split(",")[:6] == ["Read", "Edit", "Write", "Bash", "Grep", "Glob"]
+    assert allowed.endswith(f"mcp__{STUDIO_MCP_SERVER_NAME}")
 
 
 def test_environment_refuses_without_the_studio_entry(tmp_path: Path) -> None:
