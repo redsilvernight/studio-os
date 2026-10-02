@@ -51,7 +51,7 @@ def test_environment_writes_an_isolated_mcp_file_with_only_the_studio_entry(
 
     overrides = adapter.headless_environment(ctx, model="sonnet", isolation_dir=isolation)
 
-    assert overrides == {}
+    assert overrides == {"STUDIO_CLIENT_MACHINE_TOKEN": TOKEN}
     mcp_file = isolation / "studio-mcp.json"
     payload = json.loads(mcp_file.read_text(encoding="utf-8"))
     assert list(payload["mcpServers"]) == [STUDIO_MCP_SERVER_NAME]

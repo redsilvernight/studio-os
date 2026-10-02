@@ -13,7 +13,12 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from studio_client.harness import jsonc
-from studio_client.harness.base import STUDIO_MCP_SERVER_NAME, AdapterRefusal, HarnessContext
+from studio_client.harness.base import (
+    STUDIO_MCP_SERVER_NAME,
+    AdapterRefusal,
+    HarnessContext,
+    machine_token_env,
+)
 from studio_client.harness.fsafe import (
     Document,
     FsError,
@@ -178,4 +183,5 @@ class OpenCodeAdapter(JsonMcpAdapter):
         return {
             "XDG_CONFIG_HOME": str(isolation_dir),
             "OPENCODE_CONFIG_CONTENT": json.dumps(inline),
+            **machine_token_env(entry),
         }

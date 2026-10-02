@@ -23,8 +23,20 @@ from studio_contracts.local.harness import ChangeKind
 from studio_client.config import client_channel
 from studio_client.harness.fsafe import Document, sha256_hex
 from studio_client.harness.probe import locate_executable
+from studio_client.harness.redaction import bearer_token
 
 STUDIO_MCP_SERVER_NAME = "studio-os-dev" if client_channel() == "dev" else "studio-os"
+
+
+def machine_token_env(entry: Mapping[str, object] | None) -> dict[str, str]:
+    """Environment that makes a launched harness's own session hook authenticate
+    as the harness's machine: its `agents ensure` then registers the agent under
+    the same machine the harness's MCP entry uses. Without it the CLI falls back
+    to the machine it is enrolled as, and the agent belongs to another machine —
+    `studio_start_work` then refuses it (`actor_not_owned`). Empty when the entry
+    carries no literal Bearer token (a reference, or no entry)."""
+    token = bearer_token(entry)
+    return {"STUDIO_CLIENT_MACHINE_TOKEN": token} if token else {}
 
 
 class DetectionState(StrEnum):
