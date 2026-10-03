@@ -364,6 +364,7 @@ async def report_launch(
 ) -> TaskLaunchModel:
     authorize_report(principal, launch)
     ensure_project_access(principal, launch.project_id)
+    await session.refresh(launch, with_for_update=True)
     await expire_launch_if_overdue(session, principal, launch)
     if launch.version != report.expected_version:
         raise HTTPException(
@@ -385,7 +386,12 @@ async def report_launch(
         )
     if report.session_id is not None:
         linked = await session.get(WorkSessionModel, report.session_id)
-        if linked is None or linked.machine_id != launch.machine_id:
+        if (
+            linked is None
+            or linked.machine_id != launch.machine_id
+            or linked.task_id != launch.task_id
+            or linked.ended_at is not None
+        ):
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
                 detail={"error_code": "invalid_launch_session"},
@@ -422,6 +428,7 @@ async def cancel_launch(
             status.HTTP_403_FORBIDDEN,
             detail={"error_code": "forbidden", "resource": "task_launch", "action": "cancel"},
         )
+    await session.refresh(launch, with_for_update=True)
     await expire_launch_if_overdue(session, principal, launch)
     if launch.version != cancel.expected_version:
         raise HTTPException(

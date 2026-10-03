@@ -25,6 +25,7 @@ from studio_contracts.coordination import (
 from studio_contracts.events import EventCreate, EventType
 from studio_contracts.tasks import TaskStatus
 
+from studio_api.db.models.decision import DecisionModel
 from studio_api.db.models.event import EventModel
 from studio_api.db.models.work_session import WorkSessionModel
 from studio_api.services import events as events_service
@@ -123,6 +124,10 @@ async def emit(
         ref_task = await tasks_service.read_task(session, principal, ref_task_id)
         if ref_task is None or ref_task.project_id != project_id:
             raise _invalid("every referenced task must exist in the same project")
+    for ref_decision_id in dict.fromkeys(refs.decision_ids):
+        ref_decision = await session.get(DecisionModel, ref_decision_id)
+        if ref_decision is None or ref_decision.project_id != project_id:
+            raise _invalid("every referenced decision must exist in the same project")
 
     if body.in_reply_to is not None:
         parent = await session.get(EventModel, body.in_reply_to)
@@ -133,6 +138,15 @@ async def emit(
         ):
             raise _invalid("in_reply_to must be a coordination signal of the same project")
 
+    await session.refresh(emitter, with_for_update=True)
+    if emitter.ended_at is not None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            detail={
+                "error_code": "session_not_found",
+                "message": "unknown or ended emitting session",
+            },
+        )
     sent = await session.scalar(
         select(func.count())
         .select_from(EventModel)
