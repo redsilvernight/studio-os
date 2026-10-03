@@ -78,6 +78,8 @@ def test_extra_argv_forces_the_model_and_locks_mcp_to_the_isolated_file(
         "--strict-mcp-config",
         "--allowedTools",
         f"Read,Edit,Write,Bash,Grep,Glob,mcp__{STUDIO_MCP_SERVER_NAME}",
+        "--setting-sources",
+        "",
         "--model",
         "sonnet",
     )
@@ -126,7 +128,7 @@ def test_extra_argv_isolates_hooks_to_the_studio_ones(tmp_path: Path) -> None:
 
     extra = adapter.headless_extra_argv(ctx, model=None, isolation_dir=isolation)
 
-    assert extra[extra.index("--setting-sources") + 1] == "project"
+    assert extra[extra.index("--setting-sources") + 1] == ""
     settings = json.loads(extra[extra.index("--settings") + 1])
     session_cmd = settings["hooks"]["SessionStart"][0]["hooks"][0]["command"]
     assert "studio-session-start.ps1" in session_cmd
@@ -135,7 +137,9 @@ def test_extra_argv_isolates_hooks_to_the_studio_ones(tmp_path: Path) -> None:
     assert "studio-git-guard.ps1" in guard["hooks"][0]["command"]
 
 
-def test_extra_argv_without_deployed_hooks_keeps_the_default_settings(tmp_path: Path) -> None:
+def test_extra_argv_without_deployed_hooks_still_drops_every_settings_source(
+    tmp_path: Path,
+) -> None:
     adapter = ClaudeCodeAdapter()
     ctx = make_ctx(tmp_path)
     isolation = tmp_path / "isolation"
@@ -143,5 +147,5 @@ def test_extra_argv_without_deployed_hooks_keeps_the_default_settings(tmp_path: 
 
     extra = adapter.headless_extra_argv(ctx, model=None, isolation_dir=isolation)
 
-    assert "--setting-sources" not in extra
+    assert extra[extra.index("--setting-sources") + 1] == ""
     assert "--settings" not in extra

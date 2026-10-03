@@ -44,6 +44,7 @@ from studio_client.daemon.launch_runner import (
 )
 from studio_client.errors import StudioApiError
 from studio_client.harness.base import HarnessAdapter, HarnessContext
+from studio_client.harness.probe import launch_environment
 from studio_client.harness.redaction import redact_text, strip_ansi
 
 logger = logging.getLogger(__name__)
@@ -201,7 +202,7 @@ class LaunchExecutor:
             ) as isolation:
                 isolation_dir = Path(isolation)
                 env = {
-                    **ctx.env,
+                    **launch_environment(ctx.env),
                     **resolved.adapter.headless_environment(
                         ctx,
                         model=model,

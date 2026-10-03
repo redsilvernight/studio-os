@@ -192,20 +192,21 @@ class ClaudeCodeAdapter(JsonMcpAdapter):
             "--allowedTools",
             f"{self._BASE_TOOLS},mcp__{STUDIO_MCP_SERVER_NAME}",
         )
+        argv += ("--setting-sources", "")
         settings = self.isolation_settings(ctx)
         if settings is not None:
-            argv += ("--setting-sources", "project", "--settings", settings)
+            argv += ("--settings", settings)
         if model:
             argv += ("--model", model)
         return argv
 
     def isolation_settings(self, ctx: HarnessContext) -> str | None:
         """Minimal settings JSON keeping only the Studio session hook (agent
-        identity) and the git guard. Combined with `--setting-sources project`
+        identity) and the git guard. Combined with an empty `--setting-sources`
         it keeps a remotely launched harness from running the operator's own
-        hooks (bonsai delegation, rtk, office hooks) that are meant for
-        interactive local sessions. `None` when the Studio session hook is not
-        deployed, leaving the previous behaviour unchanged."""
+        hooks (bonsai delegation, rtk, office hooks) and, above all, the
+        repository's committed hooks, which no human has validated. `None` when
+        the Studio session hook is not deployed: the run then has no hook."""
         session_hook = ctx.home / _CLAUDE_SPEC.hook_rel
         if not session_hook.is_file():
             return None

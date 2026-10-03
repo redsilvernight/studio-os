@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
@@ -119,6 +120,7 @@ def _executor(
     timeout: float = 30.0,
     secrets: tuple[str, ...] = (),
     models: dict[str, str] | None = None,
+    env: dict[str, str] | None = None,
 ) -> tuple[LaunchExecutor, OutboxStore]:
     store = OutboxStore(connect(tmp_path / "outbox.sqlite3"))
 
@@ -127,7 +129,9 @@ def _executor(
             repo_root=repo,
             task_title="Demo task",
             adapter=adapter,
-            ctx=HarnessContext(workspace_root=repo, mcp_url="http://x", env={}, probe_cwd=repo),
+            ctx=HarnessContext(
+                workspace_root=repo, mcp_url="http://x", env=env or {}, probe_cwd=repo
+            ),
         )
 
     executor = LaunchExecutor(
@@ -158,6 +162,31 @@ async def test_success_reports_preparing_running_succeeded(tmp_path: Path) -> No
     assert [row.payload["status"] for row in rows] == ["preparing", "running", "succeeded"]
     assert [row.payload["expected_version"] for row in rows] == [1, 2, 3]
     assert rows[-1].payload["output_excerpt"].strip() == "ok"
+
+
+async def test_launched_harness_never_inherits_the_daemon_secrets(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    script = (
+        "import os; print(os.environ.get('STUDIO_CLIENT_MACHINE_TOKEN'),"
+        " os.environ.get('AWS_SECRET_ACCESS_KEY'), 'PATH' in os.environ)"
+    )
+    executor, store = _executor(
+        tmp_path,
+        repo,
+        FakeAdapter(("-c", script)),
+        FakeClient(),
+        env={
+            "STUDIO_CLIENT_MACHINE_TOKEN": "durable-token",
+            "AWS_SECRET_ACCESS_KEY": "aws-secret",
+            "PATH": os.environ.get("PATH", ""),
+        },
+    )
+    launch = _launch()
+    executor.submit(launch)
+    await executor._tasks[launch.id]
+
+    rows = store.list_pending(OutboxTable.MUTATIONS)
+    assert rows[-1].payload["output_excerpt"].strip() == "None None True"
 
 
 async def test_forced_model_and_isolation_reach_the_process_and_are_cleaned(

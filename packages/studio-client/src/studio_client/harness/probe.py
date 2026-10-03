@@ -37,6 +37,26 @@ _PASSTHROUGH_ENV = (
     "LOCALAPPDATA",
     "LANG",
 )
+_LAUNCH_ENV = (
+    *_PASSTHROUGH_ENV,
+    "USERNAME",
+    "USER",
+    "LOGNAME",
+    "HOMEDRIVE",
+    "HOMEPATH",
+    "SystemDrive",
+    "windir",
+    "ProgramData",
+    "ProgramFiles",
+    "ProgramFiles(x86)",
+    "CLAUDE_CODE_GIT_BASH_PATH",
+    "SHELL",
+    "LC_ALL",
+    "XDG_CONFIG_HOME",
+    "XDG_DATA_HOME",
+    "XDG_CACHE_HOME",
+    "XDG_STATE_HOME",
+)
 
 
 class ProbeFailure(Exception):
@@ -133,6 +153,13 @@ def locate_executable(
                 except OSError:
                     continue
     return None
+
+
+def launch_environment(source: Mapping[str, str]) -> dict[str, str]:
+    """Allowlisted environment for a remotely launched harness: only what it
+    needs to start and find its own login, never the daemon's other secrets
+    (machine token, cloud keys, unrelated API tokens)."""
+    return {key: source[key] for key in _LAUNCH_ENV if key in source}
 
 
 def _sanitised_env(source: Mapping[str, str]) -> dict[str, str]:

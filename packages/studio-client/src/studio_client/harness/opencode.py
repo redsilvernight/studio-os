@@ -183,5 +183,6 @@ class OpenCodeAdapter(JsonMcpAdapter):
         return {
             "XDG_CONFIG_HOME": str(isolation_dir),
             "OPENCODE_CONFIG_CONTENT": json.dumps(inline),
+            "OPENCODE_DISABLE_PROJECT_CONFIG": "1",
             **machine_token_env(entry),
         }
