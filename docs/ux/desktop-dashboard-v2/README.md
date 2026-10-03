@@ -104,6 +104,8 @@ Ne pas implémenter pendant cette évaluation. Les contrats et décisions valid�
 
 ## Fichiers
 
+- `baseline.md` — état initial mesuré des 4 parcours
+- `targets.md` — cibles de simplification vérifiables (C1–C4)
 - `mockups/01-home.png`
 - `mockups/02-work-task.png`
 - `mockups/03-roadmap.png`
