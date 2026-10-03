@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wireframes Studi'OS V2 — À valider</title>
+<style>
+:root{
+  --bg:#f5f6f8; --surface:#ffffff; --surface-2:#f0f2f5; --line:#e4e7ec; --line-2:#d0d5dd;
+  --text:#101828; --text-2:#475467; --text-3:#98a2b3;
+  --accent:#3e5bf2; --accent-ink:#ffffff; --accent-soft:#eef1ff; --accent-line:#c7d0ff;
+  --ok:#12a150; --ok-soft:#e7f7ee; --warn:#d97706; --warn-soft:#fff4e0; --bad:#e5484d; --bad-soft:#fdecec;
+  --shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.06);
+  --hero:linear-gradient(135deg,#eef1ff 0%,#ffffff 60%);
+  --page:#e9ecf1;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1115; --surface:#171a21; --surface-2:#1e222b; --line:#262b35; --line-2:#323846;
+    --text:#eef0f4; --text-2:#a3abba; --text-3:#6b7384;
+    --accent:#6b83ff; --accent-ink:#0b0d12; --accent-soft:#1d2440; --accent-line:#34407a;
+    --ok:#3ccf7e; --ok-soft:#14291e; --warn:#f2a93b; --warn-soft:#2d2212; --bad:#ff6b70; --bad-soft:#2f1719;
+    --shadow:0 1px 2px rgba(0,0,0,.4);
+    --hero:linear-gradient(135deg,#1d2440 0%,#171a21 65%);
+    --page:#08090c;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1115; --surface:#171a21; --surface-2:#1e222b; --line:#262b35; --line-2:#323846;
+  --text:#eef0f4; --text-2:#a3abba; --text-3:#6b7384;
+  --accent:#6b83ff; --accent-ink:#0b0d12; --accent-soft:#1d2440; --accent-line:#34407a;
+  --ok:#3ccf7e; --ok-soft:#14291e; --warn:#f2a93b; --warn-soft:#2d2212; --bad:#ff6b70; --bad-soft:#2f1719;
+  --shadow:0 1px 2px rgba(0,0,0,.4);
+  --hero:linear-gradient(135deg,#1d2440 0%,#171a21 65%);
+  --page:#08090c;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--page);color:var(--text);font:14px/1.5 "Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit}
+svg.i{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.viewer{padding:16px}
+.vbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;max-width:1400px;margin:0 auto 14px}
+.vbar h1{font-size:18px;margin:0;font-weight:650}
+.vbar p{margin:2px 0 0;color:var(--text-2);font-size:13px}
+.vctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.vseg{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:3px}
+.vseg button{border:0;background:none;padding:6px 12px;border-radius:7px;cursor:pointer;color:var(--text-2);font-size:13px}
+.vseg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.stage{max-width:100%;overflow:hidden;margin:0 auto;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.12)}
+.notes{max-width:1400px;margin:16px auto 0;display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr))}
+.note{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.note h3{margin:0 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3)}
+.note ul{margin:0;padding-left:18px;color:var(--text-2);font-size:13px}
+.note li{margin:3px 0}
+.app{container:app/inline-size;background:var(--bg);overflow:hidden;transform-origin:0 0;position:relative}
+.shell{display:grid;grid-template-columns:72px 1fr;min-height:inherit}
+.fold{position:absolute;left:0;right:0;border-top:2px dashed var(--warn);pointer-events:none}
+.fold span{position:absolute;right:12px;top:-22px;font-size:11px;font-weight:700;color:var(--warn);background:var(--bg);padding:2px 6px;border-radius:4px}
+@container app (min-width:1400px){.shell{grid-template-columns:236px 1fr}}
+.side{display:flex;flex-direction:column;gap:4px;padding:16px 10px;border-right:1px solid var(--line);background:var(--surface);min-height:0}
+.brand{display:flex;align-items:center;gap:10px;padding:4px 8px 14px}
+.logo{width:32px;height:32px;border-radius:9px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-weight:700;flex:none}
+.brand b{font-size:15px}
+.cmdk{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--surface-2);border-radius:9px;padding:7px 10px;color:var(--text-3);cursor:pointer;margin-bottom:10px;justify-content:center}
+.cmdk kbd{white-space:nowrap;margin-left:auto;font:11px/1 inherit;border:1px solid var(--line-2);border-radius:5px;padding:3px 5px;color:var(--text-3)}
+.nav{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;color:var(--text-2);text-decoration:none;position:relative;flex-direction:column;font-size:10.5px;gap:4px;white-space:nowrap;padding:8px 2px}
+.nav.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.nav .badge{position:absolute;top:2px;right:6px;font-size:10px;padding:0 5px;line-height:16px}
+.badge{background:var(--warn);color:#fff;border-radius:999px;font-size:11px;font-weight:700;padding:1px 7px;line-height:18px}
+.side .lbl-full{display:none}
+.spacer{flex:1}
+.me .who{display:none}
+.me{display:flex;align-items:center;gap:10px;padding:10px 8px 2px;border-top:1px solid var(--line);margin-top:8px;flex-direction:column}
+.avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#7c8cff,#3e5bf2);color:#fff;display:grid;place-items:center;font-weight:600;font-size:13px;flex:none}
+.avatar.b{background:linear-gradient(135deg,#f6a5c0,#e5484d)}
+.avatar.ai{background:var(--surface-2);color:var(--text-2);border:1px solid var(--line)}
+.conn{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2)}
+.conn::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px var(--ok-soft)}
+.conn .t{display:none}
+@container app (min-width:1400px){
+  .side{padding:18px 14px}
+  .side .lbl-full{display:inline}
+  .side .lbl-short{display:none}
+  .cmdk{justify-content:flex-start}
+  .nav{flex-direction:row;font-size:14px;gap:10px;padding:8px 10px}
+  .nav .badge{position:static;margin-left:auto;font-size:11px;padding:1px 7px;line-height:18px}
+  .me{flex-direction:row}
+  .me .who{display:flex;flex-direction:column;line-height:1.25}
+  .conn .t{display:inline}
+}
+.who b{font-size:13px}
+.main{padding:28px 32px;min-width:0}
+@container app (min-width:1400px){.main{padding:32px 40px}}
+@container app (min-width:2000px){.main{padding:40px 56px}}
+h1.pt{font-size:26px;line-height:1.2;margin:0;font-weight:680;letter-spacing:-.01em}
+.eyebrow{font-size:12px;color:var(--text-3);margin:0 0 4px;font-weight:600;letter-spacing:.02em}
+.sub{color:var(--text-2);margin:4px 0 0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:18px 20px;min-width:0}
+.card h2,.card h3{margin:0}
+.ch{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.ch h3{font-size:15px;font-weight:650}
+.link{color:var(--accent);font-size:13px;text-decoration:none;display:inline-flex;gap:4px;align-items:center;white-space:nowrap}
+.muted{color:var(--text-2)} .faint{color:var(--text-3);font-size:12px}
+.btn{display:inline-flex;align-items:center;gap:8px;border-radius:10px;padding:9px 14px;border:1px solid var(--line-2);background:var(--surface);cursor:pointer;font-weight:600;font-size:13px;white-space:nowrap}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);box-shadow:0 2px 8px color-mix(in srgb,var(--accent) 35%,transparent)}
+.btn.ghost{border-color:transparent;background:none;color:var(--text-2)}
+.btn.sm{padding:6px 10px;font-size:12.5px;border-radius:8px}
+.status{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text-2);white-space:nowrap}
+.status::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--text-3)}
+.s-prog{color:var(--accent)} .s-prog::before{background:var(--accent)}
+.s-block{color:var(--bad)} .s-block::before{background:var(--bad)}
+.s-todo::before{background:var(--line-2);box-shadow:inset 0 0 0 2px var(--text-3)}
+.s-ok{color:var(--ok)} .s-ok::before{background:var(--ok)}
+.s-warn{color:var(--warn)} .s-warn::before{background:var(--warn)}
+.tag{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2);background:var(--surface-2);border-radius:999px;padding:2px 10px;white-space:nowrap}
+.row{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row .grow{flex:1;min-width:0}
+.row .t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .s{font-size:12px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chev{color:var(--text-3)}
+.seg{display:inline-flex;background:var(--surface-2);border-radius:10px;padding:3px;gap:2px}
+.seg span{padding:6px 12px;border-radius:8px;font-size:13px;color:var(--text-2);font-weight:600;white-space:nowrap}
+.seg span.on{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+.seg span b{color:var(--text-3);font-weight:600;margin-left:4px}
+@container app (max-width:1999px){.only-xl{display:none!important}}
+@container app (min-width:2000px){.hide-xl{display:none!important}}
+@container app (max-width:1399px){.only-lg{display:none!important}}
+@container app (min-width:1400px){.hide-lg{display:none!important}}
+/* ---------- File À valider ---------- */
+.qwrap{max-width:1100px;margin:0 auto}
+.qwrap .head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:20px;gap:16px;flex-wrap:wrap}
+.qg{display:grid;gap:20px;grid-template-columns:minmax(0,1fr) 300px;grid-template-areas:"hero hero" "list ctx";align-items:start}
+.qg .hero{grid-area:hero}.qg .listcol{grid-area:list}.qg .ctx{grid-area:ctx}
+@container app (min-width:1400px){.qwrap{max-width:1160px}.qg{grid-template-columns:minmax(0,760px) 340px;gap:24px}}
+@container app (min-width:2000px){
+  .qwrap{max-width:1980px}
+  .qg{grid-template-columns:760px 380px 380px;grid-template-areas:"hero hero hero" "list ctx hist";gap:28px}
+  .qg .histcol{grid-area:hist}
+}
+.hero{background:var(--hero);border-color:var(--accent-line);padding:22px 24px}
+.hero h2{font-size:22px;line-height:1.25;margin:10px 0 4px;letter-spacing:-.01em}
+.hero p{margin:0;max-width:68ch}
+.hero .acts{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+.ilist{display:flex;flex-direction:column;gap:14px}
+.item .top{display:flex;gap:10px;align-items:flex-start}
+.item .grow{flex:1;min-width:0}
+.item h3{font-size:15px;margin:0;overflow-wrap:break-word}
+.item .ctxline{font-size:13px;color:var(--text-2);margin:4px 0 0;max-width:68ch}
+.item .impact{font-size:12.5px;color:var(--text-2);margin:6px 0 0;display:flex;gap:6px;align-items:flex-start;max-width:68ch}
+.item .impact svg{margin-top:2px}
+.item .acts{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.item .noact{font-size:12px;color:var(--text-3);margin-top:10px}
+.dot{width:8px;height:8px;border-radius:50%;flex:none;margin-top:6px}
+.d-prog{background:var(--accent)}.d-block{background:var(--bad)}.d-todo{box-shadow:inset 0 0 0 2px var(--text-3)}.d-ok{background:var(--ok)}.d-warn{background:var(--warn)}
+details.tech{margin-top:12px;border:1px dashed var(--line-2);border-radius:10px}
+details.tech summary{cursor:pointer;padding:10px 12px;font-size:13px;color:var(--text-2);display:flex;gap:10px;align-items:center;list-style:none}
+details.tech summary::-webkit-details-marker{display:none}
+details.tech summary .chev{margin-left:auto}
+details.tech dl{margin:0;padding:0 12px 12px;display:grid;gap:6px;font-size:12.5px}
+details.tech dt{color:var(--text-3)} details.tech dd{margin:0}
+.kinds{display:flex;gap:8px;flex-wrap:wrap}
+.kind{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;flex:1;min-width:150px}
+.kind b{font-size:20px;line-height:1}
+.kind span{font-size:12px;color:var(--text-2);line-height:1.25}
+.feed{display:flex;flex-direction:column;gap:12px}
+.fi{display:flex;gap:10px;font-size:13px}
+.fi .avatar{width:26px;height:26px;font-size:11px}
+.fi p{margin:0;color:var(--text-2);max-width:68ch} .fi b{color:var(--text)}
+.fi .when{margin-left:auto;color:var(--text-3);font-size:12px;white-space:nowrap}
+/* ---------- Détail ---------- */
+.dwrap{max-width:1100px;margin:0 auto}
+.crumb{font-size:12px;color:var(--text-3);margin-bottom:6px}
+.dhead{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.dhead h2{font-size:22px;line-height:1.25;letter-spacing:-.01em;margin:8px 0 4px}
+.dhead p{margin:0;max-width:68ch}
+.dg{display:grid;gap:20px;margin-top:20px;grid-template-columns:minmax(0,1fr) 300px;align-items:start}
+@container app (min-width:1400px){.dwrap{max-width:1160px}.dg{grid-template-columns:minmax(0,680px) 260px;justify-content:space-between;gap:24px}}
+@container app (min-width:2000px){.dwrap{max-width:1980px}.dg{grid-template-columns:minmax(0,720px) 280px 380px;gap:28px}}
+.blk{padding:16px 0;border-top:1px solid var(--line)}
+.blk:first-child{border-top:0;padding-top:0}
+.blk h3{font-size:13px;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin:0 0 8px}
+.blk p{margin:0;max-width:68ch}
+.diff{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.diff .dl{padding:10px 14px;font-size:13px;display:flex;gap:10px;align-items:flex-start;border-top:1px solid var(--line)}
+.diff .dl:first-child{border-top:0}
+.diff .add{background:var(--ok-soft)}
+.diff .dl p{margin:0;max-width:68ch}
+.props dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:10px 14px;font-size:13px}
+.props dt{color:var(--text-3)} .props dd{margin:0;font-weight:500;min-width:0}
+.check{display:flex;gap:10px;align-items:flex-start;padding:7px 0}
+.check span:last-child{max-width:68ch}
+.box{width:18px;height:18px;border-radius:6px;border:1.5px solid var(--line-2);flex:none;margin-top:1px;display:grid;place-items:center}
+.box.on{background:var(--ok);border-color:var(--ok);color:#fff}
+.box.on svg{width:12px;height:12px;stroke-width:3}
+.check.done span:last-child{color:var(--text-3);text-decoration:line-through}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="folder" viewBox="0 0 24 24"><path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="work" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="m8 12 3 3 5-6"/></symbol>
+  <symbol id="inbox" viewBox="0 0 24 24"><path d="M3 13h5l1.5 3h5L16 13h5"/><path d="M5.5 5h13L21 13v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6z"/></symbol>
+  <symbol id="bot" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 4v4M9 14h.01M15 14h.01"/></symbol>
+  <symbol id="gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></symbol>
+  <symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+  <symbol id="code" viewBox="0 0 24 24"><path d="m8 8-4 4 4 4M16 8l4 4-4 4"/></symbol>
+  <symbol id="doc" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></symbol>
+  <symbol id="shield" viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="warn" viewBox="0 0 24 24"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/></symbol>
+</svg>
+
+<div class="viewer">
+  <div class="vbar">
+    <div>
+      <h1>Wireframes Studi'OS V2 — À valider</h1>
+      <p>P02-wf-review · file unifiée + détail roadmap · mêmes tokens et coquille que index.html</p>
+    </div>
+    <div class="vctl">
+      <div class="vseg" id="screens" role="group" aria-label="Écran">
+        <button data-v="queue" aria-pressed="true">File</button>
+        <button data-v="detail" aria-pressed="false">Détail</button>
+      </div>
+      <div class="vseg" id="widths" role="group" aria-label="Largeur">
+        <button data-v="1280" aria-pressed="true">1280</button>
+        <button data-v="1600" aria-pressed="false">1600</button>
+        <button data-v="2560" aria-pressed="false">2560</button>
+      </div>
+      <div class="vseg" id="theme" role="group" aria-label="Thème">
+        <button data-v="light" aria-pressed="false">Clair</button>
+        <button data-v="dark" aria-pressed="false">Sombre</button>
+      </div>
+    </div>
+  </div>
+  <div class="stage" id="stage"></div>
+  <div class="notes" id="notes"></div>
+</div>
+
+<!-- ================= FILE ================= -->
+<template id="t-queue">
+  <div class="qwrap">
+    <div class="head">
+      <div>
+        <p class="eyebrow">À valider · Studi'OS</p>
+        <h1 class="pt">Boîte de réception</h1>
+        <p class="sub">4 décisions attendues · 3 signaux informatifs · triés du plus récent</p>
+      </div>
+      <div class="seg"><span class="on">Tous<b>7</b></span><span>À décider<b>4</b></span><span>Signaux<b>3</b></span></div>
+    </div>
+    <div class="qg">
+      <section class="card hero" data-major>
+        <div style="display:flex;gap:10px;align-items:center;justify-content:space-between">
+          <span class="tag">Proposition de roadmap · révision 2</span>
+          <span class="status s-warn">En attente</span>
+        </div>
+        <h2>Approuver la révision 2 du plan</h2>
+        <p class="muted">Ajoute cette file et sa fiche détail au plan. Sans effet tant que non approuvée.</p>
+        <div class="acts">
+          <button class="btn primary">Examiner la révision 2 <svg class="i"><use href="#arrow"/></svg></button>
+          <button class="btn ghost">Ouvrir dans Roadmap</button>
+        </div>
+      </section>
+
+      <div class="listcol ilist" data-major>
+        <article class="card item">
+          <div class="top"><span class="dot d-warn"></span><div class="grow">
+            <h3>Révision 2 du plan UX Desktop V2</h3>
+            <p class="ctxline">Studi'OS · proposée par Claude Code · il y a 40 min</p>
+            <p class="impact"><svg class="i"><use href="#warn"/></svg><span>Impact : débloque P03-shell et P04-work. N'applique rien avant approbation.</span></p>
+          </div></div>
+          <div class="acts"><button class="btn sm primary">Examiner la proposition</button><button class="btn sm ghost">Ouvrir la roadmap</button></div>
+          <details class="tech"><summary><svg class="i"><use href="#code"/></svg>Détails techniques<svg class="i chev"><use href="#down"/></svg></summary><dl><dt>Portée</dt><dd>revision · révision 2 sur base 1</dd><dt>Statut</dt><dd>proposed</dd><dt>Résolution</dt><dd>surface Roadmap, pas dans cette file</dd></dl></details>
+        </article>
+        <article class="card item">
+          <div class="top"><span class="dot d-prog"></span><div class="grow">
+            <h3>Wireframes P02 rendus</h3>
+            <p class="ctxline">Travail IA · Claude Code · tâche « Valider des wireframes » · il y a 12 min</p>
+            <p class="impact"><svg class="i"><use href="#doc"/></svg><span>Impact : 3 images à relire. Approuver publie le travail dans la tâche.</span></p>
+          </div></div>
+          <div class="acts"><button class="btn sm primary">Approuver</button><button class="btn sm">Demander des modifications</button></div>
+          <details class="tech"><summary><svg class="i"><use href="#code"/></svg>Détails techniques<svg class="i chev"><use href="#down"/></svg></summary><dl><dt>Type</dt><dd>ai_work_review</dd><dt>Résolution</dt><dd>relecture du travail IA lié</dd></dl></details>
+        </article>
+        <article class="card item">
+          <div class="top"><span class="dot d-prog"></span><div class="grow">
+            <h3>Libellé « Reprendre » de l'accueil</h3>
+            <p class="ctxline">Travail IA · Codex · tâche « Navigation quotidienne » · il y a 1 h</p>
+            <p class="impact"><svg class="i"><use href="#doc"/></svg><span>Impact : un libellé. Refuser renvoie la tâche à l'agent.</span></p>
+          </div></div>
+          <div class="acts"><button class="btn sm primary">Approuver</button><button class="btn sm">Demander des modifications</button></div>
+          <details class="tech"><summary><svg class="i"><use href="#code"/></svg>Détails techniques<svg class="i chev"><use href="#down"/></svg></summary><dl><dt>Type</dt><dd>ai_work_review</dd><dt>Résolution</dt><dd>relecture du travail IA lié</dd></dl></details>
+        </article>
+        <article class="card item">
+          <div class="top"><span class="dot d-prog"></span><div class="grow">
+            <h3>DEC-0102 · Tauri 2 comme shell natif</h3>
+            <p class="ctxline">Proposition de décision · proposée par un agent · il y a 2 h</p>
+            <p class="impact"><svg class="i"><use href="#shield"/></svg><span>Impact : fige le shell desktop. Réservé au rôle admin.</span></p>
+          </div></div>
+          <div class="acts"><button class="btn sm primary">Accepter</button><button class="btn sm">Remplacer</button></div>
+          <details class="tech"><summary><svg class="i"><use href="#code"/></svg>Détails techniques<svg class="i chev"><use href="#down"/></svg></summary><dl><dt>Type</dt><dd>decision_proposal</dd><dt>Statut</dt><dd>proposed</dd><dt>Résolution</dt><dd>transition admin (accepter / remplacer)</dd></dl></details>
+        </article>
+        <article class="card item">
+          <div class="top"><span class="dot d-warn"></span><div class="grow">
+            <h3>Conflit sur dashboard/src/views/tasks.ts</h3>
+            <p class="ctxline">Conflit de réservation · Chloé et Claude Code · il y a 25 min</p>
+            <p class="impact"><svg class="i"><use href="#warn"/></svg><span>Impact : risque d'écrasement. Signal de 24 h, non résoluble ici.</span></p>
+          </div></div>
+          <div class="acts"><button class="btn sm">Voir le fichier</button><button class="btn sm ghost">Ouvrir la tâche</button></div>
+          <details class="tech"><summary><svg class="i"><use href="#code"/></svg>Détails techniques<svg class="i chev"><use href="#down"/></svg></summary><dl><dt>Type</dt><dd>resource_conflict</dd><dt>Fenêtre</dt><dd>signal de 24 h, sans état persistant</dd></dl></details>
+        </article>
+        <article class="card item">
+          <div class="top"><span class="dot d-block"></span><div class="grow">
+            <h3>CI échouée sur main</h3>
+            <p class="ctxline">Échec de build · workflow ci · branche main · il y a 50 min</p>
+            <p class="impact"><svg class="i"><use href="#warn"/></svg><span>Impact : fusion bloquée. Informatif : pas de transition de build.</span></p>
+          </div></div>
+          <div class="acts"><button class="btn sm">Voir le build</button><button class="btn sm ghost">Ouvrir la tâche</button></div>
+          <details class="tech"><summary><svg class="i"><use href="#code"/></svg>Détails techniques<svg class="i chev"><use href="#down"/></svg></summary><dl><dt>Type</dt><dd>build_failure</dd><dt>Résolution</dt><dd>aucune transition, lien vers le build</dd></dl></details>
+        </article>
+        <article class="card item">
+          <div class="top"><span class="dot d-prog"></span><div class="grow">
+            <h3>PR #128 file-à-valider vers main</h3>
+            <p class="ctxline">PR ouverte · branche file-à-valider · il y a 3 h</p>
+            <p class="impact"><svg class="i"><use href="#doc"/></svg><span>Impact : relire avant fusion. Signal, non résoluble ici.</span></p>
+          </div></div>
+          <div class="acts"><button class="btn sm">Ouvrir la PR</button><button class="btn sm ghost">Ouvrir la tâche</button></div>
+          <details class="tech"><summary><svg class="i"><use href="#code"/></svg>Détails techniques<svg class="i chev"><use href="#down"/></svg></summary><dl><dt>Type</dt><dd>pr_ready</dd><dt>Fenêtre</dt><dd>signal, disparaît à la fusion</dd></dl></details>
+        </article>
+      </div>
+
+      <aside class="ctx" data-major>
+        <section class="card" style="margin-bottom:20px">
+          <div class="ch"><h3>Par type</h3></div>
+          <div class="kinds">
+            <div class="kind"><b>2</b><span>travaux IA<br>à relire</span></div>
+            <div class="kind"><b>1</b><span>proposition<br>de roadmap</span></div>
+            <div class="kind"><b>1</b><span>décision<br>à trancher</span></div>
+            <div class="kind"><b>3</b><span>signaux<br>informatifs</span></div>
+          </div>
+        </section>
+        <section class="card">
+          <div class="ch"><h3>Décisions récentes</h3></div>
+          <div class="row"><svg class="i muted"><use href="#shield"/></svg><div class="grow"><div class="t">Cibles C1–C4</div><div class="s">Acceptée · 3 oct.</div></div></div>
+          <div class="row"><svg class="i muted"><use href="#shield"/></svg><div class="grow"><div class="t">Tauri 2 comme shell</div><div class="s">Proposée · en attente</div></div></div>
+        </section>
+      </aside>
+
+      <aside class="card histcol only-xl" data-major>
+        <div class="ch"><h3>Historique récent</h3><a class="link">Tout <svg class="i"><use href="#arrow"/></svg></a></div>
+        <div class="feed">
+          <div class="fi"><span class="avatar ai"><svg class="i"><use href="#bot"/></svg></span><p><b>Vous</b> avez approuvé <b>Navigation quotidienne</b></p><span class="when">hier</span></div>
+          <div class="fi"><span class="avatar">M</span><p><b>Vous</b> avez accepté <b>Cibles C1–C4</b></p><span class="when">3 oct.</span></div>
+          <div class="fi"><span class="avatar b">C</span><p><b>Chloé</b> a fusionné la <b>PR #121</b></p><span class="when">2 oct.</span></div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</template>
+
+<!-- ================= DÉTAIL ================= -->
+<template id="t-detail">
+  <div class="dwrap">
+    <div class="crumb">À valider / Révision 2 du plan</div>
+    <div class="card hero" data-major>
+      <div class="dhead">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;gap:10px;align-items:center;justify-content:space-between">
+            <span class="tag">Proposition de roadmap · révision 2 · base 1</span>
+            <span class="status s-warn">En attente</span>
+          </div>
+          <h2>Approuver la révision 2 du plan</h2>
+          <p class="muted">Plan UX Desktop V2 · proposée par Claude Code il y a 40 min. N'applique rien avant approbation.</p>
+        </div>
+        <div class="acts" style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn primary">Approuver la révision 2</button>
+          <button class="btn ghost">Demander des modifications</button>
+        </div>
+      </div>
+    </div>
+    <div class="dg">
+      <div data-major>
+        <section class="blk"><h3>Contexte</h3><p>La révision ajoute cette file « À valider » et sa fiche détail au plan, avec les critères C1 à C4. Elle ne modifie aucune étape terminée.</p></section>
+        <section class="blk"><h3>Résumé des changements</h3>
+          <div class="diff">
+            <div class="dl add"><svg class="i" style="color:var(--ok)"><use href="#check"/></svg><p><b>P02-wf-review — File « À valider ».</b> Une carte par objet, deux actions au plus, contexte et impact visibles.</p></div>
+            <div class="dl add"><svg class="i" style="color:var(--ok)"><use href="#check"/></svg><p><b>P04-review — Relecture S3.</b> Décision en deux clics depuis la file, sans changer de page.</p></div>
+          </div>
+        </section>
+        <section class="blk"><h3>Impact</h3><p>Débloque P03-shell et P04-work. Refuser renvoie le plan à l'auteur, sans toucher aux étapes en cours.</p></section>
+        <section class="blk">
+          <details class="tech" style="margin-top:0"><summary><svg class="i"><use href="#code"/></svg>Détails techniques : portée, statut, provenance<svg class="i chev"><use href="#down"/></svg></summary><dl><dt>Portée</dt><dd>revision · révision 2 sur base 1</dd><dt>Statut</dt><dd>proposed</dd><dt>Résolution</dt><dd>surface Roadmap (transitions et relecture), file en lecture seule</dd><dt>Provenance</dt><dd>nom d'agent humain ; identifiants masqués</dd></dl></details>
+        </section>
+      </div>
+      <aside class="props only-lg" data-major>
+        <h3 style="font-size:12px;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin:0 0 10px">Propriétés</h3>
+        <dl>
+          <dt>Type</dt><dd>Proposition de roadmap</dd>
+          <dt>Projet</dt><dd>Studi'OS</dd>
+          <dt>Demandeur</dt><dd>Claude Code</dd>
+          <dt>Demandée</dt><dd>il y a 40 min</dd>
+        </dl>
+      </aside>
+      <aside class="card only-xl" data-major>
+        <div class="ch"><h3>Étapes concernées</h3><a class="link">Roadmap <svg class="i"><use href="#arrow"/></svg></a></div>
+        <div class="check"><span class="box"></span><span>P02-wf-review — File « À valider »</span></div>
+        <div class="check"><span class="box"></span><span>P04-review — Relecture S3</span></div>
+        <div class="check done"><span class="box on"><svg class="i"><use href="#check"/></svg></span><span>P01 Mesure — terminée</span></div>
+      </aside>
+    </div>
+  </div>
+</template>
+
+<template id="t-shell">
+  <div class="shell">
+    <aside class="side">
+      <div class="brand"><span class="logo">S</span><b class="lbl-full">Studi'OS</b></div>
+      <div class="cmdk"><svg class="i"><use href="#search"/></svg><span class="lbl-full" style="white-space:nowrap">Rechercher…</span><kbd class="lbl-full">Ctrl K</kbd></div>
+      <a class="nav" data-n="home"><svg class="i"><use href="#home"/></svg><span>Accueil</span></a>
+      <a class="nav" data-n="projects"><svg class="i"><use href="#folder"/></svg><span>Projets</span></a>
+      <a class="nav" data-n="work"><svg class="i"><use href="#work"/></svg><span>Travail</span></a>
+      <a class="nav on" data-n="review"><svg class="i"><use href="#inbox"/></svg><span class="lbl-full">À valider</span><span class="lbl-short">Valider</span><span class="badge">7</span></a>
+      <a class="nav" data-n="agents"><svg class="i"><use href="#bot"/></svg><span>Agents</span></a>
+      <div class="spacer"></div>
+      <a class="nav"><svg class="i"><use href="#gear"/></svg><span class="lbl-full">Administration</span><span class="lbl-short">Admin</span></a>
+      <div class="me">
+        <span class="avatar">M</span>
+        <div class="who"><b>Mathieu</b><span class="conn" data-testid="connection-status"><span class="t">En ligne</span></span></div>
+        <span class="conn hide-lg" data-testid="connection-status" title="En ligne"></span>
+      </div>
+    </aside>
+    <main class="main"></main>
+  </div>
+</template>
+
+<script>
+var H = {1280:800, 1600:900, 2560:1440};
+var NOTES = {
+  queue:[
+    ["Ce qui change vs écran actuel",["Une carte par objet avec contexte et impact, deux actions au plus : les 6 types réels deviennent lisibles.","Statut par point de couleur, type en libellé humain : plus de valeur technique brute.","Détails repliés : identifiants, portée, statut et provenance sortent du flux.","Signaux sans résolution (conflit, build, PR) honnêtes : navigation seule, sans bouton générique."]],
+    ["Adaptatif",["1280 : rail 72 px, héros + file + contexte 300 px.","1600 : barre complète, file 760 px + contexte 340 px.","2560 : 3e colonne bornée « Historique récent » 380 px, aucune carte élargie."]],
+    ["Données réelles",["6 types de review_queue.py : ai_work_review, decision_proposal, resource_conflict, build_failure, pr_ready, roadmap_proposal.","Résolution fidèle : travail IA et décision dans la file, roadmap sur sa surface, autres en lecture seule.","C1 : 1 primaire · C2 : 0 UUID · C3 : 3 blocs · C4 : 1 statut."]]
+  ],
+  detail:[
+    ["Étape P02-wf-review",["Détail d'une roadmap_proposal scope revision : révision 2 sur base 1, statut proposed.","Contexte, résumé des changements et impact visibles ; technique repliée.","Une seule action primaire : approuver la révision 2."]],
+    ["Adaptatif",["1280 : contenu + contexte 300 px ; propriétés en ligne sous 1400 px.","1600 : contenu 680 px + propriétés 260 px.","2560 : volet « Étapes concernées » 380 px."]],
+    ["Données réelles",["Champs contractuels : roadmap_id, scope, revision_no, base_revision_no, summary, actor, statut.","Texte courant borné à 68 ch ; statut par point, pas de badge."]]
+  ]
+};
+var st = {screen:'queue', width:1280};
+var stage = document.getElementById('stage');
+function render(){
+  var w = st.width, h = H[w];
+  var shell = document.getElementById('t-shell').content.cloneNode(true);
+  var tpl = document.getElementById('t-'+st.screen);
+  if(!tpl){ st.screen='queue'; tpl = document.getElementById('t-queue'); }
+  shell.querySelector('.main').appendChild(tpl.content.cloneNode(true));
+  var app = document.createElement('div');
+  app.className='app'; app.style.width=w+'px'; app.style.minHeight=h+'px';
+  app.appendChild(shell);
+  var fold=document.createElement('div'); fold.className='fold'; fold.style.top=h+'px';
+  var label = document.createElement('span'); label.textContent = 'ligne de flottaison ' + w + '×' + h;
+  fold.appendChild(label); app.appendChild(fold);
+  stage.innerHTML=''; stage.appendChild(app);
+  fit();
+  document.getElementById('notes').innerHTML = NOTES[st.screen].map(function(pair){
+    return '<div class="note"><h3>'+pair[0]+'</h3><ul>'+pair[1].map(function(x){return '<li>'+x+'</li>';}).join('')+'</ul></div>';
+  }).join('');
+}
+function fit(){
+  var app = stage.firstChild; if(!app) return;
+  var raw = new URLSearchParams(location.search).has('raw');
+  var avail = raw ? 1e9 : Math.min(document.documentElement.clientWidth - 32, 1400);
+  var s = Math.min(1, avail / st.width);
+  app.style.transform = 'scale(' + s + ')';
+  stage.style.width = (st.width*s)+'px';
+  stage.style.height = (app.offsetHeight*s)+'px';
+}
+function seg(id,key,cast){
+  var el=document.getElementById(id);
+  el.addEventListener('click',function(e){
+    var b=e.target.closest('button'); if(!b) return;
+    el.querySelectorAll('button').forEach(function(x){x.setAttribute('aria-pressed', x===b ? 'true' : 'false');});
+    if(key==='theme'){ document.documentElement.dataset.theme=b.dataset.v; return; }
+    st[key]=cast(b.dataset.v); render();
+  });
+}
+var q=new URLSearchParams(location.search);
+if(q.get('screen')) st.screen=q.get('screen');
+if(q.get('w')) st.width=Number(q.get('w'));
+if(q.get('theme')) document.documentElement.dataset.theme=q.get('theme');
+if(q.has('raw')){ document.querySelector('.vbar').style.display='none'; document.getElementById('notes').style.display='none'; document.querySelector('.viewer').style.padding='0'; }
+document.querySelectorAll('#screens button').forEach(function(b){b.setAttribute('aria-pressed', b.dataset.v===st.screen ? 'true' : 'false');});
+document.querySelectorAll('#widths button').forEach(function(b){b.setAttribute('aria-pressed', b.dataset.v==String(st.width) ? 'true' : 'false');});
+seg('screens','screen',String); seg('widths','width',Number); seg('theme','theme',String);
+window.addEventListener('resize',fit);
+render();
+</script>
+</body>
+</html>
