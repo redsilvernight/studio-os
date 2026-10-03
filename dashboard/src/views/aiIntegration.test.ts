@@ -42,7 +42,7 @@ describe("desiredHtml", () => {
       },
       null,
     );
-    expect(html).toContain("abcdef01…");
+    expect(html).not.toContain("abcdef01");
     expect(html).toContain("studio-orchestrator");
     expect(html).toContain("review-helper");
     expect(html).toContain("Agents");

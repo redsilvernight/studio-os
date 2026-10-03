@@ -15,7 +15,8 @@ import { applyAccountAction, listUserMemberships, type AccountAction } from "../
 import { dsBadge, dsEmptyState, dsField, dsPageHeader, focusDsErrorBox, type DsTone } from "../ds/ds";
 import { fetchIdentity } from "../identityApi";
 import { searchUsers, type DirectoryUser, type ProjectMember } from "../membersApi";
-import { describeError, esc, idCell } from "../ui";
+import { describeError, esc } from "../ui";
+import { projectLabel } from "../actorNames";
 
 export interface AccountsContext {
   client: StudioClient;
@@ -78,7 +79,7 @@ export function membershipsHtml(memberships: ProjectMember[]): string {
     return `<p class="ds-list-sub">Aucun projet accessible. Un compte actif sans accès se connecte et voit des listes vides ; donnez-lui accès depuis l'onglet Membres d'un projet.</p>`;
   }
   const items = memberships
-    .map((m) => `<li><a href="#/projects/${esc(m.project_id)}/members">${idCell(m.project_id)}</a></li>`)
+    .map((m) => `<li><a href="#/projects/${esc(m.project_id)}/members">${esc(projectLabel(m.project_id))}</a></li>`)
     .join("");
   return `<ul class="ds-list" aria-label="Projets accessibles">${items}</ul>`;
 }

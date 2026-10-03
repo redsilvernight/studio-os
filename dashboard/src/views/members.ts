@@ -20,7 +20,8 @@ import {
   type DirectoryUser,
   type ProjectMember,
 } from "../membersApi";
-import { describeError, esc, fmtTime, idCell } from "../ui";
+import { describeError, esc, fmtTime } from "../ui";
+import { FALLBACK_LABEL } from "../language";
 
 export interface MembersContext {
   client: StudioClient;
@@ -40,14 +41,14 @@ function memberLabel(m: ProjectMember): string {
 function userCell(name: string | null | undefined, email: string | null | undefined, id: string): string {
   return (
     `<strong>${esc(name ?? "Utilisateur inconnu")}</strong>` +
-    `<div class="ds-list-sub">${email ? esc(email) : idCell(id)}</div>`
+    `<div class="ds-list-sub">${email ? esc(email) : esc(FALLBACK_LABEL.user)}</div>`
   );
 }
 
 function grantedByCell(grantedBy: string | null | undefined, members: ProjectMember[]): string {
   if (!grantedBy) return `<span class="ds-list-sub">système (migration)</span>`;
   const known = members.find((m) => m.user_id === grantedBy);
-  return known !== undefined ? esc(memberLabel(known)) : idCell(grantedBy);
+  return known !== undefined ? esc(memberLabel(known)) : esc(FALLBACK_LABEL.user);
 }
 
 function revokeCell(m: ProjectMember, selfId: string | null): string {
