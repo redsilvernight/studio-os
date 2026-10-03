@@ -251,7 +251,8 @@ et conflits explicites, aucune écriture distante.
 
 - **STATUS** : LIVRÉ le 27/09 : `C/bootstrap.py` (`studio.bootstrap/v1` :
   manifest + dry-run/états/conflits), fixtures valides, 29 tests contrats,
-  `contract-guardian` PASS, CI verte sur `dev`.
+  `contract-guardian` PASS, CI verte sur `dev`. Durcissement de la lecture proposé
+  en P9 par DEC-0180.
 - **EXISTING BUILDING BLOCKS** : `studio.initialization/v1` (`C/initialization.py:175`)
   comme patron preview/apply/`problems`/actions ; `extra="forbid"` ; rejet des clés
   secrètes (`C/runtime.py:64`) ; skill `contract-change` ; agent `contract-guardian`.
@@ -531,14 +532,18 @@ Objectif PDF : sécurité Git/filesystem, idempotence, conflits, rollback, compa
 de versions ; docs utilisateur courtes ; docs techniques centrées contrats ; gate final
 sans régression Agent Integration ni dépendance à Claude.
 
-- **STATUS** : MANQUE (rollback inexistant aujourd'hui).
+- **STATUS** : EN COURS — rollback livré ; compatibilité du manifest implémentée
+  sur la branche de tâche, en attente d'acceptation de DEC-0180 ; guides humain
+  et technique livrés ; revue sécurité publiée, avec durcissement filesystem
+  local appliqué et remédiations TaskLaunch/coordination encore ouvertes.
 - **EXISTING BUILDING BLOCKS** : refus d'écraser et atomicité de `materialize`,
   `tests/protocol/`, `tests/client/test_canonical_p3.py`, `adapters check` en CI,
   guide consommateur externe (`INTEGRATION/00_EXTERNAL_CONSUMER_GUIDE.md` §11).
 - **FILES/MODULES** : `K/adapters/`, `docs/`, `INTEGRATION/00_EXTERNAL_CONSUMER_GUIDE.md`.
 - **REUSE** : suites existantes comme garde de non-régression.
-- **MISSING** : rollback ; compatibilité de versions du manifest ; docs « connecter un
-  projet », « ajouter un harness », « réparer le drift ».
+- **MISSING** : acceptation de DEC-0180 ; isolation des hooks et credentials du
+  lancement distant ; atomicité `expected_version` et quota coordination ;
+  validation project-scoped des sessions TaskLaunch et références Decision.
 - **DEPENDENCIES** : P3–P8, R5 (ajouter la revue de sécurité du lancement à distance).
 - **RISKS** : régression Agent Integration ; dépendance implicite à Claude.
 - **TEST STRATEGY** : suites Agent Integration inchangées ; tests d'agnosticisme

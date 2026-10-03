@@ -8,6 +8,7 @@ import pytest
 from pydantic import ValidationError
 from studio_contracts.bootstrap import (
     BOOTSTRAP_FORMAT,
+    BOOTSTRAP_VERSION_REPAIR_ACTION,
     MAX_BOOTSTRAP_FILES,
     MAX_BOOTSTRAP_HARNESSES,
     BootstrapConflict,
@@ -18,8 +19,10 @@ from studio_contracts.bootstrap import (
     BootstrapManifest,
     BootstrapPolicy,
     BootstrapProblemCode,
+    BootstrapVersionError,
     bootstrap_dry_run_conflicts,
     bootstrap_manifest_problems,
+    bootstrap_version_gate,
     build_dry_run_report,
 )
 from studio_contracts.initialization import InitializationProjectSpec
@@ -84,6 +87,74 @@ def test_format_tag_is_enforced() -> None:
         _minimal(format="studio.bootstrap/v2")
     with pytest.raises(ValidationError):
         _minimal(format="studio.initialization/v1")
+
+
+def test_version_gate_accepts_supported_format() -> None:
+    data = {
+        "format": BOOTSTRAP_FORMAT,
+        "project": {"slug": "p", "name": "P"},
+        "harnesses": [{"id": "claude-code"}],
+    }
+    bootstrap_version_gate(data)
+
+
+@pytest.mark.parametrize(
+    "received",
+    [
+        "studio.bootstrap/v0",
+        "studio.bootstrap/v2",
+        "studio.initialization/v1",
+        "Studio.Bootstrap/v1",
+        "v1",
+        "",
+        1,
+        ["studio.bootstrap/v1"],
+        {"format": "studio.bootstrap/v1"},
+        True,
+    ],
+    ids=[
+        "v0",
+        "v2",
+        "wrong-family",
+        "capitalised",
+        "short",
+        "empty",
+        "int",
+        "list",
+        "dict",
+        "bool",
+    ],
+)
+def test_version_gate_rejects_unsupported_format(received: object) -> None:
+    data = {
+        "format": received,
+        "project": {"slug": "p", "name": "P"},
+        "harnesses": [{"id": "claude-code"}],
+    }
+    with pytest.raises(BootstrapVersionError) as excinfo:
+        bootstrap_version_gate(data)
+    exc = excinfo.value
+    assert exc.code == "unsupported_bootstrap_manifest_version"
+    assert exc.received == received
+    assert exc.expected == BOOTSTRAP_FORMAT
+    assert exc.action == BOOTSTRAP_VERSION_REPAIR_ACTION
+
+
+def test_version_gate_accepts_missing_format_as_implicit_v1() -> None:
+    data = {
+        "project": {"slug": "p", "name": "P"},
+        "harnesses": [{"id": "claude-code"}],
+    }
+    bootstrap_version_gate(data)
+    assert BootstrapManifest.model_validate(data).format == BOOTSTRAP_FORMAT
+
+
+@pytest.mark.parametrize("raw", [None, [], "studio.bootstrap/v1", 1])
+def test_version_gate_rejects_non_object_documents(raw: object) -> None:
+    with pytest.raises(BootstrapVersionError) as excinfo:
+        bootstrap_version_gate(raw)
+    assert excinfo.value.code == "unsupported_bootstrap_manifest_version"
+    assert excinfo.value.received == f"<non-object:{type(raw).__name__}>"
 
 
 def test_extra_fields_are_rejected() -> None:
