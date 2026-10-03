@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
+from studio_api.db.models.decision import DecisionModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.task import TaskModel
@@ -315,3 +316,42 @@ async def test_same_machine_sessions_receive_each_other(
     assert len(_coordination_items(received)) == 1
     echoed = (await _sync(client, auth_headers, session_id=first["id"])).json()
     assert _coordination_items(echoed) == []
+
+
+async def _decision(db_session: AsyncSession, project_id: uuid.UUID) -> DecisionModel:
+    decision = DecisionModel(
+        readable_id=f"DEC-T{uuid.uuid4().hex[:8]}",
+        project_id=project_id,
+        title="d",
+        body="b",
+        proposed_by_type="user",
+        proposed_by_id=uuid.uuid4(),
+    )
+    db_session.add(decision)
+    await db_session.flush()
+    return decision
+
+
+async def test_decision_refs_must_exist_in_the_emitters_project(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    machine: tuple[MachineModel, str],
+    project: ProjectModel,
+    db_session: AsyncSession,
+) -> None:
+    task, mine, _theirs, _sh = await _world(client, auth_headers, machine, project, db_session)
+    other_project = ProjectModel(slug=f"other-{uuid.uuid4().hex[:8]}", name="Other")
+    db_session.add(other_project)
+    await db_session.flush()
+    foreign = await _decision(db_session, other_project.id)
+    own = await _decision(db_session, project.id)
+    base = {"from_session_id": mine["id"], "intent": "heads_up", "task_id": task["id"]}
+    for decision_ids in ([str(foreign.id)], [str(uuid.uuid4())], [str(own.id), str(foreign.id)]):
+        response = await _emit(
+            client, auth_headers, **base, text="hi", refs={"decision_ids": decision_ids}
+        )
+        assert response.status_code == 422, response.text
+    accepted = await _emit(
+        client, auth_headers, **base, text="hi", refs={"decision_ids": [str(own.id)]}
+    )
+    assert accepted.status_code == 201, accepted.text

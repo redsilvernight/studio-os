@@ -541,3 +541,32 @@ async def test_session_opened_before_the_launch_does_not_link_it(
     assert row is not None
     await db_session.refresh(row)
     assert row.session_id is None
+
+
+async def test_report_session_must_be_live_and_on_the_launch_task(
+    client: AsyncClient, auth_headers: dict[str, str], machine: tuple[MachineModel, str]
+) -> None:
+    project_id, task_id, machine_id = await _ready_target(client, auth_headers, machine)
+    other_task = await client.post(
+        "/api/v1/tasks", json={"project_id": project_id, "title": "other"}, headers=auth_headers
+    )
+    assert other_task.status_code == 201, other_task.text
+    launch = (await _launch(client, auth_headers, project_id, task_id, machine_id)).json()
+    wrong_task_session = await _open_session(
+        client, auth_headers, other_task.json()["id"], machine_id
+    )
+    ended_session = await _open_session(client, auth_headers, task_id, machine_id)
+    ended = await client.patch(f"/api/v1/sessions/{ended_session}/end", headers=auth_headers)
+    assert ended.status_code == 200, ended.text
+    for session_id in (wrong_task_session, ended_session):
+        response = await client.post(
+            f"/api/v1/task-launches/{launch['id']}/report",
+            json={
+                "expected_version": launch["version"],
+                "status": "accepted",
+                "session_id": session_id,
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 409, response.text
+        assert response.json()["detail"]["error_code"] == "invalid_launch_session"
