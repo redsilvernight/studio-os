@@ -1,1605 +1,662 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Wireframes adaptatifs — Desktop/Dashboard V2</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wireframes Studi'OS V2</title>
 <style>
-  :root {
-    --viewer-pad: 24px;
-    --viewer-width: calc(100vw - 2 * var(--viewer-pad));
-    --vp-height: 900px;
-
-    /* Palette wireframe sobre : gris/bleu */
-    --wf-bg: #f6f8fb;
-    --wf-surface: #ffffff;
-    --wf-border: #d4dde8;
-    --wf-border-strong: #b0c0d0;
-    --wf-text: #2a3a4d;
-    --wf-muted: #5f7287;
-    --wf-action: #1d64d8;
-    --wf-action-soft: #e3edfd;
-    --wf-success: #177245;
-    --wf-warning: #8a5200;
-    --wf-sidebar: #101f3c;
-    --wf-sidebar-text: #e8eef7;
-    --wf-sidebar-muted: #a9bcd6;
+:root{
+  --bg:#f5f6f8; --surface:#ffffff; --surface-2:#f0f2f5; --line:#e4e7ec; --line-2:#d0d5dd;
+  --text:#101828; --text-2:#475467; --text-3:#98a2b3;
+  --accent:#3e5bf2; --accent-ink:#ffffff; --accent-soft:#eef1ff; --accent-line:#c7d0ff;
+  --ok:#12a150; --ok-soft:#e7f7ee; --warn:#d97706; --warn-soft:#fff4e0; --bad:#e5484d; --bad-soft:#fdecec;
+  --shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.06);
+  --hero:linear-gradient(135deg,#eef1ff 0%,#ffffff 60%);
+  --page:#e9ecf1;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1115; --surface:#171a21; --surface-2:#1e222b; --line:#262b35; --line-2:#323846;
+    --text:#eef0f4; --text-2:#a3abba; --text-3:#6b7384;
+    --accent:#6b83ff; --accent-ink:#0b0d12; --accent-soft:#1d2440; --accent-line:#34407a;
+    --ok:#3ccf7e; --ok-soft:#14291e; --warn:#f2a93b; --warn-soft:#2d2212; --bad:#ff6b70; --bad-soft:#2f1719;
+    --shadow:0 1px 2px rgba(0,0,0,.4);
+    --hero:linear-gradient(135deg,#1d2440 0%,#171a21 65%);
+    --page:#08090c;
   }
-
-  * { box-sizing: border-box; }
-
-  body {
-    margin: 0;
-    padding: var(--viewer-pad);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    font-size: 14px;
-    line-height: 1.55;
-    color: var(--wf-text);
-    background: #eef1f5;
-  }
-
-  h1 { font-size: 22px; margin: 0 0 8px; }
-  h2 { font-size: 18px; margin: 40px 0 16px; }
-  h3 { font-size: 15px; margin: 0 0 12px; }
-  p { margin: 0 0 8px; }
-  p:last-child { margin-bottom: 0; }
-
-  .intro {
-    max-width: 75ch;
-    margin-bottom: 24px;
-    color: var(--wf-muted);
-  }
-
-  .wf-screen { margin-bottom: 48px; }
-
-  .viewport-row {
-    display: grid;
-    gap: 32px;
-  }
-
-  .viewport-wrapper {
-    --scale: min(1, var(--viewer-width) / var(--vp-width));
-    position: relative;
-    width: calc(var(--vp-width) * var(--scale));
-    height: calc(var(--vp-height) * var(--scale));
-    background: var(--wf-surface);
-    border: 1px solid var(--wf-border-strong);
-    border-radius: 10px;
-    overflow: hidden;
-    box-shadow: 0 2px 10px rgba(26, 39, 51, 0.07);
-  }
-
-  .viewport-wrapper figcaption {
-    position: absolute;
-    top: 10px;
-    right: 12px;
-    z-index: 10;
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--wf-muted);
-    background: rgba(255, 255, 255, 0.95);
-    padding: 3px 10px;
-    border-radius: 999px;
-    border: 1px solid var(--wf-border);
-  }
-
-  .viewport {
-    width: var(--vp-width);
-    height: var(--vp-height);
-    transform-origin: top left;
-    transform: scale(var(--scale));
-    container-type: inline-size;
-    container-name: vp;
-    background: var(--wf-bg);
-    overflow: auto;
-  }
-
-  /* ----------------------------------------------------------------------
-     Shell commun
-     ---------------------------------------------------------------------- */
-  .wf-shell {
-    display: grid;
-    grid-template-columns: 240px minmax(0, 1fr);
-    min-height: var(--vp-height);
-  }
-
-  @container vp (min-width: 1400px) {
-    .wf-shell { grid-template-columns: 280px minmax(0, 1fr); }
-  }
-
-  .wf-sidebar {
-    background: var(--wf-sidebar);
-    color: var(--wf-sidebar-text);
-    padding: 20px 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-  }
-
-  .wf-brand {
-    font-weight: 800;
-    font-size: 20px;
-    letter-spacing: -0.02em;
-  }
-
-  .wf-navgroup h2 {
-    margin: 0 0 8px;
-    padding: 0 10px;
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--wf-sidebar-muted);
-  }
-
-  .wf-navgroup ul {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    gap: 2px;
-  }
-
-  .wf-navlink {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-height: 40px;
-    padding: 8px 12px;
-    border-radius: 8px;
-    color: var(--wf-sidebar-text);
-    text-decoration: none;
-    font-size: 14px;
-  }
-
-  .wf-navlink:hover {
-    background: rgba(255, 255, 255, 0.08);
-  }
-
-  .wf-navlink.active {
-    background: rgba(255, 255, 255, 0.14);
-    color: #fff;
-    font-weight: 700;
-  }
-
-  .wf-navgroup--secondary summary {
-    display: flex;
-    align-items: center;
-    min-height: 40px;
-    padding: 8px 12px;
-    border-radius: 8px;
-    color: var(--wf-sidebar-muted);
-    font-size: 14px;
-    cursor: pointer;
-  }
-
-  .wf-navgroup--secondary summary:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: #fff;
-  }
-
-  .wf-navgroup--secondary ul { margin-top: 6px; }
-
-  .wf-sidebar-foot {
-    margin-top: auto;
-    border-top: 1px solid rgba(255, 255, 255, 0.14);
-    padding-top: 16px;
-    font-size: 13px;
-    color: var(--wf-sidebar-muted);
-    display: grid;
-    gap: 8px;
-  }
-
-  .wf-col {
-    display: grid;
-    align-content: start;
-    min-width: 0;
-  }
-
-  .wf-topbar {
-    position: sticky;
-    top: 0;
-    z-index: 5;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    min-height: 60px;
-    padding: 10px 28px;
-    background: rgba(255, 255, 255, 0.94);
-    backdrop-filter: blur(5px);
-    border-bottom: 1px solid var(--wf-border);
-  }
-
-  .wf-page-title {
-    font-size: 18px;
-    font-weight: 700;
-    color: var(--wf-text);
-  }
-
-  .wf-status {
-    margin-left: auto;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 5px 14px;
-    border: 1px solid var(--wf-border);
-    border-radius: 999px;
-    background: #eef2f7;
-    color: var(--wf-success);
-    font-size: 13px;
-    font-weight: 700;
-  }
-
-  .wf-status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: currentColor;
-  }
-
-  /* ----------------------------------------------------------------------
-     Contenu
-     ---------------------------------------------------------------------- */
-  .wf-content {
-    display: grid;
-    padding: 28px;
-  }
-
-  .wf-card {
-    background: var(--wf-surface);
-    border: 1px solid var(--wf-border);
-    border-radius: 10px;
-    padding: 18px;
-    box-shadow: 0 1px 2px rgba(26, 39, 51, 0.04);
-  }
-
-  .wf-card-title {
-    font-size: 15px;
-    font-weight: 700;
-    margin: 0 0 12px;
-    color: var(--wf-text);
-  }
-
-  .wf-card-body {
-    color: var(--wf-muted);
-    font-size: 14px;
-    max-width: 75ch;
-  }
-
-  .wf-button {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 9px 16px;
-    border-radius: 8px;
-    border: 1px solid transparent;
-    background: var(--wf-action);
-    color: #fff;
-    font-size: 14px;
-    font-weight: 700;
-    cursor: default;
-  }
-
-  .wf-button--soft {
-    background: var(--wf-action-soft);
-    color: var(--wf-action);
-  }
-
-  .wf-button--secondary {
-    background: var(--wf-surface);
-    color: var(--wf-text);
-    border-color: var(--wf-border);
-  }
-
-  .wf-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    gap: 8px;
-  }
-
-  .wf-list-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 11px 13px;
-    border: 1px solid var(--wf-border);
-    border-radius: 8px;
-    background: var(--wf-surface);
-  }
-
-  .wf-list-item.active {
-    border-color: var(--wf-action);
-    background: var(--wf-action-soft);
-  }
-
-  .wf-list-item-main {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .wf-list-item-title {
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .wf-list-item-meta {
-    font-size: 12px;
-    color: var(--wf-muted);
-  }
-
-  .wf-badge {
-    display: inline-flex;
-    padding: 2px 9px;
-    border-radius: 999px;
-    font-size: 12px;
-    font-weight: 700;
-  }
-
-  .wf-badge--warning { background: #fdf0d7; color: #8a5200; }
-  .wf-badge--success { background: #e2f3e9; color: #177245; }
-  .wf-badge--neutral { background: #eef2f7; color: #4d6076; }
-
-  .wf-avatar {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    background: var(--wf-action-soft);
-    color: var(--wf-action);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 11px;
-    font-weight: 800;
-    flex: none;
-  }
-
-  .wf-section { margin-top: 16px; }
-  .wf-section:first-child { margin-top: 0; }
-
-  .wf-section-title {
-    font-size: 12px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--wf-muted);
-    margin: 0 0 8px;
-  }
-
-  .wf-accordion {
-    border: 1px solid var(--wf-border);
-    border-radius: 8px;
-    padding: 12px 14px;
-    color: var(--wf-muted);
-    font-size: 13px;
-    background: var(--wf-surface);
-  }
-
-  .wf-tabs {
-    display: flex;
-    gap: 4px;
-    border-bottom: 1px solid var(--wf-border);
-    padding-bottom: 10px;
-  }
-
-  .wf-tab {
-    padding: 7px 12px;
-    border-radius: 6px;
-    border: 1px solid transparent;
-    background: transparent;
-    color: var(--wf-muted);
-    font-size: 13px;
-    font-weight: 600;
-    cursor: default;
-  }
-
-  .wf-tab.active {
-    background: var(--wf-action-soft);
-    color: var(--wf-action);
-  }
-
-  /* ----------------------------------------------------------------------
-     Accueil
-     ---------------------------------------------------------------------- */
-  .wf-content--home { gap: 24px; }
-
-  @container vp (max-width: 1499px) {
-    .wf-content--home { grid-template-columns: minmax(0, 1fr); }
-    .wf-content--home .wf-context { display: block; }
-    .wf-content--home .wf-context--rich { display: none; }
-    .wf-primary { max-width: 880px; }
-  }
-
-  @container vp (min-width: 1500px) and (max-width: 2199px) {
-    .wf-content--home {
-      grid-template-columns: 880px 320px;
-      justify-content: center;
-      gap: 32px;
-    }
-    .wf-content--home .wf-context { display: grid; gap: 16px; align-content: start; }
-    .wf-content--home .wf-context--rich { display: none; }
-  }
-
-  @container vp (min-width: 2200px) {
-    .wf-content--home {
-      grid-template-columns: 880px 1fr;
-      justify-content: start;
-      gap: 48px;
-      padding-left: 48px;
-    }
-    .wf-content--home .wf-context { display: none; }
-    .wf-content--home .wf-context--rich {
-      display: grid;
-      gap: 16px;
-      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-      align-content: start;
-    }
-    .wf-content--home .wf-context--rich .wf-card { max-width: 420px; }
-  }
-
-  .stack > * + * { margin-top: 16px; }
-
-  /* ----------------------------------------------------------------------
-     Travail + fiche tâche
-     ---------------------------------------------------------------------- */
-  .wf-content--work { gap: 24px; }
-
-  @container vp (max-width: 1499px) {
-    .wf-content--work { grid-template-columns: minmax(0, 1fr); }
-    .wf-master-detail { display: grid; grid-template-columns: 1fr; gap: 24px; }
-    .wf-content--work .wf-context { display: block; margin-top: 0; }
-    .wf-content--work .wf-context--rich { display: none; }
-  }
-
-  @container vp (min-width: 1500px) and (max-width: 2199px) {
-    .wf-content--work {
-      grid-template-columns: 880px 320px;
-      justify-content: center;
-      gap: 32px;
-    }
-    .wf-master-detail { display: grid; grid-template-columns: 320px 560px; gap: 24px; }
-    .wf-content--work .wf-context { display: grid; gap: 16px; align-content: start; }
-    .wf-content--work .wf-context--rich { display: none; }
-  }
-
-  @container vp (min-width: 2200px) {
-    .wf-content--work {
-      grid-template-columns: 920px 1fr;
-      justify-content: start;
-      gap: 48px;
-      padding-left: 48px;
-    }
-    .wf-master-detail { display: grid; grid-template-columns: 320px 560px; gap: 32px; }
-    .wf-content--work .wf-context { display: none; }
-    .wf-content--work .wf-context--rich {
-      display: grid;
-      gap: 16px;
-      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-      align-content: start;
-    }
-    .wf-content--work .wf-context--rich .wf-card { max-width: 420px; }
-  }
-
-  /* ----------------------------------------------------------------------
-     Roadmap
-     ---------------------------------------------------------------------- */
-  .wf-content--roadmap { gap: 24px; }
-
-  @container vp (max-width: 1499px) {
-    .wf-content--roadmap { grid-template-columns: minmax(0, 1fr); }
-    .wf-roadmap-main { max-width: 880px; }
-    .wf-content--roadmap .wf-context { display: block; }
-    .wf-content--roadmap .wf-context--rich { display: none; }
-  }
-
-  @container vp (min-width: 1500px) and (max-width: 2199px) {
-    .wf-content--roadmap {
-      grid-template-columns: 880px 320px;
-      justify-content: center;
-      gap: 32px;
-    }
-    .wf-content--roadmap .wf-context { display: grid; gap: 16px; align-content: start; }
-    .wf-content--roadmap .wf-context--rich { display: none; }
-  }
-
-  @container vp (min-width: 2200px) {
-    .wf-content--roadmap {
-      grid-template-columns: 880px 1fr;
-      justify-content: start;
-      gap: 48px;
-      padding-left: 48px;
-    }
-    .wf-content--roadmap .wf-context { display: none; }
-    .wf-content--roadmap .wf-context--rich {
-      display: grid;
-      gap: 16px;
-      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-      align-content: start;
-    }
-    .wf-content--roadmap .wf-context--rich .wf-card { max-width: 420px; }
-  }
-
-  .wf-card--current {
-    border-color: var(--wf-action);
-    background: #f8fbff;
-  }
-
-  .wf-action-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 16px;
-  }
-
-  .wf-action-row .wf-button { flex: none; }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1115; --surface:#171a21; --surface-2:#1e222b; --line:#262b35; --line-2:#323846;
+  --text:#eef0f4; --text-2:#a3abba; --text-3:#6b7384;
+  --accent:#6b83ff; --accent-ink:#0b0d12; --accent-soft:#1d2440; --accent-line:#34407a;
+  --ok:#3ccf7e; --ok-soft:#14291e; --warn:#f2a93b; --warn-soft:#2d2212; --bad:#ff6b70; --bad-soft:#2f1719;
+  --shadow:0 1px 2px rgba(0,0,0,.4);
+  --hero:linear-gradient(135deg,#1d2440 0%,#171a21 65%);
+  --page:#08090c;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--page);color:var(--text);font:14px/1.5 "Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit}
+svg.i{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* ---------- Viewer chrome ---------- */
+.viewer{padding:16px}
+.vbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;max-width:1400px;margin:0 auto 14px}
+.vbar h1{font-size:18px;margin:0;font-weight:650}
+.vbar p{margin:2px 0 0;color:var(--text-2);font-size:13px}
+.vctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.vseg{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:3px}
+.vseg button{border:0;background:none;padding:6px 12px;border-radius:7px;cursor:pointer;color:var(--text-2);font-size:13px}
+.vseg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.stage{max-width:100%;overflow:hidden;margin:0 auto;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.12)}
+.notes{max-width:1400px;margin:16px auto 0;display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr))}
+.note{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.note h3{margin:0 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3)}
+.note ul{margin:0;padding-left:18px;color:var(--text-2);font-size:13px}
+.note li{margin:3px 0}
+
+/* ---------- App frame ---------- */
+.app{container:app/inline-size;background:var(--bg);overflow:hidden;transform-origin:0 0;position:relative}
+.shell{display:grid;grid-template-columns:72px 1fr;min-height:inherit}
+.fold{position:absolute;left:0;right:0;border-top:2px dashed var(--warn);pointer-events:none}
+.fold span{position:absolute;right:12px;top:-22px;font-size:11px;font-weight:700;color:var(--warn);background:var(--bg);padding:2px 6px;border-radius:4px}
+@container app (min-width:1400px){.shell{grid-template-columns:236px 1fr}}
+
+/* Sidebar */
+.side{display:flex;flex-direction:column;gap:4px;padding:16px 10px;border-right:1px solid var(--line);background:var(--surface);min-height:0}
+.brand{display:flex;align-items:center;gap:10px;padding:4px 8px 14px}
+.logo{width:32px;height:32px;border-radius:9px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-weight:700;flex:none}
+.brand b{font-size:15px}
+.cmdk{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--surface-2);border-radius:9px;padding:7px 10px;color:var(--text-3);cursor:pointer;margin-bottom:10px;justify-content:center}
+.cmdk kbd{white-space:nowrap;margin-left:auto;font:11px/1 inherit;border:1px solid var(--line-2);border-radius:5px;padding:3px 5px;color:var(--text-3)}
+.nav{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;color:var(--text-2);text-decoration:none;position:relative;flex-direction:column;font-size:10.5px;gap:4px;white-space:nowrap;padding:8px 2px}
+.nav.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.nav .badge{position:absolute;top:2px;right:6px;font-size:10px;padding:0 5px;line-height:16px}
+.badge{background:var(--warn);color:#fff;border-radius:999px;font-size:11px;font-weight:700;padding:1px 7px;line-height:18px}
+.side .lbl-full{display:none}
+.spacer{flex:1}
+.me .who{display:none}
+.me{display:flex;align-items:center;gap:10px;padding:10px 8px 2px;border-top:1px solid var(--line);margin-top:8px;flex-direction:column}
+.avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#7c8cff,#3e5bf2);color:#fff;display:grid;place-items:center;font-weight:600;font-size:13px;flex:none}
+.avatar.b{background:linear-gradient(135deg,#f6a5c0,#e5484d)}
+.avatar.ai{background:var(--surface-2);color:var(--text-2);border:1px solid var(--line)}
+.conn{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2)}
+.conn::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px var(--ok-soft)}
+.conn .t{display:none}
+@container app (min-width:1400px){
+  .side{padding:18px 14px}
+  .side .lbl-full{display:inline}
+  .side .lbl-short{display:none}
+  .cmdk{justify-content:flex-start}
+  .nav{flex-direction:row;font-size:14px;gap:10px;padding:8px 10px}
+  .nav .badge{position:static;margin-left:auto;font-size:11px;padding:1px 7px;line-height:18px}
+  .me{flex-direction:row}
+  .me .who{display:flex;flex-direction:column;line-height:1.25}
+  .conn .t{display:inline}
+}
+.who b{font-size:13px}
+
+/* Main area */
+.main{padding:28px 32px;min-width:0}
+@container app (min-width:1400px){.main{padding:32px 40px}}
+@container app (min-width:2000px){.main{padding:40px 56px}}
+h1.pt{font-size:26px;line-height:1.2;margin:0;font-weight:680;letter-spacing:-.01em}
+.eyebrow{font-size:12px;color:var(--text-3);margin:0 0 4px;font-weight:600;letter-spacing:.02em}
+.sub{color:var(--text-2);margin:4px 0 0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:18px 20px;min-width:0}
+.card h2,.card h3{margin:0}
+.ch{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.ch h3{font-size:15px;font-weight:650}
+.link{color:var(--accent);font-size:13px;text-decoration:none;display:inline-flex;gap:4px;align-items:center;white-space:nowrap}
+.muted{color:var(--text-2)} .faint{color:var(--text-3);font-size:12px}
+.btn{display:inline-flex;align-items:center;gap:8px;border-radius:10px;padding:9px 14px;border:1px solid var(--line-2);background:var(--surface);cursor:pointer;font-weight:600;font-size:13px;white-space:nowrap}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);box-shadow:0 2px 8px color-mix(in srgb,var(--accent) 35%,transparent)}
+.btn.ghost{border-color:transparent;background:none;color:var(--text-2)}
+.status{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text-2);white-space:nowrap}
+.status::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--text-3)}
+.s-prog{color:var(--accent)} .s-prog::before{background:var(--accent)}
+.s-block{color:var(--bad)} .s-block::before{background:var(--bad)}
+.s-todo::before{background:var(--line-2);box-shadow:inset 0 0 0 2px var(--text-3)}
+.s-ok{color:var(--ok)} .s-ok::before{background:var(--ok)}
+.s-warn{color:var(--warn)} .s-warn::before{background:var(--warn)}
+.tag{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2);background:var(--surface-2);border-radius:999px;padding:2px 10px;white-space:nowrap}
+.pico{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font-weight:700;font-size:12px;color:#fff;flex:none}
+.p-s{background:#3e5bf2}.p-a{background:#e5484d}.p-b{background:#8b5cf6}.p-g{background:#12a150}
+.bar{height:6px;border-radius:99px;background:var(--surface-2);overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--accent);border-radius:99px}
+.row{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row .grow{flex:1;min-width:0}
+.row .t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .s{font-size:12px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chev{color:var(--text-3)}
+.check{display:flex;gap:10px;align-items:flex-start;padding:7px 0}
+.box{width:18px;height:18px;border-radius:6px;border:1.5px solid var(--line-2);flex:none;margin-top:1px;display:grid;place-items:center}
+.box.on{background:var(--ok);border-color:var(--ok);color:#fff}
+.box.on svg{width:12px;height:12px;stroke-width:3}
+.check.done span{color:var(--text-3);text-decoration:line-through}
+.empty{display:flex;gap:10px;align-items:center;color:var(--text-2);font-size:13px;background:var(--surface-2);border-radius:10px;padding:10px 12px}
+.empty svg{color:var(--ok)}
+.feed{display:flex;flex-direction:column;gap:12px}
+.fi{display:flex;gap:10px;font-size:13px}
+.fi .avatar{width:26px;height:26px;font-size:11px}
+.fi p{margin:0;color:var(--text-2)} .fi b{color:var(--text)}
+.fi .when{margin-left:auto;color:var(--text-3);font-size:12px;white-space:nowrap}
+.seg{display:inline-flex;background:var(--surface-2);border-radius:10px;padding:3px;gap:2px}
+.seg span{padding:6px 12px;border-radius:8px;font-size:13px;color:var(--text-2);font-weight:600;white-space:nowrap}
+.seg span.on{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+.seg span b{color:var(--text-3);font-weight:600;margin-left:4px}
+@container app (max-width:1999px){.only-xl{display:none!important}}
+@container app (min-width:2000px){.hide-xl{display:none!important}}
+@container app (max-width:1399px){.only-lg{display:none!important}}
+@container app (min-width:1400px){.hide-lg{display:none!important}}
+
+/* ---------- Accueil ---------- */
+.home{max-width:1100px;margin:0 auto}
+.home .head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:22px;gap:16px}
+.hg{display:grid;gap:20px;grid-template-columns:minmax(0,1fr) 300px;grid-template-areas:"focus ctx" "review ctx" "proj ctx";align-items:start}
+.hg .focus{grid-area:focus}.hg .review{grid-area:review}.hg .proj{grid-area:proj}.hg .ctx{grid-area:ctx}
+@container app (min-width:1400px){.home{max-width:1160px}.hg{grid-template-columns:minmax(0,760px) 340px;gap:24px}}
+@container app (min-width:2000px){
+  .home{max-width:1980px}
+  .hg{grid-template-columns:760px 380px 380px 380px;grid-template-areas:"focus proj ctx feed" "review proj ctx feed";gap:28px}
+  .hg .feedcol{grid-area:feed}
+}
+.hero{background:var(--hero);border-color:var(--accent-line);padding:22px 24px}
+.hero h2{font-size:22px;line-height:1.25;margin:10px 0 4px;letter-spacing:-.01em}
+.hero .acts{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+.hero .prog{display:flex;align-items:center;gap:12px;margin-top:14px}
+.hero .prog .bar{flex:1;max-width:260px}
+.up{margin-top:18px;padding-top:6px;border-top:1px solid var(--line)}
+.up h4{margin:10px 0 2px;font-size:12px;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em}
+.kinds{display:flex;gap:8px;flex-wrap:wrap}
+.kind{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;flex:1;min-width:150px}
+.kind b{font-size:20px;line-height:1}
+.kind span{font-size:12px;color:var(--text-2);line-height:1.25}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.stat{background:var(--surface-2);border-radius:12px;padding:12px}
+.stat b{font-size:22px;display:block;line-height:1.1}
+.stat span{font-size:12px;color:var(--text-2)}
+.agents{display:flex;flex-direction:column;gap:8px}
+.ag{display:flex;align-items:center;gap:10px;font-size:13px}
+.ag .s{color:var(--text-3);font-size:12px}
+.sep{height:1px;background:var(--line);margin:16px 0}
+
+/* ---------- Travail ---------- */
+.wg{display:grid;gap:20px;grid-template-columns:360px minmax(0,1fr);height:100%;align-items:start}
+@container app (min-width:1400px){.wg{grid-template-columns:400px minmax(0,1fr);gap:24px}}
+@container app (min-width:2000px){.wg{grid-template-columns:440px minmax(0,1080px) 380px;justify-content:center;gap:28px}}
+.list{padding:18px 0 8px}
+.list .lh{padding:0 18px 12px}
+.list .lh .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.grp{padding:4px 0}
+.grp h4{margin:0;padding:10px 18px 6px;font-size:12px;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;display:flex;gap:8px;align-items:center}
+.li{display:flex;gap:10px;align-items:center;padding:10px 18px;border-left:3px solid transparent}
+.li.sel{background:var(--accent-soft);border-left-color:var(--accent)}
+.li .grow{flex:1;min-width:0}
+.li .t{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.li .s{font-size:12px;color:var(--text-3)}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+.d-prog{background:var(--accent)}.d-block{background:var(--bad)}.d-todo{box-shadow:inset 0 0 0 2px var(--text-3)}.d-ok{background:var(--ok)}
+.detail{padding:24px 28px}
+.crumb{font-size:12px;color:var(--text-3);margin-bottom:6px}
+.dh{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.dh h2{font-size:22px;line-height:1.25;letter-spacing:-.01em}
+.dh .acts{display:flex;gap:8px}
+.metal{display:flex;gap:14px;flex-wrap:wrap;margin:10px 0 0;align-items:center;font-size:13px;color:var(--text-2)}
+.db{display:grid;gap:24px;margin-top:20px;grid-template-columns:minmax(0,1fr)}
+@container app (min-width:1400px){.db{grid-template-columns:minmax(0,680px) 260px;justify-content:space-between}.metal{display:none}}
+@container app (min-width:2000px){.db{grid-template-columns:minmax(0,720px) 280px}}
+.blk{padding:16px 0;border-top:1px solid var(--line)}
+.blk:first-child{border-top:0;padding-top:0}
+.blk h3{font-size:13px;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+.blk p{margin:0;max-width:68ch}
+.nextbox{background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:12px;padding:12px 14px}
+.nextbox .h{display:flex;justify-content:space-between;font-weight:600;margin-bottom:4px}
+.tech{display:flex;align-items:center;gap:10px;color:var(--text-2);font-size:13px;border:1px dashed var(--line-2);border-radius:10px;padding:10px 12px}
+.tech .chev{margin-left:auto}
+.props dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:10px 14px;font-size:13px}
+.props dt{color:var(--text-3)} .props dd{margin:0;font-weight:500;min-width:0}
+.props h3{font-size:12px;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin:0 0 10px}
+.props .sep{margin:18px 0}
+.ctxc{display:flex;flex-direction:column;gap:20px}
+
+/* ---------- Roadmap ---------- */
+.rm{max-width:1160px;margin:0 auto}
+.rm .head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:20px}
+.rg{display:grid;gap:20px;grid-template-columns:minmax(0,1fr) 300px;align-items:start}
+@container app (min-width:1400px){.rg{grid-template-columns:minmax(0,760px) 340px;gap:24px;justify-content:center}}
+@container app (min-width:2000px){.rm{max-width:1616px}.rg{grid-template-columns:760px 380px 420px;gap:28px}}
+.rmain{display:flex;flex-direction:column;gap:20px}
+.phases{padding:16px 20px}
+.ph-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;font-size:13px}
+.track{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.pz{display:flex;flex-direction:column;gap:6px}
+.pz i{height:6px;border-radius:99px;background:var(--surface-2);display:block}
+.pz.done i{background:var(--ok)} .pz.cur i{background:linear-gradient(90deg,var(--accent) 66%,var(--surface-2) 66%)}
+.pz span{font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pz.cur span{color:var(--accent);font-weight:600}
+.cur-card{background:var(--hero);border-color:var(--accent-line);padding:22px 24px}
+.cur-card h2{font-size:22px;margin:8px 0 4px;letter-spacing:-.01em}
+.cur-card .foot{display:flex;justify-content:space-between;align-items:center;margin-top:14px;gap:12px;flex-wrap:wrap}
+.nx{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.nx .card{padding:16px}
+.nx .k{font-size:12px;color:var(--text-3)}
+.nx h3{font-size:15px;margin:4px 0 8px}
+.donec{display:flex;align-items:center;gap:12px;padding:14px 18px}
+.donec .ok{width:30px;height:30px;border-radius:50%;background:var(--ok-soft);color:var(--ok);display:grid;place-items:center}
+.plan .ph{margin-top:14px}
+.plan .ph:first-child{margin-top:0}
+.plan .ph h4{margin:0 0 4px;font-size:13px;display:flex;justify-content:space-between}
+.plan .st{display:flex;gap:8px;align-items:center;font-size:13px;padding:4px 0;color:var(--text-2)}
+.plan .st.cur{color:var(--accent);font-weight:600}
+.plan .st.done{color:var(--text-3)}
 </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="folder" viewBox="0 0 24 24"><path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="work" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="m8 12 3 3 5-6"/></symbol>
+  <symbol id="inbox" viewBox="0 0 24 24"><path d="M3 13h5l1.5 3h5L16 13h5"/><path d="M5.5 5h13L21 13v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6z"/></symbol>
+  <symbol id="bot" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 4v4M9 14h.01M15 14h.01"/></symbol>
+  <symbol id="gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></symbol>
+  <symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="play" viewBox="0 0 24 24"><path d="M7 4v16l13-8z" fill="currentColor"/></symbol>
+  <symbol id="arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+  <symbol id="code" viewBox="0 0 24 24"><path d="m8 8-4 4 4 4M16 8l4 4-4 4"/></symbol>
+  <symbol id="filter" viewBox="0 0 24 24"><path d="M4 5h16l-6 8v6l-4-2v-4z"/></symbol>
+  <symbol id="link" viewBox="0 0 24 24"><path d="M6 3v12a3 3 0 0 0 3 3h9M15 15l3 3-3 3"/></symbol>
+  <symbol id="doc" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></symbol>
+  <symbol id="shield" viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></symbol>
+</svg>
 
-<h1>Wireframes adaptatifs — Desktop/Dashboard V2</h1>
-<p class="intro">
-  Neuf rendus statiques des trois écrans référents aux largeurs 1280, 1600 et 2560 px.
-  Style wireframe sobre, textes illustratifs en français, aucune dépendance externe.
-</p>
-
-<section class="wf-screen">
-  <h2>1. Accueil orienté actions</h2>
-
-  <figure class="viewport-wrapper" style="--vp-width: 1280px;">
-    <figcaption>1280 px</figcaption>
-    <div class="viewport">
-      <div class="wf-shell">
-        <aside class="wf-sidebar">
-          <div class="wf-brand" data-major="brand">Studi'OS</div>
-          <nav class="wf-navgroup" data-major="navigation">
-            <h2>Quotidien</h2>
-            <ul>
-              <li><a class="wf-navlink active" href="#">Accueil</a></li>
-              <li><a class="wf-navlink" href="#">Projets</a></li>
-              <li><a class="wf-navlink" href="#">Travail</a></li>
-              <li><a class="wf-navlink" href="#">À valider</a></li>
-              <li><a class="wf-navlink" href="#">Agents</a></li>
-            </ul>
-          </nav>
-          <details class="wf-navgroup wf-navgroup--secondary" data-major="administration">
-            <summary>Administration</summary>
-            <ul>
-              <li><a class="wf-navlink" href="#">Comptes</a></li>
-              <li><a class="wf-navlink" href="#">Machines</a></li>
-              <li><a class="wf-navlink" href="#">Règles</a></li>
-              <li><a class="wf-navlink" href="#">Skills</a></li>
-            </ul>
-          </details>
-          <div class="wf-sidebar-foot">
-            <div>Alice Martin</div>
-            <button class="wf-button wf-button--secondary" style="justify-self: start;">Déconnexion</button>
-          </div>
-        </aside>
-        <div class="wf-col">
-          <header class="wf-topbar">
-            <span class="wf-page-title">Bonjour, Alice</span>
-            <span class="wf-status" data-testid="connection-status"><span class="wf-status-dot"></span>Connecté</span>
-          </header>
-          <main class="wf-content wf-content--home">
-            <div class="wf-primary stack">
-              <article class="wf-card" data-major="todo-now">
-                <h3 class="wf-card-title">À faire maintenant</h3>
-                <div class="wf-list-item">
-                  <span class="wf-avatar">DM</span>
-                  <div class="wf-list-item-main">
-                    <div class="wf-list-item-title">Définir les cibles de lancement</div>
-                    <div class="wf-list-item-meta">Projet Alpha · échéance demain</div>
-                  </div>
-                </div>
-                <div style="margin-top: 14px;">
-                  <button class="wf-button">Reprendre Définir les cibles</button>
-                </div>
-              </article>
-              <article class="wf-card" data-major="to-validate">
-                <h3 class="wf-card-title">À valider</h3>
-                <ul class="wf-list">
-                  <li class="wf-list-item">
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">Valider le wireframe Accueil</span>
-                      <span class="wf-list-item-meta">proposé par Bob</span>
-                    </span>
-                    <span class="wf-badge wf-badge--warning">En attente</span>
-                  </li>
-                  <li class="wf-list-item">
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">Approuver la roadmap V2</span>
-                      <span class="wf-list-item-meta">proposé par Carla</span>
-                    </span>
-                    <span class="wf-badge wf-badge--warning">En attente</span>
-                  </li>
-                </ul>
-              </article>
-              <article class="wf-card" data-major="recent-projects">
-                <h3 class="wf-card-title">Projets récents</h3>
-                <ul class="wf-list">
-                  <li class="wf-list-item">
-                    <span class="wf-avatar">PA</span>
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">Projet Alpha</span>
-                      <span class="wf-list-item-meta">12 tâches en cours</span>
-                    </span>
-                  </li>
-                  <li class="wf-list-item">
-                    <span class="wf-avatar">SO</span>
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">Studio OS</span>
-                      <span class="wf-list-item-meta">8 tâches en cours</span>
-                    </span>
-                  </li>
-                  <li class="wf-list-item">
-                    <span class="wf-avatar">GR</span>
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">Graphify</span>
-                      <span class="wf-list-item-meta">5 tâches en cours</span>
-                    </span>
-                  </li>
-                </ul>
-              </article>
-            </div>
-            <div data-major="context">
-            <aside class="wf-context">
-              <div class="wf-card">
-                <h3 class="wf-card-title">Aujourd'hui</h3>
-                <p class="wf-card-body">3 tâches en cours, 2 validations en attente.</p>
-              </div>
-              <div class="wf-card">
-                <h3 class="wf-card-title">Activité récente</h3>
-                <p class="wf-card-body">Bob a commenté la fiche « Définir les cibles ».</p>
-              </div>
-            </aside>
-            <aside class="wf-context--rich">
-              <div class="wf-card">
-                <h3 class="wf-card-title">Aujourd'hui</h3>
-                <p class="wf-card-body">3 tâches en cours, 2 validations en attente.</p>
-              </div>
-              <div class="wf-card">
-                <h3 class="wf-card-title">Activité récente</h3>
-                <p class="wf-card-body">Bob a commenté la fiche « Définir les cibles ».</p>
-              </div>
-              <div class="wf-card">
-                <h3 class="wf-card-title">Prochaine étape</h3>
-                <p class="wf-card-body">P03-shell : stabiliser la navigation et le statut.</p>
-              </div>
-            </aside>
-          </div>
-          </main>
-        </div>
+<div class="viewer">
+  <div class="vbar">
+    <div>
+      <h1>Wireframes Studi'OS V2 — proposition modernisée</h1>
+      <p>Étape P02-wireframes · même balisage, disposition par container queries · données conformes au modèle réel</p>
+    </div>
+    <div class="vctl">
+      <div class="vseg" id="screens" role="group" aria-label="Écran">
+        <button data-v="home" aria-pressed="true">Accueil</button>
+        <button data-v="work" aria-pressed="false">Travail</button>
+        <button data-v="roadmap" aria-pressed="false">Roadmap</button>
+      </div>
+      <div class="vseg" id="widths" role="group" aria-label="Largeur">
+        <button data-v="1280" aria-pressed="true">1280</button>
+        <button data-v="1600" aria-pressed="false">1600</button>
+        <button data-v="2560" aria-pressed="false">2560</button>
+      </div>
+      <div class="vseg" id="theme" role="group" aria-label="Thème">
+        <button data-v="light" aria-pressed="false">Clair</button>
+        <button data-v="dark" aria-pressed="false">Sombre</button>
       </div>
     </div>
-  </figure>
+  </div>
+  <div class="stage" id="stage"></div>
+  <div class="notes" id="notes"></div>
+</div>
 
-  <figure class="viewport-wrapper" style="--vp-width: 1600px; margin-top: 32px;">
-    <figcaption>1600 px</figcaption>
-    <div class="viewport">
-      <div class="wf-shell">
-        <aside class="wf-sidebar">
-          <div class="wf-brand" data-major="brand">Studi'OS</div>
-          <nav class="wf-navgroup" data-major="navigation">
-            <h2>Quotidien</h2>
-            <ul>
-              <li><a class="wf-navlink active" href="#">Accueil</a></li>
-              <li><a class="wf-navlink" href="#">Projets</a></li>
-              <li><a class="wf-navlink" href="#">Travail</a></li>
-              <li><a class="wf-navlink" href="#">À valider</a></li>
-              <li><a class="wf-navlink" href="#">Agents</a></li>
-            </ul>
-          </nav>
-          <details class="wf-navgroup wf-navgroup--secondary" data-major="administration">
-            <summary>Administration</summary>
-            <ul>
-              <li><a class="wf-navlink" href="#">Comptes</a></li>
-              <li><a class="wf-navlink" href="#">Machines</a></li>
-              <li><a class="wf-navlink" href="#">Règles</a></li>
-              <li><a class="wf-navlink" href="#">Skills</a></li>
-            </ul>
-          </details>
-          <div class="wf-sidebar-foot">
-            <div>Alice Martin</div>
-            <button class="wf-button wf-button--secondary" style="justify-self: start;">Déconnexion</button>
-          </div>
-        </aside>
-        <div class="wf-col">
-          <header class="wf-topbar">
-            <span class="wf-page-title">Bonjour, Alice</span>
-            <span class="wf-status" data-testid="connection-status"><span class="wf-status-dot"></span>Connecté</span>
-          </header>
-          <main class="wf-content wf-content--home">
-            <div class="wf-primary stack">
-              <article class="wf-card" data-major="todo-now">
-                <h3 class="wf-card-title">À faire maintenant</h3>
-                <div class="wf-list-item">
-                  <span class="wf-avatar">DM</span>
-                  <div class="wf-list-item-main">
-                    <div class="wf-list-item-title">Définir les cibles de lancement</div>
-                    <div class="wf-list-item-meta">Projet Alpha · échéance demain</div>
-                  </div>
-                </div>
-                <div style="margin-top: 14px;">
-                  <button class="wf-button">Reprendre Définir les cibles</button>
-                </div>
-              </article>
-              <article class="wf-card" data-major="to-validate">
-                <h3 class="wf-card-title">À valider</h3>
-                <ul class="wf-list">
-                  <li class="wf-list-item">
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">Valider le wireframe Accueil</span>
-                      <span class="wf-list-item-meta">proposé par Bob</span>
-                    </span>
-                    <span class="wf-badge wf-badge--warning">En attente</span>
-                  </li>
-                  <li class="wf-list-item">
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">Approuver la roadmap V2</span>
-                      <span class="wf-list-item-meta">proposé par Carla</span>
-                    </span>
-                    <span class="wf-badge wf-badge--warning">En attente</span>
-                  </li>
-                </ul>
-              </article>
-              <article class="wf-card" data-major="recent-projects">
-                <h3 class="wf-card-title">Projets récents</h3>
-                <ul class="wf-list">
-                  <li class="wf-list-item">
-                    <span class="wf-avatar">PA</span>
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">Projet Alpha</span>
-                      <span class="wf-list-item-meta">12 tâches en cours</span>
-                    </span>
-                  </li>
-                  <li class="wf-list-item">
-                    <span class="wf-avatar">SO</span>
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">Studio OS</span>
-                      <span class="wf-list-item-meta">8 tâches en cours</span>
-                    </span>
-                  </li>
-                  <li class="wf-list-item">
-                    <span class="wf-avatar">GR</span>
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">Graphify</span>
-                      <span class="wf-list-item-meta">5 tâches en cours</span>
-                    </span>
-                  </li>
-                </ul>
-              </article>
-            </div>
-            <div data-major="context">
-            <aside class="wf-context">
-              <div class="wf-card">
-                <h3 class="wf-card-title">Aujourd'hui</h3>
-                <p class="wf-card-body">3 tâches en cours, 2 validations en attente.</p>
-              </div>
-              <div class="wf-card">
-                <h3 class="wf-card-title">Activité récente</h3>
-                <p class="wf-card-body">Bob a commenté la fiche « Définir les cibles ».</p>
-              </div>
-            </aside>
-            <aside class="wf-context--rich">
-              <div class="wf-card">
-                <h3 class="wf-card-title">Aujourd'hui</h3>
-                <p class="wf-card-body">3 tâches en cours, 2 validations en attente.</p>
-              </div>
-              <div class="wf-card">
-                <h3 class="wf-card-title">Activité récente</h3>
-                <p class="wf-card-body">Bob a commenté la fiche « Définir les cibles ».</p>
-              </div>
-              <div class="wf-card">
-                <h3 class="wf-card-title">Prochaine étape</h3>
-                <p class="wf-card-body">P03-shell : stabiliser la navigation et le statut.</p>
-              </div>
-            </aside>
-          </div>
-          </main>
-        </div>
+<!-- ================= ÉCRANS ================= -->
+<template id="t-home">
+  <div class="home">
+    <div class="head">
+      <div>
+        <p class="eyebrow">Samedi 3 octobre</p>
+        <h1 class="pt">Bonjour Mathieu</h1>
+        <p class="sub">1 travail à reprendre · 4 éléments attendent votre décision</p>
       </div>
     </div>
-  </figure>
+    <div class="hg">
+      <section class="card hero focus" data-major>
+        <div style="display:flex;gap:10px;align-items:center;justify-content:space-between">
+          <span class="tag"><span class="pico p-s" style="width:18px;height:18px;font-size:10px;border-radius:5px">S</span>Studi'OS · UX Desktop V2</span>
+          <span class="status s-prog">En cours</span>
+        </div>
+        <h2>Valider des wireframes adaptatifs</h2>
+        <p class="muted" style="margin:0">Exploiter le grand écran sans étirer les cartes.</p>
+        <div class="prog"><div class="bar"><i style="width:33%"></i></div><span class="faint">1 critère sur 3 · Claude Code a travaillé dessus il y a 12 min</span></div>
+        <div class="acts">
+          <button class="btn primary"><svg class="i"><use href="#play"/></svg>Reprendre « Valider des wireframes »</button>
+          <button class="btn ghost">Ouvrir la fiche</button>
+        </div>
+        <div class="up">
+          <h4>Ensuite</h4>
+          <div class="row"><span class="dot d-block"></span><div class="grow"><div class="t">Ajuster l'équilibrage des armes</div><div class="s">Alchi-Gun · attend le retour du playtest</div></div><span class="status s-block">Bloquée</span><svg class="i chev"><use href="#chev"/></svg></div>
+          <div class="row"><span class="dot d-todo"></span><div class="grow"><div class="t">Rédiger le brief des prochains ennemis</div><div class="s">Binding of Apotheosis</div></div><span class="status s-todo">À démarrer</span><svg class="i chev"><use href="#chev"/></svg></div>
+        </div>
+      </section>
 
-  <figure class="viewport-wrapper" style="--vp-width: 2560px; margin-top: 32px;">
-    <figcaption>2560 px</figcaption>
-    <div class="viewport">
-      <div class="wf-shell">
-        <aside class="wf-sidebar">
-          <div class="wf-brand" data-major="brand">Studi'OS</div>
-          <nav class="wf-navgroup" data-major="navigation">
-            <h2>Quotidien</h2>
-            <ul>
-              <li><a class="wf-navlink active" href="#">Accueil</a></li>
-              <li><a class="wf-navlink" href="#">Projets</a></li>
-              <li><a class="wf-navlink" href="#">Travail</a></li>
-              <li><a class="wf-navlink" href="#">À valider</a></li>
-              <li><a class="wf-navlink" href="#">Agents</a></li>
-            </ul>
-          </nav>
-          <details class="wf-navgroup wf-navgroup--secondary" data-major="administration">
-            <summary>Administration</summary>
-            <ul>
-              <li><a class="wf-navlink" href="#">Comptes</a></li>
-              <li><a class="wf-navlink" href="#">Machines</a></li>
-              <li><a class="wf-navlink" href="#">Règles</a></li>
-              <li><a class="wf-navlink" href="#">Skills</a></li>
-            </ul>
-          </details>
-          <div class="wf-sidebar-foot">
-            <div>Alice Martin</div>
-            <button class="wf-button wf-button--secondary" style="justify-self: start;">Déconnexion</button>
+      <section class="card review" data-major>
+        <div class="ch"><h3>À valider</h3><a class="link">Ouvrir la file <svg class="i"><use href="#arrow"/></svg></a></div>
+        <div class="kinds">
+          <div class="kind"><b>2</b><span>travaux IA<br>terminés</span></div>
+          <div class="kind"><b>1</b><span>proposition<br>de roadmap</span></div>
+          <div class="kind"><b>1</b><span>décision<br>à trancher</span></div>
+        </div>
+      </section>
+
+      <section class="card proj" data-major>
+        <div class="ch"><h3>Projets</h3><a class="link">Tous <svg class="i"><use href="#arrow"/></svg></a></div>
+        <div class="row"><span class="pico p-s">S</span><div class="grow"><div class="t">Studi'OS</div><div class="s">P02 · Valider des wireframes</div></div><div style="width:90px" class="hide-xl"><div class="bar"><i style="width:25%"></i></div></div><span class="status s-ok">OK</span></div>
+        <div class="row"><span class="pico p-a">A</span><div class="grow"><div class="t">Alchi-Gun</div><div class="s">Équilibrage du gameplay</div></div><div style="width:90px" class="hide-xl"><div class="bar"><i style="width:62%"></i></div></div><span class="status s-warn">1 blocage</span></div>
+        <div class="row"><span class="pico p-b">B</span><div class="grow"><div class="t">Binding of Apotheosis</div><div class="s">Contenus · ennemis</div></div><div style="width:90px" class="hide-xl"><div class="bar"><i style="width:40%"></i></div></div><span class="status s-ok">OK</span></div>
+        <div class="row only-xl" style="display:none"><span class="pico p-g">G</span><div class="grow"><div class="t">Graphify</div><div class="s">Aucune roadmap active</div></div><span class="status">Calme</span></div>
+      </section>
+
+      <aside class="card ctx" data-major>
+        <div class="ch"><h3>Aujourd'hui</h3></div>
+        <div class="stats">
+          <div class="stat"><b>3</b><span>tâches en cours</span></div>
+          <div class="stat"><b style="color:var(--bad)">1</b><span>blocage</span></div>
+        </div>
+        <h3 style="font-size:13px;margin:0 0 10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em">Agents actifs</h3>
+        <div class="agents">
+          <div class="ag"><span class="avatar ai" style="width:26px;height:26px"><svg class="i"><use href="#bot"/></svg></span><div><div>Claude Code</div><div class="s">poste de Mathieu · wireframes</div></div></div>
+          <div class="ag"><span class="avatar ai" style="width:26px;height:26px"><svg class="i"><use href="#bot"/></svg></span><div><div>Codex</div><div class="s">poste de Chloé · inactif</div></div></div>
+        </div>
+        <div class="hide-xl">
+          <div class="sep"></div>
+          <div class="ch" style="margin-bottom:10px"><h3>Activité</h3><a class="link">Tout</a></div>
+          <div class="feed">
+            <div class="fi"><span class="avatar b">C</span><p><b>Chloé</b> a terminé <b>Intégrer les sons</b></p><span class="when">10:42</span></div>
+            <div class="fi"><span class="avatar ai"><svg class="i"><use href="#bot"/></svg></span><p><b>Claude Code</b> a soumis un travail à valider</p><span class="when">09:18</span></div>
           </div>
-        </aside>
-        <div class="wf-col">
-          <header class="wf-topbar">
-            <span class="wf-page-title">Bonjour, Alice</span>
-            <span class="wf-status" data-testid="connection-status"><span class="wf-status-dot"></span>Connecté</span>
-          </header>
-          <main class="wf-content wf-content--home">
-            <div class="wf-primary stack">
-              <article class="wf-card" data-major="todo-now">
-                <h3 class="wf-card-title">À faire maintenant</h3>
-                <div class="wf-list-item">
-                  <span class="wf-avatar">DM</span>
-                  <div class="wf-list-item-main">
-                    <div class="wf-list-item-title">Définir les cibles de lancement</div>
-                    <div class="wf-list-item-meta">Projet Alpha · échéance demain</div>
-                  </div>
-                </div>
-                <div style="margin-top: 14px;">
-                  <button class="wf-button">Reprendre Définir les cibles</button>
-                </div>
-              </article>
-              <article class="wf-card" data-major="to-validate">
-                <h3 class="wf-card-title">À valider</h3>
-                <ul class="wf-list">
-                  <li class="wf-list-item">
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">Valider le wireframe Accueil</span>
-                      <span class="wf-list-item-meta">proposé par Bob</span>
-                    </span>
-                    <span class="wf-badge wf-badge--warning">En attente</span>
-                  </li>
-                  <li class="wf-list-item">
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">Approuver la roadmap V2</span>
-                      <span class="wf-list-item-meta">proposé par Carla</span>
-                    </span>
-                    <span class="wf-badge wf-badge--warning">En attente</span>
-                  </li>
-                </ul>
-              </article>
-              <article class="wf-card" data-major="recent-projects">
-                <h3 class="wf-card-title">Projets récents</h3>
-                <ul class="wf-list">
-                  <li class="wf-list-item">
-                    <span class="wf-avatar">PA</span>
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">Projet Alpha</span>
-                      <span class="wf-list-item-meta">12 tâches en cours</span>
-                    </span>
-                  </li>
-                  <li class="wf-list-item">
-                    <span class="wf-avatar">SO</span>
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">Studio OS</span>
-                      <span class="wf-list-item-meta">8 tâches en cours</span>
-                    </span>
-                  </li>
-                  <li class="wf-list-item">
-                    <span class="wf-avatar">GR</span>
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">Graphify</span>
-                      <span class="wf-list-item-meta">5 tâches en cours</span>
-                    </span>
-                  </li>
-                </ul>
-              </article>
-            </div>
-            <div data-major="context">
-            <aside class="wf-context">
-              <div class="wf-card">
-                <h3 class="wf-card-title">Aujourd'hui</h3>
-                <p class="wf-card-body">3 tâches en cours, 2 validations en attente.</p>
-              </div>
-              <div class="wf-card">
-                <h3 class="wf-card-title">Activité récente</h3>
-                <p class="wf-card-body">Bob a commenté la fiche « Définir les cibles ».</p>
-              </div>
-            </aside>
-            <aside class="wf-context--rich">
-              <div class="wf-card">
-                <h3 class="wf-card-title">Aujourd'hui</h3>
-                <p class="wf-card-body">3 tâches en cours, 2 validations en attente.</p>
-              </div>
-              <div class="wf-card">
-                <h3 class="wf-card-title">Activité récente</h3>
-                <p class="wf-card-body">Bob a commenté la fiche « Définir les cibles ».</p>
-              </div>
-              <div class="wf-card">
-                <h3 class="wf-card-title">Prochaine étape</h3>
-                <p class="wf-card-body">P03-shell : stabiliser la navigation et le statut.</p>
-              </div>
-            </aside>
-          </div>
-          </main>
+        </div>
+      </aside>
+
+      <aside class="card feedcol only-xl" data-major style="display:none">
+        <div class="ch"><h3>Activité récente</h3><a class="link">Tout <svg class="i"><use href="#arrow"/></svg></a></div>
+        <div class="feed">
+          <div class="fi"><span class="avatar b">C</span><p><b>Chloé</b> a terminé <b>Intégrer les sons</b> sur Alchi-Gun</p><span class="when">10:42</span></div>
+          <div class="fi"><span class="avatar ai"><svg class="i"><use href="#bot"/></svg></span><p><b>Claude Code</b> a soumis <b>Wireframes P02</b> à valider</p><span class="when">09:18</span></div>
+          <div class="fi"><span class="avatar">M</span><p><b>Vous</b> avez accepté la décision <b>Tauri 2 comme shell natif</b></p><span class="when">08:31</span></div>
+          <div class="fi"><span class="avatar b">C</span><p><b>Chloé</b> a marqué <b>Ajuster l'équilibrage</b> comme bloquée</p><span class="when">hier</span></div>
+          <div class="fi"><span class="avatar ai"><svg class="i"><use href="#bot"/></svg></span><p><b>Codex</b> a fusionné <b>Navigation quotidienne</b> dans dev</p><span class="when">hier</span></div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</template>
+
+<template id="t-work">
+  <div class="wg">
+    <section class="card list" data-major>
+      <div class="lh">
+        <div class="top"><h1 class="pt" style="font-size:22px">Travail</h1><button class="btn ghost" style="padding:6px 8px"><svg class="i"><use href="#filter"/></svg></button></div>
+        <div class="seg"><span class="on">Maintenant<b>3</b></span><span>Mon travail<b>5</b></span><span>Toutes<b>18</b></span></div>
+      </div>
+      <div class="grp">
+        <h4><span class="dot d-prog"></span>En cours</h4>
+        <div class="li sel"><div class="grow"><div class="t">Valider des wireframes adaptatifs</div><div class="s">Studi'OS · Claude Code</div></div><svg class="i chev"><use href="#chev"/></svg></div>
+      </div>
+      <div class="grp">
+        <h4><span class="dot d-block"></span>Bloquées</h4>
+        <div class="li"><div class="grow"><div class="t">Ajuster l'équilibrage des armes</div><div class="s">Alchi-Gun · Chloé</div></div><svg class="i chev"><use href="#chev"/></svg></div>
+      </div>
+      <div class="grp">
+        <h4><span class="dot d-todo"></span>À démarrer</h4>
+        <div class="li"><div class="grow"><div class="t">Rédiger le brief des prochains ennemis</div><div class="s">Binding of Apotheosis · non attribuée</div></div><svg class="i chev"><use href="#chev"/></svg></div>
+      </div>
+      <div class="faint" style="padding:12px 18px 8px">15 autres tâches dans « Toutes »</div>
+    </section>
+
+    <article class="card detail" data-major>
+      <div class="crumb">Studi'OS  /  UX Desktop V2  /  P02 Cadrage</div>
+      <div class="dh">
+        <h2>Valider des wireframes adaptatifs</h2>
+        <div class="acts">
+          <button class="btn">Prêt à valider</button>
+          <button class="btn primary"><svg class="i"><use href="#play"/></svg>Reprendre le travail</button>
         </div>
       </div>
-    </div>
-  </figure>
-</section>
-
-<section class="wf-screen">
-  <h2>2. Travail et fiche tâche action-first</h2>
-
-  <figure class="viewport-wrapper" style="--vp-width: 1280px;">
-    <figcaption>1280 px</figcaption>
-    <div class="viewport">
-      <div class="wf-shell">
-        <aside class="wf-sidebar">
-          <div class="wf-brand" data-major="brand">Studi'OS</div>
-          <nav class="wf-navgroup" data-major="navigation">
-            <h2>Quotidien</h2>
-            <ul>
-              <li><a class="wf-navlink" href="#">Accueil</a></li>
-              <li><a class="wf-navlink" href="#">Projets</a></li>
-              <li><a class="wf-navlink active" href="#">Travail</a></li>
-              <li><a class="wf-navlink" href="#">À valider</a></li>
-              <li><a class="wf-navlink" href="#">Agents</a></li>
-            </ul>
-          </nav>
-          <details class="wf-navgroup wf-navgroup--secondary" data-major="administration">
-            <summary>Administration</summary>
-            <ul>
-              <li><a class="wf-navlink" href="#">Comptes</a></li>
-              <li><a class="wf-navlink" href="#">Machines</a></li>
-              <li><a class="wf-navlink" href="#">Règles</a></li>
-              <li><a class="wf-navlink" href="#">Skills</a></li>
-            </ul>
-          </details>
-          <div class="wf-sidebar-foot">
-            <div>Alice Martin</div>
-            <button class="wf-button wf-button--secondary" style="justify-self: start;">Déconnexion</button>
+      <div class="metal"><span class="status s-prog">En cours</span><span>Claude Code · poste de Mathieu</span><span>Mis à jour il y a 12 min</span></div>
+      <div class="db">
+        <div>
+          <section class="blk"><h3>Objectif</h3><p>Exploiter le grand écran sans étirer les cartes : lecture confortable, contexte utile dans l'espace libéré.</p></section>
+          <section class="blk"><h3>Prochaine action</h3>
+            <div class="nextbox">
+              <div class="h"><span>Faire valider les wireframes à 1280, 1600 et 2560 px</span><span class="faint">1 / 3</span></div>
+              <div class="check done"><span class="box on"><svg class="i"><use href="#check"/></svg></span><span>Wireframes rendus aux trois largeurs</span></div>
+              <div class="check"><span class="box"></span><span>Largeur de lecture confortable</span></div>
+              <div class="check"><span class="box"></span><span>Espace supplémentaire utilisé pour du contexte utile</span></div>
+            </div>
+          </section>
+          <section class="blk"><h3>Blocages</h3><div class="empty"><svg class="i"><use href="#check"/></svg>Aucun blocage — 9 étapes attendent celle-ci.</div></section>
+          <section class="blk"><div class="tech"><svg class="i"><use href="#code"/></svg>Détails techniques · sessions, journaux, automatisations, identifiants<svg class="i chev"><use href="#down"/></svg></div></section>
+        </div>
+        <aside class="props only-lg" style="display:none">
+          <h3>Propriétés</h3>
+          <dl>
+            <dt>Statut</dt><dd><span class="status s-prog">En cours</span></dd>
+            <dt>Pris par</dt><dd>Claude Code<div class="faint">poste de Mathieu</div></dd>
+            <dt>Projet</dt><dd>Studi'OS</dd>
+            <dt>Étape</dt><dd>P02 · Wireframes</dd>
+            <dt>Mise à jour</dt><dd>il y a 12 min</dd>
+          </dl>
+          <div class="sep"></div>
+          <h3>Activité</h3>
+          <div class="feed">
+            <div class="fi"><span class="avatar ai"><svg class="i"><use href="#bot"/></svg></span><p><b>Claude Code</b> a soumis un travail</p></div>
+            <div class="fi"><span class="avatar">M</span><p><b>Vous</b> avez repris la tâche</p></div>
+            <div class="fi"><span class="avatar b">C</span><p><b>Chloé</b> : « bonne direction »</p></div>
           </div>
         </aside>
-        <div class="wf-col">
-          <header class="wf-topbar">
-            <span class="wf-page-title">Travail</span>
-            <span class="wf-status" data-testid="connection-status"><span class="wf-status-dot"></span>Connecté</span>
-          </header>
-          <main class="wf-content wf-content--work">
-            <div class="wf-master-detail">
-              <article class="wf-card" data-major="task-list">
-                <div class="wf-tabs">
-                  <button class="wf-tab active">Maintenant</button>
-                  <button class="wf-tab">Mon travail</button>
-                  <button class="wf-tab">Toutes</button>
-                </div>
-                <ul class="wf-list" style="margin-top: 14px;">
-                  <li class="wf-list-item active">
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">Rédiger le brief utilisateur</span>
-                      <span class="wf-list-item-meta">Projet Alpha · priorité haute</span>
-                    </span>
-                    <span class="wf-badge wf-badge--warning">En cours</span>
-                  </li>
-                  <li class="wf-list-item">
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">Relire les maquettes</span>
-                      <span class="wf-list-item-meta">Studio OS · priorité moyenne</span>
-                    </span>
-                    <span class="wf-badge wf-badge--neutral">Planifié</span>
-                  </li>
-                  <li class="wf-list-item">
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">Valider les cibles</span>
-                      <span class="wf-list-item-meta">Projet Alpha · priorité haute</span>
-                    </span>
-                    <span class="wf-badge wf-badge--success">Terminé</span>
-                  </li>
-                </ul>
-              </article>
-              <article class="wf-card" data-major="task-detail">
-                <h3 class="wf-card-title">Rédiger le brief utilisateur</h3>
-                <div class="wf-section">
-                  <div class="wf-section-title">Objectif</div>
-                  <p class="wf-card-body">Résumer les attentes des utilisateurs pour le parcours d'accueil.</p>
-                </div>
-                <div class="wf-section">
-                  <div class="wf-section-title">Prochaine action</div>
-                  <button class="wf-button">Reprendre Rédiger le brief</button>
-                </div>
-                <div class="wf-section">
-                  <div class="wf-section-title">Blocages</div>
-                  <p class="wf-card-body">Aucun blocage signalé.</p>
-                </div>
-                <div class="wf-section">
-                  <div class="wf-section-title">Validation</div>
-                  <p class="wf-card-body">En attente de relecture par Alice.</p>
-                </div>
-                <div class="wf-accordion">Sessions, logs et automatismes (repliés)</div>
-                <div class="wf-accordion" style="margin-top: 8px;">Métadonnées techniques (repliées)</div>
-              </article>
-            </div>
-            <div data-major="context">
-            <aside class="wf-context">
-              <div class="wf-card">
-                <h3 class="wf-card-title">Activité récente</h3>
-                <p class="wf-card-body">Alice a repris cette tâche il y a 2 heures.</p>
-              </div>
-              <div class="wf-card">
-                <h3 class="wf-card-title">Liens rapides</h3>
-                <p class="wf-card-body">Brief, maquettes, discussion.</p>
-              </div>
-            </aside>
-            <aside class="wf-context--rich">
-              <div class="wf-card">
-                <h3 class="wf-card-title">Activité récente</h3>
-                <p class="wf-card-body">Alice a repris cette tâche il y a 2 heures.</p>
-              </div>
-              <div class="wf-card">
-                <h3 class="wf-card-title">Liens rapides</h3>
-                <p class="wf-card-body">Brief, maquettes, discussion.</p>
-              </div>
-              <div class="wf-card">
-                <h3 class="wf-card-title">Notes de contexte</h3>
-                <p class="wf-card-body">Se concentrer sur les parcours S1 et S2.</p>
-              </div>
-            </aside>
-          </div>
-          </main>
-        </div>
       </div>
-    </div>
-  </figure>
+    </article>
 
-  <figure class="viewport-wrapper" style="--vp-width: 1600px; margin-top: 32px;">
-    <figcaption>1600 px</figcaption>
-    <div class="viewport">
-      <div class="wf-shell">
-        <aside class="wf-sidebar">
-          <div class="wf-brand" data-major="brand">Studi'OS</div>
-          <nav class="wf-navgroup" data-major="navigation">
-            <h2>Quotidien</h2>
-            <ul>
-              <li><a class="wf-navlink" href="#">Accueil</a></li>
-              <li><a class="wf-navlink" href="#">Projets</a></li>
-              <li><a class="wf-navlink active" href="#">Travail</a></li>
-              <li><a class="wf-navlink" href="#">À valider</a></li>
-              <li><a class="wf-navlink" href="#">Agents</a></li>
-            </ul>
-          </nav>
-          <details class="wf-navgroup wf-navgroup--secondary" data-major="administration">
-            <summary>Administration</summary>
-            <ul>
-              <li><a class="wf-navlink" href="#">Comptes</a></li>
-              <li><a class="wf-navlink" href="#">Machines</a></li>
-              <li><a class="wf-navlink" href="#">Règles</a></li>
-              <li><a class="wf-navlink" href="#">Skills</a></li>
-            </ul>
-          </details>
-          <div class="wf-sidebar-foot">
-            <div>Alice Martin</div>
-            <button class="wf-button wf-button--secondary" style="justify-self: start;">Déconnexion</button>
-          </div>
-        </aside>
-        <div class="wf-col">
-          <header class="wf-topbar">
-            <span class="wf-page-title">Travail</span>
-            <span class="wf-status" data-testid="connection-status"><span class="wf-status-dot"></span>Connecté</span>
-          </header>
-          <main class="wf-content wf-content--work">
-            <div class="wf-master-detail">
-              <article class="wf-card" data-major="task-list">
-                <div class="wf-tabs">
-                  <button class="wf-tab active">Maintenant</button>
-                  <button class="wf-tab">Mon travail</button>
-                  <button class="wf-tab">Toutes</button>
-                </div>
-                <ul class="wf-list" style="margin-top: 14px;">
-                  <li class="wf-list-item active">
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">Rédiger le brief utilisateur</span>
-                      <span class="wf-list-item-meta">Projet Alpha · priorité haute</span>
-                    </span>
-                    <span class="wf-badge wf-badge--warning">En cours</span>
-                  </li>
-                  <li class="wf-list-item">
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">Relire les maquettes</span>
-                      <span class="wf-list-item-meta">Studio OS · priorité moyenne</span>
-                    </span>
-                    <span class="wf-badge wf-badge--neutral">Planifié</span>
-                  </li>
-                  <li class="wf-list-item">
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">Valider les cibles</span>
-                      <span class="wf-list-item-meta">Projet Alpha · priorité haute</span>
-                    </span>
-                    <span class="wf-badge wf-badge--success">Terminé</span>
-                  </li>
-                </ul>
-              </article>
-              <article class="wf-card" data-major="task-detail">
-                <h3 class="wf-card-title">Rédiger le brief utilisateur</h3>
-                <div class="wf-section">
-                  <div class="wf-section-title">Objectif</div>
-                  <p class="wf-card-body">Résumer les attentes des utilisateurs pour le parcours d'accueil.</p>
-                </div>
-                <div class="wf-section">
-                  <div class="wf-section-title">Prochaine action</div>
-                  <button class="wf-button">Reprendre Rédiger le brief</button>
-                </div>
-                <div class="wf-section">
-                  <div class="wf-section-title">Blocages</div>
-                  <p class="wf-card-body">Aucun blocage signalé.</p>
-                </div>
-                <div class="wf-section">
-                  <div class="wf-section-title">Validation</div>
-                  <p class="wf-card-body">En attente de relecture par Alice.</p>
-                </div>
-                <div class="wf-accordion">Sessions, logs et automatismes (repliés)</div>
-                <div class="wf-accordion" style="margin-top: 8px;">Métadonnées techniques (repliées)</div>
-              </article>
-            </div>
-            <div data-major="context">
-            <aside class="wf-context">
-              <div class="wf-card">
-                <h3 class="wf-card-title">Activité récente</h3>
-                <p class="wf-card-body">Alice a repris cette tâche il y a 2 heures.</p>
-              </div>
-              <div class="wf-card">
-                <h3 class="wf-card-title">Liens rapides</h3>
-                <p class="wf-card-body">Brief, maquettes, discussion.</p>
-              </div>
-            </aside>
-            <aside class="wf-context--rich">
-              <div class="wf-card">
-                <h3 class="wf-card-title">Activité récente</h3>
-                <p class="wf-card-body">Alice a repris cette tâche il y a 2 heures.</p>
-              </div>
-              <div class="wf-card">
-                <h3 class="wf-card-title">Liens rapides</h3>
-                <p class="wf-card-body">Brief, maquettes, discussion.</p>
-              </div>
-              <div class="wf-card">
-                <h3 class="wf-card-title">Notes de contexte</h3>
-                <p class="wf-card-body">Se concentrer sur les parcours S1 et S2.</p>
-              </div>
-            </aside>
-          </div>
-          </main>
-        </div>
+    <aside class="ctxc only-xl" data-major style="display:none">
+      <section class="card">
+        <div class="ch"><h3>Étape de roadmap liée</h3><a class="link">Roadmap <svg class="i"><use href="#arrow"/></svg></a></div>
+        <div class="faint">P02 · Cadrage visuel</div>
+        <div style="font-weight:600;margin:2px 0 8px">Valider des wireframes adaptatifs</div>
+        <div class="bar"><i style="width:33%"></i></div>
+        <div class="faint" style="margin-top:6px">Débloque : Recomposer le shell, Composants progressifs…</div>
+      </section>
+      <section class="card">
+        <div class="ch"><h3>Décisions liées</h3></div>
+        <div class="row"><svg class="i muted"><use href="#doc"/></svg><div class="grow"><div class="t">Tauri 2, shell natif mince</div><div class="s">Acceptée</div></div></div>
+        <div class="row"><svg class="i muted"><use href="#doc"/></svg><div class="grow"><div class="t">Cibles C1–C4 de simplification</div><div class="s">Acceptée</div></div></div>
+      </section>
+      <section class="card">
+        <div class="ch"><h3>Même étape</h3></div>
+        <div class="row"><span class="dot d-ok"></span><div class="grow"><div class="t">Navigation quotidienne</div><div class="s">Terminée · fusionnée</div></div></div>
+        <div class="row"><span class="dot d-ok"></span><div class="grow"><div class="t">Langage sans identifiants</div><div class="s">Terminée</div></div></div>
+      </section>
+    </aside>
+  </div>
+</template>
+
+<template id="t-roadmap">
+  <div class="rm">
+    <div class="head">
+      <div>
+        <p class="eyebrow">Projets / Studi'OS</p>
+        <h1 class="pt">UX Desktop/Dashboard V2</h1>
       </div>
+      <div class="seg"><span class="on">Exécution</span><span>Plan</span></div>
     </div>
-  </figure>
+    <div class="rg">
+      <div class="rmain">
+        <section class="card phases" data-major>
+          <div class="ph-top"><span><b>25 %</b> <span class="muted">· 4 étapes sur 16</span></span><span class="faint">Phase 2 sur 6</span></div>
+          <div class="track">
+            <div class="pz done"><i></i><span>P01 Mesure</span></div>
+            <div class="pz cur"><i></i><span>P02 Cadrage</span></div>
+            <div class="pz"><i></i><span>P03 Fondations</span></div>
+            <div class="pz"><i></i><span>P04 Travail</span></div>
+            <div class="pz"><i></i><span>P05 Écrans</span></div>
+            <div class="pz"><i></i><span>P06 Test</span></div>
+          </div>
+        </section>
 
-  <figure class="viewport-wrapper" style="--vp-width: 2560px; margin-top: 32px;">
-    <figcaption>2560 px</figcaption>
-    <div class="viewport">
-      <div class="wf-shell">
-        <aside class="wf-sidebar">
-          <div class="wf-brand" data-major="brand">Studi'OS</div>
-          <nav class="wf-navgroup" data-major="navigation">
-            <h2>Quotidien</h2>
-            <ul>
-              <li><a class="wf-navlink" href="#">Accueil</a></li>
-              <li><a class="wf-navlink" href="#">Projets</a></li>
-              <li><a class="wf-navlink active" href="#">Travail</a></li>
-              <li><a class="wf-navlink" href="#">À valider</a></li>
-              <li><a class="wf-navlink" href="#">Agents</a></li>
-            </ul>
-          </nav>
-          <details class="wf-navgroup wf-navgroup--secondary" data-major="administration">
-            <summary>Administration</summary>
-            <ul>
-              <li><a class="wf-navlink" href="#">Comptes</a></li>
-              <li><a class="wf-navlink" href="#">Machines</a></li>
-              <li><a class="wf-navlink" href="#">Règles</a></li>
-              <li><a class="wf-navlink" href="#">Skills</a></li>
-            </ul>
-          </details>
-          <div class="wf-sidebar-foot">
-            <div>Alice Martin</div>
-            <button class="wf-button wf-button--secondary" style="justify-self: start;">Déconnexion</button>
+        <section class="card cur-card" data-major>
+          <div style="display:flex;justify-content:space-between;align-items:center"><span class="tag" style="background:var(--accent-soft);color:var(--accent);font-weight:600">Étape actuelle · P02</span><span class="status s-prog">En cours</span></div>
+          <h2>Valider des wireframes adaptatifs</h2>
+          <p class="muted" style="margin:0">Exploiter le grand écran sans étirer les cartes.</p>
+          <div style="margin-top:12px">
+            <div class="check done"><span class="box on"><svg class="i"><use href="#check"/></svg></span><span>Wireframes rendus à 1280, 1600 et 2560 px</span></div>
+            <div class="check"><span class="box"></span><span>Largeur de lecture confortable</span></div>
+            <div class="check"><span class="box"></span><span>Espace supplémentaire utilisé pour du contexte utile</span></div>
           </div>
-        </aside>
-        <div class="wf-col">
-          <header class="wf-topbar">
-            <span class="wf-page-title">Travail</span>
-            <span class="wf-status" data-testid="connection-status"><span class="wf-status-dot"></span>Connecté</span>
-          </header>
-          <main class="wf-content wf-content--work">
-            <div class="wf-master-detail">
-              <article class="wf-card" data-major="task-list">
-                <div class="wf-tabs">
-                  <button class="wf-tab active">Maintenant</button>
-                  <button class="wf-tab">Mon travail</button>
-                  <button class="wf-tab">Toutes</button>
-                </div>
-                <ul class="wf-list" style="margin-top: 14px;">
-                  <li class="wf-list-item active">
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">Rédiger le brief utilisateur</span>
-                      <span class="wf-list-item-meta">Projet Alpha · priorité haute</span>
-                    </span>
-                    <span class="wf-badge wf-badge--warning">En cours</span>
-                  </li>
-                  <li class="wf-list-item">
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">Relire les maquettes</span>
-                      <span class="wf-list-item-meta">Studio OS · priorité moyenne</span>
-                    </span>
-                    <span class="wf-badge wf-badge--neutral">Planifié</span>
-                  </li>
-                  <li class="wf-list-item">
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">Valider les cibles</span>
-                      <span class="wf-list-item-meta">Projet Alpha · priorité haute</span>
-                    </span>
-                    <span class="wf-badge wf-badge--success">Terminé</span>
-                  </li>
-                </ul>
-              </article>
-              <article class="wf-card" data-major="task-detail">
-                <h3 class="wf-card-title">Rédiger le brief utilisateur</h3>
-                <div class="wf-section">
-                  <div class="wf-section-title">Objectif</div>
-                  <p class="wf-card-body">Résumer les attentes des utilisateurs pour le parcours d'accueil.</p>
-                </div>
-                <div class="wf-section">
-                  <div class="wf-section-title">Prochaine action</div>
-                  <button class="wf-button">Reprendre Rédiger le brief</button>
-                </div>
-                <div class="wf-section">
-                  <div class="wf-section-title">Blocages</div>
-                  <p class="wf-card-body">Aucun blocage signalé.</p>
-                </div>
-                <div class="wf-section">
-                  <div class="wf-section-title">Validation</div>
-                  <p class="wf-card-body">En attente de relecture par Alice.</p>
-                </div>
-                <div class="wf-accordion">Sessions, logs et automatismes (repliés)</div>
-                <div class="wf-accordion" style="margin-top: 8px;">Métadonnées techniques (repliées)</div>
-              </article>
-            </div>
-            <div data-major="context">
-            <aside class="wf-context">
-              <div class="wf-card">
-                <h3 class="wf-card-title">Activité récente</h3>
-                <p class="wf-card-body">Alice a repris cette tâche il y a 2 heures.</p>
-              </div>
-              <div class="wf-card">
-                <h3 class="wf-card-title">Liens rapides</h3>
-                <p class="wf-card-body">Brief, maquettes, discussion.</p>
-              </div>
-            </aside>
-            <aside class="wf-context--rich">
-              <div class="wf-card">
-                <h3 class="wf-card-title">Activité récente</h3>
-                <p class="wf-card-body">Alice a repris cette tâche il y a 2 heures.</p>
-              </div>
-              <div class="wf-card">
-                <h3 class="wf-card-title">Liens rapides</h3>
-                <p class="wf-card-body">Brief, maquettes, discussion.</p>
-              </div>
-              <div class="wf-card">
-                <h3 class="wf-card-title">Notes de contexte</h3>
-                <p class="wf-card-body">Se concentrer sur les parcours S1 et S2.</p>
-              </div>
-            </aside>
+          <div class="foot">
+            <span class="faint">Tâche liée · Claude Code · poste de Mathieu</span>
+            <button class="btn primary">Ouvrir le travail <svg class="i"><use href="#arrow"/></svg></button>
           </div>
-          </main>
-        </div>
+        </section>
+
+        <section data-major>
+          <div class="ch" style="margin-bottom:10px"><h3 style="font-size:15px">Ensuite</h3><span class="faint">disponibles après cette étape</span></div>
+          <div class="nx">
+            <div class="card"><div class="k">P03 · Fondations</div><h3>Recomposer le shell</h3><div class="faint" style="display:flex;gap:6px;align-items:center"><svg class="i"><use href="#link"/></svg>attend Wireframes</div></div>
+            <div class="card"><div class="k">P03 · Fondations</div><h3>Composants de divulgation progressive</h3><div class="faint" style="display:flex;gap:6px;align-items:center"><svg class="i"><use href="#link"/></svg>attend Wireframes</div></div>
+          </div>
+        </section>
+
+        <section class="card donec" data-major>
+          <span class="ok"><svg class="i"><use href="#check"/></svg></span>
+          <div class="grow" style="flex:1"><b>1 phase terminée</b><div class="faint">P01 Mesure · masquée pour garder le focus</div></div>
+          <svg class="i chev"><use href="#down"/></svg>
+        </section>
       </div>
+
+      <aside class="ctxc" data-major>
+        <section class="card">
+          <div class="ch"><h3>Proposition en attente</h3></div>
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <span class="avatar ai" style="border-radius:10px;width:36px;height:36px"><svg class="i"><use href="#doc"/></svg></span>
+            <div style="flex:1;min-width:0"><div style="font-weight:600">Révision 2 du Plan</div><div class="faint">2 étapes ajoutées · par Claude Code</div></div>
+          </div>
+          <button class="btn" style="margin-top:12px;width:100%;justify-content:center">Examiner la proposition</button>
+        </section>
+        <section class="card">
+          <div class="ch"><h3>Blocages</h3></div>
+          <div class="empty"><svg class="i"><use href="#check"/></svg>Aucun blocage actif.</div>
+          <div class="faint" style="margin-top:10px">Cette étape conditionne 9 étapes suivantes.</div>
+        </section>
+        <section class="card only-lg" style="display:none">
+          <div class="ch"><h3>Décisions récentes</h3></div>
+          <div class="row"><svg class="i muted"><use href="#shield"/></svg><div class="grow"><div class="t">Cibles C1–C4</div><div class="s">Acceptée · 3 oct.</div></div></div>
+          <div class="row"><svg class="i muted"><use href="#shield"/></svg><div class="grow"><div class="t">Tauri 2 comme shell</div><div class="s">Acceptée</div></div></div>
+        </section>
+      </aside>
+
+      <aside class="card plan only-xl" data-major style="display:none">
+        <div class="ch"><h3>Plan restant</h3><a class="link">Onglet Plan <svg class="i"><use href="#arrow"/></svg></a></div>
+        <div class="ph"><h4>P02 Cadrage <span class="faint">2/3</span></h4>
+          <div class="st done"><span class="dot d-ok"></span>Langage sans identifiants</div>
+          <div class="st done"><span class="dot d-ok"></span>Navigation quotidienne</div>
+          <div class="st cur"><span class="dot d-prog"></span>Wireframes adaptatifs</div></div>
+        <div class="ph"><h4>P03 Fondations <span class="faint">0/3</span></h4>
+          <div class="st"><span class="dot d-todo"></span>Recomposer le shell</div>
+          <div class="st"><span class="dot d-todo"></span>Statut unique</div>
+          <div class="st"><span class="dot d-todo"></span>Composants progressifs</div></div>
+        <div class="ph"><h4>P04 Travail <span class="faint">0/3</span></h4>
+          <div class="st"><span class="dot d-todo"></span>Espace Travail</div>
+          <div class="st"><span class="dot d-todo"></span>File À valider</div>
+          <div class="st"><span class="dot d-todo"></span>Fiche tâche</div></div>
+        <div class="ph"><h4>P05 Écrans <span class="faint">0/3</span></h4>
+          <div class="st"><span class="dot d-todo"></span>Accueil et projet</div>
+          <div class="st"><span class="dot d-todo"></span>Agents</div>
+          <div class="st"><span class="dot d-todo"></span>Roadmaps</div></div>
+        <div class="ph"><h4>P06 Test <span class="faint">0/1</span></h4>
+          <div class="st"><span class="dot d-todo"></span>Test d'utilisabilité</div></div>
+      </aside>
     </div>
-  </figure>
-</section>
+  </div>
+</template>
 
-<section class="wf-screen">
-  <h2>3. Roadmap centrée sur le présent</h2>
-
-  <figure class="viewport-wrapper" style="--vp-width: 1280px;">
-    <figcaption>1280 px</figcaption>
-    <div class="viewport">
-      <div class="wf-shell">
-        <aside class="wf-sidebar">
-          <div class="wf-brand" data-major="brand">Studi'OS</div>
-          <nav class="wf-navgroup" data-major="navigation">
-            <h2>Quotidien</h2>
-            <ul>
-              <li><a class="wf-navlink" href="#">Accueil</a></li>
-              <li><a class="wf-navlink active" href="#">Projets</a></li>
-              <li><a class="wf-navlink" href="#">Travail</a></li>
-              <li><a class="wf-navlink" href="#">À valider</a></li>
-              <li><a class="wf-navlink" href="#">Agents</a></li>
-            </ul>
-          </nav>
-          <details class="wf-navgroup wf-navgroup--secondary" data-major="administration">
-            <summary>Administration</summary>
-            <ul>
-              <li><a class="wf-navlink" href="#">Comptes</a></li>
-              <li><a class="wf-navlink" href="#">Machines</a></li>
-              <li><a class="wf-navlink" href="#">Règles</a></li>
-              <li><a class="wf-navlink" href="#">Skills</a></li>
-            </ul>
-          </details>
-          <div class="wf-sidebar-foot">
-            <div>Alice Martin</div>
-            <button class="wf-button wf-button--secondary" style="justify-self: start;">Déconnexion</button>
-          </div>
-        </aside>
-        <div class="wf-col">
-          <header class="wf-topbar">
-            <span class="wf-page-title">Roadmap UX Desktop/Dashboard V2</span>
-            <span class="wf-status" data-testid="connection-status"><span class="wf-status-dot"></span>Connecté</span>
-          </header>
-          <main class="wf-content wf-content--roadmap">
-            <div class="wf-roadmap-main stack">
-              <article class="wf-card wf-card--current" data-major="current-step">
-                <div class="wf-action-row">
-                  <div>
-                    <h3 class="wf-card-title">Étape courante : P02-wireframes</h3>
-                    <p class="wf-card-body">Livrer les wireframes adaptatifs des trois écrans référents.</p>
-                  </div>
-                  <button class="wf-button">Valider l'étape P02-wireframes</button>
-                </div>
-              </article>
-              <article class="wf-card" data-major="next-steps">
-                <h3 class="wf-card-title">Prochaines étapes</h3>
-                <ul class="wf-list">
-                  <li class="wf-list-item">
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">P03-shell</span>
-                      <span class="wf-list-item-meta">Navigation et statut unifiés</span>
-                    </span>
-                    <span class="wf-badge wf-badge--neutral">À venir</span>
-                  </li>
-                  <li class="wf-list-item">
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">P04-work</span>
-                      <span class="wf-list-item-meta">Vue travail et fiche tâche</span>
-                    </span>
-                    <span class="wf-badge wf-badge--neutral">À venir</span>
-                  </li>
-                </ul>
-              </article>
-              <div class="wf-accordion" data-major="past-phases">Phases terminées (8) — repliées</div>
-            </div>
-            <div data-major="context">
-            <aside class="wf-context">
-              <div class="wf-card">
-                <h3 class="wf-card-title">Principes</h3>
-                <p class="wf-card-body">Moins d'informations simultanées, prochaine action évidente.</p>
-              </div>
-              <div class="wf-card">
-                <h3 class="wf-card-title">Blocages</h3>
-                <p class="wf-card-body">Aucun blocage actif.</p>
-              </div>
-            </aside>
-            <aside class="wf-context--rich">
-              <div class="wf-card">
-                <h3 class="wf-card-title">Principes</h3>
-                <p class="wf-card-body">Moins d'informations simultanées, prochaine action évidente.</p>
-              </div>
-              <div class="wf-card">
-                <h3 class="wf-card-title">Blocages</h3>
-                <p class="wf-card-body">Aucun blocage actif.</p>
-              </div>
-              <div class="wf-card">
-                <h3 class="wf-card-title">Décisions en attente</h3>
-                <p class="wf-card-body">Choix du framework de composants.</p>
-              </div>
-            </aside>
-          </div>
-          </main>
-        </div>
+<template id="t-shell">
+  <div class="shell">
+    <aside class="side">
+      <div class="brand"><span class="logo">S</span><b class="lbl-full">Studi'OS</b></div>
+      <div class="cmdk"><svg class="i"><use href="#search"/></svg><span class="lbl-full" style="white-space:nowrap">Rechercher…</span><kbd class="lbl-full">Ctrl K</kbd></div>
+      <a class="nav" data-n="home"><svg class="i"><use href="#home"/></svg><span>Accueil</span></a>
+      <a class="nav" data-n="projects"><svg class="i"><use href="#folder"/></svg><span>Projets</span></a>
+      <a class="nav" data-n="work"><svg class="i"><use href="#work"/></svg><span>Travail</span></a>
+      <a class="nav" data-n="review"><svg class="i"><use href="#inbox"/></svg><span class="lbl-full">À valider</span><span class="lbl-short">Valider</span><span class="badge">4</span></a>
+      <a class="nav" data-n="agents"><svg class="i"><use href="#bot"/></svg><span>Agents</span></a>
+      <div class="spacer"></div>
+      <a class="nav"><svg class="i"><use href="#gear"/></svg><span class="lbl-full">Administration</span><span class="lbl-short">Admin</span></a>
+      <div class="me">
+        <span class="avatar">M</span>
+        <div class="who"><b>Mathieu</b><span class="conn" data-testid="connection-status"><span class="t">En ligne</span></span></div>
+        <span class="conn hide-lg" data-testid="connection-status" title="En ligne"></span>
       </div>
-    </div>
-  </figure>
+    </aside>
+    <main class="main"></main>
+  </div>
+</template>
 
-  <figure class="viewport-wrapper" style="--vp-width: 1600px; margin-top: 32px;">
-    <figcaption>1600 px</figcaption>
-    <div class="viewport">
-      <div class="wf-shell">
-        <aside class="wf-sidebar">
-          <div class="wf-brand" data-major="brand">Studi'OS</div>
-          <nav class="wf-navgroup" data-major="navigation">
-            <h2>Quotidien</h2>
-            <ul>
-              <li><a class="wf-navlink" href="#">Accueil</a></li>
-              <li><a class="wf-navlink active" href="#">Projets</a></li>
-              <li><a class="wf-navlink" href="#">Travail</a></li>
-              <li><a class="wf-navlink" href="#">À valider</a></li>
-              <li><a class="wf-navlink" href="#">Agents</a></li>
-            </ul>
-          </nav>
-          <details class="wf-navgroup wf-navgroup--secondary" data-major="administration">
-            <summary>Administration</summary>
-            <ul>
-              <li><a class="wf-navlink" href="#">Comptes</a></li>
-              <li><a class="wf-navlink" href="#">Machines</a></li>
-              <li><a class="wf-navlink" href="#">Règles</a></li>
-              <li><a class="wf-navlink" href="#">Skills</a></li>
-            </ul>
-          </details>
-          <div class="wf-sidebar-foot">
-            <div>Alice Martin</div>
-            <button class="wf-button wf-button--secondary" style="justify-self: start;">Déconnexion</button>
-          </div>
-        </aside>
-        <div class="wf-col">
-          <header class="wf-topbar">
-            <span class="wf-page-title">Roadmap UX Desktop/Dashboard V2</span>
-            <span class="wf-status" data-testid="connection-status"><span class="wf-status-dot"></span>Connecté</span>
-          </header>
-          <main class="wf-content wf-content--roadmap">
-            <div class="wf-roadmap-main stack">
-              <article class="wf-card wf-card--current" data-major="current-step">
-                <div class="wf-action-row">
-                  <div>
-                    <h3 class="wf-card-title">Étape courante : P02-wireframes</h3>
-                    <p class="wf-card-body">Livrer les wireframes adaptatifs des trois écrans référents.</p>
-                  </div>
-                  <button class="wf-button">Valider l'étape P02-wireframes</button>
-                </div>
-              </article>
-              <article class="wf-card" data-major="next-steps">
-                <h3 class="wf-card-title">Prochaines étapes</h3>
-                <ul class="wf-list">
-                  <li class="wf-list-item">
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">P03-shell</span>
-                      <span class="wf-list-item-meta">Navigation et statut unifiés</span>
-                    </span>
-                    <span class="wf-badge wf-badge--neutral">À venir</span>
-                  </li>
-                  <li class="wf-list-item">
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">P04-work</span>
-                      <span class="wf-list-item-meta">Vue travail et fiche tâche</span>
-                    </span>
-                    <span class="wf-badge wf-badge--neutral">À venir</span>
-                  </li>
-                </ul>
-              </article>
-              <div class="wf-accordion" data-major="past-phases">Phases terminées (8) — repliées</div>
-            </div>
-            <div data-major="context">
-            <aside class="wf-context">
-              <div class="wf-card">
-                <h3 class="wf-card-title">Principes</h3>
-                <p class="wf-card-body">Moins d'informations simultanées, prochaine action évidente.</p>
-              </div>
-              <div class="wf-card">
-                <h3 class="wf-card-title">Blocages</h3>
-                <p class="wf-card-body">Aucun blocage actif.</p>
-              </div>
-            </aside>
-            <aside class="wf-context--rich">
-              <div class="wf-card">
-                <h3 class="wf-card-title">Principes</h3>
-                <p class="wf-card-body">Moins d'informations simultanées, prochaine action évidente.</p>
-              </div>
-              <div class="wf-card">
-                <h3 class="wf-card-title">Blocages</h3>
-                <p class="wf-card-body">Aucun blocage actif.</p>
-              </div>
-              <div class="wf-card">
-                <h3 class="wf-card-title">Décisions en attente</h3>
-                <p class="wf-card-body">Choix du framework de composants.</p>
-              </div>
-            </aside>
-          </div>
-          </main>
-        </div>
-      </div>
-    </div>
-  </figure>
-
-  <figure class="viewport-wrapper" style="--vp-width: 2560px; margin-top: 32px;">
-    <figcaption>2560 px</figcaption>
-    <div class="viewport">
-      <div class="wf-shell">
-        <aside class="wf-sidebar">
-          <div class="wf-brand" data-major="brand">Studi'OS</div>
-          <nav class="wf-navgroup" data-major="navigation">
-            <h2>Quotidien</h2>
-            <ul>
-              <li><a class="wf-navlink" href="#">Accueil</a></li>
-              <li><a class="wf-navlink active" href="#">Projets</a></li>
-              <li><a class="wf-navlink" href="#">Travail</a></li>
-              <li><a class="wf-navlink" href="#">À valider</a></li>
-              <li><a class="wf-navlink" href="#">Agents</a></li>
-            </ul>
-          </nav>
-          <details class="wf-navgroup wf-navgroup--secondary" data-major="administration">
-            <summary>Administration</summary>
-            <ul>
-              <li><a class="wf-navlink" href="#">Comptes</a></li>
-              <li><a class="wf-navlink" href="#">Machines</a></li>
-              <li><a class="wf-navlink" href="#">Règles</a></li>
-              <li><a class="wf-navlink" href="#">Skills</a></li>
-            </ul>
-          </details>
-          <div class="wf-sidebar-foot">
-            <div>Alice Martin</div>
-            <button class="wf-button wf-button--secondary" style="justify-self: start;">Déconnexion</button>
-          </div>
-        </aside>
-        <div class="wf-col">
-          <header class="wf-topbar">
-            <span class="wf-page-title">Roadmap UX Desktop/Dashboard V2</span>
-            <span class="wf-status" data-testid="connection-status"><span class="wf-status-dot"></span>Connecté</span>
-          </header>
-          <main class="wf-content wf-content--roadmap">
-            <div class="wf-roadmap-main stack">
-              <article class="wf-card wf-card--current" data-major="current-step">
-                <div class="wf-action-row">
-                  <div>
-                    <h3 class="wf-card-title">Étape courante : P02-wireframes</h3>
-                    <p class="wf-card-body">Livrer les wireframes adaptatifs des trois écrans référents.</p>
-                  </div>
-                  <button class="wf-button">Valider l'étape P02-wireframes</button>
-                </div>
-              </article>
-              <article class="wf-card" data-major="next-steps">
-                <h3 class="wf-card-title">Prochaines étapes</h3>
-                <ul class="wf-list">
-                  <li class="wf-list-item">
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">P03-shell</span>
-                      <span class="wf-list-item-meta">Navigation et statut unifiés</span>
-                    </span>
-                    <span class="wf-badge wf-badge--neutral">À venir</span>
-                  </li>
-                  <li class="wf-list-item">
-                    <span class="wf-list-item-main">
-                      <span class="wf-list-item-title">P04-work</span>
-                      <span class="wf-list-item-meta">Vue travail et fiche tâche</span>
-                    </span>
-                    <span class="wf-badge wf-badge--neutral">À venir</span>
-                  </li>
-                </ul>
-              </article>
-              <div class="wf-accordion" data-major="past-phases">Phases terminées (8) — repliées</div>
-            </div>
-            <div data-major="context">
-            <aside class="wf-context">
-              <div class="wf-card">
-                <h3 class="wf-card-title">Principes</h3>
-                <p class="wf-card-body">Moins d'informations simultanées, prochaine action évidente.</p>
-              </div>
-              <div class="wf-card">
-                <h3 class="wf-card-title">Blocages</h3>
-                <p class="wf-card-body">Aucun blocage actif.</p>
-              </div>
-            </aside>
-            <aside class="wf-context--rich">
-              <div class="wf-card">
-                <h3 class="wf-card-title">Principes</h3>
-                <p class="wf-card-body">Moins d'informations simultanées, prochaine action évidente.</p>
-              </div>
-              <div class="wf-card">
-                <h3 class="wf-card-title">Blocages</h3>
-                <p class="wf-card-body">Aucun blocage actif.</p>
-              </div>
-              <div class="wf-card">
-                <h3 class="wf-card-title">Décisions en attente</h3>
-                <p class="wf-card-body">Choix du framework de composants.</p>
-              </div>
-            </aside>
-          </div>
-          </main>
-        </div>
-      </div>
-    </div>
-  </figure>
-</section>
-
+<script>
+const H = {1280:800, 1600:900, 2560:1440};
+const ACTIVE = {home:'home', work:'work', roadmap:'projects'};
+const NOTES = {
+  home:[
+    ["Ce qui change vs mockup",["Une seule carte « Reprendre » remplace la table de 3 tâches à 4 colonnes : une action primaire, deux suites en lignes simples.","À valider devient 3 compteurs par type (travaux IA, roadmap, décision) — reflète les types réels de la file.","Projets en lignes compactes (étape courante + santé) au lieu de cartes avec menus « … ».","Recherche déplacée en palette Ctrl K dans la barre latérale ; pas de bouton « Nouvelle tâche » concurrent."]],
+    ["Adaptatif",["1280 : rail d'icônes 72 px → la colonne contextuelle tient déjà à droite (300 px).","1600 : barre latérale complète, colonne 760 px + contexte 340 px.","2560 : quatre colonnes bornées (760 / 380 / 380 / 380) — Projets et Activité sortent en colonnes, aucune carte élargie."]],
+    ["Données réelles",["Pas de priorité, d'échéance ni d'assigné humain dans Task : remplacés par statut + agent qui a pris la tâche.","Progression = critères cochés de l'étape liée (criteria_checked / criteria_total).","C1 : 1 primaire · C2 : 0 UUID · C3 : 4 blocs · C4 : 1 statut."]]
+  ],
+  work:[
+    ["Ce qui change vs mockup",["Liste groupée par statut réel (En cours / Bloquées / À démarrer) au lieu de « Prioritaire » : la priorité n'existe pas dans le modèle.","Lignes à 2 niveaux sans badge, avatar, date ni case à cocher : un point de couleur porte le statut.","Fiche : propriétés dans une colonne latérale (style Linear) dès 1600 ; au-dessous, une ligne de méta.","« Prochaine action » = critères d'acceptation, pas une checklist inventée."]],
+    ["Adaptatif",["1280 : maître-détail dès cette largeur (liste 360 px + fiche), propriétés en ligne.","1600 : liste 400 px, fiche contenu 680 px + propriétés 260 px.","2560 : 3e volet de contexte : étape de roadmap liée, décisions liées, tâches de la même étape."]],
+    ["Divulgation progressive",["Sessions, journaux, automatisations et identifiants dans « Détails techniques », replié.","4 sections ouvertes max : Objectif, Prochaine action, Blocages, (Validation via « Prêt à valider »)."]]
+  ],
+  roadmap:[
+    ["Ce qui change vs mockup",["Bandeau des 6 phases compact remplace les 3 KPI (96 %, phases, étape) : on voit où on est en une ligne.","Colonne « À retenir » supprimée : les principes de design ne sont pas du contenu produit.","Étape actuelle avec ses critères d'acceptation réels et une seule action primaire."]],
+    ["Adaptatif",["1280 : colonne 1fr + contexte 300 px (proposition, blocages).","1600 : ajoute Décisions récentes.","2560 : 3e colonne « Plan restant » (phases P02–P06 et leurs étapes) sans quitter l'onglet Exécution."]],
+    ["Données réelles",["Bloquage aval tiré de blocking (9 étapes), waiting_on pour « attend ».","Une seule carte par proposition, révisions regroupées (« Révision 2 du Plan »)."]]
+  ]
+};
+const st = {screen:'home', width:1280};
+const stage = document.getElementById('stage');
+function render(){
+  const w = st.width, h = H[w];
+  const shell = document.getElementById('t-shell').content.cloneNode(true);
+  shell.querySelector('.main').appendChild(document.getElementById('t-'+st.screen).content.cloneNode(true));
+  shell.querySelectorAll('.nav[data-n]').forEach(n=>n.classList.toggle('on', n.dataset.n===ACTIVE[st.screen]));
+  // les éléments à display:none inline servent de repli sans container queries : on les rend aux classes
+  shell.querySelectorAll('[style*="display:none"]').forEach(e=>e.style.removeProperty('display'));
+  const app = document.createElement('div');
+  app.className='app'; app.style.width=w+'px'; app.style.minHeight=h+'px';
+  app.appendChild(shell);
+  const fold=document.createElement('div'); fold.className='fold'; fold.style.top=h+'px'; fold.innerHTML=`<span>ligne de flottaison ${w}×${h}</span>`; app.appendChild(fold);
+  stage.innerHTML=''; stage.appendChild(app);
+  fit();
+  document.getElementById('notes').innerHTML = NOTES[st.screen].map(([t,l])=>`<div class="note"><h3>${t}</h3><ul>${l.map(x=>`<li>${x}</li>`).join('')}</ul></div>`).join('');
+}
+function fit(){
+  const app = stage.firstChild; if(!app) return;
+  const avail = new URLSearchParams(location.search).has('raw') ? 1e9 : Math.min(document.documentElement.clientWidth - 32, 1400);
+  const s = Math.min(1, avail / st.width);
+  app.style.transform = `scale(${s})`;
+  stage.style.width = (st.width*s)+'px';
+  stage.style.height = (app.offsetHeight*s)+'px';
+}
+function seg(id,key,cast){
+  const el=document.getElementById(id);
+  el.addEventListener('click',e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    el.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed', x===b));
+    if(key==='theme'){ document.documentElement.dataset.theme=b.dataset.v; return; }
+    st[key]=cast(b.dataset.v); render();
+  });
+}
+const q=new URLSearchParams(location.search);
+if(q.get('screen')) st.screen=q.get('screen');
+if(q.get('w')) st.width=Number(q.get('w'));
+if(q.get('theme')) document.documentElement.dataset.theme=q.get('theme');
+if(q.has('raw')){ document.querySelector('.vbar').style.display='none'; document.getElementById('notes').style.display='none'; document.querySelector('.viewer').style.padding='0'; }
+document.querySelectorAll('#screens button').forEach(b=>b.setAttribute('aria-pressed', b.dataset.v===st.screen));
+document.querySelectorAll('#widths button').forEach(b=>b.setAttribute('aria-pressed', b.dataset.v==String(st.width)));
+seg('screens','screen',String); seg('widths','width',Number); seg('theme','theme',String);
+window.addEventListener('resize',fit);
+render();
+</script>
 </body>
 </html>

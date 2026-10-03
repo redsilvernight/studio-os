@@ -1,71 +1,30 @@
-# Wireframes Desktop/Dashboard V2
+# Wireframes Desktop/Dashboard V2 — proposition modernisée
 
-Ce dossier contient les wireframes adaptatifs de l'étape **P02-wireframes** (UX Desktop/Dashboard V2).
+Wireframes de l'étape **P02-wireframes** (remplacent la première version), partant des intentions de `../mockups/` en retirant leur surcharge. Statut : **retenus par l'utilisateur** (3 octobre 2026).
 
-## Fichier `index.html`
+Ouvrir `index.html` (autonome, sans dépendance) : sélecteurs écran (Accueil, Travail, Roadmap), largeur (1280, 1600, 2560) et thème. La ligne pointillée marque la ligne de flottaison. Rendu brut : `index.html?raw&screen=work&w=1600`.
 
-Fichier HTML/CSS statique autonome, sans dépendance externe ni JavaScript requis.
-Il présente **9 rendus** (3 écrans × 3 largeurs : 1280, 1600 et 2560 px).
-Chaque écran utilise le même balisage pour les trois largeurs ; la disposition
-s'adapte par container queries (`@container`) sur le conteneur de largeur fixe.
-Les rendus sont mis à l'échelle visuellement avec `transform: scale()` pour tenir
-dans la fenêtre du navigateur ; la largeur réelle est annotée sur chaque figure.
+## Principes
 
-## Grille et comportement adaptatif
+- **Une carte héros par écran** portant l'unique action primaire (C1).
+- **Rail d'icônes à 1280 px**, barre latérale complète au-delà : la colonne contextuelle tient dès 1280.
+- **Recherche en palette `Ctrl K`** dans la barre latérale, plus de barre de recherche concurrente.
+- **Statut par point de couleur**, pas de badge ni de menu par ligne (C3).
+- **Données du modèle réel uniquement** : `Task` n'a ni priorité, ni échéance, ni assigné humain → groupement par `status`, affichage de l'agent qui a pris la tâche ; progression = `criteria_checked/criteria_total` ; À valider = types réels de la file (travail IA, proposition de roadmap, décision…).
+- **Identifiants techniques** seulement dans « Détails techniques », replié (C2). Un seul `connection-status` visible (C4).
 
-### 1. Accueil
+## Adaptatif
 
-| Largeur | Sidebar | Colonne principale | Colonne contextuelle | Espace supplémentaire |
-|---|---|---|---|---|
-| 1280 px | 240 px | 880 px, blocs empilés | Repliée sous le contenu : « Aujourd'hui » + « Activité récente » | Aucun : contenu centré |
-| 1600 px | 280 px | 880 px | 320 px à droite : « Aujourd'hui » + « Activité récente » | Le contexte apparaît à droite |
-| 2560 px | 280 px | 880 px | Largeur restante, contexte riche : « Aujourd'hui » + « Activité récente » + « Prochaine étape » | Contexte enrichi ; cartes de contexte bornées à 420 px |
+| Écran | 1280 | 1600 | 2560 |
+|---|---|---|---|
+| Accueil | rail 72 · principal + contexte 300 | principal 760 + contexte 340 | 4 colonnes bornées : principal 760, Projets, Aujourd'hui, Activité (380) |
+| Travail | liste 360 + fiche, propriétés en ligne | liste 400 + fiche (contenu 680 + propriétés 260) | + volet 380 : étape liée, décisions liées, même étape |
+| Roadmap | principal + contexte 300 | + Décisions récentes | + colonne « Plan restant » 420 |
 
-### 2. Travail + fiche tâche
+Aucune carte ne s'élargit avec l'écran ; le texte courant reste ≤ 68 ch.
 
-| Largeur | Sidebar | Maître-détail | Colonne contextuelle | Espace supplémentaire |
-|---|---|---|---|---|
-| 1280 px | 240 px | Liste puis fiche en pile | Repliée sous la fiche : « Activité récente » + « Liens rapides » | Aucun |
-| 1600 px | 280 px | Liste 320 px + fiche 560 px côte à côte | 320 px à droite : « Activité récente » + « Liens rapides » | Le contexte apparaît à droite |
-| 2560 px | 280 px | Liste 320 px + fiche 560 px | Volet contexte/activité riche : « Activité récente » + « Liens rapides » + « Notes de contexte » | 3e volet dédié au contexte ; cartes bornées à 420 px |
+## Écarts assumés vs mockups
 
-### 3. Roadmap
-
-| Largeur | Sidebar | Colonne principale | Colonne contextuelle | Espace supplémentaire |
-|---|---|---|---|---|
-| 1280 px | 240 px | Étape courante + prochaines étapes + phases terminées repliées | Repliée sous le contenu : « Principes » + « Blocages » | Aucun |
-| 1600 px | 280 px | 880 px | 320 px à droite : « Principes » + « Blocages » | Le contexte apparaît à droite |
-| 2560 px | 280 px | 880 px | Contexte riche : « Principes » + « Blocages » + « Décisions en attente » | Contexte enrichi ; cartes bornées à 420 px |
-
-## Conformité C1–C4
-
-| Écran | C1 — Action primaire unique | C2 — Aucun UUID exposé | C3 — ≤ 7 éléments majeurs | C4 — Statut de connexion unique |
-|---|---|---|---|---|
-| **Accueil** | Un seul bouton primaire : « Reprendre Définir les cibles » | Textes illustratifs en français, noms humains, aucun identifiant technique | 7 éléments `data-major` : marque, navigation, administration, À faire maintenant, À valider, Projets récents, contexte | Exactement 1 élément `data-testid="connection-status"` |
-| **Travail** | Un seul bouton primaire : « Reprendre Rédiger le brief » | Idem : aucun UUID ni préfixe hexadécimal | 6 éléments `data-major` : marque, navigation, administration, liste de tâches, fiche tâche, contexte | Exactement 1 élément `data-testid="connection-status"` |
-| **Roadmap** | Un seul bouton primaire : « Valider l'étape P02-wireframes » | Idem : noms humains et codes d'étape lisibles | 7 éléments `data-major` : marque, navigation, administration, étape courante, prochaines étapes, phases terminées repliées, contexte | Exactement 1 élément `data-testid="connection-status"` |
-
-## Critères d'acceptation de l'étape P02-wireframes
-
-1. **Validé à 1280/1600/2560 px**  
-   Chacun des trois écrans est rendu aux trois largeurs demandées. La hiérarchie
-   visuelle (action primaire en haut, navigation à gauche, contexte à droite ou
-   sous le contenu) est conservée à chaque largeur.
-
-2. **Largeur de lecture confortable**  
-   La colonne principale est bornée à **880 px** ; aucun bloc de texte courant ne
-   dépasse **75 ch** ; aucune carte n'est étirée au-delà de **~560 px** (les
-   cartes principales mesurent 320 px, 420 px ou 560 px selon leur rôle).
-
-3. **Espace supplémentaire utilisé pour du contexte utile**  
-   À 2560 px, l'espace horizontal ajoute des informations contextuelles
-   (Aujourd'hui, Activité récente, Prochaine étape, Liens rapides, Notes de
-   contexte, Principes, Blocages, Décisions en attente) sans agrandir les cartes
-   principales ni ajouter d'éléments majeurs supplémentaires.
-
-## Contraintes respectées
-
-- Aucun fichier modifié hors de `docs/ux/desktop-dashboard-v2/wireframes/`.
-- Aucune dépendance externe (pas de script, pas de police ni d'icône distante).
-- Style wireframe sobre en gris/bleu, textes illustratifs en français.
-- Hors périmètre : register, login et password.
+- Accueil : table 3 tâches × 4 colonnes → 1 carte « Reprendre » + 2 suites ; projets en lignes, sans menus « … ».
+- Travail : « Prioritaire / À poursuivre » → En cours / Bloquées / À démarrer ; propriétés en colonne latérale.
+- Roadmap : 3 KPI → bandeau des 6 phases ; colonne « À retenir » (principes de design) supprimée.

@@ -59,6 +59,21 @@ Intentions à évaluer :
 
 Étapes de roadmap principalement concernées : `P04-review`, `P05-roadmaps`.
 
+## Wireframes retenus (P02-wireframes)
+
+`mockups/` reste l'intention de départ ; la référence de conception est désormais `wireframes/index.html` (Accueil, Travail, Roadmap × 1280/1600/2560 px, voir `wireframes/README.md`). Chaque étape ci-dessous reprend sa part comme critère de conception :
+
+| Étape | À reprendre des wireframes |
+|---|---|
+| P02-navigation, P03-shell | Rail d'icônes sous 1400 px, barre latérale complète au-delà, palette `Ctrl K`, Administration en pied |
+| P03-status | Un seul `connection-status`, sous l'avatar de la barre latérale |
+| P03-progressive-components | Carte héros à action primaire unique, point de couleur pour le statut, bloc « Détails techniques » replié |
+| P04-work, P04-task-detail | Groupes par statut réel (En cours / Bloquées / À démarrer), propriétés en colonne latérale dès 1600 px, volet de contexte à 2560 px |
+| P04-review | Compteurs « À valider » par type d'élément réel de la file |
+| P05-home-project | Carte « Reprendre » + 2 suites, projets en lignes, 4 colonnes bornées à 2560 px |
+| P05-roadmaps | Bandeau des phases, étape actuelle avec ses critères, « Plan restant » à 2560 px |
+| P05-agents | Non dessiné : à wireframer avant implémentation |
+
 ## Constat de départ observé en Production
 
 L'audit visuel ayant conduit à la V2 a relevé :
@@ -109,4 +124,5 @@ Ne pas implémenter pendant cette évaluation. Les contrats et décisions valid�
 - `mockups/01-home.png`
 - `mockups/02-work-task.png`
 - `mockups/03-roadmap.png`
+- `wireframes/` — wireframes adaptatifs retenus (P02-wireframes)
 
