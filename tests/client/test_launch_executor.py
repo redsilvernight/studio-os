@@ -325,7 +325,10 @@ async def test_cancellation_while_running_stops_without_terminal_report(tmp_path
     launch = _launch()
     executor.submit(launch)
     task = executor._tasks[launch.id]
-    await asyncio.sleep(0.6)
+    for _ in range(100):
+        if any(r.payload["status"] == "running" for r in store.list_pending(OutboxTable.MUTATIONS)):
+            break
+        await asyncio.sleep(0.1)
     client.statuses[launch.id] = TaskLaunchStatus.CANCELLED
     await executor._observe()
     await asyncio.gather(task, return_exceptions=True)

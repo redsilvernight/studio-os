@@ -74,6 +74,19 @@ def _offline_transport() -> httpx.MockTransport:
     return httpx.MockTransport(_handler)
 
 
+class _WithStubCredential:
+    """Delegates to a real client except `issue_launch_credential`."""
+
+    def __init__(self, client: Any) -> None:
+        self._client = client
+
+    async def issue_launch_credential(self, launch_id: uuid.UUID) -> Any:
+        return SimpleNamespace(token="ephemeral-test-token")  # noqa: S106
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._client, name)
+
+
 def _git(repo: Path, *args: str) -> None:
     subprocess.run(
         ["git", *args],
@@ -356,8 +369,11 @@ async def test_two_machine_launch_full_cycle_with_network_cut_and_idempotent_rep
 
                 # The harness runs offline in the prepared worktree.
                 harness = FakeHarness("print('studio launch ok')")
+                # The ephemeral credential needs the server and an accepted
+                # launch: issuance is online-only (fail-closed offline), so this
+                # test hands the executor a stub for that one call.
                 executor = LaunchExecutor(
-                    client=offline,
+                    client=_WithStubCredential(offline),
                     reporter=reporter,
                     preparer=LaunchPreparer(),
                     runner=LaunchRunner(),
