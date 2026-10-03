@@ -23,7 +23,6 @@ from studio_contracts.local.harness import ChangeKind
 from studio_client.config import client_channel
 from studio_client.harness.fsafe import Document, sha256_hex
 from studio_client.harness.probe import locate_executable
-from studio_client.harness.redaction import bearer_token
 
 STUDIO_MCP_SERVER_NAME = "studio-os-dev" if client_channel() == "dev" else "studio-os"
 
@@ -33,15 +32,23 @@ at `<origin>/mcp`; a detection context must use the same URL, not the bare
 REST base, or a correctly wired harness looks `configuration_missing`."""
 
 
-def machine_token_env(entry: Mapping[str, object] | None) -> dict[str, str]:
+def machine_token_env(credential: str) -> dict[str, str]:
     """Environment that makes a launched harness's own session hook authenticate
-    as the harness's machine: its `agents ensure` then registers the agent under
-    the same machine the harness's MCP entry uses. Without it the CLI falls back
-    to the machine it is enrolled as, and the agent belongs to another machine —
-    `studio_start_work` then refuses it (`actor_not_owned`). Empty when the entry
-    carries no literal Bearer token (a reference, or no entry)."""
-    token = bearer_token(entry)
-    return {"STUDIO_CLIENT_MACHINE_TOKEN": token} if token else {}
+    with the launch's ephemeral credential: its `agents ensure` then registers
+    the agent under the launch's machine, the one its MCP entry uses. Never the
+    durable machine token."""
+    return {"STUDIO_CLIENT_MACHINE_TOKEN": credential}
+
+
+def entry_with_credential(entry: Mapping[str, object], credential: str) -> dict[str, object]:
+    """Copy of the user's MCP entry whose Bearer header carries the launch's
+    ephemeral credential instead of the durable token."""
+    replaced = dict(entry)
+    headers = replaced.get("headers")
+    updated = dict(headers) if isinstance(headers, Mapping) else {}
+    updated["Authorization"] = f"Bearer {credential}"
+    replaced["headers"] = updated
+    return replaced
 
 
 class DetectionState(StrEnum):
@@ -210,12 +217,14 @@ class HarnessAdapter(ABC):
         return ()
 
     def headless_environment(
-        self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path
+        self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path, credential: str
     ) -> dict[str, str]:
         """Environment overrides for a launched run: the model to use and a
         configuration that does not inherit the operator's other MCP servers.
-        `isolation_dir` is an empty private directory the caller removes after
-        the run. Nothing by default."""
+        `credential` is the launch's ephemeral token; it replaces the durable
+        one in every entry and variable the harness receives. `isolation_dir`
+        is an empty private directory the caller removes after the run.
+        Nothing by default."""
         return {}
 
 

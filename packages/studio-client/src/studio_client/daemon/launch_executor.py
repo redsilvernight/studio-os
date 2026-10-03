@@ -197,6 +197,7 @@ class LaunchExecutor:
                 agent_stable_key=launch.agent_stable_key,
             )
             model = self._models.get(launch.harness_id)
+            credential = await self._client.issue_launch_credential(launch.id)
             with tempfile.TemporaryDirectory(
                 prefix="studio-launch-", ignore_cleanup_errors=True
             ) as isolation:
@@ -207,6 +208,7 @@ class LaunchExecutor:
                         ctx,
                         model=model,
                         isolation_dir=isolation_dir,
+                        credential=credential.token,
                     ),
                 }
                 argv = (
@@ -219,10 +221,7 @@ class LaunchExecutor:
                 running = self._runner.start(executable, argv, worktree, env=env)
                 self._processes[launch.id] = running
                 result = await asyncio.to_thread(running.wait, self._timeout)
-            harness_token = env.get("STUDIO_CLIENT_MACHINE_TOKEN", "")
-            self._report_terminal(
-                launch, result, extra_secrets=(harness_token,) if harness_token else ()
-            )
+            self._report_terminal(launch, result, extra_secrets=(credential.token,))
         except PreparationError as error:
             logger.warning("launch preparation failed at %s", error.step)
             self._reporter.report(

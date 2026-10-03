@@ -76,9 +76,10 @@ class FakeAdapter(HarnessAdapter):
         return self._argv
 
     def headless_environment(
-        self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path
+        self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path, credential: str
     ) -> dict[str, str]:
         assert isolation_dir.is_dir()
+        assert credential == "ephemeral-token"  # noqa: S105
         return {"FAKE_MODEL": model or "", "FAKE_ISOLATION": str(isolation_dir)}
 
     def detect(self, ctx: HarnessContext) -> Any:
@@ -109,6 +110,9 @@ class FakeClient:
 
     async def get_task(self, task_id: UUID) -> Any:
         return SimpleNamespace(title="Demo task")
+
+    async def issue_launch_credential(self, launch_id: UUID) -> Any:
+        return SimpleNamespace(token="ephemeral-token")  # noqa: S106
 
 
 def _executor(
@@ -274,10 +278,12 @@ async def test_excerpt_strips_ansi_escapes(tmp_path: Path) -> None:
 
 class _MachineTokenAdapter(FakeAdapter):
     def headless_environment(
-        self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path
+        self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path, credential: str
     ) -> dict[str, str]:
-        env = super().headless_environment(ctx, model=model, isolation_dir=isolation_dir)
-        env["STUDIO_CLIENT_MACHINE_TOKEN"] = "HARNESS-TOKEN-XYZ"  # noqa: S105 — test value
+        env = super().headless_environment(
+            ctx, model=model, isolation_dir=isolation_dir, credential=credential
+        )
+        env["STUDIO_CLIENT_MACHINE_TOKEN"] = credential
         return env
 
 
@@ -290,7 +296,7 @@ async def test_excerpt_redacts_the_harness_machine_token(tmp_path: Path) -> None
     await executor._tasks[launch.id]
 
     excerpt = store.list_pending(OutboxTable.MUTATIONS)[-1].payload["output_excerpt"]
-    assert "HARNESS-TOKEN-XYZ" not in excerpt
+    assert "ephemeral-token" not in excerpt
     assert "<token>" in excerpt
 
 

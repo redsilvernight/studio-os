@@ -41,7 +41,7 @@ from studio_contracts.projects import Project
 from studio_contracts.resolution import AgentResolutionRequest, ResolvedAgentDefinition
 from studio_contracts.review_queue import ReviewQueue
 from studio_contracts.sessions import WorkSession, WorkSessionCreate
-from studio_contracts.task_launch import TaskLaunch, TaskLaunchPull
+from studio_contracts.task_launch import TaskLaunch, TaskLaunchCredential, TaskLaunchPull
 from studio_contracts.tasks import Task, TaskCreate, TaskUpdate
 from studio_contracts.timeline import Timeline
 from studio_contracts.transfers import (
@@ -280,6 +280,13 @@ class StudioApiClient:
         requester cancellation or a server expiry and stops the work."""
         response = await self._request("GET", f"/api/v1/task-launches/{launch_id}")
         return TaskLaunch.model_validate(response.json())
+
+    async def issue_launch_credential(self, launch_id: UUID) -> TaskLaunchCredential:
+        """Ephemeral credential for the harness a launch starts: bound to the
+        launch's project and task, void when the launch ends. Needs this
+        client's durable machine credential."""
+        response = await self._request("POST", f"/api/v1/task-launches/{launch_id}/credential")
+        return TaskLaunchCredential.model_validate(response.json())
 
     async def post_event(self, event: EventCreate) -> EventEnvelope:
         """Idempotent by construction: `event.event_id` is the replay key

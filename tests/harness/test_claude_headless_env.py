@@ -10,6 +10,7 @@ from studio_client.harness.claude_code import ClaudeCodeAdapter
 from tests.harness.support import MCP_URL, base_env
 
 TOKEN = "dedicated-token-value"  # noqa: S105 — test value
+EPHEMERAL = "ephemeral-launch-token"  # noqa: S105 — test value
 
 
 def make_ctx(tmp_path: Path) -> HarnessContext:
@@ -49,14 +50,17 @@ def test_environment_writes_an_isolated_mcp_file_with_only_the_studio_entry(
     isolation = tmp_path / "isolation"
     isolation.mkdir()
 
-    overrides = adapter.headless_environment(ctx, model="sonnet", isolation_dir=isolation)
+    overrides = adapter.headless_environment(
+        ctx, model="sonnet", isolation_dir=isolation, credential=EPHEMERAL
+    )
 
-    assert overrides == {"STUDIO_CLIENT_MACHINE_TOKEN": TOKEN}
+    assert overrides == {"STUDIO_CLIENT_MACHINE_TOKEN": EPHEMERAL}
     mcp_file = isolation / "studio-mcp.json"
     payload = json.loads(mcp_file.read_text(encoding="utf-8"))
     assert list(payload["mcpServers"]) == [STUDIO_MCP_SERVER_NAME]
     entry = payload["mcpServers"][STUDIO_MCP_SERVER_NAME]
-    assert entry["headers"]["Authorization"] == f"Bearer {TOKEN}"
+    assert entry["headers"]["Authorization"] == f"Bearer {EPHEMERAL}"
+    assert TOKEN not in mcp_file.read_text(encoding="utf-8")
     assert list(isolation.iterdir()) == [mcp_file]
 
 
@@ -68,7 +72,7 @@ def test_extra_argv_forces_the_model_and_locks_mcp_to_the_isolated_file(
     configure(ctx, adapter)
     isolation = tmp_path / "isolation"
     isolation.mkdir()
-    adapter.headless_environment(ctx, model="sonnet", isolation_dir=isolation)
+    adapter.headless_environment(ctx, model="sonnet", isolation_dir=isolation, credential=EPHEMERAL)
 
     extra = adapter.headless_extra_argv(ctx, model="sonnet", isolation_dir=isolation)
 
@@ -107,7 +111,9 @@ def test_environment_refuses_without_the_studio_entry(tmp_path: Path) -> None:
     isolation.mkdir()
 
     with pytest.raises(AdapterRefusal) as refusal:
-        adapter.headless_environment(ctx, model="sonnet", isolation_dir=isolation)
+        adapter.headless_environment(
+            ctx, model="sonnet", isolation_dir=isolation, credential=EPHEMERAL
+        )
 
     assert refusal.value.reason == "mcp_entry_missing"
 

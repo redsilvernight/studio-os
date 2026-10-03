@@ -293,6 +293,16 @@ lie par la machine), `output_excerpt` (borne, expurge par la machine),
 `expires_at`, `finished_at` (nullable), + `created_at`/`updated_at`/
 `version` (concurrence optimiste, `409` + version serveur si perime).
 
+## LaunchCredential (AIB P9, migration Alembic `0027`, table `launch_credentials`)
+
+Table interne, sans modele de contrat (le modele de reponse `TaskLaunchCredential` de
+TECH/02 n'expose que `token` et `expires_at`). Credential ephemere du harnais d'un lancement. `id`, `launch_id` (FK TaskLaunch),
+`machine_id` (FK Machine cible), `project_id` (FK Project), `task_id` (FK Task),
+`credential_hash` (SHA-256, index unique ; le token n'est jamais stocke),
+`expires_at` (au plus `TaskLaunch.expires_at`), `revoked_at` (nullable, pose par la
+reemission), `created_at`. Valide seulement si non revoque, non expire et lancement
+non terminal.
+
 ## AI Library — P1 (DEC-0062/0063/0064, migration Alembic `0009`)
 
 Definitions IA reutilisables (`rule|skill|agent_definition|model_profile|

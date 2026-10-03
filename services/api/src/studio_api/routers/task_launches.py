@@ -9,6 +9,7 @@ from studio_contracts.task_launch import (
     TaskLaunch,
     TaskLaunchCancel,
     TaskLaunchCreate,
+    TaskLaunchCredential,
     TaskLaunchMachineReport,
     TaskLaunchPull,
 )
@@ -24,6 +25,7 @@ from studio_api.openapi_meta import (
     RESP_409_VERSION_CONFLICT,
 )
 from studio_api.services import idempotency as idempotency_service
+from studio_api.services import launch_credentials as credentials_service
 from studio_api.services import task_launches as launches_service
 from studio_api.services import tasks as tasks_service
 from studio_api.settings import get_settings
@@ -196,3 +198,32 @@ async def report_task_launch(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "task launch not found")
     launch = await launches_service.report_launch(session, principal, launch, report)
     return TaskLaunch.model_validate(launch)
+
+
+@router.post(
+    "/api/v1/task-launches/{launch_id}/credential",
+    response_model=TaskLaunchCredential,
+    status_code=status.HTTP_201_CREATED,
+    description=(
+        "The target machine obtains the ephemeral credential of the harness "
+        "this launch starts (AIB P9). Only the launch's target machine, "
+        "authenticated with its durable credential, on an accepted, "
+        "preparing or running launch. The token is returned once, bound to "
+        "the launch's project and task, void when the launch is terminal or "
+        "expires, and opens only the launch allowlist of routes and tools. "
+        "A new request revokes the previous credential of the launch."
+    ),
+    responses={
+        **RESP_401_UNAUTHORIZED,
+        **RESP_403_FORBIDDEN,
+        **RESP_404_NOT_FOUND,
+        **RESP_409_LAUNCH_TRANSITION,
+    },
+)
+async def issue_task_launch_credential(
+    launch_id: UUID, session: DbSession, principal: CurrentPrincipal
+) -> TaskLaunchCredential:
+    launch = await launches_service.get_launch(session, principal, launch_id)
+    if launch is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "task launch not found")
+    return await credentials_service.issue_credential(session, principal, launch)

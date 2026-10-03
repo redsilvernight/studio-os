@@ -165,3 +165,14 @@ class TaskLaunchPull(ContractModel):
     oldest first, bounded. A pull never changes a launch."""
 
     items: list[TaskLaunch] = Field(default_factory=list, max_length=LAUNCH_POLL_MAX)
+
+
+class TaskLaunchCredential(ContractModel):
+    """Ephemeral bearer credential for the harness a launch starts (AIB P9,
+    additive). Returned once to the target machine, bound to the launch's
+    project, task and machine, valid until `expires_at` (never past the
+    launch's own expiry) and void as soon as the launch is terminal. It opens
+    only the launch allowlist of REST routes and MCP tools."""
+
+    token: str
+    expires_at: datetime

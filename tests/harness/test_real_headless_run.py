@@ -66,7 +66,9 @@ def test_real_claude_headless_run_with_strict_isolated_mcp(tmp_path: Path) -> No
         probe_cwd=workdir,
         home=home,
     )
-    adapter.headless_environment(ctx, model=None, isolation_dir=isolation)
+    adapter.headless_environment(
+        ctx, model=None, isolation_dir=isolation, credential="ephemeral-test-token"
+    )
     argv = [
         *adapter.headless_argv(PROMPT),
         *adapter.headless_extra_argv(ctx, model=None, isolation_dir=isolation),

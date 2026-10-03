@@ -20,6 +20,7 @@ from studio_client.harness.base import (
     STUDIO_MCP_SERVER_NAME,
     AdapterRefusal,
     HarnessContext,
+    entry_with_credential,
     machine_token_env,
 )
 from studio_client.harness.fsafe import read_document, resolve_target
@@ -167,12 +168,12 @@ class ClaudeCodeAdapter(JsonMcpAdapter):
         )
 
     def headless_environment(
-        self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path
+        self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path, credential: str
     ) -> dict[str, str]:
         entry = self.read_user_entry(ctx)
         if entry is None:
             raise AdapterRefusal("mcp_entry_missing")
-        payload = {"mcpServers": {STUDIO_MCP_SERVER_NAME: entry}}
+        payload = {"mcpServers": {STUDIO_MCP_SERVER_NAME: entry_with_credential(entry, credential)}}
         try:
             isolation_dir.mkdir(parents=True, exist_ok=True)
             self._isolation_mcp_path(isolation_dir).write_text(
@@ -180,7 +181,7 @@ class ClaudeCodeAdapter(JsonMcpAdapter):
             )
         except OSError:
             raise AdapterRefusal("isolation_failed") from None
-        return machine_token_env(entry)
+        return machine_token_env(credential)
 
     def headless_extra_argv(
         self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path
