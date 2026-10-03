@@ -18,11 +18,13 @@ import pytest
 from studio_client import cli
 from studio_client.bootstrap import (
     MANIFEST_RELATIVE_PATH,
+    BootstrapError,
     diff_text,
     list_backups,
     load_manifest,
     observe,
     plan_files,
+    rollback,
 )
 from studio_client.canonical import (
     AGENTS_BEGIN_MARKER,
@@ -64,6 +66,58 @@ def test_init_writes_manifest(tmp_path: Path) -> None:
     manifest = load_manifest(repo)
     assert manifest.project.slug == "demo"
     assert [ref.id for ref in manifest.harnesses] == ["claude-code"]
+
+
+def _write_manifest(raw: object, repo: Path) -> None:
+    path = repo / Path(*MANIFEST_RELATIVE_PATH.split("/"))
+    path.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
+
+
+def _snapshot_files(repo: Path) -> dict[str, bytes]:
+    return {
+        path.relative_to(repo).as_posix(): path.read_bytes()
+        for path in repo.rglob("*")
+        if path.is_file()
+    }
+
+
+@pytest.mark.parametrize("bad_format", ["studio.bootstrap/v0", "studio.bootstrap/v2"])
+def test_load_manifest_rejects_bad_format(tmp_path: Path, bad_format: str) -> None:
+    repo = _repo(tmp_path)
+    _write_manifest(
+        {
+            "format": bad_format,
+            "project": {"slug": "demo", "name": "Demo"},
+            "harnesses": [{"id": "claude-code"}],
+        },
+        repo,
+    )
+    before = _snapshot_files(repo)
+    with pytest.raises(BootstrapError) as excinfo:
+        load_manifest(repo)
+    exc = excinfo.value
+    assert "unsupported_bootstrap_manifest_version" in str(exc)
+    assert _snapshot_files(repo) == before
+
+
+@pytest.mark.parametrize(
+    "cmd",
+    ["check", "diff", "sync"],
+    ids=["check", "diff", "sync"],
+)
+def test_cli_rejects_bad_format_without_writing(tmp_path: Path, cmd: str) -> None:
+    repo = _repo(tmp_path)
+    bad = {
+        "format": "studio.bootstrap/v0",
+        "project": {"slug": "demo", "name": "Demo"},
+        "harnesses": [{"id": "claude-code"}],
+    }
+    _write_manifest(bad, repo)
+    before = _snapshot_files(repo)
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(["bootstrap", cmd, "--repo-root", str(repo)])
+    assert excinfo.value.code == 1
+    assert _snapshot_files(repo) == before
 
 
 def test_init_refuses_overwrite_without_flag(tmp_path: Path) -> None:
@@ -346,6 +400,29 @@ def test_rollback_refuses_when_file_changed_since_sync(
 
     cli.main(["bootstrap", "rollback", "--repo-root", str(repo), "--force"])
     assert not target.exists()
+
+
+def test_rollback_refuses_backup_path_traversal(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _init(repo, "--on-modified", "ask")
+    target = repo / ".claude" / "rules" / "contracts.md"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("original\n", encoding="utf-8")
+    cli.main(["bootstrap", "sync", "--repo-root", str(repo), "--yes"])
+    after_sync = target.read_bytes()
+
+    backup_dir = next((repo / ".studio-os" / "backups" / "bootstrap").iterdir())
+    journal_path = backup_dir / "journal.json"
+    journal = json.loads(journal_path.read_text(encoding="utf-8"))
+    replaced = next(entry for entry in journal["entries"] if entry["action"] == "replaced")
+    replaced["backup"] = "../../../../../outside-secret.txt"
+    journal_path.write_text(json.dumps(journal), encoding="utf-8")
+    (tmp_path / "outside-secret.txt").write_text("secret\n", encoding="utf-8")
+
+    with pytest.raises(BootstrapError, match="invalid backup path"):
+        rollback(repo)
+
+    assert target.read_bytes() == after_sync
 
 
 def test_rollback_twice_refuses(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
