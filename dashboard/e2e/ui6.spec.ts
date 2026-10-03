@@ -229,7 +229,7 @@ test.describe("UI-6 page Agents", () => {
     await expect(view.locator(".agents-list .agent-card")).toHaveCount(2);
     // Nav : vraie route, sans « Bientôt », active ici.
     await expect(page.locator('.app-sidebar a[href="#/agents"]')).toHaveAttribute("aria-current", "page");
-    await expect(page.locator(".app-sidebar")).toContainText("Agents IA");
+    await expect(page.locator(".app-sidebar")).toContainText("Agents");
     await expect(page.locator(".app-sidebar")).not.toContainText("Bientôt");
     // Agent actif : session ouverte + tâche + projet, vocabulaire DERIVED.
     const first = view.locator(".agent-card", { hasText: "Claude Atlas" });
