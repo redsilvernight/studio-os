@@ -31,8 +31,10 @@ from studio_contracts.bootstrap import (
     BootstrapHarnessRef,
     BootstrapManifest,
     BootstrapPolicy,
+    BootstrapVersionError,
     OnModified,
     bootstrap_manifest_problems,
+    bootstrap_version_gate,
     build_dry_run_report,
 )
 from studio_contracts.initialization import InitializationProjectSpec
@@ -140,7 +142,8 @@ def make_manifest(
 
 
 def load_manifest(repo_root: Path | str) -> BootstrapManifest:
-    path = manifest_path(repo_root)
+    root = Path(repo_root)
+    path = _safe_target(root, MANIFEST_RELATIVE_PATH)
     if not path.is_file():
         raise BootstrapError(
             f"no manifest at {MANIFEST_RELATIVE_PATH}; run `studio-client bootstrap init` first"
@@ -149,6 +152,16 @@ def load_manifest(repo_root: Path | str) -> BootstrapManifest:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise BootstrapError(f"cannot read {MANIFEST_RELATIVE_PATH}: {exc}") from exc
+
+    try:
+        bootstrap_version_gate(data)
+    except BootstrapVersionError as exc:
+        raise BootstrapError(
+            f"{MANIFEST_RELATIVE_PATH} format {exc.received!r} is not supported "
+            f"(expected {exc.expected!r}): code={exc.code}, "
+            f"action={exc.action}"
+        ) from exc
+
     try:
         manifest = BootstrapManifest.model_validate(data)
     except ValueError as exc:
@@ -372,7 +385,7 @@ def apply_files(
             )
         )
         written.append(item.path)
-    _write_journal(backup_root, entries)
+    _write_journal(root, backup_root, entries)
     return written
 
 
@@ -407,10 +420,15 @@ def rollback(
             if entry.backup is None:
                 raise BootstrapError(f"backup file missing for {entry.path}")
             target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(journal.directory / Path(*entry.backup.split("/")), target)
+            source = _rollback_backup_source(journal.directory, entry.backup, entry.path)
+            shutil.copy2(source, target)
             undone.append(path)
     _write_journal(
-        journal.directory, journal.entries, status="rolled_back", created_at=journal.created_at
+        root,
+        journal.directory,
+        journal.entries,
+        status="rolled_back",
+        created_at=journal.created_at,
     )
     return undone
 
@@ -494,12 +512,16 @@ def _safe_target(root: Path, relative: str) -> Path:
     """A write target confined to the repository: a symlinked parent that
     escapes the root is refused, never followed."""
     target = _target(root, relative)
-    probe = target if target.exists() else target.parent
+    return _confined_path(root, target, label=relative)
+
+
+def _confined_path(root: Path, path: Path, *, label: str) -> Path:
+    """Resolve existing symlink/junction components and keep the result below root."""
     try:
-        probe.resolve().relative_to(root.resolve())
+        path.resolve(strict=False).relative_to(root.resolve())
     except ValueError:
-        raise BootstrapError(f"refusing to write outside the repository: {relative}") from None
-    return target
+        raise BootstrapError(f"refusing to write outside the repository: {label}") from None
+    return path
 
 
 def backup_root_for(root: Path) -> Path:
@@ -511,7 +533,11 @@ def backup_file(root: Path, relative: str, backup_root: Path) -> Path:
 
 
 def _backup(root: Path, relative: str, backup_root: Path) -> Path:
-    destination = backup_root / Path(*relative.split("/"))
+    destination = _confined_path(
+        root,
+        backup_root / Path(*relative.split("/")),
+        label=f"backup for {relative}",
+    )
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(_target(root, relative), destination)
     return destination
@@ -546,12 +572,14 @@ def _find_backup_dir(root: Path, backup_id: str | None) -> Path:
 
 
 def _write_journal(
+    root: Path,
     directory: Path,
     entries: list[BackupEntry],
     *,
     status: str = "applied",
     created_at: str | None = None,
 ) -> None:
+    directory = _confined_path(root, directory, label="bootstrap backup journal")
     directory.mkdir(parents=True, exist_ok=True)
     payload = {
         "schema_version": JOURNAL_SCHEMA_VERSION,
@@ -613,7 +641,7 @@ def _check_rollback_entry(
     if entry.action == "replaced":
         if entry.backup is None:
             raise BootstrapError(f"backup file missing for {entry.path}")
-        backup = directory / Path(*entry.backup.split("/"))
+        backup = _rollback_backup_source(directory, entry.backup, entry.path)
         if not backup.is_file():
             raise BootstrapError(f"backup file missing for {entry.path}")
     if target.exists() and not target.is_file():
@@ -625,6 +653,24 @@ def _check_rollback_entry(
                 f"{entry.path} changed since the backup; refusing to roll back "
                 "(pass --force to override)"
             )
+
+
+def _rollback_backup_source(directory: Path, relative: str, target: str) -> Path:
+    candidate = directory / Path(*relative.split("/"))
+    if (
+        not relative
+        or "\\" in relative
+        or Path(relative).is_absolute()
+        or any(part in ("", ".", "..") for part in relative.split("/"))
+    ):
+        raise BootstrapError(f"invalid backup path for {target}")
+    try:
+        candidate.resolve(strict=True).relative_to(directory.resolve(strict=True))
+    except (OSError, ValueError):
+        raise BootstrapError(f"invalid backup path for {target}") from None
+    if candidate.is_symlink():
+        raise BootstrapError(f"invalid backup path for {target}")
+    return candidate
 
 
 def _write_text(path: Path, text: str, *, overwrite: bool = True) -> None:
