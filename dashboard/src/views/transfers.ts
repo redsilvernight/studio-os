@@ -73,7 +73,8 @@ import {
   openDsDialog,
   type DsStatusState,
 } from "../ds/ds";
-import { describeError, esc, fmtTime, shortId } from "../ui";
+import { describeError, esc, fmtTime } from "../ui";
+import { FALLBACK_LABEL } from "../language";
 import type { components } from "../openapi-schema";
 import "./transfers.css";
 
@@ -153,12 +154,12 @@ function projectLineHtml(transfer: Transfer, info: TransferInfo): string {
   if (info.projectName !== null) {
     return ` · <a href="#/projects/${esc(transfer.project_id)}">${esc(info.projectName)}</a>`;
   }
-  return ` · <span title="${esc(transfer.project_id)}">projet non résolu (${esc(shortId(transfer.project_id))})</span>`;
+  return ` · <span>${esc(FALLBACK_LABEL.project)}</span>`;
 }
 
 function taskLineHtml(transfer: Transfer, info: TransferInfo): string {
   if (transfer.task_id === null || transfer.task_id === undefined) return "";
-  const label = info.taskTitle !== null ? info.taskTitle : `Tâche ${shortId(transfer.task_id)}`;
+  const label = info.taskTitle !== null ? info.taskTitle : FALLBACK_LABEL.task;
   return ` · <a href="#/tasks/${esc(transfer.task_id)}">${esc(label)}</a>`;
 }
 
@@ -215,13 +216,13 @@ export function transferDrawerBodyHtml(
       ? "Aucun"
       : info.projectName !== null
         ? `<a href="#/projects/${esc(transfer.project_id)}">${esc(info.projectName)}</a>`
-        : `<code class="mono" title="${esc(transfer.project_id)}">${esc(shortId(transfer.project_id))}</code> (nom non résolu)`;
+        : esc(FALLBACK_LABEL.project);
   const task =
     transfer.task_id === null || transfer.task_id === undefined
       ? "Aucune"
       : info.taskTitle !== null
         ? `<a href="#/tasks/${esc(transfer.task_id)}">${esc(info.taskTitle)}</a>`
-        : `<a href="#/tasks/${esc(transfer.task_id)}">Tâche ${esc(shortId(transfer.task_id))}</a>`;
+        : `<a href="#/tasks/${esc(transfer.task_id)}">${esc(FALLBACK_LABEL.task)}</a>`;
 
   const download = downloadable
     ? `<button class="ds-btn ds-btn--primary ds-btn--sm" type="button" data-transfer-download="${esc(transfer.id)}">Télécharger</button>`
@@ -289,7 +290,7 @@ const CATEGORY_OPTIONS: { value: "all" | TransferCategory; label: string }[] = [
 function projectOptionsHtml(transfers: Transfer[], state: TransfersFilterState, ctx: TransfersFilterContext): string {
   const options = transferProjectIds(transfers)
     .map((id) => {
-      const name = ctx.projectNameById?.get(id) ?? `Projet ${shortId(id)}`;
+      const name = ctx.projectNameById?.get(id) ?? FALLBACK_LABEL.project;
       return `<option value="${esc(id)}"${state.projectId === id ? " selected" : ""}>${esc(name)}</option>`;
     })
     .join("");

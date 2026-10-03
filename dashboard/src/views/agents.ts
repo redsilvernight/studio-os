@@ -43,7 +43,8 @@ import {
   dsStatus,
 } from "../ds/ds";
 import { machineName, machineRef } from "../actorNames";
-import { describeError, esc, fmtTime, shortId } from "../ui";
+import { describeError, esc, fmtTime } from "../ui";
+import { FALLBACK_LABEL } from "../language";
 // Styles colocalisés : la page reste autonome sans toucher au CSS global.
 import "./agents.css";
 
@@ -94,7 +95,7 @@ export function agentSignalHtml(activity: AgentActivity): string {
 /* ------------------------------------------------------------------ */
 
 function taskLinkHtml(task: AgentTask | undefined, fallbackId: string): string {
-  if (task === undefined) return `<code class="mono" title="${esc(fallbackId)}">${esc(shortId(fallbackId))}</code>`;
+  if (task === undefined) return `<span class="actor-name actor-name--unknown">${esc(FALLBACK_LABEL.task)}</span>`;
   return `<a href="#/tasks/${esc(task.id)}">« ${esc(task.title)} »</a>`;
 }
 
@@ -316,7 +317,7 @@ export function agentNotFoundHtml(id: string): string {
   return (
     `${dsPageHeader("Agent introuvable", "")}` +
     `<p><a href="#/agents">← Retour aux agents</a></p>` +
-    dsEmptyState("Agent introuvable", `Aucun agent « ${shortId(id)} » parmi les agents chargés. Il a peut-être été révoqué, ou votre jeton ne le voit pas.`)
+    dsEmptyState("Agent introuvable", `Cet agent n'apparaît pas parmi les agents chargés. Il a peut-être été révoqué, ou votre jeton ne le voit pas.`)
   );
 }
 

@@ -151,11 +151,9 @@ describe("catégorie, expiration, participants", () => {
   });
 
   it("représente honnêtement l'expéditeur et le destinataire (aucun annuaire)", () => {
-    expect(senderLabelFr(transfer())).toMatch(/^Utilisateur bbbbbbbb…$/);
+    expect(senderLabelFr(transfer())).toBe("Un membre de l'équipe");
     expect(recipientLabelFr(transfer())).toMatch(/^Diffusion/);
-    expect(recipientLabelFr(transfer({ recipient_user_id: "cccccccc-5555-4555-8555-000000000003" }))).toMatch(
-      /^Utilisateur cccccccc…$/,
-    );
+    expect(recipientLabelFr(transfer({ recipient_user_id: "cccccccc-5555-4555-8555-000000000003" }))).toBe("Un membre de l'équipe");
   });
 });
 

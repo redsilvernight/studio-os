@@ -54,7 +54,8 @@ import {
   dsStatus,
   openDsDialog,
 } from "../ds/ds";
-import { describeError, esc, fmtTime, shortId } from "../ui";
+import { describeError, esc, fmtTime } from "../ui";
+import { ACTION_LABEL, FALLBACK_LABEL } from "../language";
 import "./machines.css";
 
 export interface MachinesContext {
@@ -144,7 +145,7 @@ function machineContextLine(row: MachineRow, info: MachineCardInfo): string {
 export function machineCardHtml(row: MachineRow, info: MachineCardInfo, now: number): string {
   return (
     `<li class="ds-list-item machine-row"><div class="grow">` +
-    `<h3 class="ds-list-title" title="${esc(row.machineId)}">${esc(machineDisplayTitle(row))}</h3>` +
+    `<h3 class="ds-list-title">${esc(machineDisplayTitle(row))}</h3>` +
     `<div class="ds-list-sub">${machineContextLine(row, info)}</div>` +
     `<div class="ds-list-sub">Dernière activité : ${machineTimeHtml(row.lastActivityAt, now)}</div>` +
     `</div><div class="machine-side">${machineStatusHtml(row)}` +
@@ -199,10 +200,10 @@ export function machineDrawerBodyHtml(
   const linked = runtimes.filter((runtime) => runtime.machine_id === row.machineId);
 
   const sessionItem = (session: WorkSession): string =>
-    `<li><a href="#/tasks/${esc(session.task_id)}">Tâche ${esc(shortId(session.task_id))}</a>` +
+    `<li><a href="#/tasks/${esc(session.task_id)}">${esc(ACTION_LABEL.openTask)}</a>` +
     ` · démarrée le ${machineTimeHtml(session.started_at, now)}` +
     (session.agent_id !== null && session.agent_id !== undefined && agentById.has(session.agent_id)
-      ? ` · agent <a href="#/agents/${esc(session.agent_id)}" title="${esc(session.agent_id)}">${esc(agentById.get(session.agent_id)?.display_name ?? shortId(session.agent_id))}</a>`
+      ? ` · agent <a href="#/agents/${esc(session.agent_id)}">${esc(agentById.get(session.agent_id)?.display_name ?? FALLBACK_LABEL.agent)}</a>`
       : "") +
     `</li>`;
 
@@ -244,7 +245,7 @@ export function machineDrawerBodyHtml(
     `<details class="machine-technical"><summary>Informations techniques</summary><dl class="machine-facts">` +
     `<div><dt>Identifiant complet</dt><dd><code class="mono">${esc(row.machineId)}</code></dd></div>` +
     `<div><dt>Nom enregistré</dt><dd>${row.displayName === null || row.displayName.trim() === "" ? "Non renseigné" : esc(row.displayName)}</dd></div>` +
-    `<div><dt>Propriétaire</dt><dd>${row.ownerUserId === null ? "Inconnu — lecture canonique indisponible" : esc(shortId(row.ownerUserId))}</dd></div>` +
+    `<div><dt>Propriétaire</dt><dd>${row.ownerUserId === null ? "Inconnu — lecture canonique indisponible" : esc(FALLBACK_LABEL.user)}</dd></div>` +
     `<div><dt>Dernier heartbeat serveur</dt><dd>${row.lastSeenAt === null ? "Indisponible — pas de lecture canonique" : machineTimeHtml(row.lastSeenAt, now)}</dd></div>` +
     `<div><dt>Statut technique</dt><dd><code class="mono">${esc(row.status)}</code> (${row.statusSource === "canonical" ? "canonique" : "déduit"})</dd></div>` +
     `</dl><p class="ds-list-sub">Révocation : par le propriétaire de la machine ou un administrateur, non proposée dans cette interface.</p></details>`;

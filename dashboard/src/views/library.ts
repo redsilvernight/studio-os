@@ -88,7 +88,9 @@ import {
   openDsDialog,
 } from "../ds/ds";
 import { newIdempotencyKey } from "../claimsApi";
-import { CONFIRM_RELEASE_LOCK, describeError, esc, fmtTime, shortId } from "../ui";
+import { CONFIRM_RELEASE_LOCK, describeError, esc, fmtTime } from "../ui";
+import { FALLBACK_LABEL } from "../language";
+import { projectLabel } from "../actorNames";
 
 export interface LibraryContext {
   client: StudioClient;
@@ -278,7 +280,7 @@ export function versionsTableHtml(versions: LibraryVersion[], activeVersion: num
         version.version === activeVersion
           ? dsBadge("Active", "success")
           : dsBadge(`v${version.version}`, "neutral");
-      const author = version.created_by_user_id ? ` · par ${esc(shortId(version.created_by_user_id))}` : "";
+      const author = version.created_by_user_id ? ` · par ${esc(FALLBACK_LABEL.user)}` : "";
       return `<li class="ds-list-item"><span class="grow"><span class="ds-list-title">v${version.version} · ${esc(version.title)}</span>` +
         `<br /><span class="ds-list-sub">${fmtTime(version.created_at)}${author}</span></span>${badge}</li>`;
     })
@@ -292,9 +294,9 @@ export function locksTableHtml(locks: LibraryProjectLock[]): string {
   const rows = locks
     .map(
       (lock) =>
-        `<tr><td data-lock-id="${esc(lock.id)}"><code class="mono" title="${esc(lock.project_id)}">${esc(shortId(lock.project_id))}</code></td><td>v${lock.locked_version}</td>` +
-        `<td>${lock.created_by_user_id ? `<code class="mono" title="${esc(lock.created_by_user_id)}">${esc(shortId(lock.created_by_user_id))}</code>` : '<span class="ds-list-sub">—</span>'}</td><td>${fmtTime(lock.created_at)}</td>` +
-        `<td class="actions"><button class="ds-btn ds-btn--sm" type="button" data-release-lock="${esc(lock.id)}" aria-label="Libérer le verrou du projet ${esc(shortId(lock.project_id))}">Libérer</button></td></tr>`,
+        `<tr><td data-lock-id="${esc(lock.id)}">${esc(projectLabel(lock.project_id))}</td><td>v${lock.locked_version}</td>` +
+        `<td>${lock.created_by_user_id ? `${esc(FALLBACK_LABEL.user)}` : '<span class="ds-list-sub">—</span>'}</td><td>${fmtTime(lock.created_at)}</td>` +
+        `<td class="actions"><button class="ds-btn ds-btn--sm" type="button" data-release-lock="${esc(lock.id)}" aria-label="Libérer le verrou du projet ${esc(projectLabel(lock.project_id))}">Libérer</button></td></tr>`,
     )
     .join("");
   return `<div class="ds-table-wrap"><table class="ds-table"><caption>Verrous projet — une version figée par projet</caption><thead><tr><th scope="col">Projet</th><th scope="col">Version figée</th><th scope="col">Créé par</th><th scope="col">Créé le</th><th scope="col"><span class="ds-sr-only">Actions</span></th></tr></thead><tbody>${rows}</tbody></table></div>`;
@@ -837,7 +839,7 @@ export function libraryDetailHtml(
       const isActive = version.version === resource.active_version;
       return (
         `<details class="library-version"${isActive ? " open" : ""}><summary>v${version.version} · ${esc(version.title)}${isActive ? " · version activée" : ""}</summary>` +
-        `<div class="library-version-body"><p class="ds-list-sub">${fmtTime(version.created_at)}${version.created_by_user_id ? ` · par ${esc(shortId(version.created_by_user_id))}` : ""}</p>` +
+        `<div class="library-version-body"><p class="ds-list-sub">${fmtTime(version.created_at)}${version.created_by_user_id ? ` · par ${esc(FALLBACK_LABEL.user)}` : ""}</p>` +
         (version.description ? `<p>${esc(version.description)}</p>` : "") +
         versionContentHtml(resource.kind, version) +
         `<h4>Dépendances</h4>${dependenciesTableHtml(version.dependencies)}</div></details>`

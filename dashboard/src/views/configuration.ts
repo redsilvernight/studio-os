@@ -64,7 +64,9 @@ import { formReader } from "./libraryForms";
 import { kindFr, statusLabelFr } from "./library";
 import { uiState } from "../store";
 import { machineLabel, machineRef } from "../actorNames";
-import { CONFIRM_RELEASE_LOCK, describeError, esc, fmtTime, shortId, statusBlock } from "../ui";
+import { CONFIRM_RELEASE_LOCK, describeError, esc, fmtTime, statusBlock } from "../ui";
+import { FALLBACK_LABEL } from "../language";
+import { projectLabel } from "../actorNames";
 import { dsBadge, dsEmptyState, dsNotify, dsPageHeader, dsSkeleton, focusDsErrorBox, type DsTone } from "../ds/ds";
 // Styles colocalisés : la page reste autonome sans toucher au CSS global.
 import "./configuration.css";
@@ -226,7 +228,7 @@ export function runtimeMachineOptions(runtimes: RuntimeRegistration[]): string[]
   return [...new Set(runtimes.map((runtime) => runtime.machine_id).filter(nonEmpty))].sort();
 }
 
-function runtimeOptions(values: string[], selected: string, allLabel: string, label: (value: string) => string = shortId): string {
+function runtimeOptions(values: string[], selected: string, allLabel: string, label: (value: string) => string = (value) => value): string {
   const first = `<option value=""${selected === "" ? " selected" : ""}>${esc(allLabel)}</option>`;
   return first + values.map((value) => `<option value="${esc(value)}"${selected === value ? " selected" : ""}>${esc(label(value))}</option>`).join("");
 }
@@ -471,7 +473,7 @@ export function runtimeDetailHtml(runtime: RuntimeRegistration, bindings: Runtim
     `<p class="settings-intro">Runtime = environnement/cible d'exécution. Il n'est ni un agent, ni une machine, ni un modèle : <code class="mono">model_ref</code> est une de ses propriétés.</p>` +
     `<dl class="settings-refs">` +
     `<div class="settings-ref"><dt>Statut</dt><dd>${dsBadge(runtimeStatusFr(runtime.status), runtimeStatusTone(runtime.status))}</dd></div>` +
-    `<div class="settings-ref"><dt>Propriétaire</dt><dd>${esc(shortId(runtime.owner_user_id))}</dd></div>` +
+    `<div class="settings-ref"><dt>Propriétaire</dt><dd>${esc(FALLBACK_LABEL.user)}</dd></div>` +
     `<div class="settings-ref"><dt>Machine</dt><dd>${nonEmpty(runtime.machine_id) ? `<a href="#/machines">Machine ${machineRef(runtime.machine_id)}</a>` : '<span class="meta">Sans machine (cible distante)</span>'}</dd></div>` +
     refLine("Provider", runtime.provider_ref) +
     refLine("Model", runtime.model_ref) +
@@ -644,8 +646,8 @@ export function bindingTargetHtml(binding: RuntimeBinding, runtimesById: Map<str
   const runtimeId = binding.target.runtime_id;
   if (nonEmpty(runtimeId)) {
     const runtime = runtimesById.get(runtimeId);
-    const label = runtime !== undefined ? runtimeHumanTitle(runtime) : `Runtime ${shortId(runtimeId)}`;
-    return `<code class="mono" title="${esc(runtimeId)}">${esc(label)}</code>`;
+    const label = runtime !== undefined ? runtimeHumanTitle(runtime) : "Runtime sans nom";
+    return `<code class="mono">${esc(label)}</code>`;
   }
   return runtimeTargetSummary(binding.target);
 }
@@ -685,14 +687,14 @@ export function bindingsToolbarHtml(state: BindingsPageState, shown: number, tot
 
 export function bindingCardHtml(binding: RuntimeBinding, runtimesById: Map<string, RuntimeRegistration>): string {
   const project = nonEmpty(binding.project_id)
-    ? `<a href="#/projects/${esc(binding.project_id)}">Projet ${esc(shortId(binding.project_id))}</a>`
+    ? `<a href="#/projects/${esc(binding.project_id)}">${esc(projectLabel(binding.project_id))}</a>`
     : '<span class="meta">Sans projet</span>';
   return (
     `<li class="ds-list-item settings-binding-row"><div class="grow">` +
     `<h3 class="settings-card-title">${esc(kindFr(binding.target_kind).singular)} · <code class="mono">${esc(binding.target_stable_key)}</code></h3>` +
     `<div class="ds-list-sub">${dsBadge(bindingScopeLabel(binding.level), bindingScopeTone(binding.level))} <span class="meta">${esc(bindingScopeDescription(binding.level))}</span></div>` +
     `<div class="ds-list-sub">Cible : ${bindingTargetHtml(binding, runtimesById)}</div>` +
-    `<div class="ds-list-sub">${project} · propriétaire ${esc(shortId(binding.owner_user_id))} · créé le ${fmtTime(binding.created_at)}</div>` +
+    `<div class="ds-list-sub">${project} · créé le ${fmtTime(binding.created_at)}</div>` +
     `</div><div class="settings-row-side">` +
     `<button class="ds-btn ds-btn--sm ds-btn--danger" type="button" data-delete-binding="${esc(binding.id)}">Supprimer ce binding</button></div></li>`
   );
@@ -709,7 +711,7 @@ export function runtimeBindingsTableHtml(bindings: RuntimeBinding[]): string {
       (binding) =>
         `<tr><td>${esc(kindFr(binding.target_kind).singular)}</td><td><code class="mono">${esc(binding.target_stable_key)}</code></td>` +
         `<td>${esc(bindingScopeLabel(binding.level))}</td>` +
-        `<td>${nonEmpty(binding.project_id) ? esc(shortId(binding.project_id)) : '<span class="meta">—</span>'}</td><td>${fmtTime(binding.created_at)}</td></tr>`,
+        `<td>${nonEmpty(binding.project_id) ? esc(projectLabel(binding.project_id)) : '<span class="meta">—</span>'}</td><td>${fmtTime(binding.created_at)}</td></tr>`,
     )
     .join("");
   return `<div class="ds-table-wrap"><table class="ds-table"><caption class="ds-sr-only">Liaisons référençant ce runtime</caption><thead><tr><th scope="col">Type</th><th scope="col">Clé logique</th><th scope="col">Niveau</th><th scope="col">Projet</th><th scope="col">Créé le</th></tr></thead><tbody>${rows}</tbody></table></div>`;
@@ -1039,8 +1041,8 @@ async function projectLocksHtml(ctx: ConfigurationContext, projectId: string): P
     .map(
       (lock) =>
         `<tr><td><code class="mono">${esc(lock.resource_id)}</code></td><td>v${lock.locked_version}</td>` +
-        `<td>${esc(shortId(lock.created_by_user_id))}</td><td>${fmtTime(lock.created_at)}</td>` +
-        `<td class="actions"><button type="button" class="ds-btn ds-btn--sm ds-btn--danger" data-release-lock="${esc(lock.id)}" aria-label="Libérer le verrou ${esc(shortId(lock.resource_id))}">Libérer</button></td></tr>`,
+        `<td>${esc(FALLBACK_LABEL.user)}</td><td>${fmtTime(lock.created_at)}</td>` +
+        `<td class="actions"><button type="button" class="ds-btn ds-btn--sm ds-btn--danger" data-release-lock="${esc(lock.id)}" aria-label="Libérer ce verrou">Libérer</button></td></tr>`,
     )
     .join("");
   const table =

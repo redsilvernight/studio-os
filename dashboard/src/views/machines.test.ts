@@ -158,7 +158,7 @@ describe("machinesPageHtml nominal", () => {
       expect(title).not.toContain(M1);
       expect(title).not.toContain(M2);
     }
-    expect(html).toContain(`title="${M1}"`);
+    expect(html).not.toContain(`title="${M1}"`);
   });
 
   it("activité déduite honnête, source visible, jamais couleur seule", () => {

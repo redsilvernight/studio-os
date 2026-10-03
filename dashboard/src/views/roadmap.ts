@@ -28,7 +28,8 @@ import type {
 } from "../roadmapTypes";
 import { agentRef } from "../actorNames";
 import { ApiError } from "../api";
-import { describeError, esc, fmtTime, shortId } from "../ui";
+import { describeError, esc, fmtTime } from "../ui";
+import { FALLBACK_LABEL } from "../language";
 
 export type RoadmapMode = "plan" | "execution";
 
@@ -295,7 +296,7 @@ export function revisionProposalHtml(proposal: RoadmapPendingProposal, roadmap: 
   const { revision, diff } = proposal;
   const author = revision.provenance.actor_type === "agent"
     ? `Agent ${agentRef(revision.provenance.agent_id ?? revision.provenance.actor_id)}`
-    : `Utilisateur ${esc(shortId(revision.provenance.actor_id))}`;
+    : esc(FALLBACK_LABEL.user);
   const base = revision.base_revision_no ?? "—";
   return `<section class="roadmap-proposal-review" aria-labelledby="roadmap-proposal-review-title">` +
     `<div class="roadmap-proposal-review-head"><div><p class="roadmap-eyebrow">Proposition à examiner</p>` +

@@ -39,8 +39,9 @@ import {
   dsAgentBadge,
 } from "../ds/ds";
 import { resolveReview, type ReviewResolution } from "../reviewApi";
-import { agentLabel } from "../actorNames";
-import { describeError, esc, fmtTime, newUuid, shortId } from "../ui";
+import { agentLabel, projectLabel } from "../actorNames";
+import { describeError, esc, fmtTime, newUuid } from "../ui";
+import { ACTION_LABEL, FALLBACK_LABEL } from "../language";
 import type { components } from "../openapi-schema";
 
 type Decision = components["schemas"]["Decision"];
@@ -207,10 +208,10 @@ export function reviewItemHtml(item: ReviewQueueItem, authed: boolean, isAdmin: 
   const detail = reviewQueueItemDetail(item);
   const time = fmtTime(item.requested_at);
   const projectLink = item.project_id
-    ? `<a href="#/projects/${esc(item.project_id)}">${esc(shortId(item.project_id))}</a>`
+    ? `<a href="#/projects/${esc(item.project_id)}">${esc(projectLabel(item.project_id))}</a>`
     : "—";
   const taskLink = item.task_id
-    ? `<a href="#/tasks/${esc(item.task_id)}">${esc(shortId(item.task_id))}</a>`
+    ? `<a href="#/tasks/${esc(item.task_id)}">${esc(ACTION_LABEL.openTask)}</a>`
     : "—";
 
   let actionsHtml = "";
@@ -324,14 +325,14 @@ export function decisionHtml(decision: Decision, authed: boolean, isAdmin: boole
   const proposerLabel = PROPOSER_TYPE_LABEL[decision.proposed_by_type] ?? decision.proposed_by_type;
   const time = fmtTime(decision.created_at);
   const projectLink = decision.project_id
-    ? `<a href="#/projects/${esc(decision.project_id)}">${esc(shortId(decision.project_id))}</a>`
+    ? `<a href="#/projects/${esc(decision.project_id)}">${esc(projectLabel(decision.project_id))}</a>`
     : "—";
   const taskLink = decision.task_id
-    ? `<a href="#/tasks/${esc(decision.task_id)}">${esc(shortId(decision.task_id))}</a>`
+    ? `<a href="#/tasks/${esc(decision.task_id)}">${esc(ACTION_LABEL.openTask)}</a>`
     : "—";
   const agentLink = decision.proposed_by_type === "agent"
-    ? `<a href="#/agents/${esc(decision.proposed_by_id)}" title="${esc(decision.proposed_by_id)}">${dsAgentBadge(agentLabel(decision.proposed_by_id))}</a>`
-    : `${esc(proposerLabel)} <code class="mono" title="${esc(decision.proposed_by_id)}">${esc(shortId(decision.proposed_by_id))}</code>`;
+    ? `<a href="#/agents/${esc(decision.proposed_by_id)}">${dsAgentBadge(agentLabel(decision.proposed_by_id))}</a>`
+    : esc(decision.proposed_by_type === "user" ? FALLBACK_LABEL.user : proposerLabel);
 
   const techDetails = `
     <details class="decision-tech"><summary>Informations techniques</summary><dl>

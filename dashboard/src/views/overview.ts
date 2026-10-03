@@ -23,6 +23,7 @@ import { joinUrl } from "../config";
 import { dsBadge, dsEmptyState, dsMetric, dsPageHeader, dsSectionHeader, dsSkeleton, dsStatus } from "../ds/ds";
 import { resolveReview, type ReviewResolution } from "../reviewApi";
 import { describeError, esc } from "../ui";
+import { REVIEW_KIND_SHORT_LABEL } from "../language";
 import type { components } from "../openapi-schema";
 
 type Project = components["schemas"]["Project"];
@@ -36,14 +37,7 @@ export const HOME_PROJECT_LIMIT = 3;
 export const HOME_WORK_LIMIT = 5;
 export const HOME_REVIEW_LIMIT = 3;
 
-const REVIEW_KIND_LABEL: Record<ReviewQueueItem["kind"], string> = {
-  ai_work_review: "IA",
-  decision_proposal: "Décision",
-  resource_conflict: "Conflit",
-  build_failure: "Build",
-  pr_ready: "PR",
-  roadmap_proposal: "Roadmap",
-};
+const REVIEW_KIND_LABEL: Record<ReviewQueueItem["kind"], string> = REVIEW_KIND_SHORT_LABEL;
 
 const TASK_STATUS_LABEL: Record<string, string> = {
   created: "À faire",

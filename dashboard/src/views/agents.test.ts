@@ -172,7 +172,7 @@ describe("agentCardHtml (identité d'abord, technique en second)", () => {
 
   it("distingue agent et machine, affiche la technique déclarée", () => {
     expect(html).toContain("Exécuté sur la machine");
-    expect(html).toContain(M1.slice(0, 8));
+    expect(html).not.toContain(M1.slice(0, 8));
     expect(html).toContain('href="#/machines"');
     expect(html).toContain("Modèle déclaré");
     expect(html).not.toContain("Définition associée");
@@ -281,8 +281,7 @@ describe("agentNotFoundHtml", () => {
     const html = agentNotFoundHtml(A1);
     expect(html).toContain("Agent introuvable");
     expect(html).toContain('href="#/agents"');
-    expect(html).toContain(A1.slice(0, 8));
-    expect(html).not.toContain(A1);
+    expect(html).not.toContain(A1.slice(0, 8));
   });
 });
 
