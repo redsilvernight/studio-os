@@ -234,12 +234,13 @@ describe("bindingTargetHtml", () => {
     const map = new Map([["rt-1", runtime()]]);
     const html = bindingTargetHtml(binding(), map);
     expect(html).toContain("harness-a · provider-a · model-a");
-    expect(html).toContain("rt-1"); // visible en title technique, jamais comme libellé
+    expect(html).not.toContain("rt-1"); // aucun identifiant exposé (C2)
   });
 
   it("retombe sur un libellé honnête si le runtime n'est pas chargé", () => {
     const html = bindingTargetHtml(binding(), new Map());
-    expect(html).toContain("Runtime rt-1");
+    expect(html).toContain("Runtime sans nom");
+    expect(html).not.toContain("rt-1");
   });
 });
 

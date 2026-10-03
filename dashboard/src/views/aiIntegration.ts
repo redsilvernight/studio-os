@@ -22,7 +22,7 @@ import {
 } from "../aiIntegrationApi";
 import { dsBadge, dsEmptyState, dsSectionHeader, dsSkeleton } from "../ds/ds";
 import { activityLabelFr } from "../machinesApi";
-import { describeError, esc, fmtTime, shortId } from "../ui";
+import { describeError, esc, fmtTime } from "../ui";
 
 export interface AiIntegrationContext {
   client: StudioClient;
@@ -101,8 +101,7 @@ export function desiredHtml(
           )
           .join("")}</ul>`;
   return (
-    `<p class="ds-list-sub">Calculé par le serveur à partir du plan de bootstrap du projet — empreinte ` +
-    `<code class="mono" title="${esc(desired.plan_hash)}">${esc(shortId(desired.plan_hash))}</code>.</p>` +
+    `<p class="ds-list-sub">Calculé par le serveur à partir du plan de bootstrap du projet.</p>` +
     `<div class="ai-desired">` +
     `<div><h3>Agents attendus (${keys.length})</h3>${keysHtml}</div>` +
     `<div><h3>Artefacts attendus</h3>${countsHtml}</div>` +

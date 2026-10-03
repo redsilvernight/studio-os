@@ -69,7 +69,9 @@
 }
 
 .review-item-meta span {
-  white-space: nowrap;
+  white-space: normal;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .review-item-actions {
@@ -136,7 +138,9 @@
 }
 
 .decision-item-meta span {
-  white-space: nowrap;
+  white-space: normal;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .decision-item-body {

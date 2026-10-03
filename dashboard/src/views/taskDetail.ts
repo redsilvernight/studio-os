@@ -31,7 +31,7 @@ import {
 } from "../ds/ds";
 import { taskClaimHint, taskStatusLabel, taskStatusTone } from "../taskStatus";
 import { agentLabel, agentRef, machineLabel, machineRef } from "../actorNames";
-import { describeError, esc, fmtTime, shortId } from "../ui";
+import { describeError, esc, fmtTime } from "../ui";
 import { fetchIdentity, type AuthIdentity } from "../identityApi";
 import { newIdempotencyKey } from "../claimsApi";
 import { listLibraryResources } from "../libraryApi";
@@ -95,12 +95,12 @@ async function fetchJson<T>(
 }
 
 export function taskDetailLoadingHtml(taskId: string): string {
-  return `${dsPageHeader("Tâche", `Chargement de ${shortId(taskId)}…`)}${dsSkeleton(4)}`;
+  return `${dsPageHeader("Tâche", "Chargement de la tâche…")}${dsSkeleton(4)}`;
 }
 
 export function taskDetailErrorHtml(taskId: string, message: string): string {
   return (
-    `${dsPageHeader("Tâche", `Identifiant ${shortId(taskId)}`)}` +
+    `${dsPageHeader("Tâche", "Tâche introuvable")}` +
     `<div class="ds-notice ds-notice--danger" role="alert"><strong>Tâche indisponible.</strong> ${esc(message)}</div>`
   );
 }

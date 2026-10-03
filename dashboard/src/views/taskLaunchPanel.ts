@@ -8,7 +8,8 @@
  * qu'au demandeur (ou à un administrateur), sur un lancement non terminal.
  */
 import { dsBadge, dsEmptyState, dsField, dsSectionHeader, dsSkeleton } from "../ds/ds";
-import { esc, fmtTime, shortId } from "../ui";
+import { machineLabel } from "../actorNames";
+import { esc, fmtTime } from "../ui";
 import type { AuthIdentity } from "../identityApi";
 import type { ResolvedAgentDefinition } from "../resolutionApi";
 import type {
@@ -95,7 +96,7 @@ export function canCancelLaunch(
 
 export function cancelLaunchConfirmText(launch: TaskLaunch): string {
   return (
-    `Annuler le lancement ${shortId(launch.id)} sur le poste ${shortId(launch.machine_id)} ? ` +
+    `Annuler ce lancement sur le poste ${machineLabel(launch.machine_id)} ? ` +
     `Le serveur marque la demande annulée ; seule la machine cible rapporte ensuite l'arrêt de son exécution.`
   );
 }
@@ -251,7 +252,7 @@ export function linkedSessionHtml(state: LaunchPanelState, latest: TaskLaunch): 
   const ended = linked !== null && linked.ended_at !== null && linked.ended_at !== undefined && linked.ended_at !== "";
   const stateLabel = linked === null ? "" : ended ? " (terminée)" : " (en cours)";
   const sessionLink =
-    `<a href="#task-sessions" data-testid="launch-session-link">Session ${esc(shortId(latest.session_id))}${stateLabel}</a>`;
+    `<a href="#task-sessions" data-testid="launch-session-link">Voir la session${stateLabel}</a>`;
   const handoff = ended
     ? ` · <a href="#task-ai-work" data-testid="launch-handoff-link">voir le handoff / travail IA</a>`
     : "";

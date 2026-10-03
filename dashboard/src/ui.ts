@@ -31,16 +31,6 @@ export function newUuid(): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-export function shortId(id: string | null | undefined): string {
-  if (!id) return "—";
-  return id.length > 8 ? `${id.slice(0, 8)}…` : id;
-}
-
-export function idCell(id: string | null | undefined): string {
-  if (!id) return "—";
-  return `<code class="mono" title="${esc(id)}">${esc(shortId(id))}</code>`;
-}
-
 export type SectionStatus = "loading" | "error" | "empty" | "ready";
 
 export function statusBlock(status: SectionStatus, message = ""): string {

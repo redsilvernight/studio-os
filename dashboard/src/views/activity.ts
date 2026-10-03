@@ -12,7 +12,8 @@ import { ApiError, parseErrorBody } from "../api";
 import { dsEmptyState, dsSkeleton } from "../ds/ds";
 import type { components } from "../openapi-schema";
 import { agentLabel, machineLabel } from "../actorNames";
-import { describeError, esc, fmtTime, shortId } from "../ui";
+import { describeError, esc, fmtTime } from "../ui";
+import { FALLBACK_LABEL } from "../language";
 
 type Timeline = components["schemas"]["Timeline"];
 type TimelineDay = components["schemas"]["TimelineDay"];
@@ -118,10 +119,10 @@ const ACTOR_LABEL: Record<string, string> = {
   system: "système",
 };
 
-/** Acteur/source : type explicite + nom (agent, machine) ou identifiant court, jamais d'UUID affiché. */
+/** Acteur/source : type explicite + nom (agent, machine) ou libellé générique, jamais d'identifiant affiché. */
 export function timelineEventActor(event: TimelineEvent): string {
   const kind = ACTOR_LABEL[event.actor_type] ?? event.actor_type;
-  const actor = `${kind} ${event.actor_type === "agent" ? agentLabel(event.actor_id) : shortId(event.actor_id)}`;
+  const actor = `${kind} ${event.actor_type === "agent" ? agentLabel(event.actor_id) : FALLBACK_LABEL.user}`;
   return event.machine_id ? `${actor} · machine ${machineLabel(event.machine_id)}` : actor;
 }
 
@@ -135,7 +136,7 @@ function eventHtml(event: TimelineEvent): string {
   const taskHtml =
     event.task_id === null || event.task_id === undefined
       ? ""
-      : `<a class="tl-task" href="#/tasks/${esc(event.task_id)}">Voir la tâche ${esc(shortId(event.task_id))}</a>`;
+      : `<a class="tl-task" href="#/tasks/${esc(event.task_id)}">Ouvrir la tâche</a>`;
   return `<li class="tl-item"><span class="tl-marker" aria-hidden="true"></span><div class="tl-card">` +
     `<div class="tl-title">${esc(timelineEventLabel(event.event_type))}</div>` +
     `${contextHtml}` +

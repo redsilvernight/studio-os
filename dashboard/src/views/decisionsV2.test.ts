@@ -339,12 +339,13 @@ describe("decisionHtml", () => {
     expect(html).toContain("ds-badge--ai");
   });
 
-  it("proposé par user : type + ID court", () => {
+  it("proposé par user : libellé humain, sans identifiant", () => {
     const d = decision();
     d.proposed_by_type = "user";
     const html = decisionHtml(d, true, true);
-    expect(html).toContain("Utilisateur");
-    expect(html).toContain(A1.slice(0, 8));
+    expect(html).toContain("Un membre de l'équipe");
+    // Hors bloc « Informations techniques » (exception C2 : déplié à la demande).
+    expect(html.replace(/<details class="decision-tech">[\s\S]*?<\/details>/, "")).not.toContain(A1.slice(0, 8));
   });
 
   it("contenu décision affiché, infos techniques repliées", () => {

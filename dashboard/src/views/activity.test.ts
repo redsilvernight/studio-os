@@ -122,13 +122,13 @@ describe("timelineEventContext", () => {
 });
 
 describe("timelineEventActor", () => {
-  it("nomme l'acteur et la machine en identifiants courts", () => {
-    expect(timelineEventActor(event({}))).toContain("utilisateur 11111111…");
+  it("nomme l'acteur et la machine sans identifiant", () => {
+    expect(timelineEventActor(event({}))).toContain("utilisateur Un membre de l'équipe");
     expect(
       timelineEventActor(
         event({ actor_type: "agent", machine_id: "99999999-0000-1111-2222-333333333333" } as Record<string, unknown>),
       ),
-    ).toBe("agent 11111111… · machine 99999999…");
+    ).toBe("agent Agent sans nom · machine Poste sans nom");
     expect(timelineEventActor(event({ actor_type: "system" } as Record<string, unknown>))).toContain("système");
   });
 
