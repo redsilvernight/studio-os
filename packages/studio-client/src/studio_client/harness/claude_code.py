@@ -20,6 +20,7 @@ from studio_client.harness.base import (
     STUDIO_MCP_SERVER_NAME,
     AdapterRefusal,
     HarnessContext,
+    entry_with_credential,
     machine_token_env,
 )
 from studio_client.harness.fsafe import read_document, resolve_target
@@ -167,12 +168,12 @@ class ClaudeCodeAdapter(JsonMcpAdapter):
         )
 
     def headless_environment(
-        self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path
+        self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path, credential: str
     ) -> dict[str, str]:
         entry = self.read_user_entry(ctx)
         if entry is None:
             raise AdapterRefusal("mcp_entry_missing")
-        payload = {"mcpServers": {STUDIO_MCP_SERVER_NAME: entry}}
+        payload = {"mcpServers": {STUDIO_MCP_SERVER_NAME: entry_with_credential(entry, credential)}}
         try:
             isolation_dir.mkdir(parents=True, exist_ok=True)
             self._isolation_mcp_path(isolation_dir).write_text(
@@ -180,7 +181,7 @@ class ClaudeCodeAdapter(JsonMcpAdapter):
             )
         except OSError:
             raise AdapterRefusal("isolation_failed") from None
-        return machine_token_env(entry)
+        return machine_token_env(credential)
 
     def headless_extra_argv(
         self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path
@@ -192,20 +193,21 @@ class ClaudeCodeAdapter(JsonMcpAdapter):
             "--allowedTools",
             f"{self._BASE_TOOLS},mcp__{STUDIO_MCP_SERVER_NAME}",
         )
+        argv += ("--setting-sources", "")
         settings = self.isolation_settings(ctx)
         if settings is not None:
-            argv += ("--setting-sources", "project", "--settings", settings)
+            argv += ("--settings", settings)
         if model:
             argv += ("--model", model)
         return argv
 
     def isolation_settings(self, ctx: HarnessContext) -> str | None:
         """Minimal settings JSON keeping only the Studio session hook (agent
-        identity) and the git guard. Combined with `--setting-sources project`
+        identity) and the git guard. Combined with an empty `--setting-sources`
         it keeps a remotely launched harness from running the operator's own
-        hooks (bonsai delegation, rtk, office hooks) that are meant for
-        interactive local sessions. `None` when the Studio session hook is not
-        deployed, leaving the previous behaviour unchanged."""
+        hooks (bonsai delegation, rtk, office hooks) and, above all, the
+        repository's committed hooks, which no human has validated. `None` when
+        the Studio session hook is not deployed: the run then has no hook."""
         session_hook = ctx.home / _CLAUDE_SPEC.hook_rel
         if not session_hook.is_file():
             return None

@@ -136,6 +136,10 @@ Le MCP n'accepte que des tokens machine, jamais un JWT dashboard. Depuis A2
 verifie est refuse comme un token revoque : erreur `unauthenticated`
 (« invalid or revoked machine token »), sans reveler la cause ; reactiver le
 User rend le token de nouveau utilisable.
+Credential ephemere de lancement (AIB P9, additif) : un token emis pour un lancement
+distant est accepte comme un token machine, mais restreint a une allowlist d'outils et
+au projet du lancement ; tout autre outil repond l'erreur `launch_credential_scope`.
+Allowlist et limites : `TECH/04_AUTH_SYNC_CONTRACT.md`.
 Exception : les outils locaux UC-3 (section ci-dessous, DEC-0047) tournent
 dans un processus stdio lance par le consommateur lui-meme, sans DB ni
 `Principal` serveur — la frontiere de confiance est le processus, pas un

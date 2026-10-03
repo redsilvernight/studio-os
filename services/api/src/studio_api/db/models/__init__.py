@@ -9,6 +9,7 @@ from studio_api.db.models.claim import ResourceClaimModel
 from studio_api.db.models.decision import DecisionModel
 from studio_api.db.models.event import EventModel
 from studio_api.db.models.idempotency import IdempotencyKeyModel
+from studio_api.db.models.launch_credential import LaunchCredentialModel
 from studio_api.db.models.library import (
     LibraryProjectLockModel,
     LibraryResourceLinkModel,
@@ -36,6 +37,7 @@ from studio_api.db.models.user import UserModel
 from studio_api.db.models.work_session import WorkSessionModel
 
 __all__ = [
+    "LaunchCredentialModel",
     "Base",
     "UserModel",
     "AccountTokenModel",

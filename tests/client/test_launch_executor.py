@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
@@ -75,9 +76,10 @@ class FakeAdapter(HarnessAdapter):
         return self._argv
 
     def headless_environment(
-        self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path
+        self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path, credential: str
     ) -> dict[str, str]:
         assert isolation_dir.is_dir()
+        assert credential == "ephemeral-token"  # noqa: S105
         return {"FAKE_MODEL": model or "", "FAKE_ISOLATION": str(isolation_dir)}
 
     def detect(self, ctx: HarnessContext) -> Any:
@@ -109,6 +111,9 @@ class FakeClient:
     async def get_task(self, task_id: UUID) -> Any:
         return SimpleNamespace(title="Demo task")
 
+    async def issue_launch_credential(self, launch_id: UUID) -> Any:
+        return SimpleNamespace(token="ephemeral-token")  # noqa: S106
+
 
 def _executor(
     tmp_path: Path,
@@ -119,6 +124,7 @@ def _executor(
     timeout: float = 30.0,
     secrets: tuple[str, ...] = (),
     models: dict[str, str] | None = None,
+    env: dict[str, str] | None = None,
 ) -> tuple[LaunchExecutor, OutboxStore]:
     store = OutboxStore(connect(tmp_path / "outbox.sqlite3"))
 
@@ -127,7 +133,9 @@ def _executor(
             repo_root=repo,
             task_title="Demo task",
             adapter=adapter,
-            ctx=HarnessContext(workspace_root=repo, mcp_url="http://x", env={}, probe_cwd=repo),
+            ctx=HarnessContext(
+                workspace_root=repo, mcp_url="http://x", env=env or {}, probe_cwd=repo
+            ),
         )
 
     executor = LaunchExecutor(
@@ -158,6 +166,31 @@ async def test_success_reports_preparing_running_succeeded(tmp_path: Path) -> No
     assert [row.payload["status"] for row in rows] == ["preparing", "running", "succeeded"]
     assert [row.payload["expected_version"] for row in rows] == [1, 2, 3]
     assert rows[-1].payload["output_excerpt"].strip() == "ok"
+
+
+async def test_launched_harness_never_inherits_the_daemon_secrets(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    script = (
+        "import os; print(os.environ.get('STUDIO_CLIENT_MACHINE_TOKEN'),"
+        " os.environ.get('AWS_SECRET_ACCESS_KEY'), 'PATH' in os.environ)"
+    )
+    executor, store = _executor(
+        tmp_path,
+        repo,
+        FakeAdapter(("-c", script)),
+        FakeClient(),
+        env={
+            "STUDIO_CLIENT_MACHINE_TOKEN": "durable-token",
+            "AWS_SECRET_ACCESS_KEY": "aws-secret",
+            "PATH": os.environ.get("PATH", ""),
+        },
+    )
+    launch = _launch()
+    executor.submit(launch)
+    await executor._tasks[launch.id]
+
+    rows = store.list_pending(OutboxTable.MUTATIONS)
+    assert rows[-1].payload["output_excerpt"].strip() == "None None True"
 
 
 async def test_forced_model_and_isolation_reach_the_process_and_are_cleaned(
@@ -245,10 +278,12 @@ async def test_excerpt_strips_ansi_escapes(tmp_path: Path) -> None:
 
 class _MachineTokenAdapter(FakeAdapter):
     def headless_environment(
-        self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path
+        self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path, credential: str
     ) -> dict[str, str]:
-        env = super().headless_environment(ctx, model=model, isolation_dir=isolation_dir)
-        env["STUDIO_CLIENT_MACHINE_TOKEN"] = "HARNESS-TOKEN-XYZ"  # noqa: S105 — test value
+        env = super().headless_environment(
+            ctx, model=model, isolation_dir=isolation_dir, credential=credential
+        )
+        env["STUDIO_CLIENT_MACHINE_TOKEN"] = credential
         return env
 
 
@@ -261,7 +296,7 @@ async def test_excerpt_redacts_the_harness_machine_token(tmp_path: Path) -> None
     await executor._tasks[launch.id]
 
     excerpt = store.list_pending(OutboxTable.MUTATIONS)[-1].payload["output_excerpt"]
-    assert "HARNESS-TOKEN-XYZ" not in excerpt
+    assert "ephemeral-token" not in excerpt
     assert "<token>" in excerpt
 
 
@@ -290,7 +325,10 @@ async def test_cancellation_while_running_stops_without_terminal_report(tmp_path
     launch = _launch()
     executor.submit(launch)
     task = executor._tasks[launch.id]
-    await asyncio.sleep(0.6)
+    for _ in range(100):
+        if any(r.payload["status"] == "running" for r in store.list_pending(OutboxTable.MUTATIONS)):
+            break
+        await asyncio.sleep(0.1)
     client.statuses[launch.id] = TaskLaunchStatus.CANCELLED
     await executor._observe()
     await asyncio.gather(task, return_exceptions=True)

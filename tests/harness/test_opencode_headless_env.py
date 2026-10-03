@@ -10,6 +10,7 @@ from studio_client.harness.opencode import OpenCodeAdapter
 from tests.harness.support import MCP_URL, base_env, install_fake
 
 TOKEN = "dedicated-token-value"  # noqa: S105 — test value
+EPHEMERAL = "ephemeral-launch-token"  # noqa: S105 — test value
 
 
 def make_ctx(tmp_path: Path) -> HarnessContext:
@@ -48,14 +49,20 @@ def test_environment_forces_the_model_and_keeps_only_the_studio_mcp(tmp_path: Pa
     isolation = tmp_path / "isolation"
     isolation.mkdir()
 
-    overrides = adapter.headless_environment(ctx, model="anthropic/sonnet", isolation_dir=isolation)
+    overrides = adapter.headless_environment(
+        ctx, model="anthropic/sonnet", isolation_dir=isolation, credential=EPHEMERAL
+    )
 
     inline = json.loads(overrides["OPENCODE_CONFIG_CONTENT"])
     assert inline["model"] == "anthropic/sonnet"
     assert list(inline["mcp"]) == [STUDIO_MCP_SERVER_NAME]
-    assert inline["mcp"][STUDIO_MCP_SERVER_NAME]["headers"]["Authorization"] == f"Bearer {TOKEN}"
+    assert (
+        inline["mcp"][STUDIO_MCP_SERVER_NAME]["headers"]["Authorization"] == f"Bearer {EPHEMERAL}"
+    )
     assert overrides["XDG_CONFIG_HOME"] == str(isolation)
-    assert overrides["STUDIO_CLIENT_MACHINE_TOKEN"] == TOKEN
+    assert overrides["STUDIO_CLIENT_MACHINE_TOKEN"] == EPHEMERAL
+    assert TOKEN not in json.dumps(overrides)
+    assert overrides["OPENCODE_DISABLE_PROJECT_CONFIG"] == "1"
     assert list(isolation.rglob("opencode.json")) == []
     assert (isolation / "opencode" / "plugins" / "studio-os.js").read_text() == "// plugin"
 
@@ -67,7 +74,9 @@ def test_environment_without_model_leaves_the_default(tmp_path: Path) -> None:
     isolation = tmp_path / "isolation"
     isolation.mkdir()
 
-    overrides = adapter.headless_environment(ctx, model=None, isolation_dir=isolation)
+    overrides = adapter.headless_environment(
+        ctx, model=None, isolation_dir=isolation, credential=EPHEMERAL
+    )
 
     assert "model" not in json.loads(overrides["OPENCODE_CONFIG_CONTENT"])
 
@@ -79,6 +88,6 @@ def test_environment_refuses_without_the_studio_entry(tmp_path: Path) -> None:
     isolation.mkdir()
 
     with pytest.raises(AdapterRefusal) as refusal:
-        adapter.headless_environment(ctx, model="m", isolation_dir=isolation)
+        adapter.headless_environment(ctx, model="m", isolation_dir=isolation, credential=EPHEMERAL)
 
     assert refusal.value.reason == "mcp_entry_missing"

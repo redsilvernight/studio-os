@@ -156,6 +156,8 @@ R5 = `opencode` réel). État au 2026-10-02, branche `task/484d1b70-lancement-re
   `{"mcpServers": {"studio-os[-dev]": <entrée dédiée>}}` et refuse (`mcp_entry_missing`)
   sans entrée Studio ; `obsidian-memory` et autres MCP globaux de l'opérateur ne sont
   plus hérités. Même pattern que `opencode` (681e9206), adapté aux flags natifs de Claude.
+  Depuis AIB P9, l'entrée MCP et `STUDIO_CLIENT_MACHINE_TOKEN` portent le credential
+  éphémère du lancement (`credential=`), jamais le token machine durable.
 - **`TaskLaunch.session_id`** : déjà relié côté serveur (7180ae8c — `link_session_to_launch`
   + `report.session_id`, garde `invalid_launch_session`, doc TECH/02 § Task launches,
   lien Dashboard `launch-session-link`). Revalidé ici sur PostgreSQL réel :

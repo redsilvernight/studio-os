@@ -129,6 +129,9 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
             {"expected_version": 1, "status": "accepted"},
         ),
     ),
+    ("POST", "/api/v1/task-launches/{launch_id}/credential"): (
+        Probe("/api/v1/task-launches/{launch}/credential"),
+    ),
     ("POST", "/api/v1/tasks/{task_id}/release"): (Probe("/api/v1/tasks/{task}/release"),),
     ("GET", "/api/v1/sessions"): (Probe("/api/v1/sessions?task_id={task}"),),
     ("POST", "/api/v1/sessions"): (

@@ -835,6 +835,14 @@ representables. `reason_code` = vocabulaire ferme, jamais du texte libre.
   de bord.
 - POST /task-launches/{id}/report (`TaskLaunchMachineReport`) — machine cible seule ;
   `expected_version` obligatoire (`409` + version serveur si perime) ; `session_id` lie la session.
+- POST /task-launches/{id}/credential -> `TaskLaunchCredential` (`token`, `expires_at`), `201`
+  (AIB P9, additif) — machine cible seule, authentifiee par son token durable (jamais par un
+  credential ephemere) ; lancement `accepted|preparing|running` et non expire, sinon
+  `409 launch_not_active`. Le token est rendu une seule fois ; une nouvelle demande revoque le
+  precedent. Sans `Idempotency-Key` : volontairement non rejouable (un rejeu emettrait un
+  second token). Avec un credential ephemere, toute route hors allowlist repond
+  `403 {"detail": {"error_code": "launch_credential_scope"}}`. Voir
+  `04_AUTH_SYNC_CONTRACT.md` (credential ephemere de lancement).
 Cycle : `requested -> accepted -> preparing -> running -> succeeded|failed`, plus
 `requested -> rejected` (machine), `cancelled` (demandeur) et `expired` (serveur seul, jamais
 rapporte par la machine). Etats terminaux sans sortie ; toute paire non listee dans

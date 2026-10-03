@@ -17,6 +17,7 @@ from studio_client.harness.base import (
     STUDIO_MCP_SERVER_NAME,
     AdapterRefusal,
     HarnessContext,
+    entry_with_credential,
     machine_token_env,
 )
 from studio_client.harness.fsafe import (
@@ -164,12 +165,14 @@ class OpenCodeAdapter(JsonMcpAdapter):
         return ("run", "--auto", prompt)
 
     def headless_environment(
-        self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path
+        self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path, credential: str
     ) -> dict[str, str]:
         entry = self.read_user_entry(ctx)
         if entry is None:
             raise AdapterRefusal("mcp_entry_missing")
-        inline: dict[str, Any] = {"mcp": {STUDIO_MCP_SERVER_NAME: entry}}
+        inline: dict[str, Any] = {
+            "mcp": {STUDIO_MCP_SERVER_NAME: entry_with_credential(entry, credential)}
+        }
         if model:
             inline["model"] = model
         config_dir = isolation_dir / "opencode"
@@ -183,5 +186,6 @@ class OpenCodeAdapter(JsonMcpAdapter):
         return {
             "XDG_CONFIG_HOME": str(isolation_dir),
             "OPENCODE_CONFIG_CONTENT": json.dumps(inline),
-            **machine_token_env(entry),
+            "OPENCODE_DISABLE_PROJECT_CONFIG": "1",
+            **machine_token_env(credential),
         }
