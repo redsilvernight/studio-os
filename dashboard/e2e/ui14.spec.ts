@@ -419,11 +419,11 @@ test.describe("UI-14 clavier et focus", () => {
     await login(page, "#/tasks");
     await page.locator(".ds-skip-link").focus();
     const stops: string[] = [];
-    for (let i = 0; i < 4; i += 1) {
+    for (let i = 0; i < 5; i += 1) {
       await page.keyboard.press("Tab");
       stops.push(await activeId(page));
     }
-    expect(stops).toEqual(["Accueil", "Projets", "Tâches", "Agents IA"]);
+    expect(stops).toEqual(["Accueil", "Projets", "Travail", "À valider", "Agents"]);
     expect(csp).toEqual([]);
     expect(fatal).toEqual([]);
   });

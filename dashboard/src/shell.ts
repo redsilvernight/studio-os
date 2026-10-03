@@ -6,9 +6,8 @@
  * via addEventListener (montés par main.ts). Aucune recherche globale ni
  * cloche de notifications : aucun backend ne les supporte.
  *
- * Navigation = routes existantes uniquement. « Agents IA » (UI-6) pointe
- * vers la vraie page #/agents. Activity/Workloads, jamais fonctionnels,
- * sortent de la nav (l'Activité reviendra comme onglet projet en UI-4).
+ * Navigation = routes existantes uniquement ; cinq destinations
+ * quotidiennes + « Administration » repliée (UX V2, P02-navigation).
  */
 import type { Route } from "./router";
 import { esc } from "./ui";
@@ -23,6 +22,8 @@ export interface ShellNavItem {
 
 export interface ShellNavGroup {
   title: string;
+  /** Groupe secondaire replié par défaut (ouvert si un de ses liens est actif). */
+  collapsible?: boolean;
   items: ShellNavItem[];
 }
 
@@ -46,48 +47,39 @@ function icon(name: string): string {
   return `<svg class="app-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
 }
 
-/** Groupes de navigation : routes existantes uniquement. */
-/** `desktop` adds the « Dossiers » entry; the web navigation is unchanged. */
+/**
+ * Groupes de navigation : routes existantes uniquement. Cinq destinations
+ * quotidiennes ; le reste est regroupé sous « Administration » (repliée,
+ * ouverte si la page active en fait partie : deux interactions maximum).
+ * `desktop` ajoute l'entrée « Dossiers » à l'Administration.
+ */
 export function shellNavGroups(route: Route, desktop = false): ShellNavGroup[] {
   const is = (...names: Route["name"][]): boolean => names.includes(route.name);
-  const groups: ShellNavGroup[] = [
+  const admin: ShellNavItem[] = [
+    { href: "#/library", label: "Bibliothèque", icon: "book", active: is("library", "libraryDetail") },
+    { href: "#/graphs/knowledge", label: "Graphes", icon: "inspector", active: is("graphs") },
+    { href: "#/transfers", label: "Transferts", icon: "transfers", active: is("transfers") },
+    { href: "#/machines", label: "Machines", icon: "machines", active: is("machines") },
+    { href: "#/accounts", label: "Comptes", icon: "agents", active: is("accounts") },
+    { href: "#/inspector", label: "Inspecteur", icon: "inspector", active: is("inspector") },
+  ];
+  if (desktop) {
+    const entry = workspaceNavEntry();
+    admin.unshift({ href: entry.hash, label: entry.label, icon: "folder", active: is("workspaces") });
+  }
+  return [
     {
       title: "Principal",
       items: [
         { href: "#/", label: "Accueil", icon: "home", active: is("dashboard", "notFound") },
         { href: "#/projects", label: "Projets", icon: "folder", active: is("projects", "project") },
-        { href: "#/tasks", label: "Tâches", icon: "tasks", active: is("tasks", "task") },
-        { href: "#/agents", label: "Agents IA", icon: "agents", active: is("agents", "agent") },
+        { href: "#/tasks", label: "Travail", icon: "tasks", active: is("tasks", "task") },
+        { href: "#/decisions", label: "À valider", icon: "decision", active: is("decisions") },
+        { href: "#/agents", label: "Agents", icon: "agents", active: is("agents", "agent") },
       ],
     },
-    {
-      title: "Connaissances",
-      items: [
-        { href: "#/library", label: "Bibliothèque", icon: "book", active: is("library", "libraryDetail") },
-        { href: "#/decisions", label: "Décisions", icon: "decision", active: is("decisions") },
-        { href: "#/graphs/knowledge", label: "Graphes", icon: "inspector", active: is("graphs") },
-      ],
-    },
-    {
-      title: "Infrastructure",
-      items: [
-        { href: "#/transfers", label: "Transferts", icon: "transfers", active: is("transfers") },
-        { href: "#/machines", label: "Machines", icon: "machines", active: is("machines") },
-        { href: "#/accounts", label: "Comptes", icon: "agents", active: is("accounts") },
-      ],
-    },
-    {
-      title: "Outils",
-      items: [
-        { href: "#/inspector", label: "Inspecteur", icon: "inspector", active: is("inspector") },
-      ],
-    },
+    { title: "Administration", collapsible: true, items: admin },
   ];
-  if (desktop) {
-    const entry = workspaceNavEntry();
-    groups[0]?.items.splice(2, 0, { href: entry.hash, label: entry.label, icon: "folder", active: is("workspaces") });
-  }
-  return groups;
 }
 
 function navItemHtml(item: ShellNavItem): string {
@@ -97,6 +89,10 @@ function navItemHtml(item: ShellNavItem): string {
 
 function navGroupHtml(group: ShellNavGroup, index: number): string {
   const items = group.items.map(navItemHtml).join("");
+  if (group.collapsible === true) {
+    const open = group.items.some((item) => item.active) ? " open" : "";
+    return `<details class="app-navgroup app-navgroup--secondary"${open}><summary>${esc(group.title)}</summary><ul>${items}</ul></details>`;
+  }
   return `<section class="app-navgroup" aria-labelledby="app-navgroup-${index}"><h2 id="app-navgroup-${index}">${esc(group.title)}</h2><ul>${items}</ul></section>`;
 }
 
@@ -150,6 +146,7 @@ export function syncNav(route: Route, root: ParentNode, desktop = false): void {
     link.classList.toggle("active", active);
     if (active) link.setAttribute("aria-current", "page");
     else link.removeAttribute("aria-current");
+    if (active) link.closest("details")?.setAttribute("open", "");
   }
 }
 

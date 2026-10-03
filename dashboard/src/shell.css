@@ -80,6 +80,23 @@
   display: grid;
   gap: 2px;
 }
+.app-navgroup--secondary summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--ds-target);
+  padding: var(--ds-space-2) var(--ds-space-3);
+  border-radius: var(--ds-radius-md);
+  color: var(--ds-navy-muted);
+  font-size: var(--ds-text-base);
+  cursor: pointer;
+}
+.app-navgroup--secondary summary:hover {
+  background: rgb(255 255 255 / 0.08);
+  color: var(--ds-navy-active);
+}
+.app-navgroup--secondary[open] summary {
+  color: var(--ds-navy-active);
+}
 .app-navlink {
   display: flex;
   align-items: center;
