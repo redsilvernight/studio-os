@@ -34,7 +34,7 @@ toute écriture :
 - aucune migration v0 ou tolérance N-1 n'est promise.
 
 La politique est définie par
-[DEC-0180](../../../decisions/DEC-0180-compatibilite-manifest-bootstrap-v1.md),
+[DEC-0181](../../../decisions/DEC-0181-compatibilite-manifest-bootstrap-v1.md),
 encore proposée tant qu'elle n'est pas acceptée.
 
 ## Drift, conflit et rollback

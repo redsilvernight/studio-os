@@ -23,7 +23,7 @@ absolu. Le contenu reste dans la Library ; le manifest ne référence que des cl
 stables.
 
 Une politique de lecture complémentaire est proposée par
-[DEC-0180](DEC-0180-compatibilite-manifest-bootstrap-v1.md). Elle reste en attente
+[DEC-0181](DEC-0181-compatibilite-manifest-bootstrap-v1.md). Elle reste en attente
 d'acceptation et ne modifie pas le statut de cette Decision.
 
 Un preset (ex. Godot) est un `ProjectInitializationPlan` de départ, pas une

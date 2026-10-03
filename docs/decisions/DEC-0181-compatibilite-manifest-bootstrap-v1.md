@@ -1,5 +1,5 @@
 ---
-id: DEC-0180
+id: DEC-0181
 title: 'Compatibilité du manifest bootstrap : lecture v1 uniquement et refus explicite'
 status: proposed
 date: '2026-10-03'
@@ -7,7 +7,7 @@ superseded_by: null
 source: docs/AI_BOOTSTRAP_ROADMAP.md
 ---
 
-# DEC-0180 — Compatibilité du manifest bootstrap
+# DEC-0181 — Compatibilité du manifest bootstrap
 
 ## Décision proposée
 
