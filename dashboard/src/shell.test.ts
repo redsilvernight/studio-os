@@ -10,26 +10,34 @@ function authedShell(routeName: Parameters<typeof shellHtml>[0]): string {
 describe("shellNavGroups (UI-2)", () => {
   it("covers the target navigation with existing routes only", () => {
     const groups = shellNavGroups({ name: "dashboard" });
-    expect(groups.map((group) => group.title)).toEqual([
-      "Principal",
-      "Connaissances",
-      "Infrastructure",
-      "Outils",
+    expect(groups.map((group) => group.title)).toEqual(["Principal", "Administration"]);
+    expect(groups[0]?.items.map((item) => [item.label, item.href])).toEqual([
+      ["Accueil", "#/"],
+      ["Projets", "#/projects"],
+      ["Travail", "#/tasks"],
+      ["À valider", "#/decisions"],
+      ["Agents", "#/agents"],
     ]);
-    const hrefs = groups.flatMap((group) => group.items.map((item) => item.href));
-    expect(hrefs).toEqual([
-      "#/",
-      "#/projects",
-      "#/tasks",
-      "#/agents",
+    expect(groups[1]?.collapsible).toBe(true);
+    expect(groups[1]?.items.map((item) => item.href)).toEqual([
       "#/library",
-      "#/decisions",
       "#/graphs/knowledge",
       "#/transfers",
       "#/machines",
       "#/accounts",
       "#/inspector",
     ]);
+  });
+
+  it("keeps Administration collapsed unless the active page belongs to it", () => {
+    expect(shellHtml({ name: "dashboard" }, true)).toContain('<details class="app-navgroup app-navgroup--secondary"><summary>Administration');
+    expect(shellHtml({ name: "machines" }, true)).toContain('<details class="app-navgroup app-navgroup--secondary" open>');
+  });
+
+  it("puts Dossiers in Administration on desktop, keeping five daily entries", () => {
+    const groups = shellNavGroups({ name: "dashboard" }, true);
+    expect(groups[0]?.items).toHaveLength(5);
+    expect(groups[1]?.items[0]?.href).toBe(groups[1]?.items.find((item) => item.icon === "folder")?.href);
   });
 
   it("marks exactly one active item per route", () => {
@@ -63,7 +71,8 @@ describe("shellHtml (UI-2)", () => {
     expect(html).toContain('aria-label="Navigation principale"');
     expect(html).toContain("Accueil");
     expect(html).toContain("Bibliothèque");
-    expect(html).toContain("Tâches");
+    expect(html).toContain("Travail");
+    expect(html).toContain("À valider");
     expect(html).toContain("Paramètres");
     expect(html).toContain("Aller au contenu");
     expect(html).toContain("Se déconnecter");
@@ -87,9 +96,9 @@ describe("shellHtml (UI-2)", () => {
     expect(html).not.toMatch(/notification|cloche|recherche globale/i);
   });
 
-  it("links Agents IA to the real page, no longer upcoming", () => {
+  it("links Agents to the real page, no longer upcoming", () => {
     const html = authedShell({ name: "dashboard" });
-    expect(html).toContain("Agents IA");
+    expect(html).toContain("<span>Agents</span>");
     expect(html).toContain('href="#/agents"');
     expect(html).not.toContain("Bientôt");
   });
