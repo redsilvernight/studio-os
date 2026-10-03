@@ -257,7 +257,7 @@ describe("suivi et annulation (AIB R4)", () => {
 
   it("confirmation d'annulation nomme le lancement sans HTML", () => {
     const text = cancelLaunchConfirmText(launch());
-    expect(text).toContain("Annuler le lancement");
+    expect(text).toContain("Annuler ce lancement");
     expect(text).not.toContain("<");
   });
 });

@@ -151,7 +151,7 @@ describe("tasksListHtml (vue par défaut)", () => {
     expect(html).toContain("En cours");
     expect(html).toContain("Bloqué");
     expect(html).toContain("Disponible");
-    expect(html).toContain("Prise · machine abcdef12…");
+    expect(html).toContain("Prise sur Poste sans nom");
     expect(html).toContain("Revoir les sampler densities");
   });
 

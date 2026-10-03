@@ -23,18 +23,19 @@ function fakeClient(machines: unknown, agents: unknown, ok = true): { client: St
 afterEach(() => resetActorNames());
 
 describe("actorNames", () => {
-  it("nom connu : texte = nom, HTML = nom avec identifiant complet en infobulle", () => {
+  it("nom connu : texte = nom, HTML = nom sans identifiant", () => {
     setActorNames([{ id: M, display_name: "flo-laptop" }], [{ id: A, display_name: "Claude Code" }]);
     expect(machineLabel(M)).toBe("flo-laptop");
     expect(agentLabel(A)).toBe("Claude Code");
-    expect(machineRef(M)).toBe(`<span class="actor-name" title="${M}">flo-laptop</span>`);
-    expect(agentRef(A)).toContain(`title="${A}"`);
+    expect(machineRef(M)).toBe(`<span class="actor-name">flo-laptop</span>`);
+    expect(agentRef(A)).not.toContain(A);
   });
 
-  it("nom inconnu ou vide : repli sur l'identifiant court, toujours en infobulle", () => {
+  it("nom inconnu ou vide : libellé générique, jamais d'identifiant", () => {
     setActorNames([{ id: M, display_name: "  " }], []);
-    expect(machineLabel(M)).toBe("269dc2bf…");
-    expect(agentRef(A)).toBe(`<code class="mono" title="${A}">c99dba71…</code>`);
+    expect(machineLabel(M)).toBe("Poste sans nom");
+    expect(agentRef(A)).toBe(`<span class="actor-name actor-name--unknown">Agent sans nom</span>`);
+    expect(agentRef(A)).not.toContain(A.slice(0, 8));
     expect(machineRef(null)).toBe("—");
   });
 
@@ -47,7 +48,7 @@ describe("actorNames", () => {
     const { client, get } = fakeClient([{ id: M, display_name: "flo-laptop" }], [{ id: A, display_name: "Claude Code" }]);
     await loadActorNames(client);
     await loadActorNames(client);
-    expect(get).toHaveBeenCalledTimes(2);
+    expect(get).toHaveBeenCalledTimes(3);
     expect(machineLabel(M)).toBe("flo-laptop");
     expect(agentLabel(A)).toBe("Claude Code");
   });

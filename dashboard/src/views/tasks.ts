@@ -37,12 +37,12 @@ import {
   statusColumn,
   TASK_COLUMNS,
   taskClaimHint,
-  taskClaimTitle,
   taskStatusLabel,
   taskStatusTone,
   type TaskStatus,
 } from "../taskStatus";
 import { describeError, esc } from "../ui";
+import { FALLBACK_LABEL } from "../language";
 // Styles colocalisés : la page reste autonome sans toucher au bloc
 // d'imports CSS de main.ts.
 import "./tasks.css";
@@ -186,7 +186,7 @@ function taskContextLine(task: Task, options: TasksRenderOptions): string {
   const parts: string[] = [];
   if (options.showProject) {
     const name = options.projectNames?.[task.project_id] ?? null;
-    parts.push(name === null || name === "" ? "Projet inconnu" : name);
+    parts.push(name === null || name === "" ? FALLBACK_LABEL.project : name);
   }
   const excerpt = taskDescriptionExcerpt(task);
   if (excerpt !== "") parts.push(excerpt);
@@ -199,10 +199,9 @@ function taskListRowHtml(task: Task, options: TasksRenderOptions): string {
   const meta: string[] = [];
   if (options.showProject) {
     const name = options.projectNames?.[task.project_id] ?? null;
-    meta.push(`<span class="task-project">${esc(name === null || name === "" ? "Projet inconnu" : name)}</span>`);
+    meta.push(`<span class="task-project">${esc(name === null || name === "" ? FALLBACK_LABEL.project : name)}</span>`);
   }
-  const claimTitle = taskClaimTitle(task);
-  meta.push(claimTitle === "" ? esc(taskClaimHint(task)) : `<span title="${esc(claimTitle)}">${esc(taskClaimHint(task))}</span>`);
+  meta.push(esc(taskClaimHint(task)));
   const excerpt = taskDescriptionExcerpt(task);
   return `<li class="ds-list-item task-row"><div class="grow task-main">` +
     `<div class="task-head"><div class="ds-list-title"><a href="#/tasks/${esc(task.id)}">${esc(task.title)}</a></div>` +
