@@ -1,7 +1,10 @@
 /**
- * UI-6 — Agents IA : surface calme, cartes sobres, beaucoup d'air.
- * Aucun style inline ailleurs : tout passe ici. La liste ne remplit
- * jamais artificiellement l'écran : une colonne étroite, espacée.
+ * P05-agents — liste compacte : rôle, disponibilité et projet par ligne,
+ * groupées par disponibilité, statut porté par un point de couleur.
+ * Modèle, permissions et identifiants dorment en fiche (« Détails
+ * techniques » repliés) ; l'administration vit dans sa propre section.
+ * La liste ne remplit jamais artificiellement l'écran : une colonne
+ * étroite, espacée.
  */
 
 .agents {
@@ -21,66 +24,116 @@
   max-width: 520px;
 }
 
-/* Liste aérée : une carte par agent, jamais de grille dense. */
+/* Groupes de disponibilité : un titre discret, des lignes sobres. */
+.agents-groups {
+  display: grid;
+  gap: var(--ds-space-6);
+}
+
+.agents-group {
+  display: grid;
+  gap: var(--ds-space-2);
+}
+
+.agents-group-title {
+  margin: 0;
+  font-size: var(--ds-text-sm);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ds-text-muted);
+}
+
+/* Lignes compactes : tout tient sur place, la fiche porte le détail. */
 .agents-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  gap: var(--ds-space-5);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: 12px;
+  overflow: hidden;
 }
 
-.agent-card {
-  display: grid;
-  gap: var(--ds-space-3);
-  align-content: start;
+.agent-row + .agent-row {
+  border-top: 1px solid var(--ds-border);
 }
 
-.agent-card-top {
+.agent-row-link {
   display: flex;
   gap: var(--ds-space-3);
-  align-items: flex-start;
-}
-
-.agent-card-top .grow {
-  min-width: 0;
-}
-
-.agent-card-title {
-  margin: 0;
-  font-size: var(--ds-text-lg);
-  overflow-wrap: anywhere;
-}
-
-.agent-card-title a {
+  align-items: center;
+  padding: var(--ds-space-3) var(--ds-space-4);
   color: inherit;
+  text-decoration: none;
 }
 
-.agent-signal {
-  display: grid;
-  gap: var(--ds-space-1);
+.agent-row-link:hover {
+  background: var(--ds-surface-soft);
 }
 
-.agent-work {
-  margin: 0;
+.agent-row-link:focus-visible {
+  outline: 2px solid var(--ds-action);
+  outline-offset: -2px;
 }
 
-.agent-work a {
+.agent-row-link .grow {
+  min-width: 0;
+  flex: 1;
+}
+
+.agent-row-name {
+  display: block;
+  font-weight: 600;
   overflow-wrap: anywhere;
+}
+
+.agent-row-link .ds-list-sub {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-row-chev {
+  flex: none;
+  color: var(--ds-text-faint);
+  font-size: var(--ds-text-lg);
+}
+
+/* Fiche : héros du travail actuel, administration séparée du quotidien. */
+.agent-hero {
+  margin-bottom: var(--ds-space-2);
+}
+
+.agent-admin {
+  border-style: dashed;
+}
+
+.agent-admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+  margin: var(--ds-space-3) 0 0;
 }
 
 /* Les résumés de travail sont des phrases potentiellement longues :
  * le `nowrap` DS de .ds-list-title déborderait à 375px. Surcharge
- * scopée (aucune modification du DS ni du CSS global). Voir
- * PROPOSITION DS À RÉCONCILIER dans le rapport UI-6. */
+ * scopée (aucune modification du DS ni du CSS global). */
 .agents .ds-list-title {
   white-space: normal;
   overflow-wrap: anywhere;
 }
 
+.agents .ds-hero h2 {
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 640px) {
-  .agent-card-top {
+  .agent-row-link {
     gap: var(--ds-space-2);
+    padding: var(--ds-space-2) var(--ds-space-3);
   }
 }
 
