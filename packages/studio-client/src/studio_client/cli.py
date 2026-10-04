@@ -735,73 +735,18 @@ def _adapters_check(args: argparse.Namespace, config: ClientConfig | None) -> No
     """Anti-drift gate (P3.7): managed harness files must equal a fresh
     offline export of the canonical definitions. Never merges — reports
     every mismatch and exits non-zero."""
-    from studio_client.adapters import AdapterError, get_adapter, list_adapters
-    from studio_client.canonical import (
-        build_merged_resolved,
-        build_offline_resolved,
-        canonical_agent_keys,
-        canonical_rule_keys,
-        load_rule_meta,
-        render_agents_rules_block,
-        render_claude_rule,
-    )
+    from studio_client.adapters_check import check_adapters
 
-    root = Path(args.repo_root)
-    adapter_ids = [args.adapter] if args.adapter else list_adapters()
-    keys = [args.stable_key] if args.stable_key else canonical_agent_keys(root)
-    failures: list[dict[str, str]] = []
-    checked = 0
-    for adapter_id in adapter_ids:
-        try:
-            adapter = get_adapter(adapter_id)
-        except AdapterError as exc:
-            failures.append({"adapter": adapter_id, "key": "*", "error": exc.message})
-            continue
-        for key in keys:
-            checked += 1
-            try:
-                if args.with_library:
-                    library = _fetch_library_snapshot(args, config, key)
-                    resolved = build_merged_resolved(root, key, library=library)
-                else:
-                    resolved = build_offline_resolved(root, key)
-                result = adapter.translate(resolved)
-            except (AdapterError, ValueError, OSError) as exc:
-                failures.append({"adapter": adapter_id, "key": key, "error": str(exc)})
-                continue
-            for artifact in result.artifacts:
-                current = root / artifact.path
-                on_disk = (
-                    current.read_text(encoding="utf-8").replace("\r\n", "\n")
-                    if current.is_file()
-                    else None
-                )
-                if on_disk != artifact.content:
-                    failures.append(
-                        {
-                            "adapter": adapter_id,
-                            "key": key,
-                            "error": f"drifted or missing: {artifact.path}",
-                        }
-                    )
-    if args.adapter is None and args.stable_key is None:
-        # Rule projections and the AGENTS.md block are managed too (P3.7).
-        for key in canonical_rule_keys(root):
-            checked += 1
-            applies_to, body = load_rule_meta(root, key)
-            current = root / ".claude" / "rules" / f"{key}.md"
-            on_disk = (
-                current.read_text(encoding="utf-8").replace("\r\n", "\n")
-                if current.is_file()
-                else None
-            )
-            if on_disk != render_claude_rule(key, applies_to, body):
-                failures.append({"adapter": "rules", "key": key, "error": f"drifted: {current}"})
-        checked += 1
-        agents_text = (root / "AGENTS.md").read_text(encoding="utf-8").replace("\r\n", "\n")
-        expected = render_agents_rules_block(root)
-        if expected.rstrip("\n") not in agents_text:
-            failures.append({"adapter": "rules", "key": "*", "error": "AGENTS.md block drifted"})
+    outcome = check_adapters(
+        Path(args.repo_root),
+        adapter_id=args.adapter,
+        stable_key=args.stable_key,
+        library_for=(
+            (lambda key: _fetch_library_snapshot(args, config, key)) if args.with_library else None
+        ),
+    )
+    checked = outcome.checked
+    failures = list(outcome.failures)
     if args.json:
         print(json.dumps({"checked": checked, "failures": failures}, indent=2))
     else:

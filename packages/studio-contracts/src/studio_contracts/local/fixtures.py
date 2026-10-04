@@ -110,6 +110,24 @@ from studio_contracts.local.knowledge import (
     KnowledgeVaultState,
 )
 from studio_contracts.local.launch import LaunchSettingsSaveRequest, LaunchSettingsView
+from studio_contracts.local.machine_setup import (
+    SetupAdaptersState,
+    SetupAdaptersStep,
+    SetupApplyRequest,
+    SetupApplyResult,
+    SetupHarness,
+    SetupItemKind,
+    SetupItemOutcome,
+    SetupItemPlan,
+    SetupItemResult,
+    SetupItemState,
+    SetupPlan,
+    SetupPlanRequest,
+    SetupSkillsOutcome,
+    SetupSkillsResult,
+    SetupSkillsState,
+    SetupSkillsStep,
+)
 from studio_contracts.local.provider import IndexInfo, IndexState, ProviderInfo
 from studio_contracts.local.publication import (
     DEFAULT_PUBLICATION_POLICY,
@@ -185,6 +203,8 @@ DESKTOP_CAPABILITIES = [
     "launch.settings",
     "publication.plan",
     "publication.publish",
+    "setup.apply",
+    "setup.plan",
     "skills.read",
     "workspace.config",
 ]
@@ -1462,6 +1482,62 @@ def build_fixtures() -> list[LocalFixture]:
         checked_at=NOW,
     )
 
+    fixtures["setup.plan.request"] = SetupPlanRequest()
+    fixtures["setup.plan.result"] = SetupPlan(
+        plan_id="setup-plan-0001",
+        plan_hash=hashlib.sha256(b"setup-plan-0001").hexdigest(),
+        created_at=NOW,
+        expires_at=NOW + timedelta(minutes=10),
+        harnesses=[
+            SetupHarness(harness="agent-a", detected=True),
+            SetupHarness(harness="codex", detected=False),
+        ],
+        hooks=[
+            SetupItemPlan(
+                item_id="hook:agent-a",
+                kind=SetupItemKind.HOOK,
+                harness="agent-a",
+                state=SetupItemState.DIFFERS,
+                managed=False,
+                lines_added=2,
+                lines_removed=1,
+                diff="--- a/hook:agent-a\n+++ b/hook:agent-a\n-old\n+new",
+                needs_registration=True,
+            ),
+            SetupItemPlan(
+                item_id="guard",
+                kind=SetupItemKind.GUARD,
+                harness="git-guard",
+                state=SetupItemState.MISSING,
+                managed=False,
+            ),
+        ],
+        skills=SetupSkillsStep(
+            state=SetupSkillsState.CHECKED, current=2, missing=1, outdated=0, locally_modified=1
+        ),
+        adapters=SetupAdaptersStep(
+            state=SetupAdaptersState.CHECKED, workspaces=1, checked=4, drifted=1
+        ),
+    )
+    fixtures["setup.apply.request"] = SetupApplyRequest(
+        plan_id="setup-plan-0001",
+        plan_hash=hashlib.sha256(b"setup-plan-0001").hexdigest(),
+        confirmed=True,
+        overwrite_items=["hook:agent-a"],
+        sync_skills=True,
+    )
+    fixtures["setup.apply.result"] = SetupApplyResult(
+        plan_id="setup-plan-0001",
+        hooks=[
+            SetupItemResult(
+                item_id="hook:agent-a", outcome=SetupItemOutcome.WRITTEN, backed_up=True
+            ),
+            SetupItemResult(item_id="guard", outcome=SetupItemOutcome.WRITTEN),
+        ],
+        skills=SetupSkillsResult(outcome=SetupSkillsOutcome.SYNCED, written=1, left_modified=1),
+        backups_created=True,
+    )
+
     fixtures["launch.settings.view"] = LaunchSettingsView(
         opt_in=True,
         max_concurrent=2,
@@ -1824,6 +1900,54 @@ def build_invalid_fixtures() -> list[InvalidFixture]:
                 lambda data: data["skills"][0].__setitem__("path", "C:/Users/dev/.claude/skills"),
             ),
             "a skill entry carries no filesystem path",
+        ),
+        InvalidFixture(
+            "setup.apply.unconfirmed",
+            "SetupApplyRequest",
+            _with("setup.apply.request", add_field("confirmed", False)),
+            "applying the workstation setup requires explicit confirmation",
+        ),
+        InvalidFixture(
+            "setup.apply.duplicate_overwrite",
+            "SetupApplyRequest",
+            _with("setup.apply.request", add_field("overwrite_items", ["guard", "guard"])),
+            "a replacement is named once",
+        ),
+        InvalidFixture(
+            "setup.plan.diff_on_current_file",
+            "SetupPlan",
+            _with(
+                "setup.plan.result",
+                lambda data: data["hooks"][1].__setitem__("diff", "-old\n+new"),
+            ),
+            "only a differing file carries a diff",
+        ),
+        InvalidFixture(
+            "setup.plan.diff_path_leak",
+            "SetupPlan",
+            _with(
+                "setup.plan.result",
+                lambda data: data["hooks"][0].__setitem__("diff", "+C:/Users/dev/.claude/hook.py"),
+            ),
+            "a diff carries no absolute filesystem path",
+        ),
+        InvalidFixture(
+            "setup.plan.skills_unavailable_without_reason",
+            "SetupPlan",
+            _with(
+                "setup.plan.result",
+                lambda data: data.__setitem__(
+                    "skills",
+                    {"state": "unavailable", "current": 0, "missing": 0, "outdated": 0},
+                ),
+            ),
+            "an unavailable skills check states why",
+        ),
+        InvalidFixture(
+            "setup.apply.backup_flag_mismatch",
+            "SetupApplyResult",
+            _with("setup.apply.result", add_field("backups_created", False)),
+            "the backup flag reflects the item results",
         ),
         InvalidFixture(
             "launch.settings.save_unconfirmed",

@@ -1,0 +1,42 @@
+{
+  "$defs": {
+    "SetupAdaptersState": {
+      "enum": [
+        "checked",
+        "not_applicable",
+        "unavailable"
+      ],
+      "title": "SetupAdaptersState",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "checked": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Checked",
+      "type": "integer"
+    },
+    "drifted": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Drifted",
+      "type": "integer"
+    },
+    "state": {
+      "$ref": "#/$defs/SetupAdaptersState"
+    },
+    "workspaces": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Workspaces",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "state"
+  ],
+  "title": "SetupAdaptersStep",
+  "type": "object"
+}

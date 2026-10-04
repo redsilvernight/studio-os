@@ -1,0 +1,59 @@
+{
+  "data": {
+    "adapters": {
+      "checked": 4,
+      "drifted": 1,
+      "state": "checked",
+      "workspaces": 1
+    },
+    "created_at": "2026-01-15T12:00:00Z",
+    "expires_at": "2026-01-15T12:10:00Z",
+    "harnesses": [
+      {
+        "detected": true,
+        "harness": "agent-a"
+      },
+      {
+        "detected": false,
+        "harness": "codex"
+      }
+    ],
+    "hooks": [
+      {
+        "diff": "--- a/hook:agent-a\n+++ b/hook:agent-a\n-old\n+new",
+        "diff_truncated": false,
+        "harness": "agent-a",
+        "item_id": "hook:agent-a",
+        "kind": "hook",
+        "lines_added": 2,
+        "lines_removed": 1,
+        "managed": false,
+        "needs_registration": true,
+        "state": "differs"
+      },
+      {
+        "diff": "",
+        "diff_truncated": false,
+        "harness": "git-guard",
+        "item_id": "guard",
+        "kind": "guard",
+        "lines_added": 0,
+        "lines_removed": 0,
+        "managed": false,
+        "needs_registration": false,
+        "state": "missing"
+      }
+    ],
+    "plan_hash": "336b93cee78dcef7a21858554074146d35ad32bfaed7928587d3322cc1100bf9",
+    "plan_id": "setup-plan-0001",
+    "requires_confirmation": true,
+    "skills": {
+      "current": 0,
+      "missing": 0,
+      "outdated": 0,
+      "state": "unavailable"
+    }
+  },
+  "model": "SetupPlan",
+  "reason": "an unavailable skills check states why"
+}

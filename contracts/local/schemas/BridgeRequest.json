@@ -36,6 +36,8 @@
         "harness.rollback",
         "harness.verify",
         "skills.check",
+        "setup.plan",
+        "setup.apply",
         "launch.get_settings",
         "launch.save_settings",
         "publication.preview",

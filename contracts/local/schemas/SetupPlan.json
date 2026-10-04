@@ -1,0 +1,274 @@
+{
+  "$defs": {
+    "SetupAdaptersState": {
+      "enum": [
+        "checked",
+        "not_applicable",
+        "unavailable"
+      ],
+      "title": "SetupAdaptersState",
+      "type": "string"
+    },
+    "SetupAdaptersStep": {
+      "additionalProperties": false,
+      "properties": {
+        "checked": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Checked",
+          "type": "integer"
+        },
+        "drifted": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Drifted",
+          "type": "integer"
+        },
+        "state": {
+          "$ref": "#/$defs/SetupAdaptersState"
+        },
+        "workspaces": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Workspaces",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "state"
+      ],
+      "title": "SetupAdaptersStep",
+      "type": "object"
+    },
+    "SetupHarness": {
+      "additionalProperties": false,
+      "properties": {
+        "detected": {
+          "title": "Detected",
+          "type": "boolean"
+        },
+        "harness": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Harness",
+          "type": "string"
+        }
+      },
+      "required": [
+        "harness",
+        "detected"
+      ],
+      "title": "SetupHarness",
+      "type": "object"
+    },
+    "SetupItemKind": {
+      "enum": [
+        "hook",
+        "guard",
+        "plugin"
+      ],
+      "title": "SetupItemKind",
+      "type": "string"
+    },
+    "SetupItemPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "diff": {
+          "default": "",
+          "maxLength": 8200,
+          "title": "Diff",
+          "type": "string"
+        },
+        "diff_truncated": {
+          "default": false,
+          "title": "Diff Truncated",
+          "type": "boolean"
+        },
+        "harness": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Harness",
+          "type": "string"
+        },
+        "item_id": {
+          "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+          "title": "Item Id",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/SetupItemKind"
+        },
+        "lines_added": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Lines Added",
+          "type": "integer"
+        },
+        "lines_removed": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Lines Removed",
+          "type": "integer"
+        },
+        "managed": {
+          "title": "Managed",
+          "type": "boolean"
+        },
+        "needs_registration": {
+          "default": false,
+          "title": "Needs Registration",
+          "type": "boolean"
+        },
+        "state": {
+          "$ref": "#/$defs/SetupItemState"
+        }
+      },
+      "required": [
+        "item_id",
+        "kind",
+        "harness",
+        "state",
+        "managed"
+      ],
+      "title": "SetupItemPlan",
+      "type": "object"
+    },
+    "SetupItemState": {
+      "enum": [
+        "missing",
+        "current",
+        "differs"
+      ],
+      "title": "SetupItemState",
+      "type": "string"
+    },
+    "SetupSkillsState": {
+      "enum": [
+        "checked",
+        "unavailable"
+      ],
+      "title": "SetupSkillsState",
+      "type": "string"
+    },
+    "SetupSkillsStep": {
+      "additionalProperties": false,
+      "properties": {
+        "current": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Current",
+          "type": "integer"
+        },
+        "locally_modified": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Locally Modified",
+          "type": "integer"
+        },
+        "missing": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Missing",
+          "type": "integer"
+        },
+        "outdated": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Outdated",
+          "type": "integer"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SetupUnavailableReason"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "state": {
+          "$ref": "#/$defs/SetupSkillsState"
+        }
+      },
+      "required": [
+        "state"
+      ],
+      "title": "SetupSkillsStep",
+      "type": "object"
+    },
+    "SetupUnavailableReason": {
+      "enum": [
+        "not_signed_in",
+        "credential_rejected",
+        "library_unreachable",
+        "invalid_skill"
+      ],
+      "title": "SetupUnavailableReason",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "What « Configurer ce poste » would do. Bound to ``plan_hash``: a file\nedited after the preview invalidates the confirmation.",
+  "properties": {
+    "adapters": {
+      "$ref": "#/$defs/SetupAdaptersStep"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "expires_at": {
+      "format": "date-time",
+      "title": "Expires At",
+      "type": "string"
+    },
+    "harnesses": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/SetupHarness"
+      },
+      "maxItems": 16,
+      "title": "Harnesses",
+      "type": "array"
+    },
+    "hooks": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/SetupItemPlan"
+      },
+      "maxItems": 16,
+      "title": "Hooks",
+      "type": "array"
+    },
+    "plan_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Plan Hash",
+      "type": "string"
+    },
+    "plan_id": {
+      "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+      "title": "Plan Id",
+      "type": "string"
+    },
+    "requires_confirmation": {
+      "const": true,
+      "default": true,
+      "title": "Requires Confirmation",
+      "type": "boolean"
+    },
+    "skills": {
+      "$ref": "#/$defs/SetupSkillsStep"
+    }
+  },
+  "required": [
+    "plan_id",
+    "plan_hash",
+    "created_at",
+    "expires_at",
+    "skills",
+    "adapters"
+  ],
+  "title": "SetupPlan",
+  "type": "object"
+}

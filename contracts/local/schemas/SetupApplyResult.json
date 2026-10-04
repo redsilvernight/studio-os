@@ -1,0 +1,106 @@
+{
+  "$defs": {
+    "SetupItemOutcome": {
+      "enum": [
+        "written",
+        "unchanged",
+        "skipped",
+        "failed"
+      ],
+      "title": "SetupItemOutcome",
+      "type": "string"
+    },
+    "SetupItemResult": {
+      "additionalProperties": false,
+      "properties": {
+        "backed_up": {
+          "default": false,
+          "title": "Backed Up",
+          "type": "boolean"
+        },
+        "item_id": {
+          "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+          "title": "Item Id",
+          "type": "string"
+        },
+        "outcome": {
+          "$ref": "#/$defs/SetupItemOutcome"
+        }
+      },
+      "required": [
+        "item_id",
+        "outcome"
+      ],
+      "title": "SetupItemResult",
+      "type": "object"
+    },
+    "SetupSkillsOutcome": {
+      "enum": [
+        "synced",
+        "unchanged",
+        "skipped",
+        "unavailable",
+        "failed"
+      ],
+      "title": "SetupSkillsOutcome",
+      "type": "string"
+    },
+    "SetupSkillsResult": {
+      "additionalProperties": false,
+      "properties": {
+        "left_modified": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Left Modified",
+          "type": "integer"
+        },
+        "outcome": {
+          "$ref": "#/$defs/SetupSkillsOutcome"
+        },
+        "written": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Written",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "outcome"
+      ],
+      "title": "SetupSkillsResult",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Only what was read back from disk is reported as written.",
+  "properties": {
+    "backups_created": {
+      "default": false,
+      "title": "Backups Created",
+      "type": "boolean"
+    },
+    "hooks": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/SetupItemResult"
+      },
+      "maxItems": 16,
+      "title": "Hooks",
+      "type": "array"
+    },
+    "plan_id": {
+      "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+      "title": "Plan Id",
+      "type": "string"
+    },
+    "skills": {
+      "$ref": "#/$defs/SetupSkillsResult"
+    }
+  },
+  "required": [
+    "plan_id",
+    "skills"
+  ],
+  "title": "SetupApplyResult",
+  "type": "object"
+}

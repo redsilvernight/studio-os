@@ -1,0 +1,14 @@
+{
+  "data": {
+    "confirmed": true,
+    "overwrite_items": [
+      "guard",
+      "guard"
+    ],
+    "plan_hash": "336b93cee78dcef7a21858554074146d35ad32bfaed7928587d3322cc1100bf9",
+    "plan_id": "setup-plan-0001",
+    "sync_skills": true
+  },
+  "model": "SetupApplyRequest",
+  "reason": "a replacement is named once"
+}
