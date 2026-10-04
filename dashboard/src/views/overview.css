@@ -71,12 +71,27 @@
   flex: none;
 }
 
+/* Compteurs non actionnables : une ligne discrète, en bas. */
+.home-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2) var(--ds-space-6);
+  margin: 0;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-sm);
+}
+
+.home-counts strong {
+  color: var(--ds-text);
+  font-weight: 600;
+}
+
 @media (min-width: 1100px) {
-  .home-section--projects {
-    grid-column: 1 / span 5;
-  }
   .home-section--work {
-    grid-column: 6 / -1;
+    grid-column: 1 / span 7;
+  }
+  .home-section--review {
+    grid-column: 8 / -1;
   }
 }
 

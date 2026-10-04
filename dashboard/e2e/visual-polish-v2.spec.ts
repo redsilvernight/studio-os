@@ -119,19 +119,14 @@ async function blockingAxe(page: Page): Promise<string[]> {
 }
 
 test.describe("Visual Polish V2 — Accueil", () => {
-  test("desktop 1440 : tuiles, projets et travail côte à côte, surfaces", async ({ page }) => {
+  test("desktop 1440 : travail et validation côte à côte, compteurs discrets", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 1440, height: 900 });
     await login(page, "#/", newCaptured());
-    const tiles = page.locator("#view .home-metrics .ds-metric");
-    await expect(tiles).toHaveCount(3);
-    const tops = await tiles.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
-    expect(new Set(tops).size, "3 colonnes sur une ligne").toBe(1);
-    const shadow = await tiles.first().evaluate((e) => getComputedStyle(e).boxShadow);
-    expect(shadow, "tuile en surface (ombre légère)").not.toBe("none");
-    const p = await page.locator("#view .home-section--projects").boundingBox();
+    await expect(page.locator("#view .home-counts")).toBeVisible();
     const w = await page.locator("#view .home-section--work").boundingBox();
-    expect(p !== null && w !== null && Math.abs(p.y - w.y) < 2 && w.x > p.x + p.width - 1, "Projets | Travail en cours").toBe(true);
+    const r = await page.locator("#view .home-section--review").boundingBox();
+    expect(w !== null && r !== null && Math.abs(w.y - r.y) < 2 && r.x > w.x + w.width - 1, "À faire maintenant | À valider").toBe(true);
     await expect(page.locator("#view .home .ds-list--card").first()).toBeVisible();
     await expectNoOverflow(page, "home 1440");
     expectClean(watch);
@@ -150,11 +145,11 @@ test.describe("Visual Polish V2 — Accueil", () => {
     expectClean(watch);
   });
 
-  test("mobile 375 : tuiles compactes, pas d'overflow", async ({ page }) => {
+  test("mobile 375 : compteurs en ligne, pas d'overflow", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 375, height: 812 });
     await login(page, "#/", newCaptured());
-    await expect(page.locator("#view .home-metrics .ds-metric")).toHaveCount(3);
+    await expect(page.locator("#view .home-counts")).toBeVisible();
     await expectNoOverflow(page, "home 375");
     expectClean(watch);
   });

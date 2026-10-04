@@ -11,10 +11,10 @@
  * back/forward navigateur fonctionne (rendu piloté par le hash, sans état JS).
  */
 import type { StudioClient } from "../api";
-import type { RoadmapDataSource } from "../roadmapTypes";
+import type { Roadmap, RoadmapDataSource } from "../roadmapTypes";
 import { ApiError, parseErrorBody } from "../api";
 import type { components } from "../openapi-schema";
-import { dsBadge, dsEmptyState, dsSectionHeader, dsSkeleton, dsTechDetails } from "../ds/ds";
+import { dsBadge, dsEmptyState, dsSectionHeader, dsSkeleton, dsStatus, dsTechDetails } from "../ds/ds";
 import { taskStatusLabel, taskStatusTone } from "../taskStatus";
 import { describeError, esc, fmtTime } from "../ui";
 import { fetchIdentity } from "../identityApi";
@@ -74,15 +74,25 @@ function taskTone(status: string): "neutral" | "info" | "warning" | "success" {
   return taskStatusTone(status);
 }
 
-/** Navigation locale : mêmes classes que la primitive DS, mais en liens pour
- * préserver les deep links (activation manuelle, flèches = déplacement focus). */
+/** Onglets quotidiens ; les surfaces expertes (Membres, Intégration IA) vivent sous « Plus ». */
+export const PROJECT_TABS_MORE: ReadonlyArray<ProjectTab> = ["members", "ai-integration"];
+
+function projectTabLink(projectId: string, entry: (typeof PROJECT_TABS)[number], tab: ProjectTab): string {
+  const active = entry.id === tab;
+  const current = active ? ` aria-current="page"` : "";
+  return `<a class="ds-tab" role="tab" id="ws-tab-${entry.id}" aria-controls="workspace-panel" href="#/projects/${esc(projectId)}${entry.suffix}" aria-selected="${active ? "true" : "false"}" tabindex="${active ? "0" : "-1"}" data-ws-tab="${entry.id}"${current}>${esc(entry.label)}</a>`;
+}
+
+/** Navigation locale : 6 onglets visibles + menu « Plus » (liens, deep links préservés). */
 export function workspaceTabsHtml(projectId: string, tab: ProjectTab): string {
-  const links = PROJECT_TABS.map((entry) => {
-    const active = entry.id === tab;
-    const current = active ? ` aria-current="page"` : "";
-    return `<a class="ds-tab" role="tab" id="ws-tab-${entry.id}" aria-controls="workspace-panel" href="#/projects/${esc(projectId)}${entry.suffix}" aria-selected="${active ? "true" : "false"}" tabindex="${active ? "0" : "-1"}" data-ws-tab="${entry.id}"${current}>${esc(entry.label)}</a>`;
-  }).join("");
-  return `<nav class="ds-tabs" role="tablist" aria-label="Sections du projet" data-ws-tabs>${links}</nav>`;
+  const visible = PROJECT_TABS.filter((entry) => !PROJECT_TABS_MORE.includes(entry.id))
+    .map((entry) => projectTabLink(projectId, entry, tab))
+    .join("");
+  const more = PROJECT_TABS.filter((entry) => PROJECT_TABS_MORE.includes(entry.id))
+    .map((entry) => projectTabLink(projectId, entry, tab))
+    .join("");
+  const moreOpen = PROJECT_TABS_MORE.includes(tab) ? " open" : "";
+  return `<div class="workspace-nav"><nav class="ds-tabs" role="tablist" aria-label="Sections du projet" data-ws-tabs>${visible}${more === "" ? "" : `<details class="workspace-more"${moreOpen}><summary class="ds-tab">Plus</summary><div class="workspace-more-list">${more}</div></details>`}</nav></div>`;
 }
 
 /** Flèches gauche/droite et Début/Fin entre onglets (activation au clavier via Entrée). */
@@ -144,16 +154,64 @@ export function projectAttentionItems(state: ProjectState, now: number): string[
   return items;
 }
 
+export interface CurrentStep {
+  title: string;
+  phaseTitle: string;
+  progress: string | null;
+}
+
+/** Étape courante d'une roadmap active (null si aucune ou introuvable). */
+export function currentRoadmapStep(roadmap: Roadmap | null): CurrentStep | null {
+  if (roadmap === null || roadmap.status !== "active" || !roadmap.current_step_key) return null;
+  for (const phase of roadmap.phases ?? []) {
+    const step = (phase.steps ?? []).find((entry) => entry.key === roadmap.current_step_key);
+    if (step !== undefined) {
+      const total = step.acceptance_criteria?.length ?? 0;
+      const checked = step.criteria_checked?.length ?? 0;
+      return { title: step.title, phaseTitle: phase.title, progress: total > 0 ? `${checked}/${total} critères` : null };
+    }
+  }
+  return null;
+}
+
+/** Santé du projet : bloquée > à surveiller > en bonne voie (dérivée de l'état réel). */
+export function projectHealthSummary(state: ProjectState, now: number): { state: "warning" | "info" | "success"; label: string } {
+  const attention = projectAttentionItems(state, now);
+  if (state.active_tasks.some((t) => t.status === "blocked")) return { state: "warning", label: "Blocage à lever" };
+  if (attention.length > 0) return { state: "info", label: "À surveiller" };
+  return { state: "success", label: "En bonne voie" };
+}
+
+/** Héros de la vue d'ensemble : objectif, santé, étape courante, blocages. */
+export function projectHeroHtml(project: Project, state: ProjectState, step: CurrentStep | null, now: number = Date.now()): string {
+  const health = projectHealthSummary(state, now);
+  const blockers = projectAttentionItems(state, now);
+  const objective = (project.description ?? "").trim();
+  const stepBody =
+    step === null
+      ? `<p class="ds-list-sub">Aucune étape courante : <a href="#/projects/${esc(project.id)}/roadmap">ouvrir la roadmap</a>.</p>`
+      : `<p class="workspace-step-title">${esc(step.title)}</p><p class="ds-list-sub">${esc(step.phaseTitle)}${step.progress === null ? "" : ` · ${esc(step.progress)}`} — <a href="#/projects/${esc(project.id)}/roadmap">voir la roadmap</a></p>`;
+  const blockersBody =
+    blockers.length === 0
+      ? `<p class="ds-list-sub">Aucun blocage.</p>`
+      : `<ul class="ds-list">${blockers.slice(0, 3).map((item) => `<li class="ds-list-item"><div class="grow">${esc(item)}</div></li>`).join("")}</ul>${blockers.length > 3 ? `<p class="ds-list-sub">+ ${blockers.length - 3} autre(s).</p>` : ""}`;
+  return `<section class="workspace-hero" aria-label="Situation du projet">` +
+    `<div class="workspace-hero-main"><p class="ds-hero-eyebrow">Objectif</p>` +
+    `<p class="workspace-objective">${objective === "" ? "Aucun objectif renseigné." : esc(objective)}</p>` +
+    `<p class="workspace-health">${dsStatus(health.state, health.label)}</p></div>` +
+    `<div class="workspace-hero-step"><p class="ds-hero-eyebrow">Étape courante</p>${stepBody}</div>` +
+    `<div class="workspace-hero-blockers"><p class="ds-hero-eyebrow">Blocages</p>${blockersBody}</div>` +
+    `</section>`;
+}
+
 /**
  * Vue d'ensemble : répond à « Où en est ce projet ? » avec des résumés
  * (5 max) + navigation vers les onglets. Jamais de Kanban, table claims,
  * timeline ou liste de décisions complets ici.
  */
-export function projectOverviewHtml(project: Project, state: ProjectState, now: number = Date.now()): string {
+export function projectOverviewHtml(project: Project, state: ProjectState, now: number = Date.now(), step: CurrentStep | null = null): string {
   const taskPreview = state.active_tasks.slice(0, OVERVIEW_PREVIEW_LIMIT);
   const claimPreview = state.active_claims.slice(0, OVERVIEW_PREVIEW_LIMIT);
-  const attention = projectAttentionItems(state, now);
-
   const tasksBody =
     state.active_tasks.length === 0
       ? `<p class="ds-list-sub">Aucune tâche active.</p>`
@@ -176,15 +234,10 @@ export function projectOverviewHtml(project: Project, state: ProjectState, now: 
           )
           .join("")}</ul>${state.active_claims.length > claimPreview.length ? `<p class="ds-list-sub">+ ${state.active_claims.length - claimPreview.length} autre(s).</p>` : ""}`;
 
-  const attentionBody =
-    attention.length === 0
-      ? `<p class="ds-list-sub">Rien ne demande d'attention particulière.</p>`
-      : `<ul class="ds-list">${attention.map((item) => `<li class="ds-list-item"><div class="grow">${esc(item)}</div>${dsBadge("À surveiller", "warning")}</div></li>`).join("")}</ul>`;
-
   return `<div class="workspace-overview">` +
+    projectHeroHtml(project, state, step, now) +
     `<section class="workspace-section" aria-label="Tâches actives">${dsSectionHeader(`Tâches actives (${state.active_tasks.length})`, { label: "Voir les tâches", href: `#/projects/${esc(project.id)}/tasks` })}${tasksBody}</section>` +
     `<section class="workspace-section" aria-label="Réservations actives">${dsSectionHeader(`Réservations actives (${state.active_claims.length})`, { label: "Voir les réservations", href: `#/projects/${esc(project.id)}/claims` })}${claimsBody}</section>` +
-    `<section class="workspace-section" aria-label="Attention requise">${dsSectionHeader("À surveiller")}${attentionBody}</section>` +
     `<section class="workspace-section" aria-label="Historique et décisions"><p class="ds-list-sub">L'historique complet vit dans <a href="#/projects/${esc(project.id)}/activity">Activité</a>, les décisions liées au projet dans <a href="#/projects/${esc(project.id)}/decisions">Décisions</a>.</p></section>` +
     `</div>`;
 }
@@ -230,7 +283,15 @@ export async function renderProjectDetail(
   const panel = root.querySelector<HTMLElement>("#workspace-panel");
   if (panel === null) return;
   if (tab === "overview") {
-    panel.innerHTML = projectOverviewHtml(project, state);
+    let step: CurrentStep | null = null;
+    if (ctx.roadmapDataSource !== undefined) {
+      try {
+        step = currentRoadmapStep(await ctx.roadmapDataSource.load(project.id));
+      } catch {
+        step = null;
+      }
+    }
+    panel.innerHTML = projectOverviewHtml(project, state, Date.now(), step);
     return;
   }
   if (tab === "tasks") {

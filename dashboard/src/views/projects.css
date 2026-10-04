@@ -135,3 +135,52 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* P05-home-project — héros du projet et menu « Plus ». */
+.workspace-hero {
+  display: grid;
+  gap: var(--ds-space-6);
+  padding: var(--ds-space-6);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  box-shadow: var(--ds-shadow-sm);
+}
+
+@media (min-width: 900px) {
+  .workspace-hero {
+    grid-template-columns: 1.2fr 1fr 1fr;
+  }
+}
+
+.workspace-objective {
+  margin: 0 0 var(--ds-space-2);
+  max-width: 68ch;
+}
+
+.workspace-step-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.workspace-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+}
+
+.workspace-more {
+  position: relative;
+}
+
+.workspace-more > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.workspace-more-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-1);
+  margin-top: var(--ds-space-1);
+}
