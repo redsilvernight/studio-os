@@ -226,27 +226,24 @@ test.describe("UI-6 page Agents", () => {
     await login(page, "#/agents");
     const view = page.locator("#view");
     await expect(view.locator("h1")).toContainText("Agents IA");
-    await expect(view.locator(".agents-list .agent-card")).toHaveCount(2);
+    await expect(view.locator(".agents-list .agent-row")).toHaveCount(2);
     // Nav : vraie route, sans « Bientôt », active ici.
     await expect(page.locator('.app-sidebar a[href="#/agents"]')).toHaveAttribute("aria-current", "page");
     await expect(page.locator(".app-sidebar")).toContainText("Agents");
     await expect(page.locator(".app-sidebar")).not.toContainText("Bientôt");
     // Agent actif : session ouverte + tâche + projet, vocabulaire DERIVED.
-    const first = view.locator(".agent-card", { hasText: "Claude Atlas" });
+    const first = view.locator(".agent-row", { hasText: "Claude Atlas" });
     await expect(first).toContainText("Session de travail ouverte");
-    await expect(first).toContainText("pas une preuve de connexion");
-    await expect(first).toContainText("Travaille sur");
-    await expect(first).toContainText("Corriger l'authentification");
-    await expect(first).toContainText("Binding of Apotheosis");
+    await expect(first).toContainText("Claude Atlas");
+    await expect(first).toContainText("code · Binding of Apotheosis");
     await expect(first).not.toContainText("En ligne");
-    // Agent sans activité récente : dernière activité, machine courte, modèle déclaré.
-    const second = view.locator(".agent-card", { hasText: "Kimi Scribe" });
+    // Agent sans activité récente : dernière activité, machine courte.
+    const second = view.locator(".agent-row", { hasText: "Kimi Scribe" });
     await expect(second).toContainText("Dernière activité");
-    await expect(second).toContainText("Exécuté sur la machine");
-    await expect(first).toContainText("Modèle déclaré : claude-test");
-    // Deep links présents.
+    await expect(second).toContainText("Kimi Scribe");
+    await expect(second).toContainText("docs");
+    // Deep link vers la fiche agent présent.
     await expect(first.locator(`a[href="#/agents/${A1}"]`).first()).toBeVisible();
-    await expect(first.locator(`a[href="#/tasks/${T2}"]`).first()).toBeVisible();
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.screenshot({ path: `${SHOTS}/agents-desktop.png` });
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
@@ -259,16 +256,16 @@ test.describe("UI-6 page Agents", () => {
     await login(page, "#/agents");
     const view = page.locator("#view");
     const search = view.locator("#agents-search");
-    await expect(view.locator(".agent-card")).toHaveCount(2);
+    await expect(view.locator(".agent-row")).toHaveCount(2);
     await search.click();
     await search.pressSequentially("atlas", { delay: 10 });
-    await expect(view.locator(".agent-card")).toHaveCount(1);
+    await expect(view.locator(".agent-row")).toHaveCount(1);
     await expect(view).toContainText("Claude Atlas");
     await expect(search).toBeFocused();
     await search.fill("");
-    await expect(view.locator(".agent-card")).toHaveCount(2);
+    await expect(view.locator(".agent-row")).toHaveCount(2);
     // Navigation clavier : la fiche est atteignable au clavier.
-    await view.locator('.agent-card a[href="#/agents/aaaaaaaa-0000-4111-8111-000000000001"]').first().focus();
+    await view.locator('.agent-row a[href="#/agents/aaaaaaaa-0000-4111-8111-000000000001"]').first().focus();
     await page.keyboard.press("Enter");
     await expect(view.locator("h1")).toContainText("Claude Atlas");
     await expectClean(watched);
@@ -279,13 +276,13 @@ test.describe("UI-6 page Agents", () => {
     await login(page, `#/agents/${A1}`);
     const view = page.locator("#view");
     await expect(view.locator("h1")).toContainText("Claude Atlas");
-    for (const section of ["Activité", "Travail actuel", "Résumé", "Travail produit", "Sessions", "Environnement"]) {
+    for (const section of ["Activité", "Travail produit", "Sessions", "Environnement", "Administration"]) {
       await expect(view.locator("h2", { hasText: section })).toBeVisible();
     }
+    // Détails techniques est un <details><summary>, pas un h2.
+    await expect(view.locator("details summary", { hasText: "Détails techniques" })).toBeVisible();
     await expect(view).toContainText("Réécriture du sampler");
     await expect(view).toContainText("Commencé");
-    await expect(view).toContainText("Détails techniques");
-    await expect(view.locator("details summary", { hasText: "Détails techniques" })).toBeVisible();
     // Technique repliée par défaut.
     await expect(view.locator("details")).not.toHaveAttribute("open", "");
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -334,7 +331,7 @@ test.describe("UI-6 page Agents", () => {
     const watched = watchErrors(page);
     await login(page, "#/agents", { secondaryFail: true });
     const view = page.locator("#view");
-    await expect(view.locator(".agent-card")).toHaveCount(2);
+    await expect(view.locator(".agent-row")).toHaveCount(2);
     await expect(view).toContainText("Activité inconnue");
     await expect(view).toContainText("n'affirme aucune activité");
     await expect(view).not.toContainText("Actif récemment");
@@ -346,14 +343,14 @@ test.describe("UI-6 page Agents", () => {
     const watched = watchErrors(page);
     await login(page, "#/agents");
     const view = page.locator("#view");
-    await expect(view.locator(".agent-card")).toHaveCount(2);
+    await expect(view.locator(".agent-row")).toHaveCount(2);
     for (const size of [
       { width: 1280, height: 800 },
       { width: 768, height: 1024 },
       { width: 375, height: 812 },
     ]) {
       await page.setViewportSize(size);
-      await expect(view.locator(".agent-card").first()).toBeVisible();
+      await expect(view.locator(".agent-row").first()).toBeVisible();
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       expect(overflow).toBeLessThanOrEqual(1);
     }

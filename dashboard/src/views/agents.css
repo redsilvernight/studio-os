@@ -130,6 +130,36 @@
   overflow-wrap: anywhere;
 }
 
+/* Détails techniques : les valeurs mono (UUID, refs longues) doivent casser
+ * pour éviter l'overflow global sur vues étroites. Scopé à .agents. */
+.agents .ds-tech-list dd {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.agents .ds-tech-list code.mono {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+}
+
+/* Sécurité : tout contenu dans .agents doit rester dans les limites.
+ * La grille .ds-tech-list > div (140px 1fr) peut déborder si le 1fr
+ * n'est pas borné par min-width: 0 sur le conteneur dd. */
+.agents .ds-tech-list > div {
+  min-width: 0;
+}
+.agents .ds-tech-list dd {
+  min-width: 0;
+}
+
+/* Les panneaux DS et le héros ne doivent pas forcer la largeur. */
+.agents .ds-panel,
+.agents .ds-hero,
+.agents .agent-admin {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 @media (max-width: 640px) {
   .agent-row-link {
     gap: var(--ds-space-2);
