@@ -36,6 +36,13 @@ testpaths = ["tests", "services/api/tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
+# Hard per-test bound (fixture setup included): a fixture waiting on an absent
+# service fails after 120 s instead of stalling the whole run. Override with
+# @pytest.mark.timeout(n) for the long acceptance tests.
+timeout = 120
+markers = [
+    'infra(*services): needs real PostgreSQL and/or MinIO, e.g. infra("minio"); skipped, with the missing service named, when its port does not answer (tests/conftest.py). Run without them: -m "not infra"',
+]
 
 [dependency-groups]
 dev = [
