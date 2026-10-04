@@ -72,7 +72,7 @@ function toolbarHtml(state: ProjectsPageState, shown: number, total: number): st
   const selected = (value: ProjectStateFilter): string => (state.stateFilter === value ? " selected" : "");
   return `<div class="projects-toolbar" role="search" aria-label="Filtrer les projets chargés">` +
     `<div class="ds-search">${'<span class="ds-search-icon" aria-hidden="true">⌕</span>'}<label class="ds-sr-only" for="projects-filter">Filtrer les projets déjà chargés</label>` +
-    `<input class="ds-input" type="search" id="projects-filter" name="q" value="${esc(state.query)}" placeholder="Filtrer par nom, description ou slug…" autocomplete="off" /></div>` +
+    `<input class="ds-input" type="search" id="projects-filter" name="q" value="${esc(state.query)}" placeholder="Filtrer par nom, description ou identifiant…" autocomplete="off" /></div>` +
     `<label class="projects-state-filter"><span>État</span><select class="ds-select" id="projects-state">` +
     `<option value="all"${selected("all")}>Tous</option>` +
     `<option value="active"${selected("active")}>Actifs</option>` +
@@ -106,7 +106,7 @@ function cardHtml(project: Project, tasks: Task[] | null): string {
 /** Corps de la modale de création : champs labellisés, aide et zone d'erreur. */
 export function projectCreateFormHtml(): string {
   return `<form id="project-create-form" novalidate>` +
-    dsField("project-slug", "Slug", `<input class="ds-input" id="FIELD" name="slug" required placeholder="mon-projet" autocomplete="off" />`, "Identifiant lisible, sans espaces.") +
+    dsField("project-slug", "Identifiant court", `<input class="ds-input" id="FIELD" name="slug" required placeholder="mon-projet" autocomplete="off" />`, "Identifiant lisible, sans espaces.") +
     dsField("project-name", "Nom", `<input class="ds-input" id="FIELD" name="name" required autocomplete="off" />`) +
     dsField("project-desc", "Description (facultative)", `<textarea class="ds-textarea" id="FIELD" name="description" rows="3"></textarea>`) +
     `<p class="ds-list-sub">Réservé aux administrateurs et aux développeurs. Un envoi répété ne crée pas de doublon.</p>` +
@@ -194,7 +194,7 @@ function bindCreateDialog(root: HTMLElement, client: StudioClient, refresh: () =
       })(),
     };
     if (input.slug === "" || input.name === "") {
-      setCreateError(root, "Le slug et le nom sont obligatoires.");
+      setCreateError(root, "L'identifiant court et le nom sont obligatoires.");
       root.querySelector<HTMLElement>(input.slug === "" ? "#project-slug" : "#project-name")?.focus();
       return;
     }

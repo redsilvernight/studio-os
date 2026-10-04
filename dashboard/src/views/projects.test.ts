@@ -133,7 +133,7 @@ describe("projectsPageHtml nominal", () => {
     expect(html).toContain('id="project-create-dialog"');
     expect(html).toContain('role="dialog"');
     expect(html).toContain('aria-modal="true"');
-    expect(html).toContain("Slug");
+    expect(html).toContain("Identifiant court");
     expect(html).toContain("Description (facultative)");
     expect(html).toContain('role="alert"');
   });
