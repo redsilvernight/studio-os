@@ -1,6 +1,6 @@
 /**
- * UI-6 — Agents IA : cartes calmes, activité DERIVED honnête, français,
- * CSP, détail justifié par les données, dégradations honnêtes.
+ * P05-agents — liste compacte (rôle, disponibilité, projet), technique
+ * repliée en fiche, administration séparée. Aucune fonction experte perdue.
  *
  * DOM-free (vitest, node) : assertions sur les chaînes produites +
  * lecture statique de agents.css pour le responsive.
@@ -9,13 +9,18 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  agentCardHtml,
-  agentDetailHtml,
+  agentAvailabilityGroup,
+  agentDisplayName,
+  agentHeroHtml,
+  agentHeroTarget,
   agentNotFoundHtml,
+  agentPrimaryProject,
+  agentRoleLabel,
+  agentRowHtml,
   agentSignalHtml,
-  agentWorkSummaryHtml,
   agentsListHtml,
   agentsLoadingHtml,
+  agentDetailHtml,
   buildAgentNames,
 } from "./agents";
 import type { AgentActivity } from "../agentsApi";
@@ -130,57 +135,74 @@ describe("agentSignalHtml (DERIVED, vocabulaire honnête)", () => {
   });
 });
 
-describe("agentWorkSummaryHtml (relations réelles uniquement)", () => {
-  it("affiche la session ouverte avec tâche et projet liés", () => {
-    const html = agentWorkSummaryHtml(agentOf(), activityOf("open-session", { openSession: openSession() }), [], [], [taskOf()], names);
-    expect(html).toContain("Travaille sur");
-    expect(html).toContain("Corriger l'authentification");
-    expect(html).toContain(`#/tasks/${T1}`);
-    expect(html).toContain("Binding of Apotheosis");
-    expect(html).toContain(`#/projects/${P1}`);
+describe("agentDisplayName / agentRoleLabel (C2 : humain d'abord)", () => {
+  it("nom humain, repli générique sans identifiant", () => {
+    expect(agentDisplayName(agentOf())).toBe("Claude Atlas");
+    expect(agentDisplayName(agentOf({ display_name: "   " }))).toBe("Agent sans nom");
   });
 
-  it("replie sur le dernier AI work observé, jamais inventé", () => {
-    const html = agentWorkSummaryHtml(agentOf(), activityOf("recent"), [], [workOf()], [], names);
-    expect(html).toContain("Dernier travail observé");
-    expect(html).toContain("Commencé");
-    expect(html).toContain(`#/tasks/${T1}`);
-  });
-
-  it("dégrade honnêtement quand les secondaires sont indisponibles", () => {
-    const html = agentWorkSummaryHtml(agentOf(), activityOf("unknown"), [], [], [], names);
-    expect(html).toContain("Travail inconnu");
-    expect(html).not.toContain("Aucun travail observé");
-  });
-
-  it("n'affirme rien sans preuve quand tout est chargé", () => {
-    const html = agentWorkSummaryHtml(agentOf(), activityOf("none"), [], [], [], names);
-    expect(html).toContain("Aucun travail observé");
+  it("rôle déclaré ou null, jamais fabriqué", () => {
+    expect(agentRoleLabel(agentOf())).toBe("code");
+    expect(agentRoleLabel(agentOf({ agent_kind: "   " }))).toBeNull();
   });
 });
 
-describe("agentCardHtml (identité d'abord, technique en second)", () => {
-  const html = agentCardHtml(agentOf(), activityOf("recent"), [], [workOf()], [taskOf()], names);
+describe("agentAvailabilityGroup (5 signaux → 3 groupes lisibles)", () => {
+  it("session ouverte et récent restent distingués, le reste est inactif", () => {
+    expect(agentAvailabilityGroup("open-session")).toBe("active");
+    expect(agentAvailabilityGroup("recent")).toBe("recent");
+    expect(agentAvailabilityGroup("past")).toBe("inactive");
+    expect(agentAvailabilityGroup("none")).toBe("inactive");
+    expect(agentAvailabilityGroup("unknown")).toBe("inactive");
+  });
+});
 
-  it("priorise nom, nature déclarée et activité, sans rôle fabriqué", () => {
+describe("agentPrimaryProject (même ordre honnête que le résumé)", () => {
+  it("session ouverte d'abord, puis dernier travail, puis tâche prise", () => {
+    const viaSession = agentPrimaryProject(
+      agentOf(), activityOf("open-session", { openSession: openSession() }), [], [taskOf()], names,
+    );
+    expect(viaSession).toEqual({ id: P1, name: "Binding of Apotheosis" });
+    const viaWork = agentPrimaryProject(agentOf(), activityOf("recent"), [workOf()], [], names);
+    expect(viaWork).toEqual({ id: P1, name: "Binding of Apotheosis" });
+    const viaClaim = agentPrimaryProject(agentOf(), activityOf("none"), [], [taskOf()], names);
+    expect(viaClaim).toEqual({ id: P1, name: "Binding of Apotheosis" });
+  });
+
+  it("rien affirmé sans preuve", () => {
+    expect(agentPrimaryProject(agentOf(), activityOf("none"), [], [], names)).toBeNull();
+  });
+});
+
+describe("agentRowHtml (ligne compacte : nom + rôle + projet)", () => {
+  const html = agentRowHtml(agentOf(), activityOf("recent"), { id: P1, name: "Binding of Apotheosis" });
+
+  it("priorise nom, rôle et projet, lien vers la fiche", () => {
     expect(html).toContain("Claude Atlas");
     expect(html).toContain(`#/agents/${A1}`);
-    expect(html).toContain("Nature déclarée");
-    expect(html).toContain("Actif récemment");
-    expect(html).not.toMatch(/rôle/i);
+    expect(html).toContain("code · Binding of Apotheosis");
   });
 
-  it("distingue agent et machine, affiche la technique déclarée", () => {
-    expect(html).toContain("Exécuté sur la machine");
-    expect(html).not.toContain(M1.slice(0, 8));
-    expect(html).toContain('href="#/machines"');
-    expect(html).toContain("Modèle déclaré");
-    expect(html).not.toContain("Définition associée");
+  it("replies modèle, permissions et identifiants (fiche uniquement)", () => {
+    expect(html).not.toContain("claude-test");
+    expect(html).not.toContain("anthropic");
+    expect(html).not.toContain("opencode");
+    expect(html).not.toContain("Modèle déclaré");
+    expect(html).not.toContain("Fournisseur");
+    expect(html).not.toContain("Harnais");
+    expect(html).not.toContain(M1);
+    expect(html).not.toContain("Exécuté sur la machine");
   });
 
-  it("ne simule aucune association agent-definition", () => {
-    expect(html).not.toContain("agent-definitions");
-    expect(html).not.toContain("Bibliothèque");
+  it("libellés génériques sans identifiant quand rien n'est renseigné", () => {
+    const bare = agentRowHtml(
+      agentOf({ display_name: "  ", agent_kind: "  " }), activityOf("none"), null,
+    );
+    expect(bare).toContain("Agent sans nom");
+    expect(bare).toContain("Rôle non renseigné · aucun projet");
+    // C2 : aucun UUID hors fragment de route admit (#/agents/:id).
+    expect(bare.replace(/href="[^"]*"/g, "")).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}/);
+    expect(bare).not.toContain(M1);
   });
 
   it("contient ni style ni handler inline (CSP)", () => {
@@ -189,16 +211,70 @@ describe("agentCardHtml (identité d'abord, technique en second)", () => {
   });
 });
 
-describe("agentsListHtml (liste calme, empty utile)", () => {
-  const activities = new Map([[A1, activityOf("recent")]]);
+describe("agentHeroTarget / agentHeroHtml (C1 : une seule action primaire)", () => {
+  it("session ouverte : titre honnête et primaire vers la tâche en 1 clic", () => {
+    const target = agentHeroTarget(
+      agentOf(), activityOf("open-session", { openSession: openSession() }), [openSession()], [], [taskOf()], names,
+    );
+    expect(target.title).toContain("Travaille sur");
+    expect(target.taskId).toBe(T1);
+    const html = agentHeroHtml(target);
+    expect(html).toContain(`href="#/tasks/${T1}"`);
+    expect(html).toContain("Ouvrir le travail");
+    expect(html).toContain(`href="#/projects/${P1}"`);
+    expect(html.match(/ds-btn--primary/g)?.length).toBe(1);
+  });
 
-  it("liste nominale : en-tête FR, recherche locale, cartes sobres", () => {
-    const html = agentsListHtml([agentOf()], activities, { sessions: [], aiWork: [workOf()], tasks: [taskOf()] }, names, "", true);
+  it("repli sur le dernier travail observé, jamais inventé", () => {
+    const target = agentHeroTarget(agentOf(), activityOf("recent"), [], [workOf()], [], names);
+    expect(target.title).toContain("Dernier travail");
+    expect(target.taskId).toBe(T1);
+    expect(agentHeroHtml(target)).toContain("Commencé");
+  });
+
+  it("dégrade honnêtement quand les secondaires sont indisponibles", () => {
+    const target = agentHeroTarget(agentOf(), activityOf("unknown"), [], [], [], names);
+    expect(target.title).toContain("Travail inconnu");
+    expect(agentHeroHtml(target)).not.toContain("ds-btn--primary");
+  });
+
+  it("n'affirme rien sans preuve quand tout est chargé", () => {
+    const target = agentHeroTarget(agentOf(), activityOf("none"), [], [], [], names);
+    expect(target.title).toContain("Aucun travail observé");
+    expect(agentHeroHtml(target)).not.toContain("#/tasks/");
+  });
+
+  it("contient ni style ni handler inline (CSP)", () => {
+    const target = agentHeroTarget(
+      agentOf(), activityOf("open-session", { openSession: openSession() }), [openSession()], [], [taskOf()], names,
+    );
+    const html = agentHeroHtml(target);
+    expect(html).not.toMatch(/<[^>]*\sstyle\s*=/i);
+    expect(html).not.toMatch(/<[^>]*\son[a-z]+\s*=/i);
+  });
+});
+
+describe("agentsListHtml (liste compacte groupée, empty utile)", () => {
+  const activities = new Map([[A1, activityOf("open-session", { openSession: openSession() })]]);
+
+  it("liste nominale : en-tête FR, recherche nom ou rôle, groupes de dispo", () => {
+    const html = agentsListHtml([agentOf()], activities, { sessions: [openSession()], aiWork: [], tasks: [taskOf()] }, names, "", true);
     expect(html).toContain("<h1>Agents IA</h1>");
-    expect(html).toContain("collaborateurs logiciels");
+    expect(html).toContain("d'un coup d'œil");
     expect(html).toContain('id="agents-search"');
+    expect(html).toContain("par nom ou rôle");
     expect(html).toContain("recherche locale");
+    expect(html).toContain("En activité");
     expect(html).toContain("Claude Atlas");
+    expect(html).toContain("code · Binding of Apotheosis");
+  });
+
+  it("technique et identifiants absents de la liste, projet prioritaire présent", () => {
+    const html = agentsListHtml([agentOf()], activities, { sessions: [openSession()], aiWork: [], tasks: [taskOf()] }, names, "", true);
+    expect(html).not.toContain("claude-test");
+    expect(html).not.toContain("Modèle déclaré");
+    expect(html).not.toContain(M1);
+    expect(html).not.toContain("Exécuté sur la machine");
   });
 
   it("empty state explique l'agent sans bouton de création fictif", () => {
@@ -239,19 +315,21 @@ describe("agentsLoadingHtml", () => {
   });
 });
 
-describe("agentDetailHtml (fiche justifiée par les données)", () => {
+describe("agentDetailHtml (héros + expertes repliées + admin séparée)", () => {
   const html = agentDetailHtml(agentOf(), activityOf("open-session", { openSession: openSession() }), [openSession()], [workOf()], names);
 
-  it("répond qui / travail / environnement, hiérarchie h1→h2", () => {
+  it("répond qui / travail / environnement, héros avec action unique", () => {
     expect(html).toContain("<h1>Claude Atlas</h1>");
+    expect(html).toContain("Travail actuel");
+    expect(html).toContain("Travaille sur");
+    expect(html).toContain("Corriger l");
+    expect(html).toContain(`href="#/tasks/${T1}"`);
     expect(html).toContain("<h2>Activité</h2>");
-    expect(html).toContain("<h2>Travail actuel</h2>");
-    expect(html).toContain("<h2>Résumé</h2>");
     expect(html).toContain("<h2>Travail produit</h2>");
     expect(html).toContain("<h2>Sessions</h2>");
     expect(html).toContain("<h2>Environnement</h2>");
-    expect(html).toContain("Travaille sur");
-    expect(html).toContain("Corriger l");
+    expect(html).not.toContain("<h2>Travail actuel</h2>");
+    expect(html).not.toContain("<h2>Résumé</h2>");
   });
 
   it("sessions honnêtes, relecture renvoyée vers UI-8", () => {
@@ -267,11 +345,27 @@ describe("agentDetailHtml (fiche justifiée par les données)", () => {
     expect(html).toContain("simple étiquette libre");
   });
 
-  it("technique en divulgation progressive, CSP respectée", () => {
+  it("modèle, permissions et IDs repliés dans les détails techniques", () => {
     expect(html).toContain("<details");
-    expect(html).toContain("Détails techniques");
+    expect(html).toContain("Détails techniques · modèle, permissions, identifiants");
+    expect(html).toContain("Modèle déclaré");
+    expect(html).toContain("claude-test");
+    expect(html).toContain("Permissions");
+    expect(html).toContain("Aucune définition associée");
     expect(html).toContain("ds-tech");
     expect(html).toContain(A1);
+  });
+
+  it("administration séparée du quotidien, sans action à distance inventée", () => {
+    expect(html).toContain("<h2>Administration</h2>");
+    expect(html).toContain("séparée du quotidien");
+    expect(html).toContain("Voir la machine");
+    expect(html).toContain("Paramètres runtime");
+    expect(html).toContain("aucune action à distance");
+    expect(html).not.toContain("Révoquer");
+  });
+
+  it("technique CSP respectée", () => {
     expect(html).not.toMatch(/<[^>]*\sstyle\s*=/i);
     expect(html).not.toMatch(/<[^>]*\son[a-z]+\s*=/i);
   });
@@ -286,11 +380,13 @@ describe("agentNotFoundHtml", () => {
   });
 });
 
-describe("agents.css (responsive, pas de remplissage artificiel)", () => {
+describe("agents.css (liste compacte, pas de remplissage artificiel)", () => {
   const css = readFileSync(join(__dirname, "agents.css"), "utf8");
 
-  it("colonne étroite aérée, empilement mobile, reduced-motion", () => {
+  it("colonne étroite aérée, lignes et groupes, empilement mobile, reduced-motion", () => {
     expect(css).toContain("max-width: 860px");
+    expect(css).toContain(".agent-row");
+    expect(css).toContain(".agents-group");
     expect(css).toContain("@media (max-width: 640px)");
     expect(css).toContain("prefers-reduced-motion");
   });
