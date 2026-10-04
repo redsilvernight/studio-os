@@ -13,6 +13,8 @@ import asyncpg
 import bcrypt
 import pytest
 
+from tests import infra_probe
+
 # The API refuses a weak JWT secret in production (the default environment);
 # set before any test imports studio_api.main, which builds the app on import.
 os.environ.setdefault("STUDIO_ENVIRONMENT", "test")
@@ -78,7 +80,7 @@ def _resolve_test_database_url() -> str:
     if parts.hostname == "localhost":
         parts = parts._replace(netloc=parts.netloc.replace("@localhost", "@127.0.0.1"))
     worker = os.environ.get("PYTEST_XDIST_WORKER")
-    if worker and configured:
+    if worker and configured and infra_probe.probe("postgres").reachable:
         template = parts.path.lstrip("/")
         name = f"{template}_{worker}"
         parts = parts._replace(path=f"/{name}")
@@ -98,10 +100,81 @@ def load_fixture(name: str) -> list[dict[str, object]]:
     return cast(list[dict[str, object]], raw)
 
 
+# Fixtures whose closure means "a real PostgreSQL is needed" (see the module docstring
+# of tests/infra_probe.py for how reachability is decided).
+_POSTGRES_FIXTURES = frozenset({"db_session", "engine"})
+_INFRA_STASH: pytest.StashKey[dict[str, list[str]]] = pytest.StashKey()
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption(
+        "--require-infra",
+        action="store_true",
+        default=False,
+        help="fail fast (instead of skipping) when PostgreSQL/MinIO needed by "
+        "`infra` tests is unreachable",
+    )
+
+
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line(
         "markers",
         "isolation: real project isolation — no automatic memberships (DEC-0103)",
+    )
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Tests that really need PostgreSQL (fixture closure holds `db_session`/`engine`)
+    are tagged `infra`; `@pytest.mark.infra("minio")` adds MinIO. When a needed
+    service does not answer a 0.5 s TCP probe the test is skipped with the service
+    named, instead of waiting on a fixture connect. With the services up nothing
+    changes. `-m "not infra"` deselects them outright."""
+    needs: dict[str, set[str]] = {}
+    for item in items:
+        required = set()
+        if _POSTGRES_FIXTURES & set(getattr(item, "fixturenames", ())):
+            required.add("postgres")
+        for marker in item.iter_markers("infra"):
+            required.update(marker.args)
+        if required:
+            item.add_marker(pytest.mark.infra)
+            needs[item.nodeid] = required
+
+    if not needs:
+        return
+    probes = {s: infra_probe.probe(s) for s in sorted({s for r in needs.values() for s in r})}
+    down = {s: r for s, r in probes.items() if not r.reachable}
+    skipped: dict[str, list[str]] = {}
+    if down and config.getoption("--require-infra"):
+        raise pytest.UsageError(
+            "--require-infra: unreachable: "
+            + ", ".join(f"{r.service} ({r.host}:{r.port})" for r in down.values())
+        )
+    for item in items:
+        missing = sorted(needs.get(item.nodeid, set()) & down.keys())
+        if not missing:
+            continue
+        label = ", ".join(f"{s} {down[s].host}:{down[s].port}" for s in missing)
+        item.add_marker(pytest.mark.skip(reason=f"infra absente: {label}"))
+        skipped.setdefault(",".join(missing), []).append(item.nodeid)
+    config.stash[_INFRA_STASH] = skipped
+
+
+def pytest_terminal_summary(terminalreporter: Any, config: pytest.Config) -> None:
+    skipped = config.stash.get(_INFRA_STASH, {})
+    if not skipped:
+        return
+    terminalreporter.section("tests NON exécutés faute d'infra")
+    for services, nodeids in sorted(skipped.items()):
+        files = sorted({n.split("::", 1)[0] for n in nodeids})
+        terminalreporter.write_line(
+            f"{services}: {len(nodeids)} test(s) ignoré(s) dans {len(files)} fichier(s)"
+        )
+        for name in files:
+            count = sum(1 for n in nodeids if n.split("::", 1)[0] == name)
+            terminalreporter.write_line(f"  {name} ({count})")
+    terminalreporter.write_line(
+        "Ces suites n'ont PAS tourné : un run vert ici ne valide ni PostgreSQL ni MinIO."
     )
 
 
