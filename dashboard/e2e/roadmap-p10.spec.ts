@@ -149,8 +149,10 @@ test.describe("Roadmaps P10 - Dashboard release gate", () => {
     );
     await go(page, "#/decisions");
     await expect(page.getByText("Proposition de roadmap").first()).toBeVisible();
-    await expect(page.getByText("révision 3 de « Plan P10 »")).toBeVisible();
-    const link = page.getByRole("link", { name: "Examiner dans Roadmap" });
+    // Carte unique « Révision N du plan », héros compris : l'objet n'apparaît qu'une fois.
+    await expect(page.getByRole("heading", { name: "Approuver la révision 3 du plan" })).toBeVisible();
+    await expect(page.locator('.review-card[data-kind="roadmap_proposal"]')).toHaveCount(0);
+    const link = page.getByRole("link", { name: "Examiner la révision 3" }).first();
     await expect(link).toHaveAttribute("href", `#/projects/${P1}/roadmap/${ROADMAP_ID}`);
     await link.click();
     // ...and the reviewer lands on the pending proposal with its diff and the decision actions
