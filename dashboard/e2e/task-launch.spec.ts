@@ -221,6 +221,9 @@ async function openTaskDetail(page: Page, captured: Captured): Promise<void> {
   await page.fill("#login-email", "e2e@example.test");
   await page.fill("#login-password", "e2e-secret");
   await page.locator("#login-form button[type=submit]").click();
+  // Les automatisations sont repliées par défaut (divulgation progressive) :
+  // on ouvre le bloc avant de piloter le panneau.
+  await page.locator("#task-mecanique summary").click();
   await expect(page.locator('[data-testid="launch-panel"]')).toBeVisible();
 }
 
@@ -347,6 +350,41 @@ test("session liée : lien vers la session puis vers le handoff une fois termin�
   await page.locator('[data-action="launch-refresh"]').click();
   await expect(page.locator('[data-testid="launch-session-link"]')).toContainText("terminée");
   await expect(page.locator('[data-testid="launch-handoff-link"]')).toHaveAttribute("href", "#task-ai-work");
+
+  expect(errors.fatal).toEqual([]);
+  expect(errors.csp).toEqual([]);
+});
+
+test("divulgation progressive : repli fermé par défaut, ancre interne qui l'ouvre", async ({ page }) => {
+  const captured = newCaptured(
+    launchFixture({ status: "running", session_id: "sess-0000-4111-8111-000000000001" }),
+  );
+  const errors = watchErrors(page);
+  page.on("dialog", (dialog) => void dialog.accept());
+  await page.route("**/api/**", apiStub(captured));
+  await page.goto(`/#/tasks/${TASK_ID}`);
+  await expect(page.locator("#login-form")).toBeVisible();
+  await page.fill("#login-email", "e2e@example.test");
+  await page.fill("#login-password", "e2e-secret");
+  await page.locator("#login-form button[type=submit]").click();
+
+  // À l'arrivée, la mécanique est repliée : pas de panneau, pas d'identifiant.
+  const hero = page.locator(".task-detail-hero");
+  await expect(hero.locator("h1")).toHaveText(TASK.title);
+  await expect(page.locator("#task-mecanique")).not.toHaveAttribute("open", "");
+  await expect(page.locator('[data-testid="launch-panel"]')).toBeHidden();
+  await expect(hero.locator(".ds-status")).toContainText("À faire");
+  await expect(hero.locator(".ds-btn--primary")).toHaveCount(1);
+
+  // Une ancre interne vers un bloc replié l'ouvre et défile : jamais le 404
+  // du routeur, qui ne connaît pas les ancres de page.
+  await page
+    .locator('[data-testid="launch-session-link"]')
+    .evaluate((node) => (node as HTMLElement).click());
+  await expect(page.locator("#task-mecanique")).toHaveAttribute("open", "");
+  await expect(page.locator("#task-sessions")).toBeVisible();
+  await expect(page.locator("h1")).toHaveText(TASK.title);
+  await expect(page).toHaveURL(new RegExp(`#/tasks/${TASK_ID}$`));
 
   expect(errors.fatal).toEqual([]);
   expect(errors.csp).toEqual([]);
