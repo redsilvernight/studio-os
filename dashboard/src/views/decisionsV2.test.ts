@@ -257,10 +257,10 @@ describe("Labels FR (source unique)", () => {
 
 describe("reviewQueueItemDetail", () => {
   it("détail selon kind, sans identifiant brut", () => {
-    expect(reviewQueueItemDetail(aiWorkItem().items[0]!)).toContain("par");
+    expect(reviewQueueItemDetail(aiWorkItem().items[0]!)).toContain("Relire le travail de");
     expect(reviewQueueItemDetail(decisionProposalItem().items[0]!)).toBe("DEC-0049 · Agent");
     expect(reviewQueueItemDetail(conflictItem().items[0]!)).toBe("sur scenes/level_01.tscn");
-    expect(reviewQueueItemDetail(buildItem().items[0]!)).toBe("workflow ci · branche main");
+    expect(reviewQueueItemDetail(buildItem().items[0]!)).toBe("ci sur main");
     expect(reviewQueueItemDetail(prItem().items[0]!)).toBe("PR #42 · feat/ui-8 → main");
     expect(
       reviewQueueItemDetail(roadmapItem({ scope: "revision", revisionNo: 3, baseRevisionNo: 2 }).items[0]!),

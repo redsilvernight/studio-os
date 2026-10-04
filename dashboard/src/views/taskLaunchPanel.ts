@@ -304,8 +304,7 @@ export function launchConfirmText(
 export function launchPanelHtml(state: LaunchPanelState): string {
   const header = dsSectionHeader("Lancer sur…");
   const intro =
-    `<p class="ds-list-sub">Lancement en modèle « pull » : le serveur enregistre une demande typée, le poste cible la tire, ` +
-    `décide localement puis rapporte. Aucun état n'est inventé ici : seul le statut rapporté par le poste fait foi.</p>`;
+    `<p class="ds-list-sub">Le lancement reste une demande : le poste choisi la récupère dès qu'il est disponible, l'exécute localement, puis rapporte l'état réel.</p>`;
 
   if (!state.authed) {
     return `<section class="task-detail-section" aria-label="Lancer sur une machine">${header}${intro}` +

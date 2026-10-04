@@ -105,13 +105,13 @@ export const PROPOSER_TYPE_LABEL: Record<string, string> = {
 export function reviewQueueItemDetail(item: ReviewQueueItem): string {
   switch (item.kind) {
     case "ai_work_review":
-      return `par ${agentLabel(item.agent_id)}`;
+      return `Relire le travail de ${agentLabel(item.agent_id)}`;
     case "decision_proposal":
       return `${item.readable_id} · ${PROPOSER_TYPE_LABEL[item.proposed_by_type] ?? item.proposed_by_type}`;
     case "resource_conflict":
       return `sur ${item.resource_path}`;
     case "build_failure":
-      return `workflow ${item.workflow_name} · branche ${item.branch}`;
+      return `${item.workflow_name} sur ${item.branch}`;
     case "pr_ready":
       return `PR #${item.pr_number} · ${item.head_branch} → ${item.base_branch}`;
     case "roadmap_proposal": {

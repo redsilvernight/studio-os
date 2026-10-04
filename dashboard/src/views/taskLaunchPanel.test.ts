@@ -95,11 +95,13 @@ describe("launchPanelHtml", () => {
     const html = launchPanelHtml(state({ authed: false }));
     expect(html).toContain("Connectez-vous");
     expect(html).not.toContain("launch-machine");
+    expect(html).toContain("Le lancement reste une demande");
   });
 
   it("données indisponibles : avertissement, jamais d'état inventé", () => {
     const html = launchPanelHtml(state({ data: null }));
     expect(html).toContain("Machines éligibles indisponibles");
+    expect(html).toContain("Le lancement reste une demande");
   });
 
   it("poste inéligible : option désactivée avec sa raison ; éligible sélectionnable", () => {
@@ -115,6 +117,7 @@ describe("launchPanelHtml", () => {
     expect(html).toMatch(/<option value="m-off" disabled>/);
     expect(html).toMatch(/<option value="m-ok">/);
     expect(html).toContain("hors ligne");
+    expect(html).toContain("Le lancement reste une demande");
   });
 
   it("harnais non détecté désactivé ; bouton lancer désactivé sans harnais", () => {
@@ -133,6 +136,7 @@ describe("launchPanelHtml", () => {
     const html = launchPanelHtml(state({ data, selectedMachineId: "m1" }));
     expect(html).toMatch(/<option value="ghost" disabled>/);
     expect(html).toContain('data-action="launch-submit" disabled');
+    expect(html).toContain("Le lancement reste une demande");
   });
 
   it("bouton aperçu désactivé sans agent ; activé avec agent", () => {

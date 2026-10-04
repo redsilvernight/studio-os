@@ -244,14 +244,14 @@ describe("homeTasksHtml", () => {
 
 describe("reviewQueueItemDetail", () => {
   it("décrit honnêtement chaque kind sans inventer d'action", () => {
-    expect(reviewQueueItemDetail(aiItem("a1"))).toContain("agent");
+    expect(reviewQueueItemDetail(aiItem("a1"))).toContain("Relire le travail de");
     expect(reviewQueueItemDetail(decisionItem("d1"))).toBe("DEC-0049");
     expect(
       reviewQueueItemDetail({ kind: "resource_conflict", resource_path: "scenes/level_01.tscn" } as never),
     ).toBe("scenes/level_01.tscn");
     expect(
       reviewQueueItemDetail({ kind: "build_failure", workflow_name: "ci", branch: "main" } as never),
-    ).toBe("ci on main");
+    ).toBe("ci sur main");
     expect(
       reviewQueueItemDetail({ kind: "pr_ready", pr_number: 7, head_branch: "feat", base_branch: "main" } as never),
     ).toBe("PR #7 feat → main");

@@ -25,6 +25,7 @@ import { dsBadge, dsEmptyState, dsHeroCard, dsPageHeader, dsSectionHeader, dsSke
 import { resolveReview, type ReviewResolution } from "../reviewApi";
 import { describeError, esc } from "../ui";
 import { REVIEW_KIND_SHORT_LABEL } from "../language";
+import { agentLabel } from "../actorNames";
 import type { components } from "../openapi-schema";
 
 type Project = components["schemas"]["Project"];
@@ -52,13 +53,13 @@ const TASK_STATUS_LABEL: Record<string, string> = {
 export function reviewQueueItemDetail(item: ReviewQueueItem): string {
   switch (item.kind) {
     case "ai_work_review":
-      return `agent ${shortAgent(item.agent_id)}`;
+      return `Relire le travail de ${agentLabel(item.agent_id)}`;
     case "decision_proposal":
       return item.readable_id;
     case "resource_conflict":
       return item.resource_path;
     case "build_failure":
-      return `${item.workflow_name} on ${item.branch}`;
+      return `${item.workflow_name} sur ${item.branch}`;
     case "pr_ready":
       return `PR #${item.pr_number} ${item.head_branch} → ${item.base_branch}`;
     case "roadmap_proposal":
@@ -66,11 +67,6 @@ export function reviewQueueItemDetail(item: ReviewQueueItem): string {
         ? `révision ${item.revision_no} de « ${item.title} »`
         : `« ${item.title} » soumise pour validation`;
   }
-}
-
-function shortAgent(id: string | null | undefined): string {
-  if (!id) return "—";
-  return id.length > 8 ? `${id.slice(0, 8)}…` : id;
 }
 
 export type HomeResult<T> = { ok: true; value: T } | { ok: false; message: string };
