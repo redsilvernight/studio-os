@@ -33,11 +33,38 @@
   min-width: 220px;
 }
 
-.tasks-status-filter {
+/* Vues nommées (Maintenant, Mon travail, Toutes) : l'active porte aria-pressed. */
+.tasks-scopes {
   display: grid;
-  gap: var(--ds-space-1);
+  gap: var(--ds-space-2);
+}
+
+.tasks-scope-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+}
+
+.tasks-scope-count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
+.tasks-scope-hint {
+  margin: 0;
+}
+
+/* Groupes de la liste par statut réel, dans l'ordre d'attention. */
+.tasks-group {
+  display: grid;
+  gap: var(--ds-space-2);
+}
+
+.tasks-group-title {
+  margin: 0;
   font-size: var(--ds-text-sm);
   font-weight: 600;
+  color: var(--ds-text-muted);
 }
 
 .tasks-toolbar .ds-list-sub {

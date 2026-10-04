@@ -840,6 +840,7 @@ test.describe("UI-15 tâches : liste et kanban étroits", () => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 375, height: 800 });
     await login(page, "#/tasks", true);
+    await page.locator('#view [data-scope="all"]').first().click();
     await page.locator('#view [data-view="board"]').click();
     const board = page.locator("#view .tasks-board");
     await expect(board).toBeVisible({ timeout: 10_000 });
