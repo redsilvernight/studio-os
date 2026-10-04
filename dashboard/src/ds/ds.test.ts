@@ -14,6 +14,7 @@ import {
   dsProgress,
   dsSectionHeader,
   dsSkeleton,
+  dsStateHtml,
   dsStatus,
   dsStatusDot,
   dsTabsHtml,
@@ -294,5 +295,76 @@ describe("dsErrorState", () => {
 
   it("escapes user content", () => {
     expect(dsErrorState("<script>", "<b>gras</b>")).not.toContain("<script>");
+  });
+});
+
+describe("dsStateHtml (les cinq états transverses)", () => {
+  const options = { title: "Titre", message: "Message." };
+
+  it("intouvable : l'adresse est rappelée avec un retour unique", () => {
+    const html = dsStateHtml("notFound", {
+      ...options,
+      title: "Adresse inconnue",
+      message: "« #/ancien-lien » n'existe pas ou a été déplacée.",
+      action: { label: "Retour à l'accueil", href: "#/" },
+      details: [{ label: "Route", value: "#/ancien-lien", mono: true }],
+    });
+    expect(html).toContain('role="status"');
+    expect(html).toContain("Adresse inconnue");
+    expect(html).toContain("#/ancien-lien");
+    expect(html).toContain('<a class="ds-btn ds-btn--primary" href="#/">Retour à l\'accueil</a>');
+    expect(html).toContain("<details");
+    expect(html).toContain('<code class="mono">#/ancien-lien</code>');
+  });
+
+  it("vide : explication + action, sans identifiant par défaut", () => {
+    const html = dsStateHtml("empty", { ...options, action: { label: "Lancer", id: "start" } });
+    expect(html).toContain('role="status"');
+    expect(html).toContain("<h3>Titre</h3>");
+    expect(html).toContain('<button class="ds-btn ds-btn--primary" type="button" id="start">Lancer</button>');
+    expect(html).not.toContain("<details");
+  });
+
+  it("chargement : squelette silencieux, aucune action ni bannière", () => {
+    const html = dsStateHtml("loading", options);
+    expect(html).toContain("ds-skeleton");
+    expect(html).toContain("Chargement en cours");
+    expect(html).not.toContain("ds-empty");
+    expect(html).not.toContain("ds-notice");
+  });
+
+  it("erreur : cause, réessai primaire et détail discret", () => {
+    const html = dsStateHtml("error", {
+      ...options,
+      action: { label: "Réessayer", id: "retry" },
+      secondary: { label: "Voir la file", href: "#/offline" },
+      details: [{ label: "Cause", value: "connexion" }],
+    });
+    expect(html).toContain('role="alert"');
+    expect(html).toContain("ds-empty--error");
+    expect(html).toContain('id="retry"');
+    expect(html).toContain('class="ds-btn ds-btn--ghost" href="#/offline"');
+  });
+
+  it("hors ligne : statut dégradé, pas de seconde bannière de connexion", () => {
+    const html = dsStateHtml("offline", {
+      ...options,
+      message: "La file locale reste active.",
+      action: { label: "Reprendre quand reconnecté", href: "#/" },
+      secondary: { label: "Voir la file", href: "#/offline" },
+    });
+    expect(html).toContain('role="status"');
+    expect(html).toContain("ds-notice--warning");
+    expect(html).toContain("Hors ligne.");
+    expect(html).toContain("La file locale reste active.");
+    expect(html.match(/class="ds-notice /g) ?? []).toHaveLength(1);
+    expect(html.match(/ds-btn--primary/g) ?? []).toHaveLength(1);
+  });
+
+  it("échappe le contenu et n'ajoute aucun style ni gestionnaire (CSP)", () => {
+    const html = dsStateHtml("empty", { title: "<script>x</script>", message: "<b>gras</b>" });
+    expect(html).not.toContain("<script>");
+    expect(html).not.toMatch(/<[^>]*\sstyle\s*=/i);
+    expect(html).not.toMatch(/<[^>]*\son[a-z]+\s*=/i);
   });
 });

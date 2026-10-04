@@ -102,6 +102,16 @@ function humanMessage(error: ApiError): string {
 }
 
 /**
+ * Vrai quand l'échec vient du réseau coupé plutôt que du serveur : les
+ * surfaces outils affichent alors l'état « hors ligne » partagé (file
+ * locale, reprise à la reconnexion) au lieu d'une erreur générique.
+ */
+export function isOfflineError(error: unknown): boolean {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
+  return error instanceof TypeError && /fetch|network|load failed|offline/i.test(error.message);
+}
+
+/**
  * Erreur de mutation lisible : un message humain d'abord, puis les détails
  * utiles au débogage entre parenthèses (statut, code métier, version serveur).
  * N'invente jamais un changement d'état.

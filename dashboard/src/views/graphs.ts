@@ -1,7 +1,7 @@
 import { getPlatform, type Platform } from "../platform";
 import type { GraphPage, GraphNodeRef } from "../platform/generated/local-contracts.generated";
-import { dsPageHeader } from "../ds/ds";
-import { esc } from "../ui";
+import { dsPageHeader, dsStateHtml, dsTechDetails } from "../ds/ds";
+import { esc, isOfflineError } from "../ui";
 import { loadOnboardingState } from "../onboarding/state";
 import { GraphCollection, nodeKey } from "../graphs/model";
 import { createLocalGraphSource, STATE_LABELS, type GraphDataSource, type GraphKind, type SourceStatus } from "../graphs/provider";
@@ -18,20 +18,76 @@ export interface GraphPageOptions {
 
 const titles: Record<GraphKind, string> = { knowledge: "Graphe de connaissances", code: "Graphe de code", project: "Graphe du projet" };
 
+const descriptions: Record<GraphKind, string> = {
+  knowledge: "Éléments, relations et provenance, sans ouverture auto.",
+  code: "Éléments, relations et provenance, sans ouverture auto.",
+  project: "Projection des sources disponibles et de leurs références explicites.",
+};
+
+/** Identifiant du bouton « Réessayer » partagé par les états du graphe. */
+const GRAPH_RETRY_ID = "graph-retry";
+
+/**
+ * Réseau coupé : le statut de connexion du shell passe déjà en dégradé, on
+ * ne pose donc qu'une seule action de reprise ici — pas de seconde bannière.
+ */
+function offlineStateHtml(error?: unknown): string {
+  return dsStateHtml("offline", {
+    title: "Serveur injoignable",
+    message:
+      error instanceof Error && error.message !== ""
+        ? `Les sources du poste n'ont pas pu être jointes. ${error.message}`
+        : "Les sources du poste n'ont pas pu être jointes. La file locale reste active et la reprise se fera au retour du réseau.",
+    action: { label: "Réessayer", id: GRAPH_RETRY_ID },
+    details: [{ label: "Vue", value: "Sources locales du dossier sélectionné ; aucune donnée n'est inventée hors ligne." }],
+  });
+}
+
+/**
+ * Colonne de contexte : règle de liaison, repli sans dossier, puis les
+ * détails que le flux n'affiche plus (curseurs de pagination, fournisseurs).
+ * Aucun état de source ici — la carte principale les porte une seule fois.
+ */
+function graphContextHtml(hasWorkspace: boolean): string {
+  const noWorkspace =
+    hasWorkspace
+      ? ""
+      : `<div><h2>Sans dossier</h2><p>Aucun dossier actif : <a href="#/workspaces">ouvrez les dossiers</a>, ou explorez une démonstration ci-dessus.</p></div>`;
+  return (
+    `<aside class="ds-card tool-context" aria-label="Contexte du graphe">` +
+    `<div><h2>Règle de liaison</h2><p>Un lien entre sources n'apparaît que si une référence explicite est fournie. Tâches, roadmap, décisions et Git ne sont pas reliés automatiquement.</p></div>` +
+    noWorkspace +
+    `<div>` +
+    dsTechDetails(
+      [
+        { label: "Pagination", value: "La liste reprend là où elle s'est arrêtée (« Résultats suivants ») ; les curseurs restent internes." },
+        { label: "Fournisseurs", value: "Sources locales du dossier sélectionné, jamais le réseau." },
+        { label: "Démonstrations", value: "Jeux de données fictifs : aucun fichier du poste n'est lu." },
+      ],
+      "Détails techniques — curseurs et fournisseurs",
+    ) +
+    `</div>` +
+    `</aside>`
+  );
+}
+
 export function mountGraphPage(root: HTMLElement, kind: GraphKind, options: GraphPageOptions = {}): { ready: Promise<void>; dispose(): void } {
   const platform = options.platform ?? getPlatform();
   // Sans dossier dans l'URL (lien de la barre latérale), reprendre celui retenu par l'onboarding.
   const workspaceId = options.workspaceId ?? (platform.mode === "web" ? undefined : loadOnboardingState().workspaceId);
   const suffix = workspaceId ? `/${encodeURIComponent(workspaceId)}` : "";
-  root.innerHTML = `${dsPageHeader(titles[kind], kind === "project" ? "Projection des sources disponibles et de leurs références explicites." : "Explorez les éléments, leurs relations et leur provenance.")}
+  root.innerHTML = `<p class="ds-eyebrow">Administration · Dossier actif</p>${dsPageHeader(titles[kind], descriptions[kind])}
     <nav class="graph-tabs" aria-label="Vues de graphe">${Object.entries(titles).map(([key, title]) => `<a class="ds-btn" href="#/graphs/${key}${suffix}" ${key === kind ? 'aria-current="page"' : ""}>${title}</a>`).join("")}</nav>
+    <div class="tool-columns">
+    <div class="tool-main">
     <section class="ds-card graph-page">
-      <div class="graph-page-controls"><label>Source affichée <select data-graph-demo><option value="local">Sources du dossier</option><option value="small">Démonstration · petit graphe</option><option value="medium">Démonstration · 1 000 nœuds</option><option value="large">Démonstration · 30 000 nœuds</option><option value="partial">Démonstration · graphe partiel</option><option value="empty">Démonstration · graphe vide</option></select></label><button class="ds-btn" type="button" data-reload>Actualiser</button></div>
+      <div class="graph-page-controls"><label>Source affichée <select data-graph-demo><option value="local">Sources du dossier</option><option value="small">Démonstration · petit graphe</option><option value="medium">Démonstration · 1 000 nœuds</option><option value="large">Démonstration · 30 000 nœuds</option><option value="partial">Démonstration · graphe partiel</option><option value="empty">Démonstration · graphe vide</option></select></label><button class="ds-btn ds-btn--primary" type="button" data-reload>Actualiser</button></div>
       <p data-origin></p><div data-source-status role="status" aria-live="polite"></div>
       <div data-operation-status role="status" aria-live="polite"></div>
       <form data-source-search hidden><label>Rechercher dans les sources <input name="query" maxlength="200" required autocomplete="off"></label><button class="ds-btn" type="submit">Rechercher dans les sources</button></form>
       <div data-source-results></div><div data-viewer></div>
-    </section>`;
+    </section>
+    </div>${graphContextHtml(workspaceId !== undefined)}</div>`;
   const select = root.querySelector<HTMLSelectElement>("[data-graph-demo]")!;
   const statusRoot = root.querySelector<HTMLElement>("[data-source-status]")!;
   const operationRoot = root.querySelector<HTMLElement>("[data-operation-status]")!;
@@ -124,6 +180,7 @@ export function mountGraphPage(root: HTMLElement, kind: GraphKind, options: Grap
       }
       const reports: { label: string; status: SourceStatus }[] = [];
       const available: GraphDataSource[] = [];
+      let offline = false;
       for (const source of sources) {
         try {
           const status = await source.status();
@@ -139,6 +196,7 @@ export function mountGraphPage(root: HTMLElement, kind: GraphKind, options: Grap
           }
         } catch (error) {
           if (current !== generation) return;
+          offline ||= isOfflineError(error);
           reports.push({ label: source.label, status: { state: "error", message: error instanceof Error ? error.message : "Erreur de chargement." } });
         }
       }
@@ -146,11 +204,19 @@ export function mountGraphPage(root: HTMLElement, kind: GraphKind, options: Grap
       sources = available;
       for (const projection of projections) collection.add(projection);
       statusRoot.innerHTML = reports.map(({ label, status }) => `<p data-state="${esc(status.state)}">${esc(label)} : ${esc(STATE_LABELS[status.state])}${status.progress != null ? ` ${esc(status.progress)} %` : ""}${status.message ? ` ${esc(status.message)}` : ""}</p>`).join("");
-      if (kind === "project") statusRoot.insertAdjacentHTML("beforeend", "<p>Les liens entre sources sont affichés uniquement lorsqu’une référence explicite est fournie. Les tâches, la roadmap, les décisions et Git ne sont pas reliés automatiquement.</p>");
+      if (offline) statusRoot.insertAdjacentHTML("afterbegin", offlineStateHtml());
       if (available.length || projections.length) viewer = mountGraphViewer(viewerRoot, collection.snapshot(), { onExpand: expand, onMore: more, canLoadMore: () => cursors.size > 0 });
       searchForm.hidden = available.length === 0;
     } catch (error) {
-      if (current === generation) statusRoot.textContent = error instanceof Error ? error.message : "Erreur de chargement.";
+      if (current !== generation) return;
+      statusRoot.innerHTML = isOfflineError(error)
+        ? offlineStateHtml(error)
+        : dsStateHtml("error", {
+            title: "Graphe indisponible",
+            message: error instanceof Error ? error.message : "Erreur de chargement.",
+            action: { label: "Réessayer", id: GRAPH_RETRY_ID },
+            details: [{ label: "Source", value: `Vue ${kind} du dossier sélectionné.` }],
+          });
     }
   }
 
@@ -199,6 +265,11 @@ export function mountGraphPage(root: HTMLElement, kind: GraphKind, options: Grap
   });
   select.addEventListener("change", () => { void load(); });
   root.querySelector("[data-reload]")!.addEventListener("click", () => { void load(); });
+  // Les états (hors ligne, erreur) proposent « Réessayer » : un seul câblage.
+  statusRoot.addEventListener("click", (event) => {
+    if ((event.target as Element | null)?.closest(`#${GRAPH_RETRY_ID}`) === null) return;
+    void load();
+  });
   const ready = load();
   return { ready, dispose() { generation++; searchGeneration++; viewer?.dispose(); } };
 }

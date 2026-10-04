@@ -44,6 +44,16 @@
   min-width: 0;
 }
 
+/* Résultat : héros d'abord, puis contexte à droite sur les largeurs larges. */
+.inspector-hero {
+  margin-bottom: var(--ds-space-4);
+  border-color: var(--ds-action-soft);
+}
+
+.inspector-result-panel .tool-context {
+  margin-top: var(--ds-space-2);
+}
+
 .inspector-section {
   margin-bottom: var(--ds-space-4);
 }
