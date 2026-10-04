@@ -1,26 +1,28 @@
 """Server-side tool profiles for the `studio-os` MCP server.
 
-A profile is the set of tools the server advertises on `tools/list` and accepts
-on `tools/call` for one connection. `session` (the default) exposes the tools a
-regular agent session needs (DEC-0183); `admin` exposes the full registered
-surface for project initialization, roadmaps, transfers, runtime and
-definition management. The profile is selected per connection, never per tool:
-an HTTP caller sends `X-Studio-Tool-Profile: admin`, a stdio harness sets
+A profile is the set of tools the server advertises on `tools/list` for one
+connection. `session` (the default) advertises the tools a regular agent
+session needs (DEC-0183); `admin` advertises the full registered surface for
+project initialization, roadmaps, transfers, runtime and definition management.
+The profile is selected per connection, never per tool: an HTTP caller sends
+`X-Studio-Tool-Profile: admin`, a stdio harness sets
 `STUDIO_MCP_TOOL_PROFILE=admin`. Any other value falls back to the default.
 
-This is a noise/token control, not an authorization boundary: role and project
-checks still live in the shared services (DEC-0046 §4).
+Profiles scope discovery only: `tools/call` is untouched, so authentication and
+the ephemeral launch-credential allowlist keep their exact error ordering
+(`unauthenticated`, `launch_credential_scope`, TECH/04). This is a noise/token
+control, not an authorization boundary: role and project checks still live in
+the shared services (DEC-0046 §4).
 """
 
 from __future__ import annotations
 
-import json
 import os
 from collections.abc import Mapping
 from typing import Any
 
 from mcp.server.context import CallNext, HandlerResult, ServerRequestContext
-from mcp.types import CallToolResult, ListToolsResult, TextContent
+from mcp.types import ListToolsResult
 
 from studio_mcp.access_registry import MCP_ACCESS
 
@@ -95,44 +97,22 @@ def _request_headers(ctx: ServerRequestContext[Any, Any]) -> Mapping[str, str] |
 
 
 class ToolProfileMiddleware:
-    """Filter `tools/list` and reject out-of-profile `tools/call` per connection.
+    """Scope `tools/list` to the connection's tool profile.
 
     Registered on `MCPServer(middleware=...)`, so it runs for both stdio and
-    HTTP transports (mcp.server.context.ServerMiddleware). `session` is the
-    default; `admin` is opt-in per connection.
+    HTTP transports (mcp.server.context.ServerMiddleware). Only the advertised
+    surface is scoped; `tools/call` passes through untouched, so authentication
+    and the launch-credential allowlist keep their documented error ordering.
+    `session` is the default; `admin` is opt-in per connection.
     """
 
     async def __call__(
         self, ctx: ServerRequestContext[Any, Any], call_next: CallNext
     ) -> HandlerResult:
-        if ctx.method not in ("tools/list", "tools/call"):
+        if ctx.method != "tools/list":
             return await call_next(ctx)
-        profile = resolve_tool_profile(_request_headers(ctx))
-        allowed = tools_for_profile(profile)
-        if ctx.method == "tools/list":
-            result = await call_next(ctx)
-            if isinstance(result, ListToolsResult):
-                result.tools = [tool for tool in result.tools if tool.name in allowed]
-            return result
-        params = ctx.params if isinstance(ctx.params, Mapping) else {}
-        name = params.get("name")
-        if name not in allowed:
-            return CallToolResult(
-                content=[
-                    TextContent(
-                        type="text",
-                        text=json.dumps(
-                            {
-                                "error_code": "tool_not_in_profile",
-                                "message": (
-                                    f"tool {name!r} is not part of the {profile!r} "
-                                    "tool profile; connect with the admin profile to use it"
-                                ),
-                                "tool_profile": profile,
-                            }
-                        ),
-                    )
-                ],
-                is_error=True,
-            )
-        return await call_next(ctx)
+        allowed = tools_for_profile(resolve_tool_profile(_request_headers(ctx)))
+        result = await call_next(ctx)
+        if isinstance(result, ListToolsResult):
+            result.tools = [tool for tool in result.tools if tool.name in allowed]
+        return result

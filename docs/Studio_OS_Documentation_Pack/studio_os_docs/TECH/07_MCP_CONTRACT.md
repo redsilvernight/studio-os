@@ -173,7 +173,8 @@ reclassé en capacité locale du Bloc B par DEC-0057 (voir section
 
 Le serveur `studio-os` selectionne les outils exposes **par connexion**, et
 non plus une liste unique pour tous les appelants
-(`services/mcp/src/studio_mcp/tool_profiles.py`, DEC-0183). Deux profils :
+(`services/mcp/src/studio_mcp/tool_profiles.py`, DEC-0183, portee precisee par
+DEC-0184). Deux profils :
 
 - `session` (defaut) : le sous-ensemble qu'une session d'agent utilise
   reellement (contexte, travail, sync/coordination, decisions, claims,
@@ -190,13 +191,15 @@ Selection, par connexion :
 - transport stdio (harnais local) : variable
   `STUDIO_MCP_TOOL_PROFILE=admin|session` ; absent → `session`.
 
-`tools/call` sur un outil hors profil repond
-`{error_code: "tool_not_in_profile"}` (resultat in-band, `is_error=true`)
-sans executer l'outil. Un profil est un controle de bruit et de jetons, pas
-une frontiere d'autorisation : les verifications de role et d'acces projet
-restent dans les services partages (DEC-0046 §4). L'allowlist du credential
-ephemere de lancement reste une restriction d'autorisation distincte
-(section Auth ci-dessus).
+`tools/call` n'est **pas** filtre par le profil : l'authentification et
+l'allowlist du credential ephemere de lancement gardent leur ordre et leurs
+`error_code` documentes (`unauthenticated`, `launch_credential_scope`,
+section Auth ci-dessus). Un profil est un controle de bruit et de jetons sur
+la decouverte, pas une frontiere d'autorisation : les verifications de role et
+d'acces projet restent dans les services partages (DEC-0046 §4). L'absence
+d'un outil dans `tools/list` signifie seulement « non expose pour cette
+connexion », jamais « indisponible » (DEC-0046 regle 5) ; le profil `admin`
+est la surface nommee qui restaure l'ensemble (DEC-0048).
 
 ## Outils locaux Memory/Knowledge UC-3 (DEC-0047)
 

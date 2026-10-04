@@ -5,7 +5,7 @@ from typing import Any, cast
 
 import pytest
 from mcp.server import ServerRequestContext
-from mcp.types import CallToolResult, ListToolsResult, TextContent, Tool
+from mcp.types import ListToolsResult, Tool
 from studio_mcp.access_registry import MCP_ACCESS
 from studio_mcp.server import mcp
 from studio_mcp.tool_profiles import (
@@ -103,7 +103,7 @@ async def test_tools_list_serves_everything_for_the_admin_profile() -> None:
 
 
 @pytest.mark.asyncio
-async def test_call_outside_the_profile_is_rejected_without_dispatch() -> None:
+async def test_non_list_requests_pass_through_untouched() -> None:
     middleware = ToolProfileMiddleware()
     called = False
 
@@ -115,49 +115,6 @@ async def test_call_outside_the_profile_is_rejected_without_dispatch() -> None:
     ctx = _context(
         "tools/call",
         headers={},
-        params={"name": "studio_apply_roadmap_hydration", "arguments": {}},
-    )
-    result = await middleware(ctx, call_next)
-    assert isinstance(result, CallToolResult)
-    assert result.is_error is True
-    assert not called
-    content = result.content[0]
-    assert isinstance(content, TextContent)
-    assert "tool_not_in_profile" in content.text
-
-
-@pytest.mark.asyncio
-async def test_call_inside_the_profile_is_dispatched() -> None:
-    middleware = ToolProfileMiddleware()
-    called = False
-
-    async def call_next(ctx: ServerRequestContext[Any, Any]) -> str:
-        nonlocal called
-        called = True
-        return "dispatched"
-
-    ctx = _context(
-        "tools/call",
-        headers={},
-        params={"name": "studio_prepare_context", "arguments": {}},
-    )
-    assert await middleware(ctx, call_next) == "dispatched"
-    assert called
-
-
-@pytest.mark.asyncio
-async def test_admin_connection_may_call_an_admin_tool() -> None:
-    middleware = ToolProfileMiddleware()
-    called = False
-
-    async def call_next(ctx: ServerRequestContext[Any, Any]) -> str:
-        nonlocal called
-        called = True
-        return "dispatched"
-
-    ctx = _context(
-        "tools/call",
-        headers={_HEADER: "admin"},
         params={"name": "studio_apply_roadmap_hydration", "arguments": {}},
     )
     assert await middleware(ctx, call_next) == "dispatched"
