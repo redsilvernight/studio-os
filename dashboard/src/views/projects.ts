@@ -78,7 +78,7 @@ function toolbarHtml(state: ProjectsPageState, shown: number, total: number): st
     `<option value="active"${selected("active")}>Actifs</option>` +
     `<option value="archived"${selected("archived")}>Archivés</option>` +
     `</select></label>` +
-    `<p class="ds-list-sub" role="status" aria-live="polite">${shown} projet(s) affiché(s) sur ${total} chargé(s) — filtre local.</p>` +
+    `<p class="ds-list-sub" role="status" aria-live="polite">${shown} projet(s) affiché(s) sur ${total} chargé(s) — filtre appliqué aux projets chargés.</p>` +
     `</div>`;
 }
 

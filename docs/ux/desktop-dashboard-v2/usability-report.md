@@ -7,9 +7,9 @@
 
 | Critère | Résultat | Preuve |
 |---|---|---|
-| Quatre scénarios conformes aux cibles P01 | **Automatisé : conforme. Test humain C1 : non réalisé.** | `dashboard/e2e/p06-targets.spec.ts` (S1–S4 × 1440×900 et 2560×1440, 8 tests verts) |
+| Quatre scénarios conformes aux cibles P01 | **Automatisé : conforme. Test humain C1 : jugé concluant par le responsable produit (déclaration en session le 2026-10-04, sans chronométrage consigné).** | `dashboard/e2e/p06-targets.spec.ts` (S1–S4 × 1440×900 et 2560×1440, 8 tests verts) |
 | Clavier, focus, contrastes, zoom 200 % | **Conforme (automatisé)** | `dashboard/e2e/p06-a11y.spec.ts` (7 pages × 3 contrôles, 21 tests verts, aucun défaut seulement journalisé) |
-| Libellés ambigus corrigés | **P1 corrigés ; P2/P3 listés, non traités** | `usability-labels.md` (audit) + commits P06 sur les libellés |
+| Libellés ambigus corrigés | **P1 et P2/P3 non ambigus corrigés ; reste listé ci-dessous** | `usability-labels.md` (audit) + commits P06 sur les libellés |
 
 ## Mesures automatisées (C1–C4)
 
@@ -26,10 +26,10 @@
 
 ## Libellés
 
-Audit : `usability-labels.md` (≈ 50 constats P1/P2/P3). Corrigés ici : en-tête « Travail », en-tête et onglets de « À valider », cartes de proposition de plan (« Relire le plan », « Ouvrir le plan »), nom humain à la place du préfixe d'UUID sur l'Accueil, « sur » au lieu de « on », jargon « pull » du panneau de lancement, « Identifiant court » à la place de « Slug ». Les constats P2 et P3 restent à traiter.
+Audit : `usability-labels.md` (≈ 50 constats P1/P2/P3). Corrigés ici : en-tête « Travail », en-tête et onglets de « À valider », cartes de proposition de plan (« Relire le plan », « Ouvrir le plan »), nom humain à la place du préfixe d'UUID sur l'Accueil, « sur » au lieu de « on », jargon « pull » du panneau de lancement, « Identifiant court » à la place de « Slug ». Second lot (2026-10-04) : « Studio OS est joignable/injoignable », « Aucun travail ouvert », « Demande de fusion » (plus de « PR »), « compilations en échec », « À surveiller »/« incidents » (plus de « signaux »), « Kanban », « Toutes les tâches », « À faire » (groupe et badge), « Compétences », « mode d'exécution » (plus de « harnais »), « configuration de lancement », « (facultatif) », « Identifiant du proposant », « Paramètres d'exécution », « Travail réalisé », « Peut démarrer », genre unifié « Bloqué/Terminé » sur l'Accueil, slug retiré du fil d'Ariane du projet. **Non traités (choix de conception ou périmètre plus large)** : nom lisible dans le sélecteur d'agent (`stable_key`), placeholders `uuid`, boutons de cycle de vie et d'export de la roadmap, libellés « Disponible maintenant/En attente », « Postes » vs « Machine », centralisation des sources `language.ts`/`decisionsV2.ts`.
 
 ## Limites — à lire avant de cocher la cible C1
 
-- **Test humain C1 non réalisé** : la cible exige 3 personnes, chronométrées, ≥ 90 % de réponses justes en ≤ 5 s. Seul le proxy déterministe (une action primaire, nombre de clics) est vérifié.
+- **Test humain C1** : la cible exige 3 personnes, chronométrées, ≥ 90 % de réponses justes en ≤ 5 s. Le proxy déterministe (une action primaire, nombre de clics) est vérifié ; le résultat humain est celui déclaré par le responsable produit, sans mesure archivée ici.
 - Zoom 200 % simulé par taille de viewport, pas par zoom navigateur ; lecteur d'écran (NVDA/VoiceOver) non testé ; Desktop (Tauri) non exécuté dans cette étape.
 - Les e2e utilisent des données simulées (`support/ui16-stub`), pas un compte de production.

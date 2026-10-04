@@ -276,7 +276,7 @@ test.describe("UI-6 page Agents", () => {
     await login(page, `#/agents/${A1}`);
     const view = page.locator("#view");
     await expect(view.locator("h1")).toContainText("Claude Atlas");
-    for (const section of ["Activité", "Travail produit", "Sessions", "Environnement", "Administration"]) {
+    for (const section of ["Activité", "Travail réalisé", "Sessions", "Environnement", "Administration"]) {
       await expect(view.locator("h2", { hasText: section })).toBeVisible();
     }
     // Détails techniques est un <details><summary>, pas un h2.

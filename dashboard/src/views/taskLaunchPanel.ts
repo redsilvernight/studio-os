@@ -183,7 +183,7 @@ function machineOptions(state: LaunchPanelState, data: LaunchPanelData): string 
 function harnessOptions(state: LaunchPanelState, machine: MachineEligibility | null): string {
   const harnesses: HarnessReport[] = machine?.harnesses ?? [];
   if (machine === null || harnesses.length === 0) {
-    return `<option value="">— Choisir un poste d'abord —</option>`;
+    return `<option value="">— Choisissez un poste, puis un mode d'exécution —</option>`;
   }
   const rows = harnesses.map((harness) => {
     const selected = harness.harness_id === state.selectedHarnessId ? " selected" : "";
@@ -191,7 +191,7 @@ function harnessOptions(state: LaunchPanelState, machine: MachineEligibility | n
     const mark = harness.detected ? (harness.configured ? "" : " (non configuré)") : " (non détecté)";
     return `<option value="${esc(harness.harness_id)}"${disabled}${selected}>${esc(harness.harness_id)}${mark}</option>`;
   });
-  return `<option value="">— Choisir un harnais —</option>${rows.join("")}`;
+  return `<option value="">— Choisir un mode d'exécution —</option>${rows.join("")}`;
 }
 
 function agentOptions(state: LaunchPanelState, data: LaunchPanelData): string {
@@ -209,7 +209,7 @@ export function previewLines(resolved: ResolvedAgentDefinition): string[] {
     lines.push(`Règles : ${resolved.rules.map((rule) => rule.stable_key).join(", ")}`);
   }
   if (resolved.skills.length > 0) {
-    lines.push(`Skills : ${resolved.skills.map((skill) => skill.stable_key).join(", ")}`);
+    lines.push(`Compétences : ${resolved.skills.map((skill) => skill.stable_key).join(", ")}`);
   }
   if (resolved.model_profile) {
     lines.push(`Profil de modèle : ${resolved.model_profile.stable_key} v${resolved.model_profile.version}`);
@@ -233,7 +233,7 @@ function previewHtml(state: LaunchPanelState): string {
     return `<div class="ds-notice ds-notice--danger" role="alert">Aperçu indisponible : ${esc(state.previewError)}</div>`;
   }
   if (state.preview === null) {
-    return `<p class="ds-list-sub">Choisissez un agent puis affichez l'aperçu de résolution avant de lancer.</p>`;
+    return `<p class="ds-list-sub">Choisissez un agent puis affichez la configuration de lancement avant de lancer.</p>`;
   }
   const lines = previewLines(state.preview);
   return `<ul class="ds-list" data-testid="launch-preview-list">${lines
@@ -254,7 +254,7 @@ export function linkedSessionHtml(state: LaunchPanelState, latest: TaskLaunch): 
   const sessionLink =
     `<a href="#task-sessions" data-testid="launch-session-link">Voir la session${stateLabel}</a>`;
   const handoff = ended
-    ? ` · <a href="#task-ai-work" data-testid="launch-handoff-link">voir le handoff / travail IA</a>`
+    ? ` · <a href="#task-ai-work" data-testid="launch-handoff-link">voir le travail rendu par l'agent</a>`
     : "";
   return `<div class="ds-list-sub">${sessionLink}${handoff}</div>`;
 }
@@ -329,7 +329,7 @@ export function launchPanelHtml(state: LaunchPanelState): string {
     dsField("launch-harness", "Harnais", `<select class="ds-select" id="FIELD">${harnessOptions(state, machine)}</select>`) +
     dsField("launch-agent", "Agent à résoudre (facultatif)", `<select class="ds-select" id="FIELD">${agentOptions(state, data)}</select>`) +
     `<div class="tasks-footer">` +
-    `<button class="ds-btn" type="button" data-action="launch-preview"${canPreview ? "" : " disabled"}>Afficher l'aperçu de résolution</button>` +
+    `<button class="ds-btn" type="button" data-action="launch-preview"${canPreview ? "" : " disabled"}>Afficher la configuration de lancement</button>` +
     `<button class="ds-btn ds-btn--primary" type="button" data-action="launch-submit"${canLaunch ? "" : " disabled"}>Lancer sur cette machine</button>` +
     `</div>` +
     `</div>`;

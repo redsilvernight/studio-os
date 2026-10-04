@@ -108,7 +108,7 @@ describe("homePageHtml nominal", () => {
     expect(html).toContain("href=\"#/projects\"");
     expect(html).toContain("href=\"#/tasks\"");
     expect(html).toContain("href=\"#/decisions\"");
-    expect(html).toContain("Système opérationnel");
+    expect(html).toContain("Studio OS est joignable");
   });
 
   it("ne rend aucun tableau : ni Kanban complet, ni table transferts", () => {
@@ -218,7 +218,7 @@ describe("homeTasksHtml", () => {
     expect(html).not.toContain("T7");
     expect(html).toContain("Apotheosis");
     expect(html).toContain("En cours");
-    expect(html).toContain("Bloquée");
+    expect(html).toContain("Bloqué");
     expect(html).toContain("href=\"#/tasks/t1\"");
     expect(html).toContain("Reprendre");
     expect(html).toContain("Voir toutes les tâches");
@@ -254,7 +254,7 @@ describe("reviewQueueItemDetail", () => {
     ).toBe("ci sur main");
     expect(
       reviewQueueItemDetail({ kind: "pr_ready", pr_number: 7, head_branch: "feat", base_branch: "main" } as never),
-    ).toBe("PR #7 feat → main");
+    ).toBe("Demande de fusion #7");
   });
 });
 
@@ -292,9 +292,9 @@ describe("homeReviewHtml", () => {
 
 describe("homeHealthHtml", () => {
   it("compacte : opérationnel ou indisponible, sans détail technique", () => {
-    expect(homeHealthHtml({ reachable: true })).toContain("Système opérationnel");
+    expect(homeHealthHtml({ reachable: true })).toContain("Studio OS est joignable");
     const down = homeHealthHtml({ reachable: false });
-    expect(down).toContain("Système indisponible");
+    expect(down).toContain("Studio OS est injoignable");
     expect(down).not.toContain("/healthz");
     expect(down).not.toMatch(/HTTP|unreachable/i);
   });

@@ -565,7 +565,7 @@ export function agentDetailHtml(
     `${dsPageHeader(name, subtitle)}` +
     `${agentHeroHtml(hero)}` +
     `<section class="ds-panel" aria-label="Activité"><header><h2>Activité</h2></header><div class="body" role="status">${agentSignalHtml(activity)}</div></section>` +
-    `<section class="ds-panel" aria-label="Travail produit"><header><h2>Travail produit</h2><span class="ds-list-sub">${ownWork.length} entrée(s) — la relecture détaillée se fait dans Décisions, onglet À valider</span></header><div class="body">` +
+    `<section class="ds-panel" aria-label="Travail réalisé"><header><h2>Travail réalisé</h2><span class="ds-list-sub">${ownWork.length} entrée(s) — la relecture détaillée se fait dans Décisions, onglet À valider</span></header><div class="body">` +
     (ownWork.length === 0
       ? `<p class="ds-list-sub">Aucun travail attribué à cet agent.</p>`
       : `<ul class="ds-list">${ownWork.map((work) => workRowHtml(work, names)).join("")}</ul>`) +
@@ -587,7 +587,7 @@ export function agentDetailHtml(
         { label: "Harnais déclaré", value: declaredOrDash(agent.harness) },
         {
           label: "Permissions",
-          value: "Aucune permission déclarée par l'agent — voir Paramètres runtime",
+          value: "Aucune permission déclarée par l'agent — voir Paramètres d'exécution",
         },
         { label: "Définition liée", value: "Aucune définition associée" },
         { label: "Identifiant agent", value: agent.id, mono: true },
@@ -604,7 +604,7 @@ export function agentDetailHtml(
     ) +
     `<section class="ds-panel agent-admin" aria-label="Administration"><header><h2>Administration</h2><span class="ds-list-sub">séparée du quotidien</span></header><div class="body">` +
     `<p class="ds-list-sub">Réglages sensibles : ils ne changent pas le statut du jour et restent ici, hors du flux de travail. Renommer et révoquer se font depuis la machine d'exécution — il n'y a aucune action à distance ici.</p>` +
-    `<p class="agent-admin-actions"><a class="ds-btn" href="#/machines">Voir la machine</a> <a class="ds-btn" href="#/configuration/runtimes">Paramètres runtime</a></p>` +
+    `<p class="agent-admin-actions"><a class="ds-btn" href="#/machines">Voir la machine</a> <a class="ds-btn" href="#/configuration/runtimes">Paramètres d'exécution</a></p>` +
     `</div></section>`
   );
 }

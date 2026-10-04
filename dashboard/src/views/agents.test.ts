@@ -325,7 +325,7 @@ describe("agentDetailHtml (héros + expertes repliées + admin séparée)", () =
     expect(html).toContain("Corriger l");
     expect(html).toContain(`href="#/tasks/${T1}"`);
     expect(html).toContain("<h2>Activité</h2>");
-    expect(html).toContain("<h2>Travail produit</h2>");
+    expect(html).toContain("<h2>Travail réalisé</h2>");
     expect(html).toContain("<h2>Sessions</h2>");
     expect(html).toContain("<h2>Environnement</h2>");
     expect(html).not.toContain("<h2>Travail actuel</h2>");
@@ -360,7 +360,7 @@ describe("agentDetailHtml (héros + expertes repliées + admin séparée)", () =
     expect(html).toContain("<h2>Administration</h2>");
     expect(html).toContain("séparée du quotidien");
     expect(html).toContain("Voir la machine");
-    expect(html).toContain("Paramètres runtime");
+    expect(html).toContain("Paramètres d'exécution");
     expect(html).toContain("aucune action à distance");
     expect(html).not.toContain("Révoquer");
   });

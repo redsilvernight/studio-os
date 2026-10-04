@@ -82,7 +82,7 @@ describe("santé par point de couleur", () => {
     expect(html).toContain("ds-status--warning");
     expect(html).not.toMatch(/%|score|<progress/i);
     const calm = projectsPageHtml({ projects: [all[0]!], state: blank, authed: true, tasks: [] });
-    expect(calm).toContain("Calme");
+    expect(calm).toContain("Aucun travail ouvert");
   });
 
   it("tâches indisponibles ou projet archivé : aucun point, la liste reste utilisable", () => {
@@ -101,7 +101,7 @@ describe("projectsPageHtml nominal", () => {
     expect(html).toContain("<h1>Projets</h1>");
     expect(html).toContain("Nouveau projet");
     expect(html).toContain('role="search"');
-    expect(html).toContain("filtre local");
+    expect(html).toContain("filtre appliqué aux projets chargés");
     expect(html).toContain("2 projet(s) affiché(s) sur 2 chargé(s)");
   });
 

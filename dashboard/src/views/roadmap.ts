@@ -95,7 +95,7 @@ function phaseProgress(phase: RoadmapPhase): number {
 function stepButtonHtml(step: RoadmapStep, selected: boolean): string {
   const state = step.state ?? "not_started";
   const current = selected ? ` aria-current="true"` : "";
-  const available = step.available === true ? `<span class="roadmap-available">Disponible</span>` : "";
+  const available = step.available === true ? `<span class="roadmap-available">Peut démarrer</span>` : "";
   return `<button class="roadmap-step${selected ? " is-selected" : ""}" type="button" data-step-key="${esc(step.key)}"${current}>` +
     `<span class="roadmap-step-main"><strong>${esc(step.title)}</strong><span class="roadmap-step-key">${esc(step.key)}</span></span>` +
     `<span class="roadmap-step-state">${available}${dsBadge(STEP_LABELS[state] ?? state, stepTone(state))}</span></button>`;

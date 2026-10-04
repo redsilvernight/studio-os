@@ -166,7 +166,7 @@ describe("tasksToolbarHtml", () => {
     expect(html).toContain('role="group"');
     expect(html).toContain("Présentation des tâches");
     expect(html).toContain(">Liste</button>");
-    expect(html).toContain(">Tableau</button>");
+    expect(html).toContain(">Kanban</button>");
     expect(html).toContain('data-view="list" aria-pressed="true"');
     expect(html).toContain('data-view="board" aria-pressed="false"');
   });
@@ -227,7 +227,7 @@ describe("tasksListHtml (vue par défaut)", () => {
 
   it("groupée par statut réel, dans l'ordre d'attention, groupes vides omis", () => {
     const text = html.replace(/<[^>]*>/g, " ");
-    const order = ["En cours", "Bloquées", "À démarrer"].map((label) => text.indexOf(label));
+    const order = ["En cours", "Bloquées", "À faire"].map((label) => text.indexOf(label));
     expect(order.every((index) => index >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(html).not.toContain("Terminées");

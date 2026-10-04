@@ -44,8 +44,8 @@ const REVIEW_KIND_LABEL: Record<ReviewQueueItem["kind"], string> = REVIEW_KIND_S
 const TASK_STATUS_LABEL: Record<string, string> = {
   created: "À faire",
   in_progress: "En cours",
-  blocked: "Bloquée",
-  completed: "Terminée",
+  blocked: "Bloqué",
+  completed: "Terminé",
 };
 
 /** Sub-title for a review-queue row: AI work → agent, decision → readable_id,
@@ -61,7 +61,7 @@ export function reviewQueueItemDetail(item: ReviewQueueItem): string {
     case "build_failure":
       return `${item.workflow_name} sur ${item.branch}`;
     case "pr_ready":
-      return `PR #${item.pr_number} ${item.head_branch} → ${item.base_branch}`;
+      return `Demande de fusion #${item.pr_number}`;
     case "roadmap_proposal":
       return item.scope === "revision"
         ? `révision ${item.revision_no} de « ${item.title} »`
@@ -173,7 +173,7 @@ export function homePageHtml(data: HomeData): string {
 
 export function homeHealthHtml(health: HealthInfo): string {
   return `<p class="home-health">${
-    health.reachable ? dsStatus("success", "Système opérationnel") : dsStatus("danger", "Système indisponible")
+    health.reachable ? dsStatus("success", "Studio OS est joignable") : dsStatus("danger", "Studio OS est injoignable")
   }</p>`;
 }
 
@@ -199,7 +199,7 @@ export function projectHealth(projectId: string, tasks: Task[]): { state: "warni
   const own = tasks.filter((t) => t.project_id === projectId && t.status !== "completed");
   if (own.some((t) => t.status === "blocked")) return { state: "warning", label: "Blocage à lever" };
   if (own.some((t) => t.status === "in_progress")) return { state: "info", label: "Travail en cours" };
-  return { state: "idle", label: "Calme" };
+  return { state: "idle", label: "Aucun travail ouvert" };
 }
 
 export function homeProjectsHtml(result: HomeResult<Project[]>, tasks: Task[] = []): string {
@@ -285,7 +285,7 @@ export function homeReviewHtml(result: HomeResult<ReviewQueue | null>, authed: b
   }
   const items = result.value?.items ?? [];
   if (items.length === 0) {
-    return `<section class="home-section home-section--review" aria-labelledby="home-examiner"><div id="home-examiner">${header}</div>${dsEmptyState("Rien à valider", "Aucun élément n'attend une décision humaine.", { label: "Voir les décisions", href: "#/decisions" })}</section>`;
+    return `<section class="home-section home-section--review" aria-labelledby="home-examiner"><div id="home-examiner">${header}</div>${dsEmptyState("Rien à valider", "Aucun élément n'attend une décision humaine.", { label: "Voir les éléments À valider", href: "#/decisions" })}</section>`;
   }
   const shown = items.slice(0, HOME_REVIEW_LIMIT);
   const rows = shown
@@ -294,7 +294,7 @@ export function homeReviewHtml(result: HomeResult<ReviewQueue | null>, authed: b
       return `<li class="ds-list-item"><div class="grow"><div class="ds-list-title">${esc(title)}</div><div class="ds-list-sub">${esc(REVIEW_KIND_LABEL[item.kind])} · ${esc(reviewQueueItemDetail(item))}</div></div>${reviewActionsHtml(item, authed)}</li>`;
     })
     .join("");
-  const more = items.length > shown.length ? `<p class="ds-list-sub">+ ${items.length - shown.length} autre(s) — voir les décisions.</p>` : "";
+  const more = items.length > shown.length ? `<p class="ds-list-sub">+ ${items.length - shown.length} autre(s) — voir les éléments À valider.</p>` : "";
   return `<section class="home-section home-section--review" aria-labelledby="home-examiner"><div id="home-examiner">${header}</div><p class="ds-list-sub">${items.length} élément(s) à valider.</p><ul class="ds-list ds-list--card">${rows}</ul>${more}<div data-review-msg class="ds-list-sub" role="status"></div></section>`;
 }
 

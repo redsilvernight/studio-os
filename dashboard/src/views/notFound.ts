@@ -5,7 +5,7 @@
 import { dsPageHeader, dsStateHtml } from "../ds/ds";
 
 export function notFoundHtml(hash: string): string {
-  return `${dsPageHeader("Page introuvable", "Cette adresse ne correspond à aucune page de Studi'OS.")}${dsStateHtml("notFound", { title: "Adresse inconnue", message: `« ${hash === "" ? "#/" : hash} » n'existe pas ou a été déplacée.`, action: { label: "Retour à l'Accueil", href: "#/" } })}`;
+  return `${dsPageHeader("Page introuvable", "Cette adresse ne correspond à aucune page de Studi'OS.")}${dsStateHtml("notFound", { title: "Page introuvable", message: `« ${hash === "" ? "#/" : hash} » n'existe pas ou a été déplacée.`, action: { label: "Retour à l'Accueil", href: "#/" } })}`;
 }
 
 export function renderNotFound(view: HTMLElement, hash: string): void {

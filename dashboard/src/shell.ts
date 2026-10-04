@@ -122,7 +122,7 @@ function navGroupHtml(group: ShellNavGroup, index: number): string {
   if (group.collapsible === true) {
     const open = group.items.some((item) => item.active) ? " open" : "";
     const summaryIcon = group.title === "Outils experts" ? "graph" : "settings";
-    const short = group.title === "Outils experts" ? "Experts" : "Admin";
+    const short = group.title === "Outils experts" ? "Outils" : "Admin";
     return `<details class="app-navgroup app-navgroup--secondary"${open}><summary>${icon(summaryIcon)}${labelHtml(group.title, short)}</summary><ul>${items}</ul></details>`;
   }
   return `<section class="app-navgroup" aria-labelledby="app-navgroup-${index}"><h2 id="app-navgroup-${index}" class="ds-sr-only">${esc(group.title)}</h2><ul>${items}</ul></section>`;

@@ -129,7 +129,7 @@ export function workspaceHeaderHtml(project: Project): string {
   const desc =
     rawDesc === "" ? `<p class="ds-list-sub">Sans description.</p>` : `<p class="workspace-desc">${esc(rawDesc)}</p>`;
   const badge = project.archived ? dsBadge("Archivé", "warning") : dsBadge("Actif", "success");
-  return `<div class="workspace-head"><p class="ds-list-sub workspace-back"><a href="#/projects">← Tous les projets</a> · <code class="mono">${esc(project.slug)}</code></p>` +
+  return `<div class="workspace-head"><p class="ds-list-sub workspace-back"><a href="#/projects">← Tous les projets</a></p>` +
     `<div class="workspace-title-row"><h1>${esc(project.name)}</h1>${badge}</div>` +
     `${desc}` +
     dsTechDetails([
@@ -302,7 +302,7 @@ export async function renderProjectDetail(
         client: ctx.client,
         authed: ctx.authed,
         projectId: project.id,
-        scopeLabel: `projet ${project.slug}`,
+        scopeLabel: `projet ${project.name}`,
         headingLevel: 2,
       });
     }

@@ -223,7 +223,7 @@ describe("Labels FR (source unique)", () => {
     expect(REVIEW_KIND_LABEL.decision_proposal).toBe("Proposition de décision");
     expect(REVIEW_KIND_LABEL.resource_conflict).toBe("Conflit de réservation");
     expect(REVIEW_KIND_LABEL.build_failure).toBe("Échec de build");
-    expect(REVIEW_KIND_LABEL.pr_ready).toBe("PR ouverte");
+    expect(REVIEW_KIND_LABEL.pr_ready).toBe("Demande de fusion");
     expect(REVIEW_KIND_LABEL.roadmap_proposal).toBe("Proposition de roadmap");
   });
 
@@ -362,12 +362,12 @@ describe("reviewCounts — compteurs par type réel", () => {
     expect(html).toContain("2</b><span>travaux IA à relire");
     expect(html).toContain("1</b><span>décisions à trancher");
     expect(html).toContain("1</b><span>plans à examiner");
-    expect(html).toContain("1</b><span>PR à relire");
+    expect(html).toContain("1</b><span>demandes de fusion à relire");
     expect(html).toContain("3</b><span>signaux informatifs");
     const withoutRoadmap = reviewCountersHtml(buildReviewCards(prItem()));
     expect(withoutRoadmap).not.toContain("plans à examiner");
     expect(withoutRoadmap).not.toContain("travaux IA à relire");
-    expect(withoutRoadmap).toContain("1</b><span>PR à relire");
+    expect(withoutRoadmap).toContain("1</b><span>demandes de fusion à relire");
     expect(withoutRoadmap).toContain("1</b><span>signaux informatifs");
   });
 
@@ -378,7 +378,7 @@ describe("reviewCounts — compteurs par type réel", () => {
     expect(html).toContain('data-review-filter="signal" aria-pressed="false"');
     expect(html).toContain("Tous <span class=\"review-filter-count\">7</span>");
     expect(html).toContain("À décider <span class=\"review-filter-count\">4</span>");
-    expect(html).toContain("Signaux <span class=\"review-filter-count\">3</span>");
+    expect(html).toContain("À surveiller <span class=\"review-filter-count\">3</span>");
   });
 });
 
@@ -433,7 +433,7 @@ describe("reviewCardActions — au plus deux actions par carte", () => {
     expect(actions.every((action) => action.element === "link")).toBe(true);
     expect(actions.map((action) => action.label)).toContain("Ouvrir le projet");
     const html = reviewCardHtml(card, true, false);
-    expect(html).toContain("Non résoluble ici");
+    expect(html).toContain("À traiter ailleurs");
     expect(html).not.toContain("Aucune action disponible");
   });
 
@@ -513,7 +513,7 @@ describe("reviewQueueHtml — boîte de réception", () => {
   it("en-tête, résumé chiffré, filtres et compteurs par type", () => {
     const html = reviewQueueHtml(inboxQueue(), { authed: true, isAdmin: true });
     expect(html).toContain("À valider");
-    expect(html).toContain("7 à valider · 4 à décider · 3 signaux · du plus récent au plus ancien");
+    expect(html).toContain("7 à valider · 4 à décider · 3 incidents · du plus récent au plus ancien");
     expect(html).toContain('data-review-filter="all"');
     expect(html).toContain("À valider par type");
     expect(html).toContain("travaux IA à relire");
@@ -544,7 +544,7 @@ describe("reviewQueueHtml — boîte de réception", () => {
     expect(html).not.toContain("ds-hero review-hero");
     expect(html).not.toContain('data-kind="ai_work_review"');
     expect(html).toContain('data-kind="pr_ready"');
-    expect(html).toContain("Non résoluble ici");
+    expect(html).toContain("À traiter ailleurs");
   });
 
   it("filtre sans résultat : état vide honnête, filtres toujours présents", () => {
@@ -621,7 +621,7 @@ describe("decisionHtml", () => {
     expect(html).toContain("Après analyse, nous choisissons Godot 4.3");
     expect(html).toContain("Informations techniques");
     expect(html).toContain("Identifiant");
-    expect(html).toContain("Lisible");
+    expect(html).toContain("Identifiant courant");
     expect(html).toContain("DEC-0049");
   });
 
@@ -714,12 +714,12 @@ describe("decisionsHtml", () => {
 describe("createDecisionFormHtml", () => {
   it("champs FR obligatoires + projet optionnel en global", () => {
     const html = createDecisionFormHtml(true, undefined, "user-uuid");
-    expect(html).toContain("Projet (optionnel)");
-    expect(html).toContain("Tâche (optionnel)");
+    expect(html).toContain("Projet (facultatif)");
+    expect(html).toContain("Tâche (facultative)");
     expect(html).toContain("Titre");
     expect(html).toContain("Contenu");
     expect(html).toContain("Proposé par");
-    expect(html).toContain("ID du proposant");
+    expect(html).toContain("Identifiant du proposant");
     expect(html).toContain("Créer la décision");
     expect(html).toContain("Annuler");
     expect(html).toContain("idempotency_key");

@@ -70,7 +70,7 @@ export const REVIEW_KIND_LABEL: Record<ReviewQueueItem["kind"], string> = {
   decision_proposal: "Proposition de décision",
   resource_conflict: "Conflit de réservation",
   build_failure: "Échec de build",
-  pr_ready: "PR ouverte",
+  pr_ready: "Demande de fusion",
   roadmap_proposal: "Proposition de roadmap",
 };
 
@@ -157,7 +157,7 @@ export type ReviewFilter = "all" | "decide" | "signal";
 export const REVIEW_FILTERS: ReadonlyArray<{ id: ReviewFilter; label: string }> = [
   { id: "all", label: "Tous" },
   { id: "decide", label: "À décider" },
-  { id: "signal", label: "Signaux" },
+  { id: "signal", label: "À surveiller" },
 ];
 
 /** Compteurs « À valider » par type réel de la file. */
@@ -166,8 +166,8 @@ export const REVIEW_KIND_COUNT_LABEL: Record<ReviewQueueItem["kind"], string> = 
   decision_proposal: "décisions à trancher",
   roadmap_proposal: "plans à examiner",
   resource_conflict: "conflits de réservation",
-  build_failure: "builds en échec",
-  pr_ready: "PR à relire",
+  build_failure: "compilations en échec",
+  pr_ready: "demandes de fusion à relire",
 };
 
 /** Ce que la décision change, en une ligne, pour chaque type de la file. */
@@ -345,7 +345,7 @@ function reviewActionsHtml(actions: readonly ReviewAction[], small: boolean): st
 /** Ce que la carte ne peut pas faire ici — honnêteté affichée, pas de silence. */
 function reviewCardNoteHtml(card: ReviewCard, isAdmin: boolean): string {
   if (card.channel === "signal") {
-    return `<p class="review-card-note">Non résoluble ici : ce signal se traite dans la surface qu'il désigne.</p>`;
+    return `<p class="review-card-note">À traiter ailleurs : le projet ou la tâche liée indique où.</p>`;
   }
   if (card.kind === "decision_proposal" && !isAdmin) {
     return `<p class="review-card-note">Réservé au rôle admin.</p>`;
@@ -625,7 +625,7 @@ export function reviewQueueHtml(queue: ReviewQueue | null, options: ReviewInboxO
   const hero = visible.find((card) => card.channel === "decide") ?? null;
   const listed = hero === null ? visible : visible.filter((card) => card.key !== hero.key);
 
-  const subtitle = `${counts.total} à valider · ${counts.decide} à décider · ${counts.signal} signaux · du plus récent au plus ancien`;
+  const subtitle = `${counts.total} à valider · ${counts.decide} à décider · ${counts.signal} incidents · du plus récent au plus ancien`;
   const filters = reviewFiltersHtml(cards, filter);
   const counters = reviewCountersHtml(cards);
 
@@ -665,7 +665,7 @@ export function decisionHtml(decision: Decision, authed: boolean, isAdmin: boole
   const techDetails = `
     <details class="decision-tech"><summary>Informations techniques</summary><dl>
       <div><dt>Identifiant</dt><dd><code class="mono">${esc(decision.id)}</code></dd></div>
-      <div><dt>Lisible</dt><dd><code class="mono">${esc(decision.readable_id)}</code></dd></div>
+      <div><dt>Identifiant courant</dt><dd><code class="mono">${esc(decision.readable_id)}</code></dd></div>
       <div><dt>Projet</dt><dd>${decision.project_id ? `<code class="mono">${esc(decision.project_id)}</code>` : "—"}</dd></div>
       ${decision.task_id ? `<div><dt>Tâche</dt><dd><code class="mono">${esc(decision.task_id)}</code></dd></div>` : ""}
       <div><dt>Proposé par</dt><dd>${esc(decision.proposed_by_type)} <code class="mono">${esc(decision.proposed_by_id)}</code></dd></div>
@@ -746,16 +746,16 @@ export function createDecisionFormHtml(
   const projectField =
     projectId !== undefined
       ? `<span class="meta">Projet: <code class="mono">${esc(projectId)}</code></span>`
-      : dsField("decision-project_id", "Projet (optionnel)", `<input class="ds-input" id="FIELD" name="project_id" type="text" placeholder="uuid" />`, "Laissez vide pour une décision globale.");
+      : dsField("decision-project_id", "Projet (facultatif)", `<input class="ds-input" id="FIELD" name="project_id" type="text" placeholder="uuid" />`, "Laissez vide pour une décision globale.");
 
   return `<form data-create-decision class="decision-form">` +
     `<input type="hidden" name="idempotency_key" value="${generateIdempotencyKey()}" />` +
     `${projectField}` +
-    `${dsField("decision-task_id", "Tâche (optionnel)", `<input class="ds-input" id="FIELD" name="task_id" type="text" placeholder="uuid" />`, "Liez cette décision à une tâche si pertinent.")}` +
+    `${dsField("decision-task_id", "Tâche (facultative)", `<input class="ds-input" id="FIELD" name="task_id" type="text" placeholder="uuid" />`, "Liez cette décision à une tâche si pertinent.")}` +
     `${dsField("decision-title", "Titre", `<input class="ds-input" id="FIELD" name="title" type="text" required />`, "Titre clair et concis de la décision.")}` +
     `${dsField("decision-body", "Contenu", `<textarea class="ds-input" id="FIELD" name="body" rows="4" required></textarea>`, "Décrivez la décision, son contexte et ses implications.")}` +
     `${dsField("decision-proposed_by_type", "Proposé par", `<select class="ds-input" id="FIELD" name="proposed_by_type"><option value="user">Utilisateur</option><option value="agent">Agent</option><option value="system">Système</option></select>`)}` +
-    `${dsField("decision-proposed_by_id", "ID du proposant", `<input class="ds-input" id="FIELD" name="proposed_by_id" type="text" value="${esc(proposerId)}" required />`, "UUID de l'utilisateur, agent ou système.")}` +
+    `${dsField("decision-proposed_by_id", "Identifiant du proposant", `<input class="ds-input" id="FIELD" name="proposed_by_id" type="text" value="${esc(proposerId)}" required />`, "UUID de l'utilisateur, agent ou système.")}` +
     `<div class="decision-form-actions">` +
     `<button class="ds-btn ds-btn--primary" type="submit" ${authed ? "" : "disabled"}>Créer la décision</button>` +
     `<button class="ds-btn" type="button" data-ds-close>Annuler</button>` +
@@ -1008,7 +1008,7 @@ function bindDecisionActions(
     const proposedById = String(data.get("proposed_by_id") ?? "").trim();
     if (!isUuid(proposedById)) {
       if (msg !== null) {
-        msg.textContent = "L'ID du proposant doit être un UUID valide.";
+        msg.textContent = "L'identifiant du proposant doit être un UUID.";
         if (msg instanceof HTMLElement) focusDsErrorBox(msg);
       }
       return;

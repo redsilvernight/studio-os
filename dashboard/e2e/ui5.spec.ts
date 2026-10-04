@@ -239,7 +239,7 @@ test.describe("UI-5 liste des tâches", () => {
     await expect(view.locator(".tasks-list").first()).toBeVisible();
     await expect(view.locator(".kanban")).toHaveCount(0);
     await expect(view.locator(".tasks-list [data-move]")).toHaveCount(0);
-    await expect(view.locator(".tasks-group-title")).toHaveText([/En cours/, /Bloquées/, /À démarrer/]);
+    await expect(view.locator(".tasks-group-title")).toHaveText([/En cours/, /Bloquées/, /À faire/]);
     // FR : badges, recherche, statuts ; aucune clé brute visible.
     await expect(view).toContainText("À faire");
     await expect(view).toContainText("En cours");

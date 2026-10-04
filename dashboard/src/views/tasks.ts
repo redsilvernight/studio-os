@@ -81,7 +81,7 @@ const OPEN_STATUSES: TaskStatus[] = ["in_progress", "blocked", "created"];
 export const TASK_SCOPES: { id: TasksScope; label: string; hint: string }[] = [
   { id: "now", label: "Maintenant", hint: "Ce qui avance ou bloque, et les prochaines tâches à démarrer." },
   { id: "mine", label: "Mon travail", hint: "Les tâches prises par vos postes, non terminées." },
-  { id: "all", label: "Toutes", hint: "Toutes les tâches, terminées comprises." },
+  { id: "all", label: "Toutes les tâches", hint: "Toutes les tâches, terminées comprises." },
 ];
 
 /** Plafonds de « Maintenant » : une vue de pilotage, pas un inventaire. */
@@ -92,7 +92,7 @@ export const NOW_UPCOMING_LIMIT = 5;
 const GROUPS: { status: TaskStatus; label: string }[] = [
   { status: "in_progress", label: "En cours" },
   { status: "blocked", label: "Bloquées" },
-  { status: "created", label: "À démarrer" },
+  { status: "created", label: "À faire" },
   { status: "completed", label: "Terminées" },
 ];
 
@@ -177,7 +177,7 @@ function viewToggleHtml(view: TasksView): string {
     view === value ? "ds-btn ds-btn--primary" : "ds-btn";
   return `<div class="tasks-view-toggle" role="group" aria-label="Présentation des tâches">` +
     `<button class="${cls("list")}" type="button" data-view="list"${pressed("list")}>Liste</button>` +
-    `<button class="${cls("board")}" type="button" data-view="board"${pressed("board")}>Tableau</button>` +
+    `<button class="${cls("board")}" type="button" data-view="board"${pressed("board")}>Kanban</button>` +
     `</div>`;
 }
 
@@ -204,7 +204,7 @@ export function tasksToolbarHtml(
     `<label class="ds-sr-only" for="tasks-search">Filtrer les tâches déjà chargées</label>` +
     `<input class="ds-input" type="search" id="tasks-search" value="${esc(state.query)}" placeholder="Filtrer par titre, description ou projet…" autocomplete="off" /></div>` +
     `<button class="ds-btn ds-btn--ghost" type="button" data-reset${isTasksDefaultState(state) ? " disabled" : ""}>Réinitialiser</button>` +
-    `<p class="ds-list-sub" role="status" aria-live="polite">${shown} tâche(s) affichée(s) sur ${total} chargée(s) — recherche locale.</p>` +
+    `<p class="ds-list-sub" role="status" aria-live="polite">${shown} tâche(s) affichée(s) sur ${total} chargée(s) — recherche appliquée aux tâches chargées.</p>` +
     `</div>`;
 }
 
@@ -396,7 +396,7 @@ export function tasksPageHtml(data: TasksPageData): string {
       : `<div class="tasks-footer">${reloadButton}` +
         (data.exhausted
           ? `<p class="ds-list-sub">Toutes les tâches de cette vue sont chargées.</p>`
-          : `<button class="ds-btn" type="button" data-more>Afficher plus</button>`) +
+          : `<button class="ds-btn" type="button" data-more>Afficher plus de tâches</button>`) +
         `<p class="ds-list-sub">Chargement par pages de ${TASK_PAGE_LIMIT} — la recherche s'applique aux tâches chargées, dans l'ordre du serveur.</p></div>`;
   const msg =
     data.msg.human === ""

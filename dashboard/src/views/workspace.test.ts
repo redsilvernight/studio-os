@@ -106,7 +106,7 @@ describe("workspaceHeaderHtml", () => {
     expect(html).toContain("Le jeu principal du studio");
     expect(html).toContain("Actif");
     expect(html).toContain('href="#/projects"');
-    expect(html).toContain("phare");
+    expect(html).not.toContain("phare");
   });
 
   it("technique secondaire : UUID/version/dates dans le détail replié", () => {
