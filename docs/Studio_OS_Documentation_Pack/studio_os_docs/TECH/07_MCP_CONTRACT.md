@@ -370,6 +370,27 @@ mute jamais taches ni claims. `idempotency_key` optionnel (namespace
 integration GitHub et la reception du webhook restent HTTP-only (pas de
 secret partageable comme parametre d'outil).
 
+## Outils depreciés (DEC-0186)
+
+Cinq outils redondants restent appelables, sans changement de comportement,
+jusqu'au `2026-11-04` ; ils sont signales (changement additif) :
+
+| Outil deprecie | Remplacant |
+|---|---|
+| `studio_start_session` | `studio_start_work` |
+| `studio_end_session` | `studio_handoff` |
+| `studio_claim_task` | `studio_start_work` |
+| `studio_release_task` | `studio_handoff` |
+| `studio_claim_resource` | `studio_claim_resources` (un seul chemin) |
+
+Signalement : la description de `tools/list` commence par `DEPRECATED, removal
+on or after 2026-11-04: use <remplacant> instead.` ; chaque reponse reussie
+porte un objet `deprecation` `{replaced_by, sunset}` ; les erreurs restent
+inchangees (`services/mcp/src/studio_mcp/deprecation.py`). Ces outils sont
+deja absents du profil `session` (DEC-0183). Le retrait, apres la date, est un
+changement cassant traite par le skill `contract-change` ; les routes HTTP
+equivalentes ne sont pas concernees.
+
 ## Evolution des contrats d'outils (CC-3, DEC-0048)
 
 Le contrat d'un outil = son nom + son `inputSchema` + son `outputSchema` +

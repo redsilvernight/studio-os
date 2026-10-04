@@ -24,12 +24,9 @@ description: Close a unit of work in one call (L3 studio_handoff) so a zero-hist
 
 Composes: task status update + releases all claims + logs AI work (with `session_id` for traceability) + ends session. Idempotent via `Idempotency-Key`. Emits one `coordination.handoff` signal when `coordination_text` is set (never re-emitted on replay). Compact response: ids + statuses + last bounded `sync` block + `handoff_cursor_seq`.
 
-## Minimal fallback (if L3 not available)
+## Failure
 
-1. `studio_log_ai_work` (final, with `task_id`, `session_id`): structured note `DONE/STATE/CHANGED/TESTS/NEXT/BLOCKERS` + `changed_files`/`tests_run`
-2. `studio_release_resource` for each active claim of the task
-3. `studio_release_task`
-4. `studio_end_session` (now auto-releases task claims)
+If `studio_handoff` fails, fix the cause and replay it with the same `idempotency_key`; do not rebuild the closing from `studio_release_task` / `studio_end_session` (deprecated, DEC-0186).
 
 ## Resume (Agent B, zero history, possibly another harness)
 
