@@ -281,14 +281,16 @@ test.describe("Visual Polish V2 — Tâches", () => {
 });
 
 test.describe("Visual Polish V2 — Projets", () => {
-  test("cartes : grille large, noms longs sans overflow, 1440 → 375", async ({ page }) => {
+  test("lignes compactes : liste empilée, noms longs sans overflow, 1440 → 375", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 1440, height: 900 });
     await withData(page, "#/projects");
     const cards = page.locator("#view .project-card");
     await expect(cards).toHaveCount(2);
     const tops = await cards.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
-    expect(new Set(tops).size, "cartes côte à côte sur desktop").toBe(1);
+    expect(new Set(tops).size, "lignes empilées, une par projet").toBe(2);
+    const heights = await cards.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+    expect(Math.max(...heights), "ligne compacte").toBeLessThan(200);
     for (const [w, h] of [[1280, 800], [900, 800], [768, 900], [375, 812]] as const) {
       await page.setViewportSize({ width: w, height: h });
       await expectNoOverflow(page, `projects ${w}`);
