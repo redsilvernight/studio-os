@@ -241,7 +241,11 @@ async function activeId(page: Page): Promise<string> {
   return page.evaluate(() => {
     const active = document.activeElement;
     if (active === null) return "(null)";
-    return active.id !== "" ? `#${active.id}` : (active.textContent ?? "").trim().slice(0, 40);
+    if (active.id !== "") return `#${active.id}`;
+    // Texte lu (les libellés courts du rail sont aria-hidden).
+    const copy = active.cloneNode(true) as Element;
+    for (const hidden of copy.querySelectorAll("[aria-hidden=true]")) hidden.remove();
+    return (copy.textContent ?? "").trim().slice(0, 40);
   });
 }
 
@@ -419,11 +423,12 @@ test.describe("UI-14 clavier et focus", () => {
     await login(page, "#/tasks");
     await page.locator(".ds-skip-link").focus();
     const stops: string[] = [];
-    for (let i = 0; i < 5; i += 1) {
+    for (let i = 0; i < 6; i += 1) {
       await page.keyboard.press("Tab");
       stops.push(await activeId(page));
     }
-    expect(stops).toEqual(["Accueil", "Projets", "Travail", "À valider", "Agents"]);
+    // P03-shell : la palette « Aller à… » est en tête de la barre latérale.
+    expect(stops).toEqual(["#palette-open", "Accueil", "Projets", "Travail", "À valider", "Agents"]);
     expect(csp).toEqual([]);
     expect(fatal).toEqual([]);
   });

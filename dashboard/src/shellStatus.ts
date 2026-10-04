@@ -14,7 +14,7 @@ import type {
   RuntimeServiceCondition,
 } from "./platform/generated/local-contracts.generated";
 import type { ConnectionSnapshot } from "./connection";
-import { esc } from "./ui";
+import { connectionStatusHtml, type ConnectionView } from "./shell";
 
 export type CompatibilityState = "ok" | "incompatible" | "unknown";
 
@@ -189,13 +189,14 @@ export function summarizeShellStatus(input: ShellStatusInput): ShellStatus {
   return { level: "info", reason: "connecting", label: "Connexion…" };
 }
 
-/** The pill: a link to the detail page, never an alarm bell. */
+/** The shell's single connection status, linked to the detail page (C4). */
+export function shellConnectionView(status: ShellStatus): ConnectionView {
+  return { level: status.level, label: status.label, reason: status.reason, href: "#/configuration/application" };
+}
+
+/** The status element: a link to the detail page, never an alarm bell. */
 export function shellStatusHtml(status: ShellStatus): string {
-  return (
-    `<a class="app-status app-status--${status.level}" id="shell-status" data-testid="shell-status" ` +
-    `data-reason="${status.reason}" href="#/configuration/application" role="status">` +
-    `<span class="app-status-dot" aria-hidden="true"></span>${esc(status.label)}</a>`
-  );
+  return connectionStatusHtml(shellConnectionView(status));
 }
 
 export function serverStateLabel(connection: ConnectionSnapshot): string {
