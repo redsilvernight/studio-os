@@ -6,6 +6,7 @@ from typing import Literal, get_args
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 
+from studio_mcp.tool_profiles import ToolProfileMiddleware
 from studio_mcp.tools.agents import studio_register_agent
 from studio_mcp.tools.ai_library import (
     studio_configure_runtime,
@@ -78,7 +79,7 @@ _IDEMPOTENT_WRITE = ToolAnnotations(idempotent_hint=True)
 
 
 def create_server() -> MCPServer:
-    server = MCPServer(name="studio-os")
+    server = MCPServer(name="studio-os", middleware=[ToolProfileMiddleware()])
 
     server.add_tool(
         studio_get_projects,
@@ -297,8 +298,9 @@ def create_server() -> MCPServer:
         name="studio_get_recent_changes",
         description=(
             "List recent events, optionally filtered by project_id, task_id, and since (ISO-8601 "
-            "timestamp) — read-only. This is the polling channel; for live push use the HTTP event "
-            "stream (GET /api/v1/events/stream)."
+            "timestamp) — read-only. `limit` (1..200, default 20) bounds the response and `fields` "
+            "selects which keys each event carries. This is the polling channel; for live push use "
+            "the HTTP event stream (GET /api/v1/events/stream)."
         ),
         annotations=_READ_ONLY,
     )
@@ -382,9 +384,9 @@ def create_server() -> MCPServer:
         studio_get_teammate_activity,
         name="studio_get_teammate_activity",
         description=(
-            "List the machines currently active on a project (via its active tasks "
-            "and resource claims), each with a heartbeat-derived online/idle/offline "
-            "status — read-only."
+            "List the machines currently active on a project (via its active tasks and resource "
+            "claims), each with a heartbeat-derived online/idle/offline status plus the claimed "
+            "`tasks` (id, title, status) and `claims` (resource_path, resource_type) — read-only."
         ),
         annotations=_READ_ONLY,
     )
@@ -444,8 +446,9 @@ def create_server() -> MCPServer:
         studio_get_ai_work,
         name="studio_get_ai_work",
         description=(
-            "List AI work ledger entries, optionally filtered by project_id/task_id (UUID "
-            "strings) — read-only."
+            "List AI work ledger entries, most recent first, optionally filtered by "
+            "project_id/task_id (UUID strings) — read-only. `limit` (1..200, default 20) "
+            "bounds the response and `fields` selects which keys each entry carries."
         ),
         annotations=_READ_ONLY,
     )

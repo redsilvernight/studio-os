@@ -14,6 +14,20 @@ from studio_contracts.events import EventCreate, EventType
 from studio_mcp.errors import run_tool
 from studio_mcp.util import parse_uuid
 
+_MAX_EVENT_LIMIT = 200
+_EVENT_FIELDS = frozenset(
+    {
+        "event_id",
+        "event_type",
+        "project_id",
+        "task_id",
+        "actor_type",
+        "actor_id",
+        "server_timestamp",
+        "payload",
+    }
+)
+
 
 def _compact_event(event: EventModel) -> dict[str, Any]:
     return {
@@ -109,12 +123,27 @@ async def studio_get_recent_changes(
     project_id: str | None = None,
     task_id: str | None = None,
     since: str | None = None,
-    limit: int = 100,
+    limit: int = 20,
+    fields: list[str] | None = None,
 ) -> dict[str, Any]:
     """List recent events, optionally filtered by project_id/task_id (UUID
-    strings) and `since` (ISO-8601 timestamp)."""
+    strings) and `since` (ISO-8601 timestamp). `limit` (1..200, default 20)
+    bounds the response; select response `fields` to keep it small
+    (`event_id` is always included)."""
 
     async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
+        if not 1 <= limit <= _MAX_EVENT_LIMIT:
+            return {
+                "error_code": "invalid_argument",
+                "message": f"limit must be within 1..{_MAX_EVENT_LIMIT}",
+            }
+        selected_fields = _EVENT_FIELDS if fields is None else frozenset(fields) | {"event_id"}
+        unknown_fields = selected_fields - _EVENT_FIELDS
+        if unknown_fields:
+            return {
+                "error_code": "invalid_argument",
+                "message": f"unknown fields: {', '.join(sorted(unknown_fields))}",
+            }
         parsed_project_id = None
         if project_id is not None:
             parsed = parse_uuid(project_id, "project_id")
@@ -144,6 +173,11 @@ async def studio_get_recent_changes(
             since=parsed_since,
             limit=limit,
         )
-        return {"events": [_compact_event(e) for e in events]}
+        return {
+            "events": [
+                {key: value for key, value in _compact_event(e).items() if key in selected_fields}
+                for e in events
+            ]
+        }
 
     return await run_tool(ctx, _handler)

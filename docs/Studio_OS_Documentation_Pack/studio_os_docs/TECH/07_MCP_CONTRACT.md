@@ -127,6 +127,16 @@ titre puis UUID, `title_prefix` (insensible a la casse) et une allowlist
 `fields`; `id` est toujours renvoye. La reponse indique `returned` et
 `additional_available`.
 
+`studio_get_recent_changes` est borne par defaut : `limit` (1 a 200) vaut 20
+si omis (DEC-0183) et `fields` projette les cles de chaque evenement
+(`event_id` toujours present). `studio_get_ai_work` est borne et trie du plus
+recent au plus ancien : `limit` (1 a 200, defaut 20) et `fields` (`id`
+toujours present), avec `returned` / `additional_available`.
+`studio_get_teammate_activity` conserve ses champs et ajoute, par poste, les
+`tasks` (`id`, `title`, `status`) et `claims` (`resource_path`,
+`resource_type`) actifs. Ces changements de defaut de `limit` sont des
+evolutions de comportement documentees ici, pas des ruptures de schema.
+
 ## Auth (DEC-0023)
 Chaque outil authentifie l'appelant individuellement (voir
 `TECH/04_AUTH_SYNC_CONTRACT.md` section "Auth MCP") — jamais un secret
@@ -147,15 +157,14 @@ token (pas d'attaquant reseau).
 
 ## Etat reel (roadmap etape 5, DEC-0023, UC-3/DEC-0047, P8/DEC-0072)
 
-Le serveur VPS enregistre 49 outils (`services/mcp/src/studio_mcp/` : 29
-historiques + 5 AI Library P8, section ci-dessous, + `studio_prepare_context`,
-DEC-0080, section « Contexte projet borné », + 7 outils Roadmaps P4/P5,
-DEC-0087, section « Roadmaps et initialisation via MCP », +
-`studio_register_agent`, DEC-0101, section « Enregistrement d'Agent », +
-`studio_transition_roadmap`, section « Roadmaps et initialisation via MCP », +
-`studio_claim_resources`, pose par lot, section « Claims par lot » ci-dessous,
-+ `studio_handoff`, L3, section ci-dessus, + `studio_sync`, C2, section
-ci-dessus, + `studio_coordinate`, C3, section ci-dessus).
+Le serveur VPS enregistre la surface complete des outils listes dans
+`MCP_ACCESS` (`services/mcp/src/studio_mcp/access_registry.py`, 54 entrees au
+2026-10-04) : outils historiques, AI Library P8, `studio_prepare_context`
+(DEC-0080), Roadmaps P4/P5 (DEC-0087), `studio_register_agent` (DEC-0101),
+`studio_transition_roadmap`, `studio_claim_resources`, `studio_handoff` (L3),
+`studio_sync` (C2) et `studio_coordinate` (C3). Le profil `session` (defaut)
+n'expose qu'un sous-ensemble de cette surface ; le profil `admin` expose
+l'ensemble (section « Profils d'outils MCP » ci-dessous, DEC-0183).
 Les 3 outils locaux read-only specifies ci-dessous (UC-3, exposition via
 MCP local par poste, DEC-0047) sont en place mais conditionnels au
 fichier de configuration du poste : `studio_memory_search`,
@@ -163,6 +172,38 @@ fichier de configuration du poste : `studio_memory_search`,
 `studio_generate_context_package` n'est **pas** un outil MCP : il est
 reclassé en capacité locale du Bloc B par DEC-0057 (voir section
 « Context Package (8.3b, DEC-0057) » ci-dessous).
+
+## Profils d'outils MCP (session par defaut, admin a la demande)
+
+Le serveur `studio-os` selectionne les outils exposes **par connexion**, et
+non plus une liste unique pour tous les appelants
+(`services/mcp/src/studio_mcp/tool_profiles.py`, DEC-0183, portee precisee par
+DEC-0184). Deux profils :
+
+- `session` (defaut) : le sous-ensemble qu'une session d'agent utilise
+  reellement (contexte, travail, sync/coordination, decisions, claims,
+  lectures ciblees). `tools/list` ne renvoie que ces outils.
+- `admin` : l'ensemble des outils enregistres (`MCP_ACCESS`), pour
+  l'initialisation de projet, les roadmaps, les transferts, les runtimes et
+  les definitions.
+
+Selection, par connexion :
+
+- transport HTTP : en-tete `X-Studio-Tool-Profile: admin` (ou `session`) ;
+  absent ou inconnu → `session`. Une variable d'environnement du serveur ne
+  s'applique pas aux connexions HTTP.
+- transport stdio (harnais local) : variable
+  `STUDIO_MCP_TOOL_PROFILE=admin|session` ; absent → `session`.
+
+`tools/call` n'est **pas** filtre par le profil : l'authentification et
+l'allowlist du credential ephemere de lancement gardent leur ordre et leurs
+`error_code` documentes (`unauthenticated`, `launch_credential_scope`,
+section Auth ci-dessus). Un profil est un controle de bruit et de jetons sur
+la decouverte, pas une frontiere d'autorisation : les verifications de role et
+d'acces projet restent dans les services partages (DEC-0046 §4). L'absence
+d'un outil dans `tools/list` signifie seulement « non expose pour cette
+connexion », jamais « indisponible » (DEC-0046 regle 5) ; le profil `admin`
+est la surface nommee qui restaure l'ensemble (DEC-0048).
 
 ## Outils locaux Memory/Knowledge UC-3 (DEC-0047)
 

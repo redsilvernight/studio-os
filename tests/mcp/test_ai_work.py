@@ -285,3 +285,27 @@ async def test_log_ai_work_idempotency_key_rejects_different_arguments(
     assert "error_code" in mismatch
     listing = await studio_get_ai_work(auth_ctx, project_id=str(project.id))
     assert len(listing["ai_work"]) == 1
+
+
+async def test_get_ai_work_projects_selected_fields(
+    auth_ctx: FakeContext, project: ProjectModel, agent: AgentModel
+) -> None:
+    await studio_log_ai_work(str(project.id), "Projection", str(agent.id), auth_ctx)
+    result = await studio_get_ai_work(auth_ctx, project_id=str(project.id), fields=["status"])
+    assert result["ai_work"]
+    for entry in result["ai_work"]:
+        assert set(entry) == {"id", "status"}
+
+
+async def test_get_ai_work_rejects_out_of_range_limit(
+    auth_ctx: FakeContext, project: ProjectModel
+) -> None:
+    result = await studio_get_ai_work(auth_ctx, project_id=str(project.id), limit=0)
+    assert result["error_code"] == "invalid_argument"
+
+
+async def test_get_ai_work_rejects_unknown_field(
+    auth_ctx: FakeContext, project: ProjectModel
+) -> None:
+    result = await studio_get_ai_work(auth_ctx, project_id=str(project.id), fields=["nope"])
+    assert result["error_code"] == "invalid_argument"
