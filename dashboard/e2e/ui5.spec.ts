@@ -231,15 +231,18 @@ test.describe("UI-5 liste des tâches", () => {
     const view = page.locator("#view");
     await expect(view.locator("h1")).toContainText("Tâches");
     await expect(view.locator("h1")).toBeVisible();
-    // Vue Liste par défaut (bouton enfoncé), pas de kanban.
-    await expect(view.locator('[data-view="list"]')).toHaveAttribute("aria-pressed", "true");
-    await expect(view.locator(".tasks-list")).toBeVisible();
+    // Vue « Maintenant » par défaut : liste groupée, pas de kanban ni de menu par ligne.
+    await expect(view.locator('[data-scope="now"]')).toHaveAttribute("aria-pressed", "true");
+    await expect(view.locator("[data-view]")).toHaveCount(0);
+    await expect(view.locator(".tasks-list").first()).toBeVisible();
     await expect(view.locator(".kanban")).toHaveCount(0);
+    await expect(view.locator(".tasks-list [data-move]")).toHaveCount(0);
+    await expect(view.locator(".tasks-group-title")).toHaveText([/En cours/, /Bloquées/, /À démarrer/]);
     // FR : badges, recherche, statuts ; aucune clé brute visible.
     await expect(view).toContainText("À faire");
     await expect(view).toContainText("En cours");
     await expect(view).toContainText("Bloqué");
-    await expect(view).toContainText("Tous les statuts");
+    await expect(view.locator("#tasks-status")).toHaveCount(0);
     await expect(view.locator("#tasks-search")).toHaveAttribute("placeholder", /Filtrer par titre/);
     await expect(view).not.toContainText("TODO");
     await expect(view).not.toContainText("IN PROGRESS");
@@ -263,11 +266,13 @@ test.describe("UI-5 liste des tâches", () => {
     await expect(view.locator(".task-row")).toHaveCount(1);
     await expect(view).toContainText("1 tâche(s) affichée(s) sur 3 chargée(s)");
     // Réinitialiser restaure tout, au clavier aussi (Tab + Entrée).
-    await view.locator("#tasks-search").fill("");
-    await view.locator("#tasks-status").selectOption("blocked");
-    await expect(view.locator(".task-row")).toHaveCount(1);
-    await expect(view).toContainText("Caméra Android bloquée");
     await view.locator("[data-reset]").first().click();
+    await expect(view.locator(".task-row")).toHaveCount(3);
+    // Filtres = vues nommées : Mon travail ne garde que la tâche prise par un poste.
+    await view.locator('[data-scope="mine"]').click();
+    await expect(view.locator('[data-scope="mine"]')).toHaveAttribute("aria-pressed", "true");
+    await expect(view.locator(".task-row")).toHaveCount(1);
+    await view.locator('[data-scope="all"]').first().click();
     await expect(view.locator(".task-row")).toHaveCount(3);
     // Aucun résultat : message distinct, pas « aucune tâche ».
     await view.locator("#tasks-search").fill("zzz-introuvable");
@@ -281,6 +286,7 @@ test.describe("UI-5 liste des tâches", () => {
     const captured: Captured = { idempotencyKeys: [], createdBodies: [], patches: [] };
     await login(page, "#/tasks", captured);
     const view = page.locator("#view");
+    await view.locator('[data-scope="all"]').first().click();
     await view.locator('[data-view="board"]').click();
     await expect(view.locator(".kanban").first()).toBeVisible();
     await expect(view).toContainText("Déplacer vers…");
@@ -302,6 +308,7 @@ test.describe("UI-5 liste des tâches", () => {
     const captured: Captured = { idempotencyKeys: [], createdBodies: [], patches: [] };
     await login(page, "#/tasks", captured, { patchConflict: true });
     const view = page.locator("#view");
+    await view.locator('[data-scope="all"]').first().click();
     await view.locator('[data-view="board"]').click();
     const card = view.locator('[data-card="aaaaaaaa-0000-4111-8111-000000000003"]');
     await card.locator("select[data-status]").selectOption("completed");
@@ -420,11 +427,11 @@ test.describe("UI-5 workspace projet / tâches", () => {
     await expect(view.locator("h1")).toContainText("Jeu Phare");
     await expect(view.locator('[data-ws-tab="tasks"]')).toHaveAttribute("aria-selected", "true");
     await expect(view.locator(".tasks > .ds-section-header h2")).toContainText("Tâches");
-    await expect(view.locator(".tasks-list")).toBeVisible();
+    await expect(view.locator(".tasks-list").first()).toBeVisible();
     await expect(view.locator(".task-row")).toHaveCount(3);
     // Retour à la liste globale : deep link stable.
     await page.goto("/#/tasks");
-    await expect(view.locator(".tasks-list")).toBeVisible();
+    await expect(view.locator(".tasks-list").first()).toBeVisible();
     await page.goBack();
     await expect(view.locator('[data-ws-tab="tasks"]')).toHaveAttribute("aria-selected", "true");
     expect(csp).toEqual([]);
@@ -442,6 +449,7 @@ test.describe("UI-5 mobile 375", () => {
     const view = page.locator("#view");
     await expect(view.locator(".task-row").first()).toBeVisible();
     await page.screenshot({ path: `${SHOTS}/taches-liste-mobile.png` });
+    await view.locator('[data-scope="all"]').first().click();
     await view.locator('[data-view="board"]').click();
     await expect(view.locator(".kanban").first()).toBeVisible();
     await page.screenshot({ path: `${SHOTS}/taches-tableau-mobile.png` });

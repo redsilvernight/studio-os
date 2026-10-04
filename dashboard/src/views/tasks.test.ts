@@ -1,6 +1,7 @@
 /**
- * UI-5 — Tâches Liste/Tableau : filtres honnêtes, présentation FR,
- * création en modale, statuts traduits sans toucher aux clés.
+ * UI-5 / P04-work — Travail : vues nommées (Maintenant, Mon travail,
+ * Toutes), liste groupée par statut sans menu par ligne, Tableau dans
+ * « Toutes », création en modale, statuts traduits sans toucher aux clés.
  *
  * DOM-free (vitest, environnement node) : assertions sur les chaînes
  * produites + lecture statique de tasks.css pour le responsive.
@@ -18,7 +19,11 @@ import {
   tasksListHtml,
   tasksLoadingHtml,
   tasksPageHtml,
+  tasksScopeRequests,
+  tasksScopeTabsHtml,
   tasksToolbarHtml,
+  NOW_ACTIVE_LIMIT,
+  NOW_UPCOMING_LIMIT,
   type TasksPageState,
 } from "./tasks";
 
@@ -52,9 +57,11 @@ const t2 = task("t2", "in_progress", "Optimiser les éclairages", {
   claimed_by_machine_id: "abcdef12-3456-7890-abcd-ef1234567890",
 });
 const t3 = task("t3", "blocked", "Corriger le build", { project_id: P2 });
+const t4 = task("t4", "completed", "Livrer la démo");
 const all = [t1, t2, t3] as never[];
 const names = { [P1]: "Jeu Phare", [P2]: "Digue" };
 const blank: TasksPageState = initialTasksState();
+const everything: TasksPageState = { ...blank, scope: "all" };
 
 const pageData = (state: TasksPageState, tasks: typeof all = all) => ({
   tasks,
@@ -70,22 +77,50 @@ const pageData = (state: TasksPageState, tasks: typeof all = all) => ({
 });
 
 describe("initialTasksState / isTasksDefaultState", () => {
-  it("démarre en Liste, sans filtre ni recherche", () => {
-    expect(blank).toEqual({ view: "list", filter: "all", query: "" });
+  it("démarre sur Maintenant, en Liste, sans recherche", () => {
+    expect(blank).toEqual({ scope: "now", view: "list", query: "" });
     expect(isTasksDefaultState(blank)).toBe(true);
     expect(isTasksDefaultState({ ...blank, view: "board" })).toBe(true);
-    expect(isTasksDefaultState({ ...blank, filter: "blocked" })).toBe(false);
+    expect(isTasksDefaultState({ ...blank, scope: "all" })).toBe(true);
     expect(isTasksDefaultState({ ...blank, query: "cam" })).toBe(false);
   });
 });
 
+describe("tasksScopeRequests (filtres serveur DEC-0185)", () => {
+  it("Maintenant : en cours + bloquées bornées, quelques tâches à démarrer, jamais 100 brutes", () => {
+    const requests = tasksScopeRequests("now", 100);
+    expect(requests).toEqual([
+      { status: ["in_progress", "blocked"], limit: NOW_ACTIVE_LIMIT },
+      { status: ["created"], limit: NOW_UPCOMING_LIMIT },
+    ]);
+    expect(requests.every((request) => request.status !== undefined)).toBe(true);
+    expect(requests.reduce((sum, request) => sum + request.limit, 0)).toBeLessThan(100);
+  });
+
+  it("Mon travail : tâches prises par mes postes, non terminées, paginées", () => {
+    expect(tasksScopeRequests("mine", 200)).toEqual([
+      { mine: true, status: ["in_progress", "blocked", "created"], limit: 200 },
+    ]);
+  });
+
+  it("Toutes : liste complète paginée, sans filtre", () => {
+    expect(tasksScopeRequests("all", 100)).toEqual([{ limit: 100 }]);
+  });
+});
+
 describe("filterTasks (client-side, données déjà chargées)", () => {
-  it("sans filtre retourne tout, dans l'ordre du serveur", () => {
+  it("sans recherche retourne tout, dans l'ordre du serveur", () => {
     expect(filterTasks(all, blank, names)).toEqual(all);
   });
 
-  it("filtre par statut exact", () => {
-    expect(filterTasks(all, { ...blank, filter: "blocked" }, names).map((t) => t.id)).toEqual(["t3"]);
+  it("garde-fou : Maintenant écarte les terminées, Toutes les garde", () => {
+    const loaded = [...all, t4] as never[];
+    expect(filterTasks(loaded, blank, names).map((t) => t.id)).toEqual(["t1", "t2", "t3"]);
+    expect(filterTasks(loaded, everything, names).map((t) => t.id)).toEqual(["t1", "t2", "t3", "t4"]);
+  });
+
+  it("garde-fou : Mon travail écarte les tâches non prises", () => {
+    expect(filterTasks(all, { ...blank, scope: "mine" }, names).map((t) => t.id)).toEqual(["t2"]);
   });
 
   it("recherche locale titre + description + projet, insensible à la casse", () => {
@@ -95,11 +130,9 @@ describe("filterTasks (client-side, données déjà chargées)", () => {
     expect(filterTasks(all, { ...blank, query: "  caméra  " }, names).map((t) => t.id)).toEqual(["t1"]);
   });
 
-  it("combine statut et recherche, sans réordonner", () => {
-    expect(
-      filterTasks(all, { ...blank, filter: "created", query: "caméra" }, names).map((t) => t.id),
-    ).toEqual(["t1"]);
-    expect(filterTasks(all, { ...blank, filter: "created", query: "zzz" }, names)).toEqual([]);
+  it("combine vue et recherche, sans réordonner", () => {
+    expect(filterTasks(all, { ...blank, scope: "mine", query: "caméra" }, names)).toEqual([]);
+    expect(filterTasks(all, { ...blank, query: "zzz" }, names)).toEqual([]);
   });
 
   it("ne touche jamais au réseau (pur) et ne trie pas", () => {
@@ -108,10 +141,28 @@ describe("filterTasks (client-side, données déjà chargées)", () => {
   });
 });
 
-describe("tasksToolbarHtml", () => {
-  const html = tasksToolbarHtml(blank, 3, 3);
+describe("tasksScopeTabsHtml (vues nommées)", () => {
+  it("trois vues FR, l'active marquée par aria-pressed, pas par la couleur seule", () => {
+    const html = tasksScopeTabsHtml("now", 3);
+    expect(html).toContain('aria-label="Vues du travail"');
+    expect(html).toContain('data-scope="now" aria-pressed="true"');
+    expect(html).toContain('data-scope="mine" aria-pressed="false"');
+    expect(html).toContain('data-scope="all" aria-pressed="false"');
+    expect(html).toContain("Maintenant");
+    expect(html).toContain("Mon travail");
+    expect(html).toContain("Toutes");
+    expect(html).toContain('<span class="tasks-scope-count">3</span>');
+  });
 
-  it("propose Liste/Tableau avec état explicite, pas de couleur seule", () => {
+  it("aucun compte inventé quand il n'est pas connu", () => {
+    expect(tasksScopeTabsHtml("all")).not.toContain("tasks-scope-count");
+  });
+});
+
+describe("tasksToolbarHtml", () => {
+  const html = tasksToolbarHtml(everything, 3, 3);
+
+  it("Toutes : propose Liste/Tableau avec état explicite, pas de couleur seule", () => {
     expect(html).toContain('role="group"');
     expect(html).toContain("Présentation des tâches");
     expect(html).toContain(">Liste</button>");
@@ -120,12 +171,14 @@ describe("tasksToolbarHtml", () => {
     expect(html).toContain('data-view="board" aria-pressed="false"');
   });
 
-  it("filtre statut FR + recherche locale honnête + réinitialisation", () => {
-    expect(html).toContain("Tous les statuts");
-    expect(html).toContain("À faire");
-    expect(html).toContain("En cours");
-    expect(html).toContain("Bloqué");
-    expect(html).toContain("Terminé");
+  it("Maintenant et Mon travail : pas de Tableau", () => {
+    expect(tasksToolbarHtml(blank, 3, 3)).not.toContain("data-view");
+    expect(tasksToolbarHtml({ ...blank, scope: "mine" }, 3, 3)).not.toContain("data-view");
+  });
+
+  it("filtres exprimés comme vues : plus de sélecteur de statut ; recherche locale + réinitialisation", () => {
+    expect(html).not.toContain("<select");
+    expect(html).not.toContain("Tous les statuts");
     expect(html).toContain('type="search"');
     expect(html).toContain("déjà chargées");
     expect(html).toContain("Réinitialiser");
@@ -165,10 +218,21 @@ describe("tasksListHtml (vue par défaut)", () => {
     expect(html).not.toContain("<code");
   });
 
-  it("chaque ligne ouvre le détail et propose le déplacement clavier", () => {
+  it("chaque ligne ouvre le détail ; aucun menu de statut répété par ligne", () => {
     expect(html).toContain('href="#/tasks/t1"');
-    expect(html).toContain("Déplacer vers…");
-    expect(html).toContain(">Déplacer</button>");
+    expect(html).not.toContain("Déplacer vers…");
+    expect(html).not.toContain("<select");
+    expect(html).not.toContain("data-move");
+  });
+
+  it("groupée par statut réel, dans l'ordre d'attention, groupes vides omis", () => {
+    const text = html.replace(/<[^>]*>/g, " ");
+    const order = ["En cours", "Bloquées", "À démarrer"].map((label) => text.indexOf(label));
+    expect(order.every((index) => index >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(html).not.toContain("Terminées");
+    expect(html).toContain('aria-labelledby="tasks-group-blocked"');
+    expect(tasksListHtml([...all, t4] as never[], { authed: true, showProject: true })).toContain("Terminées");
   });
 
   it("n'affiche ni priorité ni assigné inventés", () => {
@@ -248,27 +312,50 @@ describe("taskCreateFormHtml (modale, Idempotency-Key préservée)", () => {
 });
 
 describe("tasksPageHtml nominal", () => {
-  it("en-tête FR, action de création, pagination honnête : pas d'anglais résiduel", () => {
+  it("en-tête FR, action de création, Maintenant par défaut : pas d'anglais résiduel", () => {
     const html = tasksPageHtml(pageData(blank));
     expect(html).toContain("<h1>Tâches</h1>");
+    expect(html).toContain('data-scope="now" aria-pressed="true"');
     expect(html).toContain("Nouvelle tâche");
     expect(html).toContain("Actualiser");
-    expect(html).toContain("Toutes les tâches chargées.");
-    expect(html).toContain("ordre du serveur");
+    expect(html).toContain("Voir toutes les tâches");
+    expect(html).not.toContain("data-more");
     for (const word of ["Reload", "Load more", "Move", "Create", "New task", "Open", "unclaimed"]) {
       expect(html).not.toContain(word);
     }
   });
 
-  it("vue Tableau sur demande, avec aide drag & drop + clavier", () => {
-    const html = tasksPageHtml(pageData({ ...blank, view: "board" }));
+  it("Toutes et Mon travail : pagination honnête", () => {
+    const loaded = tasksPageHtml(pageData(everything));
+    expect(loaded).toContain("Toutes les tâches de cette vue sont chargées.");
+    expect(loaded).toContain("ordre du serveur");
+    const more = tasksPageHtml({ ...pageData({ ...blank, scope: "mine" }), exhausted: false });
+    expect(more).toContain("data-more");
+    expect(more).not.toContain("tasks-scope-count");
+  });
+
+  it("Tableau sur demande dans Toutes, avec aide drag & drop + clavier", () => {
+    const html = tasksPageHtml(pageData({ ...everything, view: "board" }));
     expect(html).toContain('data-view="board" aria-pressed="true"');
     expect(html).toContain("Glissez une carte");
     expect(html).toContain("Déplacer vers…");
+    expect(tasksPageHtml(pageData({ ...blank, view: "board" }))).not.toContain("Glissez une carte");
+  });
+
+  it("changement de vue : squelette plutôt qu'un vide trompeur", () => {
+    const html = tasksPageHtml({ ...pageData(blank, []), loading: true });
+    expect(html).toContain("Chargement en cours");
+    expect(html).not.toContain("Rien en cours");
+  });
+
+  it("vides propres à chaque vue, avec un chemin vers Toutes", () => {
+    expect(tasksPageHtml(pageData(blank, []))).toContain("Rien en cours");
+    expect(tasksPageHtml(pageData({ ...blank, scope: "mine" }, []))).toContain("Aucune tâche prise par vos postes");
+    expect(tasksPageHtml(pageData(blank, []))).toContain('data-scope="all"');
   });
 
   it("vide global vs vide après filtre : deux messages distincts", () => {
-    expect(tasksPageHtml(pageData(blank, []))).toContain("Aucune tâche");
+    expect(tasksPageHtml(pageData(everything, []))).toContain("Aucune tâche");
     const filtered = tasksPageHtml(pageData({ ...blank, query: "zzz" }));
     expect(filtered).toContain("Aucune tâche ne correspond aux filtres");
     expect(filtered).toContain("Réinitialiser les filtres");

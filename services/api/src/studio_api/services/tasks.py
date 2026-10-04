@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any, Literal
 
@@ -11,6 +12,7 @@ from studio_contracts.events import EventCreate, EventType
 from studio_contracts.tasks import TaskCreate, TaskUpdate
 
 from studio_api.db.models.agent import AgentModel
+from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.task import TaskModel
 from studio_api.services import events as events_service
 from studio_api.services.authz import (
@@ -34,6 +36,8 @@ async def list_tasks(
     project_id: uuid.UUID | None = None,
     limit: int = 100,
     offset: int = 0,
+    statuses: Sequence[str] | None = None,
+    mine: bool = False,
 ) -> list[TaskModel]:
     # Without ORDER BY, Postgres returns physical order: rows rewritten by an
     # update (claims → in_progress) drift past the first page, and offset
@@ -49,6 +53,11 @@ async def list_tasks(
         stmt = stmt.where(TaskModel.project_id == project_id)
     elif (visible := project_visibility_clause(principal, TaskModel.project_id)) is not None:
         stmt = stmt.where(visible)
+    if statuses:
+        stmt = stmt.where(TaskModel.status.in_([str(s) for s in statuses]))
+    if mine:
+        owned = select(MachineModel.id).where(MachineModel.owner_user_id == principal.user.id)
+        stmt = stmt.where(TaskModel.claimed_by_machine_id.in_(owned))
     result = await session.execute(stmt)
     return list(result.scalars().all())
 

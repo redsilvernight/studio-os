@@ -169,20 +169,18 @@ test.describe("Visual Polish V2 — Accueil", () => {
 });
 
 test.describe("Visual Polish V2 — Tâches", () => {
-  test("liste desktop : titre + statut d'abord, déplacement discret mais visible", async ({ page }) => {
+  test("liste desktop : titre + statut d'abord, aucun menu de statut par ligne", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 1440, height: 900 });
     await withData(page, "#/tasks");
     const rows = page.locator("#view .task-row");
-    await expect(rows).toHaveCount(4);
+    // Maintenant : en cours, bloquées, à démarrer — la tâche terminée n'y figure pas.
+    await expect(rows).toHaveCount(3);
     const row = rows.nth(1);
     const title = await row.locator(".task-head .ds-list-title").boundingBox();
     const badge = await row.locator(".task-head .ds-badge").boundingBox();
     expect(title !== null && badge !== null && badge.x - (title.x + title.width) < 40, "badge proche du titre").toBe(true);
-    const select = row.locator(".task-move select");
-    await expect(select).toBeVisible();
-    await expect(select).toBeEnabled();
-    await expect(row.locator("[data-move]")).toBeVisible();
+    await expect(page.locator("#view .task-row .task-move, #view .task-row [data-move]")).toHaveCount(0);
     const sizes = await row.evaluate((r) => {
       const t = getComputedStyle(r.querySelector(".ds-list-title") as Element);
       const m = getComputedStyle(r.querySelector(".task-meta") as Element);
@@ -207,24 +205,25 @@ test.describe("Visual Polish V2 — Tâches", () => {
     expectClean(watch);
   });
 
-  test("liste mobile 375 : titre long lisible, contrôle empilé, cibles tactiles", async ({ page }) => {
+  test("liste mobile 375 : titre long lisible, vues tactiles", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 375, height: 812 });
     await withData(page, "#/tasks");
     const row = page.locator("#view .task-row").first();
     await expect(row).toBeVisible();
     expect((await row.locator(".ds-list-title").boundingBox())?.width ?? 0, "titre lisible").toBeGreaterThan(150);
-    expect((await row.locator(".task-move select").boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(36);
-    expect((await row.locator("[data-move]").boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(36);
+    expect((await page.locator('#view [data-scope="mine"]').boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(36);
     await expectNoOverflow(page, "tasks 375 long");
     expectClean(watch);
   });
 
-  test("clavier : select puis bouton, même PATCH versionné qu'avant", async ({ page }) => {
+  test("clavier (Tableau) : select puis bouton, même PATCH versionné qu'avant", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 1440, height: 900 });
     const { patches } = await withData(page, "#/tasks");
-    const row = page.locator("#view .task-row").nth(1);
+    await page.locator('#view [data-scope="all"]').first().click();
+    await page.locator('#view [data-view="board"]').click();
+    const row = page.locator('#view [data-card="aaaaaaaa-0000-4111-8111-0000000000f2"]');
     const select = row.locator(".task-move select");
     await select.focus();
     await expect(select).toBeFocused();
@@ -244,6 +243,8 @@ test.describe("Visual Polish V2 — Tâches", () => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 768, height: 900 });
     await withData(page, "#/tasks");
+    await page.locator('#view [data-scope="all"]').first().click();
+    await expect(page.locator("#view .task-row")).toHaveCount(4);
     const badges = await page.locator("#view .task-row .ds-badge").allInnerTexts();
     expect(badges.length).toBe(4);
     expect(badges.every((b) => b.trim().length > 0), "libellé textuel").toBe(true);
@@ -257,6 +258,7 @@ test.describe("Visual Polish V2 — Tâches", () => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 1440, height: 900 });
     await withData(page, "#/tasks");
+    await page.locator('#view [data-scope="all"]').first().click();
     await page.locator('#view [data-view="board"]').click();
     const board = page.locator("#view .tasks-board");
     await expect(board).toBeVisible();

@@ -177,14 +177,15 @@ test.describe("UI-13 navigation et shell", () => {
     const baseline = captured.tasksListRequests;
 
     // 10 allers-retours Tasks → Projects : chaque retour doit produire
-    // EXACTEMENT une requête de liste (donc un seul render, un seul listener).
+    // EXACTEMENT un chargement de « Maintenant » (2 requêtes : actives + à
+    // démarrer), donc un seul render, un seul listener.
     for (let i = 0; i < 10; i += 1) {
       await go(page, "#/projects");
       await expect(view.locator("h1")).toContainText("Projets");
       await go(page, "#/tasks");
       await expect(view.locator(".task-row")).toHaveCount(2);
     }
-    expect(captured.tasksListRequests - baseline).toBe(10);
+    expect(captured.tasksListRequests - baseline).toBe(10 * 2);
     expect(await page.locator(".app-shell").count()).toBe(1);
     expect(await page.locator("#view").count()).toBe(1);
     expect(csp).toEqual([]);

@@ -249,7 +249,11 @@ hors-bande par la CLI serveur `studio-admin` (DEC-0011) — aucun endpoint
 public de bootstrap, pas de secret d'environnement dedie.
 
 ### Tasks
-- GET /tasks
+- GET /tasks — filtres optionnels additifs (P04-work, DEC-0185) : `status`
+  (repetable, valeurs `TaskStatus`, OU logique ; absent = tous) et `mine`
+  (booleen, defaut `false` ; `true` = taches reclamees par une machine dont
+  le proprietaire est l'utilisateur authentifie). Combinables avec
+  `project_id`, `limit`, `offset` ; tri et visibilite inchanges.
 - POST /tasks
 - GET /tasks/{id}
 - PATCH /tasks/{id}

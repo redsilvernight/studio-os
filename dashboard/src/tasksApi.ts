@@ -12,6 +12,7 @@
 import type { StudioClient } from "./api";
 import { ApiError, parseErrorBody } from "./api";
 import type { components } from "./openapi-schema";
+import type { TaskStatus } from "./taskStatus";
 
 export type Task = components["schemas"]["Task"];
 export type TaskPatch = components["schemas"]["TaskUpdate"];
@@ -29,7 +30,15 @@ async function unwrap<T>(promise: Promise<{ data?: T; error?: unknown; response:
 
 export function listTasks(
   client: StudioClient,
-  opts: { projectId?: string; limit?: number; offset?: number } = {},
+  opts: {
+    projectId?: string;
+    limit?: number;
+    offset?: number;
+    /** Server-side status filter (repeatable, OR — DEC-0185). */
+    status?: TaskStatus[];
+    /** Only tasks claimed by one of the caller's machines (DEC-0185). */
+    mine?: boolean;
+  } = {},
 ): Promise<Task[]> {
   return unwrap(
     client.GET("/api/v1/tasks", {
@@ -38,6 +47,8 @@ export function listTasks(
           ...(opts.projectId !== undefined ? { project_id: opts.projectId } : {}),
           limit: opts.limit ?? TASK_PAGE_LIMIT,
           offset: opts.offset ?? 0,
+          ...(opts.status?.length ? { status: opts.status } : {}),
+          ...(opts.mine ? { mine: true } : {}),
         },
       },
     }),

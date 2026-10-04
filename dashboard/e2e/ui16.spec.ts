@@ -140,6 +140,10 @@ test.describe("UI-16 copy, routes et liens", () => {
     const home = await page.locator("#view").innerText();
     for (const label of ["Bloquée", "En cours", "À faire"]) expect(home).toContain(label);
     await go(page, "#/tasks");
+    // Les terminées ne figurent que dans la vue « Toutes ».
+    await page.locator('#view [data-scope="all"]').first().click();
+    await expect(page.locator('#view [data-scope="all"]').first()).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#view .tasks-group-title").last()).toContainText("Terminées");
     const tasks = await page.locator("#view").innerText();
     for (const label of ["Bloqué", "En cours", "À faire", "Terminé"]) expect(tasks).toContain(label);
     await go(page, `#/tasks/${T1}`);

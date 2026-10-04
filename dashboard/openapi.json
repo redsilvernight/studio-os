@@ -1186,7 +1186,7 @@
      "tasks"
     ],
     "summary": "List Tasks",
-    "description": "List tasks of the caller's accessible projects, optionally filtered by project. A `project_id` the caller cannot access (or that does not exist) answers `403 forbidden`.",
+    "description": "List tasks of the caller's accessible projects, optionally filtered by project. A `project_id` the caller cannot access (or that does not exist) answers `403 forbidden`. `status` (repeatable, OR) and `mine` (tasks claimed by a machine the caller's user owns) narrow the listing; both are optional and additive.",
     "operationId": "list_tasks_api_v1_tasks_get",
     "security": [
      {
@@ -1230,6 +1230,35 @@
        "type": "integer",
        "default": 0,
        "title": "Offset"
+      }
+     },
+     {
+      "name": "status",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/TaskStatus"
+         }
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status"
+      }
+     },
+     {
+      "name": "mine",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "boolean",
+       "default": false,
+       "title": "Mine"
       }
      }
     ],
@@ -2329,6 +2358,101 @@
        "application/json": {
         "schema": {
          "$ref": "#/components/schemas/TaskLaunch"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Task launch refused, nothing stored: unknown pair (`invalid_launch_transition` \u2014 only ALLOWED_TRANSITIONS pairs move, terminal states have no exit), a linked session that does not exist or belongs to another machine (`invalid_launch_session`), a task/project/machine mismatch (`task_project_mismatch`, `launch_machine_mismatch`), or a target machine not able to launch right now (`machine_capabilities_missing`, `machine_capabilities_stale`, `machine_offline`, `machine_not_opted_in`, `project_not_registered`).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_launch_transition"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/task-launches/{launch_id}/credential": {
+   "post": {
+    "tags": [
+     "task-launches"
+    ],
+    "summary": "Issue Task Launch Credential",
+    "description": "The target machine obtains the ephemeral credential of the harness this launch starts (AIB P9). Only the launch's target machine, authenticated with its durable credential, on an accepted, preparing or running launch. The token is returned once, bound to the launch's project and task, void when the launch is terminal or expires, and opens only the launch allowlist of routes and tools. A new request revokes the previous credential of the launch.",
+    "operationId": "issue_task_launch_credential_api_v1_task_launches__launch_id__credential_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "launch_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Launch Id"
+      }
+     }
+    ],
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TaskLaunchCredential"
         }
        }
       }
@@ -22711,7 +22835,7 @@
      "expected_version"
     ],
     "title": "TaskLaunchCancel",
-    "description": "Requester cancel: `409` on a terminal launch. The target machine sees\nthe cancellation on its next pull and must stop the work."
+    "description": "Requester cancel: `409` on a terminal launch. The pending pull returns\nnon-terminal launches only, so the target machine observes the cancellation\nby re-reading the launch by id and must stop the work."
    },
    "TaskLaunchCreate": {
     "properties": {
@@ -22761,6 +22885,27 @@
     ],
     "title": "TaskLaunchCreate",
     "description": "Requester input. Ids and stable keys only: the model forbids unknown\nfields, so there is no field that could hold a command, argument, path or\nenvironment value. `agent_stable_key` and `expires_in_seconds` are\noptional; the server defaults the expiry. The `Idempotency-Key` header\nmakes a retried POST return the original launch."
+   },
+   "TaskLaunchCredential": {
+    "properties": {
+     "token": {
+      "type": "string",
+      "title": "Token"
+     },
+     "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Expires At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "token",
+     "expires_at"
+    ],
+    "title": "TaskLaunchCredential",
+    "description": "Ephemeral bearer credential for the harness a launch starts (AIB P9,\nadditive). Returned once to the target machine, bound to the launch's\nproject, task and machine, valid until `expires_at` (never past the\nlaunch's own expiry) and void as soon as the launch is terminal. It opens\nonly the launch allowlist of REST routes and MCP tools."
    },
    "TaskLaunchMachineReport": {
     "properties": {
