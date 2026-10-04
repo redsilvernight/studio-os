@@ -12,6 +12,23 @@ from studio_contracts.ai_work import AIWorkLogCreate, AIWorkLogUpdate, AIWorkSta
 from studio_mcp.errors import run_tool
 from studio_mcp.util import parse_uuid
 
+_MAX_AI_WORK_LIMIT = 200
+_AI_WORK_FIELDS = frozenset(
+    {
+        "id",
+        "project_id",
+        "task_id",
+        "agent_id",
+        "session_id",
+        "summary",
+        "status",
+        "changed_files",
+        "tests_run",
+        "started_at",
+        "ended_at",
+    }
+)
+
 
 def _compact_ai_work(work: AIWorkLogModel) -> dict[str, Any]:
     return {
@@ -30,12 +47,30 @@ def _compact_ai_work(work: AIWorkLogModel) -> dict[str, Any]:
 
 
 async def studio_get_ai_work(
-    ctx: Context, project_id: str | None = None, task_id: str | None = None
+    ctx: Context,
+    project_id: str | None = None,
+    task_id: str | None = None,
+    limit: int = 20,
+    fields: list[str] | None = None,
 ) -> dict[str, Any]:
-    """List AI Work Ledger entries, optionally filtered by project_id/task_id
-    (UUID strings)."""
+    """List AI Work Ledger entries, most recent first, optionally filtered by
+    project_id/task_id (UUID strings). `limit` (1..200, default 20) bounds the
+    response; select response `fields` to keep it small (`id` is always
+    included)."""
 
     async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
+        if not 1 <= limit <= _MAX_AI_WORK_LIMIT:
+            return {
+                "error_code": "invalid_argument",
+                "message": f"limit must be within 1..{_MAX_AI_WORK_LIMIT}",
+            }
+        selected_fields = _AI_WORK_FIELDS if fields is None else frozenset(fields) | {"id"}
+        unknown_fields = selected_fields - _AI_WORK_FIELDS
+        if unknown_fields:
+            return {
+                "error_code": "invalid_argument",
+                "message": f"unknown fields: {', '.join(sorted(unknown_fields))}",
+            }
         parsed_project_id = None
         if project_id is not None:
             parsed = parse_uuid(project_id, "project_id")
@@ -51,7 +86,17 @@ async def studio_get_ai_work(
         entries = await ai_work_service.list_ai_work(
             session, principal, project_id=parsed_project_id, task_id=parsed_task_id
         )
-        return {"ai_work": [_compact_ai_work(w) for w in entries]}
+        ordered = sorted(entries, key=lambda work: (work.started_at, str(work.id)), reverse=True)
+        selected = ordered[:limit]
+        items = [
+            {key: value for key, value in _compact_ai_work(work).items() if key in selected_fields}
+            for work in selected
+        ]
+        return {
+            "ai_work": items,
+            "returned": len(items),
+            "additional_available": len(ordered) - len(items),
+        }
 
     return await run_tool(ctx, _handler)
 
