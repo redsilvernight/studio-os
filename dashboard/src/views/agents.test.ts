@@ -256,7 +256,7 @@ describe("agentDetailHtml (fiche justifiée par les données)", () => {
 
   it("sessions honnêtes, relecture renvoyée vers UI-8", () => {
     expect(html).toContain("pas preuve de connexion");
-    expect(html).toContain("Décisions, onglet À examiner");
+    expect(html).toContain("Décisions, onglet À valider");
     expect(html).not.toContain("Approuver");
   });
 

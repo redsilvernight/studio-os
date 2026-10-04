@@ -379,7 +379,7 @@ export function agentDetailHtml(
     `<section class="ds-panel" aria-label="Travail actuel"><header><h2>Travail actuel</h2></header><div class="body">${agentWorkSummaryHtml(agent, activity, sessions, aiWork, [...names.tasksById.values()], names)}</div></section>` +
     `<section class="ds-panel" aria-label="Résumé"><header><h2>Résumé</h2></header><div class="body"><dl class="library-kv">${declaredHtml}</dl>` +
     `<p class="ds-list-sub">${ownWork.length} travail(aux) · ${ownSessions.length} session(s) attribué(s) à cet agent.</p></div></section>` +
-    `<section class="ds-panel" aria-label="Travail produit"><header><h2>Travail produit</h2><span class="ds-list-sub">${ownWork.length} entrée(s) — la relecture détaillée se fait dans Décisions, onglet À examiner</span></header><div class="body">` +
+    `<section class="ds-panel" aria-label="Travail produit"><header><h2>Travail produit</h2><span class="ds-list-sub">${ownWork.length} entrée(s) — la relecture détaillée se fait dans Décisions, onglet À valider</span></header><div class="body">` +
     (ownWork.length === 0
       ? `<p class="ds-list-sub">Aucun travail attribué à cet agent.</p>`
       : `<ul class="ds-list">${ownWork.map((work) => workRowHtml(work, names)).join("")}</ul>`) +
