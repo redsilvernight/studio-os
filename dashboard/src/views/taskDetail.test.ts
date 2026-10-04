@@ -103,7 +103,7 @@ describe("taskDetailHtml nominal", () => {
     expect(html).toContain("Modifier");
     // Aucune clé brute comme texte visible au premier plan (les attributs
     // value="/href et la section technique repliée les conservent, à raison).
-    const [foreground] = html.split("Informations techniques");
+    const [foreground] = html.split("Détails techniques");
     for (const key of ["created", "in_progress", "blocked", "completed"]) {
       expect(foreground).not.toContain(`>${key}<`);
     }
@@ -125,9 +125,9 @@ describe("taskDetailHtml nominal", () => {
   });
 
   it("technique secondaire repliée : UUID/version/dates hors du premier plan", () => {
-    expect(html).toContain("Informations techniques");
+    expect(html).toContain("Détails techniques");
     expect(html).toContain("t1");
-    const [foreground] = html.split("Informations techniques");
+    const [foreground] = html.split("Détails techniques");
     const text = (foreground ?? "").replace(/<[^>]*>/g, " ");
     expect(text).not.toContain("11111111-2222");
     // Une seule mention légitime : la protection de version du formulaire.

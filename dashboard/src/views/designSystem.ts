@@ -12,7 +12,9 @@ import {
   dsBadge,
   dsDrawerHtml,
   dsEmptyState,
+  dsErrorState,
   dsField,
+  dsHeroCard,
   dsMetric,
   dsModalHtml,
   dsNotify,
@@ -21,7 +23,9 @@ import {
   dsSectionHeader,
   dsSkeleton,
   dsStatus,
+  dsStatusDot,
   dsTabsHtml,
+  dsTechDetails,
   initDsTabs,
   openDsDialog,
 } from "../ds/ds";
@@ -116,6 +120,26 @@ export function designSystemHtml(): string {
 
   const tooltip = `<p><button class="ds-btn ds-btn--ghost" type="button" data-ds-tip="Explication affichée au survol et au clavier.">Survolez ou tabulez ici</button></p>`;
 
+  const progressive =
+    dsHeroCard({
+      eyebrow: "Agents / Fiche",
+      title: "Travaille sur « Valider des wireframes »",
+      body: "Studi'OS · mis à jour il y a 12 min. La relecture détaillée se fait dans À valider.",
+      status: dsStatusDot("info", "Session de travail ouverte"),
+      primary: { label: "Ouvrir le travail", href: "#/design-system" },
+      secondary: [{ label: "Voir la tâche liée", href: "#/design-system" }],
+    }) +
+    `<div class="ds-demo-row">${dsStatusDot("success", "Opérationnel")}${dsStatusDot("warning", "En attente", true)}<span class="ds-list-sub">La seconde pastille est compacte : libellé réservé aux lecteurs d'écran.</span></div>` +
+    dsTechDetails([
+      { label: "Identifiant", value: "aaaaaaaa-0000-4111-8111-000000000001", mono: true },
+      { label: "Révision", value: "v3", mono: true },
+      { label: "Créé le", value: "il y a 12 min" },
+    ]) +
+    dsErrorState("Chargement impossible", "Les données n'ont pas pu être rechargées.", {
+      label: "Réessayer",
+      href: "#/design-system",
+    });
+
   return `${dsPageHeader("Design System", "Primitives visuelles de StudiOS : un langage calme, aéré et accessible. Page interne de validation, absente de la navigation.", [{ label: "Interne", variant: "ghost" }])}
   <div class="ds-demo">
     ${demoSection("Boutons", "Primaire = bleu, une seule action principale par surface. Clavier : Tab puis Entrée ou Espace.", buttons)}
@@ -125,6 +149,7 @@ export function designSystemHtml(): string {
     ${demoSection("Tableaux", "Colonnes utiles uniquement ; défilement horizontal sous 640 px.", table)}
     ${demoSection("Listes", "Une information par ligne ; le détail attend un clic.", list)}
     ${demoSection("États", "Vide = explication + action. Chargement = squelette silencieux.", states)}
+    ${demoSection("Divulgation progressive", "L'essentiel d'abord, le technique replié sur place : héros à action unique, pastille de statut, détails repliés, erreur cohérente avec le vide et le chargement.", progressive)}
     ${demoSection("Indicateurs", "Un chiffre fort, une progression expliquée, des identités lisibles.", indicators)}
     ${demoSection("Modale et tiroir", "Échap ferme. Le focus revient au déclencheur.", dialogs)}
     ${demoSection("Notifications", "Annoncées aux lecteurs d'écran, refermables, jamais seules pour une info critique.", toasts)}

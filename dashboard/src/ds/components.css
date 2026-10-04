@@ -241,6 +241,95 @@ summary:focus-visible,
 .ds-status--ai .dot { background: var(--ds-ai); }
 .ds-status--info .dot { background: var(--ds-action); }
 
+/* Carte héros : accroche + titre + résumé, une seule action primaire,
+   secondaires en liens discrets. */
+.ds-hero {
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  box-shadow: var(--ds-shadow-sm);
+  padding: var(--ds-space-6);
+  display: grid;
+  gap: var(--ds-space-2);
+  align-content: start;
+}
+.ds-hero h2 {
+  margin: 0;
+  font-size: var(--ds-text-xl);
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+.ds-hero-eyebrow {
+  margin: 0;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-sm);
+  font-weight: 600;
+}
+.ds-hero-body {
+  margin: 0;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-base);
+  max-width: 70ch;
+}
+.ds-hero-status {
+  margin: 0;
+}
+.ds-hero-actions {
+  display: flex;
+  gap: var(--ds-space-3);
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: var(--ds-space-2);
+}
+.ds-hero-link {
+  color: var(--ds-action);
+  font-weight: 600;
+  font-size: var(--ds-text-sm);
+  white-space: nowrap;
+}
+
+/* Détails techniques : repliés par défaut, secondaires. */
+.ds-tech {
+  border-top: 1px solid var(--ds-border);
+  padding-top: var(--ds-space-2);
+  font-size: var(--ds-text-sm);
+  color: var(--ds-text-muted);
+}
+.ds-tech summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: var(--ds-target-sm);
+  display: inline-flex;
+  align-items: center;
+}
+.ds-tech-list {
+  margin: var(--ds-space-2) 0 0;
+  display: grid;
+  gap: var(--ds-space-1);
+}
+.ds-tech-list > div {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: var(--ds-space-2);
+}
+.ds-tech-list dt {
+  font-weight: 600;
+}
+.ds-tech-list dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* État d'erreur : même gabarit que l'état vide, teinte erreur. */
+.ds-empty--error {
+  border: 1px solid var(--ds-danger-border);
+  border-radius: var(--ds-radius-lg);
+  background: var(--ds-danger-soft);
+}
+.ds-empty--error .ds-empty-icon {
+  color: var(--ds-danger);
+}
+
 /* Champs. */
 .ds-field {
   display: grid;
@@ -765,5 +854,9 @@ summary:focus-visible,
   }
   .ds-empty {
     padding: var(--ds-space-8) var(--ds-space-4);
+  }
+  .ds-tech-list > div {
+    grid-template-columns: 1fr;
+    gap: 0;
   }
 }

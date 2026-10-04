@@ -28,6 +28,7 @@ import {
   dsPageHeader,
   dsSectionHeader,
   dsSkeleton,
+  dsTechDetails,
 } from "../ds/ds";
 import { taskClaimHint, taskStatusLabel, taskStatusTone } from "../taskStatus";
 import { agentLabel, agentRef, machineLabel, machineRef } from "../actorNames";
@@ -247,16 +248,19 @@ function aiWorkSectionHtml(worklogs: WorkRow[] | null): string {
 }
 
 function techDetailsHtml(task: Task): string {
-  return `<details class="task-tech"><summary>Informations techniques</summary><dl>` +
-    `<div><dt>Identifiant</dt><dd><code class="mono">${esc(task.id)}</code></dd></div>` +
-    (task.readable_id ? `<div><dt>Référence lisible</dt><dd><code class="mono">${esc(task.readable_id)}</code></dd></div>` : "") +
-    `<div><dt>Projet</dt><dd><code class="mono">${esc(task.project_id)}</code></dd></div>` +
-    `<div><dt>Version</dt><dd>${task.version}</dd></div>` +
-    `<div><dt>Statut interne</dt><dd><code class="mono">${esc(task.status)}</code></dd></div>` +
-    `<div><dt>Machine en charge</dt><dd>${task.claimed_by_machine_id ? machineRef(task.claimed_by_machine_id) : "—"}</dd></div>` +
-    `<div><dt>Créée le</dt><dd>${esc(fmtTime(task.created_at))}</dd></div>` +
-    `<div><dt>Mise à jour le</dt><dd>${esc(fmtTime(task.updated_at))}</dd></div>` +
-    `</dl></details>`;
+  return dsTechDetails([
+    { label: "Identifiant", value: task.id, mono: true },
+    ...(task.readable_id ? [{ label: "Référence lisible", value: task.readable_id, mono: true }] : []),
+    { label: "Projet", value: task.project_id, mono: true },
+    { label: "Version", value: String(task.version), mono: true },
+    { label: "Statut interne", value: task.status, mono: true },
+    {
+      label: "Machine en charge",
+      value: task.claimed_by_machine_id ? machineLabel(task.claimed_by_machine_id) : "—",
+    },
+    { label: "Créée le", value: fmtTime(task.created_at) },
+    { label: "Mise à jour le", value: fmtTime(task.updated_at) },
+  ]);
 }
 
 export interface TaskDetailData {

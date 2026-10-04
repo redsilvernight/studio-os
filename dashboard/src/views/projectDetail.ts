@@ -14,7 +14,7 @@ import type { StudioClient } from "../api";
 import type { RoadmapDataSource } from "../roadmapTypes";
 import { ApiError, parseErrorBody } from "../api";
 import type { components } from "../openapi-schema";
-import { dsBadge, dsEmptyState, dsSectionHeader, dsSkeleton } from "../ds/ds";
+import { dsBadge, dsEmptyState, dsSectionHeader, dsSkeleton, dsTechDetails } from "../ds/ds";
 import { taskStatusLabel, taskStatusTone } from "../taskStatus";
 import { describeError, esc, fmtTime } from "../ui";
 import { fetchIdentity } from "../identityApi";
@@ -122,12 +122,13 @@ export function workspaceHeaderHtml(project: Project): string {
   return `<div class="workspace-head"><p class="ds-list-sub workspace-back"><a href="#/projects">← Tous les projets</a> · <code class="mono">${esc(project.slug)}</code></p>` +
     `<div class="workspace-title-row"><h1>${esc(project.name)}</h1>${badge}</div>` +
     `${desc}` +
-    `<details class="workspace-tech"><summary>Informations techniques</summary><dl>` +
-    `<div><dt>Identifiant</dt><dd><code class="mono">${esc(project.id)}</code></dd></div>` +
-    `<div><dt>Version</dt><dd>${project.version}</dd></div>` +
-    `<div><dt>Créé le</dt><dd>${esc(fmtTime(project.created_at))}</dd></div>` +
-    `<div><dt>Mis à jour le</dt><dd>${esc(fmtTime(project.updated_at))}</dd></div>` +
-    `</dl></details></div>`;
+    dsTechDetails([
+      { label: "Identifiant", value: project.id, mono: true },
+      { label: "Version", value: String(project.version), mono: true },
+      { label: "Créé le", value: fmtTime(project.created_at) },
+      { label: "Mis à jour le", value: fmtTime(project.updated_at) },
+    ]) +
+    `</div>`;
 }
 
 /** Éléments demandant un regard : tâches bloquées + claims expirant sous 24 h. */
