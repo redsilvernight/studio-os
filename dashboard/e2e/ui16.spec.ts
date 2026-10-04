@@ -28,6 +28,8 @@ const ROUTES = [
   `#/library/rules/${LIB_ID}`,
   "#/decisions",
   "#/machines",
+  "#/accounts",
+  "#/administration",
   "#/transfers",
   "#/inspector",
   "#/configuration/runtimes",

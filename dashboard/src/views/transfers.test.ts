@@ -212,7 +212,7 @@ describe("uploadModalBodyHtml", () => {
     expect(html).toContain('type="file"');
     expect(html).toContain('for="transfer-file"');
     expect(html).toContain("Destinataire");
-    expect(html).toContain("Aucun annuaire utilisateur");
+    expect(html).toContain("L'identifiant du compte");
     expect(html).toContain("Quota :");
     expect(html).toContain("512 octets restants");
   });

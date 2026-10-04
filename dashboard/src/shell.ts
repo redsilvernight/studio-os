@@ -6,13 +6,13 @@
  * (architecture vanilla conservée), comportements montés par main.ts.
  *
  * Navigation = routes existantes uniquement ; cinq destinations
- * quotidiennes, « Administration » repliée en pied, palette « Aller à… »
+ * quotidiennes, « Administration » (vue d'ensemble + 6 familles) et
+ * « Outils experts » repliés en pied, palette « Aller à… »
  * (Ctrl K) sur ces mêmes destinations — pas de recherche globale : aucun
  * backend ne la supporte. Un seul statut de connexion, sous l'avatar (C4).
  */
 import type { Route } from "./router";
 import { esc } from "./ui";
-import { workspaceNavEntry } from "./workspaces/workspaces";
 
 export interface ShellNavItem {
   href: string;
@@ -48,6 +48,7 @@ export function icon(name: string): string {
     close: '<path d="M6 6l12 12M18 6L6 18"/>',
     logout: '<path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h11"/>',
     goto: '<path d="M5 12h12M13 7l5 5-5 5"/>',
+    shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
   };
   const body = paths[name] ?? '<circle cx="12" cy="12" r="8"/>';
   return `<svg class="app-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
@@ -64,25 +65,28 @@ const CONFIG_ROUTES: readonly Route["name"][] = [
 
 /**
  * Groupes de navigation : routes existantes uniquement. Cinq destinations
- * quotidiennes ; le reste est regroupé sous « Administration » (repliée,
- * ouverte si la page active en fait partie : deux interactions maximum).
- * `desktop` ajoute l'entrée « Dossiers » à l'Administration.
+ * quotidiennes ; l'Administration regroupe sa vue d'ensemble + ses 6
+ * familles (P05-admin, ≤ 2 interactions : 1 clic vers la famille, 2 vers
+ * le détail) ; les outils experts (Graphes, Inspecteur) vivent hors de
+ * l'entrée Administration. `desktop` n'ajoute rien : les Espaces de
+ * travail sont visibles partout (la page dit honnêtement web vs Desktop).
  */
 export function shellNavGroups(route: Route, desktop = false): ShellNavGroup[] {
   const is = (...names: Route["name"][]): boolean => names.includes(route.name);
+  void desktop;
   const admin: ShellNavItem[] = [
-    { href: "#/library", label: "Bibliothèque", icon: "book", active: is("library", "libraryDetail") },
-    { href: "#/graphs/knowledge", label: "Graphes", icon: "graph", active: is("graphs") },
-    { href: "#/transfers", label: "Transferts", icon: "transfers", active: is("transfers") },
-    { href: "#/machines", label: "Machines", icon: "machines", active: is("machines") },
+    { href: "#/administration", label: "Vue d'ensemble", short: "Admin", icon: "shield", active: is("admin") },
+    { href: "#/machines", label: "Postes", icon: "machines", active: is("machines") },
     { href: "#/accounts", label: "Comptes", icon: "person", active: is("accounts") },
-    { href: "#/inspector", label: "Inspecteur", icon: "inspector", active: is("inspector") },
-    { href: "#/configuration/runtimes", label: "Paramètres", icon: "settings", active: is(...CONFIG_ROUTES) },
+    { href: "#/transfers", label: "Transferts", icon: "transfers", active: is("transfers") },
+    { href: "#/library", label: "Bibliothèque", icon: "book", active: is("library", "libraryDetail") },
+    { href: "#/configuration/runtimes", label: "Configuration", icon: "settings", active: is(...CONFIG_ROUTES) },
+    { href: "#/workspaces", label: "Espaces de travail", short: "Espaces", icon: "folder", active: is("workspaces") },
   ];
-  if (desktop) {
-    const entry = workspaceNavEntry();
-    admin.unshift({ href: entry.hash, label: entry.label, icon: "folder", active: is("workspaces") });
-  }
+  const experts: ShellNavItem[] = [
+    { href: "#/graphs/knowledge", label: "Graphes", icon: "graph", active: is("graphs") },
+    { href: "#/inspector", label: "Inspecteur", icon: "inspector", active: is("inspector") },
+  ];
   return [
     {
       title: "Principal",
@@ -95,6 +99,7 @@ export function shellNavGroups(route: Route, desktop = false): ShellNavGroup[] {
       ],
     },
     { title: "Administration", collapsible: true, items: admin },
+    { title: "Outils experts", collapsible: true, items: experts },
   ];
 }
 
@@ -116,7 +121,9 @@ function navGroupHtml(group: ShellNavGroup, index: number): string {
   const items = group.items.map(navItemHtml).join("");
   if (group.collapsible === true) {
     const open = group.items.some((item) => item.active) ? " open" : "";
-    return `<details class="app-navgroup app-navgroup--secondary"${open}><summary>${icon("settings")}${labelHtml(group.title, "Admin")}</summary><ul>${items}</ul></details>`;
+    const summaryIcon = group.title === "Outils experts" ? "graph" : "settings";
+    const short = group.title === "Outils experts" ? "Experts" : "Admin";
+    return `<details class="app-navgroup app-navgroup--secondary"${open}><summary>${icon(summaryIcon)}${labelHtml(group.title, short)}</summary><ul>${items}</ul></details>`;
   }
   return `<section class="app-navgroup" aria-labelledby="app-navgroup-${index}"><h2 id="app-navgroup-${index}" class="ds-sr-only">${esc(group.title)}</h2><ul>${items}</ul></section>`;
 }
@@ -249,33 +256,37 @@ function railMode(): boolean {
 let flyoutListeners = false;
 
 /**
- * Volet Administration du rail : fermé par défaut (même sur une page
- * d'administration, pour ne jamais couvrir le contenu), refermé après un
- * choix, un clic ailleurs ou Échap. En barre complète, il se déplie en place.
+ * Volets repliés du rail : fermés par défaut (même sur une page du groupe,
+ * pour ne jamais couvrir le contenu), refermés après un choix, un clic
+ * ailleurs ou Échap. En barre complète, ils se déplient en place.
  */
 export function mountAdminFlyout(root: ParentNode = document): void {
-  const admin = (): HTMLDetailsElement | null => root.querySelector("details.app-navgroup--secondary");
+  const admins = (): HTMLDetailsElement[] =>
+    [...root.querySelectorAll<HTMLDetailsElement>("details.app-navgroup--secondary")];
   const fit = (): void => {
-    const node = admin();
-    if (node === null) return;
-    node.open = railMode() ? false : node.querySelector(".app-navlink.active") !== null;
+    for (const node of admins()) {
+      node.open = railMode() ? false : node.querySelector(".app-navlink.active") !== null;
+    }
   };
   fit();
   if (flyoutListeners || typeof matchMedia !== "function") return;
   flyoutListeners = true;
   matchMedia(RAIL_QUERY).addEventListener("change", fit);
   document.addEventListener("click", (event) => {
-    const node = admin();
-    if (node === null || !node.open || !railMode()) return;
+    if (!railMode()) return;
     const target = event.target as Element | null;
-    if (target?.closest(".app-navgroup--secondary > ul a") || !node.contains(target)) node.open = false;
+    for (const node of admins()) {
+      if (!node.open) continue;
+      if (target?.closest(".app-navgroup--secondary > ul a") || !node.contains(target)) node.open = false;
+    }
   });
   document.addEventListener("keydown", (event) => {
-    const node = admin();
-    if (event.key !== "Escape" || node === null || !node.open || !railMode()) return;
-    if (!node.contains(event.target as Node)) return;
-    node.open = false;
-    node.querySelector("summary")?.focus();
+    if (event.key !== "Escape" || !railMode()) return;
+    for (const node of admins()) {
+      if (!node.open || !node.contains(event.target as Node)) continue;
+      node.open = false;
+      node.querySelector("summary")?.focus();
+    }
   });
 }
 

@@ -16,12 +16,15 @@ describe("paletteEntries (P03-shell)", () => {
   it("lists exactly the sidebar destinations, daily first", () => {
     const entries = paletteEntries(parseRoute("#/"));
     expect(entries.slice(0, 5).map((e) => e.label)).toEqual(["Accueil", "Projets", "Travail", "À valider", "Agents"]);
-    expect(entries.some((e) => e.label === "Paramètres" && e.group === "Administration")).toBe(true);
+    expect(entries.some((e) => e.label === "Configuration" && e.group === "Administration")).toBe(true);
+    expect(entries.some((e) => e.label === "Vue d'ensemble" && e.group === "Administration")).toBe(true);
+    expect(entries.some((e) => e.label === "Espaces de travail" && e.group === "Administration")).toBe(true);
+    expect(entries.some((e) => e.label === "Inspecteur" && e.group === "Outils experts")).toBe(true);
     expect(new Set(entries.map((e) => e.href)).size).toBe(entries.length);
   });
 
-  it("adds Dossiers on desktop", () => {
-    expect(paletteEntries(parseRoute("#/"), true).length).toBe(paletteEntries(parseRoute("#/")).length + 1);
+  it("adds no extra entry on desktop: Espaces is always visible", () => {
+    expect(paletteEntries(parseRoute("#/"), true).length).toBe(paletteEntries(parseRoute("#/")).length);
   });
 });
 
@@ -34,7 +37,8 @@ describe("filterPalette", () => {
 
   it("ignores accents and case", () => {
     expect(filterPalette(entries, "a VALIDER").map((e) => e.label)).toEqual(["À valider"]);
-    expect(filterPalette(entries, "parametres").map((e) => e.label)).toEqual(["Paramètres"]);
+    expect(filterPalette(entries, "parametres")).toEqual([]);
+    expect(filterPalette(entries, "configuration").map((e) => e.label)).toEqual(["Configuration"]);
   });
 
   it("requires every word and ranks label prefixes first", () => {

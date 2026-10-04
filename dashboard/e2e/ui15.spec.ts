@@ -537,10 +537,10 @@ test.describe("UI-15 matrice sans overflow global (données longues)", () => {
       ["#/tasks", "Tâches"],
       ["#/library", "Bibliothèque"],
       ["#/transfers", "Transferts"],
-      ["#/machines", "Machines"],
+      ["#/machines", "Postes"],
       ["#/decisions", "Décisions"],
       ["#/inspector", "Inspecteur"],
-      ["#/configuration/runtimes", "Paramètres"],
+      ["#/configuration/runtimes", "Configuration"],
       ["#/design-system", "Design System"],
     ];
     for (const [hash] of routes) {

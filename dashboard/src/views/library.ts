@@ -399,7 +399,8 @@ export function libraryRootHtml(): string {
       `<p><a class="ds-btn" href="#/library/${esc(entry.slug)}">Ouvrir les ${esc(entry.plural.toLowerCase())}</a></p></li>`,
   ).join("");
   return (
-    `${dsPageHeader("Bibliothèque", "Cinq catégories de connaissances et de configurations réutilisables. Ouvrez une catégorie pour trouver une ressource, la lire et gérer ses versions.")}` +
+    `<p class="ds-hero-eyebrow">Administration / Bibliothèque</p>` +
+    `${dsPageHeader("Bibliothèque", "Connaissances réutilisables : règles, savoir-faire et configurations.", [{ label: "Créer un élément", href: "#/library/rules", variant: "primary" }])}` +
     `<ul class="library-cats">${cards}</ul>`
   );
 }
@@ -570,7 +571,9 @@ export function libraryLoadingHtml(title: string): string {
 export function libraryKindPageHtml(kind: LibraryKind, resources: LibraryResource[], state: LibraryListState): string {
   const fr = kindFr(kind);
   const visible = filterLibraryResources(resources, state);
-  const header = dsPageHeader(fr.plural, fr.description, [{ label: "+ Nouvelle ressource", id: "library-new", variant: "primary" }]);
+  const header =
+    `<p class="ds-hero-eyebrow">Administration / Bibliothèque</p>` +
+    dsPageHeader(fr.plural, fr.description, [{ label: "Créer un élément", id: "library-new", variant: "primary" }]);
   let body: string;
   if (resources.length === 0) {
     body = dsEmptyState(
@@ -850,6 +853,7 @@ export function libraryDetailHtml(
   return (
     `<div class="library library-detail">${libraryTabsHtml(kindFr(resource.kind).slug)}` +
     `<p><a href="${esc(libraryKindHref(resource.kind))}">← Retour aux ${esc(fr.plural.toLowerCase())}</a></p>` +
+    `<p class="ds-hero-eyebrow">Bibliothèque / ${esc(fr.singular)}</p>` +
     `${dsPageHeader(activeTitle, activeDescription)}` +
     `<p class="library-badges">${scopeBadge(resource.scope)}${statusBadge(resource.status)}` +
     (resource.active_version === 0

@@ -1,5 +1,5 @@
 /**
- * UI-12 Paramètres (browser, API stubbée déterministe) : Runtimes ≠ Agent ≠
+  * UI-12 Configuration (browser, API stubbée déterministe) : Runtimes ≠ Agent ≠
  * Machine, Bindings par niveaux (privés compris), recherche/filtres locaux,
  * détail runtime avec technique replié et liens réels (Machines, Inspecteur),
  * création (Idempotency-Key, double soumission impossible), conflit 409,
@@ -235,13 +235,13 @@ function watchErrors(page: Page): { csp: string[]; fatal: Error[] } {
 
 const newCaptured = (): Captured => ({ idempotencyKeys: [], createdRuntimes: [], createdBindings: [], patches: [], deletes: [] });
 
-test.describe("UI-12 Paramètres — Runtimes", () => {
+test.describe("UI-12 Configuration — Runtimes", () => {
   test("liste humaine FR : Runtime ≠ Agent ≠ Machine, ids secondaires, aucun secret", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured = newCaptured();
     await login(page, "#/configuration/runtimes", captured);
     const view = page.locator("#view");
-    await expect(view.locator("h1")).toContainText("Paramètres");
+    await expect(view.locator("h1")).toContainText("Configuration");
     await expect(view).toContainText("Runtimes enregistrés");
     await expect(view.locator(".settings-runtime-row")).toHaveCount(2);
     // Humain d'abord : refs ouvertes en titre, pas d'UUID en texte.
@@ -358,13 +358,13 @@ test.describe("UI-12 Paramètres — Runtimes", () => {
   });
 });
 
-test.describe("UI-12 Paramètres — Bindings", () => {
+test.describe("UI-12 Configuration — Liaisons", () => {
   test("niveaux FR, confidentialité, cible humaine résolue, suppression formulée", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured = newCaptured();
     await login(page, "#/configuration/bindings", captured);
     const view = page.locator("#view");
-    await expect(view.locator("h1")).toContainText("Paramètres");
+    await expect(view.locator("h1")).toContainText("Configuration");
     await expect(view).toContainText("Règles d'affectation (bindings)");
     await expect(view.locator(".settings-binding-row")).toHaveCount(3);
     await expect(view).toContainText("Personnel (privé)");
@@ -415,7 +415,7 @@ test.describe("UI-12 Paramètres — Bindings", () => {
   });
 });
 
-test.describe("UI-12 Paramètres — états et robustesse", () => {
+test.describe("UI-12 Configuration — états et robustesse", () => {
   test("états vides distincts, sans CTA fictif", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     await login(page, "#/configuration/runtimes", newCaptured(), { empty: true });
@@ -435,7 +435,7 @@ test.describe("UI-12 Paramètres — états et robustesse", () => {
     await login(page, `#/configuration/runtimes/${RT1}`, newCaptured(), { bindingsFail: true });
     const view = page.locator("#view");
     await expect(view).toContainText("Configuration du runtime");
-    await expect(view).toContainText("Bindings indisponibles");
+    await expect(view).toContainText("Liaisons indisponibles");
     await expect(view).toContainText("le runtime reste consultable");
 
     await page.goto("/#/configuration/bindings");

@@ -49,10 +49,14 @@ for (const { width, rail } of WIDTHS) {
     await expect(page.locator('.app-sidebar a[href="#/decisions"]')).toHaveAccessibleName("À valider");
 
     // Administration sits below the daily group, separated at the foot.
-    const admin = page.locator("details.app-navgroup--secondary");
+    const admin = page.locator("details.app-navgroup--secondary").first();
     const dailyBox = await page.locator(".app-navgroup").first().boundingBox();
     const adminBox = await admin.boundingBox();
     expect((adminBox?.y ?? 0) - ((dailyBox?.y ?? 0) + (dailyBox?.height ?? 0))).toBeGreaterThan(16);
+    // P05-admin: one Administration entry + 6 families, experts outside it.
+    await expect(page.locator('.app-sidebar a[href="#/administration"]')).toHaveCount(1);
+    await expect(page.locator('.app-sidebar a[href="#/workspaces"]')).toHaveCount(1);
+    await expect(page.locator('.app-sidebar a[href="#/workspaces"]')).toHaveAccessibleName(/Espaces de travail/);
 
     // Exactly one connection status, in the avatar block; no top bar on desktop.
     await expect(page.locator('[data-testid="connection-status"]')).toHaveCount(1);
@@ -68,7 +72,7 @@ test("Ctrl K opens the « Aller à… » palette and navigates", async ({ page }
   await page.keyboard.press("Control+k");
   const input = page.locator("#app-palette-input");
   await expect(input).toBeFocused();
-  await input.fill("parametres");
+  await input.fill("configuration");
   await expect(page.locator("#app-palette-list [role=option]")).toHaveCount(1);
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/#\/configuration\/runtimes$/);
@@ -79,4 +83,16 @@ test("Ctrl K opens the « Aller à… » palette and navigates", async ({ page }
   await page.keyboard.press("Escape");
   await expect(page.locator("#app-palette")).toBeHidden();
   await expect(page.locator("#palette-open")).toBeFocused();
+});
+
+test("P05-admin overview: one entry, six families, no identifier by default", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await login(page);
+  await page.goto("/#/administration");
+  const view = page.locator("#view");
+  await expect(view.locator("h1")).toContainText("Administration");
+  for (const href of ["#/machines", "#/accounts", "#/transfers", "#/library", "#/configuration/runtimes", "#/workspaces"]) {
+    await expect(view.locator(`a[href="${href}"]`).first()).toBeVisible();
+  }
+  await expect(view).not.toContainText("Connecté");
 });

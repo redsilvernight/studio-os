@@ -33,6 +33,7 @@ import { renderTasksInto } from "./views/tasks";
 import { renderAgentDetail, renderAgents } from "./views/agents";
 import { renderMachines } from "./views/machines";
 import { renderAccounts } from "./views/accounts";
+import { renderAdmin } from "./views/admin";
 import { renderDecisionsV2 as renderDecisions } from "./views/decisionsV2";
 import { renderTransfers } from "./views/transfers";
 import { renderLibrary, renderLibraryDetail } from "./views/library";
@@ -68,6 +69,7 @@ import "./shell.css";
 import "./views/overview.css";
 import "./views/projects.css";
 import "./views/library.css";
+import "./views/admin.css";
 import "./views/workspace.css";
 import "./views/roadmap.css";
 import "./views/decisions.css";
@@ -160,6 +162,9 @@ async function render(): Promise<void> {
       break;
     case "accounts":
       await renderAccounts(staging, { client, authed });
+      break;
+    case "admin":
+      await renderAdmin(staging);
       break;
     case "decisions":
       await renderDecisions(staging, { client, authed });

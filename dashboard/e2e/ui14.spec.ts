@@ -275,11 +275,11 @@ test.describe("UI-14 landmarks et titres", () => {
       ["#/tasks", "Tâches"],
       [`#/tasks/${T1}`, "Tâche"],
       ["#/agents", "Agents IA"],
-      ["#/machines", "Machines"],
+      ["#/machines", "Postes"],
       ["#/transfers", "Transferts"],
       ["#/decisions", "Décisions"],
       ["#/library", "Bibliothèque"],
-      ["#/configuration/runtimes", "Paramètres"],
+      ["#/configuration/runtimes", "Configuration"],
       ["#/inspector", "Inspecteur de résolution"],
       ["#/route-inexistante-xyz", "Page introuvable"],
     ];
@@ -509,7 +509,7 @@ test.describe("UI-14 modales, drawers, onglets", () => {
     const { csp, fatal } = watchErrors(page);
     await login(page, "#/machines");
     const view = page.locator("#view");
-    await expect(view.locator("h1")).toContainText("Machines");
+    await expect(view.locator("h1")).toContainText("Postes");
     const details = view.locator("[data-machine-details]").first();
     await details.click();
     const drawer = view.locator("#machine-drawer");
@@ -703,10 +703,10 @@ test.describe("UI-14 balayage automatisé axe", () => {
       ["#/agents", "Agents IA"],
       ["#/library", "Bibliothèque"],
       ["#/decisions", "Décisions"],
-      ["#/machines", "Machines"],
+      ["#/machines", "Postes"],
       ["#/transfers", "Transferts"],
       ["#/inspector", "Inspecteur"],
-      ["#/configuration/runtimes", "Paramètres"],
+      ["#/configuration/runtimes", "Configuration"],
       ["#/route-inexistante-xyz", "Page introuvable"],
     ];
     for (const [route, title] of surfaces) {

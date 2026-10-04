@@ -1,0 +1,86 @@
+/**
+ * P05-admin — entrée Administration : héros + familles + contexte.
+ * 1280 : 1 colonne (familles 1 col, contexte en ligne).
+ * 1600 : principal + contexte latéral, familles en 2 colonnes.
+ * 2560 (≥1900 px utiles) : 3e colonne de rappels, aucune carte élargie.
+ */
+.admin {
+  display: grid;
+  gap: var(--ds-space-4);
+  max-width: var(--ds-content-wide);
+}
+.admin-layout {
+  display: grid;
+  gap: var(--ds-space-4);
+  grid-template-columns: minmax(0, 1fr) 300px;
+  align-items: start;
+}
+.admin-main {
+  display: grid;
+  gap: var(--ds-space-4);
+  min-width: 0;
+}
+.admin-fams {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--ds-space-3);
+  grid-template-columns: 1fr 1fr;
+}
+.admin-fam {
+  display: flex;
+  gap: var(--ds-space-3);
+  align-items: flex-start;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  padding: var(--ds-space-3);
+  text-decoration: none;
+  color: inherit;
+}
+.admin-fam:hover {
+  border-color: var(--ds-action);
+}
+.admin-fam-pic {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  background: var(--ds-neutral-soft);
+  flex: none;
+}
+.admin-fam-body {
+  display: grid;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.admin-fam-chev {
+  color: var(--ds-text-muted);
+}
+.admin-feed {
+  display: none;
+}
+@media (min-width: 1900px) {
+  .admin-layout {
+    grid-template-columns: minmax(0, 760px) 340px 340px;
+  }
+  .admin-feed {
+    display: block;
+  }
+}
+@media (max-width: 1100px) {
+  .admin-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-fams {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 640px) {
+  .admin-fams {
+    grid-template-columns: 1fr;
+  }
+}

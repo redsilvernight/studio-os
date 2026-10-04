@@ -77,7 +77,8 @@ async function settle<T>(promise: Promise<T>): Promise<Settled<T>> {
 export function machinesLoadingHtml(): string {
   return (
     `<div class="machines">` +
-    `${dsPageHeader("Machines", "Environnements enregistrés sur lesquels le travail s'exécute.")}` +
+    `<p class="ds-hero-eyebrow">Administration / Postes</p>` +
+    `${dsPageHeader("Postes", "Environnements enregistrés où le travail s'exécute.")}` +
     `${dsSkeleton(4)}</div>`
   );
 }
@@ -95,14 +96,14 @@ export function machinesToolbarHtml(state: MachinesPageState, shown: number, tot
       `<option value="${option.value}"${state.activity === option.value ? " selected" : ""}>${esc(option.label)}</option>`,
   ).join("");
   return (
-    `<div class="machines-toolbar" role="search" aria-label="Filtrer les machines chargées">` +
+    `<div class="machines-toolbar" role="search" aria-label="Filtrer les postes chargés">` +
     `<div class="ds-search"><span class="ds-search-icon" aria-hidden="true">⌕</span>` +
-    `<label class="ds-sr-only" for="machines-search">Filtrer les machines déjà chargées</label>` +
-    `<input class="ds-input" type="search" id="machines-search" value="${esc(state.query)}" placeholder="Filtrer par nom ou identifiant…" autocomplete="off" /></div>` +
+    `<label class="ds-sr-only" for="machines-search">Filtrer les postes déjà chargés</label>` +
+    `<input class="ds-input" type="search" id="machines-search" value="${esc(state.query)}" placeholder="Filtrer par nom…" autocomplete="off" /></div>` +
     `<label class="machines-activity-filter"><span>Activité</span>` +
     `<select class="ds-select" id="machines-activity">${options}</select></label>` +
     `<button class="ds-btn ds-btn--ghost" type="button" data-reset${isMachinesDefaultState(state) ? " disabled" : ""}>Réinitialiser</button>` +
-    `<p class="ds-list-sub" role="status" aria-live="polite">${shown} machine(s) affichée(s) sur ${total} chargée(s) — recherche et filtre locaux.</p>` +
+    `<p class="ds-list-sub" role="status" aria-live="polite">${shown} poste(s) affiché(s) sur ${total} chargé(s) — recherche et filtre locaux.</p>` +
     `</div>`
   );
 }
@@ -163,16 +164,16 @@ export function machinesListHtml(rows: MachineRow[], infos: Map<string, MachineC
 
 export function machinesEmptyHtml(): string {
   return dsEmptyState(
-    "Aucune machine observée",
-    "Une machine est l'environnement enregistré sur lequel le travail s'exécute — à distinguer des agents qui y travaillent. " +
-      "Chaque utilisateur enregistre ses propres machines (ou un administrateur) hors de cette interface : aucune n'a encore laissé de trace visible pour ce jeton.",
+    "Aucun poste observé",
+    "Un poste est l'environnement enregistré sur lequel le travail s'exécute — à distinguer des agents qui y travaillent. " +
+      "Chaque utilisateur enregistre ses propres postes (ou un administrateur) hors de cette interface : aucun n'a encore laissé de trace visible pour ce jeton.",
   );
 }
 
 export function machinesNoMatchHtml(): string {
   return dsEmptyState(
-    "Aucune machine ne correspond",
-    "Modifiez la recherche ou le filtre d'activité pour retrouver vos machines déjà chargées.",
+    "Aucun poste ne correspond",
+    "Modifiez la recherche ou le filtre d'activité pour retrouver vos postes déjà chargés.",
   );
 }
 
@@ -230,7 +231,7 @@ export function machineDrawerBodyHtml(
   const environment =
     `<h3>Environnement</h3>` +
     (linked.length === 0
-      ? `<p class="ds-list-sub">Aucun runtime rattaché à cette machine. La configuration des runtimes reste dans Paramètres.</p>`
+      ? `<p class="ds-list-sub">Aucun runtime rattaché à cette machine. La configuration des runtimes reste dans Configuration.</p>`
       : `<ul class="machine-runtimes">` +
         linked
           .map(
@@ -265,11 +266,16 @@ export interface MachinesPageData {
 }
 
 export function machinesPageHtml(data: MachinesPageData): string {
-  const header = dsPageHeader(
-    "Machines",
-    "Environnements enregistrés sur lesquels le travail s'exécute — à distinguer des agents qui y travaillent.",
-    [{ label: "Actualiser", id: "machines-reload" }],
-  );
+  const header =
+    `<p class="ds-hero-eyebrow">Administration / Postes</p>` +
+    dsPageHeader(
+      "Postes",
+      "Environnements enregistrés où le travail s'exécute — à distinguer des agents qui y travaillent.",
+      [
+        { label: "Revoir le poste sans activité", id: "machines-review" },
+        { label: "Actualiser", id: "machines-reload" },
+      ],
+    );
   const notice = data.canonicalAvailable
     ? `<div class="machines-notice" role="status">Présence confirmée par le serveur (heartbeat).</div>`
     : `<div class="machines-notice" role="status">Présence déduite des agents, sessions et événements récents — <strong>pas un état de connexion garanti</strong>. ` +
@@ -320,8 +326,8 @@ export function cardInfos(
 export async function renderMachines(root: HTMLElement, ctx: MachinesContext): Promise<void> {
   if (!ctx.authed) {
     root.innerHTML =
-      `<div class="machines">${dsPageHeader("Machines", "Environnements enregistrés sur lesquels le travail s'exécute.")}` +
-      `${dsEmptyState("Connexion requise", "Définissez un jeton pour voir les machines visibles pour ce jeton.")}</div>`;
+      `<div class="machines"><p class="ds-hero-eyebrow">Administration / Postes</p>${dsPageHeader("Postes", "Environnements enregistrés où le travail s'exécute.")}` +
+      `${dsEmptyState("Connexion requise", "Définissez un jeton pour voir les postes visibles pour ce jeton.")}</div>`;
     return;
   }
   root.innerHTML = machinesLoadingHtml();
@@ -355,8 +361,8 @@ export async function renderMachines(root: HTMLElement, ctx: MachinesContext): P
 
   if (rows.length === 0 && problems.length > 0) {
     root.innerHTML =
-      `<div class="machines">${dsPageHeader("Machines", "Environnements enregistrés sur lesquels le travail s'exécute.", [{ label: "Actualiser", id: "machines-reload" }])}` +
-      `<div class="state error" role="alert">Impossible de charger les machines : ${esc(problems.join(" · "))}</div></div>`;
+      `<div class="machines"><p class="ds-hero-eyebrow">Administration / Postes</p>${dsPageHeader("Postes", "Environnements enregistrés où le travail s'exécute.", [{ label: "Actualiser", id: "machines-reload" }])}` +
+      `<div class="state error" role="alert">Impossible de charger les postes : ${esc(problems.join(" · "))}</div></div>`;
     root.querySelector("#machines-reload")?.addEventListener("click", () => {
       void renderMachines(root, ctx);
     });
@@ -441,6 +447,21 @@ function bindDetails(root: HTMLElement, data: MachinesPageData): void {
 function bindMachines(root: HTMLElement, ctx: MachinesContext, data: MachinesPageData): void {
   root.querySelector("#machines-reload")?.addEventListener("click", () => {
     void renderMachines(root, ctx);
+  });
+  root.querySelector("#machines-review")?.addEventListener("click", () => {
+    const target = root.querySelector<HTMLElement>('[data-machine-details]');
+    const rows = [...root.querySelectorAll<HTMLElement>("[data-machine-details]")];
+    const idle = data.rows.find((row) => row.status !== "online");
+    const chosen =
+      idle !== undefined
+        ? rows.find((node) => node.getAttribute("data-machine-details") === idle.machineId) ?? null
+        : (target ?? null);
+    if (chosen instanceof HTMLElement) {
+      chosen.scrollIntoView({ block: "nearest" });
+      chosen.focus();
+    } else {
+      root.querySelector<HTMLInputElement>("#machines-search")?.focus();
+    }
   });
   bindToolbar(root, data);
   bindDetails(root, data);

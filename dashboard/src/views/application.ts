@@ -318,7 +318,7 @@ export function applicationPageHtml(
   form: ApplicationFormState = {},
   diag: DesktopDiagnostics | null = null,
 ): string {
-  const head = `${dsPageHeader("Paramètres", DESCRIPTION)}${configTabsHtml("application")}`;
+  const head = `<p class="ds-hero-eyebrow">Administration / Configuration</p>${dsPageHeader("Configuration", DESCRIPTION)}${configTabsHtml("application")}`;
   let body: string;
   if (mode === "desktop") {
     const identity = info
