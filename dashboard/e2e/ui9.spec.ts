@@ -270,7 +270,7 @@ test.describe("UI-9 page Postes", () => {
 
     // Back/forward : quitter puis revenir, la liste survit.
     await page.goto("/#/tasks");
-    await expect(page.locator("#view")).toContainText("Tâches");
+    await expect(page.locator("#view")).toContainText("Travail");
     await page.goBack();
     await expect(page.locator("#view").locator("h1")).toContainText("Postes");
     await expect(page.locator("#view").locator(".machine-row")).toHaveCount(3);

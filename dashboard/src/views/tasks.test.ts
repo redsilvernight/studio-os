@@ -314,7 +314,7 @@ describe("taskCreateFormHtml (modale, Idempotency-Key préservée)", () => {
 describe("tasksPageHtml nominal", () => {
   it("en-tête FR, action de création, Maintenant par défaut : pas d'anglais résiduel", () => {
     const html = tasksPageHtml(pageData(blank));
-    expect(html).toContain("<h1>Tâches</h1>");
+    expect(html).toContain("<h1>Travail</h1>");
     expect(html).toContain('data-scope="now" aria-pressed="true"');
     expect(html).toContain("Nouvelle tâche");
     expect(html).toContain("Actualiser");
@@ -376,7 +376,7 @@ describe("tasksPageHtml nominal", () => {
 
   it("chargement : squelette DS, pas de jargon", () => {
     const html = tasksLoadingHtml("Tous les projets");
-    expect(html).toContain("<h1>Tâches</h1>");
+    expect(html).toContain("<h1>Travail</h1>");
     expect(html).toContain("Chargement en cours");
     expect(html).not.toMatch(/GET \//);
   });
@@ -384,7 +384,7 @@ describe("tasksPageHtml nominal", () => {
   it("embarqué workspace : titre en h2, un seul h1 par page", () => {
     const html = tasksPageHtml({ ...pageData(blank), projectId: P1, headingLevel: 2 });
     expect(html).not.toContain("<h1>");
-    expect(html).toContain("<h2>Tâches</h2>");
+    expect(html).toContain("<h2>Travail</h2>");
     expect(html).toContain("Nouvelle tâche");
   });
 

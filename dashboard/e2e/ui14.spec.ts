@@ -272,12 +272,12 @@ test.describe("UI-14 landmarks et titres", () => {
       ["#/", "Accueil"],
       ["#/projects", "Projets"],
       [`#/projects/${P1}`, "Jeu Phare"],
-      ["#/tasks", "Tâches"],
-      [`#/tasks/${T1}`, "Tâche"],
+      ["#/tasks", "Travail"],
+      [`#/tasks/${T1}`, "Caméra Android bloquée"],
       ["#/agents", "Agents IA"],
       ["#/machines", "Postes"],
       ["#/transfers", "Transferts"],
-      ["#/decisions", "Décisions"],
+      ["#/decisions", "À valider"],
       ["#/library", "Bibliothèque"],
       ["#/configuration/runtimes", "Configuration"],
       ["#/inspector", "Inspecteur de résolution"],
@@ -561,7 +561,7 @@ test.describe("UI-14 modales, drawers, onglets", () => {
     const { csp, fatal } = watchErrors(page);
     await login(page, "#/decisions");
     const view = page.locator("#view");
-    const list = view.locator('[role="tablist"][aria-label="Décisions"]');
+    const list = view.locator('[role="tablist"][aria-label="À valider"]');
     await expect(list).toBeVisible();
     const review = view.locator("#decisions-main-tab-review");
     const decisions = view.locator("#decisions-main-tab-decisions");
@@ -651,7 +651,7 @@ test.describe("UI-14 erreurs, annonces, mouvement, zoom", () => {
     await page.setViewportSize({ width: 640, height: 900 });
     await login(page, "#/tasks");
     const view = page.locator("#view");
-    await expect(view.locator("h1")).toContainText("Tâches");
+    await expect(view.locator("h1")).toContainText("Travail");
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(1);
     await expect(view.locator("#task-new")).toBeVisible();
@@ -698,11 +698,11 @@ test.describe("UI-14 balayage automatisé axe", () => {
     const surfaces: [string, string][] = [
       ["#/", "Accueil"],
       ["#/projects", "Projets"],
-      ["#/tasks", "Tâches"],
-      [`#/tasks/${T1}`, "Tâche"],
+      ["#/tasks", "Travail"],
+      [`#/tasks/${T1}`, "Caméra Android bloquée"],
       ["#/agents", "Agents IA"],
       ["#/library", "Bibliothèque"],
-      ["#/decisions", "Décisions"],
+      ["#/decisions", "À valider"],
       ["#/machines", "Postes"],
       ["#/transfers", "Transferts"],
       ["#/inspector", "Inspecteur"],

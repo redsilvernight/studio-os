@@ -202,7 +202,7 @@ test.describe("UI-13 navigation et shell", () => {
     await go(page, "#/agents");
     await expect(view.locator("h1")).toContainText("Agents");
     await page.goBack();
-    await expect(view.locator("h1")).toContainText("Tâches");
+    await expect(view.locator("h1")).toContainText("Travail");
     await page.goForward();
     await expect(view.locator("h1")).toContainText("Agents");
     expect(await page.locator(".app-shell").count()).toBe(1);
@@ -216,7 +216,7 @@ test.describe("UI-13 navigation et shell", () => {
     await login(page, "#/projects", captured);
     const routes: [string, string][] = [
       ["#/projects", "Projets"],
-      ["#/tasks", "Tâches"],
+      ["#/tasks", "Travail"],
       ["#/agents", "Agents IA"],
       ["#/configuration/runtimes", "Configuration"],
     ];

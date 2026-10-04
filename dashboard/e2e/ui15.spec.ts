@@ -534,11 +534,11 @@ test.describe("UI-15 matrice sans overflow global (données longues)", () => {
     const routes: Array<[string, string]> = [
       ["#/", "Accueil"],
       ["#/projects", "Projets"],
-      ["#/tasks", "Tâches"],
+      ["#/tasks", "Travail"],
       ["#/library", "Bibliothèque"],
       ["#/transfers", "Transferts"],
       ["#/machines", "Postes"],
-      ["#/decisions", "Décisions"],
+      ["#/decisions", "À valider"],
       ["#/inspector", "Inspecteur"],
       ["#/configuration/runtimes", "Configuration"],
       ["#/design-system", "Design System"],
@@ -817,7 +817,7 @@ test.describe("UI-15 tâches : liste et kanban étroits", () => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 375, height: 800 });
     await login(page, "#/tasks", true);
-    await expect(page.locator("#view h1").first()).toContainText("Tâches");
+    await expect(page.locator("#view h1").first()).toContainText("Travail");
     await expect(page.locator("#view .task-row").first()).toBeVisible({ timeout: 10_000 });
     await expectNoGlobalOverflow(page, "task list @375 long");
     // L'information principale (titre) précède les métadonnées dans le DOM.
@@ -1023,7 +1023,7 @@ test.describe("UI-15 contextes particuliers", () => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 667, height: 375 });
     await login(page, "#/tasks", false);
-    await expect(page.locator("#view h1").first()).toContainText("Tâches");
+    await expect(page.locator("#view h1").first()).toContainText("Travail");
     await expectNoGlobalOverflow(page, "tasks paysage 667×375");
     await expect(page.locator("#nav-open")).toBeVisible();
     await page.locator("#nav-open").click();
@@ -1048,7 +1048,7 @@ test.describe("UI-15 contextes particuliers", () => {
     // Reflow extrême : une surface représentative reste fonctionnelle.
     await page.setViewportSize({ width: 360, height: 800 });
     await go(page, "#/tasks");
-    await expect(page.locator("#view h1").first()).toContainText("Tâches");
+    await expect(page.locator("#view h1").first()).toContainText("Travail");
     await expectNoGlobalOverflow(page, "tasks @360 (reflow extrême)");
     expectClean(watch);
   });

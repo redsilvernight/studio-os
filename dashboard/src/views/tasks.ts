@@ -163,12 +163,12 @@ export function tasksLoadingHtml(scopeLabel: string, headingLevel: 1 | 2 = 1): s
  */
 export function tasksHeaderHtml(scopeLabel: string, authed: boolean, headingLevel: 1 | 2 = 1): string {
   if (headingLevel === 1) {
-    return dsPageHeader("Tâches", scopeLabel, authed ? [{ label: "+ Nouvelle tâche", id: "task-new", variant: "primary" }] : []);
+    return dsPageHeader("Travail", scopeLabel, authed ? [{ label: "+ Nouvelle tâche", id: "task-new", variant: "primary" }] : []);
   }
   const action = authed
     ? `<p><button class="ds-btn ds-btn--primary" type="button" id="task-new">+ Nouvelle tâche</button></p>`
     : "";
-  return `<div class="ds-section-header"><h2>Tâches</h2></div><p class="ds-list-sub">${esc(scopeLabel)}</p>${action}`;
+  return `<div class="ds-section-header"><h2>Travail</h2></div><p class="ds-list-sub">${esc(scopeLabel)}</p>${action}`;
 }
 
 function viewToggleHtml(view: TasksView): string {

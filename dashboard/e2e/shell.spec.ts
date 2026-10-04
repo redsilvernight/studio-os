@@ -77,7 +77,7 @@ test.describe("appshell", () => {
     page.on("pageerror", (error) => pageErrors.push(error));
 
     await login(page, "#/tasks");
-    await expect(page.locator("#view")).toContainText("Tâches");
+    await expect(page.locator("#view")).toContainText("Travail");
     await expect(page).toHaveURL(/#\/tasks$/);
 
     // Marque le nœud #view courant : tout render() parasite le remplacerait
@@ -102,7 +102,7 @@ test.describe("appshell", () => {
       );
       expect(sameNode).toBe(true);
       // Le contenu reste celui de la route courante, pas un 404 "#view".
-      await expect(page.locator("#view")).toContainText("Tâches");
+      await expect(page.locator("#view")).toContainText("Travail");
     };
 
     // Premier arrêt Tab naturel depuis le chargement : le skip-link.

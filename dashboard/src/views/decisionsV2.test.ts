@@ -323,7 +323,7 @@ describe("buildReviewCards — un objet, une carte", () => {
   it("portée « plan » sans numéro : aucune révision inventée", () => {
     const card = firstCard(roadmapItem({ scope: "roadmap" }));
     expect(reviewCardTitle(card)).toBe("Proposition de plan « Plan UX Desktop V2 »");
-    expect(reviewCardActions(card, true, true)[0]!.label).toBe("Examiner le plan");
+    expect(reviewCardActions(card, true, true)[0]!.label).toBe("Relire le plan");
   });
 });
 
@@ -414,10 +414,10 @@ describe("reviewCardActions — au plus deux actions par carte", () => {
     expect(reviewCardHtml(card, true, false)).toContain("Réservé au rôle admin");
   });
 
-  it("plan : Examiner la révision N + Ouvrir la roadmap", () => {
+  it("plan : Relire la révision N + Ouvrir le plan", () => {
     const actions = reviewCardActions(firstCard(roadmapItem({ scope: "revision", revisionNo: 2 })), true, true);
     expect(actions).toHaveLength(2);
-    expect(actions[0]).toMatchObject({ label: "Examiner la révision 2", element: "link" });
+    expect(actions[0]).toMatchObject({ label: "Relire la révision 2", element: "link" });
     expect(actions[0]!.attribute).toBe(`href="#/projects/${P1}/roadmap/${R1}"`);
     expect(actions[1]!.attribute).toBe(`href="#/projects/${P1}/roadmap"`);
   });
@@ -746,7 +746,7 @@ describe("decisionsTabsHtml", () => {
     expect(html).toContain('id="decisions-main-tab-review"');
     expect(html).toContain('id="decisions-main-tab-decisions"');
     expect(html).toContain("À valider");
-    expect(html).toContain("Décisions");
+    expect(html).toContain("Historique des décisions");
     expect(html.match(/aria-selected="true"/g)).toHaveLength(1);
     expect(html).toContain("hidden");
   });

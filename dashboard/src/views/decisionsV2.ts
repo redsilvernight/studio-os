@@ -301,13 +301,13 @@ export function reviewCardActions(card: ReviewCard, authed: boolean, isAdmin: bo
       const revision = item.revision_no ?? null;
       return [
         {
-          label: revision === null ? "Examiner le plan" : `Examiner la révision ${revision}`,
+          label: revision === null ? "Relire le plan" : `Relire la révision ${revision}`,
           element: "link",
           attribute: `href="#/projects/${esc(item.project_id)}/roadmap/${esc(item.roadmap_id)}"`,
           variant: "primary",
         },
         {
-          label: "Ouvrir la roadmap",
+          label: "Ouvrir le plan",
           element: "link",
           attribute: `href="#/projects/${esc(item.project_id)}/roadmap"`,
           variant: "ghost",
@@ -769,8 +769,8 @@ export function createDecisionFormHtml(
 export function decisionsTabsHtml(activeTab: "review" | "decisions"): string {
   return dsTabsHtml("decisions-main", [
     { id: "review", label: "À valider", panel: '<div id="review-panel"></div>' },
-    { id: "decisions", label: "Décisions", panel: '<div id="decisions-panel"></div>' },
-  ], activeTab, "Décisions");
+    { id: "decisions", label: "Historique des décisions", panel: '<div id="decisions-panel"></div>' },
+  ], activeTab, "À valider");
 }
 
 /**
@@ -779,7 +779,7 @@ export function decisionsTabsHtml(activeTab: "review" | "decisions"): string {
  */
 function decisionsPageHeader(projectId: string | undefined): string {
   return projectId === undefined
-    ? dsPageHeader("Décisions", "La boîte de réception de ce qui attend un humain, et l'historique des décisions.")
+    ? dsPageHeader("À valider", "La boîte de réception de ce qui attend un humain, et l'historique des décisions.")
     : "";
 }
 

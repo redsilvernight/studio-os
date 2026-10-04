@@ -231,7 +231,7 @@ test.describe("UI-5 liste des tâches", () => {
     const captured: Captured = { idempotencyKeys: [], createdBodies: [], patches: [] };
     await login(page, "#/tasks", captured);
     const view = page.locator("#view");
-    await expect(view.locator("h1")).toContainText("Tâches");
+    await expect(view.locator("h1")).toContainText("Travail");
     await expect(view.locator("h1")).toBeVisible();
     // Vue « Maintenant » par défaut : liste groupée, pas de kanban ni de menu par ligne.
     await expect(view.locator('[data-scope="now"]')).toHaveAttribute("aria-pressed", "true");
@@ -488,7 +488,7 @@ test.describe("UI-5 workspace projet / tâches", () => {
     await expect(view.locator("h1")).toHaveCount(1);
     await expect(view.locator("h1")).toContainText("Jeu Phare");
     await expect(view.locator('[data-ws-tab="tasks"]')).toHaveAttribute("aria-selected", "true");
-    await expect(view.locator(".tasks > .ds-section-header h2")).toContainText("Tâches");
+    await expect(view.locator(".tasks > .ds-section-header h2")).toContainText("Travail");
     await expect(view.locator(".tasks-list").first()).toBeVisible();
     await expect(view.locator(".task-row")).toHaveCount(3);
     // Retour à la liste globale : deep link stable.
