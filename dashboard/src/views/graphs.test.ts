@@ -97,4 +97,26 @@ describe("graph pages", () => {
     expect(parseRoute("#/graphs/project/11111111-1111-4111-8111-111111111111")).toEqual({ name: "graphs", kind: "project", workspaceId: "11111111-1111-4111-8111-111111111111" });
     for (const hash of ["#/graphs/vault", "#/graphs/code/file:///etc", "#/graphs/code/javascript:alert(1)"]) expect(parseRoute(hash).name).toBe("notFound");
   });
+  it("context column states the linkage rule once and folds technical details", async () => {
+    const view = mount("project", { workspaceId: "11111111-1111-4111-8111-111111111111", sources: [createFixtureGraphSource("knowledge", "small")], projectionPages: [] });
+    await view.ready;
+    const context = view.root.querySelector(".tool-context")!;
+    expect(context.textContent).toContain("Règle de liaison");
+    // La règle n'est plus répétée dans le flux des états.
+    expect(view.root.querySelectorAll("[data-source-status] p").length).toBeLessThanOrEqual(1);
+    expect(context.querySelector("details.ds-tech")).not.toBeNull();
+    expect(context.textContent).not.toContain("Aucun dossier actif");
+  });
+
+  it("offers the shared offline state when the local source is unreachable", async () => {
+    const source = createFixtureGraphSource("knowledge", "small");
+    source.status = async () => { throw new TypeError("Failed to fetch"); };
+    const view = mount("knowledge", { sources: [source] }); await view.ready;
+    expect(view.root.querySelector("[data-source-status] .ds-notice--warning")).not.toBeNull();
+    expect(view.root.querySelector("[data-source-status]")!.textContent).toContain("Hors ligne.");
+    // Une seule action primaire, jamais de bannière de connexion concurrente.
+    expect(view.root.querySelectorAll("[data-source-status] .ds-btn--primary")).toHaveLength(1);
+    view.root.querySelector<HTMLButtonElement>("#graph-retry")!.click();
+    await vi.waitFor(() => expect(view.root.querySelector("[data-source-status]")!.textContent).toContain("Hors ligne."));
+  });
 });

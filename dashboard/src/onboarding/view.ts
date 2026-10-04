@@ -12,7 +12,7 @@ import { getToken, hasToken } from "../auth";
 import { joinUrl } from "../config";
 import { getDesktopShell, refreshDaemon } from "../desktopShell";
 import { daemonLabel } from "../shellStatus";
-import { dsBadge, dsEmptyState, dsPageHeader } from "../ds/ds";
+import { dsBadge, dsPageHeader, dsStateHtml, dsStatus, dsTechDetails } from "../ds/ds";
 import {
   applyHarness,
   CHANGE_LABELS,
@@ -60,9 +60,12 @@ export function onboardingWebHtml(): string {
   return (
     dsPageHeader("Assistant de configuration", "Premier lancement de Studi'OS Desktop.") +
     `<section class="settings-domain" data-testid="onboarding-web">` +
-    dsEmptyState(
-      "Disponible dans Studi'OS Desktop",
-      "La configuration locale (dossier, mémoire, assistant IA) se fait sur le poste, depuis l'application Studi'OS Desktop. Ce tableau de bord web reste autonome.",
+    dsStateHtml(
+      "empty",
+      {
+        title: "Disponible dans Studi'OS Desktop",
+        message: "La configuration locale (dossier, mémoire, assistant IA) se fait sur le poste, depuis l'application Studi'OS Desktop. Ce tableau de bord web reste autonome.",
+      },
     ) +
     `</section>`
   );
@@ -124,18 +127,54 @@ function progressHtml(current: OnboardingStepId): string {
       const mine = ONBOARDING_STEPS.findIndex((s) => s.id === step.id);
       const state = step.id === current ? " (étape en cours)" : mine < at ? " (terminée)" : "";
       const aria = step.id === current ? ' aria-current="step"' : "";
-      return `<li${aria}>${esc(step.title)}<span class="ds-sr-only">${state}</span></li>`;
+      const pill = step.required ? dsBadge("requis") : dsBadge("optionnel", "info");
+      return `<li${aria}>${esc(step.title)} ${pill}<span class="ds-sr-only">${state}</span></li>`;
     })
     .join("");
   return `<nav aria-label="Progression de l'assistant"><ol class="onboarding-progress" data-testid="onboarding-progress">${items}</ol></nav>`;
 }
 
-function layout(step: OnboardingStep, current: OnboardingStepId, body: string): string {
+/**
+ * Contexte : état réel du poste, consignes de repli, puis les blocs propres
+ * à l'étape (accès en attente). Aucune information technique par défaut.
+ */
+function contextAside(session: SessionData, extra = ""): string {
+  const server =
+    session.serverProbe === null
+      ? dsStatus("idle", "Non vérifié")
+      : session.serverProbe.ok
+        ? dsStatus("success", "Serveur joint")
+        : dsStatus("warning", "Serveur injoignable");
+  const harness =
+    session.harnesses === null
+      ? dsStatus("idle", "Non vérifié")
+      : session.harnesses.length === 0
+        ? dsStatus("warning", "Aucun détecté")
+        : dsStatus("success", `${session.harnesses.length} disponible(s)`);
+  const folder =
+    session.state.folderName === undefined || session.state.folderName === ""
+      ? dsStatus("idle", "Aucun choisi")
+      : dsStatus("success", session.state.folderName);
+  const rows = (label: string, value: string): string => `<div><dt>${esc(label)}</dt><dd>${value}</dd></div>`;
   return (
-    dsPageHeader("Assistant de configuration", "Premier lancement de Studi'OS Desktop.") +
+    `<aside class="ds-card tool-context" aria-label="Contexte">` +
+    `<div><h2>Ce poste, à l'instant</h2><dl class="context-list">${rows("Serveur", server)}${rows("Assistant local", harness)}${rows("Dossier", folder)}</dl></div>` +
+    extra +
+    `<div><h2>Sans serveur ?</h2><p>L'application démarre quand même. La suite attend un serveur joint.</p></div>` +
+    `<div><h2>Sur le web</h2><p>La configuration locale se fait dans Studi'OS Desktop, pas ici.</p></div>` +
+    `</aside>`
+  );
+}
+
+function layout(session: SessionData, step: OnboardingStep, current: OnboardingStepId, body: string, context = ""): string {
+  return (
+    `<p class="ds-eyebrow">Premier lancement · Desktop uniquement</p>` +
+    dsPageHeader("Assistant de configuration", "9 étapes guidées, reprise revalidée à l'instant.") +
     progressHtml(current) +
-    `<section class="settings-domain" data-testid="onboarding-step" data-step="${esc(step.id)}">` +
-    `<h2>${esc(step.heading)}</h2><p class="settings-intro">${esc(step.intro)}</p>${body}</section>`
+    `<div class="tool-columns"><div class="tool-main"><section class="settings-domain" data-testid="onboarding-step" data-step="${esc(step.id)}">` +
+    `<h2>${esc(step.heading)}</h2><p class="settings-intro">${esc(step.intro)}</p>${body}</section></div>` +
+    contextAside(session, context) +
+    `</div>`
   );
 }
 
@@ -396,20 +435,34 @@ async function paintBienvenue(
   } catch {
     detected = false;
   }
-  const body =
+  const detectedBody =
     detected && session.state.status !== "not_started"
-      ? `<p class="settings-notice" role="status">Votre configuration Studi'OS est déjà détectée.</p>` +
-        navButtons({
-          extra:
-            `<button class="ds-btn ds-btn--primary" type="button" data-action="finish-detected">Ouvrir le tableau de bord</button>` +
-            `<button class="ds-btn" type="button" data-action="review">Revoir la configuration</button>`,
-        })
-      : navButtons({
-        extra: `<button class="ds-btn ds-btn--primary" type="button" data-action="start">Commencer</button>`,
-      });
-  root.innerHTML = layout(step, "bienvenue", errorHtml(session.error) + body);
+      ? `<section class="ds-hero" aria-label="Bienvenue">` +
+        `<p class="ds-hero-eyebrow">Bienvenue dans Studi'OS</p>` +
+        `<h2>Votre configuration est déjà détectée</h2>` +
+        `<p class="ds-hero-body">Ouvrez le tableau de bord, ou revoyez la configuration pas à pas.</p>` +
+        `<div class="ds-hero-actions">` +
+        `<button class="ds-btn ds-btn--primary" type="button" data-action="finish-detected">Ouvrir le tableau de bord</button>` +
+        `<button class="ds-btn ds-btn--ghost" type="button" data-action="review">Revoir la configuration</button>` +
+        `</div></section>`
+      : `<section class="ds-hero" aria-label="Bienvenue">` +
+        `<p class="ds-hero-eyebrow">Bienvenue dans Studi'OS</p>` +
+        `<h2>Reliez vos projets et vos assistants IA</h2>` +
+        `<p class="ds-hero-body">Quelques étapes, sans jargon ni identifiant à saisir.</p>` +
+        `<div class="ds-hero-actions">` +
+        `<button class="ds-btn ds-btn--primary" type="button" data-action="start">Commencer la configuration</button>` +
+        (session.state.status === "in_progress"
+          ? `<button class="ds-btn ds-btn--ghost" type="button" data-action="resume">Reprendre où j'en étais</button>`
+          : "") +
+        `</div></section>`;
+  const body = errorHtml(session.error) + detectedBody;
+  root.innerHTML = layout(session, step, "bienvenue", body);
   root.querySelector("[data-action=start]")?.addEventListener("click", () => {
     go(session, "connexion");
+    void again();
+  });
+  root.querySelector("[data-action=resume]")?.addEventListener("click", () => {
+    go(session, session.state.current);
     void again();
   });
   root.querySelector("[data-action=finish-detected]")?.addEventListener("click", () => {
@@ -446,7 +499,6 @@ async function paintConnexion(
       ? `<button class="ds-btn ds-btn--primary" type="button" data-action="restart-desktop">Redémarrer maintenant</button>`
       : "") +
     `<dl class="settings-rows">` +
-    `<div class="settings-row"><dt>Adresse utilisée</dt><dd><code class="mono">${esc(origin?.applied ?? "Non configurée")}</code></dd></div>` +
     `<div class="settings-row"><dt>Serveur</dt><dd data-testid="server-probe">${esc(probe.detail)}</dd></div>` +
     `<div class="settings-row"><dt>Compte</dt><dd>${authed ? "Connecté" : "Non connecté"}</dd></div>` +
     `</dl>` +
@@ -455,6 +507,14 @@ async function paintConnexion(
     `<input id="server-origin-input" name="server_origin" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://studio.exemple.com" value="${esc(origin?.configured ?? "")}" /></label>` +
     `<div class="settings-actions"><button class="ds-btn ds-btn--primary" type="submit">Enregistrer</button>` +
     `<button class="ds-btn" type="button" data-action="retry">Réessayer</button></div></form>` +
+    dsTechDetails(
+      [
+        { label: "Adresse appliquée", value: origin?.applied ?? "Non configurée", mono: true },
+        { label: "Adresse configurée", value: origin?.configured ?? "Valeur du poste", mono: true },
+        { label: "Redémarrage requis", value: origin?.restart_required === true ? "oui" : "non" },
+      ],
+      "Détails techniques — adresses et origine",
+    ) +
     (authed
       ? ""
       : `<div data-testid="onboarding-login">${loginOverlayHtml()}</div>`) +
@@ -464,7 +524,7 @@ async function paintConnexion(
         `<button class="ds-btn ds-btn--primary" type="button" data-action="next" ${probe.ok && authed ? "" : "disabled"}>Continuer</button>` +
         (probe.ok ? "" : `<span class="settings-intro">La suite nécessite un serveur joint et un compte connecté. L'application reste utilisable hors ligne.</span>`),
     });
-  root.innerHTML = layout(step, "connexion", body);
+  root.innerHTML = layout(session, step, "connexion", body);
   root.querySelector<HTMLFormElement>("[data-testid=server-origin-form]")?.addEventListener("submit", (event) => {
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
@@ -629,7 +689,7 @@ async function paintVerification(
         `<button class="ds-btn" type="button" data-action="recheck">Revérifier</button>` +
         `<button class="ds-btn ds-btn--primary" type="button" data-action="next" ${machineReady ? "" : "disabled"}>Continuer</button>`,
     });
-  root.innerHTML = layout(step, "verification", body);
+  root.innerHTML = layout(session, step, "verification", body);
   session.notice = null;
   root.querySelector<HTMLButtonElement>("[data-action=enroll]")?.addEventListener("click", (event) => {
     const token = getToken();
@@ -682,6 +742,7 @@ async function paintProjet(
   void platform;
   if (!hasToken()) {
     root.innerHTML = layout(
+      session,
       step,
       "projet",
       `<p class="ds-field-error" role="alert">Connectez-vous d'abord (étape « Connexion »).</p>` +
@@ -723,14 +784,18 @@ async function paintProjet(
         `<span><strong>${esc(project.name ?? project.slug ?? "Projet")}</strong></span></label></li>`,
     )
     .join("");
+  const awaitingBlock =
+    awaiting && session.projectsError === null
+      ? `<div data-testid="onboarding-awaiting-access"><h2>En attente d'accès</h2><p>Votre compte est actif, mais aucun projet ne vous est encore attribué : un administrateur de votre studio doit vous ajouter comme membre.</p>` +
+        `<div class="ds-state-actions"><button class="ds-btn" type="button" data-action="reload-projects">Vérifier à nouveau</button></div></div>`
+      : "";
   const body =
     errorHtml(session.error ?? session.projectsError) +
     noticeHtml(session.notice) +
     (session.projectsError
       ? `<div class="settings-actions"><button class="ds-btn" type="button" data-action="reload-projects">Recharger la liste</button></div>`
       : awaiting
-        ? `<div data-testid="onboarding-awaiting-access"><p class="settings-intro"><strong>En attente d'accès.</strong> Votre compte est actif, mais aucun projet ne vous est encore attribué. Un administrateur de votre studio doit vous ajouter comme membre d'un projet.</p>` +
-          `<div class="settings-actions"><button class="ds-btn" type="button" data-action="reload-projects">Vérifier à nouveau</button></div></div>`
+        ? `<p class="settings-intro">Choisissez un projet, ou attendez qu'un administrateur vous en attribue un.</p>`
         : list.length === 0
           ? `<p class="settings-intro">Aucun projet sur le serveur : créez-le ci-dessous.</p>`
           : `<ul class="ds-list" data-testid="project-list">${cards}</ul>`) +
@@ -743,7 +808,7 @@ async function paintProjet(
       prev: previousStep("projet"),
       extra: `<button class="ds-btn ds-btn--primary" type="button" data-action="next" ${session.state.projectId ? "" : "disabled"}>Continuer</button>`,
     });
-  root.innerHTML = layout(step, "projet", body);
+  root.innerHTML = layout(session, step, "projet", body, awaitingBlock);
   session.notice = null;
   root.querySelectorAll<HTMLInputElement>('input[name=project]')?.forEach((input) => {
     input.addEventListener("change", () => {
@@ -851,7 +916,7 @@ async function paintDossier(
       prev: previousStep("dossier"),
       extra: `<button class="ds-btn ds-btn--primary" type="button" data-action="associate" ${picked ? "" : "disabled"}>Associer ce dossier</button>`,
     });
-  root.innerHTML = layout(step, "dossier", body);
+  root.innerHTML = layout(session, step, "dossier", body);
   session.notice = null;
   root.querySelector<HTMLButtonElement>("[data-action=pick]")?.addEventListener("click", (event) => {
     // Une seule fenêtre de sélection à la fois.
@@ -959,6 +1024,7 @@ async function paintMemoire(
   const workspaceId = session.state.workspaceId;
   if (!workspaceId) {
     root.innerHTML = layout(
+      session,
       step,
       "memoire",
       `<p class="settings-intro">Associez d'abord un dossier : la mémoire vit dans le dossier du projet.</p>` +
@@ -990,7 +1056,7 @@ async function paintMemoire(
         `<button class="ds-btn" type="button" data-action="skip">Passer cette étape</button>` +
         `<button class="ds-btn ds-btn--primary" type="button" data-action="next">Continuer</button>`,
     });
-  root.innerHTML = layout(step, "memoire", body);
+  root.innerHTML = layout(session, step, "memoire", body);
   session.notice = null;
   root.querySelector<HTMLFormElement>("[data-testid=memory-folder-form]")?.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -1125,7 +1191,7 @@ async function paintEnvironnement(
       prev: previousStep("environnement"),
       extra: `<button class="ds-btn ds-btn--primary" type="button" data-action="next">Continuer</button>`,
     });
-  root.innerHTML = layout(step, "environnement", body);
+  root.innerHTML = layout(session, step, "environnement", body);
   session.notice = null;
   root.querySelector<HTMLButtonElement>("[data-action=enable-code]")?.addEventListener("click", (event) => {
     const button = event.currentTarget as HTMLButtonElement;
@@ -1227,6 +1293,7 @@ async function paintAssistant(
   const workspaceId = session.state.workspaceId;
   if (!workspaceId) {
     root.innerHTML = layout(
+      session,
       step,
       "assistant",
       `<p class="settings-intro">Associez d'abord un dossier : la connexion se fait par projet.</p>` +
@@ -1248,7 +1315,7 @@ async function paintAssistant(
   session.harnessError = detected.ok ? null : harnessErrorMessage(detected.error);
   const cards =
     harnesses.length === 0
-      ? dsEmptyState("Aucun assistant détecté", "Studi'OS fonctionne sans assistant IA. Vous pourrez terminer et connecter un assistant plus tard.")
+      ? dsStateHtml("empty", { title: "Aucun assistant détecté", message: "Studi'OS fonctionne sans assistant IA. Vous pourrez terminer et connecter un assistant plus tard." })
       : harnesses.map((harness) => harnessCard(harness, session.plan)).join("");
   const body =
     errorHtml(session.error ?? session.harnessError) +
@@ -1261,7 +1328,7 @@ async function paintAssistant(
         `<button class="ds-btn" type="button" data-action="skip">Passer cette étape</button>` +
         `<button class="ds-btn ds-btn--primary" type="button" data-action="next">Continuer</button>`,
     });
-  root.innerHTML = layout(step, "assistant", body);
+  root.innerHTML = layout(session, step, "assistant", body);
   session.notice = null;
   bindHarnessCards(root, platform, session, workspaceId, again);
   root.querySelector("[data-action=skip]")?.addEventListener("click", () => {
@@ -1421,7 +1488,7 @@ async function paintFinal(
       prev: previousStep("final"),
       extra: `<button class="ds-btn ds-btn--primary" type="button" data-action="finish">Terminer</button>`,
     });
-  root.innerHTML = layout(step, "final", body);
+  root.innerHTML = layout(session, step, "final", body);
   void shell;
   root.querySelector("[data-action=prev]")?.addEventListener("click", () => {
     go(session, previousStep("final") ?? "assistant");
@@ -1449,6 +1516,7 @@ async function paintTermine(
   void _platform;
   void _again;
   root.innerHTML = layout(
+    session,
     step,
     "termine",
     `<p class="settings-notice" role="status">Votre projet « ${esc(session.state.projectName ?? "Studi'OS")} » est prêt.</p>` +

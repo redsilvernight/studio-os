@@ -414,6 +414,69 @@ export function focusDsErrorBox(box: HTMLElement): void {
   box.focus();
 }
 
+/**
+ * Cinq états transverses, une seule langue (wireframes/tools.html, écran
+ * « États ») : introuvable, vide, chargement, erreur, hors ligne.
+ *
+ * Même gabarit que dsEmptyState / dsErrorState / dsSkeleton — une seule
+ * action primaire par état, détails techniques repliés via dsTechDetails,
+ * aucune bannière concurrente du statut de connexion (C4). `action` reprend
+ * l'action sans changer de page : lien quand `href` est fourni, bouton à
+ * câbler en addEventListener sur `id` sinon ; `secondary` reste discrète.
+ */
+export type DsSharedState = "notFound" | "empty" | "loading" | "error" | "offline";
+
+export interface DsStateAction {
+  label: string;
+  href?: string;
+  id?: string;
+}
+
+export interface DsStateOptions {
+  title: string;
+  message: string;
+  action?: DsStateAction;
+  secondary?: DsStateAction;
+  details?: DsTechRow[];
+  detailsSummary?: string;
+}
+
+function dsStateActionHtml(action: DsStateAction, variant: "primary" | "ghost"): string {
+  const cls = variant === "primary" ? "ds-btn ds-btn--primary" : "ds-btn ds-btn--ghost";
+  const id = action.id !== undefined ? ` id="${esc(action.id)}"` : "";
+  if (action.href !== undefined) {
+    return `<a class="${cls}" href="${esc(action.href)}"${id}>${esc(action.label)}</a>`;
+  }
+  return `<button class="${cls}" type="button"${id}>${esc(action.label)}</button>`;
+}
+
+function dsStateActionsHtml(options: DsStateOptions): string {
+  const parts: string[] = [];
+  if (options.action !== undefined) parts.push(dsStateActionHtml(options.action, "primary"));
+  if (options.secondary !== undefined) parts.push(dsStateActionHtml(options.secondary, "ghost"));
+  return parts.length === 0 ? "" : `<div class="ds-state-actions">${parts.join("")}</div>`;
+}
+
+/**
+ * Gabarit commun des cinq états, rendu unique dans le dashboard :
+ * onboarding, graphes, inspecteur, catalogue et 404 l'appellent tous.
+ */
+export function dsStateHtml(state: DsSharedState, options: DsStateOptions): string {
+  const details = dsTechDetails(options.details ?? [], options.detailsSummary);
+  if (state === "loading") return `${dsSkeleton(3)}${details}`;
+  if (state === "error") {
+    return `${dsErrorState(options.title, options.message)}${dsStateActionsHtml(options)}${details}`;
+  }
+  if (state === "offline") {
+    return (
+      `<div class="ds-notice ds-notice--warning" role="status"><strong>Hors ligne.</strong>${esc(options.message)}</div>` +
+      dsStateActionsHtml(options) +
+      details
+    );
+  }
+  return `${dsEmptyState(options.title, options.message)}${dsStateActionsHtml(options)}${details}`;
+}
+
 export type DsToastTone = "success" | "warning" | "danger" | "info";
 
 /**
