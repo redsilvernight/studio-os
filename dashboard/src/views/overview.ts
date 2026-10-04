@@ -26,6 +26,7 @@ import { resolveReview, type ReviewResolution } from "../reviewApi";
 import { describeError, esc } from "../ui";
 import { REVIEW_KIND_SHORT_LABEL } from "../language";
 import { agentLabel } from "../actorNames";
+import { TASK_STATUS_LABEL_FR } from "../taskStatus";
 import type { components } from "../openapi-schema";
 
 type Project = components["schemas"]["Project"];
@@ -41,12 +42,7 @@ export const HOME_REVIEW_LIMIT = 3;
 
 const REVIEW_KIND_LABEL: Record<ReviewQueueItem["kind"], string> = REVIEW_KIND_SHORT_LABEL;
 
-const TASK_STATUS_LABEL: Record<string, string> = {
-  created: "À faire",
-  in_progress: "En cours",
-  blocked: "Bloqué",
-  completed: "Terminé",
-};
+const TASK_STATUS_LABEL: Record<string, string> = TASK_STATUS_LABEL_FR;
 
 /** Sub-title for a review-queue row: AI work → agent, decision → readable_id,
  * conflict → resource path, build → workflow + branch, PR → number + branch. */

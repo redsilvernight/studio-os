@@ -53,8 +53,8 @@ describe("Roadmap workspace", () => {
     const plan = roadmapPlanHtml(roadmap, roadmap.current_step_key ?? null);
     const execution = roadmapExecutionHtml(roadmap, roadmap.current_step_key ?? null);
     expect(plan).toContain("Plan par phases");
-    expect(execution).toContain("Disponible maintenant");
-    expect(execution).toContain("En attente");
+    expect(execution).toContain("Peut démarrer maintenant");
+    expect(execution).toContain("Bloquées ou en attente");
     expect(`${plan}${execution}`).not.toContain("kanban");
   });
 
@@ -90,7 +90,7 @@ describe("Roadmap workspace", () => {
     expect(root.querySelector(".roadmap-proposal-review")).not.toBeNull();
     expect(root.textContent).toContain("Proposition à examiner");
     expect(root.textContent).toContain("Clarifier la première étape");
-    expect(root.textContent).toContain("version de base");
+    expect(root.textContent).toContain("fondée sur la révision");
     expect(root.textContent).toContain("Modifications proposées");
     expect(root.querySelectorAll("[data-proposal-review]")).toHaveLength(3);
 
@@ -386,8 +386,8 @@ describe("Roadmap recentrée sur l'étape courante (P05-roadmaps)", () => {
     expect(current).not.toBeNull();
     expect(root.querySelector(".roadmap-phase-strip")).not.toBeNull();
     expect(root.querySelector(".roadmap-current-criteria")?.textContent).toContain("Critères d'acceptation");
-    expect(root.textContent).toContain("Disponible maintenant");
-    expect(root.textContent).toContain("En attente");
+    expect(root.textContent).toContain("Peut démarrer maintenant");
+    expect(root.textContent).toContain("Bloquées ou en attente");
   });
 
   it("affiche le bandeau des phases avec la position courante", async () => {

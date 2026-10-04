@@ -200,8 +200,8 @@ export function roadmapExecutionHtml(roadmap: Roadmap, selectedKey: string | nul
     (current === null
       ? executionList("Étape actuelle", fallbackCurrent, "Aucune étape en cours.", selectedKey)
       : roadmapCurrentStepHtml(roadmap, selectedKey)) +
-    executionList("Disponible maintenant", available, "Rien de plus n'est disponible pour le moment.", selectedKey) +
-    executionList("En attente", blocked, "Aucune étape bloquée.", selectedKey) +
+    executionList("Peut démarrer maintenant", available, "Rien de plus n'est disponible pour le moment.", selectedKey) +
+    executionList("Bloquées ou en attente", blocked, "Aucune étape bloquée.", selectedKey) +
     roadmapDonePhasesHtml(roadmap, selectedKey) +
     `</div>`;
 }
@@ -256,10 +256,10 @@ const LIFECYCLE_ACTIONS: Record<RoadmapStatus, RoadmapLifecycleTransition[]> = {
 };
 
 const LIFECYCLE_LABELS: Record<RoadmapLifecycleTransition, string> = {
-  activate: "Activer",
-  complete: "Clôturer",
-  reopen: "Rouvrir",
-  archive: "Archiver",
+  activate: "Activer ce plan",
+  complete: "Clôturer ce plan",
+  reopen: "Rouvrir ce plan",
+  archive: "Archiver ce plan",
 };
 
 const LIFECYCLE_CONFIRM: Record<RoadmapLifecycleTransition, string> = {
@@ -384,7 +384,7 @@ export function revisionProposalHtml(proposal: RoadmapPendingProposal, roadmap: 
   return `<section class="roadmap-proposal-review" aria-labelledby="roadmap-proposal-review-title">` +
     `<div class="roadmap-proposal-review-head"><div><p class="roadmap-eyebrow">Proposition à examiner</p>` +
     `<h2 id="roadmap-proposal-review-title">${esc(revision.summary?.trim() || `Révision ${revision.revision_no}`)}</h2>` +
-    `<p class="roadmap-proposal-meta">${author} · ${esc(fmtTime(revision.provenance.at))} · version de base ${esc(base)} (courante ${roadmap.revision_no})</p></div>` +
+    `<p class="roadmap-proposal-meta">${author} · ${esc(fmtTime(revision.provenance.at))} · fondée sur la révision ${esc(base)}, révision en cours ${roadmap.revision_no}</p></div>` +
     dsBadge("En attente de validation", "warning") + `</div>` +
     `<div class="roadmap-proposal-change"><strong>Modifications proposées</strong>${diffHtml(diff)}</div>` +
     `<details class="roadmap-technical"><summary>Provenance</summary><dl>` +
@@ -461,7 +461,7 @@ export function roadmapShellHtml(
     roadmapLifecycleHtml(roadmap, lifecycle) +
     `<header class="roadmap-header"><div><div class="roadmap-title-line"><h2>${esc(roadmap.title)}</h2>${dsBadge(STATUS_LABELS[roadmap.status], statusTone(roadmap.status))}</div>` +
     `<p>${esc(roadmap.objective?.trim() || "Plan du projet")}</p>${dsProgress(progress, 100, `${progress} % du plan terminé`)}</div>` +
-    `<div class="roadmap-actions roadmap-no-print">${lifecycleButtonsHtml(roadmap, lifecycle)}<button class="ds-btn" type="button" data-edit-roadmap>Modifier</button><button class="ds-btn" type="button" data-import-json>Importer JSON</button><button class="ds-btn" type="button" data-export-json>Exporter JSON</button><button class="ds-btn ds-btn--primary" type="button" data-export-pdf>Exporter PDF</button></div></header>` +
+    `<div class="roadmap-actions roadmap-no-print">${lifecycleButtonsHtml(roadmap, lifecycle)}<button class="ds-btn" type="button" data-edit-roadmap>Modifier le plan</button><button class="ds-btn" type="button" data-import-json>Importer un plan (JSON)</button><button class="ds-btn" type="button" data-export-json>Exporter le plan (JSON)</button><button class="ds-btn ds-btn--primary" type="button" data-export-pdf>Exporter en PDF</button></div></header>` +
     `<input class="ds-sr-only" type="file" accept="application/json,.json" aria-label="Choisir un fichier Roadmap JSON" data-import-file>` +
     `<div class="roadmap-reading-tabs roadmap-no-print" role="tablist" aria-label="Lecture de la roadmap"><button class="ds-tab" type="button" role="tab" aria-selected="${mode === "execution"}" data-mode="execution">Exécution</button><button class="ds-tab" type="button" role="tab" aria-selected="${mode === "plan"}" data-mode="plan">Plan</button></div>` +
     `<div class="roadmap-layout"><main class="roadmap-reading" data-roadmap-reading>${plan}</main>${roadmapStepDetailHtml(selected, roadmap)}</div>` +

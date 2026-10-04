@@ -194,10 +194,16 @@ function harnessOptions(state: LaunchPanelState, machine: MachineEligibility | n
   return `<option value="">— Choisir un mode d'exécution —</option>${rows.join("")}`;
 }
 
+/** Nom lisible d'un modèle d'agent : la clé technique (`review-helper`) devient « Review helper ». */
+export function agentDisplayName(stableKey: string): string {
+  const spaced = stableKey.replace(/[-_.]+/g, " ").trim();
+  return spaced === "" ? stableKey : spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
 function agentOptions(state: LaunchPanelState, data: LaunchPanelData): string {
   const rows = data.agents.map(
     (agent) =>
-      `<option value="${esc(agent.stable_key)}"${agent.stable_key === state.agentStableKey ? " selected" : ""}>${esc(agent.stable_key)}</option>`,
+      `<option value="${esc(agent.stable_key)}"${agent.stable_key === state.agentStableKey ? " selected" : ""}>${esc(agentDisplayName(agent.stable_key))}</option>`,
   );
   return `<option value="">— Aucun agent (facultatif) —</option>${rows.join("")}`;
 }

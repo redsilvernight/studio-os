@@ -148,7 +148,7 @@ test.describe("Roadmaps P10 - Dashboard release gate", () => {
       ),
     );
     await go(page, "#/decisions");
-    await expect(page.getByText("Proposition de roadmap").first()).toBeVisible();
+    await expect(page.getByText("Proposition de plan").first()).toBeVisible();
     // Carte unique « Révision N du plan », héros compris : l'objet n'apparaît qu'une fois.
     await expect(page.getByRole("heading", { name: "Approuver la révision 3 du plan" })).toBeVisible();
     await expect(page.locator('.review-card[data-kind="roadmap_proposal"]')).toHaveCount(0);
@@ -203,7 +203,7 @@ test.describe("Roadmaps P10 - Dashboard release gate", () => {
         (window as unknown as { __printed: number }).__printed += 1;
       };
     });
-    await page.getByRole("button", { name: "Exporter PDF" }).click();
+    await page.getByRole("button", { name: "Exporter en PDF" }).click();
     expect(await page.evaluate(() => (window as unknown as { __printed: number }).__printed)).toBe(1);
     expect(serverPdf).toBe(0);
 

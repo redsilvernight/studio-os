@@ -240,8 +240,8 @@ test.describe("Roadmap workspace", () => {
     await expect(page.locator(".roadmap-phase-strip")).toBeVisible();
     await expect(page.getByRole("heading", { name: /Étape actuelle/ })).toBeVisible();
     await expect(page.locator("[data-current-step]")).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Disponible maintenant/ })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /En attente/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Peut démarrer maintenant/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Bloquées ou en attente/ })).toBeVisible();
     await page.getByRole("button", { name: /Sons/ }).first().click();
     await expect(page.getByRole("complementary", { name: /Détail de l'étape Sons/ }).getByRole("heading", { name: "Critères d'acceptation" })).toBeVisible();
     await page.getByRole("tab", { name: "Plan" }).click();
@@ -275,21 +275,21 @@ test.describe("Roadmap workspace", () => {
 
   test("cycle de vie : clôturer puis rouvrir avec motif obligatoire", async ({ page }) => {
     await openRoadmap(page, roadmapFixtureProjectIds.active, { role: "admin" });
-    await page.getByRole("button", { name: "Clôturer", exact: true }).click();
-    await page.getByRole("button", { name: "Confirmer : Clôturer" }).click();
+    await page.getByRole("button", { name: "Clôturer ce plan", exact: true }).click();
+    await page.getByRole("button", { name: "Confirmer : Clôturer ce plan" }).click();
     await expect(page.locator(".roadmap-title-line .ds-badge")).toHaveText("Terminée");
-    await page.getByRole("button", { name: "Rouvrir", exact: true }).click();
-    await page.getByRole("button", { name: "Confirmer : Rouvrir" }).click();
+    await page.getByRole("button", { name: "Rouvrir ce plan", exact: true }).click();
+    await page.getByRole("button", { name: "Confirmer : Rouvrir ce plan" }).click();
     await expect(page.getByText("Motif requis.")).toBeVisible();
     await page.locator("[data-lifecycle-comment]").fill("Étape oubliée");
-    await page.getByRole("button", { name: "Confirmer : Rouvrir" }).click();
+    await page.getByRole("button", { name: "Confirmer : Rouvrir ce plan" }).click();
     await expect(page.locator(".roadmap-title-line .ds-badge")).toHaveText("Active");
   });
 
   test("cycle de vie : un 409 de clôture reste affiché", async ({ page }) => {
     await openRoadmap(page, roadmapFixtureProjectIds.active, { role: "developer", transitionFailure: { complete: "invalid_state" } });
-    await page.getByRole("button", { name: "Clôturer", exact: true }).click();
-    await page.getByRole("button", { name: "Confirmer : Clôturer" }).click();
+    await page.getByRole("button", { name: "Clôturer ce plan", exact: true }).click();
+    await page.getByRole("button", { name: "Confirmer : Clôturer ce plan" }).click();
     await expect(page.locator("[data-lifecycle-error] [role=alert]")).toContainText("pas possible dans l'état actuel");
     await expect(page.locator(".roadmap-title-line .ds-badge")).toHaveText("Active");
   });
@@ -322,7 +322,7 @@ test.describe("Roadmap workspace", () => {
     await page.locator("[data-import-file]").setInputFiles({ name: "roadmap.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(imported)) });
     await expect(page.getByRole("heading", { name: "Plan importé" })).toBeVisible();
     const downloadPromise = page.waitForEvent("download");
-    await page.getByRole("button", { name: "Exporter JSON" }).click();
+    await page.getByRole("button", { name: "Exporter le plan (JSON)" }).click();
     const download = await downloadPromise;
     expect(download.suggestedFilename()).toBe("studio-roadmap.json");
   });

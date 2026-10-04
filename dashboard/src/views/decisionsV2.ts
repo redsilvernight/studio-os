@@ -49,7 +49,7 @@ import {
 import { resolveReview, type ReviewResolution } from "../reviewApi";
 import { agentLabel, projectLabel } from "../actorNames";
 import { describeError, esc, fmtTime, newUuid } from "../ui";
-import { ACTION_LABEL, FALLBACK_LABEL } from "../language";
+import { ACTION_LABEL, FALLBACK_LABEL, REVIEW_KIND_LABEL as REVIEW_KIND_LABEL_SOURCE } from "../language";
 import type { components } from "../openapi-schema";
 
 type Decision = components["schemas"]["Decision"];
@@ -65,14 +65,7 @@ export interface DecisionsContext {
   projectId?: string;
 }
 
-export const REVIEW_KIND_LABEL: Record<ReviewQueueItem["kind"], string> = {
-  ai_work_review: "Travail IA",
-  decision_proposal: "Proposition de décision",
-  resource_conflict: "Conflit de réservation",
-  build_failure: "Échec de build",
-  pr_ready: "Demande de fusion",
-  roadmap_proposal: "Proposition de roadmap",
-};
+export const REVIEW_KIND_LABEL: Record<ReviewQueueItem["kind"], string> = REVIEW_KIND_LABEL_SOURCE;
 
 export const REVIEW_KIND_TONE: Record<ReviewQueueItem["kind"], "neutral" | "info" | "warning" | "danger" | "ai"> = {
   ai_work_review: "ai",
@@ -746,16 +739,16 @@ export function createDecisionFormHtml(
   const projectField =
     projectId !== undefined
       ? `<span class="meta">Projet: <code class="mono">${esc(projectId)}</code></span>`
-      : dsField("decision-project_id", "Projet (facultatif)", `<input class="ds-input" id="FIELD" name="project_id" type="text" placeholder="uuid" />`, "Laissez vide pour une décision globale.");
+      : dsField("decision-project_id", "Projet (facultatif)", `<input class="ds-input" id="FIELD" name="project_id" type="text" placeholder="Collez l'identifiant du projet" />`, "Laissez vide pour une décision globale.");
 
   return `<form data-create-decision class="decision-form">` +
     `<input type="hidden" name="idempotency_key" value="${generateIdempotencyKey()}" />` +
     `${projectField}` +
-    `${dsField("decision-task_id", "Tâche (facultative)", `<input class="ds-input" id="FIELD" name="task_id" type="text" placeholder="uuid" />`, "Liez cette décision à une tâche si pertinent.")}` +
+    `${dsField("decision-task_id", "Tâche (facultative)", `<input class="ds-input" id="FIELD" name="task_id" type="text" placeholder="Collez l'identifiant de la tâche" />`, "Liez cette décision à une tâche si pertinent.")}` +
     `${dsField("decision-title", "Titre", `<input class="ds-input" id="FIELD" name="title" type="text" required />`, "Titre clair et concis de la décision.")}` +
     `${dsField("decision-body", "Contenu", `<textarea class="ds-input" id="FIELD" name="body" rows="4" required></textarea>`, "Décrivez la décision, son contexte et ses implications.")}` +
     `${dsField("decision-proposed_by_type", "Proposé par", `<select class="ds-input" id="FIELD" name="proposed_by_type"><option value="user">Utilisateur</option><option value="agent">Agent</option><option value="system">Système</option></select>`)}` +
-    `${dsField("decision-proposed_by_id", "Identifiant du proposant", `<input class="ds-input" id="FIELD" name="proposed_by_id" type="text" value="${esc(proposerId)}" required />`, "UUID de l'utilisateur, agent ou système.")}` +
+    `${dsField("decision-proposed_by_id", "Identifiant du proposant", `<input class="ds-input" id="FIELD" name="proposed_by_id" type="text" value="${esc(proposerId)}" required />`, "Prérempli avec votre identifiant ; ne le changez que pour proposer au nom d'un agent ou du système.")}` +
     `<div class="decision-form-actions">` +
     `<button class="ds-btn ds-btn--primary" type="submit" ${authed ? "" : "disabled"}>Créer la décision</button>` +
     `<button class="ds-btn" type="button" data-ds-close>Annuler</button>` +

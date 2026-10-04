@@ -27,7 +27,15 @@ export const REVIEW_KIND_SHORT_LABEL = {
   ai_work_review: "Travail IA",
   decision_proposal: "Décision",
   resource_conflict: "Conflit",
-  build_failure: "Échec de build",
+  build_failure: "Échec de compilation",
   pr_ready: "Demande de fusion",
-  roadmap_proposal: "Roadmap",
+  roadmap_proposal: "Plan",
+} as const;
+
+/** Formes longues (page « À valider »). Même vocabulaire que les formes courtes, seule la précision change. */
+export const REVIEW_KIND_LABEL = {
+  ...REVIEW_KIND_SHORT_LABEL,
+  decision_proposal: "Proposition de décision",
+  resource_conflict: "Conflit de réservation",
+  roadmap_proposal: "Proposition de plan",
 } as const;
