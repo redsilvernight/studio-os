@@ -1,20 +1,13 @@
 /**
- * P06 — Accessibilité (a11y) : validation des 7 pages principales.
+ * P06 — Accessibilité : clavier, focus, axe (contraste inclus) et zoom 200 % sur les pages principales.
  *
- * Critères :
- *  (1) Navigation clavier complète (Tab/Shift+Tab, Entrée/Espace, Échap, palette Ctrl+K),
- *      aucun piège de focus, focus visible (outline/box-shadow non nul) sur chaque contrôle interactif.
- *  (2) axe-core sans violation serious/critical, règle color-contrast incluse,
- *      thèmes clair et sombre si les deux existent (thème clair unique).
- *  (3) Zoom 200 % simulé (viewport 720×450 pour un écran 1440×900) :
- *      aucun défilement horizontal de page, contenu et actions primaires accessibles.
- *
- * Chaque défaut réel → test.fixme + commentaire (page, sélecteur, règle, valeur).
- * Liste des défauts à la fin.
+ * Chaque défaut fait échouer le test de sa page : aucun défaut n'est seulement journalisé.
+ * Zoom 200 % simulé par un viewport 720×450 (écran 1440×900) ; le contenu sous la ligne de flottaison
+ * reste atteignable par défilement vertical, seul le débordement horizontal est un défaut (WCAG 1.4.10).
  */
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page, type Locator } from "@playwright/test";
-import { login, newCaptured, P1, T1, go, watchErrors, expectClean, globalOverflow } from "./support/ui16-stub";
+import { expect, test, type Page } from "@playwright/test";
+import { login, newCaptured, P1, T1, watchErrors, expectClean, globalOverflow } from "./support/ui16-stub";
 
 const ROUTES_A11Y = [
   { name: "Accueil", hash: "#/" },
@@ -28,251 +21,130 @@ const ROUTES_A11Y = [
 
 const ZOOM_VIEWPORT = { width: 720, height: 450 };
 const DESKTOP_VIEWPORT = { width: 1440, height: 900 };
+const MAX_TABS = 80;
 
-type Defect = {
-  page: string;
-  selector: string;
-  rule: string;
-  value: string;
-};
+/** Parcourt la page au clavier (Tab) et signale focus invisible, absence de progression et piège de focus. */
+async function tabThroughPage(page: Page): Promise<string[]> {
+  const problems: string[] = [];
+  const seen = new Set<string>();
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
 
-const defects: Defect[] = [];
-
-function recordDefect(page: string, selector: string, rule: string, value: string): void {
-  defects.push({ page, selector, rule, value });
+  for (let i = 0; i < MAX_TABS; i++) {
+    await page.keyboard.press("Tab");
+    const info = await page.evaluate(() => {
+      const el = document.activeElement as HTMLElement | null;
+      if (!el || el === document.body) return null;
+      const cs = getComputedStyle(el);
+      const outline = cs.outlineStyle !== "none" && parseFloat(cs.outlineWidth) > 0;
+      const shadow = cs.boxShadow !== "none" && cs.boxShadow !== "";
+      const rect = el.getBoundingClientRect();
+      const label = (el.getAttribute("aria-label") || el.textContent || el.id || "").trim().slice(0, 40);
+      return {
+        key: `${el.tagName.toLowerCase()}#${el.id}.${el.className}|${label}|${Math.round(rect.x)},${Math.round(rect.y)}`,
+        desc: `<${el.tagName.toLowerCase()}${el.id ? ` id="${el.id}"` : ""}> « ${label} »`,
+        visibleFocus: outline || shadow,
+        onScreen: rect.width > 0 && rect.height > 0,
+      };
+    });
+    if (info === null) break; // le focus a quitté le document : cycle complet, pas de piège
+    if (seen.has(info.key)) break; // retour au premier élément : cycle complet
+    seen.add(info.key);
+    if (info.onScreen && !info.visibleFocus) problems.push(`focus non visible : ${info.desc}`);
+  }
+  if (seen.size === 0) problems.push("Tab ne met le focus sur aucun contrôle");
+  return problems;
 }
 
-async function checkFocusVisible(page: Page, contextName: string): Promise<void> {
-  const focusable = await page.locator(`
-    a[href], button:not([disabled]), input:not([disabled]),
-    select:not([disabled]), textarea:not([disabled]),
-    summary, [tabindex]:not([tabindex="-1"]),
-    [role="button"]:not([disabled]), [role="link"], [role="menuitem"],
-    [role="option"], [role="tab"], [role="checkbox"], [role="radio"]
-  `).all();
-
-  for (const el of focusable) {
-    try {
-      await el.focus();
-      const styles = await el.evaluate((node: HTMLElement) => {
-        const cs = getComputedStyle(node);
-        return {
-          outline: cs.outline,
-          outlineWidth: cs.outlineWidth,
-          outlineStyle: cs.outlineStyle,
-          outlineColor: cs.outlineColor,
-          boxShadow: cs.boxShadow,
-          border: cs.border,
-          borderWidth: cs.borderWidth,
-          borderColor: cs.borderColor,
-          backgroundColor: cs.backgroundColor,
-          color: cs.color,
-        };
-      });
-      const hasVisibleFocus =
-        styles.outlineWidth !== "0px" ||
-        styles.outlineStyle !== "none" ||
-        (styles.boxShadow !== "none" && styles.boxShadow !== "") ||
-        (styles.borderWidth !== "0px" && styles.border !== "none");
-
-      if (!hasVisibleFocus) {
-        const outer = await el.evaluate((node: HTMLElement) => node.outerHTML.slice(0, 200));
-        recordDefect(contextName, outer, "focus-visible", "no outline/box-shadow/border on focus");
-      }
-    } catch {
-      // Element may not be focusable in current state
-    }
-  }
-}
-
-async function checkKeyboardNavigation(page: Page, contextName: string): Promise<void> {
-  // Tab navigation
-  await page.keyboard.press("Tab");
-  let focused = await page.evaluate(() => document.activeElement?.tagName);
-  if (!focused) {
-    recordDefect(contextName, "body", "keyboard-tab", "no element focused after Tab");
-  }
-
-  // Shift+Tab
-  await page.keyboard.press("Shift+Tab");
-  focused = await page.evaluate(() => document.activeElement?.tagName);
-  if (!focused) {
-    recordDefect(contextName, "body", "keyboard-shift-tab", "no element focused after Shift+Tab");
-  }
-
-  // Enter on focused button/link
-  const focusable = page.locator('button:not([disabled]), a[href], [role="button"]:not([disabled])').first();
-  if (await focusable.count() > 0) {
-    await focusable.focus();
-    await page.keyboard.press("Enter");
-    // Just verify no crash
-  }
-
-  // Space on focused button
-  const button = page.locator('button:not([disabled]), [role="button"]:not([disabled])').first();
-  if (await button.count() > 0) {
-    await button.focus();
-    await page.keyboard.press("Space");
-  }
-}
-
-async function checkNoFocusTraps(page: Page, contextName: string): Promise<void> {
-  // Open palette via button click (sets correct trigger for focus restoration)
+/** Palette Ctrl K : ouverture, focus piégé dans la palette, Échap, retour du focus au déclencheur. */
+async function checkPalette(page: Page): Promise<string[]> {
+  const problems: string[] = [];
   const trigger = page.locator("#palette-open");
-  await trigger.click();
+  await trigger.focus();
+  await page.keyboard.press("Enter");
   const palette = page.locator("#app-palette");
   await expect(palette).toBeVisible({ timeout: 3000 });
+  await expect(page.locator("#app-palette-input")).toBeFocused();
 
-  const focusableInPalette = palette.locator('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
-  const count = await focusableInPalette.count();
-  if (count > 0) {
-    await focusableInPalette.first().focus();
-    for (let i = 0; i < count + 2; i++) {
-      await page.keyboard.press("Tab");
-      const inPalette = await page.evaluate(() => {
-        const active = document.activeElement;
-        const paletteEl = document.getElementById("app-palette");
-        return active && paletteEl ? paletteEl.contains(active) : false;
-      });
-      if (!inPalette) {
-        recordDefect(contextName, "#app-palette", "focus-trap", "Tab escaped palette");
-        break;
-      }
+  for (let i = 0; i < 12; i++) {
+    await page.keyboard.press("Tab");
+    const inside = await page.evaluate(() => document.getElementById("app-palette")?.contains(document.activeElement) ?? false);
+    if (!inside) {
+      problems.push("palette : Tab fait sortir le focus de la boîte de dialogue");
+      break;
     }
   }
-  // Leave palette open for checkPaletteAccessibility to test
+  await page.keyboard.press("Escape");
+  await expect(palette).toBeHidden();
+  if (!(await trigger.evaluate((el) => el === document.activeElement))) {
+    problems.push("palette : le focus ne revient pas au déclencheur après Échap");
+  }
+  return problems;
 }
 
-async function runAxeCheck(page: Page, contextName: string): Promise<void> {
+async function axeBlocking(page: Page): Promise<string[]> {
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
     .include("body")
     .analyze();
-
-  const blocking = results.violations.filter((v) => v.impact === "critical" || v.impact === "serious");
-  for (const violation of blocking) {
-    for (const node of violation.nodes) {
-      const selector = node.target.join(" ");
-      recordDefect(contextName, selector, violation.id, `impact=${violation.impact} ${violation.description}`);
-    }
-  }
-
-  // Explicitly check color-contrast even if not serious/critical
-  const contrastViolations = results.violations.filter((v) => v.id === "color-contrast");
-  for (const violation of contrastViolations) {
-    for (const node of violation.nodes) {
-      const selector = node.target.join(" ");
-      recordDefect(contextName, selector, violation.id, `impact=${violation.impact} ${violation.description}`);
-    }
-  }
-
-  expect(blocking.map((v) => `${contextName} ${v.id}`)).toEqual([]);
+  return results.violations
+    .filter((v) => v.impact === "critical" || v.impact === "serious" || v.id === "color-contrast")
+    .flatMap((v) => v.nodes.map((n) => `${v.id} (${v.impact}) ${n.target.join(" ")}`));
 }
 
-async function checkZoom200(page: Page, contextName: string): Promise<void> {
+/** Zoom 200 % : pas de défilement horizontal de page ; chaque action primaire tient dans la largeur une fois atteinte. */
+async function zoomProblems(page: Page): Promise<string[]> {
+  const problems: string[] = [];
   await page.setViewportSize(ZOOM_VIEWPORT);
-
-  // Wait for layout to settle
   await page.waitForTimeout(300);
 
   const overflow = await globalOverflow(page);
-  if (overflow > 0) {
-    recordDefect(contextName, "html", "horizontal-scroll", `overflow=${overflow}px at 720x450`);
-  }
+  if (overflow > 0) problems.push(`défilement horizontal de ${overflow}px à ${ZOOM_VIEWPORT.width}×${ZOOM_VIEWPORT.height}`);
 
-  // Check primary actions are visible and accessible
-  const primaryActions = page.locator('.ds-btn--primary, .ds-hero-actions .ds-btn--primary, button[data-claim]:not([disabled]), button[data-release]:not([disabled]), [role="button"].ds-btn--primary');
-  const count = await primaryActions.count();
+  const actions = page.locator(".ds-btn--primary:not([disabled]), button[data-claim]:not([disabled])");
+  const count = await actions.count();
   for (let i = 0; i < count; i++) {
-    const action = primaryActions.nth(i);
-    if (await action.isVisible().catch(() => false)) {
-      const box = await action.boundingBox().catch(() => null);
-      if (box && (box.x + box.width > ZOOM_VIEWPORT.width || box.y + box.height > ZOOM_VIEWPORT.height)) {
-        recordDefect(contextName, await action.evaluate((el) => el.outerHTML.slice(0, 200)), "zoom-primary-action", "primary action outside viewport at 200%");
-      }
+    const action = actions.nth(i);
+    if (!(await action.isVisible().catch(() => false))) continue;
+    await action.scrollIntoViewIfNeeded();
+    const box = await action.boundingBox();
+    if (box && (box.x < 0 || box.x + box.width > ZOOM_VIEWPORT.width + 1)) {
+      const label = ((await action.textContent()) ?? "").trim().slice(0, 40);
+      problems.push(`action primaire « ${label} » coupée horizontalement (x=${Math.round(box.x)}, largeur=${Math.round(box.width)})`);
     }
   }
-
-  // Check main content is accessible
-  const mainContent = page.locator("#view, main");
-  if (await mainContent.count() > 0) {
-    const box = await mainContent.first().boundingBox().catch(() => null);
-    if (box && box.width > ZOOM_VIEWPORT.width) {
-      recordDefect(contextName, "#view", "zoom-content-width", `content width ${box.width} > viewport ${ZOOM_VIEWPORT.width}`);
-    }
-  }
-
-  await page.setViewportSize(DESKTOP_VIEWPORT);
-}
-
-async function checkPaletteAccessibility(page: Page, contextName: string): Promise<void> {
-  const palette = page.locator("#app-palette");
-  await expect(palette).toBeVisible({ timeout: 3000 });
-
-  const input = page.locator("#app-palette-input");
-  await expect(input).toBeFocused();
-
-  // Arrow navigation in palette
-  await page.keyboard.press("ArrowDown");
-  await page.keyboard.press("ArrowUp");
-
-  // Escape closes
-  await page.keyboard.press("Escape");
-  await expect(palette).toBeHidden();
-
-  // Focus returns to trigger (the palette-open button)
-  const trigger = page.locator("#palette-open");
-  await expect(trigger).toBeFocused({ timeout: 3000 });
+  return problems;
 }
 
 test.describe.configure({ retries: 0 });
 
-test.describe("P06 Accessibilité — Pages principales", () => {
+test.describe("P06 Accessibilité — pages principales", () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize(DESKTOP_VIEWPORT);
   });
 
   for (const { name, hash } of ROUTES_A11Y) {
     test.describe(`${name} (${hash})`, () => {
-      test("navigation clavier, focus visible, pas de piège de focus", async ({ page }) => {
+      test("clavier : parcours Tab, focus visible, pas de piège, palette", async ({ page }) => {
         const watch = watchErrors(page);
         await login(page, hash, newCaptured());
-        await checkKeyboardNavigation(page, name);
-        await checkFocusVisible(page, name);
-        await checkNoFocusTraps(page, name);
-        await checkPaletteAccessibility(page, name);
+        const problems = [...(await tabThroughPage(page)), ...(await checkPalette(page))];
+        expect(problems, name).toEqual([]);
         expectClean(watch);
       });
 
-      test("axe-core : 0 violation serious/critical (incl. color-contrast)", async ({ page }) => {
+      test("axe-core : aucune violation serious/critical ni de contraste", async ({ page }) => {
         const watch = watchErrors(page);
         await login(page, hash, newCaptured());
-        await runAxeCheck(page, name);
+        expect(await axeBlocking(page), name).toEqual([]);
         expectClean(watch);
       });
 
-      test("zoom 200% (720×450) : pas de scroll horizontal, actions primaires accessibles", async ({ page }) => {
+      test("zoom 200 % (720×450) : pas de défilement horizontal, actions primaires atteignables", async ({ page }) => {
         const watch = watchErrors(page);
         await login(page, hash, newCaptured());
-        await checkZoom200(page, name);
+        expect(await zoomProblems(page), name).toEqual([]);
         expectClean(watch);
       });
     });
   }
-});
-
-test.describe("P06 Accessibilité — Résumé des défauts", () => {
-  test("liste consolidée des défauts découverts", async () => {
-    if (defects.length > 0) {
-      console.log("\n=== DÉFAUTS A11Y DÉCOUVERTS ===");
-      for (const d of defects) {
-        console.log(`FIXME: [${d.page}] ${d.selector} — ${d.rule} — ${d.value}`);
-      }
-      console.log(`Total: ${defects.length} défaut(s)\n`);
-    } else {
-      console.log("\n=== AUCUN DÉFAUT A11Y ===\n");
-    }
-    // This test always passes; defects are reported above
-    expect(true).toBe(true);
-  });
 });
