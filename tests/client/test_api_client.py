@@ -328,6 +328,24 @@ async def test_list_tasks_sends_project_id_as_query_param() -> None:
     assert seen["project_id"] == str(project_id)
 
 
+async def test_list_tasks_sends_status_and_mine_only_when_set() -> None:
+    seen: list[httpx.QueryParams] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.url.params)
+        return httpx.Response(200, json=[])
+
+    async with StudioApiClient(
+        _config(), _token_store(), transport=httpx.MockTransport(handler)
+    ) as client:
+        await client.list_tasks(status=["in_progress", "blocked"], mine=True)
+        await client.list_tasks()
+
+    assert seen[0].get_list("status") == ["in_progress", "blocked"]
+    assert seen[0].get("mine") == "true"
+    assert "status" not in seen[1] and "mine" not in seen[1]
+
+
 async def test_update_task_sends_if_match_version_and_only_set_fields() -> None:
     seen: dict[str, Any] = {}
     task_id = uuid4()

@@ -311,11 +311,21 @@ class StudioApiClient:
         return Task.model_validate(response.json())
 
     async def list_tasks(
-        self, *, project_id: UUID | None = None, limit: int = 100, offset: int = 0
+        self,
+        *,
+        project_id: UUID | None = None,
+        limit: int = 100,
+        offset: int = 0,
+        status: list[str] | None = None,
+        mine: bool = False,
     ) -> list[Task]:
         params: dict[str, Any] = {"limit": limit, "offset": offset}
         if project_id is not None:
             params["project_id"] = str(project_id)
+        if status:
+            params["status"] = [str(s) for s in status]
+        if mine:
+            params["mine"] = "true"
         response = await self._request("GET", "/api/v1/tasks", params=params)
         return [Task.model_validate(item) for item in response.json()]
 
