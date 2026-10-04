@@ -137,3 +137,77 @@ async def test_verified_bearer_gets_its_own_bucket(
         for _ in range(3):
             assert (await ac.get("/me", headers=headers)).status_code == 200
         assert (await ac.get("/me", headers=headers)).status_code == 429
+
+
+def _limit_events(caplog: pytest.LogCaptureFixture) -> list[dict[str, str]]:
+    payloads: list[dict[str, str]] = [
+        r.__dict__["security_event"] for r in caplog.records if r.name == "studio.security"
+    ]
+    return [p for p in payloads if p["event"] == "rate_limit.exceeded"]
+
+
+@pytest.mark.asyncio
+async def test_429_emits_security_event_with_bucket_ip_and_path(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    app = _app(
+        Settings(
+            rate_limit_requests_per_minute=60,
+            rate_limit_burst=1,
+            trusted_proxies=f"{_PEER}/32",
+        )
+    )
+    caplog.set_level("INFO", logger="studio.security")
+
+    async with _client(app) as ac:
+        headers = {"x-forwarded-for": "198.51.100.7", "authorization": "Bearer s3cr3t-token-value"}
+        assert (await ac.get("/ok", headers=headers)).status_code == 200
+        assert (await ac.get("/ok?token=s3cr3t-query-value", headers=headers)).status_code == 429
+
+    (event,) = _limit_events(caplog)
+    assert event["outcome"] == "blocked"
+    assert event["bucket"] == "general"
+    assert event["client_ip"] == "198.51.100.7"  # resolved via trusted proxy, not the peer
+    assert event["path"] == "/ok"
+    rendered = " ".join(r.getMessage() for r in caplog.records) + str(event)
+    assert "s3cr3t" not in rendered
+
+
+@pytest.mark.asyncio
+async def test_429_event_names_auth_bucket(caplog: pytest.LogCaptureFixture) -> None:
+    app = _app(Settings(auth_rate_limit_requests_per_minute=60, auth_rate_limit_burst=1))
+    caplog.set_level("INFO", logger="studio.security")
+
+    async with _client(app) as ac:
+        await ac.post("/api/v1/auth/token")
+        assert (await ac.post("/api/v1/auth/token")).status_code == 429
+
+    (event,) = _limit_events(caplog)
+    assert event["bucket"] == "auth"
+    assert event["client_ip"] == _PEER
+    assert event["path"] == "/api/v1/auth/token"
+
+
+@pytest.mark.asyncio
+async def test_429_flood_logs_one_event_per_key_and_window(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    now = [1000.0]
+    monkeypatch.setattr("studio_api.middleware.time.monotonic", lambda: now[0])
+    app = _app(Settings(rate_limit_requests_per_minute=1, rate_limit_burst=1))
+    caplog.set_level("INFO", logger="studio.security")
+
+    async with _client(app) as ac:
+        assert (await ac.get("/ok")).status_code == 200
+        for _ in range(5):
+            assert (await ac.get("/ok")).status_code == 429
+        assert len(_limit_events(caplog)) == 1
+
+        # Next window: one more event, reporting what was suppressed.
+        now[0] += 61.0
+        assert (await ac.get("/ok")).status_code == 200
+        for _ in range(2):
+            assert (await ac.get("/ok")).status_code == 429
+    events = _limit_events(caplog)
+    assert len(events) == 2
+    assert events[1]["suppressed"] == "4"
