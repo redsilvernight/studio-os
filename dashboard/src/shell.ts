@@ -11,6 +11,7 @@
  * (Ctrl K) sur ces mêmes destinations — pas de recherche globale : aucun
  * backend ne la supporte. Un seul statut de connexion, sous l'avatar (C4).
  */
+import type { NavMode } from "./navMode";
 import type { Route } from "./router";
 import { esc } from "./ui";
 
@@ -70,8 +71,9 @@ const CONFIG_ROUTES: readonly Route["name"][] = [
  * le détail) ; les outils experts (Graphes, Inspecteur) vivent hors de
  * l'entrée Administration. `desktop` n'ajoute rien : les Espaces de
  * travail sont visibles partout (la page dit honnêtement web vs Desktop).
+ * Mode « complet » (P06) : mêmes destinations, groupes secondaires déployés.
  */
-export function shellNavGroups(route: Route, desktop = false): ShellNavGroup[] {
+export function shellNavGroups(route: Route, desktop = false, mode: NavMode = "simple"): ShellNavGroup[] {
   const is = (...names: Route["name"][]): boolean => names.includes(route.name);
   void desktop;
   const admin: ShellNavItem[] = [
@@ -87,6 +89,7 @@ export function shellNavGroups(route: Route, desktop = false): ShellNavGroup[] {
     { href: "#/graphs/knowledge", label: "Graphes", icon: "graph", active: is("graphs") },
     { href: "#/inspector", label: "Inspecteur", icon: "inspector", active: is("inspector") },
   ];
+  const collapsible = mode === "simple";
   return [
     {
       title: "Principal",
@@ -98,8 +101,8 @@ export function shellNavGroups(route: Route, desktop = false): ShellNavGroup[] {
         { href: "#/agents", label: "Agents", icon: "agents", active: is("agents", "agent") },
       ],
     },
-    { title: "Administration", collapsible: true, items: admin },
-    { title: "Outils experts", collapsible: true, items: experts },
+    { title: "Administration", collapsible, items: admin },
+    { title: "Outils experts", collapsible, items: experts },
   ];
 }
 
@@ -125,7 +128,21 @@ function navGroupHtml(group: ShellNavGroup, index: number): string {
     const short = group.title === "Outils experts" ? "Outils" : "Admin";
     return `<details class="app-navgroup app-navgroup--secondary"${open}><summary>${icon(summaryIcon)}${labelHtml(group.title, short)}</summary><ul>${items}</ul></details>`;
   }
-  return `<section class="app-navgroup" aria-labelledby="app-navgroup-${index}"><h2 id="app-navgroup-${index}" class="ds-sr-only">${esc(group.title)}</h2><ul>${items}</ul></section>`;
+  // Groupe secondaire déployé (mode complet) : titre visible ; « Principal » reste muet.
+  const titleClass = group.title === "Principal" ? "ds-sr-only" : "app-navgroup-title";
+  return `<section class="app-navgroup" aria-labelledby="app-navgroup-${index}"><h2 id="app-navgroup-${index}" class="${titleClass}">${esc(group.title)}</h2><ul>${items}</ul></section>`;
+}
+
+/**
+ * Bascule simple ↔ complet, pied de barre latérale. `aria-pressed` = mode
+ * complet actif ; le libellé ne change pas (l'état porte l'information).
+ */
+function navModeToggleHtml(mode: NavMode): string {
+  const pressed = mode === "complete";
+  return (
+    `<button class="app-navmode" type="button" id="nav-mode-toggle" data-testid="nav-mode-toggle" aria-pressed="${pressed}" ` +
+    `title="Afficher toutes les pages en permanence">${icon("menu")}${labelHtml("Navigation complète", "Tout")}</button>`
+  );
 }
 
 export type ConnectionLevel = "ok" | "info" | "warn" | "error";
@@ -196,8 +213,8 @@ function paletteHtml(): string {
  * Coquille complète. `authed` pilote le bloc compte (jamais de contenu
  * inventé : état jeton + déconnexion = mécanisme existant relocalisé).
  */
-export function shellHtml(route: Route, authed: boolean, desktop = false): string {
-  const groups = shellNavGroups(route, desktop)
+export function shellHtml(route: Route, authed: boolean, desktop = false, mode: NavMode = "simple"): string {
+  const groups = shellNavGroups(route, desktop, mode)
     .map((group, index) => navGroupHtml(group, index))
     .join("");
   const account = authed
@@ -210,6 +227,7 @@ export function shellHtml(route: Route, authed: boolean, desktop = false): strin
     <div class="app-brand"><span class="app-brand-mark" aria-hidden="true">S</span><span class="app-brand-name">Studi'OS</span><button class="app-iconbtn" type="button" id="nav-close" aria-label="Fermer la navigation">${icon("close")}</button></div>
     <button class="app-cmdk" type="button" id="palette-open" aria-haspopup="dialog" aria-controls="app-palette" aria-keyshortcuts="Control+K" title="Aller à… (Ctrl K)">${icon("goto")}<span class="app-lbl-full">Aller à…</span><kbd class="app-lbl-full" aria-hidden="true">Ctrl K</kbd></button>
     <nav class="app-nav" aria-label="Navigation principale">${groups}</nav>
+    ${navModeToggleHtml(mode)}
     <div class="app-me${authed ? "" : " app-me--guest"}">
       <span class="app-avatar" aria-hidden="true">${icon("person")}</span>
       ${connectionStatusHtml(webConnection(authed))}
@@ -231,10 +249,10 @@ ${paletteHtml()}
 }
 
 /** État actif seul (évite de reconstruire le shell à chaque rendu). */
-export function syncNav(route: Route, root: ParentNode, desktop = false): void {
+export function syncNav(route: Route, root: ParentNode, desktop = false, mode: NavMode = "simple"): void {
   const links = root.querySelectorAll<HTMLAnchorElement>(".app-sidebar a.app-navlink");
   const targets = new Map<string, boolean>();
-  for (const group of shellNavGroups(route, desktop)) {
+  for (const group of shellNavGroups(route, desktop, mode)) {
     for (const item of group.items) targets.set(item.href, item.active);
   }
   for (const link of links) {

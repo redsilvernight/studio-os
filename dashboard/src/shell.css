@@ -195,6 +195,40 @@
   text-align: left;
 }
 
+/* Mode de navigation complet (P06) : groupes secondaires déployés en permanence. */
+.app-nav:has(.app-navgroup-title) {
+  overflow-y: auto;
+}
+.app-navgroup-title {
+  margin: var(--ds-space-2) 0 0;
+  padding: 0 var(--ds-space-3);
+  color: var(--ds-navy-muted);
+  font-size: var(--ds-text-xs, 0.75rem);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.app-navmode {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ds-space-2);
+  min-height: var(--ds-target);
+  padding: var(--ds-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--ds-radius-md);
+  background: none;
+  color: var(--ds-navy-muted);
+  font: inherit;
+  font-size: var(--ds-text-sm);
+  cursor: pointer;
+}
+.app-navmode:hover,
+.app-navmode[aria-pressed="true"] {
+  border-color: rgb(255 255 255 / 0.18);
+  color: var(--ds-navy-active);
+}
+
 /* Pied : avatar + unique statut de connexion (C4) + déconnexion. */
 .app-me {
   display: flex;
@@ -390,7 +424,8 @@ a.app-connection:hover .app-connection-label {
   .app-lbl-short {
     display: none;
   }
-  .app-cmdk {
+  .app-cmdk,
+  .app-navmode {
     justify-content: flex-start;
     padding: var(--ds-space-2) var(--ds-space-3);
   }

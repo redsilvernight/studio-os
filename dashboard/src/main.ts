@@ -55,6 +55,7 @@ import { getPlatform } from "./platform";
 import { getDesktopShell, paintShellStatus, prepareDesktop, setDesktopHooks } from "./desktopShell";
 import { parseRoute } from "./router";
 import { closePalette, isPaletteOpen, mountPalette, paletteEntries } from "./commandPalette";
+import { loadNavMode, saveNavMode, toggledNavMode } from "./navMode";
 import { mountAdminFlyout, shellHtml, syncAuthState, syncNav } from "./shell";
 import { createRenderGuard } from "./renderGuard";
 import { startRealtimeConnection, type RealtimeConnection } from "./realtime";
@@ -228,7 +229,7 @@ async function render(): Promise<void> {
   staging.id = "view";
   staging.tabIndex = -1;
   old.replaceWith(staging);
-  syncNav(route, document, getDesktopShell() !== null);
+  syncNav(route, document, getDesktopShell() !== null, loadNavMode());
   syncAuthState(authed, document);
   paintShellStatus(document);
 }
@@ -354,12 +355,19 @@ export function isDrawerOpen(): boolean {
 function mountShell(): void {
   const app = document.getElementById("app");
   if (app === null) throw new Error("#app missing");
-  app.innerHTML = shellHtml(parseRoute(location.hash), hasToken(), getDesktopShell() !== null);
+  app.innerHTML = shellHtml(parseRoute(location.hash), hasToken(), getDesktopShell() !== null, loadNavMode());
   paintShellStatus(document);
   paintUpdateBanner(document);
   mountPalette(() => paletteEntries(parseRoute(location.hash), getDesktopShell() !== null));
   mountAdminFlyout();
 
+  // P06 : bascule de présentation seule — même route, mêmes données ; le shell
+  // est reconstruit puis la vue courante repeinte (aucune navigation).
+  document.getElementById("nav-mode-toggle")?.addEventListener("click", () => {
+    saveNavMode(toggledNavMode(loadNavMode()));
+    mountShell();
+    document.getElementById("nav-mode-toggle")?.focus();
+  });
   document.getElementById("nav-open")?.addEventListener("click", () => openDrawer());
   document.getElementById("nav-close")?.addEventListener("click", () => closeDrawer());
   document.getElementById("app-scrim")?.addEventListener("click", () => closeDrawer());
