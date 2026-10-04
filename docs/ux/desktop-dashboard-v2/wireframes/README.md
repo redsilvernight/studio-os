@@ -28,3 +28,15 @@ Aucune carte ne s'élargit avec l'écran ; le texte courant reste ≤ 68 ch.
 - Accueil : table 3 tâches × 4 colonnes → 1 carte « Reprendre » + 2 suites ; projets en lignes, sans menus « … ».
 - Travail : « Prioritaire / À poursuivre » → En cours / Bloquées / À démarrer ; propriétés en colonne latérale.
 - Roadmap : 3 KPI → bandeau des 6 phases ; colonne « À retenir » (principes de design) supprimée.
+
+## Autres écrans (P02-wf-*) — en attente de validation
+
+Même langage et mêmes sélecteurs que `index.html` ; chaque page a sa revue « reste / disparaît / se déplace ».
+
+| Étape | Wireframes | Revue |
+|---|---|---|
+| P02-wf-projects | `projects.html` | `review-projects.md` |
+| P02-wf-review | `review.html` | `review-review.md` |
+| P02-wf-agents | `agents.html` | `review-agents.md` |
+| P02-wf-admin | `admin.html` | `review-admin.md` |
+| P02-wf-tools | `tools.html` | `review-tools.md` |

@@ -1,0 +1,665 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wireframes Administration Studi'OS V2</title>
+<style>
+:root{
+  --bg:#f5f6f8; --surface:#ffffff; --surface-2:#f0f2f5; --line:#e4e7ec; --line-2:#d0d5dd;
+  --text:#101828; --text-2:#475467; --text-3:#98a2b3;
+  --accent:#3e5bf2; --accent-ink:#ffffff; --accent-soft:#eef1ff; --accent-line:#c7d0ff;
+  --ok:#12a150; --ok-soft:#e7f7ee; --warn:#d97706; --warn-soft:#fff4e0; --bad:#e5484d; --bad-soft:#fdecec;
+  --shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.06);
+  --hero:linear-gradient(135deg,#eef1ff 0%,#ffffff 60%);
+  --page:#e9ecf1;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1115; --surface:#171a21; --surface-2:#1e222b; --line:#262b35; --line-2:#323846;
+    --text:#eef0f4; --text-2:#a3abba; --text-3:#6b7384;
+    --accent:#6b83ff; --accent-ink:#0b0d12; --accent-soft:#1d2440; --accent-line:#34407a;
+    --ok:#3ccf7e; --ok-soft:#14291e; --warn:#f2a93b; --warn-soft:#2d2212; --bad:#ff6b70; --bad-soft:#2f1719;
+    --shadow:0 1px 2px rgba(0,0,0,.4);
+    --hero:linear-gradient(135deg,#1d2440 0%,#171a21 65%);
+    --page:#08090c;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1115; --surface:#171a21; --surface-2:#1e222b; --line:#262b35; --line-2:#323846;
+  --text:#eef0f4; --text-2:#a3abba; --text-3:#6b7384;
+  --accent:#6b83ff; --accent-ink:#0b0d12; --accent-soft:#1d2440; --accent-line:#34407a;
+  --ok:#3ccf7e; --ok-soft:#14291e; --warn:#f2a93b; --warn-soft:#2d2212; --bad:#ff6b70; --bad-soft:#2f1719;
+  --shadow:0 1px 2px rgba(0,0,0,.4);
+  --hero:linear-gradient(135deg,#1d2440 0%,#171a21 65%);
+  --page:#08090c;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--page);color:var(--text);font:14px/1.5 "Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit}
+svg.i{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.viewer{padding:16px}
+.vbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;max-width:1400px;margin:0 auto 14px}
+.vbar h1{font-size:18px;margin:0;font-weight:650}
+.vbar p{margin:2px 0 0;color:var(--text-2);font-size:13px}
+.vctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.vseg{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:3px;flex-wrap:wrap}
+.vseg button{border:0;background:none;padding:6px 12px;border-radius:7px;cursor:pointer;color:var(--text-2);font-size:13px}
+.vseg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.stage{max-width:100%;overflow:hidden;margin:0 auto;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.12)}
+.notes{max-width:1400px;margin:16px auto 0;display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr))}
+.note{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.note h3{margin:0 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3)}
+.note ul{margin:0;padding-left:18px;color:var(--text-2);font-size:13px}
+.note li{margin:3px 0}
+.app{container:app/inline-size;background:var(--bg);overflow:hidden;transform-origin:0 0;position:relative}
+.shell{display:grid;grid-template-columns:72px 1fr;min-height:inherit}
+.fold{position:absolute;left:0;right:0;border-top:2px dashed var(--warn);pointer-events:none}
+.fold span{position:absolute;right:12px;top:-22px;font-size:11px;font-weight:700;color:var(--warn);background:var(--bg);padding:2px 6px;border-radius:4px}
+@container app (min-width:1400px){.shell{grid-template-columns:236px 1fr}}
+.side{display:flex;flex-direction:column;gap:4px;padding:16px 10px;border-right:1px solid var(--line);background:var(--surface);min-height:0}
+.brand{display:flex;align-items:center;gap:10px;padding:4px 8px 14px}
+.logo{width:32px;height:32px;border-radius:9px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-weight:700;flex:none}
+.brand b{font-size:15px}
+.cmdk{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--surface-2);border-radius:9px;padding:7px 10px;color:var(--text-3);cursor:pointer;margin-bottom:10px;justify-content:center}
+.cmdk kbd{white-space:nowrap;margin-left:auto;font:11px/1 inherit;border:1px solid var(--line-2);border-radius:5px;padding:3px 5px;color:var(--text-3)}
+.nav{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;color:var(--text-2);text-decoration:none;position:relative;flex-direction:column;font-size:10.5px;gap:4px;white-space:nowrap;padding:8px 2px}
+.nav.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.nav .badge{position:absolute;top:2px;right:6px;font-size:10px;padding:0 5px;line-height:16px}
+.badge{background:var(--warn);color:#fff;border-radius:999px;font-size:11px;font-weight:700;padding:1px 7px;line-height:18px}
+.side .lbl-full{display:none}
+.spacer{flex:1}
+.adm{display:flex;flex-direction:column;gap:2px;border-top:1px solid var(--line);margin-top:8px;padding-top:8px}
+.adm .cap{font-size:10.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;padding:4px 2px;text-align:center}
+.adm a{font-size:10.5px}
+.me .who{display:none}
+.me{display:flex;align-items:center;gap:10px;padding:10px 8px 2px;border-top:1px solid var(--line);margin-top:8px;flex-direction:column}
+.avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#7c8cff,#3e5bf2);color:#fff;display:grid;place-items:center;font-weight:600;font-size:13px;flex:none}
+.avatar.b{background:linear-gradient(135deg,#f6a5c0,#e5484d)}
+.avatar.ai{background:var(--surface-2);color:var(--text-2);border:1px solid var(--line)}
+.conn{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2)}
+.conn::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px var(--ok-soft)}
+.conn .t{display:none}
+@container app (min-width:1400px){
+  .side{padding:18px 14px}
+  .side .lbl-full{display:inline}
+  .side .lbl-short{display:none}
+  .cmdk{justify-content:flex-start}
+  .nav{flex-direction:row;font-size:14px;gap:10px;padding:8px 10px}
+  .nav .badge{position:static;margin-left:auto;font-size:11px;padding:1px 7px;line-height:18px}
+  .adm .cap,.adm a{text-align:left;font-size:12px}
+  .adm a{font-size:13px}
+  .me{flex-direction:row}
+  .me .who{display:flex;flex-direction:column;line-height:1.25}
+  .conn .t{display:inline}
+}
+.who b{font-size:13px}
+.main{padding:28px 32px;min-width:0}
+@container app (min-width:1400px){.main{padding:32px 40px}}
+@container app (min-width:2000px){.main{padding:40px 56px}}
+h1.pt{font-size:26px;line-height:1.2;margin:0;font-weight:680;letter-spacing:-.01em}
+.eyebrow{font-size:12px;color:var(--text-3);margin:0 0 4px;font-weight:600;letter-spacing:.02em}
+.sub{color:var(--text-2);margin:4px 0 0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:18px 20px;min-width:0}
+.card h2,.card h3{margin:0}
+.ch{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.ch h3{font-size:15px;font-weight:650}
+.link{color:var(--accent);font-size:13px;text-decoration:none;display:inline-flex;gap:4px;align-items:center;white-space:nowrap}
+.muted{color:var(--text-2)} .faint{color:var(--text-3);font-size:12px}
+.btn{display:inline-flex;align-items:center;gap:8px;border-radius:10px;padding:9px 14px;border:1px solid var(--line-2);background:var(--surface);cursor:pointer;font-weight:600;font-size:13px;white-space:nowrap}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);box-shadow:0 2px 8px color-mix(in srgb,var(--accent) 35%,transparent)}
+.btn.ghost{border-color:transparent;background:none;color:var(--text-2)}
+.status{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text-2);white-space:nowrap}
+.status::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--text-3)}
+.s-prog{color:var(--accent)} .s-prog::before{background:var(--accent)}
+.s-block{color:var(--bad)} .s-block::before{background:var(--bad)}
+.s-todo::before{background:var(--line-2);box-shadow:inset 0 0 0 2px var(--text-3)}
+.s-ok{color:var(--ok)} .s-ok::before{background:var(--ok)}
+.s-warn{color:var(--warn)} .s-warn::before{background:var(--warn)}
+.tag{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2);background:var(--surface-2);border-radius:999px;padding:2px 10px;white-space:nowrap}
+.bar{height:6px;border-radius:99px;background:var(--surface-2);overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--accent);border-radius:99px}
+.row{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row .grow{flex:1;min-width:0}
+.row .t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .s{font-size:12px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chev{color:var(--text-3)}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+.d-prog{background:var(--accent)}.d-block{background:var(--bad)}.d-todo{box-shadow:inset 0 0 0 2px var(--text-3)}.d-ok{background:var(--ok)}.d-warn{background:var(--warn)}
+.empty{display:flex;gap:10px;align-items:center;color:var(--text-2);font-size:13px;background:var(--surface-2);border-radius:10px;padding:10px 12px}
+.empty svg{color:var(--ok)}
+.seg{display:inline-flex;background:var(--surface-2);border-radius:10px;padding:3px;gap:2px;flex-wrap:wrap}
+.seg span{padding:6px 12px;border-radius:8px;font-size:13px;color:var(--text-2);font-weight:600;white-space:nowrap}
+.seg span.on{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin:14px 0 16px}
+.tabs span{padding:9px 13px;font-size:13px;font-weight:600;color:var(--text-2);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.tabs span.on{color:var(--accent);border-bottom-color:var(--accent)}
+table.grid{width:100%;border-collapse:collapse;font-size:13px}
+table.grid th{text-align:left;font-size:12px;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em;padding:8px 10px;border-bottom:1px solid var(--line)}
+table.grid td{padding:10px;border-top:1px solid var(--line);vertical-align:top}
+table.grid tr:first-child td{border-top:0}
+.tech{display:flex;align-items:center;gap:10px;color:var(--text-2);font-size:13px;border:1px dashed var(--line-2);border-radius:10px;padding:10px 12px}
+.tech .chev{margin-left:auto}
+.search{display:flex;gap:8px;align-items:center;border:1px solid var(--line);background:var(--surface-2);border-radius:10px;padding:8px 12px;color:var(--text-3);margin-bottom:12px}
+.search input{border:0;background:none;flex:1;font:inherit;color:var(--text);outline:none;min-width:0}
+.page{max-width:1100px;margin:0 auto}
+.page .head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:20px;gap:16px;flex-wrap:wrap}
+.ag{display:grid;gap:20px;grid-template-columns:minmax(0,1fr) 300px;grid-template-areas:"main ctx";align-items:start}
+.ag .amain{grid-area:main;display:flex;flex-direction:column;gap:20px;min-width:0}
+.ag .actx{grid-area:ctx}
+@container app (min-width:1400px){.page{max-width:1160px}.ag{grid-template-columns:minmax(0,760px) 340px;gap:24px}}
+@container app (min-width:2000px){.page{max-width:1980px}.ag{grid-template-columns:760px 380px 380px;grid-template-areas:"main ctx feed";gap:28px}.ag .afeed{grid-area:feed}}
+.hero{background:var(--hero);border-color:var(--accent-line);padding:22px 24px}
+.hero h2{font-size:22px;line-height:1.25;margin:10px 0 4px;letter-spacing:-.01em}
+.hero p{margin:0;max-width:68ch}
+.hero .acts{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+.fams{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@container app (max-width:1399px){.fams{grid-template-columns:1fr}}
+.fam{border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;gap:12px;align-items:flex-start}
+.fam .pic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;color:#fff;font-weight:700;flex:none}
+.fam b{display:block}
+.fam .s{font-size:12px;color:var(--text-2);max-width:68ch}
+.blk{padding:16px 0;border-top:1px solid var(--line)}
+.blk:first-child{border-top:0;padding-top:0}
+.blk h3{font-size:13px;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin:0 0 8px}
+.blk p{margin:0;max-width:68ch}
+.grp h4{margin:0;padding:10px 0 6px;font-size:12px;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;display:flex;gap:8px;align-items:center}
+.li{display:flex;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.kinds{display:flex;gap:8px;flex-wrap:wrap}
+.kind{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;flex:1;min-width:140px}
+.kind b{font-size:20px;line-height:1}
+.kind span{font-size:12px;color:var(--text-2);line-height:1.25}
+@container app (max-width:1999px){.only-xl{display:none!important}}
+@container app (min-width:2000px){.hide-xl{display:none!important}}
+@container app (max-width:1399px){.only-lg{display:none!important}}
+@container app (min-width:1400px){.hide-lg{display:none!important}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="folder" viewBox="0 0 24 24"><path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="work" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="m8 12 3 3 5-6"/></symbol>
+  <symbol id="inbox" viewBox="0 0 24 24"><path d="M3 13h5l1.5 3h5L16 13h5"/><path d="M5.5 5h13L21 13v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6z"/></symbol>
+  <symbol id="bot" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 4v4M9 14h.01M15 14h.01"/></symbol>
+  <symbol id="gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></symbol>
+  <symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="play" viewBox="0 0 24 24"><path d="M7 4v16l13-8z" fill="currentColor"/></symbol>
+  <symbol id="arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+  <symbol id="code" viewBox="0 0 24 24"><path d="m8 8-4 4 4 4M16 8l4 4-4 4"/></symbol>
+  <symbol id="doc" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></symbol>
+  <symbol id="shield" viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="swap" viewBox="0 0 24 24"><path d="M4 9h13l-3-3M20 15H7l3 3"/></symbol>
+  <symbol id="book" viewBox="0 0 24 24"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/></symbol>
+</svg>
+
+<div class="viewer">
+  <div class="vbar">
+    <div>
+      <h1>Wireframes Administration — Studi'OS V2</h1>
+      <p>Étape P02-wf-admin · même langage que index.html · brut : admin.html?raw&amp;screen=postes&amp;w=1600</p>
+    </div>
+    <div class="vctl">
+      <div class="vseg" id="screens" role="group" aria-label="Écran">
+        <button data-v="admin" aria-pressed="true">Entrée</button>
+        <button data-v="postes" aria-pressed="false">Postes</button>
+        <button data-v="comptes" aria-pressed="false">Comptes</button>
+        <button data-v="transferts" aria-pressed="false">Transferts</button>
+        <button data-v="library" aria-pressed="false">Bibliothèque</button>
+        <button data-v="library-detail" aria-pressed="false">Détail règle</button>
+        <button data-v="config" aria-pressed="false">Configuration</button>
+        <button data-v="espaces" aria-pressed="false">Espaces</button>
+      </div>
+      <div class="vseg" id="widths" role="group" aria-label="Largeur">
+        <button data-v="1280" aria-pressed="true">1280</button>
+        <button data-v="1600" aria-pressed="false">1600</button>
+        <button data-v="2560" aria-pressed="false">2560</button>
+      </div>
+      <div class="vseg" id="theme" role="group" aria-label="Thème">
+        <button data-v="light" aria-pressed="false">Clair</button>
+        <button data-v="dark" aria-pressed="false">Sombre</button>
+      </div>
+    </div>
+  </div>
+  <div class="stage" id="stage"></div>
+  <div class="notes" id="notes"></div>
+</div>
+
+<!-- ================= ÉCRANS ================= -->
+<template id="t-admin">
+  <div class="page">
+    <div class="head">
+      <div>
+        <p class="eyebrow">Administration</p>
+        <h1 class="pt">Garder le système sain</h1>
+        <p class="sub">2 comptes à revoir · 1 poste sans activité · tout le reste est calme</p>
+      </div>
+    </div>
+    <div class="ag">
+      <div class="amain">
+        <section class="card hero" data-major>
+          <span class="tag">Surveillance · réservé aux administrateurs</span>
+          <h2>2 comptes attendent une décision</h2>
+          <p class="muted">Comptes en attente de vérification ou à réactiver : c'est l'action qui débloque des gens.</p>
+          <div class="acts">
+            <button class="btn primary"><svg class="i"><use href="#shield"/></svg>Revoir les comptes en attente</button>
+            <button class="btn ghost">Voir tous les comptes</button>
+          </div>
+        </section>
+        <section class="card" data-major>
+          <div class="ch"><h3>Familles</h3><span class="faint">chaque surface en 1 clic</span></div>
+          <div class="fams">
+            <div class="fam"><span class="pic" style="background:#3e5bf2">P</span><div class="grow" style="flex:1;min-width:0"><b>Postes</b><div class="s">3 postes · 1 sans activité récente</div></div><svg class="i chev"><use href="#chev"/></svg></div>
+            <div class="fam"><span class="pic" style="background:#e5484d">C</span><div class="grow" style="flex:1;min-width:0"><b>Comptes et membres</b><div class="s">2 en attente · accès par projet</div></div><svg class="i chev"><use href="#chev"/></svg></div>
+            <div class="fam"><span class="pic" style="background:#8b5cf6">T</span><div class="grow" style="flex:1;min-width:0"><b>Transferts</b><div class="s">5 fichiers · 1 gros en cours</div></div><svg class="i chev"><use href="#chev"/></svg></div>
+            <div class="fam"><span class="pic" style="background:#12a150">B</span><div class="grow" style="flex:1;min-width:0"><b>Bibliothèque</b><div class="s">5 catégories · 1 règle à activer</div></div><svg class="i chev"><use href="#chev"/></svg></div>
+            <div class="fam"><span class="pic" style="background:#d97706">R</span><div class="grow" style="flex:1;min-width:0"><b>Configuration</b><div class="s">Runtimes, liaisons, projet, appli, IA</div></div><svg class="i chev"><use href="#chev"/></svg></div>
+            <div class="fam"><span class="pic" style="background:#475467">D</span><div class="grow" style="flex:1;min-width:0"><b>Espaces de travail</b><div class="s">2 dossiers suivis sur ce poste</div></div><svg class="i chev"><use href="#chev"/></svg></div>
+          </div>
+        </section>
+      </div>
+      <aside class="card actx" data-major>
+        <div class="ch"><h3>À surveiller</h3></div>
+        <div class="row"><span class="dot d-warn"></span><div class="grow"><div class="t">Compte de Chloé à vérifier</div><div class="s">demande depuis hier</div></div></div>
+        <div class="row"><span class="dot d-todo"></span><div class="grow"><div class="t">Poste du salon sans activité</div><div class="s">aucune activité récente connue</div></div></div>
+        <div class="row"><span class="dot d-ok"></span><div class="grow"><div class="t">Transferts et runtimes</div><div class="s">aucune alerte</div></div></div>
+        <div class="hide-xl" style="margin-top:12px"><div class="tech"><svg class="i"><use href="#code"/></svg>Détails techniques · identifiants, état brut<svg class="i chev"><use href="#down"/></svg></div></div>
+      </aside>
+      <aside class="card afeed only-xl" data-major style="display:none">
+        <div class="ch"><h3>Rappels honnêtes</h3></div>
+        <div class="blk"><h3>Création et révocation</h3><p>Les postes et les suppressions de fichiers passent par l'API ou le CLI, pas par des boutons inventés ici.</p></div>
+        <div class="blk"><h3>Résolution</h3><p>La compatibilité agent et runtime s'explique dans l'Inspecteur, pas dans ces écrans.</p></div>
+        <div class="tech"><svg class="i"><use href="#code"/></svg>Détails techniques · identifiants, état brut<svg class="i chev"><use href="#down"/></svg></div>
+      </aside>
+    </div>
+  </div>
+</template>
+
+<template id="t-postes">
+  <div class="page">
+    <div class="head">
+      <div>
+        <p class="eyebrow">Administration / Postes</p>
+        <h1 class="pt">Postes</h1>
+        <p class="sub">Environnements enregistrés où le travail s'exécute · 3 postes</p>
+      </div>
+      <button class="btn primary">Revoir le poste sans activité</button>
+    </div>
+    <div class="ag">
+      <div class="amain">
+        <section class="card" data-major>
+          <div class="search"><svg class="i"><use href="#search"/></svg><input placeholder="Filtrer par nom…" aria-label="Filtrer les postes"></div>
+          <div class="grp"><h4><span class="dot d-ok"></span>Activité récente</h4>
+            <div class="li"><div class="grow"><div class="t">Poste de Mathieu</div><div class="s">vu il y a 5 min · source serveur</div></div><span class="status s-ok">Actif</span><svg class="i chev"><use href="#chev"/></svg></div>
+            <div class="li"><div class="grow"><div class="t">Portable de Chloé</div><div class="s">vu il y a 2 h · source serveur</div></div><span class="status s-ok">Actif</span><svg class="i chev"><use href="#chev"/></svg></div>
+          </div>
+          <div class="grp"><h4><span class="dot d-todo"></span>Sans activité récente</h4>
+            <div class="li"><div class="grow"><div class="t">Poste du salon</div><div class="s">aucune activité récente connue · déduit</div></div><span class="status s-todo">À vérifier</span><svg class="i chev"><use href="#chev"/></svg></div>
+          </div>
+          <div style="margin-top:12px"><div class="tech"><svg class="i"><use href="#code"/></svg>Détails techniques · identifiants, présence déduite, runtimes vus<svg class="i chev"><use href="#down"/></svg></div></div>
+        </section>
+      </div>
+      <aside class="card actx" data-major>
+        <div class="ch"><h3>Poste du salon</h3></div>
+        <div class="blk"><h3>Ce qu'on sait</h3><p>Dernier signal il y a 6 jours. Aucune session ni agent actif vu depuis. Vérifier avant toute action.</p></div>
+        <div class="blk"><h3>Vocabulaire</h3><p>On parle d'activité récente, jamais de « hors ligne » : l'absence de signal n'est pas une preuve.</p></div>
+        <div class="blk"><div class="tech"><svg class="i"><use href="#code"/></svg>Copier l'identifiant<svg class="i chev"><use href="#down"/></svg></div></div>
+      </aside>
+      <aside class="card afeed only-xl" data-major style="display:none">
+        <div class="ch"><h3>Rappel</h3></div>
+        <p class="muted" style="margin:0;max-width:68ch">Pas de bouton créer ni révoquer ici : cela passe par l'API ou le CLI (rôle propriétaire ou admin).</p>
+      </aside>
+    </div>
+  </div>
+</template>
+
+<template id="t-comptes">
+  <div class="page">
+    <div class="head">
+      <div>
+        <p class="eyebrow">Administration / Comptes et membres</p>
+        <h1 class="pt">Comptes</h1>
+        <p class="sub">État des comptes, sessions et accès · jamais votre propre compte</p>
+      </div>
+      <button class="btn primary"><svg class="i"><use href="#search"/></svg>Rechercher un compte</button>
+    </div>
+    <div class="seg" style="margin-bottom:16px"><span class="on">Comptes</span><span>Membres d'un projet</span></div>
+    <div class="ag">
+      <div class="amain">
+        <section class="card" data-major>
+          <div class="search"><svg class="i"><use href="#search"/></svg><input placeholder="Nom ou e-mail…" aria-label="Rechercher un compte"></div>
+          <table class="grid">
+            <thead><tr><th>Compte</th><th>Rôle</th><th>État</th><th>Actions</th></tr></thead>
+            <tbody>
+              <tr><td><b>Chloé</b><div class="faint">en attente de vérification</div></td><td>Développeuse</td><td><span class="status s-warn">En attente</span></td><td><span class="link">Réactiver · Accès</span></td></tr>
+              <tr><td><b>Mathieu (vous)</b><div class="faint">votre compte</div></td><td>Admin</td><td><span class="status s-ok">Actif</span></td><td><span class="faint">Votre compte</span></td></tr>
+              <tr><td><b>Sam</b><div class="faint">accès coupé le mois dernier</div></td><td>Lecture seule</td><td><span class="status s-block">Désactivé</span></td><td><span class="link">Réactiver · Accès</span></td></tr>
+            </tbody>
+          </table>
+          <div style="margin-top:12px"><div class="tech"><svg class="i"><use href="#code"/></svg>Détails techniques · identifiants, jetons, versions<svg class="i chev"><use href="#down"/></svg></div></div>
+        </section>
+      </div>
+      <aside class="card actx" data-major>
+        <div class="ch"><h3>Accès de Chloé</h3></div>
+        <div class="row"><div class="grow"><div class="t">Studi'OS</div><div class="s">membre depuis mars</div></div></div>
+        <div class="row"><div class="grow"><div class="t">Alchi-Gun</div><div class="s">accès donné par Mathieu</div></div></div>
+        <p class="faint">Les accès se règlent dans l'onglet Membres de chaque projet.</p>
+      </aside>
+      <aside class="card afeed only-xl" data-major style="display:none">
+        <div class="ch"><h3>Garde-fous</h3></div>
+        <p class="muted" style="margin:0;max-width:68ch">Désactiver coupe sessions et postes. Révoquer ne touche qu'aux sessions. Votre propre compte n'offre aucune action.</p>
+      </aside>
+    </div>
+  </div>
+</template>
+
+<template id="t-transferts">
+  <div class="page">
+    <div class="head">
+      <div>
+        <p class="eyebrow">Administration / Transferts</p>
+        <h1 class="pt">Transferts</h1>
+        <p class="sub">Fichiers échangés entre postes · 5 visibles</p>
+      </div>
+      <button class="btn primary">Envoyer un fichier</button>
+    </div>
+    <div class="ag">
+      <div class="amain">
+        <section class="card" data-major>
+          <div class="seg" style="margin-bottom:12px"><span class="on">Tous</span><span>Prêts</span><span>En cours</span><span>Expirés</span></div>
+          <div class="row"><span class="dot d-prog"></span><div class="grow"><div class="t">Maquette d'accueil</div><div class="s">Mathieu → Chloé · 240 Mo · expire dans 6 jours</div></div><span class="status s-prog">En cours</span></div>
+          <div class="row"><span class="dot d-ok"></span><div class="grow"><div class="t">Bande-son du niveau 2</div><div class="s">Chloé → diffusion · 18 Mo · prêt</div></div><span class="status s-ok">Prêt</span></div>
+          <div class="row"><span class="dot d-ok"></span><div class="grow"><div class="t">Sauvegarde de démo</div><div class="s">Mathieu → Mathieu · 2 Mo · récupéré</div></div><span class="status s-ok">Récupéré</span></div>
+          <div class="row"><span class="dot d-todo"></span><div class="grow"><div class="t">Archive de sprint</div><div class="s">Sam → diffusion · 1,2 Go · expiré</div></div><span class="status s-todo">Expiré</span></div>
+          <div style="margin-top:12px"><div class="tech"><svg class="i"><use href="#code"/></svg>Détails techniques · stockage, tailles, sommes de contrôle<svg class="i chev"><use href="#down"/></svg></div></div>
+        </section>
+      </div>
+      <aside class="card actx" data-major>
+        <div class="ch"><h3>Maquette d'accueil</h3></div>
+        <div class="blk"><h3>Contexte</h3><p>Lié au projet Studi'OS, tâche « Valider des wireframes ». Téléchargeable via un lien court.</p></div>
+        <div class="blk"><h3>Quota</h3><p>240 Mo sur un plafond confortable. Vérifié avant l'envoi, pas après.</p></div>
+        <div class="blk"><div class="tech"><svg class="i"><use href="#code"/></svg>Copier le lien de téléchargement<svg class="i chev"><use href="#down"/></svg></div></div>
+      </aside>
+      <aside class="card afeed only-xl" data-major style="display:none">
+        <div class="ch"><h3>Ce qui n'existe pas</h3></div>
+        <p class="muted" style="margin:0;max-width:68ch">Ni annuler, ni renvoyer, ni prolonger : seuls l'envoi, le téléchargement et la suppression par l'expéditeur existent.</p>
+      </aside>
+    </div>
+  </div>
+</template>
+
+<template id="t-library">
+  <div class="page">
+    <div class="head">
+      <div>
+        <p class="eyebrow">Administration / Bibliothèque</p>
+        <h1 class="pt">Bibliothèque</h1>
+        <p class="sub">Connaissances réutilisables · 5 catégories</p>
+      </div>
+      <button class="btn primary">Créer un élément</button>
+    </div>
+    <div class="ag">
+      <div class="amain">
+        <section class="card" data-major>
+          <div class="kinds" style="margin-bottom:12px">
+            <div class="kind"><b>12</b><span>règles<br>conventions</span></div>
+            <div class="kind"><b>6</b><span>compétences<br>savoir-faire</span></div>
+            <div class="kind"><b>4</b><span>profils agents<br>façons de travailler</span></div>
+            <div class="kind"><b>3</b><span>profils modèles<br>exigences</span></div>
+            <div class="kind"><b>2</b><span>circuits<br>enchaînements</span></div>
+          </div>
+          <div class="search"><svg class="i"><use href="#search"/></svg><input placeholder="Rechercher par nom…" aria-label="Rechercher dans la bibliothèque"></div>
+          <div class="row"><svg class="i muted"><use href="#doc"/></svg><div class="grow"><div class="t">Conventions de code</div><div class="s">Règle · active · version 3</div></div><span class="status s-ok">Active</span><svg class="i chev"><use href="#chev"/></svg></div>
+          <div class="row"><svg class="i muted"><use href="#doc"/></svg><div class="grow"><div class="t">Revue sans identifiants</div><div class="s">Règle · brouillon · version 1</div></div><span class="status s-warn">Brouillon</span><svg class="i chev"><use href="#chev"/></svg></div>
+          <div class="row"><svg class="i muted"><use href="#doc"/></svg><div class="grow"><div class="t">Circuit de publication</div><div class="s">Circuit · déprécié · version 2</div></div><span class="status s-todo">Déprécié</span><svg class="i chev"><use href="#chev"/></svg></div>
+          <div style="margin-top:12px"><div class="tech"><svg class="i"><use href="#code"/></svg>Détails techniques · clés stables, portées, verrous<svg class="i chev"><use href="#down"/></svg></div></div>
+        </section>
+      </div>
+      <aside class="card actx" data-major>
+        <div class="ch"><h3>Lecture honnête</h3></div>
+        <p class="muted" style="margin:0;max-width:68ch">La liste ne montre que noms, catégories et états. Titres et contenus vivent dans les versions ; la compatibilité se vérifie dans l'Inspecteur.</p>
+      </aside>
+      <aside class="card afeed only-xl" data-major style="display:none">
+        <div class="ch"><h3>À activer</h3></div>
+        <div class="row"><svg class="i muted"><use href="#doc"/></svg><div class="grow"><div class="t">Revue sans identifiants</div><div class="s">brouillon prêt</div></div></div>
+        <button class="btn" style="margin-top:12px;width:100%;justify-content:center">Ouvrir la fiche</button>
+      </aside>
+    </div>
+  </div>
+</template>
+
+<template id="t-library-detail">
+  <div class="page">
+    <div class="head">
+      <div>
+        <p class="eyebrow">Bibliothèque / Règles</p>
+        <h1 class="pt">Conventions de code</h1>
+        <p class="sub">Règle · active · version 3 sur 3</p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn">Nouvelle version</button><button class="btn primary">Lire le contenu</button></div>
+    </div>
+    <div class="ag">
+      <div class="amain">
+        <section class="card" data-major>
+          <div class="blk"><h3>Contenu</h3><p>Texte de la règle, lisible en premier : conventions, exigences et garde-fous que le travail doit respecter.</p></div>
+          <div class="blk"><h3>Versions</h3><p>Version 3 active. Versions 1 et 2 repliées : on ne garde visible que ce qui sert aujourd'hui.</p></div>
+          <div class="blk"><div class="tech"><svg class="i"><use href="#code"/></svg>Détails techniques · clé stable, portée, dépendances, verrous<svg class="i chev"><use href="#down"/></svg></div></div>
+        </section>
+      </div>
+      <aside class="card actx" data-major>
+        <div class="ch"><h3>État</h3></div>
+        <div class="row"><div class="grow"><div class="t">Version active</div><div class="s">3 · activée par Mathieu</div></div><span class="status s-ok">Active</span></div>
+        <div class="row"><div class="grow"><div class="t">Verrou de projet</div><div class="s">Studi'OS épinglé sur la 3</div></div></div>
+        <p class="faint">Activer ou déprécier demande confirmation et garde l'historique.</p>
+      </aside>
+      <aside class="card afeed only-xl" data-major style="display:none">
+        <div class="ch"><h3>Voir aussi</h3></div>
+        <div class="row"><svg class="i muted"><use href="#doc"/></svg><div class="grow"><div class="t">Inspecteur</div><div class="s">compatibilité réelle d'un agent</div></div></div>
+      </aside>
+    </div>
+  </div>
+</template>
+
+<template id="t-config">
+  <div class="page">
+    <div class="head">
+      <div>
+        <p class="eyebrow">Administration / Configuration</p>
+        <h1 class="pt">Configuration</h1>
+        <p class="sub">Environnements d'exécution et règles d'affectation · le reste vit ailleurs</p>
+      </div>
+      <button class="btn primary">Enregistrer un runtime</button>
+    </div>
+    <div class="tabs"><span class="on">Runtimes</span><span>Liaisons</span><span>Projet</span><span>Application</span><span>Intégrations IA</span></div>
+    <div class="ag">
+      <div class="amain">
+        <section class="card" data-major>
+          <div class="ch"><h3>Runtimes</h3><span class="faint">cibles d'exécution déclarées</span></div>
+          <table class="grid">
+            <thead><tr><th>Cible</th><th>Modèle</th><th>État</th></tr></thead>
+            <tbody>
+              <tr><td><b>Poste de Mathieu · outillage local</b><div class="faint">capacités déclarées</div></td><td>modèle du poste</td><td><span class="status s-ok">Actif</span></td></tr>
+              <tr><td><b>Portable de Chloé · distant</b><div class="faint">capacités déclarées</div></td><td>modèle distant</td><td><span class="status s-ok">Actif</span></td></tr>
+            </tbody>
+          </table>
+          <div class="blk" style="margin-top:14px"><h3>Liaisons · Projet · Application · Intégrations</h3><p>Choix stockés par clé, verrous du projet, identité et serveur de l'appli, harnais IA du poste : chaque onglet garde la même forme, un résumé puis des détails repliés.</p></div>
+          <div style="margin-top:12px"><div class="tech"><svg class="i"><use href="#code"/></svg>Détails techniques · niveaux, clés, origines serveur<svg class="i chev"><use href="#down"/></svg></div></div>
+        </section>
+      </div>
+      <aside class="card actx" data-major>
+        <div class="ch"><h3>Où aller</h3></div>
+        <div class="row"><div class="grow"><div class="t">Liaisons</div><div class="s">quel runtime pour quelle définition</div></div></div>
+        <div class="row"><div class="grow"><div class="t">Projet</div><div class="s">ressources et verrous épinglés</div></div></div>
+        <div class="row"><div class="grow"><div class="t">Application</div><div class="s">identité, serveur, assistant</div></div></div>
+        <div class="row"><div class="grow"><div class="t">Intégrations IA</div><div class="s">harnais du poste au MCP</div></div></div>
+      </aside>
+      <aside class="card afeed only-xl" data-major style="display:none">
+        <div class="ch"><h3>Frontières</h3></div>
+        <p class="muted" style="margin:0;max-width:68ch">Ni profils, ni notifications, ni clés : ces surfaces n'existent pas côté serveur et ne sont pas inventées. La résolution s'explique dans l'Inspecteur.</p>
+      </aside>
+    </div>
+  </div>
+</template>
+
+<template id="t-espaces">
+  <div class="page">
+    <div class="head">
+      <div>
+        <p class="eyebrow">Administration / Espaces de travail</p>
+        <h1 class="pt">Espaces de travail</h1>
+        <p class="sub">Dossiers locaux suivis sur ce poste · Desktop uniquement</p>
+      </div>
+      <button class="btn primary">Ajouter un dossier</button>
+    </div>
+    <div class="ag">
+      <div class="amain">
+        <section class="card" data-major>
+          <div class="row"><span class="pic" style="width:34px;height:34px;border-radius:10px;background:#3e5bf2;color:#fff;display:grid;place-items:center;font-weight:700">S</span><div class="grow"><div class="t">Studi'OS</div><div class="s">dossier du projet · suivi actif</div></div><span class="status s-ok">Suivi</span></div>
+          <div class="row"><span class="pic" style="width:34px;height:34px;border-radius:10px;background:#e5484d;color:#fff;display:grid;place-items:center;font-weight:700">A</span><div class="grow"><div class="t">Alchi-Gun</div><div class="s">dossier du jeu · suivi actif</div></div><span class="status s-ok">Suivi</span></div>
+          <div class="empty" style="margin-top:12px"><svg class="i"><use href="#check"/></svg>Sur le web, ces dossiers se gèrent dans Studi'OS Desktop.</div>
+          <div style="margin-top:12px"><div class="tech"><svg class="i"><use href="#code"/></svg>Détails techniques · chemins, état du suivi<svg class="i chev"><use href="#down"/></svg></div></div>
+        </section>
+      </div>
+      <aside class="card actx" data-major>
+        <div class="ch"><h3>Association</h3></div>
+        <p class="muted" style="margin:0;max-width:68ch">Le dossier se choisit via le sélecteur natif du poste. L'association est confirmée par l'assistant local, jamais simulée.</p>
+      </aside>
+      <aside class="card afeed only-xl" data-major style="display:none">
+        <div class="ch"><h3>Surveillance</h3></div>
+        <p class="muted" style="margin:0;max-width:68ch">Le suivi des dossiers est actif par défaut et se recharge sans redémarrer.</p>
+      </aside>
+    </div>
+  </div>
+</template>
+
+<template id="t-shell">
+  <div class="shell">
+    <aside class="side">
+      <div class="brand"><span class="logo">S</span><b class="lbl-full">Studi'OS</b></div>
+      <div class="cmdk"><svg class="i"><use href="#search"/></svg><span class="lbl-full" style="white-space:nowrap">Rechercher…</span><kbd class="lbl-full">Ctrl K</kbd></div>
+      <a class="nav"><svg class="i"><use href="#home"/></svg><span>Accueil</span></a>
+      <a class="nav"><svg class="i"><use href="#folder"/></svg><span>Projets</span></a>
+      <a class="nav"><svg class="i"><use href="#work"/></svg><span>Travail</span></a>
+      <a class="nav"><svg class="i"><use href="#inbox"/></svg><span class="lbl-full">À valider</span><span class="lbl-short">Valider</span><span class="badge">4</span></a>
+      <a class="nav"><svg class="i"><use href="#bot"/></svg><span>Agents</span></a>
+      <div class="adm" id="admnav">
+        <div class="cap lbl-full">Administration</div>
+        <a class="nav on"><svg class="i"><use href="#gear"/></svg><span class="lbl-full">Vue d'ensemble</span><span class="lbl-short">Admin</span></a>
+      </div>
+      <div class="spacer"></div>
+      <div class="me">
+        <span class="avatar">M</span>
+        <div class="who"><b>Mathieu</b><span class="conn" data-testid="connection-status"><span class="t">En ligne</span></span></div>
+        <span class="conn hide-lg" data-testid="connection-status" title="En ligne"></span>
+      </div>
+    </aside>
+    <main class="main"></main>
+  </div>
+</template>
+
+<script>
+var H = {1280:800, 1600:900, 2560:1440};
+var SCREENS = ["admin","postes","comptes","transferts","library","library-detail","config","espaces"];
+var LABELS = {admin:"Entrée",postes:"Postes",comptes:"Comptes",transferts:"Transferts",library:"Bibliothèque","library-detail":"Détail règle",config:"Configuration",espaces:"Espaces"};
+var NOTES = {
+  admin:[
+    ["Ce qui change vs actuel",["6 familles en lignes avec état en une phrase au lieu de 12 entrées de navigation au même niveau.","1 carte héros « 2 comptes attendent » : l'action qui débloque des gens passe en premier.","Détails techniques et identifiants repliés ; un seul statut de connexion."]],
+    ["Adaptatif",["1280 : rail 72 px + principal + contexte 300 px.","1600 : barre complète, principal 760 + contexte 340.","2560 : 3e colonne de rappels, aucune carte élargie."]],
+    ["Cibles",["C1 : 1 primaire · C2 : 0 UUID · C3 : 3 blocs · C4 : 1 statut."]]
+  ],
+  postes:[
+    ["Fidélité au code",["machines.ts : liste de cartes + tiroir, pas de route détail ; vocabulaire d'activité, jamais En ligne/Hors ligne.","Aucun bouton créer/révoquer : API/CLI seuls ; display_name ou libellé générique.","Filtre et recherche locaux uniquement."]],
+    ["Adaptatif",["1280 : liste + tiroir en ligne ; 1600 : tiroir latéral ; 2560 : rappel des frontières."]],
+    ["Cibles",["C1 : « Revoir le poste sans activité » · C2 : noms humains · C3 : 2 blocs · C4 : 1 statut."]]
+  ],
+  comptes:[
+    ["Fidélité au code",["accounts.ts : table Compte/Rôle/État/Actions, ligne d'accès dépliable, jamais d'action sur son propre compte.","members.ts : onglet Membres par projet (ajout par annuaire, retrait confirmé).","Non-admin : note explicite, aucun appel voué au 403."]],
+    ["Adaptatif",["1280 : table + accès en ligne ; 1600 : accès latéral ; 2560 : garde-fous."]],
+    ["Cibles",["C1 : « Rechercher un compte » · C2 : 0 UUID · C3 : table + 2 panneaux · C4 : 1 statut."]]
+  ],
+  transferts:[
+    ["Fidélité au code",["transfers.ts : statuts réels, expiration dérivée signalée, quota avant envoi.","Pas d'annuler/renvoyer/prolonger inventés ; suppression réservée à l'expéditeur/admin.","Clé S3 et URL signées repliées, jamais des concepts."]],
+    ["Adaptatif",["1280 : liste + fiche ; 1600 : contexte quota ; 2560 : frontières."]],
+    ["Cibles",["C1 : « Envoyer un fichier » · C2 : noms humains · C3 : 2 blocs · C4 : 1 statut."]]
+  ],
+  library:[
+    ["Fidélité au code",["library.ts : 5 catégories françaises, recherche sur champs réellement chargés.","Liste documentaire aérée, création en modale, compatibilité réelle seulement dans l'Inspecteur.","Aucun kind ni endpoint inventé."]],
+    ["Adaptatif",["1280 : compteurs + liste ; 1600 : lecture honnête ; 2560 : à activer."]],
+    ["Cibles",["C1 : « Créer un élément » · C2 : 0 UUID · C3 : 2 blocs · C4 : 1 statut."]]
+  ],
+  "library-detail":[
+    ["Fidélité au code",["Détail = lecture d'abord, versions en divulgation progressive, locks et Activate/Deprecate confirmés.","Titres et contenus depuis les versions ; shadowing signalé, non tranché.","Lien profond vers l'Inspecteur pour la compatibilité."]],
+    ["Adaptatif",["1280 : contenu + état ; 1600 : état latéral ; 2560 : voir aussi."]],
+    ["Cibles",["C1 : « Lire le contenu » · C2 : 0 UUID · C3 : 2 blocs · C4 : 1 statut."]]
+  ],
+  config:[
+    ["Fidélité au code",["configuration.ts : 5 onglets réels (runtimes, bindings, projet, application, intégrations).","Aucune surface profil/notifications/clés inventée ; résolution expliquée dans l'Inspecteur.","Niveaux stockés user/project_override/project_default/studio_default ; session éphémère."]],
+    ["Adaptatif",["1280 : onglets + table ; 1600 : colonne d'orientation ; 2560 : frontières."]],
+    ["Cibles",["C1 : « Enregistrer un runtime » · C2 : 0 UUID · C3 : onglets + 2 panneaux · C4 : 1 statut."]]
+  ],
+  espaces:[
+    ["Fidélité au code",["workspacesPage.ts : Desktop seul, sélecteur natif, pont workspace non servi dit honnêtement.","Sur le web : renvoi vers Desktop, rien de simulé.","Liste des dossiers + ajout, état du suivi."]],
+    ["Adaptatif",["1280 : liste + aide ; 1600 : association latérale ; 2560 : surveillance."]],
+    ["Cibles",["C1 : « Ajouter un dossier » · C2 : 0 UUID · C3 : 2 blocs · C4 : 1 statut."]]
+  ]
+};
+var st = {screen:"admin", width:1280};
+var stage = document.getElementById("stage");
+function render(){
+  var w = st.width, h = H[w] || 900;
+  var shell = document.getElementById("t-shell").content.cloneNode(true);
+  var tpl = document.getElementById("t-" + st.screen) || document.getElementById("t-admin");
+  shell.querySelector(".main").appendChild(tpl.content.cloneNode(true));
+  var navs = shell.querySelectorAll("#admnav .nav");
+  var labels = {admin:0, postes:0, comptes:0, transferts:0, library:0, "library-detail":0, config:0, espaces:0};
+  void labels; void navs;
+  shell.querySelectorAll('[style*="display:none"]').forEach(function(e){ e.style.removeProperty("display"); });
+  var app = document.createElement("div");
+  app.className = "app"; app.style.width = w + "px"; app.style.minHeight = h + "px";
+  app.appendChild(shell);
+  var fold = document.createElement("div"); fold.className = "fold"; fold.style.top = h + "px";
+  fold.innerHTML = "<span>ligne de flottaison " + w + "×" + h + "</span>";
+  app.appendChild(fold);
+  stage.innerHTML = ""; stage.appendChild(app);
+  fit();
+  var n = NOTES[st.screen] || NOTES.admin;
+  document.getElementById("notes").innerHTML = n.map(function(g){
+    return '<div class="note"><h3>' + g[0] + "</h3><ul>" + g[1].map(function(x){ return "<li>" + x + "</li>"; }).join("") + "</ul></div>";
+  }).join("");
+}
+function fit(){
+  var app = stage.firstChild; if(!app) return;
+  var raw = new URLSearchParams(location.search).has("raw");
+  var avail = raw ? 1e9 : Math.min(document.documentElement.clientWidth - 32, 1400);
+  var s = Math.min(1, avail / st.width);
+  app.style.transform = "scale(" + s + ")";
+  stage.style.width = (st.width * s) + "px";
+  stage.style.height = (app.offsetHeight * s) + "px";
+}
+function seg(id, key, cast){
+  var el = document.getElementById(id);
+  el.addEventListener("click", function(e){
+    var b = e.target.closest("button"); if(!b) return;
+    el.querySelectorAll("button").forEach(function(x){ x.setAttribute("aria-pressed", x === b); });
+    if(key === "theme"){ document.documentElement.dataset.theme = b.dataset.v; return; }
+    st[key] = cast(b.dataset.v); render();
+  });
+}
+var q = new URLSearchParams(location.search);
+if(q.get("screen") && SCREENS.indexOf(q.get("screen")) !== -1) st.screen = q.get("screen");
+if(q.get("w") && H[Number(q.get("w"))]) st.width = Number(q.get("w"));
+if(q.get("theme")) document.documentElement.dataset.theme = q.get("theme");
+if(q.has("raw")){ document.querySelector(".vbar").style.display = "none"; document.getElementById("notes").style.display = "none"; document.querySelector(".viewer").style.padding = "0"; }
+document.querySelectorAll("#screens button").forEach(function(b){ b.setAttribute("aria-pressed", b.dataset.v === st.screen); });
+document.querySelectorAll("#widths button").forEach(function(b){ b.setAttribute("aria-pressed", b.dataset.v == String(st.width)); });
+seg("screens", "screen", String); seg("widths", "width", Number); seg("theme", "theme", String);
+window.addEventListener("resize", fit);
+render();
+</script>
+</body>
+</html>
