@@ -361,7 +361,7 @@ export interface paths {
         };
         /**
          * List Tasks
-         * @description List tasks of the caller's accessible projects, optionally filtered by project. A `project_id` the caller cannot access (or that does not exist) answers `403 forbidden`. `status` (repeatable, OR) and `mine` (tasks claimed by a machine the caller's user owns) narrow the listing; both are optional and additive (DEC-0185).
+         * @description List tasks of the caller's accessible projects, optionally filtered by project. A `project_id` the caller cannot access (or that does not exist) answers `403 forbidden`. `status` (repeatable, OR) and `mine` (tasks claimed by a machine the caller's user owns) narrow the listing; both are optional and additive.
          */
         get: operations["list_tasks_api_v1_tasks_get"];
         put?: never;

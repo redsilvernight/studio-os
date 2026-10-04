@@ -30,7 +30,7 @@ router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
         "by project. A `project_id` the caller cannot access (or that does "
         "not exist) answers `403 forbidden`. `status` (repeatable, OR) and "
         "`mine` (tasks claimed by a machine the caller's user owns) narrow "
-        "the listing; both are optional and additive (DEC-0185)."
+        "the listing; both are optional and additive."
     ),
     responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
 )
