@@ -53,7 +53,8 @@ import { probeProjectAccess, renderAwaitingAccess, type ProjectAccess } from "./
 import { getPlatform } from "./platform";
 import { getDesktopShell, paintShellStatus, prepareDesktop, setDesktopHooks } from "./desktopShell";
 import { parseRoute } from "./router";
-import { shellHtml, syncAuthState, syncNav } from "./shell";
+import { closePalette, isPaletteOpen, mountPalette, paletteEntries } from "./commandPalette";
+import { mountAdminFlyout, shellHtml, syncAuthState, syncNav } from "./shell";
 import { createRenderGuard } from "./renderGuard";
 import { startRealtimeConnection, type RealtimeConnection } from "./realtime";
 import { setApiObserver } from "./apiEvents";
@@ -351,6 +352,8 @@ function mountShell(): void {
   app.innerHTML = shellHtml(parseRoute(location.hash), hasToken(), getDesktopShell() !== null);
   paintShellStatus(document);
   paintUpdateBanner(document);
+  mountPalette(() => paletteEntries(parseRoute(location.hash), getDesktopShell() !== null));
+  mountAdminFlyout();
 
   document.getElementById("nav-open")?.addEventListener("click", () => openDrawer());
   document.getElementById("nav-close")?.addEventListener("click", () => closeDrawer());
@@ -372,6 +375,7 @@ function mountShell(): void {
     });
     window.addEventListener("hashchange", () => {
       if (isDrawerOpen()) closeDrawer(false);
+      if (isPaletteOpen()) closePalette(false);
       void render().then(() => focusView());
     });
   }

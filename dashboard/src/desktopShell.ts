@@ -15,12 +15,13 @@ import { joinUrl } from "./config";
 import { createConnectionMonitor, type ConnectionMonitor, type ConnectionSnapshot } from "./connection";
 import type { DesktopInfo, Platform, ServerOriginState } from "./platform";
 import { setServerOriginOverride } from "./runtimeConfig";
+import { paintConnection } from "./shell";
 import type { HandshakeResponse } from "./platform/generated/local-contracts.generated";
 import {
   DAEMON_ABANDONED,
   DAEMON_RECOVERING,
   daemonRecovering,
-  shellStatusHtml,
+  shellConnectionView,
   summarizeDaemonAnswer,
   summarizeHealth,
   summarizeShellStatus,
@@ -271,28 +272,11 @@ export function currentStatus(target: DesktopShell | null = shell): ShellStatus 
   });
 }
 
-/** (Re)paint the status pill next to the account state. Desktop only. */
+/** (Re)paint the shell's single connection status (C4). Desktop only. */
 export function paintShellStatus(root: ParentNode = document): void {
   const status = currentStatus();
   if (!status) return;
-  const topbar = root.querySelector(".app-topbar");
-  if (!topbar) return;
-  const html = shellStatusHtml(status);
-  const existing = topbar.querySelector("#shell-status");
-  if (existing) {
-    const holder = document.createElement("template");
-    holder.innerHTML = html;
-    const next = holder.content.firstElementChild;
-    if (next) existing.replaceWith(next);
-    return;
-  }
-  const anchor = topbar.querySelector("#token-state");
-  const holder = document.createElement("template");
-  holder.innerHTML = html;
-  const pill = holder.content.firstElementChild;
-  if (!pill) return;
-  if (anchor) anchor.before(pill);
-  else topbar.append(pill);
+  paintConnection(shellConnectionView(status), root);
 }
 
 export function serverSnapshot(target: DesktopShell | null = shell): ConnectionSnapshot | null {

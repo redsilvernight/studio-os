@@ -1,6 +1,7 @@
+// @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
 import { parseRoute } from "./router";
-import { shellHtml, shellNavGroups } from "./shell";
+import { mountAdminFlyout, shellHtml, shellNavGroups } from "./shell";
 import { notFoundHtml } from "./views/notFound";
 
 function authedShell(routeName: Parameters<typeof shellHtml>[0]): string {
@@ -26,11 +27,12 @@ describe("shellNavGroups (UI-2)", () => {
       "#/machines",
       "#/accounts",
       "#/inspector",
+      "#/configuration/runtimes",
     ]);
   });
 
   it("keeps Administration collapsed unless the active page belongs to it", () => {
-    expect(shellHtml({ name: "dashboard" }, true)).toContain('<details class="app-navgroup app-navgroup--secondary"><summary>Administration');
+    expect(shellHtml({ name: "dashboard" }, true)).toContain('<details class="app-navgroup app-navgroup--secondary"><summary>');
     expect(shellHtml({ name: "machines" }, true)).toContain('<details class="app-navgroup app-navgroup--secondary" open>');
   });
 
@@ -54,11 +56,11 @@ describe("shellNavGroups (UI-2)", () => {
     }
   });
 
-  it("leaves groups inactive on configuration routes (Paramètres foot link carries it)", () => {
+  it("activates Paramètres inside Administration on every configuration route", () => {
     const active = shellNavGroups({ name: "configBindings" })
       .flatMap((group) => group.items)
       .filter((item) => item.active);
-    expect(active).toHaveLength(0);
+    expect(active.map((item) => item.label)).toEqual(["Paramètres"]);
     expect(shellHtml({ name: "configApplication" }, true)).toContain('href="#/configuration/runtimes" aria-current="page"');
     expect(shellHtml({ name: "configIntegrations" }, true)).toContain('href="#/configuration/runtimes" aria-current="page"');
     expect(shellHtml({ name: "configBindings" }, true)).toContain('href="#/configuration/runtimes" aria-current="page"');
@@ -98,7 +100,7 @@ describe("shellHtml (UI-2)", () => {
 
   it("links Agents to the real page, no longer upcoming", () => {
     const html = authedShell({ name: "dashboard" });
-    expect(html).toContain("<span>Agents</span>");
+    expect(html).toContain('<span class="app-navlabel">Agents</span>');
     expect(html).toContain('href="#/agents"');
     expect(html).not.toContain("Bientôt");
   });
@@ -132,6 +134,49 @@ describe("shellHtml (UI-2)", () => {
   });
 });
 
+describe("shellHtml (P03-shell)", () => {
+  function parse(html: string): Document {
+    return new DOMParser().parseFromString(html, "text/html");
+  }
+
+  it("renders exactly one connection status and no other « Connecté » (C4)", () => {
+    for (const authed of [true, false]) {
+      const doc = parse(shellHtml(parseRoute("#/"), authed));
+      const statuses = doc.querySelectorAll('[data-testid="connection-status"]');
+      expect(statuses).toHaveLength(1);
+      expect(statuses[0]?.closest(".app-me")).not.toBeNull();
+      const text = doc.body.textContent ?? "";
+      expect(text.split("Connecté").length - 1).toBe(authed ? 1 : 0);
+    }
+  });
+
+  it("opens the « Aller à… » palette from the top of the sidebar", () => {
+    const doc = parse(shellHtml(parseRoute("#/"), true));
+    const opener = doc.querySelector("#palette-open");
+    expect(opener?.closest(".app-sidebar")).not.toBeNull();
+    expect(opener?.getAttribute("aria-keyshortcuts")).toBe("Control+K");
+    expect(doc.querySelector("#app-palette")?.hasAttribute("hidden")).toBe(true);
+    expect(doc.querySelector('#app-palette-input')?.getAttribute("type")).toBe("text");
+    expect(doc.querySelector('input[type="search"]')).toBeNull();
+  });
+
+  it("separates Administration after the daily entries, with Paramètres inside", () => {
+    const doc = parse(shellHtml(parseRoute("#/"), true));
+    const groups = [...doc.querySelectorAll(".app-navgroup")];
+    expect(groups).toHaveLength(2);
+    expect(groups[1]?.tagName).toBe("DETAILS");
+    expect(groups[0]?.querySelectorAll("a")).toHaveLength(5);
+    expect(groups[1]?.textContent).toContain("Paramètres");
+  });
+
+  it("offers sign-out from the avatar block only when signed in", () => {
+    expect(parse(shellHtml(parseRoute("#/"), true)).querySelector(".app-me #token-clear")).not.toBeNull();
+    const anon = parse(shellHtml(parseRoute("#/"), false));
+    expect(anon.querySelector("#token-clear")).toBeNull();
+    expect(anon.querySelector(".app-me #token-input")).not.toBeNull();
+  });
+});
+
 describe("parseRoute notFound (UI-2)", () => {
   it("routes unknown hashes to an explicit 404 instead of the dashboard", () => {
     expect(parseRoute("#/unknown")).toEqual({ name: "notFound", hash: "#/unknown" });
@@ -158,5 +203,26 @@ describe("notFoundHtml (UI-2)", () => {
 
   it("escapes the hash", () => {
     expect(notFoundHtml('#/"<x>')).not.toContain("<x>");
+  });
+});
+
+describe("mountAdminFlyout (P03-shell)", () => {
+  it("keeps the rail flyout closed on admin pages and closes it on outside click or Escape", () => {
+    expect(window.matchMedia("(min-width: 901px) and (max-width: 1399.98px)").matches).toBe(true);
+    document.body.innerHTML = shellHtml(parseRoute("#/inspector"), true);
+    const admin = document.querySelector("details.app-navgroup--secondary") as HTMLDetailsElement;
+    expect(admin.open).toBe(true);
+    mountAdminFlyout();
+    expect(admin.open).toBe(false);
+
+    admin.open = true;
+    document.getElementById("view")?.click();
+    expect(admin.open).toBe(false);
+
+    admin.open = true;
+    const link = admin.querySelector("a") as HTMLAnchorElement;
+    link.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(admin.open).toBe(false);
+    expect(document.activeElement).toBe(admin.querySelector("summary"));
   });
 });

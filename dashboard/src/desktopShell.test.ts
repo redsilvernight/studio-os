@@ -29,7 +29,7 @@ const flush = async (): Promise<void> => {
 };
 
 beforeEach(() => {
-  document.body.innerHTML = '<header class="app-topbar"><span id="token-state"></span></header>';
+  document.body.innerHTML = '<aside class="app-sidebar"><span id="connection-status" data-testid="connection-status"></span></aside>';
   clearToken();
 });
 afterEach(() => {
@@ -44,7 +44,7 @@ describe("prepareDesktop", () => {
     expect(getDesktopShell()).toBeNull();
     expect(getServerOriginOverride()).toBeNull();
     paintShellStatus(document);
-    expect(document.querySelector("#shell-status")).toBeNull();
+    expect(document.querySelector("#connection-status")?.hasAttribute("data-reason")).toBe(false);
   });
 
   it("uses the origin this process allowed, not one that is merely saved", async () => {
@@ -69,9 +69,10 @@ describe("prepareDesktop", () => {
     expect(urls[0]).toBe("https://studio.example.com/healthz");
     expect(shell?.monitor.snapshot().state).toBe("connected");
     paintShellStatus(document);
-    const pill = document.querySelector("#shell-status");
+    const pill = document.querySelector("#connection-status");
     expect(pill?.textContent).toContain("Connecté");
-    expect(document.querySelector(".app-topbar")?.firstElementChild).toBe(pill);
+    expect(pill?.getAttribute("data-reason")).toBe("connected");
+    expect(document.querySelectorAll("[data-testid=connection-status]")).toHaveLength(1);
   });
 
   it("shows « Serveur injoignable » for a network failure, then recovers without restart", async () => {
@@ -205,12 +206,12 @@ describe("prepareDesktop", () => {
         await prepareDesktop(fakeDesktop({ request: daemon.request }, STUDIO));
         await vi.advanceTimersByTimeAsync(0);
         paintShellStatus(document);
-        expect(document.querySelector("#shell-status")?.textContent).toContain("Assistant local en démarrage");
+        expect(document.querySelector("#connection-status")?.textContent).toContain("Assistant local en démarrage");
 
         options.state = "running";
         await vi.advanceTimersByTimeAsync(1000);
         expect(currentStatus()?.reason).toBe("connected");
-        expect(document.querySelector("#shell-status")?.textContent).toContain("Connecté");
+        expect(document.querySelector("#connection-status")?.textContent).toContain("Connecté");
 
         // Settled: no more reads once the state is no longer transient.
         const reads = daemon.calls.filter((c) => c === "daemon.status").length;
