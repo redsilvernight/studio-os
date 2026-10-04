@@ -29,7 +29,7 @@ const flush = async (): Promise<void> => {
 };
 
 beforeEach(() => {
-  document.body.innerHTML = '<header class="app-topbar"><span id="token-state"></span></header>';
+  document.body.innerHTML = '<aside class="app-sidebar"><div class="app-sidebar-foot"></div></aside><header class="app-topbar"></header>';
   clearToken();
 });
 afterEach(() => {
@@ -44,7 +44,7 @@ describe("prepareDesktop", () => {
     expect(getDesktopShell()).toBeNull();
     expect(getServerOriginOverride()).toBeNull();
     paintShellStatus(document);
-    expect(document.querySelector("#shell-status")).toBeNull();
+    expect(document.querySelector('[data-testid="connection-status"]')).toBeNull();
   });
 
   it("uses the origin this process allowed, not one that is merely saved", async () => {
@@ -69,9 +69,11 @@ describe("prepareDesktop", () => {
     expect(urls[0]).toBe("https://studio.example.com/healthz");
     expect(shell?.monitor.snapshot().state).toBe("connected");
     paintShellStatus(document);
-    const pill = document.querySelector("#shell-status");
+    const pill = document.querySelector("#connection-status");
     expect(pill?.textContent).toContain("Connecté");
-    expect(document.querySelector(".app-topbar")?.firstElementChild).toBe(pill);
+    expect(document.querySelector(".app-sidebar-foot")?.textContent).toContain("Connecté");
+    expect(document.querySelector(".app-topbar")?.querySelector("#connection-status")).toBeNull();
+    expect(document.querySelectorAll('[data-testid="connection-status"]')).toHaveLength(1);
   });
 
   it("shows « Serveur injoignable » for a network failure, then recovers without restart", async () => {
@@ -205,12 +207,12 @@ describe("prepareDesktop", () => {
         await prepareDesktop(fakeDesktop({ request: daemon.request }, STUDIO));
         await vi.advanceTimersByTimeAsync(0);
         paintShellStatus(document);
-        expect(document.querySelector("#shell-status")?.textContent).toContain("Assistant local en démarrage");
+        expect(document.querySelector("#connection-status")?.textContent).toContain("Assistant local en démarrage");
 
         options.state = "running";
         await vi.advanceTimersByTimeAsync(1000);
         expect(currentStatus()?.reason).toBe("connected");
-        expect(document.querySelector("#shell-status")?.textContent).toContain("Connecté");
+        expect(document.querySelector("#connection-status")?.textContent).toContain("Connecté");
 
         // Settled: no more reads once the state is no longer transient.
         const reads = daemon.calls.filter((c) => c === "daemon.status").length;
@@ -333,5 +335,61 @@ describe("prepareDesktop", () => {
     await prepareDesktop(fakeDesktop({}, { configured: "https://b.example.com", applied: "https://s.example.com", restart_required: true }));
     await flush();
     expect(currentStatus()?.reason).toBe("restart_required");
+  });
+
+  it("paints a single connection-status in the sidebar with avatar, dot and detail link", async () => {
+    stubFetch(async () => new Response("ok", { status: 200 }));
+    await prepareDesktop(fakeDesktop({}, ORIGIN));
+    await flush();
+    paintShellStatus(document);
+    const all = document.querySelectorAll('[data-testid="connection-status"]');
+    expect(all).toHaveLength(1);
+    const link = all[0] as HTMLAnchorElement;
+    expect(link.getAttribute("href")).toBe("#/configuration/application");
+    expect(link.querySelector(".ds-avatar")).not.toBeNull();
+    expect(link.querySelector(".app-connection-dot")).not.toBeNull();
+    expect(link.getAttribute("title")).toContain("Serveur :");
+    expect(link.getAttribute("title")).toContain("Assistant local :");
+    expect(document.querySelector(".app-topbar")?.querySelector('[data-testid="connection-status"]')).toBeNull();
+    expect(document.querySelector("#token-state")).toBeNull();
+  });
+
+  it("shows Réessayer with a retry that recovers, Se reconnecter on expiry, Voir le détail otherwise", async () => {
+    stubFetch(async () => {
+      throw new TypeError("offline");
+    });
+    const shell = await prepareDesktop(fakeDesktop({}, ORIGIN));
+    await flush();
+    paintShellStatus(document);
+    expect(document.querySelector('[data-action="retry-status"]')?.textContent).toBe("Réessayer");
+    stubFetch(async () => new Response("ok", { status: 200 }));
+    document.querySelector<HTMLButtonElement>('[data-action="retry-status"]')?.click();
+    await flush();
+    expect(currentStatus()?.reason).toBe("connected");
+    expect(shell!.monitor.snapshot().state).toBe("connected");
+
+    shell!.monitor.reportUnauthorized();
+    paintShellStatus(document);
+    expect(document.querySelector('[data-action="reconnect-status"]')?.textContent).toBe("Se reconnecter");
+
+    stubFetch(async () => new Response("ok", { status: 200 }));
+    const unavailable = { ok: false, error: { code: "daemon_unavailable" } } as unknown as BridgeAnswer;
+    resetDesktopShellForTests();
+    document.body.innerHTML = '<aside class="app-sidebar"><div class="app-sidebar-foot"></div></aside><header class="app-topbar"></header>';
+    await prepareDesktop(
+      fakeDesktop(
+        {
+          request: async (command) =>
+            command === "runtime.handshake"
+              ? ({ ok: true, command, response: { payload: { outcome: "compatible", granted_capabilities: [] } } } as unknown as BridgeAnswer)
+              : unavailable,
+        },
+        ORIGIN,
+      ),
+    );
+    await flush();
+    paintShellStatus(document);
+    expect(document.querySelector('[data-testid="connection-status"]')?.textContent).toContain("Assistant local indisponible");
+    expect(document.querySelector(".app-sidebar-foot")?.textContent).toContain("Voir le détail");
   });
 });

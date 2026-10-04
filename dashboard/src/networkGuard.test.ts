@@ -19,7 +19,7 @@ const flush = async (): Promise<void> => {
 let network: ReturnType<typeof vi.fn>;
 
 beforeEach(async () => {
-  document.body.innerHTML = '<header class="app-topbar"><span id="token-state"></span></header>';
+  document.body.innerHTML = '<aside class="app-sidebar"><div class="app-sidebar-foot"></div></aside><header class="app-topbar"></header>';
   clearToken();
   network = vi.fn(async () => new Response("{}", { status: 200 }));
   globalThis.fetch = network as unknown as typeof fetch;

@@ -19,8 +19,10 @@ import type { HandshakeResponse } from "./platform/generated/local-contracts.gen
 import {
   DAEMON_ABANDONED,
   DAEMON_RECOVERING,
+  connectionStatusHtml,
+  daemonLabel,
   daemonRecovering,
-  shellStatusHtml,
+  serverStateLabel,
   summarizeDaemonAnswer,
   summarizeHealth,
   summarizeShellStatus,
@@ -271,28 +273,38 @@ export function currentStatus(target: DesktopShell | null = shell): ShellStatus 
   });
 }
 
-/** (Re)paint the status pill next to the account state. Desktop only. */
+/** (Re)paint the single sidebar indicator. Desktop only; web keeps auth state. */
 export function paintShellStatus(root: ParentNode = document): void {
-  const status = currentStatus();
+  const target = shell;
+  if (!target) return;
+  const status = currentStatus(target);
   if (!status) return;
-  const topbar = root.querySelector(".app-topbar");
-  if (!topbar) return;
-  const html = shellStatusHtml(status);
-  const existing = topbar.querySelector("#shell-status");
-  if (existing) {
-    const holder = document.createElement("template");
-    holder.innerHTML = html;
-    const next = holder.content.firstElementChild;
-    if (next) existing.replaceWith(next);
-    return;
-  }
-  const anchor = topbar.querySelector("#token-state");
-  const holder = document.createElement("template");
-  holder.innerHTML = html;
-  const pill = holder.content.firstElementChild;
-  if (!pill) return;
-  if (anchor) anchor.before(pill);
-  else topbar.append(pill);
+  const foot = root.querySelector(".app-sidebar-foot");
+  if (!foot) return;
+  const connection = target.monitor.snapshot();
+  const title = `Serveur : ${serverStateLabel(connection)} · Assistant local : ${daemonLabel(target.daemon)}`;
+  const html = connectionStatusHtml(status, { href: "#/configuration/application", title });
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  const next = template.content.firstElementChild;
+  if (!next) return;
+  const existing = foot.querySelector("#connection-status");
+  const existingWrap = existing?.closest(".app-connectionwrap") ?? null;
+  if (existingWrap) existingWrap.replaceWith(next);
+  else if (existing) existing.replaceWith(next);
+  else foot.append(next);
+  wireStatusActions(foot, target);
+}
+
+function wireStatusActions(foot: Element, target: DesktopShell): void {
+  foot.querySelector("[data-action=retry-status]")?.addEventListener("click", () => {
+    void target.monitor.check().then(() => paintShellStatus());
+  });
+  foot.querySelector("[data-action=reconnect-status]")?.addEventListener("click", () => {
+    // Expired session: try the normal sign-in flow, else re-probe.
+    if (target.hooks) target.hooks.authExpired();
+    else void target.monitor.check().then(() => paintShellStatus());
+  });
 }
 
 export function serverSnapshot(target: DesktopShell | null = shell): ConnectionSnapshot | null {

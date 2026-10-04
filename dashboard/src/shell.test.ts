@@ -1,6 +1,7 @@
+// @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
 import { parseRoute } from "./router";
-import { shellHtml, shellNavGroups } from "./shell";
+import { shellHtml, shellNavGroups, syncAuthState } from "./shell";
 import { notFoundHtml } from "./views/notFound";
 
 function authedShell(routeName: Parameters<typeof shellHtml>[0]): string {
@@ -129,6 +130,46 @@ describe("shellHtml (UI-2)", () => {
     const html = authedShell({ name: "dashboard" });
     expect(html).not.toMatch(/<[^>]*\sstyle\s*=/i);
     expect(html).not.toMatch(/<[^>]*\son[a-z]+\s*=/i);
+  });
+
+  it("exposes exactly one connection-status with avatar, dot and short label", () => {
+    for (const authed of [true, false]) {
+      const html = shellHtml({ name: "dashboard" }, authed);
+      expect(html.match(/data-testid="connection-status"/g)).toHaveLength(1);
+      expect(html).toContain("ds-avatar");
+      expect(html).toContain("app-connection-dot");
+      expect(html).toContain(authed ? "Connecté" : "Non connecté");
+    }
+  });
+
+  it("removes the duplicated topbar and account states, keeps logout and token form", () => {
+    const authed = shellHtml({ name: "dashboard" }, true);
+    expect(authed).not.toContain('id="token-state"');
+    expect(authed).not.toContain("jeton masqué");
+    expect(authed).toContain('id="token-clear"');
+    expect(authed).toContain("Se déconnecter");
+    const anon = shellHtml({ name: "dashboard" }, false);
+    expect(anon).not.toContain('id="token-state"');
+    expect(anon).toContain('id="token-input"');
+    expect(anon).toContain('id="token-set"');
+    expect(anon).toContain("Non connecté");
+  });
+
+  it("links the indicator to Application on desktop, Runtimes on web", () => {
+    expect(shellHtml({ name: "dashboard" }, true, true)).toContain('data-testid="connection-status"');
+    expect(shellHtml({ name: "dashboard" }, true, true)).toContain('href="#/configuration/application"');
+    expect(shellHtml({ name: "dashboard" }, true, false)).toContain('href="#/configuration/runtimes"');
+  });
+
+  it("syncAuthState keeps a single indicator with auth label", () => {
+    document.body.innerHTML = shellHtml({ name: "dashboard" }, false);
+    expect(document.querySelectorAll('[data-testid="connection-status"]')).toHaveLength(1);
+    syncAuthState(true, document);
+    expect(document.querySelectorAll('[data-testid="connection-status"]')).toHaveLength(1);
+    expect(document.querySelector("#connection-status")?.textContent).toContain("Connecté");
+    expect(document.querySelector("#token-state")).toBeNull();
+    syncAuthState(false, document);
+    expect(document.querySelector("#connection-status")?.textContent).toContain("Non connecté");
   });
 });
 
