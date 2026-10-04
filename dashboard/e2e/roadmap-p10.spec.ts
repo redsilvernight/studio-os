@@ -182,6 +182,9 @@ test.describe("Roadmaps P10 - Dashboard release gate", () => {
   test("bureau 1440 : grande roadmap sans débordement horizontal", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await openRoadmap(page, { phases: 12 });
+    await expect(page.locator(".roadmap-phase-strip")).toBeVisible();
+    await expect(page.locator("[data-current-step]")).toBeVisible();
+    await page.getByRole("tab", { name: "Plan" }).click();
     await expect(page.locator(".roadmap-timeline h3", { hasText: "Phase 12" })).toBeVisible();
     expect(await globalOverflow(page)).toBe(0);
   });
