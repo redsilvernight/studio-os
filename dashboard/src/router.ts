@@ -14,6 +14,7 @@ export type Route =
   | { name: "agent"; id: string }
   | { name: "machines" }
   | { name: "accounts" }
+  | { name: "admin" }
   | { name: "decisions" }
   | { name: "transfers" }
   | { name: "library"; kind: LibraryKindSlug | null }
@@ -72,6 +73,7 @@ export function parseRoute(hash: string): Route {
   if (parts[0] === "agents") return notFound(hash);
   if (parts[0] === "machines" && parts.length === 1) return { name: "machines" };
   if (parts[0] === "accounts" && parts.length === 1) return { name: "accounts" };
+  if ((parts[0] === "administration" || parts[0] === "admin") && parts.length === 1) return { name: "admin" };
   if (parts[0] === "decisions" && parts.length === 1) return { name: "decisions" };
   if (parts[0] === "transfers" && parts.length === 1) return { name: "transfers" };
   if (parts[0] === "library") {

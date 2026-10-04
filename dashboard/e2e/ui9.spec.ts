@@ -152,12 +152,12 @@ function watchErrors(page: Page): { csp: string[]; fatal: Error[] } {
   return { csp, fatal };
 }
 
-test.describe("UI-9 page Machines", () => {
+test.describe("UI-9 page Postes", () => {
   test("liste de cartes en français, présence déduite honnête", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     await login(page, "#/machines");
     const view = page.locator("#view");
-    await expect(view.locator("h1")).toContainText("Machines");
+    await expect(view.locator("h1")).toContainText("Postes");
     await expect(view.locator(".machines-list")).toBeVisible();
     await expect(view.locator(".machine-row")).toHaveCount(3);
     await expect(view.locator(".machines-list table")).toHaveCount(0);
@@ -189,15 +189,15 @@ test.describe("UI-9 page Machines", () => {
     const view = page.locator("#view");
     await expect(view.locator(".machine-row")).toHaveCount(3);
 
-    // Recherche locale sur identifiant (pas de noms canoniques en déduit).
+    // Recherche locale sur nom (l'identifiant reste replié dans le détail).
     await view.locator("#machines-search").fill(M2.slice(0, 8));
     await expect(view.locator(".machine-row")).toHaveCount(1);
-    await expect(view).toContainText("1 machine(s) affichée(s) sur 3 chargée(s)");
+    await expect(view).toContainText("1 poste(s) affiché(s) sur 3 chargé(s)");
     await expect(view).toContainText("recherche et filtre locaux");
 
     // Aucun résultat : état dédié, pas d'écran d'erreur.
     await view.locator("#machines-search").fill("zzz-sans-match");
-    await expect(view).toContainText("Aucune machine ne correspond");
+    await expect(view).toContainText("Aucun poste ne correspond");
     await expect(view.locator(".machine-row")).toHaveCount(0);
 
     // Réinitialisation puis filtre d'activité honnête.
@@ -245,8 +245,8 @@ test.describe("UI-9 page Machines", () => {
     const { csp, fatal } = watchErrors(page);
     await login(page, "#/machines", { empty: true });
     const view = page.locator("#view");
-    await expect(view).toContainText("Aucune machine observée");
-    await expect(view).toContainText("enregistre ses propres machines");
+    await expect(view).toContainText("Aucun poste observé");
+    await expect(view).toContainText("enregistre ses propres postes");
     await expect(view.locator("#machines-list a")).toHaveCount(0);
     await expect(view.locator("#machines-list button")).toHaveCount(0);
     await page.screenshot({ path: `${SHOTS}/machines-vide-1280.png` });
@@ -272,7 +272,7 @@ test.describe("UI-9 page Machines", () => {
     await page.goto("/#/tasks");
     await expect(page.locator("#view")).toContainText("Tâches");
     await page.goBack();
-    await expect(page.locator("#view").locator("h1")).toContainText("Machines");
+    await expect(page.locator("#view").locator("h1")).toContainText("Postes");
     await expect(page.locator("#view").locator(".machine-row")).toHaveCount(3);
     expect(csp).toEqual([]);
     expect(fatal).toEqual([]);

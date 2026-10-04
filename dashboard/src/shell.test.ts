@@ -11,7 +11,7 @@ function authedShell(routeName: Parameters<typeof shellHtml>[0]): string {
 describe("shellNavGroups (UI-2)", () => {
   it("covers the target navigation with existing routes only", () => {
     const groups = shellNavGroups({ name: "dashboard" });
-    expect(groups.map((group) => group.title)).toEqual(["Principal", "Administration"]);
+    expect(groups.map((group) => group.title)).toEqual(["Principal", "Administration", "Outils experts"]);
     expect(groups[0]?.items.map((item) => [item.label, item.href])).toEqual([
       ["Accueil", "#/"],
       ["Projets", "#/projects"],
@@ -21,25 +21,44 @@ describe("shellNavGroups (UI-2)", () => {
     ]);
     expect(groups[1]?.collapsible).toBe(true);
     expect(groups[1]?.items.map((item) => item.href)).toEqual([
-      "#/library",
-      "#/graphs/knowledge",
-      "#/transfers",
+      "#/administration",
       "#/machines",
       "#/accounts",
-      "#/inspector",
+      "#/transfers",
+      "#/library",
       "#/configuration/runtimes",
+      "#/workspaces",
     ]);
+    expect(groups[2]?.items.map((item) => item.href)).toEqual(["#/graphs/knowledge", "#/inspector"]);
   });
 
   it("keeps Administration collapsed unless the active page belongs to it", () => {
     expect(shellHtml({ name: "dashboard" }, true)).toContain('<details class="app-navgroup app-navgroup--secondary"><summary>');
     expect(shellHtml({ name: "machines" }, true)).toContain('<details class="app-navgroup app-navgroup--secondary" open>');
+    expect(shellHtml({ name: "admin" }, true)).toContain('href="#/administration" aria-current="page"');
   });
 
-  it("puts Dossiers in Administration on desktop, keeping five daily entries", () => {
-    const groups = shellNavGroups({ name: "dashboard" }, true);
-    expect(groups[0]?.items).toHaveLength(5);
-    expect(groups[1]?.items[0]?.href).toBe(groups[1]?.items.find((item) => item.icon === "folder")?.href);
+  it("shows Espaces de travail in Administration on web and desktop, keeping five daily entries", () => {
+    for (const desktop of [false, true]) {
+      const groups = shellNavGroups({ name: "dashboard" }, desktop);
+      expect(groups[0]?.items).toHaveLength(5);
+      expect(groups[1]?.items.map((item) => item.label)).toEqual([
+        "Vue d'ensemble",
+        "Postes",
+        "Comptes",
+        "Transferts",
+        "Bibliothèque",
+        "Configuration",
+        "Espaces de travail",
+      ]);
+    }
+  });
+
+  it("keeps expert tools out of the Administration entry", () => {
+    const groups = shellNavGroups({ name: "dashboard" });
+    expect(groups[1]?.items.map((item) => item.href)).not.toContain("#/graphs/knowledge");
+    expect(groups[1]?.items.map((item) => item.href)).not.toContain("#/inspector");
+    expect(groups[2]?.title).toBe("Outils experts");
   });
 
   it("marks exactly one active item per route", () => {
@@ -56,11 +75,11 @@ describe("shellNavGroups (UI-2)", () => {
     }
   });
 
-  it("activates Paramètres inside Administration on every configuration route", () => {
+  it("activates Configuration inside Administration on every configuration route", () => {
     const active = shellNavGroups({ name: "configBindings" })
       .flatMap((group) => group.items)
       .filter((item) => item.active);
-    expect(active.map((item) => item.label)).toEqual(["Paramètres"]);
+    expect(active.map((item) => item.label)).toEqual(["Configuration"]);
     expect(shellHtml({ name: "configApplication" }, true)).toContain('href="#/configuration/runtimes" aria-current="page"');
     expect(shellHtml({ name: "configIntegrations" }, true)).toContain('href="#/configuration/runtimes" aria-current="page"');
     expect(shellHtml({ name: "configBindings" }, true)).toContain('href="#/configuration/runtimes" aria-current="page"');
@@ -75,7 +94,8 @@ describe("shellHtml (UI-2)", () => {
     expect(html).toContain("Bibliothèque");
     expect(html).toContain("Travail");
     expect(html).toContain("À valider");
-    expect(html).toContain("Paramètres");
+    expect(html).toContain("Configuration");
+    expect(html).toContain("Espaces de travail");
     expect(html).toContain("Aller au contenu");
     expect(html).toContain("Se déconnecter");
   });
@@ -160,13 +180,14 @@ describe("shellHtml (P03-shell)", () => {
     expect(doc.querySelector('input[type="search"]')).toBeNull();
   });
 
-  it("separates Administration after the daily entries, with Paramètres inside", () => {
+  it("separates Administration after the daily entries, with Configuration inside", () => {
     const doc = parse(shellHtml(parseRoute("#/"), true));
     const groups = [...doc.querySelectorAll(".app-navgroup")];
-    expect(groups).toHaveLength(2);
+    expect(groups).toHaveLength(3);
     expect(groups[1]?.tagName).toBe("DETAILS");
     expect(groups[0]?.querySelectorAll("a")).toHaveLength(5);
-    expect(groups[1]?.textContent).toContain("Paramètres");
+    expect(groups[1]?.textContent).toContain("Configuration");
+    expect(groups[2]?.textContent).toContain("Inspecteur");
   });
 
   it("offers sign-out from the avatar block only when signed in", () => {
@@ -204,6 +225,11 @@ describe("parseRoute notFound (UI-2)", () => {
     expect(parseRoute("#/")).toEqual({ name: "dashboard" });
     expect(parseRoute("#/projects/abc/nope")).toEqual({ name: "project", id: "abc", tab: "overview" });
   });
+
+  it("routes the Administration entry to its overview", () => {
+    expect(parseRoute("#/administration")).toEqual({ name: "admin" });
+    expect(parseRoute("#/admin")).toEqual({ name: "admin" });
+  });
 });
 
 describe("notFoundHtml (UI-2)", () => {
@@ -223,7 +249,9 @@ describe("mountAdminFlyout (P03-shell)", () => {
   it("keeps the rail flyout closed on admin pages and closes it on outside click or Escape", () => {
     expect(window.matchMedia("(min-width: 901px) and (max-width: 1399.98px)").matches).toBe(true);
     document.body.innerHTML = shellHtml(parseRoute("#/inspector"), true);
-    const admin = document.querySelector("details.app-navgroup--secondary") as HTMLDetailsElement;
+    const groups = [...document.querySelectorAll("details.app-navgroup--secondary")] as HTMLDetailsElement[];
+    expect(groups).toHaveLength(2);
+    const admin = groups[1] as HTMLDetailsElement;
     expect(admin.open).toBe(true);
     mountAdminFlyout();
     expect(admin.open).toBe(false);

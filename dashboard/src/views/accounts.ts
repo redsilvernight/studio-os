@@ -86,7 +86,10 @@ export function membershipsHtml(memberships: ProjectMember[]): string {
 
 function pageHtml(body: string): string {
   return (
+    `<p class="ds-hero-eyebrow">Administration / Comptes et membres</p>` +
     dsPageHeader("Comptes", "État des comptes, sessions et accès aux projets. Les administrateurs accèdent à tous les projets.") +
+    `<nav class="tabs" aria-label="Comptes et membres"><span class="on">Comptes</span><a href="#/projects">Membres d'un projet</a></nav>` +
+    `<p class="ds-list-sub">Les accès se règlent dans l'onglet Membres de chaque projet.</p>` +
     body
   );
 }
@@ -106,7 +109,7 @@ function searchFormHtml(query: string): string {
       `<input class="ds-input" id="FIELD" name="q" type="search" maxlength="200" placeholder="Nom ou e-mail" autocomplete="off" spellcheck="false" value="${esc(query)}" />`,
       "Laisser vide pour lister les premiers comptes.",
     ) +
-    `<button type="submit" class="ds-btn">Rechercher</button></form>`
+    `<button type="submit" class="ds-btn ds-btn--primary">Rechercher un compte</button></form>`
   );
 }
 

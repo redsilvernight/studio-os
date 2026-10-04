@@ -74,7 +74,7 @@ export interface IntegrationsView {
 }
 
 function header(): string {
-  return dsPageHeader("Intégrations IA", DESCRIPTION) + configTabsHtml("integrations");
+  return `<p class="ds-hero-eyebrow">Administration / Configuration</p>` + dsPageHeader("Intégrations IA", DESCRIPTION) + configTabsHtml("integrations");
 }
 
 export function integrationsWebHtml(): string {

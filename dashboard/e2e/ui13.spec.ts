@@ -218,7 +218,7 @@ test.describe("UI-13 navigation et shell", () => {
       ["#/projects", "Projets"],
       ["#/tasks", "Tâches"],
       ["#/agents", "Agents IA"],
-      ["#/configuration/runtimes", "Paramètres"],
+      ["#/configuration/runtimes", "Configuration"],
     ];
     for (const [route, title] of routes) {
       await go(page, route);

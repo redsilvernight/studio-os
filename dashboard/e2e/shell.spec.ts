@@ -149,7 +149,7 @@ test.describe("appshell", () => {
     });
     // Let the stale overview request resolve long after the navigation.
     await page.waitForTimeout(2500);
-    await expect(page.locator("#view")).toContainText("Machines");
+    await expect(page.locator("#view")).toContainText("Postes");
     await expect(page.locator("#view")).not.toContainText("À examiner");
     expect(pageErrors).toEqual([]);
   });
