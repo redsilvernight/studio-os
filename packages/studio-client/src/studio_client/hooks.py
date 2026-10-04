@@ -156,7 +156,7 @@ __MODEL_BLOCK__
             } catch {}
         }
     }
-    $idSuffix = '(studio_start_session, studio_log_ai_work).'
+    $idSuffix = '(studio_start_work, studio_log_ai_work).'
     if ($OutputFormat -eq 'json') {
         $ctx = $base
         if ($agentId) { $ctx += " agent_id Studio OS de $agentLabel : $agentId $idSuffix" }

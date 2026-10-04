@@ -111,7 +111,7 @@ never treat it as a source of shared truth.
 
 Reference: `TECH/07_MCP_CONTRACT.md`.
 
-- Tool names are prefixed `studio_` (`studio_get_task`, `studio_claim_resource`, ...) — keep new tools consistent with the existing list rather than inventing a parallel naming scheme.
+- Tool names are prefixed `studio_` (`studio_get_task`, `studio_claim_resources`, ...) — keep new tools consistent with the existing list rather than inventing a parallel naming scheme.
 - Tool exposure is profile-driven (`services/mcp/src/studio_mcp/tool_profiles.py`, DEC-0183): the `session` profile is the default and advertises only the session tools; the `admin` profile advertises the full surface. Select it per connection with the `X-Studio-Tool-Profile: admin` header (HTTP) or `STUDIO_MCP_TOOL_PROFILE=admin` (stdio). A profile is a noise/token control, never an authorization check — role and project checks stay in the services.
 - An MCP handler is a thin layer: validate input, call the existing service function used by the API layer, return a compact result. Do not duplicate business logic between the API router and the MCP tool.
 - The tool's docstring/description is what the model uses to pick it — write it precise and specific, not generic; a vague description causes wrong tool selection.

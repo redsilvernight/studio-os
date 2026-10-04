@@ -308,7 +308,7 @@ def _agents_list(args: argparse.Namespace, config: ClientConfig) -> None:
 def _agents_ensure(args: argparse.Namespace, config: ClientConfig) -> None:
     """Session-start helper (workflow W2): find this machine's agent for a
     harness or register it (CC-1, no authority conferred), so hooks can expose
-    a stable `agent_id` to `sessions start` / `studio_start_session` and
+    a stable `agent_id` to `sessions start` / `studio_start_work` and
     `studio_log_ai_work`. The default stable key is stable per harness so
     a retried hook never registers a duplicate; changing the metadata with
     the default key fails explicitly with `idempotency_key_payload_mismatch`."""
