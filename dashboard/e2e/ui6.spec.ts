@@ -284,8 +284,8 @@ test.describe("UI-6 page Agents", () => {
     }
     await expect(view).toContainText("Réécriture du sampler");
     await expect(view).toContainText("Commencé");
-    await expect(view).toContainText("Informations techniques");
-    await expect(view.locator("details summary", { hasText: "Informations techniques" })).toBeVisible();
+    await expect(view).toContainText("Détails techniques");
+    await expect(view.locator("details summary", { hasText: "Détails techniques" })).toBeVisible();
     // Technique repliée par défaut.
     await expect(view.locator("details")).not.toHaveAttribute("open", "");
     await page.setViewportSize({ width: 1440, height: 900 });

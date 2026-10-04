@@ -362,7 +362,7 @@ test.describe("UI-5 détail tâche", () => {
     await expect(view).toContainText("Travail IA (1)");
     await expect(view).toContainText("En relecture");
     await expect(view).toContainText("À ne pas confondre avec les réservations de ressources");
-    await expect(view).toContainText("Informations techniques");
+    await expect(view).toContainText("Détails techniques");
     await expect(view).not.toContainText("Claim for my machine");
     await page.screenshot({ path: `${SHOTS}/tache-detail-1280.png` });
     // Libérer : confirmation nommant la machine détentrice, POST release,
