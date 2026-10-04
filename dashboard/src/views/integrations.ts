@@ -49,6 +49,7 @@ import {
 } from "../launchSettingsApi";
 import { esc } from "../ui";
 import { configTabsHtml } from "./configuration";
+import { bindSetup, setupSectionHtml, type SetupView } from "./machineSetup";
 import { loadOnboardingState } from "../onboarding/state";
 import "./configuration.css";
 
@@ -71,6 +72,8 @@ export interface IntegrationsView {
   launchDraft?: LaunchSettings;
   launchNotice?: string;
   launchError?: string;
+  /** « Configurer ce poste » : aperçu ou rapport en cours. */
+  setup?: SetupView;
 }
 
 function header(): string {
@@ -262,6 +265,7 @@ export function integrationsHtml(harnesses: HarnessStatus[], view: IntegrationsV
     `<p class="settings-intro">Studi'OS ne gère ni modèle, ni abonnement, ni clé de fournisseur : seule la connexion du harnais au MCP Studi'OS est configurée. Chaque outil reçoit son propre identifiant Studi'OS, rangé dans sa seule configuration utilisateur et jamais affiché ; les fichiers du projet n'en contiennent aucun.</p>` +
     notice +
     error +
+    setupSectionHtml(view.setup, harnesses) +
     `<div class="integrations-list">${list}</div></section>` +
     (view.skills ? skillsHtml(view.skills) : "") +
     (view.launch ? launchSettingsHtml(view.launch, view.launchDraft, view.launchNotice, view.launchError) : "")
@@ -297,6 +301,7 @@ export async function renderIntegrations(
   };
   root.innerHTML = integrationsHtml(detected.value.harnesses ?? [], withSkills);
   bind(root, workspaceId, platform, view.plan, view.launchDraft);
+  bindSetup(root, platform, view.setup, (next) => renderIntegrations(root, workspaceId, platform, next));
 }
 
 function readLaunchDraft(root: HTMLElement): LaunchSettings {

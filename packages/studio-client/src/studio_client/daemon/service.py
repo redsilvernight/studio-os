@@ -82,6 +82,12 @@ from studio_contracts.local.launch import (
     LaunchSettingsSaveRequest,
     LaunchSettingsView,
 )
+from studio_contracts.local.machine_setup import (
+    SetupApplyRequest,
+    SetupApplyResult,
+    SetupPlan,
+    SetupPlanRequest,
+)
 from studio_contracts.local.skills import SkillsCheckRequest, SkillsCheckResult
 from studio_contracts.local.workspace import (
     WorkspaceConfirmRootsRequest,
@@ -111,6 +117,7 @@ from studio_client.daemon.runtime import (
     InstanceLock,
     WorkspaceSource,
 )
+from studio_client.daemon.setup_bridge import SetupBridge
 from studio_client.daemon.skills_bridge import check_skills
 from studio_client.data_format import DataFormatError, ensure_data_format
 from studio_client.outbox import OutboxIdentityError
@@ -180,6 +187,8 @@ SERVED = frozenset(
         BridgeCommand.HARNESS_ROLLBACK,
         BridgeCommand.HARNESS_VERIFY,
         BridgeCommand.SKILLS_CHECK,
+        BridgeCommand.SETUP_PLAN,
+        BridgeCommand.SETUP_APPLY,
         BridgeCommand.LAUNCH_GET_SETTINGS,
         BridgeCommand.LAUNCH_SAVE_SETTINGS,
     }
@@ -257,6 +266,12 @@ class DaemonController:
         self._git_watch_source = git_watch_source
         self.local_features = local_features
         self.workspace_bridge = workspace_bridge
+        self._setup = SetupBridge(
+            config,
+            self._token_store,
+            home=skills_home,
+            roots=self._workspace_roots,
+        )
         self._runtime: DaemonRuntime | None = None
         self._thread: threading.Thread | None = None
         self._failure: BaseException | None = None
@@ -395,6 +410,16 @@ class DaemonController:
 
     def skills_check(self) -> SkillsCheckResult:
         return check_skills(self.config, self._token_store, home=self._skills_home())
+
+    def _workspace_roots(self) -> tuple[Path, ...]:
+        features = self.local_features
+        return () if features is None else features.workspace_roots()
+
+    def setup_plan(self) -> SetupPlan:
+        return self._setup.plan()
+
+    def setup_apply(self, request: SetupApplyRequest) -> SetupApplyResult:
+        return self._setup.apply(request)
 
     def launch_settings(self) -> LaunchSettingsView:
         return get_launch_settings(self.config, self.data_root)
@@ -712,6 +737,8 @@ class BridgeService:
                             "identity.view",
                             "identity.enroll",
                             "skills.read",
+                            "setup.plan",
+                            "setup.apply",
                             "launch.settings",
                             *(
                                 WORKSPACE_CAPABILITIES
@@ -737,6 +764,11 @@ class BridgeService:
         if request.command is BridgeCommand.SKILLS_CHECK:
             SkillsCheckRequest.model_validate(request.payload)
             return self.controller.skills_check()
+        if request.command is BridgeCommand.SETUP_PLAN:
+            SetupPlanRequest.model_validate(request.payload)
+            return self.controller.setup_plan()
+        if request.command is BridgeCommand.SETUP_APPLY:
+            return self.controller.setup_apply(SetupApplyRequest.model_validate(request.payload))
         if request.command is BridgeCommand.LAUNCH_GET_SETTINGS:
             LaunchSettingsRequest.model_validate(request.payload)
             return self.controller.launch_settings()

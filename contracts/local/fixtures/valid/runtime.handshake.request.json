@@ -20,6 +20,8 @@
         "launch.settings",
         "publication.plan",
         "publication.publish",
+        "setup.apply",
+        "setup.plan",
         "skills.read",
         "workspace.config"
       ],

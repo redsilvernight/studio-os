@@ -313,6 +313,9 @@ supportées ; jamais d'écrasement silencieux ; adapters existants ; `init`, `ch
   `HARNESS_MISMATCH` (`base.py:167`) ; `skills check/diff/sync` avec manifeste local,
   écritures atomiques, sauvegardes et protection des modifications locales
   (`K/skill_sync.py`, tâche `35c2d265`, 2026-09-25).
+  Tranche Desktop « Configurer ce poste » (tâche `695c38a3`) : `setup.plan`/`setup.apply`
+  (hooks setup-hooks avec aperçu et sauvegarde, skills, contrôle des adapters ; MCP via
+  `harness.*`), consommés par Paramètres › Intégrations IA.
 - **FILES/MODULES** : `K/adapters/`, `K/canonical.py`, `K/cli.py`, `K/config.py`,
   `K/skill_sync.py`, `tests/client/test_skill_sync.py`.
 - **REUSE** : adapters et `materialize` ; pattern de bloc `BEGIN/END`.

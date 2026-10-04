@@ -1,0 +1,43 @@
+{
+  "additionalProperties": false,
+  "description": "Bound to a previewed plan by id and hash, with an explicit confirmation.\n``overwrite_items`` names, one by one, the differing files to replace (each is\nbacked up first); a differing file that is not named is left untouched.",
+  "properties": {
+    "confirmed": {
+      "const": true,
+      "title": "Confirmed",
+      "type": "boolean"
+    },
+    "overwrite_items": {
+      "default": [],
+      "items": {
+        "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+        "type": "string"
+      },
+      "maxItems": 16,
+      "title": "Overwrite Items",
+      "type": "array"
+    },
+    "plan_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Plan Hash",
+      "type": "string"
+    },
+    "plan_id": {
+      "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+      "title": "Plan Id",
+      "type": "string"
+    },
+    "sync_skills": {
+      "default": true,
+      "title": "Sync Skills",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "plan_id",
+    "plan_hash",
+    "confirmed"
+  ],
+  "title": "SetupApplyRequest",
+  "type": "object"
+}
