@@ -7,7 +7,7 @@
 .inspector-grid {
   display: grid;
   gap: var(--ds-space-6);
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 @media (min-width: 960px) {
@@ -40,6 +40,7 @@
   color: var(--ds-text-muted);
 }
 
+.inspector-form-panel,
 .inspector-result-panel {
   min-width: 0;
 }
@@ -77,7 +78,8 @@
 
 .detail-grid dd {
   margin: 0;
-  word-break: break-word;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .detail-grid code.mono {
@@ -228,7 +230,7 @@
     max-height: none;
   }
   .detail-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--ds-space-1) var(--ds-space-2);
   }
   .detail-grid dt {

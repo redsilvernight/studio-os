@@ -903,6 +903,7 @@ summary:focus-visible,
 }
 .tool-main {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--ds-space-4);
   align-content: start;
   min-width: 0;
