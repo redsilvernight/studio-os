@@ -90,10 +90,10 @@ function cardHtml(project: Project, tasks: Task[] | null): string {
   // Santé par point de couleur (tâches bloquées / en cours) ; absente si les tâches n'ont pas pu être chargées.
   const health = project.archived || tasks === null ? null : projectHealth(project.id, tasks);
   const dot = health === null ? "" : dsStatusDot(health.state, health.label, true);
-  const healthLine = health === null ? "" : `<p class="project-card-health ds-list-sub">${esc(health.label)}</p>`;
+  const healthLabel = health === null ? "" : `${esc(health.label)} · `;
   return `<li class="ds-card project-card"><div class="project-card-top">${dot}<h2 class="project-card-title"><a href="#/projects/${esc(project.id)}" data-open="${esc(project.id)}">${esc(project.name)}</a></h2>${badge}</div>` +
-    `${healthLine}${desc}` +
-    `<p class="ds-list-sub"><code class="mono">${esc(project.slug)}</code></p>` +
+    `${desc}` +
+    `<p class="ds-list-sub">${healthLabel}<code class="mono">${esc(project.slug)}</code></p>` +
     `<details class="project-card-tech"><summary>Informations techniques</summary><dl>` +
     `<div><dt>Identifiant</dt><dd><code class="mono">${esc(project.id)}</code></dd></div>` +
     `<div><dt>Version</dt><dd>${project.version}</dd></div>` +

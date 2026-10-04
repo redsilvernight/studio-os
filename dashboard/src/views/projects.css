@@ -54,8 +54,9 @@
   align-items: center;
 }
 
-.project-card-health {
-  margin: 0;
+.project-card-top .ds-status {
+  flex: none;
+  align-self: center;
 }
 
 .project-card-top {
