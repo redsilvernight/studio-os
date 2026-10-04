@@ -15,6 +15,7 @@ import type {
 } from "./platform/generated/local-contracts.generated";
 import type { ConnectionSnapshot } from "./connection";
 import { esc } from "./ui";
+import { dsAvatar } from "./ds/ds";
 
 export type CompatibilityState = "ok" | "incompatible" | "unknown";
 
@@ -81,6 +82,15 @@ export type StatusReason =
 export interface ShellStatus {
   level: StatusLevel;
   reason: StatusReason;
+  label: string;
+  /** Explicit next step for degraded states (warn/error + restart), else `null`. Pure. */
+  action: ShellStatusAction | null;
+}
+
+export type ShellStatusActionKind = "retry" | "reconnect" | "detail";
+
+export interface ShellStatusAction {
+  kind: ShellStatusActionKind;
   label: string;
 }
 
@@ -161,16 +171,16 @@ function daemonIncompatible(daemon: DaemonSummary): boolean {
 
 export function summarizeShellStatus(input: ShellStatusInput): ShellStatus {
   if (input.compatibility === "incompatible" || daemonIncompatible(input.daemon)) {
-    return { level: "error", reason: "protocol_incompatible", label: "Version incompatible" };
+    return { level: "error", reason: "protocol_incompatible", label: "Version incompatible", action: { kind: "detail", label: "Voir le détail" } };
   }
   if (input.connection.state === "unreachable") {
-    return { level: "error", reason: "server_unreachable", label: "Serveur injoignable" };
+    return { level: "error", reason: "server_unreachable", label: "Serveur injoignable", action: { kind: "retry", label: "Réessayer" } };
   }
   if (input.connection.state === "auth_expired") {
-    return { level: "warn", reason: "auth_expired", label: "Session expirée" };
+    return { level: "warn", reason: "auth_expired", label: "Session expirée", action: { kind: "reconnect", label: "Se reconnecter" } };
   }
   if (daemonNeedsAttention(input.daemon)) {
-    return { level: "warn", reason: "daemon_unavailable", label: "Assistant local indisponible" };
+    return { level: "warn", reason: "daemon_unavailable", label: "Assistant local indisponible", action: { kind: "detail", label: "Voir le détail" } };
   }
   if (daemonRecovering(input.daemon)) {
     const starting = input.daemon.kind === "state" && input.daemon.state === "starting";
@@ -178,24 +188,62 @@ export function summarizeShellStatus(input: ShellStatusInput): ShellStatus {
       level: "info",
       reason: "daemon_recovering",
       label: starting ? "Assistant local en démarrage" : "Assistant local en reprise",
+      action: null,
     };
   }
   if (input.restartRequired) {
-    return { level: "info", reason: "restart_required", label: "Redémarrage requis" };
+    return { level: "info", reason: "restart_required", label: "Redémarrage requis", action: { kind: "detail", label: "Voir le détail" } };
   }
   if (input.connection.state === "connected") {
-    return { level: "ok", reason: "connected", label: "Connecté" };
+    return { level: "ok", reason: "connected", label: "Connecté", action: null };
   }
-  return { level: "info", reason: "connecting", label: "Connexion…" };
+  return { level: "info", reason: "connecting", label: "Connexion…", action: null };
+}
+
+/** Detail target: Desktop shows Application, web falls back to Runtimes. */
+export function connectionStatusHref(desktop: boolean): string {
+  return desktop ? "#/configuration/application" : "#/configuration/runtimes";
+}
+
+export interface ConnectionStatusOptions {
+  href?: string;
+  /** Tooltip: server vs local assistant, built from serverStateLabel/daemonLabel. */
+  title?: string;
+  avatarName?: string;
+}
+
+/** Explicit action next to the indicator (warn/error + restart only). */
+export function statusActionHtml(action: ShellStatusAction, detailHref: string): string {
+  if (action.kind === "retry") {
+    return `<button class="app-connection-action" type="button" data-action="retry-status">${esc(action.label)}</button>`;
+  }
+  if (action.kind === "reconnect") {
+    return `<button class="app-connection-action" type="button" data-action="reconnect-status">${esc(action.label)}</button>`;
+  }
+  return `<a class="app-connection-action" href="${esc(detailHref)}">${esc(action.label)}</a>`;
+}
+
+/**
+ * The single sidebar indicator: avatar + colored dot + short label, wrapped
+ * with its degraded action when present. One `data-testid="connection-status"`.
+ */
+export function connectionStatusHtml(status: ShellStatus, opts: ConnectionStatusOptions = {}): string {
+  const href = opts.href ?? "#/configuration/application";
+  const title = opts.title ?? status.label;
+  const avatar = dsAvatar(opts.avatarName ?? "Compte");
+  const accessible = `${status.label} — ${title}`;
+  const link =
+    `<a class="app-connection app-connection--${status.level}" id="connection-status" data-testid="connection-status" ` +
+    `data-reason="${status.reason}" href="${esc(href)}" role="status" title="${esc(title)}" aria-label="${esc(accessible)}">` +
+    `${avatar}<span class="app-connection-dot" aria-hidden="true"></span><span class="app-connection__label">${esc(status.label)}</span></a>`;
+  const action = status.action ? statusActionHtml(status.action, href) : "";
+  if (action === "") return link;
+  return `<span class="app-connectionwrap">${link}${action}</span>`;
 }
 
 /** The pill: a link to the detail page, never an alarm bell. */
-export function shellStatusHtml(status: ShellStatus): string {
-  return (
-    `<a class="app-status app-status--${status.level}" id="shell-status" data-testid="shell-status" ` +
-    `data-reason="${status.reason}" href="#/configuration/application" role="status">` +
-    `<span class="app-status-dot" aria-hidden="true"></span>${esc(status.label)}</a>`
-  );
+export function shellStatusHtml(status: ShellStatus, opts: ConnectionStatusOptions = {}): string {
+  return connectionStatusHtml(status, opts);
 }
 
 export function serverStateLabel(connection: ConnectionSnapshot): string {

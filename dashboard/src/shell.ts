@@ -12,6 +12,7 @@
 import type { Route } from "./router";
 import { esc } from "./ui";
 import { workspaceNavEntry } from "./workspaces/workspaces";
+import { connectionStatusHref, connectionStatusHtml, type ShellStatus } from "./shellStatus";
 
 export interface ShellNavItem {
   href: string;
@@ -97,8 +98,9 @@ function navGroupHtml(group: ShellNavGroup, index: number): string {
 }
 
 /**
- * Coquille complète. `authed` pilote le bloc compte (jamais de contenu
- * inventé : état jeton + déconnexion = mécanisme existant relocalisé).
+ * Coquille complète. `authed` pilote le bloc compte (déconnexion / jeton =
+ * mécanisme existant) et l'indicateur unique `connection-status` (état
+ * d'auth sur web, remplacé par le statut Desktop via paintShellStatus).
  */
 export function shellHtml(route: Route, authed: boolean, desktop = false): string {
   const groups = shellNavGroups(route, desktop)
@@ -106,8 +108,15 @@ export function shellHtml(route: Route, authed: boolean, desktop = false): strin
     .join("");
   const configActive = route.name === "configRuntimes" || route.name === "configRuntime" || route.name === "configBindings" || route.name === "configProject" || route.name === "configApplication" || route.name === "configIntegrations";
   const accountBlock = authed
-    ? `<div class="app-account"><span class="app-account-state">Connecté · jeton masqué</span><button class="app-logout" type="button" id="token-clear">${icon("logout")}<span>Se déconnecter</span></button></div>`
-    : `<div class="app-account"><span class="app-account-state">Non connecté</span><div class="app-tokenrow"><label class="ds-sr-only" for="token-input">Jeton machine</label><input id="token-input" type="password" autocomplete="off" spellcheck="false" placeholder="Jeton machine (mémoire seule)" /><button class="app-tokenbtn" type="button" id="token-set">Connecter</button></div><p class="app-tokenhint">Mémoire seule · jamais stocké</p></div>`;
+    ? `<div class="app-account"><button class="app-logout" type="button" id="token-clear">${icon("logout")}<span>Se déconnecter</span></button></div>`
+    : `<div class="app-account"><div class="app-tokenrow"><label class="ds-sr-only" for="token-input">Jeton machine</label><input id="token-input" type="password" autocomplete="off" spellcheck="false" placeholder="Jeton machine (mémoire seule)" /><button class="app-tokenbtn" type="button" id="token-set">Connecter</button></div><p class="app-tokenhint">Mémoire seule · jamais stocké</p></div>`;
+  const initialStatus: ShellStatus = authed
+    ? { level: "ok", reason: "connected", label: "Connecté", action: null }
+    : { level: "info", reason: "connecting", label: "Non connecté", action: null };
+  const connection = connectionStatusHtml(initialStatus, {
+    href: connectionStatusHref(desktop),
+    title: initialStatus.label,
+  });
   return `<a class="ds-skip-link" href="#view">Aller au contenu</a>
 <div class="app-shell">
   <div class="app-scrim" id="app-scrim" hidden></div>
@@ -117,12 +126,12 @@ export function shellHtml(route: Route, authed: boolean, desktop = false): strin
     <div class="app-sidebar-foot">
       <a class="app-navlink${configActive ? " active" : ""}" href="#/configuration/runtimes"${configActive ? ' aria-current="page"' : ""}>${icon("settings")}<span>Paramètres</span></a>
       ${accountBlock}
+      ${connection}
     </div>
   </aside>
   <div class="app-col">
     <header class="app-topbar">
       <button class="app-iconbtn app-iconbtn--light" type="button" id="nav-open" aria-label="Ouvrir la navigation" aria-controls="app-sidebar" aria-expanded="false">${icon("menu")}</button>
-      <span class="app-topbar-state" id="token-state"></span>
     </header>
     <div id="conflict-banner" class="conflict-banner" role="status" hidden></div>
     <div id="client-update-banner" class="client-update-banner" role="status" aria-live="polite" hidden></div>
@@ -150,8 +159,24 @@ export function syncNav(route: Route, root: ParentNode, desktop = false): void {
   }
 }
 
-/** Pastille d'état d'authentification dans la topbar (réelle, pas décorative). */
+/** État d'auth seul (web) : met à jour l'indicateur unique, jamais reconstruit. */
 export function syncAuthState(authed: boolean, root: ParentNode): void {
-  const state = root.querySelector("#token-state");
-  if (state !== null) state.textContent = authed ? "Connecté" : "Non connecté";
+  const legacy = root.querySelector("#token-state");
+  if (legacy !== null) legacy.textContent = authed ? "Connecté" : "Non connecté";
+  const existing = root.querySelector("#connection-status");
+  if (existing === null) return;
+  const status: ShellStatus = authed
+    ? { level: "ok", reason: "connected", label: "Connecté", action: null }
+    : { level: "info", reason: "connecting", label: "Non connecté", action: null };
+  const href = existing.getAttribute("href") ?? connectionStatusHref(false);
+  const doc = "createElement" in root && typeof (root as Document).createElement === "function"
+    ? (root as Document)
+    : document;
+  const template = doc.createElement("template");
+  template.innerHTML = connectionStatusHtml(status, { href, title: status.label });
+  const next = template.content.firstElementChild;
+  if (next === null) return;
+  const wrap = existing.closest(".app-connectionwrap");
+  if (wrap !== null) wrap.replaceWith(next);
+  else existing.replaceWith(next);
 }

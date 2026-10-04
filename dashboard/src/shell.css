@@ -224,12 +224,6 @@
   backdrop-filter: blur(6px);
   border-bottom: 1px solid var(--ds-border);
 }
-.app-topbar-state {
-  margin-left: auto;
-  font-size: var(--ds-text-sm);
-  color: var(--ds-text-muted);
-  font-weight: 600;
-}
 .app-col main {
   padding: var(--ds-space-8);
   width: 100%;
@@ -300,51 +294,94 @@
   }
 }
 
-/* Pastille d'état Desktop (P3) : un seul état simple, détails dans Paramètres. */
-.app-topbar > .app-status {
-  margin-left: auto;
+/* Indicateur unique (P03-status, UX V2) : avatar + point + libellé, pied sidebar. */
+.app-connectionwrap {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  padding: 0 var(--ds-space-2);
 }
-.app-status + .app-topbar-state {
-  margin-left: 0;
-}
-.app-status {
+.app-connection {
   display: inline-flex;
   align-items: center;
   gap: var(--ds-space-2);
-  padding: var(--ds-space-1) var(--ds-space-3);
-  border: 1px solid var(--ds-border);
-  border-radius: 999px;
-  background: var(--ds-neutral-soft);
-  color: var(--ds-text);
+  min-height: var(--ds-target-sm);
+  padding: var(--ds-space-1) var(--ds-space-2);
+  border-radius: var(--ds-radius-md);
+  color: var(--ds-navy-text);
   font-size: var(--ds-text-sm);
   font-weight: 600;
   text-decoration: none;
+  min-width: 0;
 }
-.app-status:focus-visible {
-  outline: 2px solid var(--ds-action);
+.app-connection:hover {
+  background: rgb(255 255 255 / 0.08);
+  color: var(--ds-navy-active);
+}
+.app-connection:focus-visible {
+  outline: 2px solid #fff;
   outline-offset: 2px;
 }
-.app-status-dot {
+.app-connection .ds-avatar {
+  width: 28px;
+  height: 28px;
+  font-size: var(--ds-text-xs);
+  flex: none;
+}
+.app-connection-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
+  flex: none;
   background: currentColor;
 }
-.app-status--ok {
-  background: var(--ds-success-soft);
-  border-color: var(--ds-success-border);
-  color: var(--ds-success);
+.app-connection--ok .app-connection-dot {
+  background: #3ccf7e;
 }
-.app-status--warn {
-  background: var(--ds-warning-soft);
-  border-color: var(--ds-warning-border);
-  color: var(--ds-warning);
+.app-connection--info .app-connection-dot {
+  background: #9aa7b8;
 }
-.app-status--error {
-  background: var(--ds-danger-soft);
-  border-color: var(--ds-danger-border);
-  color: var(--ds-danger);
+.app-connection--warn .app-connection-dot {
+  background: #f2a93b;
 }
-.app-status--info {
-  color: var(--ds-text-muted);
+.app-connection--error .app-connection-dot {
+  background: #ff6b70;
+}
+.app-connection__label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app-connection-action {
+  min-height: var(--ds-target-sm);
+  padding: var(--ds-space-1) var(--ds-space-2);
+  border: 1px solid rgb(255 255 255 / 0.25);
+  border-radius: var(--ds-radius-md);
+  background: transparent;
+  color: var(--ds-navy-text);
+  font-size: var(--ds-text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+}
+a.app-connection-action {
+  display: inline-flex;
+}
+.app-connection-action:hover {
+  border-color: currentColor;
+  color: var(--ds-navy-active);
+}
+
+/* Rail d'icônes (<1400 px) : seul le point reste visible, libellé en infobulle. */
+@media (max-width: 1399px) {
+  .app-connection .ds-avatar,
+  .app-connection__label {
+    display: none;
+  }
+  .app-connection {
+    padding: var(--ds-space-2);
+  }
 }
