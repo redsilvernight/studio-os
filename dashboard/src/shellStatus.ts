@@ -241,11 +241,6 @@ export function connectionStatusHtml(status: ShellStatus, opts: ConnectionStatus
   return `<span class="app-connectionwrap">${link}${action}</span>`;
 }
 
-/** The pill: a link to the detail page, never an alarm bell. */
-export function shellStatusHtml(status: ShellStatus, opts: ConnectionStatusOptions = {}): string {
-  return connectionStatusHtml(status, opts);
-}
-
 export function serverStateLabel(connection: ConnectionSnapshot): string {
   switch (connection.state) {
     case "connected":

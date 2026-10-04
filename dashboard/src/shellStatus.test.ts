@@ -5,7 +5,7 @@ import {
   daemonLabel,
   daemonNeedsAttention,
   serverStateLabel,
-  shellStatusHtml,
+  connectionStatusHtml,
   summarizeDaemonAnswer,
   summarizeShellStatus,
   type DaemonSummary,
@@ -94,7 +94,7 @@ describe("daemon summary consumes the P1 states without inventing any", () => {
 
 describe("rendering", () => {
   it("renders one accessible link to the details page, escaped", () => {
-    const html = shellStatusHtml({ level: "warn", reason: "auth_expired", label: "Session <expirée>", action: { kind: "reconnect", label: "Se reconnecter" } });
+    const html = connectionStatusHtml({ level: "warn", reason: "auth_expired", label: "Session <expirée>", action: { kind: "reconnect", label: "Se reconnecter" } });
     expect(html).toContain('data-testid="connection-status"');
     expect(html).toContain('href="#/configuration/application"');
     expect(html).toContain('role="status"');
@@ -106,7 +106,7 @@ describe("rendering", () => {
   });
 
   it("exposes exactly one connection-status testid", () => {
-    const html = shellStatusHtml({ level: "ok", reason: "connected", label: "Connecté", action: null });
+    const html = connectionStatusHtml({ level: "ok", reason: "connected", label: "Connecté", action: null });
     expect(html.match(/data-testid="connection-status"/g)).toHaveLength(1);
   });
 
@@ -136,15 +136,15 @@ describe("rendering", () => {
   });
 
   it("renders the action next to the indicator", () => {
-    const retry = shellStatusHtml({ level: "error", reason: "server_unreachable", label: "Serveur injoignable", action: { kind: "retry", label: "Réessayer" } });
+    const retry = connectionStatusHtml({ level: "error", reason: "server_unreachable", label: "Serveur injoignable", action: { kind: "retry", label: "Réessayer" } });
     expect(retry).toContain("Réessayer");
     expect(retry).toContain('data-action="retry-status"');
-    const reconnect = shellStatusHtml({ level: "warn", reason: "auth_expired", label: "Session expirée", action: { kind: "reconnect", label: "Se reconnecter" } });
+    const reconnect = connectionStatusHtml({ level: "warn", reason: "auth_expired", label: "Session expirée", action: { kind: "reconnect", label: "Se reconnecter" } });
     expect(reconnect).toContain("Se reconnecter");
-    const detail = shellStatusHtml({ level: "warn", reason: "daemon_unavailable", label: "Assistant local indisponible", action: { kind: "detail", label: "Voir le détail" } });
+    const detail = connectionStatusHtml({ level: "warn", reason: "daemon_unavailable", label: "Assistant local indisponible", action: { kind: "detail", label: "Voir le détail" } });
     expect(detail).toContain("Voir le détail");
     expect(detail).toContain('href="#/configuration/application"');
-    const ok = shellStatusHtml({ level: "ok", reason: "connected", label: "Connecté", action: null });
+    const ok = connectionStatusHtml({ level: "ok", reason: "connected", label: "Connecté", action: null });
     expect(ok).not.toContain("data-action");
     expect(ok).not.toContain("Voir le détail");
   });

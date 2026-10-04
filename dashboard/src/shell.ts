@@ -161,8 +161,6 @@ export function syncNav(route: Route, root: ParentNode, desktop = false): void {
 
 /** État d'auth seul (web) : met à jour l'indicateur unique, jamais reconstruit. */
 export function syncAuthState(authed: boolean, root: ParentNode): void {
-  const legacy = root.querySelector("#token-state");
-  if (legacy !== null) legacy.textContent = authed ? "Connecté" : "Non connecté";
   const existing = root.querySelector("#connection-status");
   if (existing === null) return;
   const status: ShellStatus = authed
