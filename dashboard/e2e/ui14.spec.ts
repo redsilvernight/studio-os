@@ -542,7 +542,7 @@ test.describe("UI-14 modales, drawers, onglets", () => {
     await page.keyboard.press("ArrowRight");
     await expect(tabs.nth(1)).toBeFocused();
     await page.keyboard.press("End");
-    await expect(tabs.nth(7)).toBeFocused();
+    await expect(tabs.nth(5)).toBeFocused();
     await page.keyboard.press("Home");
     await expect(tabs.nth(0)).toBeFocused();
     await page.keyboard.press("ArrowRight");

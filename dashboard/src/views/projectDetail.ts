@@ -92,7 +92,7 @@ export function workspaceTabsHtml(projectId: string, tab: ProjectTab): string {
     .map((entry) => projectTabLink(projectId, entry, tab))
     .join("");
   const moreOpen = PROJECT_TABS_MORE.includes(tab) ? " open" : "";
-  return `<div class="workspace-nav"><nav class="ds-tabs" role="tablist" aria-label="Sections du projet" data-ws-tabs>${visible}${more === "" ? "" : `<details class="workspace-more"${moreOpen}><summary class="ds-tab">Plus</summary><div class="workspace-more-list">${more}</div></details>`}</nav></div>`;
+  return `<div class="workspace-nav"><nav class="ds-tabs" role="tablist" aria-label="Sections du projet" data-ws-tabs>${visible}</nav>${more === "" ? "" : `<details class="workspace-more"${moreOpen}><summary class="ds-tab">Plus</summary><div class="workspace-more-list">${more}</div></details>`}</div>`;
 }
 
 /** Flèches gauche/droite et Début/Fin entre onglets (activation au clavier via Entrée). */

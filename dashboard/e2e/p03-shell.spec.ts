@@ -56,6 +56,9 @@ for (const { width, rail } of WIDTHS) {
     // P05-admin: one Administration entry + 6 families, experts outside it.
     await expect(page.locator('.app-sidebar a[href="#/administration"]')).toHaveCount(1);
     await expect(page.locator('.app-sidebar a[href="#/workspaces"]')).toHaveCount(1);
+    await admin.evaluate((el) => {
+      (el as HTMLDetailsElement).open = true;
+    });
     await expect(page.locator('.app-sidebar a[href="#/workspaces"]')).toHaveAccessibleName(/Espaces de travail/);
 
     // Exactly one connection status, in the avatar block; no top bar on desktop.

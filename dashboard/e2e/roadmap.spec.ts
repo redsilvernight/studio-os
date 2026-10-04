@@ -243,7 +243,7 @@ test.describe("Roadmap workspace", () => {
     await expect(page.getByRole("heading", { name: /Disponible maintenant/ })).toBeVisible();
     await expect(page.getByRole("heading", { name: /En attente/ })).toBeVisible();
     await page.getByRole("button", { name: /Sons/ }).first().click();
-    await expect(page.getByRole("heading", { name: "Critères d'acceptation" })).toBeVisible();
+    await expect(page.getByRole("complementary", { name: /Détail de l'étape Sons/ }).getByRole("heading", { name: "Critères d'acceptation" })).toBeVisible();
     await page.getByRole("tab", { name: "Plan" }).click();
     await expect(page.getByRole("heading", { name: "Prototype" })).toBeVisible();
     const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();

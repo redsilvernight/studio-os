@@ -256,7 +256,7 @@ test.describe("UI-4 projets et workspace", () => {
     // Overview résumée : pas de tableau complet.
     await expect(view).toContainText("Tâches actives (2)");
     await expect(view).toContainText("Réservations actives (2)");
-    await expect(view).toContainText("À surveiller");
+    await expect(view).toContainText("Blocage à lever");
     await expect(view.locator(".workspace-overview table")).toHaveCount(0);
 
     // Flèches clavier entre onglets.
