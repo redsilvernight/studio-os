@@ -80,6 +80,86 @@ export function dsEmptyState(title: string, message: string, action?: { label: s
   return `<div class="ds-empty" role="status"><span class="ds-empty-icon" aria-hidden="true">○</span><h3>${esc(title)}</h3><p>${esc(message)}</p>${link}</div>`;
 }
 
+/**
+ * État d'erreur : même gabarit visuel que dsEmptyState (états
+ * vide/chargement/erreur cohérents), annoncé en alerte. `retry` rouvre
+ * l'action sans changer de page : lien quand `href` est fourni, bouton
+ * (à câbler en addEventListener sur `id`) sinon.
+ */
+export function dsErrorState(
+  title: string,
+  message: string,
+  retry?: { label: string; href?: string; id?: string },
+): string {
+  let action = "";
+  if (retry !== undefined) {
+    const id = retry.id !== undefined ? ` id="${esc(retry.id)}"` : "";
+    action =
+      retry.href !== undefined
+        ? `<a class="ds-btn ds-btn--primary" href="${esc(retry.href)}"${id}>${esc(retry.label)}</a>`
+        : `<button class="ds-btn ds-btn--primary" type="button"${id}>${esc(retry.label)}</button>`;
+  }
+  return `<div class="ds-empty ds-empty--error" role="alert"><span class="ds-empty-icon" aria-hidden="true">△</span><h3>${esc(title)}</h3><p>${esc(message)}</p>${action}</div>`;
+}
+
+/** Statut compact ou étendu : même contrat que dsStatus, point + libellé. */
+export function dsStatusDot(state: DsStatusState, label: string, compact = false): string {
+  if (!compact) return dsStatus(state, label);
+  const modifier = state === "idle" ? "" : ` ds-status--${state}`;
+  return `<span class="ds-status${modifier}"><span class="dot" aria-hidden="true"></span><span class="ds-sr-only">${esc(label)}</span></span>`;
+}
+
+export interface DsHeroAction {
+  label: string;
+  href: string;
+}
+
+/**
+ * Carte héros : accroche, titre, résumé, statut optionnel (fragment déjà
+ * rendu, p. ex. dsStatus), UNE seule action primaire (bouton DS), les
+ * secondaires en liens discrets. Tout tient sur place, sans changer de page.
+ */
+export function dsHeroCard(options: {
+  eyebrow?: string;
+  title: string;
+  body?: string;
+  status?: string;
+  primary: DsHeroAction;
+  secondary?: DsHeroAction[];
+}): string {
+  const eyebrow =
+    options.eyebrow === undefined || options.eyebrow === "" ? "" : `<p class="ds-hero-eyebrow">${esc(options.eyebrow)}</p>`;
+  const body = options.body === undefined || options.body === "" ? "" : `<p class="ds-hero-body">${esc(options.body)}</p>`;
+  const status = options.status === undefined || options.status === "" ? "" : `<p class="ds-hero-status">${options.status}</p>`;
+  const secondary = (options.secondary ?? [])
+    .map((action) => `<a class="ds-hero-link" href="${esc(action.href)}">${esc(action.label)}</a>`)
+    .join("");
+  return `<section class="ds-hero">${eyebrow}<h2>${esc(options.title)}</h2>${body}${status}` +
+    `<div class="ds-hero-actions"><a class="ds-btn ds-btn--primary" href="${esc(options.primary.href)}">${esc(options.primary.label)}</a>${secondary}</div></section>`;
+}
+
+export interface DsTechRow {
+  label: string;
+  value: string;
+  mono?: boolean;
+}
+
+/**
+ * Détails techniques : <details> fermé par défaut, liste <dl>, valeurs
+ * mono pour UUID, versions et événements bruts. Tout est échappé via esc ;
+ * rows vide → chaîne vide (l'appelant n'affiche rien).
+ */
+export function dsTechDetails(rows: DsTechRow[], summary = "Détails techniques"): string {
+  if (rows.length === 0) return "";
+  const items = rows
+    .map((row) => {
+      const value = row.mono === true ? `<code class="mono">${esc(row.value)}</code>` : esc(row.value);
+      return `<div><dt>${esc(row.label)}</dt><dd>${value}</dd></div>`;
+    })
+    .join("");
+  return `<details class="ds-tech"><summary>${esc(summary)}</summary><dl class="ds-tech-list">${items}</dl></details>`;
+}
+
 /** Squelette de chargement : annonce unique, barres décoratives. */
 export function dsSkeleton(lines = 3): string {
   const bars = [`<div class="ds-skeleton-bar ds-skeleton-bar--title"></div>`];

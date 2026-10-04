@@ -41,6 +41,7 @@ import {
   dsPageHeader,
   dsSkeleton,
   dsStatus,
+  dsTechDetails,
 } from "../ds/ds";
 import { machineName, machineRef } from "../actorNames";
 import { describeError, esc, fmtTime } from "../ui";
@@ -393,13 +394,17 @@ export function agentDetailHtml(
     `<p class="ds-list-sub">${machineName(agent.machine_id) === undefined ? "Le nom de cette machine n'est pas connu du tableau de bord. " : ""}L'agent n'est pas une sous-catégorie de la machine — voir <a href="#/machines">Machines</a> pour l'environnement d'exécution.</p>` +
     `<p class="ds-list-sub">Aucune définition d'agent n'est associée : la nature déclarée est une simple étiquette libre, sans lien avec la <a href="#/library/agent-definitions">Bibliothèque</a>. Aucune configuration runtime détaillée ici : voir <a href="#/configuration/runtimes">Paramètres</a>.</p>` +
     `</div></section>` +
-    `<details class="library-tech"><summary>Informations techniques</summary><dl class="library-tech-list">` +
-    `<div><dt>Identifiant agent</dt><dd><code class="mono">${esc(agent.id)}</code></dd></div>` +
-    `<div><dt>Identifiant machine</dt><dd>${agent.machine_id ? `<code class="mono">${esc(agent.machine_id)}</code>` : '<span class="ds-list-sub">—</span>'}</dd></div>` +
-    `<div><dt>Révision</dt><dd>v${agent.version}</dd></div>` +
-    `<div><dt>Créé le</dt><dd>${fmtTime(agent.created_at)}</dd></div>` +
-    `<div><dt>Mis à jour le</dt><dd>${fmtTime(agent.updated_at)}</dd></div>` +
-    `</dl></details>`
+    dsTechDetails([
+      { label: "Identifiant agent", value: agent.id, mono: true },
+      {
+        label: "Identifiant machine",
+        value: agent.machine_id ? agent.machine_id : "—",
+        mono: agent.machine_id ? true : undefined,
+      },
+      { label: "Révision", value: `v${agent.version}`, mono: true },
+      { label: "Créé le", value: fmtTime(agent.created_at) },
+      { label: "Mis à jour le", value: fmtTime(agent.updated_at) },
+    ])
   );
 }
 

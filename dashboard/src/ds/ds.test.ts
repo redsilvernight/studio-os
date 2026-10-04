@@ -5,7 +5,9 @@ import {
   dsBadge,
   dsDrawerHtml,
   dsEmptyState,
+  dsErrorState,
   dsField,
+  dsHeroCard,
   dsMetric,
   dsModalHtml,
   dsPageHeader,
@@ -13,7 +15,9 @@ import {
   dsSectionHeader,
   dsSkeleton,
   dsStatus,
+  dsStatusDot,
   dsTabsHtml,
+  dsTechDetails,
 } from "./ds";
 
 describe("dsBadge", () => {
@@ -178,5 +182,117 @@ describe("dialog wiring contract", () => {
       actions: [{ label: "Fermer", variant: "primary" }],
     });
     expect(html).toContain("data-ds-close");
+  });
+});
+
+describe("dsHeroCard", () => {
+  const hero = () =>
+    dsHeroCard({
+      eyebrow: "Agents / Fiche",
+      title: "Travaille sur « Valider »",
+      body: "Résumé calme.",
+      status: dsStatusDot("info", "Session ouverte"),
+      primary: { label: "Ouvrir le travail", href: "#/travail" },
+      secondary: [
+        { label: "Voir la tâche", href: "#/taches" },
+        { label: "Voir le projet", href: "#/projets" },
+      ],
+    });
+
+  it("renders a single primary button action, secondaries as discreet links", () => {
+    const html = hero();
+    expect(html).toContain("ds-hero");
+    expect(html).toContain("<h2>Travaille sur « Valider »</h2>");
+    expect(html.match(/ds-btn--primary/g)).toHaveLength(1);
+    expect(html).toContain('class="ds-hero-link"');
+    expect(html).not.toContain("<button");
+  });
+
+  it("escapes user content but keeps the pre-rendered status fragment", () => {
+    const html = dsHeroCard({
+      title: "<script>",
+      primary: { label: "<b>Ouvrir</b>", href: "#/x?a=<b>" },
+      secondary: [{ label: "<i>Voir</i>", href: "#/y" }],
+    });
+    expect(html).not.toContain("<script>");
+    expect(html).not.toContain("<b>Ouvrir</b>");
+    expect(html).not.toContain("<i>Voir</i>");
+  });
+
+  it("omits optional blocks when absent", () => {
+    const html = dsHeroCard({ title: "Titre seul", primary: { label: "Ouvrir", href: "#/x" } });
+    expect(html).not.toContain("ds-hero-eyebrow");
+    expect(html).not.toContain("ds-hero-body");
+    expect(html).not.toContain("ds-hero-status");
+  });
+});
+
+describe("dsStatusDot", () => {
+  it("pairs the dot with a visible label by default, like dsStatus", () => {
+    const html = dsStatusDot("danger", "Bloqué");
+    expect(html).toContain('aria-hidden="true"');
+    expect(html).toContain("Bloqué");
+    expect(html).toContain("ds-status--danger");
+    expect(html).not.toContain("ds-sr-only");
+  });
+
+  it("moves the label to screen readers only when compact", () => {
+    const html = dsStatusDot("warning", "En attente", true);
+    expect(html).toContain("ds-status--warning");
+    expect(html).toContain('<span class="ds-sr-only">En attente</span>');
+  });
+
+  it("escapes the label", () => {
+    expect(dsStatusDot("info", "<script>", true)).not.toContain("<script>");
+  });
+});
+
+describe("dsTechDetails", () => {
+  it("is closed by default with a dl list and mono values", () => {
+    const html = dsTechDetails([
+      { label: "Identifiant", value: "aaaaaaaa-0000-4111-8111-000000000001", mono: true },
+      { label: "Révision", value: "v3", mono: true },
+      { label: "Créé le", value: "il y a 12 min" },
+    ]);
+    expect(html).toContain("<details");
+    expect(html).not.toContain("open");
+    expect(html).toContain("Détails techniques");
+    expect(html).toContain("<dl");
+    expect(html).toContain("<code class=\"mono\">aaaaaaaa-0000-4111-8111-000000000001</code>");
+    expect(html).not.toContain("Informations techniques");
+  });
+
+  it("accepts a custom summary and escapes labels, values and summary", () => {
+    const html = dsTechDetails([{ label: "<b>Clé</b>", value: "<script>alert(1)</script>", mono: true }], "<i>Résumé</i>");
+    expect(html).toContain("&lt;i&gt;Résumé&lt;/i&gt;");
+    expect(html).not.toContain("<script>");
+    expect(html).not.toContain("<b>Clé</b>");
+  });
+
+  it("renders an empty string when there is nothing to disclose", () => {
+    expect(dsTechDetails([])).toBe("");
+  });
+});
+
+describe("dsErrorState", () => {
+  it("shares the empty-state template but announces as an alert", () => {
+    const html = dsErrorState("Chargement impossible", "Réessayez plus tard.");
+    expect(html).toContain('role="alert"');
+    expect(html).toContain("ds-empty");
+    expect(html).toContain("ds-empty--error");
+    expect(html).toContain("<h3>Chargement impossible</h3>");
+    expect(html).toContain("Réessayez plus tard.");
+  });
+
+  it("offers a retry without leaving the page: link or button", () => {
+    const link = dsErrorState("Échec", "Message.", { label: "Réessayer", href: "#/ici" });
+    expect(link).toContain('href="#/ici"');
+    expect(link).toContain("ds-btn--primary");
+    const button = dsErrorState("Échec", "Message.", { label: "Réessayer", id: "retry" });
+    expect(button).toContain('<button class="ds-btn ds-btn--primary" type="button" id="retry">Réessayer</button>');
+  });
+
+  it("escapes user content", () => {
+    expect(dsErrorState("<script>", "<b>gras</b>")).not.toContain("<script>");
   });
 });

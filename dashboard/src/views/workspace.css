@@ -35,40 +35,6 @@
   max-width: 70ch;
 }
 
-.workspace-tech {
-  font-size: var(--ds-text-sm);
-  color: var(--ds-text-muted);
-}
-
-.workspace-tech summary {
-  cursor: pointer;
-  font-weight: 600;
-  min-height: var(--ds-target-sm);
-  display: inline-flex;
-  align-items: center;
-}
-
-.workspace-tech dl {
-  margin: var(--ds-space-2) 0 0;
-  display: grid;
-  gap: var(--ds-space-1);
-}
-
-.workspace-tech dl > div {
-  display: grid;
-  grid-template-columns: 110px 1fr;
-  gap: var(--ds-space-2);
-}
-
-.workspace-tech dt {
-  font-weight: 600;
-}
-
-.workspace-tech dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
 .workspace-panel {
   display: grid;
   gap: var(--ds-space-4);
@@ -192,10 +158,6 @@
 @media (max-width: 640px) {
   .workspace-title-row h1 {
     font-size: var(--ds-text-xl);
-  }
-  .workspace-tech dl > div {
-    grid-template-columns: 1fr;
-    gap: 0;
   }
   .tl-item {
     grid-template-columns: 1fr;
