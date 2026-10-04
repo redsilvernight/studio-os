@@ -82,6 +82,19 @@ un test échoue si l'export diverge des builders Python.
   un fichier illisible retombe sur « pas d'opt-in ». Ni chemin ni inventaire au-delà
   des identifiants ne sortent du démon ; un Desktop sans `launch.settings` ignore
   les commandes.
+  `setup.plan` / `setup.apply` (additifs, tâche 695c38a3, tranche Desktop de P3)
+  sous les capabilities optionnelles `setup.plan` et `setup.apply` : action
+  « Configurer ce poste » sans second moteur (modèles `setup-hooks`, `skill_sync`,
+  contrôle de dérive des adapters). `setup.plan` ne modifie rien et renvoie, par
+  étape, les harnesses détectés, les hooks/garde/extension (`missing`, `current`,
+  `differs` avec diff borné, redacté et sans chemin), l'état des skills, la dérive
+  des adapters ; le câblage MCP reste sur `harness.*`. `setup.apply` exige
+  `confirmed: true` lié à `plan_id` + `plan_hash` ; un fichier `differs` n'est
+  remplacé que s'il est nommé dans `overwrite_items`, après sauvegarde sous
+  `~/.studio-os/backups/setup/`. Un fichier relu identique est seul rapporté
+  `written` ; une seconde exécution n'écrit rien (`unchanged`). Les skills
+  `locally_modified` ne sont jamais écrasées. L'enregistrement des hooks
+  Claude/Codex reste manuel (DEC-0096).
   Ajouts additifs DEC-0104 §2 : `HarnessChange.scope` (`workspace` par défaut
   | `user`, cible alors relative au home) et `HarnessPreviewRequest.renew`
   (défaut `false` : renouvelle l'identifiant dédié de l'outil).

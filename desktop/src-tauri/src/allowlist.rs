@@ -53,6 +53,8 @@ pub const SERVED_BY_DAEMON: &[&str] = &[
     "harness.rollback",
     "harness.verify",
     "skills.check",
+    "setup.plan",
+    "setup.apply",
     "launch.get_settings",
     "launch.save_settings",
 ];

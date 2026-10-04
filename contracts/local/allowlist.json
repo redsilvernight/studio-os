@@ -343,6 +343,28 @@
     },
     {
       "cancellable": false,
+      "capability": "setup.apply",
+      "command": "setup.apply",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": true,
+      "request": "SetupApplyRequest",
+      "response": "SetupApplyResult",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "setup.plan",
+      "command": "setup.plan",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "SetupPlanRequest",
+      "response": "SetupPlan",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
       "capability": "skills.read",
       "command": "skills.check",
       "max_request_bytes": 65536,

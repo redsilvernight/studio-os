@@ -1,0 +1,20 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "detected": {
+      "title": "Detected",
+      "type": "boolean"
+    },
+    "harness": {
+      "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+      "title": "Harness",
+      "type": "string"
+    }
+  },
+  "required": [
+    "harness",
+    "detected"
+  ],
+  "title": "SetupHarness",
+  "type": "object"
+}

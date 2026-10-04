@@ -287,7 +287,7 @@ describe("Settings › Intégrations IA (Desktop)", () => {
     const { platform, state } = rig();
     state.states = { "claude-code": "incompatible", opencode: "not_detected" };
     const root = await mount(platform);
-    expect(root.querySelector("[data-action]")).toBeNull();
+    expect(root.querySelector(".integrations-list [data-action]")).toBeNull();
     expect(card(root, "claude-code").textContent).toContain("Version non prise en charge");
     expect(card(root, "opencode").textContent).toContain("Non installé");
   });

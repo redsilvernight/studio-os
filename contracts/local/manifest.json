@@ -141,6 +141,36 @@
       "reason": "a skill entry carries no filesystem path"
     },
     {
+      "model": "SetupApplyRequest",
+      "name": "setup.apply.unconfirmed",
+      "reason": "applying the workstation setup requires explicit confirmation"
+    },
+    {
+      "model": "SetupApplyRequest",
+      "name": "setup.apply.duplicate_overwrite",
+      "reason": "a replacement is named once"
+    },
+    {
+      "model": "SetupPlan",
+      "name": "setup.plan.diff_on_current_file",
+      "reason": "only a differing file carries a diff"
+    },
+    {
+      "model": "SetupPlan",
+      "name": "setup.plan.diff_path_leak",
+      "reason": "a diff carries no absolute filesystem path"
+    },
+    {
+      "model": "SetupPlan",
+      "name": "setup.plan.skills_unavailable_without_reason",
+      "reason": "an unavailable skills check states why"
+    },
+    {
+      "model": "SetupApplyResult",
+      "name": "setup.apply.backup_flag_mismatch",
+      "reason": "the backup flag reflects the item results"
+    },
+    {
       "model": "LaunchSettingsSaveRequest",
       "name": "launch.settings.save_unconfirmed",
       "reason": "saving the launch opt-in requires explicit confirmation"
@@ -259,6 +289,16 @@
     "RuntimeServiceHealth",
     "SecretReference",
     "SecretReferenceStatus",
+    "SetupAdaptersStep",
+    "SetupApplyRequest",
+    "SetupApplyResult",
+    "SetupHarness",
+    "SetupItemPlan",
+    "SetupItemResult",
+    "SetupPlan",
+    "SetupPlanRequest",
+    "SetupSkillsResult",
+    "SetupSkillsStep",
     "SharedStatusSummary",
     "SkillCheckEntry",
     "SkillTargetState",
@@ -627,6 +667,22 @@
     {
       "model": "HandshakeRequest",
       "name": "runtime.handshake.request"
+    },
+    {
+      "model": "SetupApplyRequest",
+      "name": "setup.apply.request"
+    },
+    {
+      "model": "SetupApplyResult",
+      "name": "setup.apply.result"
+    },
+    {
+      "model": "SetupPlanRequest",
+      "name": "setup.plan.request"
+    },
+    {
+      "model": "SetupPlan",
+      "name": "setup.plan.result"
     },
     {
       "model": "SkillsCheckResult",

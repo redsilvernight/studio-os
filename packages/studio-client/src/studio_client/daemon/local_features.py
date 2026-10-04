@@ -403,6 +403,10 @@ class LocalFeatureRegistry:
         if profile is not None:
             self.refresh(profile)
 
+    def workspace_roots(self) -> tuple[Path, ...]:
+        """Roots of the registered workspaces (daemon-side only, never on the wire)."""
+        return tuple(Path(config.roots.workspace_root) for config in self._configs.values())
+
     def _knowledge(self, workspace_id: UUID) -> KnowledgeService | None:
         return self._services.get(workspace_id)
 
