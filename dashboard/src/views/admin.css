@@ -47,9 +47,13 @@
   border-radius: 10px;
   display: grid;
   place-items: center;
-  font-weight: 700;
   background: var(--ds-neutral-soft);
+  color: var(--ds-action);
   flex: none;
+}
+.admin-fam-pic svg {
+  width: 18px;
+  height: 18px;
 }
 .admin-fam-body {
   display: grid;

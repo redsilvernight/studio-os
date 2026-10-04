@@ -185,7 +185,8 @@ test.describe("UI-13 navigation et shell", () => {
       await go(page, "#/tasks");
       await expect(view.locator(".task-row")).toHaveCount(2);
     }
-    expect(captured.tasksListRequests - baseline).toBe(10 * 2);
+    // + 1 requête de santé par rendu de la liste Projets (point de couleur).
+    expect(captured.tasksListRequests - baseline).toBe(10 * 2 + 10);
     expect(await page.locator(".app-shell").count()).toBe(1);
     expect(await page.locator("#view").count()).toBe(1);
     expect(csp).toEqual([]);

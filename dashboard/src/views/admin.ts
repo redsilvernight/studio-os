@@ -13,6 +13,7 @@
  * Inspecteur restent des outils experts hors de cette entrée (review-admin).
  */
 import { dsHeroCard, dsPageHeader } from "../ds/ds";
+import { icon } from "../shell";
 import { esc } from "../ui";
 import "./admin.css";
 
@@ -20,22 +21,22 @@ export interface AdminFamily {
   href: string;
   title: string;
   hint: string;
-  mark: string;
+  icon: string;
 }
 
 export const ADMIN_FAMILIES: readonly AdminFamily[] = [
-  { href: "#/machines", title: "Postes", hint: "Environnements où le travail s'exécute", mark: "P" },
-  { href: "#/accounts", title: "Comptes et membres", hint: "Comptes, sessions et accès par projet", mark: "C" },
-  { href: "#/transfers", title: "Transferts", hint: "Fichiers échangés entre postes", mark: "T" },
-  { href: "#/library", title: "Bibliothèque", hint: "Règles, savoir-faire et configurations", mark: "B" },
-  { href: "#/configuration/runtimes", title: "Configuration", hint: "Runtimes, liaisons, projet, appli, IA", mark: "R" },
-  { href: "#/workspaces", title: "Espaces de travail", hint: "Dossiers suivis sur ce poste", mark: "D" },
+  { href: "#/machines", title: "Postes", hint: "Environnements où le travail s'exécute", icon: "machines" },
+  { href: "#/accounts", title: "Comptes et membres", hint: "Comptes, sessions et accès par projet", icon: "person" },
+  { href: "#/transfers", title: "Transferts", hint: "Fichiers échangés entre postes", icon: "transfers" },
+  { href: "#/library", title: "Bibliothèque", hint: "Règles, savoir-faire et configurations", icon: "book" },
+  { href: "#/configuration/runtimes", title: "Configuration", hint: "Runtimes, liaisons, projet, appli, IA", icon: "settings" },
+  { href: "#/workspaces", title: "Espaces de travail", hint: "Dossiers suivis sur ce poste", icon: "folder" },
 ];
 
 function familyCardHtml(family: AdminFamily): string {
   return (
     `<li><a class="admin-fam" href="${esc(family.href)}">` +
-    `<span class="admin-fam-pic" aria-hidden="true">${esc(family.mark)}</span>` +
+    `<span class="admin-fam-pic" aria-hidden="true">${icon(family.icon)}</span>` +
     `<span class="admin-fam-body"><strong>${esc(family.title)}</strong>` +
     `<span class="ds-list-sub">${esc(family.hint)}</span></span>` +
     `<span class="admin-fam-chev" aria-hidden="true">›</span></a></li>`
@@ -52,13 +53,13 @@ export function adminOverviewHtml(): string {
   });
   const families = `<section class="ds-panel admin-families" aria-label="Familles"><header><h2>Familles</h2><span class="ds-list-sub">chaque surface en 1 clic</span></header><div class="body"><ul class="admin-fams">${ADMIN_FAMILIES.map(familyCardHtml).join("")}</ul></div></section>`;
   const context =
-    `<aside class="ds-panel admin-context" aria-label="À surveiller"><header><h2>À surveiller</h2></header><div class="body">` +
-    `<ul class="ds-list"><li class="ds-list-item"><span class="grow"><span class="ds-list-title">Comptes en attente</span><br /><span class="ds-list-sub">à vérifier dans Comptes et membres</span></span></li>` +
-    `<li class="ds-list-item"><span class="grow"><span class="ds-list-title">Postes sans activité</span><br /><span class="ds-list-sub">à revoir dans Postes</span></span></li></ul>` +
+    `<aside class="ds-panel admin-context" aria-label="Points de contrôle"><header><h2>Points de contrôle</h2></header><div class="body">` +
+    `<ul class="ds-list"><li class="ds-list-item"><span class="grow"><span class="ds-list-title"><a href="#/accounts">Comptes et membres</a></span><br /><span class="ds-list-sub">vérifier les accès par projet</span></span></li>` +
+    `<li class="ds-list-item"><span class="grow"><span class="ds-list-title"><a href="#/machines">Postes</a></span><br /><span class="ds-list-sub">repérer les postes sans activité</span></span></li></ul>` +
     `<details class="ds-tech"><summary>Détails techniques</summary><dl class="ds-tech-list"><div><dt>Routes</dt><dd><code class="mono">#/administration</code> → familles ci-dessus</dd></div><div><dt>Experts</dt><dd>Graphes et Inspecteur vivent dans « Outils experts », pas ici</dd></div></dl></details>` +
     `</div></aside>`;
   const feed =
-    `<aside class="ds-panel admin-feed" aria-label="Rappels"><header><h2>Rappels honnêtes</h2></header><div class="body">` +
+    `<aside class="ds-panel admin-feed" aria-label="Rappels"><header><h2>Bon à savoir</h2></header><div class="body">` +
     `<h3>Création et révocation</h3><p class="ds-list-sub">Les postes et les suppressions de fichiers passent par l'API ou le CLI, pas par des boutons inventés ici.</p>` +
     `<h3>Résolution</h3><p class="ds-list-sub">La compatibilité agent et runtime s'explique dans l'Inspecteur, pas dans ces écrans.</p>` +
     `</div></aside>`;
