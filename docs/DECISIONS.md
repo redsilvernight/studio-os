@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-146 decision(s). Detail complet dans chaque ADR lie.
+147 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -168,3 +168,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0179 | AIB R3 : reglages de lancement locaux persistes dans launch_settings.json | accepted | [decisions/DEC-0179-aib-r3-reglages-lancement-locaux.md](decisions/DEC-0179-aib-r3-reglages-lancement-locaux.md) |
 | DEC-0180 | AIB L2 : identite agent par (harnais, provider, modele) sur tous les harnais | accepted | [decisions/DEC-0180-identite-agent-par-harnais-provider-modele.md](decisions/DEC-0180-identite-agent-par-harnais-provider-modele.md) |
 | DEC-0181 | Compatibilité du manifest bootstrap : lecture v1 uniquement et refus explicite | proposed | [decisions/DEC-0181-compatibilite-manifest-bootstrap-v1.md](decisions/DEC-0181-compatibilite-manifest-bootstrap-v1.md) |
+| DEC-0185 | GET /tasks : filtres additifs status et mine pour les vues Travail | proposed | [decisions/DEC-0185-filtres-taches-status-mine.md](decisions/DEC-0185-filtres-taches-status-mine.md) |
