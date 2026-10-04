@@ -108,8 +108,8 @@ mod tests {
     fn allowlist_matches_p1_export() {
         assert_eq!(
             all_commands().len(),
-            37,
-            "studio.local/v1 exports 37 commands"
+            39,
+            "studio.local/v1 exports 39 commands"
         );
         assert!(lookup("runtime.handshake").is_some());
         assert!(lookup("daemon.status").is_some());
