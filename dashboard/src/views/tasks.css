@@ -278,42 +278,6 @@
   gap: var(--ds-space-4);
 }
 
-.task-tech {
-  border-top: 1px solid var(--ds-border);
-  padding-top: var(--ds-space-2);
-  font-size: var(--ds-text-sm);
-  color: var(--ds-text-muted);
-}
-
-.task-tech summary {
-  cursor: pointer;
-  font-weight: 600;
-  min-height: var(--ds-target-sm);
-  display: inline-flex;
-  align-items: center;
-}
-
-.task-tech dl {
-  margin: var(--ds-space-2) 0 0;
-  display: grid;
-  gap: var(--ds-space-1);
-}
-
-.task-tech dl > div {
-  display: grid;
-  grid-template-columns: 140px 1fr;
-  gap: var(--ds-space-2);
-}
-
-.task-tech dt {
-  font-weight: 600;
-}
-
-.task-tech dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
 /* Tablette / mobile : le tableau défile horizontalement EN LOCAL, avec des
    colonnes assez larges pour rester lisibles et tactiles. La liste et le
    détail s'empilent naturellement, sans scroll global. */

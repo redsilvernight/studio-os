@@ -204,6 +204,23 @@
   padding-top: var(--ds-space-3);
   border-top: 1px solid rgb(255 255 255 / 0.14);
 }
+/* Action d'un état dégradé : visible avec le libellé (barre complète, tiroir) ;
+   en rail, le point reste un lien vers le détail. */
+.app-connection-action {
+  display: none;
+  padding: var(--ds-space-1) var(--ds-space-2);
+  border: 1px solid rgb(255 255 255 / 0.24);
+  border-radius: var(--ds-radius-sm, 6px);
+  background: none;
+  color: var(--ds-navy-active);
+  font: inherit;
+  font-size: var(--ds-text-sm);
+  text-decoration: none;
+  cursor: pointer;
+}
+.app-connection-action:hover {
+  background: rgb(255 255 255 / 0.08);
+}
 .app-avatar {
   display: inline-flex;
   align-items: center;
@@ -410,6 +427,15 @@ a.app-connection:hover .app-connection-label {
   }
   .app-me--guest {
     flex-wrap: wrap;
+  }
+  .app-me:has(.app-connection-action) {
+    flex-wrap: wrap;
+  }
+  .app-connection-action {
+    display: inline-flex;
+    order: 3;
+    flex-basis: 100%;
+    justify-content: center;
   }
 }
 

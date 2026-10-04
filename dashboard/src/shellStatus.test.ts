@@ -5,7 +5,10 @@ import {
   daemonLabel,
   daemonNeedsAttention,
   serverStateLabel,
+  shellConnectionView,
   shellStatusHtml,
+  statusAction,
+  statusDetail,
   summarizeDaemonAnswer,
   summarizeShellStatus,
   type DaemonSummary,
@@ -99,6 +102,41 @@ describe("rendering", () => {
     expect(html).toContain('role="status"');
     expect(html).toContain("&lt;expirée&gt;");
     expect(html).not.toContain("style=");
+  });
+
+  it("offers one explicit action per degraded state, none when it works or resolves alone", () => {
+    expect(statusAction("server_unreachable")).toEqual({ kind: "retry", label: "Réessayer" });
+    expect(statusAction("auth_expired")).toEqual({ kind: "reconnect", label: "Se reconnecter" });
+    expect(statusAction("protocol_incompatible")?.kind).toBe("detail");
+    expect(statusAction("daemon_unavailable")?.kind).toBe("detail");
+    expect(statusAction("restart_required")?.kind).toBe("detail");
+    expect(statusAction("connected")).toBeNull();
+    expect(statusAction("connecting")).toBeNull();
+    expect(statusAction("daemon_recovering")).toBeNull();
+  });
+
+  it("details server, local assistant and synchronisation separately", () => {
+    const daemon: DaemonSummary = {
+      kind: "state",
+      state: "running",
+      health: { heartbeat: "healthy", outboxReplay: "stale", gitWatchers: { total: 0, healthy: 0 }, observedAt: "x" },
+    };
+    expect(statusDetail(conn("connected"), daemon)).toBe(
+      "Serveur : Joignable · Assistant local : En marche · Synchronisation : Données anciennes",
+    );
+    expect(statusDetail(conn("unreachable", "network"), unknownDaemon)).toBe(
+      "Serveur : Injoignable · Assistant local : Inconnu",
+    );
+  });
+
+  it("puts the detail in the tooltip and the action beside the status", () => {
+    const status = { level: "error" as const, reason: "server_unreachable" as const, label: "Serveur injoignable" };
+    const view = shellConnectionView(status, "Serveur : Injoignable");
+    expect(view.title).toBe("Serveur injoignable — Serveur : Injoignable");
+    const html = shellStatusHtml(status);
+    expect(html).toContain('data-action="retry-status"');
+    expect(html.match(/ id="connection-status"/g)).toHaveLength(1);
+    expect(shellStatusHtml({ level: "ok", reason: "connected", label: "Connecté" })).not.toContain("connection-action");
   });
 
   it("words the server state", () => {

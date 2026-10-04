@@ -22,6 +22,7 @@ import {
   DAEMON_RECOVERING,
   daemonRecovering,
   shellConnectionView,
+  statusDetail,
   summarizeDaemonAnswer,
   summarizeHealth,
   summarizeShellStatus,
@@ -274,9 +275,19 @@ export function currentStatus(target: DesktopShell | null = shell): ShellStatus 
 
 /** (Re)paint the shell's single connection status (C4). Desktop only. */
 export function paintShellStatus(root: ParentNode = document): void {
-  const status = currentStatus();
-  if (!status) return;
-  paintConnection(shellConnectionView(status), root);
+  const target = shell;
+  const status = currentStatus(target);
+  if (!target || !status) return;
+  const detail = statusDetail(target.monitor.snapshot(), target.daemon);
+  paintConnection(shellConnectionView(status, detail), root);
+  // Degraded-state actions: re-probe the server, or hand over to sign-in.
+  root.querySelector('[data-action="retry-status"]')?.addEventListener("click", () => {
+    void target.monitor.check();
+  });
+  root.querySelector('[data-action="reconnect-status"]')?.addEventListener("click", () => {
+    if (target.hooks) target.hooks.authExpired();
+    else void target.monitor.check();
+  });
 }
 
 export function serverSnapshot(target: DesktopShell | null = shell): ConnectionSnapshot | null {

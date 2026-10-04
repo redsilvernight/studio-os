@@ -14,7 +14,7 @@ import type {
   RuntimeServiceCondition,
 } from "./platform/generated/local-contracts.generated";
 import type { ConnectionSnapshot } from "./connection";
-import { connectionStatusHtml, type ConnectionView } from "./shell";
+import { connectionStatusHtml, type ConnectionAction, type ConnectionView } from "./shell";
 
 export type CompatibilityState = "ok" | "incompatible" | "unknown";
 
@@ -189,9 +189,47 @@ export function summarizeShellStatus(input: ShellStatusInput): ShellStatus {
   return { level: "info", reason: "connecting", label: "Connexion…" };
 }
 
+/**
+ * The explicit next step shown beside a degraded status (P03-status), or
+ * `null` when everything works or the state resolves on its own.
+ */
+export function statusAction(reason: StatusReason): ConnectionAction | null {
+  switch (reason) {
+    case "server_unreachable":
+      return { kind: "retry", label: "Réessayer" };
+    case "auth_expired":
+      return { kind: "reconnect", label: "Se reconnecter" };
+    case "protocol_incompatible":
+    case "daemon_unavailable":
+    case "restart_required":
+      return { kind: "detail", label: "Voir le détail" };
+    default:
+      return null;
+  }
+}
+
+/**
+ * Health detail on demand (tooltip): server, local assistant and, when the
+ * daemon reports it, synchronisation — kept apart, never merged into one word.
+ */
+export function statusDetail(connection: ConnectionSnapshot, daemon: DaemonSummary): string {
+  const parts = [`Serveur : ${serverStateLabel(connection)}`, `Assistant local : ${daemonLabel(daemon)}`];
+  if (daemon.kind === "state" && daemon.health) {
+    parts.push(`Synchronisation : ${conditionLabel(daemon.health.outboxReplay)}`);
+  }
+  return parts.join(" · ");
+}
+
 /** The shell's single connection status, linked to the detail page (C4). */
-export function shellConnectionView(status: ShellStatus): ConnectionView {
-  return { level: status.level, label: status.label, reason: status.reason, href: "#/configuration/application" };
+export function shellConnectionView(status: ShellStatus, detail?: string): ConnectionView {
+  return {
+    level: status.level,
+    label: status.label,
+    reason: status.reason,
+    href: "#/configuration/application",
+    title: detail === undefined ? undefined : `${status.label} — ${detail}`,
+    action: statusAction(status.reason),
+  };
 }
 
 /** The status element: a link to the detail page, never an alarm bell. */

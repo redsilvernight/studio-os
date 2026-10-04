@@ -130,6 +130,23 @@ export interface ConnectionView {
   reason?: string;
   /** Lien vers le détail (Desktop : Paramètres › Application). */
   href?: string;
+  /** Infobulle de détail (santé serveur / assistant local / synchronisation). */
+  title?: string;
+  /** Action explicite d'un état dégradé (P03-status). */
+  action?: ConnectionAction | null;
+}
+
+export interface ConnectionAction {
+  kind: "retry" | "reconnect" | "detail";
+  label: string;
+}
+
+/** Bouton ou lien d'action placé juste après l'indicateur. */
+function connectionActionHtml(action: ConnectionAction, href: string | undefined): string {
+  if (action.kind === "detail" && href !== undefined) {
+    return `<a class="app-connection-action" id="connection-action" href="${esc(href)}">${esc(action.label)}</a>`;
+  }
+  return `<button class="app-connection-action" id="connection-action" type="button" data-action="${action.kind}-status">${esc(action.label)}</button>`;
 }
 
 /** État de connexion côté navigateur : seul le jeton est connu. */
@@ -147,8 +164,9 @@ export function connectionStatusHtml(view: ConnectionView): string {
   const reason = view.reason === undefined ? "" : ` data-reason="${esc(view.reason)}"`;
   return (
     `<${tag} class="app-connection app-connection--${view.level}" id="connection-status" data-testid="connection-status" ` +
-    `role="status"${reason}${href} title="${esc(view.label)}">` +
-    `<span class="app-connection-dot" aria-hidden="true"></span><span class="app-connection-label">${esc(view.label)}</span></${tag}>`
+    `role="status"${reason}${href} title="${esc(view.title ?? view.label)}">` +
+    `<span class="app-connection-dot" aria-hidden="true"></span><span class="app-connection-label">${esc(view.label)}</span></${tag}>` +
+    (view.action ? connectionActionHtml(view.action, view.href) : "")
   );
 }
 
@@ -265,10 +283,10 @@ export function mountAdminFlyout(root: ParentNode = document): void {
 export function paintConnection(view: ConnectionView, root: ParentNode): void {
   const existing = root.querySelector("#connection-status");
   if (existing === null) return;
+  root.querySelector("#connection-action")?.remove();
   const holder = document.createElement("template");
   holder.innerHTML = connectionStatusHtml(view);
-  const next = holder.content.firstElementChild;
-  if (next !== null) existing.replaceWith(next);
+  existing.replaceWith(...Array.from(holder.content.childNodes));
 }
 
 /** État d'authentification côté navigateur (le Desktop le repeint ensuite). */

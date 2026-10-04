@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
 import { parseRoute } from "./router";
-import { mountAdminFlyout, shellHtml, shellNavGroups } from "./shell";
+import { mountAdminFlyout, paintConnection, shellHtml, shellNavGroups } from "./shell";
 import { notFoundHtml } from "./views/notFound";
 
 function authedShell(routeName: Parameters<typeof shellHtml>[0]): string {
@@ -174,6 +174,19 @@ describe("shellHtml (P03-shell)", () => {
     const anon = parse(shellHtml(parseRoute("#/"), false));
     expect(anon.querySelector("#token-clear")).toBeNull();
     expect(anon.querySelector(".app-me #token-input")).not.toBeNull();
+  });
+
+  it("repaints the status and its action in place, never duplicating them (P03-status)", () => {
+    document.body.innerHTML = shellHtml(parseRoute("#/"), true);
+    const down = { level: "error" as const, label: "Serveur injoignable", href: "#/configuration/application" };
+    paintConnection({ ...down, action: { kind: "retry", label: "Réessayer" } }, document);
+    paintConnection({ ...down, title: "Serveur injoignable — détail", action: { kind: "retry", label: "Réessayer" } }, document);
+    expect(document.querySelectorAll("#connection-status")).toHaveLength(1);
+    expect(document.querySelectorAll("#connection-action")).toHaveLength(1);
+    expect(document.querySelector("#connection-status")?.getAttribute("title")).toBe("Serveur injoignable — détail");
+    paintConnection({ level: "ok", label: "Connecté", href: "#/configuration/application", action: null }, document);
+    expect(document.querySelectorAll("#connection-status")).toHaveLength(1);
+    expect(document.querySelector("#connection-action")).toBeNull();
   });
 });
 

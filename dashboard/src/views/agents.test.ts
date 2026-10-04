@@ -269,7 +269,8 @@ describe("agentDetailHtml (fiche justifiée par les données)", () => {
 
   it("technique en divulgation progressive, CSP respectée", () => {
     expect(html).toContain("<details");
-    expect(html).toContain("Informations techniques");
+    expect(html).toContain("Détails techniques");
+    expect(html).toContain("ds-tech");
     expect(html).toContain(A1);
     expect(html).not.toMatch(/<[^>]*\sstyle\s*=/i);
     expect(html).not.toMatch(/<[^>]*\son[a-z]+\s*=/i);

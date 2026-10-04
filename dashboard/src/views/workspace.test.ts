@@ -108,9 +108,9 @@ describe("workspaceHeaderHtml", () => {
   });
 
   it("technique secondaire : UUID/version/dates dans le détail replié", () => {
-    expect(html).toContain("Informations techniques");
+    expect(html).toContain("Détails techniques");
     expect(html).toContain(ID);
-    const [foreground] = html.split("Informations techniques");
+    const [foreground] = html.split("Détails techniques");
     expect(foreground).not.toContain(ID);
     expect(foreground).not.toContain(">7<");
   });

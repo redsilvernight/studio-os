@@ -296,7 +296,7 @@ describe("Settings › Application (Desktop)", () => {
     expect(root.querySelector("[data-testid=daemon-state]")?.textContent).toBe("En marche");
     expect(root.querySelector("[data-testid=health-heartbeat]")?.textContent).toBe("Fonctionne");
     expect(root.querySelector("[data-testid=health-watchers]")?.textContent).toBe("1 / 1 en bonne santé");
-    document.body.innerHTML = '<header class="app-topbar"><span id="token-state"></span></header>';
+    document.body.innerHTML = '<aside class="app-sidebar"><div class="app-sidebar-foot"></div></aside><header class="app-topbar"></header>';
     resetDesktopShellForTests();
     const older = fakeDaemon({ offers: ["daemon.control", "identity.view"] });
     const second = await mount(
@@ -314,7 +314,7 @@ describe("Settings › Application (Desktop)", () => {
     expect(root.querySelector("[data-testid=compatibility]")?.textContent).toBe(
       "Compatible — mettez à jour l'assistant local pour disposer de toutes les fonctions",
     );
-    document.body.innerHTML = '<header class="app-topbar"><span id="token-state"></span></header>';
+    document.body.innerHTML = '<aside class="app-sidebar"><div class="app-sidebar-foot"></div></aside><header class="app-topbar"></header>';
     resetDesktopShellForTests();
     const current = fakeDaemon();
     const again = await mount(
