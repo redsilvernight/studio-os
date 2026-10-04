@@ -5,6 +5,8 @@ import type {
   RoadmapDocumentStep,
   RoadmapDocumentTask,
   RoadmapMetadata,
+  RoadmapPhase,
+  RoadmapStep,
 } from "./roadmapTypes";
 
 const KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
@@ -229,4 +231,65 @@ export function roadmapToDocument(roadmap: Roadmap): RoadmapDocument {
     revision_no: roadmap.revision_no,
   };
   return validateRoadmapDocument(document);
+}
+
+/** A phase counts as done when it holds steps and every step is done or skipped. */
+export function isRoadmapPhaseDone(phase: RoadmapPhase): boolean {
+  const steps = phase.steps ?? [];
+  if (steps.length === 0) return false;
+  return steps.every((step) => step.state === "done" || step.state === "skipped");
+}
+
+/** Current step: explicit `current_step_key`, else in-progress, else available, else first open step. */
+export function findRoadmapCurrentStep(roadmap: Roadmap): RoadmapStep | null {
+  const steps = (roadmap.phases ?? []).flatMap((phase) => phase.steps ?? []);
+  if (steps.length === 0) return null;
+  if (roadmap.current_step_key !== undefined && roadmap.current_step_key !== null) {
+    const targeted = steps.find((step) => step.key === roadmap.current_step_key);
+    if (targeted !== undefined) return targeted;
+  }
+  return (
+    steps.find((step) => step.state === "in_progress") ??
+    steps.find((step) => step.available === true && step.state !== "done" && step.state !== "skipped") ??
+    steps.find((step) => step.state !== "done" && step.state !== "skipped") ??
+    steps[0] ??
+    null
+  );
+}
+
+/** Focused reading of a roadmap: current step, its phase, done vs open phases, next and blocked steps. */
+export interface RoadmapFocus {
+  currentKey: string | null;
+  currentPhaseKey: string | null;
+  currentPhaseIndex: number;
+  donePhaseKeys: string[];
+  openPhaseKeys: string[];
+  nextKeys: string[];
+  blockedKeys: string[];
+}
+
+export function getRoadmapFocus(roadmap: Roadmap): RoadmapFocus {
+  const phases = roadmap.phases ?? [];
+  const steps = phases.flatMap((phase) => phase.steps ?? []);
+  const current = findRoadmapCurrentStep(roadmap);
+  const currentKey = current?.key ?? null;
+  let currentPhaseKey: string | null = null;
+  let currentPhaseIndex = -1;
+  if (currentKey !== null) {
+    const found = phases.findIndex((phase) => (phase.steps ?? []).some((step) => step.key === currentKey));
+    if (found >= 0) {
+      currentPhaseIndex = found;
+      currentPhaseKey = phases[found]?.key ?? null;
+    }
+  }
+  const donePhaseKeys = phases.filter(isRoadmapPhaseDone).map((phase) => phase.key);
+  const doneSet = new Set(donePhaseKeys);
+  const openPhaseKeys = phases.filter((phase) => !doneSet.has(phase.key)).map((phase) => phase.key);
+  const nextKeys = steps
+    .filter((step) => step.key !== currentKey && step.available === true && step.state !== "done" && step.state !== "skipped")
+    .map((step) => step.key);
+  const blockedKeys = steps
+    .filter((step) => step.state === "blocked" || (step.waiting_on?.length ?? 0) > 0)
+    .map((step) => step.key);
+  return { currentKey, currentPhaseKey, currentPhaseIndex, donePhaseKeys, openPhaseKeys, nextKeys, blockedKeys };
 }

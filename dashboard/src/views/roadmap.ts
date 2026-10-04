@@ -8,6 +8,9 @@ import {
   dsSkeleton,
 } from "../ds/ds";
 import {
+  findRoadmapCurrentStep,
+  getRoadmapFocus,
+  isRoadmapPhaseDone,
   parseRoadmapDocument,
   roadmapToDocument,
   serializeRoadmapDocument,
@@ -98,42 +101,108 @@ function stepButtonHtml(step: RoadmapStep, selected: boolean): string {
     `<span class="roadmap-step-state">${available}${dsBadge(STEP_LABELS[state] ?? state, stepTone(state))}</span></button>`;
 }
 
+function roadmapPhaseHtml(phase: RoadmapPhase, index: number, selectedKey: string | null): string {
+  const progress = phaseProgress(phase);
+  const steps = phase.steps ?? [];
+  return `<section class="roadmap-phase"><div class="roadmap-phase-marker" aria-hidden="true">${index + 1}</div>` +
+    `<div class="roadmap-phase-body"><header><div><p class="roadmap-eyebrow">Phase ${index + 1}</p><h3>${esc(phase.title)}</h3>${phase.objective ? `<p>${esc(phase.objective)}</p>` : ""}</div>` +
+    `<div class="roadmap-phase-progress">${dsProgress(progress, 100, `${progress} %`)}</div></header>` +
+    (steps.length === 0
+      ? `<p class="ds-list-sub">Aucune étape dans cette phase.</p>`
+      : `<div class="roadmap-step-list">${steps.map((step) => stepButtonHtml(step, step.key === selectedKey)).join("")}</div>`) +
+    `</div></section>`;
+}
+
+/** Collapsed wrapper for finished phases: one element keeps the focus on the present. */
+export function roadmapDonePhasesHtml(roadmap: Roadmap, selectedKey: string | null): string {
+  const phases = roadmap.phases ?? [];
+  const done = phases
+    .map((phase, index) => ({ phase, index }))
+    .filter(({ phase }) => isRoadmapPhaseDone(phase));
+  if (done.length === 0) return "";
+  const firstTitle = done[0]?.phase.title ?? "";
+  return `<details class="roadmap-done-phases"><summary><span class="roadmap-done-ok" aria-hidden="true">✓</span>` +
+    `<span><strong>${done.length} phase${done.length > 1 ? "s" : ""} terminée${done.length > 1 ? "s" : ""}</strong>` +
+    `<span class="ds-list-sub">${esc(firstTitle)}${done.length > 1 ? " et autres" : ""} — masquée${done.length > 1 ? "s" : ""} pour garder le focus</span></span></details>`;
+}
+
 export function roadmapPlanHtml(roadmap: Roadmap, selectedKey: string | null): string {
   const phases = roadmap.phases ?? [];
   if (phases.length === 0) {
     return dsEmptyState("Le plan est vide", "Ajoutez une phase lorsque vous souhaitez structurer ce projet.");
   }
-  return `<div class="roadmap-timeline" aria-label="Plan par phases">${phases
+  const open = phases
+    .map((phase, index) => ({ phase, index }))
+    .filter(({ phase }) => !isRoadmapPhaseDone(phase));
+  // When every phase is done the plan still lists them; otherwise done phases collapse into one element.
+  const visible = open.length === 0
+    ? phases.map((phase, index) => roadmapPhaseHtml(phase, index, selectedKey)).join("")
+    : open.map(({ phase, index }) => roadmapPhaseHtml(phase, index, selectedKey)).join("");
+  const collapsed = open.length === 0 ? "" : roadmapDonePhasesHtml(roadmap, selectedKey);
+  return `<div class="roadmap-timeline" aria-label="Plan par phases" data-major>${visible}${collapsed}</div>`;
+}
+
+/** Compact phase strip: progress, position and one marker per phase (wireframe "bandeau des phases"). */
+export function roadmapPhaseStripHtml(roadmap: Roadmap): string {
+  const phases = roadmap.phases ?? [];
+  if (phases.length === 0) return "";
+  const focus = getRoadmapFocus(roadmap);
+  const doneCount = focus.donePhaseKeys.length;
+  const position = focus.currentPhaseIndex >= 0 ? focus.currentPhaseIndex + 1 : 0;
+  const track = phases
     .map((phase, index) => {
-      const progress = phaseProgress(phase);
-      const steps = phase.steps ?? [];
-      return `<section class="roadmap-phase"><div class="roadmap-phase-marker" aria-hidden="true">${index + 1}</div>` +
-        `<div class="roadmap-phase-body"><header><div><p class="roadmap-eyebrow">Phase ${index + 1}</p><h3>${esc(phase.title)}</h3>${phase.objective ? `<p>${esc(phase.objective)}</p>` : ""}</div>` +
-        `<div class="roadmap-phase-progress">${dsProgress(progress, 100, `${progress} %`)}</div></header>` +
-        (steps.length === 0
-          ? `<p class="ds-list-sub">Aucune étape dans cette phase.</p>`
-          : `<div class="roadmap-step-list">${steps.map((step) => stepButtonHtml(step, step.key === selectedKey)).join("")}</div>`) +
-        `</div></section>`;
+      const tone = isRoadmapPhaseDone(phase) ? "done" : index === focus.currentPhaseIndex ? "cur" : "";
+      return `<span class="roadmap-strip-phase${tone === "" ? "" : ` ${tone}`}"><i aria-hidden="true"></i><span>${esc(phase.title)}</span></span>`;
     })
-    .join("")}</div>`;
+    .join("");
+  return `<section class="roadmap-phase-strip" data-major aria-label="Progression des phases">` +
+    `<div class="roadmap-strip-top"><span><strong>${percent(roadmap.progress?.ratio)} %</strong>` +
+    `<span class="ds-list-sub"> ${roadmap.progress?.done ?? 0} étapes sur ${roadmap.progress?.total ?? allSteps(roadmap).length}</span></span>` +
+    (position > 0 ? `<span class="ds-list-sub">Phase ${position} sur ${phases.length}</span>` : `<span class="ds-list-sub">${doneCount} terminée${doneCount > 1 ? "s" : ""}</span>`) +
+    `</div><div class="roadmap-strip-track" aria-hidden="true">${track}</div></section>`;
 }
 
 function executionList(title: string, steps: RoadmapStep[], empty: string, selectedKey: string | null): string {
   const body = steps.length === 0
     ? `<p class="ds-list-sub">${esc(empty)}</p>`
     : `<div class="roadmap-execution-list">${steps.map((step) => stepButtonHtml(step, step.key === selectedKey)).join("")}</div>`;
-  return `<section class="roadmap-execution-section">${dsSectionHeader(`${title} (${steps.length})`)}${body}</section>`;
+  return `<section class="roadmap-execution-section" data-major>${dsSectionHeader(`${title} (${steps.length})`)}${body}</section>`;
+}
+
+/** Hero card for the current step: title, objective and acceptance criteria stay above the fold. */
+export function roadmapCurrentStepHtml(roadmap: Roadmap, selectedKey: string | null): string {
+  const current = findRoadmapCurrentStep(roadmap);
+  if (current === null) {
+    return executionList("Étape actuelle", [], "Aucune étape en cours.", selectedKey);
+  }
+  const state = current.state ?? "not_started";
+  const list = `<div class="roadmap-execution-list">${stepButtonHtml(current, current.key === selectedKey)}</div>`;
+  return `<section class="roadmap-execution-section roadmap-current" data-major data-current-step="${esc(current.key)}" tabindex="-1">` +
+    `${dsSectionHeader(`Étape actuelle (1)`)}${list}` +
+    `<div class="roadmap-current-criteria"><h4>Critères d'acceptation</h4>${criteriaHtml(current)}` +
+    `<p class="ds-list-sub">État : ${esc(STEP_LABELS[state] ?? state)}${current.available === true ? " · disponible" : ""}</p></div></section>`;
 }
 
 export function roadmapExecutionHtml(roadmap: Roadmap, selectedKey: string | null): string {
   const steps = allSteps(roadmap);
-  const current = steps.filter((step) => step.key === roadmap.current_step_key || step.state === "in_progress");
-  const available = steps.filter((step) => step.available === true && !current.includes(step));
+  if (steps.length === 0) {
+    return dsEmptyState("Le plan est vide", "Ajoutez une phase lorsque vous souhaitez structurer ce projet.");
+  }
+  const current = findRoadmapCurrentStep(roadmap);
+  const currentKeys = new Set(current === null ? [] : [current.key]);
+  const fallbackCurrent = current === null
+    ? steps.filter((step) => step.key === roadmap.current_step_key || step.state === "in_progress").slice(0, 1)
+    : [];
+  const available = steps.filter((step) => step.available === true && !currentKeys.has(step.key) && !fallbackCurrent.includes(step));
   const blocked = steps.filter((step) => step.state === "blocked" || (step.waiting_on?.length ?? 0) > 0);
   return `<div class="roadmap-execution">` +
-    executionList("Étape actuelle", current.slice(0, 1), "Aucune étape en cours.", selectedKey) +
+    roadmapPhaseStripHtml(roadmap) +
+    (current === null
+      ? executionList("Étape actuelle", fallbackCurrent, "Aucune étape en cours.", selectedKey)
+      : roadmapCurrentStepHtml(roadmap, selectedKey)) +
     executionList("Disponible maintenant", available, "Rien de plus n'est disponible pour le moment.", selectedKey) +
     executionList("En attente", blocked, "Aucune étape bloquée.", selectedKey) +
+    roadmapDonePhasesHtml(roadmap, selectedKey) +
     `</div>`;
 }
 
@@ -256,6 +325,20 @@ function proposalHtml(roadmap: Roadmap, reviewErrorHtml: string | null = null): 
     `<button class="ds-btn ds-btn--danger" type="button" data-review="reject">Rejeter</button></div></section>`;
 }
 
+/** Single grouped proposals block: one card per proposal, its revisions kept together. */
+export function roadmapProposalsHtml(
+  roadmap: Roadmap,
+  proposal: RoadmapPendingProposal | null,
+  reviewErrorHtml: string | null = null,
+): string {
+  const cards: string[] = [];
+  const creation = proposalHtml(roadmap, reviewErrorHtml);
+  if (creation !== "") cards.push(creation);
+  if (proposal !== null) cards.push(revisionProposalHtml(proposal, roadmap));
+  if (cards.length === 0) return "";
+  if (cards.length === 1) return `<div class="roadmap-proposals" data-major>${cards.join("")}</div>`;
+  return `<div class="roadmap-proposals" data-major aria-label="Propositions regroupées"><p class="roadmap-eyebrow">Propositions (${cards.length}) — une carte par proposition</p>${cards.join("")}</div>`;
+}
 const DIFF_CHANGE_LABELS: Record<RoadmapDiffChange, string> = {
   added: "Ajouté",
   removed: "Retiré",
@@ -374,14 +457,13 @@ export function roadmapShellHtml(
   return `<div class="roadmap-view">${roadmapPrintHtml(roadmap)}` +
     demoNote +
     roadmapSwitcherHtml(roadmap, roadmaps) +
-    proposalHtml(roadmap, reviewErrorHtml) +
-    (proposal !== null ? revisionProposalHtml(proposal, roadmap) : "") +
+    roadmapProposalsHtml(roadmap, proposal, reviewErrorHtml) +
     roadmapLifecycleHtml(roadmap, lifecycle) +
     `<header class="roadmap-header"><div><div class="roadmap-title-line"><h2>${esc(roadmap.title)}</h2>${dsBadge(STATUS_LABELS[roadmap.status], statusTone(roadmap.status))}</div>` +
     `<p>${esc(roadmap.objective?.trim() || "Plan du projet")}</p>${dsProgress(progress, 100, `${progress} % du plan terminé`)}</div>` +
     `<div class="roadmap-actions roadmap-no-print">${lifecycleButtonsHtml(roadmap, lifecycle)}<button class="ds-btn" type="button" data-edit-roadmap>Modifier</button><button class="ds-btn" type="button" data-import-json>Importer JSON</button><button class="ds-btn" type="button" data-export-json>Exporter JSON</button><button class="ds-btn ds-btn--primary" type="button" data-export-pdf>Exporter PDF</button></div></header>` +
     `<input class="ds-sr-only" type="file" accept="application/json,.json" aria-label="Choisir un fichier Roadmap JSON" data-import-file>` +
-    `<div class="roadmap-reading-tabs roadmap-no-print" role="tablist" aria-label="Lecture de la roadmap"><button class="ds-tab" type="button" role="tab" aria-selected="${mode === "plan"}" data-mode="plan">Plan</button><button class="ds-tab" type="button" role="tab" aria-selected="${mode === "execution"}" data-mode="execution">Exécution</button></div>` +
+    `<div class="roadmap-reading-tabs roadmap-no-print" role="tablist" aria-label="Lecture de la roadmap"><button class="ds-tab" type="button" role="tab" aria-selected="${mode === "execution"}" data-mode="execution">Exécution</button><button class="ds-tab" type="button" role="tab" aria-selected="${mode === "plan"}" data-mode="plan">Plan</button></div>` +
     `<div class="roadmap-layout"><main class="roadmap-reading" data-roadmap-reading>${plan}</main>${roadmapStepDetailHtml(selected, roadmap)}</div>` +
     `<p class="roadmap-print-help roadmap-no-print">L'export PDF ouvre la vue d'impression du navigateur. Choisissez « Enregistrer au format PDF ».</p>` +
     `</div>`;
@@ -471,8 +553,8 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
     root.innerHTML = `<div class="ds-notice ds-notice--danger" role="alert"><strong>Roadmap indisponible.</strong> ${esc(describeError(error))}</div>`;
     return;
   }
-  let mode: RoadmapMode = "plan";
-  let selectedKey: string | null = roadmap?.current_step_key ?? (roadmap === null ? null : allSteps(roadmap)[0]?.key) ?? null;
+  let mode: RoadmapMode = "execution";
+  let selectedKey: string | null = roadmap?.current_step_key ?? (roadmap === null ? null : findRoadmapCurrentStep(roadmap)?.key) ?? (roadmap === null ? null : allSteps(roadmap)[0]?.key) ?? null;
   let pendingProposal: RoadmapPendingProposal | null = null;
   let roadmaps: RoadmapListItem[] = [];
   const canManage = ctx.canManageLifecycle ?? ctx.dataSource.demo === true;
@@ -561,7 +643,7 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
         roadmap = await ctx.dataSource.replaceDocument(ctx.projectId, validated);
         pendingProposal = null;
         close();
-        selectedKey = allSteps(roadmap)[0]?.key ?? null;
+        selectedKey = roadmap.current_step_key ?? findRoadmapCurrentStep(roadmap)?.key ?? allSteps(roadmap)[0]?.key ?? null;
         paint();
         dsNotify("Roadmap enregistrée.", "success");
       } catch (error) {
@@ -592,7 +674,7 @@ export async function renderRoadmapInto(root: HTMLElement, ctx: RoadmapViewConte
         const document = parseRoadmapDocument(await file.text());
         roadmap = await ctx.dataSource.replaceDocument(ctx.projectId, document);
         pendingProposal = null;
-        selectedKey = allSteps(roadmap)[0]?.key ?? null;
+        selectedKey = roadmap.current_step_key ?? findRoadmapCurrentStep(roadmap)?.key ?? allSteps(roadmap)[0]?.key ?? null;
         paint();
         dsNotify("Roadmap importée.", "success");
       } catch (error) {
