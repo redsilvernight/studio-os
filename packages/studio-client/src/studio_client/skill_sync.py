@@ -19,6 +19,8 @@ from studio_client.drift import SyncState, classify_state
 
 _STABLE_KEY_RE = re.compile(r"\A[a-z0-9][a-z0-9._-]{0,199}\Z")
 _MANIFEST_SCHEMA_VERSION = 1
+OPENCODE_SECTION_HEADING = "## Spécificités OpenCode"
+_OPENCODE_SKILLS_DIR = (".config", "opencode", "skills")
 _WINDOWS_RESERVED_NAMES = {
     "AUX",
     "CON",
@@ -41,21 +43,32 @@ class SkillSyncConflictError(SkillSyncError):
 class SkillTargetPlan:
     """Desired state of one harness copy of a skill."""
 
-    harness: Literal["agents", "claude"]
+    harness: Literal["agents", "claude", "opencode"]
     path: Path
     state: SyncState
     current_text: str | None
     current_sha256: str | None
+    desired_text: str | None = None
 
 
 @dataclass(frozen=True)
 class SkillPlanEntry:
-    """Rendered skill and the two harness destinations that consume it."""
+    """Rendered skill and the harness destinations that consume it.
+
+    ``targets`` keeps the two historical destinations; ``opencode`` is only set
+    when the plan was built with ``include_opencode=True``."""
 
     projection: LibraryContextItem
     rendered: str
     sha256: str
     targets: tuple[SkillTargetPlan, SkillTargetPlan]
+    opencode: SkillTargetPlan | None = None
+
+    @property
+    def all_targets(self) -> tuple[SkillTargetPlan, ...]:
+        if self.opencode is None:
+            return self.targets
+        return (*self.targets, self.opencode)
 
 
 @dataclass(frozen=True)
@@ -80,7 +93,7 @@ class SkillSyncPlan:
         return tuple(
             target
             for entry in self.entries
-            for target in entry.targets
+            for target in entry.all_targets
             if target.state in {"outdated", "locally_modified"}
         )
 
@@ -94,7 +107,10 @@ class SkillSyncPlan:
 
     def _targets_with_state(self, state: SyncState) -> tuple[SkillTargetPlan, ...]:
         return tuple(
-            target for entry in self.entries for target in entry.targets if target.state == state
+            target
+            for entry in self.entries
+            for target in entry.all_targets
+            if target.state == state
         )
 
 
@@ -153,12 +169,15 @@ def render_skill(projection: LibraryContextItem) -> str:
 def plan_skill_sync(
     home: Path | str,
     projections: Sequence[LibraryContextItem],
+    *,
+    include_opencode: bool = False,
 ) -> SkillSyncPlan:
     """Inspect global skill targets without changing the filesystem."""
 
     root = Path(home).expanduser().resolve()
     manifest_path = root / ".studio-os" / "library-skills-manifest.json"
     managed_hashes = _load_managed_hashes(manifest_path)
+    opencode_hashes = _load_managed_hashes(manifest_path, target="opencode")
     entries: list[SkillPlanEntry] = []
     seen: set[str] = set()
     for projection in sorted(projections, key=lambda item: item.stable_key):
@@ -184,12 +203,23 @@ def plan_skill_sync(
                 managed_hashes.get(projection.stable_key),
             ),
         )
+        opencode = (
+            _plan_opencode_target(
+                root,
+                projection.stable_key,
+                rendered,
+                opencode_hashes.get(projection.stable_key),
+            )
+            if include_opencode
+            else None
+        )
         entries.append(
             SkillPlanEntry(
                 projection=projection,
                 rendered=rendered,
                 sha256=desired_hash,
                 targets=targets,
+                opencode=opencode,
             )
         )
 
@@ -200,6 +230,7 @@ def plan_skill_sync(
                 "scope": entry.projection.scope,
                 "sha256": entry.sha256,
                 "stable_key": entry.projection.stable_key,
+                **({"target_sha256": {"opencode": entry.sha256}} if entry.opencode else {}),
                 "version": entry.projection.version,
                 "version_origin": entry.projection.version_origin,
             }
@@ -228,10 +259,10 @@ def diff_skill_plan(plan: SkillSyncPlan) -> str:
 
     chunks: list[str] = []
     for entry in plan.entries:
-        desired_lines = entry.rendered.splitlines(keepends=True)
-        for target in entry.targets:
+        for target in entry.all_targets:
             if target.state == "current":
                 continue
+            desired_lines = _desired_text(entry, target).splitlines(keepends=True)
             relative = target.path.relative_to(plan.home).as_posix()
             current_lines = (
                 [] if target.current_text is None else target.current_text.splitlines(keepends=True)
@@ -269,7 +300,7 @@ def apply_skill_sync(
         timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
         backup_root = plan.home / ".studio-os" / "backups" / "skills" / timestamp
         for entry in plan.entries:
-            for target in entry.targets:
+            for target in entry.all_targets:
                 if target.state != "locally_modified" or target.current_text is None:
                     continue
                 backup_path = _backup_path(
@@ -282,10 +313,10 @@ def apply_skill_sync(
 
     written: list[Path] = []
     for entry in plan.entries:
-        for target in entry.targets:
+        for target in entry.all_targets:
             if target.state == "current":
                 continue
-            _atomic_write(target.path, entry.rendered)
+            _atomic_write(target.path, _desired_text(entry, target))
             written.append(target.path)
     _atomic_write(plan.manifest_path, plan.manifest_text)
     return SkillSyncResult(
@@ -316,6 +347,53 @@ def _validate_projection(projection: LibraryContextItem) -> None:
         raise SkillSyncError(f"invalid skill version for {key!r}: {projection.version}")
 
 
+def _desired_text(entry: SkillPlanEntry, target: SkillTargetPlan) -> str:
+    return entry.rendered if target.desired_text is None else target.desired_text
+
+
+def split_opencode_section(text: str) -> tuple[str, str | None]:
+    """Split a SKILL.md into its canonical part and its OpenCode addendum."""
+
+    lines = text.splitlines(keepends=True)
+    for index, line in enumerate(lines):
+        if line.rstrip("\r\n") == OPENCODE_SECTION_HEADING:
+            base = "".join(lines[:index]).rstrip("\n") + "\n"
+            return base, "".join(lines[index:]).rstrip("\n") + "\n"
+    return text, None
+
+
+def render_opencode_skill(canonical: str, addendum: str | None) -> str:
+    """Canonical skill followed by the OpenCode addendum, deterministically."""
+
+    base, _ = split_opencode_section(canonical)
+    if addendum is None:
+        return base
+    return f"{base.rstrip(chr(10))}\n\n{addendum.rstrip(chr(10))}\n"
+
+
+def _plan_opencode_target(
+    home: Path,
+    stable_key: str,
+    rendered: str,
+    managed_hash: str | None,
+) -> SkillTargetPlan:
+    path = home.joinpath(*_OPENCODE_SKILLS_DIR, stable_key, "SKILL.md")
+    if not path.exists():
+        return SkillTargetPlan("opencode", path, "missing", None, None, rendered)
+    if not path.is_file():
+        raise SkillSyncError(f"skill target is not a regular file: {path}")
+    try:
+        current = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise SkillSyncError(f"skill target is not valid UTF-8: {path}") from exc
+    current_base, addendum = split_opencode_section(current)
+    desired = render_opencode_skill(rendered, addendum)
+    state = classify_state(current_base, rendered, managed_hash)
+    if state == "current" and current != desired:
+        state = "outdated"
+    return SkillTargetPlan("opencode", path, state, current, _sha256(current), desired)
+
+
 def _plan_target(
     home: Path,
     stable_key: str,
@@ -337,7 +415,7 @@ def _plan_target(
     return SkillTargetPlan(harness, path, state, current, current_hash)
 
 
-def _load_managed_hashes(manifest_path: Path) -> dict[str, str]:
+def _load_managed_hashes(manifest_path: Path, target: str | None = None) -> dict[str, str]:
     if not manifest_path.is_file():
         return {}
     try:
@@ -355,6 +433,9 @@ def _load_managed_hashes(manifest_path: Path) -> dict[str, str]:
             continue
         stable_key = row.get("stable_key")
         digest = row.get("sha256")
+        per_target = row.get("target_sha256")
+        if target is not None and isinstance(per_target, dict):
+            digest = per_target.get(target, digest)
         if isinstance(stable_key, str) and isinstance(digest, str):
             hashes[stable_key] = digest
     return hashes
@@ -362,7 +443,7 @@ def _load_managed_hashes(manifest_path: Path) -> dict[str, str]:
 
 def _verify_plan_is_fresh(plan: SkillSyncPlan) -> None:
     for entry in plan.entries:
-        for target in entry.targets:
+        for target in entry.all_targets:
             if target.path.exists():
                 if not target.path.is_file():
                     raise SkillSyncConflictError(
@@ -378,12 +459,12 @@ def _verify_plan_is_fresh(plan: SkillSyncPlan) -> None:
 def _backup_path(
     backup_root: Path,
     stable_key: str,
-    harness: Literal["agents", "claude"],
+    harness: Literal["agents", "claude", "opencode"],
 ) -> Path:
     key_root = backup_root / stable_key
     if harness == "agents":
         return key_root / "SKILL.md"
-    return key_root / "claude" / "SKILL.md"
+    return key_root / harness / "SKILL.md"
 
 
 def _atomic_write(path: Path, text: str) -> None:

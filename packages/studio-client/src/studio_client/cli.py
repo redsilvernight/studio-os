@@ -1084,6 +1084,9 @@ def _rules_sync(args: argparse.Namespace, config: ClientConfig | None) -> None:
             print(f"Wrote {path}.")
 
 
+_SKILL_TARGET_LABELS = {"opencode": "opencode(~/.config/opencode/skills)"}
+
+
 def _skills_command(args: argparse.Namespace, config: ClientConfig) -> None:
     """Inspect or synchronize active Studio Library skills for local harnesses."""
     from studio_client.skill_sync import (
@@ -1099,7 +1102,7 @@ def _skills_command(args: argparse.Namespace, config: ClientConfig) -> None:
 
     try:
         projections = _run(config, action)
-        plan = plan_skill_sync(Path(args.home), projections)
+        plan = plan_skill_sync(Path(args.home), projections, include_opencode=not args.no_opencode)
         if args.skills_command == "diff":
             print(diff_skill_plan(plan), end="")
             return
@@ -1132,7 +1135,7 @@ def _skills_command(args: argparse.Namespace, config: ClientConfig) -> None:
                         "path": str(target.path),
                         "state": target.state,
                     }
-                    for target in entry.targets
+                    for target in entry.all_targets
                 ],
             }
             for entry in plan.entries
@@ -1143,7 +1146,9 @@ def _skills_command(args: argparse.Namespace, config: ClientConfig) -> None:
         else:
             for row in rows:
                 states = ", ".join(
-                    f"{target['harness']}={target['state']}" for target in row["targets"]
+                    f"{_SKILL_TARGET_LABELS.get(target['harness'], target['harness'])}"
+                    f"={target['state']}"
+                    for target in row["targets"]
                 )
                 print(f"{row['stable_key']} v{row['version']}: {states}")
             print(f"checked {len(rows)} skills, failures {failures}")
@@ -1526,9 +1531,16 @@ def _build_parser() -> argparse.ArgumentParser:
     ):
         skills_command = skills_sub.add_parser(command, help=help_text)
         skills_command.add_argument(
-            "--home", default=str(Path.home()), help="User home receiving .agents and .claude."
+            "--home",
+            default=str(Path.home()),
+            help="User home receiving .agents, .claude and .config/opencode.",
         )
         skills_command.add_argument("--library-limit", type=int, default=100)
+        skills_command.add_argument(
+            "--no-opencode",
+            action="store_true",
+            help="Skip the OpenCode copy in ~/.config/opencode/skills.",
+        )
         if command == "sync":
             skills_command.add_argument(
                 "--overwrite",
