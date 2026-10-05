@@ -1660,6 +1660,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/machines/{machine_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Rename Machine
+         * @description Rename a machine (owner or admin). Another User's machine answers 404 for a non-admin, exactly like a nonexistent one. `agent` never renames. Uses optimistic concurrency via `If-Match-Version`.
+         */
+        patch: operations["rename_machine_api_v1_machines__machine_id__patch"];
+        trace?: never;
+    };
     "/api/v1/machines/{machine_id}/launch-grants": {
         parameters: {
             query?: never;
@@ -4400,6 +4420,14 @@ export interface components {
          * @enum {string}
          */
         MachineStatus: "online" | "idle" | "offline";
+        /**
+         * MachineUpdate
+         * @description Update a machine's display name. Only the owner or an admin.
+         */
+        MachineUpdate: {
+            /** Display Name */
+            display_name: string;
+        };
         /** Page[TaskLaunch] */
         Page_TaskLaunch_: {
             /** Items */
@@ -14892,6 +14920,106 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rename_machine_api_v1_machines__machine_id__patch: {
+        parameters: {
+            query?: {
+                if_match_version?: number | null;
+            };
+            header?: never;
+            path: {
+                machine_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MachineUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Machine"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version — re-read the object, merge, and retry with the new version. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
                      *     }
                      */
                     "application/json": unknown;

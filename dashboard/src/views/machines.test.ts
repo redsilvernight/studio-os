@@ -261,6 +261,12 @@ describe("machineDrawerBodyHtml", () => {
     expect(bare).toContain("Aucun runtime rattaché");
     expect(bare).toContain("Non renseigné");
   });
+
+  it("inclut un bouton Renommer dans les informations techniques", () => {
+    expect(html).toContain('data-machine-rename="');
+    expect(html).toContain("Renommer");
+    expect(html).toContain('data-machine-version="');
+  });
 });
 
 describe("empty / erreur partielle", () => {

@@ -141,6 +141,12 @@ class MachineCreate(ContractModel):
     display_name: str
 
 
+class MachineUpdate(ContractModel):
+    """Update a machine's display name. Only the owner or an admin."""
+
+    display_name: str
+
+
 class MachineCreated(Machine):
     """Returned once, at creation time: the opaque credential in clear text.
     Never retrievable again afterwards — only its hash is stored."""
