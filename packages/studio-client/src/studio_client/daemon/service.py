@@ -1000,11 +1000,22 @@ class SharedBridgeService:
                 time.sleep(0.05)
 
 
+def ensure_utf8_stdio(source: TextIO, destination: TextIO) -> None:
+    for stream in (source, destination):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            try:
+                reconfigure(encoding="utf-8", errors="strict")
+            except Exception:
+                pass
+
+
 def serve_streams(
     service: BridgeService | SharedBridgeService,
     source: TextIO,
     destination: TextIO,
 ) -> None:
+    ensure_utf8_stdio(source, destination)
     for line in source:
         if not line.strip():
             continue
