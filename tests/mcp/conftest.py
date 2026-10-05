@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import os
+import sys
 import uuid
 from collections.abc import AsyncIterator, Mapping
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -20,6 +22,19 @@ from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.project import ProjectModel
 from studio_api.services import projects as projects_service
 from studio_api.services import provisioning as provisioning_service
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+for _src in (
+    "services/api/src",
+    "services/mcp/src",
+    "packages/studio-contracts/src",
+    "packages/studio-client/src",
+    "packages/studio-code-graph/src",
+    "packages/studio-workspaces/src",
+):
+    _p = str(_REPO_ROOT / _src)
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 TEST_DATABASE_URL = os.environ.get(
     "STUDIO_TEST_DATABASE_URL",
