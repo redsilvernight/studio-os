@@ -54,6 +54,8 @@ from studio_contracts.local.harness import (
 from studio_contracts.local.identity import (
     IdentityEnrollRequest,
     IdentityEnrollResult,
+    IdentityForgetRequest,
+    IdentityForgetResult,
     IdentityView,
 )
 from studio_contracts.local.knowledge import (
@@ -137,6 +139,7 @@ class BridgeCommand(StrEnum):
     DAEMON_HEALTH = "daemon.health"
     IDENTITY_GET_VIEW = "identity.get_view"
     IDENTITY_ENROLL = "identity.enroll"
+    IDENTITY_FORGET = "identity.forget"
     WORKSPACE_VALIDATE = "workspace.validate"
     WORKSPACE_GET_CONFIG = "workspace.get_config"
     WORKSPACE_CONFIRM_ROOTS = "workspace.confirm_roots"
@@ -245,6 +248,13 @@ BRIDGE_COMMANDS: dict[BridgeCommand, CommandSpec] = dict(
             BridgeCommand.IDENTITY_ENROLL,
             IdentityEnrollRequest,
             IdentityEnrollResult,
+            "identity.enroll",
+            mutating=True,
+        ),
+        _spec(
+            BridgeCommand.IDENTITY_FORGET,
+            IdentityForgetRequest,
+            IdentityForgetResult,
             "identity.enroll",
             mutating=True,
         ),

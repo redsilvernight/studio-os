@@ -116,7 +116,10 @@ un test échoue si l'export diverge des builders Python.
   les références et leur statut traversent la frontière, à une exception près :
   `identity.enroll` (DEC-0130) porte la session humaine en entrée seule
   (`IdentityEnrollRequest.human_session`, `SecretStr`, jamais renvoyée ni
-  journalisée) pour enregistrer le poste sans administrateur.
+  journalisée) pour enregistrer le poste sans administrateur. `identity.forget`
+  (additif, capacité `identity.enroll`) est son inverse à la déconnexion : le
+  daemon s'arrête, efface le credential machine du trousseau et le `machine_id`
+  en cache ; rien n'est supprimé côté serveur.
 - **Providers** : Knowledge (Markdown canonique, index dérivé, Obsidian
   optionnel), Code Graph (aucun détail Graphify dans les contrats publics ;
   `graphify` n'apparaît que comme valeur d'identifiant d'adaptateur dans les

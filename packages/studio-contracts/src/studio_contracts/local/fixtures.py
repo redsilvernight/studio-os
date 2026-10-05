@@ -88,6 +88,8 @@ from studio_contracts.local.identity import (
     IdentityBinding,
     IdentityEnrollOutcome,
     IdentityEnrollResult,
+    IdentityForgetOutcome,
+    IdentityForgetResult,
     IdentityView,
     MachineIdentity,
     ProfileRef,
@@ -1243,6 +1245,14 @@ def build_fixtures() -> list[LocalFixture]:
     fixtures["identity.enroll.already_enrolled"] = IdentityEnrollResult(
         outcome=IdentityEnrollOutcome.ALREADY_ENROLLED,
         view=_identity_view(_secret_status(SecretStatus.PRESENT, None)),
+    )
+    fixtures["identity.forget.forgotten"] = IdentityForgetResult(
+        outcome=IdentityForgetOutcome.FORGOTTEN,
+        view=_identity_view(_secret_status(SecretStatus.ABSENT, LocalErrorCode.SECRET_ABSENT)),
+    )
+    fixtures["identity.forget.nothing_to_forget"] = IdentityForgetResult(
+        outcome=IdentityForgetOutcome.NOTHING_TO_FORGET,
+        view=_identity_view(_secret_status(SecretStatus.ABSENT, LocalErrorCode.SECRET_ABSENT)),
     )
 
     fixtures["knowledge.status.disabled"] = _knowledge_status(

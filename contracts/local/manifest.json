@@ -258,6 +258,8 @@
     "IdentityBinding",
     "IdentityEnrollRequest",
     "IdentityEnrollResult",
+    "IdentityForgetRequest",
+    "IdentityForgetResult",
     "IdentityView",
     "IndexInfo",
     "IndexLocation",
@@ -562,6 +564,14 @@
     {
       "model": "IdentityEnrollResult",
       "name": "identity.enroll.enrolled"
+    },
+    {
+      "model": "IdentityForgetResult",
+      "name": "identity.forget.forgotten"
+    },
+    {
+      "model": "IdentityForgetResult",
+      "name": "identity.forget.nothing_to_forget"
     },
     {
       "model": "IdentityView",

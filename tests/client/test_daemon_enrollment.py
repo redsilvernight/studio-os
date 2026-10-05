@@ -434,3 +434,29 @@ def test_enrolling_another_account_rebinds_the_running_daemon(tmp_path, monkeypa
         assert cache["machine_id"] == str(MACHINE_ID)
     finally:
         stop()
+
+
+def test_forgetting_the_identity_clears_the_credential_and_machine(tmp_path) -> None:
+    from studio_client.daemon.machine_identity import _cache_path, _write_cache
+    from studio_client.daemon.service import DaemonController
+    from studio_contracts.local.identity import (
+        IdentityForgetOutcome,
+        IdentityForgetRequest,
+    )
+
+    store = MemoryTokenStore()
+    store.set_token(ORIGIN, "outgoing-account-credential")
+    config = ClientConfig(api_base_url=ORIGIN, profile_id="main", machine_id=uuid4())
+    controller = DaemonController(config, data_root=tmp_path, token_store=store)
+    cache = _cache_path(config, tmp_path)
+    _write_cache(cache, "fingerprint", config.machine_id)
+
+    result = controller.forget_identity(IdentityForgetRequest(profile=controller._profile()))
+
+    assert result.outcome is IdentityForgetOutcome.FORGOTTEN
+    assert store.get_token(ORIGIN) is None
+    assert controller.config.machine_id is None
+    assert not cache.exists()
+
+    again = controller.forget_identity(IdentityForgetRequest(profile=controller._profile()))
+    assert again.outcome is IdentityForgetOutcome.NOTHING_TO_FORGET

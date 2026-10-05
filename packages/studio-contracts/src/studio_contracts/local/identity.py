@@ -244,3 +244,21 @@ class IdentityEnrollResult(LocalContractModel):
         if self.outcome is IdentityEnrollOutcome.ENROLLED and self.machine_id is None:
             raise ValueError("an enrolled outcome names the new machine")
         return self
+
+
+class IdentityForgetRequest(LocalContractModel):
+    """Forget the local machine identity on sign-out: the daemon checks
+    `profile` against its own server origin, stops, clears the stored machine
+    credential and the cached machine id. Nothing is deleted server-side."""
+
+    profile: ProfileRef
+
+
+class IdentityForgetOutcome(StrEnum):
+    FORGOTTEN = "forgotten"
+    NOTHING_TO_FORGET = "nothing_to_forget"
+
+
+class IdentityForgetResult(LocalContractModel):
+    outcome: IdentityForgetOutcome
+    view: IdentityView

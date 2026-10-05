@@ -63,6 +63,9 @@ from studio_contracts.local.identity import (
     IdentityEnrollOutcome,
     IdentityEnrollRequest,
     IdentityEnrollResult,
+    IdentityForgetOutcome,
+    IdentityForgetRequest,
+    IdentityForgetResult,
     IdentityView,
     ProfileRef,
     SecretKind,
@@ -502,6 +505,44 @@ class DaemonController:
             view=self.identity_view(),
         )
 
+    def forget_identity(self, request: IdentityForgetRequest) -> IdentityForgetResult:
+        profile = self._profile()
+        if request.profile != profile:
+            raise EnrollmentError(
+                LocalError(
+                    code=LocalErrorCode.WRONG_PROFILE,
+                    message="The profile belongs to another server than this daemon's.",
+                    component=ComponentId.DAEMON,
+                    retryable=False,
+                )
+            )
+        with self._lock:
+            had_identity = self.config.machine_id is not None
+            running = self._thread is not None and self._thread.is_alive()
+        if running:
+            self._stop(DaemonControlRequest(action=DaemonAction.STOP, profile=profile))
+        try:
+            had_token = self._token_store.get_token(profile.server_origin) is not None
+            self._token_store.clear_token(profile.server_origin)
+        except Exception:  # noqa: BLE001
+            _LOGGER.warning("machine credential not cleared", exc_info=True)
+            had_token = False
+        try:
+            from studio_client.daemon.machine_identity import _cache_path
+
+            _cache_path(self.config, self.data_root).unlink(missing_ok=True)
+        except OSError:
+            _LOGGER.warning("machine identity cache not removable", exc_info=True)
+        with self._lock:
+            self.config = self.config.model_copy(update={"machine_id": None})
+        forgotten = had_identity or had_token
+        return IdentityForgetResult(
+            outcome=IdentityForgetOutcome.FORGOTTEN
+            if forgotten
+            else IdentityForgetOutcome.NOTHING_TO_FORGET,
+            view=self.identity_view(),
+        )
+
     def _adopt_enrolled_identity(self, machine_id: UUID) -> None:
         with self._lock:
             previous = self.config.machine_id
@@ -809,6 +850,10 @@ class BridgeService:
             return self.controller.identity_view()
         if request.command is BridgeCommand.IDENTITY_ENROLL:
             return self.controller.enroll(IdentityEnrollRequest.model_validate(request.payload))
+        if request.command is BridgeCommand.IDENTITY_FORGET:
+            return self.controller.forget_identity(
+                IdentityForgetRequest.model_validate(request.payload)
+            )
         if request.command is BridgeCommand.SKILLS_CHECK:
             SkillsCheckRequest.model_validate(request.payload)
             return self.controller.skills_check()
