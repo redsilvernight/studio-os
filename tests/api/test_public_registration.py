@@ -549,6 +549,50 @@ async def test_forgot_works_with_registration_closed(
     assert len(outbox.to(active_user.email)) == 1
 
 
+async def test_reset_and_verify_refuse_disabled_account(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    open_instance: Settings,
+    outbox: Outbox,
+    active_user: UserModel,
+) -> None:
+    await client.post(
+        "/api/v1/auth/forgot-password", json={"email": active_user.email}, headers=_key()
+    )
+    reset_secret = outbox.last_secret(active_user.email)
+    await provisioning_service.disable_account(db_session, active_user)
+    reset = await client.post(
+        "/api/v1/auth/reset-password",
+        json={"token": reset_secret, "new_password": OTHER_PASSWORD},
+    )
+    assert reset.status_code == 400
+    assert reset.json() == {
+        "detail": {
+            "error_code": "invalid_or_expired_token",
+            "message": "this link is invalid, expired or already used",
+        }
+    }
+    await provisioning_service.enable_account(db_session, active_user)
+    assert await _login(client, active_user.email, PASSWORD) == 200
+    assert await _login(client, active_user.email, OTHER_PASSWORD) == 401
+
+    pending = _email()
+    assert await _register(client, pending) == (202, {"status": "accepted"})
+    verify_secret = outbox.last_secret(pending)
+    pending_user = await provisioning_service.get_user_by_email(db_session, pending)
+    assert pending_user is not None
+    await provisioning_service.disable_account(db_session, pending_user)
+    assert (await _verify(client, verify_secret)) == (
+        400,
+        {
+            "detail": {
+                "error_code": "invalid_or_expired_token",
+                "message": "this link is invalid, expired or already used",
+            }
+        },
+    )
+
+
 async def test_reset_password_revokes_sessions_and_replays(
     client: AsyncClient, open_instance: Settings, outbox: Outbox, active_user: UserModel
 ) -> None:

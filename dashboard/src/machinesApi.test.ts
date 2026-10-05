@@ -6,6 +6,7 @@ import {
   derivedPresence,
   fetchCanonicalMachines,
   isDashboardIdentity,
+  renameMachine,
 } from "./machinesApi";
 
 const NOW = new Date("2026-09-15T12:00:00.000Z").getTime();
@@ -164,5 +165,35 @@ describe("buildMachineRows excludes the dashboard identity", () => {
     expect(rows[0]?.machineId).toBe("m1");
     expect(rows[0]?.agentCount).toBe(0);
     expect(rows[0]?.activeSessionCount).toBe(0);
+  });
+});
+
+describe("renameMachine", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const mockClient = {
+    PATCH: vi.fn(),
+  } as never;
+
+  it("sends PATCH with display_name and If-Match-Version", async () => {
+    mockClient.PATCH.mockResolvedValue({
+      response: { ok: true, status: 200 },
+      data: { id: "m1", display_name: "new-name", version: 2 },
+    });
+    const result = await renameMachine(mockClient, "m1", "new-name", 1);
+    expect(mockClient.PATCH).toHaveBeenCalledWith("/api/v1/machines/{machine_id}", {
+      params: { path: { machine_id: "m1" } },
+      body: { display_name: "new-name" },
+      headers: { "If-Match-Version": "1" },
+    });
+    expect(result).toMatchObject({ display_name: "new-name", version: 2 });
+  });
+
+  it("throws on API error", async () => {
+    mockClient.PATCH.mockResolvedValue({
+      response: { ok: false, status: 409 },
+      error: { detail: { error_code: "version_conflict" } },
+    });
+    await expect(renameMachine(mockClient, "m1", "new-name", 1)).rejects.toMatchObject({ status: 409 });
   });
 });

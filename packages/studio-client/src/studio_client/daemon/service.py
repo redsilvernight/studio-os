@@ -14,7 +14,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TextIO
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 from pydantic import ValidationError
@@ -82,6 +82,7 @@ from studio_contracts.local.launch import (
     LaunchSettingsSaveRequest,
     LaunchSettingsView,
 )
+from studio_contracts.local.outbox import OutboxLegacyStatus
 from studio_contracts.local.machine_setup import (
     SetupApplyRequest,
     SetupApplyResult,
@@ -120,6 +121,7 @@ from studio_client.daemon.runtime import (
 from studio_client.daemon.setup_bridge import SetupBridge
 from studio_client.daemon.skills_bridge import check_skills
 from studio_client.data_format import DataFormatError, ensure_data_format
+from studio_client.harness.credentials import workstation_name
 from studio_client.outbox import OutboxIdentityError
 from studio_client.tokens import KeyringTokenStore, TokenStore
 
@@ -191,6 +193,7 @@ SERVED = frozenset(
         BridgeCommand.SETUP_APPLY,
         BridgeCommand.LAUNCH_GET_SETTINGS,
         BridgeCommand.LAUNCH_SAVE_SETTINGS,
+        BridgeCommand.OUTBOX_LEGACY_STATUS,
     }
 )
 _LOCAL_FEATURE_COMMANDS = frozenset(
@@ -311,7 +314,7 @@ class DaemonController:
                         code=LocalErrorCode.IDENTITY_MISMATCH,
                         message=(
                             "A legacy outbox holds queued work without an identity. "
-                            "Review it with `studio-client outbox legacy status`."
+                            "Review it in the Dashboard (Settings › Application › Legacy outbox)."
                         ),
                         component=ComponentId.DAEMON,
                         retryable=False,
@@ -427,6 +430,16 @@ class DaemonController:
     def save_launch_settings(self, request: LaunchSettingsSaveRequest) -> LaunchSettingsView:
         return save_launch_settings(self.config, self.data_root, request)
 
+    def outbox_legacy_status(self) -> OutboxLegacyStatus:
+        from studio_client.outbox.legacy import inspect_legacy_outbox
+
+        report = inspect_legacy_outbox()
+        return OutboxLegacyStatus(
+            exists=report.exists,
+            has_queued_work=report.has_queued_work,
+            counts=dict(report.counts),
+        )
+
     def identity_view(self) -> IdentityView:
         profile = self._profile()
         reference = SecretReference(
@@ -465,6 +478,7 @@ class DaemonController:
                     error=error,
                 )
             ],
+            workstation_name=workstation_name(),
         )
 
     def enroll(self, request: IdentityEnrollRequest) -> IdentityEnrollResult:
@@ -476,6 +490,8 @@ class DaemonController:
             self._token_store,
             transport=self._enroll_transport,
         )
+        if outcome.machine_id is not None:
+            self._adopt_enrolled_identity(outcome.machine_id)
         return IdentityEnrollResult(
             outcome=IdentityEnrollOutcome.ENROLLED
             if outcome.machine_id is not None
@@ -483,6 +499,36 @@ class DaemonController:
             machine_id=outcome.machine_id,
             view=self.identity_view(),
         )
+
+    def _adopt_enrolled_identity(self, machine_id: UUID) -> None:
+        with self._lock:
+            previous = self.config.machine_id
+            running = self._thread is not None and self._thread.is_alive()
+            if previous == machine_id and running:
+                return
+            self.config = self.config.model_copy(update={"machine_id": machine_id})
+            should_start = running or previous is None
+        try:
+            from studio_client.daemon.machine_identity import _cache_path, _fingerprint
+
+            token = self._token_store.get_token(self._profile().server_origin)
+            if token:
+                from studio_client.daemon.machine_identity import _write_cache
+
+                _write_cache(
+                    _cache_path(self.config, self.data_root), _fingerprint(token), machine_id
+                )
+        except Exception:  # noqa: BLE001
+            _LOGGER.warning("enrolled identity cache not writable", exc_info=True)
+        if not should_start:
+            return
+        if running:
+            self._stop(DaemonControlRequest(action=DaemonAction.STOP, profile=self._profile()))
+        result = self._start_or_attach(
+            DaemonControlRequest(action=DaemonAction.START, profile=self._profile())
+        )
+        if result.outcome not in {DaemonControlOutcome.OK, DaemonControlOutcome.ALREADY_RUNNING}:
+            _LOGGER.warning("daemon did not start after enrollment: %s", result.outcome)
 
     def close(self, *, persist: bool = False) -> None:
         if persist:
@@ -776,6 +822,11 @@ class BridgeService:
             return self.controller.save_launch_settings(
                 LaunchSettingsSaveRequest.model_validate(request.payload)
             )
+        if request.command is BridgeCommand.OUTBOX_LEGACY_STATUS:
+            from studio_contracts.local.bridge import EmptyPayload
+
+            EmptyPayload.model_validate(request.payload)
+            return self.controller.outbox_legacy_status()
         if request.command in _WORKSPACE_COMMANDS:
             return self._workspace(request)
         if request.command in _LOCAL_FEATURE_COMMANDS:
@@ -1000,11 +1051,22 @@ class SharedBridgeService:
                 time.sleep(0.05)
 
 
+def ensure_utf8_stdio(source: TextIO, destination: TextIO) -> None:
+    for stream in (source, destination):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            try:
+                reconfigure(encoding="utf-8", errors="strict")
+            except Exception:
+                pass
+
+
 def serve_streams(
     service: BridgeService | SharedBridgeService,
     source: TextIO,
     destination: TextIO,
 ) -> None:
+    ensure_utf8_stdio(source, destination)
     for line in source:
         if not line.strip():
             continue

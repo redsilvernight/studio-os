@@ -36,6 +36,7 @@ import {
   isMachinesDefaultState,
   machineDisplayTitle,
   MACHINE_PRESENCE_EVENT_TYPES,
+  renameMachine,
   type Agent,
   type EventEnvelope,
   type Machine,
@@ -49,10 +50,12 @@ import {
   dsBadge,
   dsDrawerHtml,
   dsEmptyState,
+  dsModalHtml,
   dsPageHeader,
   dsSkeleton,
   dsStatus,
   openDsDialog,
+  closeDsDialog,
 } from "../ds/ds";
 import { describeError, esc, fmtTime } from "../ui";
 import { ACTION_LABEL, FALLBACK_LABEL } from "../language";
@@ -249,7 +252,9 @@ export function machineDrawerBodyHtml(
     `<div><dt>Propriétaire</dt><dd>${row.ownerUserId === null ? "Inconnu — lecture canonique indisponible" : esc(FALLBACK_LABEL.user)}</dd></div>` +
     `<div><dt>Dernier heartbeat serveur</dt><dd>${row.lastSeenAt === null ? "Indisponible — pas de lecture canonique" : machineTimeHtml(row.lastSeenAt, now)}</dd></div>` +
     `<div><dt>Statut technique</dt><dd><code class="mono">${esc(row.status)}</code> (${row.statusSource === "canonical" ? "canonique" : "déduit"})</dd></div>` +
-    `</dl><p class="ds-list-sub">Révocation : par le propriétaire de la machine ou un administrateur, non proposée dans cette interface.</p></details>`;
+    `</dl>` +
+    `<button class="ds-btn ds-btn--sm" type="button" data-machine-rename="${esc(row.machineId)}" data-machine-version="${esc(String(row.version ?? 0))}">Renommer</button>` +
+    `<p class="ds-list-sub">Révocation : par le propriétaire de la machine ou un administrateur, non proposée dans cette interface.</p></details>`;
 
   return `<h3 class="machine-drawer-title">${esc(machineDisplayTitle(row))}</h3>` + summary + usage + environment + technical;
 }
@@ -298,7 +303,8 @@ export function machinesPageHtml(data: MachinesPageData): string {
     `<div class="machines">${header}${notice}${degraded}` +
     (data.rows.length === 0 ? "" : machinesToolbarHtml(data.state, visible.length, data.rows.length)) +
     `<div id="machines-list">${body}</div>` +
-    `${dsDrawerHtml({ id: "machine-drawer", title: "Détails de la machine", body: `<div id="machine-drawer-body"></div>`, actions: [{ label: "Fermer", variant: "primary" }] })}</div>`
+    `${dsDrawerHtml({ id: "machine-drawer", title: "Détails de la machine", body: `<div id="machine-drawer-body"></div>`, actions: [{ label: "Fermer", variant: "primary" }] })}` +
+    `${dsModalHtml({ id: "machine-rename-dialog", title: "Renommer le poste", body: `<form id="machine-rename-form"><input type="hidden" id="machine-rename-id" /><input type="hidden" id="machine-rename-version" /><div class="ds-form-field"><label for="machine-rename-name">Nouveau nom</label><input class="ds-input" type="text" id="machine-rename-name" required maxlength="255" /></div><div class="ds-form-error" id="machine-rename-error" hidden></div></form>`, actions: [{ label: "Annuler", variant: "secondary", id: "machine-rename-cancel" }, { label: "Renommer", variant: "primary", id: "machine-rename-submit" }] })}</div>`
   );
 }
 
@@ -444,6 +450,77 @@ function bindDetails(root: HTMLElement, data: MachinesPageData): void {
   });
 }
 
+function bindRename(root: HTMLElement, ctx: MachinesContext, data: MachinesPageData): void {
+  root.querySelectorAll<HTMLElement>("[data-machine-rename]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const id = button.getAttribute("data-machine-rename") ?? "";
+      const version = button.getAttribute("data-machine-version") ?? "";
+      const row = data.rows.find((candidate) => candidate.machineId === id);
+      if (row === undefined) return;
+      const nameInput = root.querySelector<HTMLInputElement>("#machine-rename-name");
+      const idInput = root.querySelector<HTMLInputElement>("#machine-rename-id");
+      const versionInput = root.querySelector<HTMLInputElement>("#machine-rename-version");
+      const errorBox = root.querySelector<HTMLElement>("#machine-rename-error");
+      if (nameInput !== null && idInput !== null && versionInput !== null && errorBox !== null) {
+        nameInput.value = row.displayName ?? "";
+        idInput.value = id;
+        versionInput.value = version;
+        errorBox.hidden = true;
+        errorBox.textContent = "";
+      }
+      openDsDialog(root, "machine-rename-dialog", button);
+    });
+  });
+
+  const form = root.querySelector<HTMLFormElement>("#machine-rename-form");
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const idInput = root.querySelector<HTMLInputElement>("#machine-rename-id");
+    const versionInput = root.querySelector<HTMLInputElement>("#machine-rename-version");
+    const nameInput = root.querySelector<HTMLInputElement>("#machine-rename-name");
+    const errorBox = root.querySelector<HTMLElement>("#machine-rename-error");
+    if (idInput === null || versionInput === null || nameInput === null || errorBox === null) return;
+    const machineId = idInput.value;
+    const version = parseInt(versionInput.value, 10);
+    const newName = nameInput.value.trim();
+    if (!machineId || !newName || Number.isNaN(version)) return;
+    const submitBtn = root.querySelector<HTMLButtonElement>("#machine-rename-submit");
+    if (submitBtn !== null) submitBtn.disabled = true;
+    try {
+      const updated = await renameMachine(ctx.client, machineId, newName, version);
+      const rowIndex = data.rows.findIndex((r) => r.machineId === machineId);
+      if (rowIndex !== -1) {
+        data.rows[rowIndex].displayName = updated.display_name;
+        data.rows[rowIndex].version = updated.version ?? null;
+      }
+      closeDsDialog(root, "machine-rename-dialog");
+      refreshList(root, data);
+      const drawerBody = root.querySelector("#machine-drawer-body");
+      if (drawerBody !== null) {
+        const row = data.rows[rowIndex];
+        if (row !== undefined) {
+          drawerBody.innerHTML = machineDrawerBodyHtml(
+            row,
+            data.agents.filter((agent) => agent.machine_id === machineId),
+            data.sessions.filter((session) => session.machine_id === machineId),
+            data.runtimes,
+            data.now,
+          );
+        }
+      }
+    } catch (error) {
+      errorBox.textContent = describeError(error);
+      errorBox.hidden = false;
+    } finally {
+      if (submitBtn !== null) submitBtn.disabled = false;
+    }
+  });
+
+  root.querySelector("#machine-rename-cancel")?.addEventListener("click", () => {
+    closeDsDialog(root, "machine-rename-dialog");
+  });
+}
+
 function bindMachines(root: HTMLElement, ctx: MachinesContext, data: MachinesPageData): void {
   root.querySelector("#machines-reload")?.addEventListener("click", () => {
     void renderMachines(root, ctx);
@@ -465,6 +542,7 @@ function bindMachines(root: HTMLElement, ctx: MachinesContext, data: MachinesPag
   });
   bindToolbar(root, data);
   bindDetails(root, data);
+  bindRename(root, ctx, data);
 }
 
 async function fetchEvents(client: StudioClient): Promise<EventEnvelope[]> {

@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
+import time
 from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
@@ -234,6 +236,27 @@ def test_an_invalid_session_is_refused_without_echo(tmp_path) -> None:
     assert_no_secret(answer)
 
 
+def test_identity_view_exposes_the_workstation_name(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr("studio_client.daemon.service.workstation_name", lambda: "FLO-LAPTOP")
+    bridge, _ = service(tmp_path, FakeServer())
+
+    answer = bridge.handle_line(line("identity.get_view", {}))
+
+    assert answer["kind"] == "response"
+    assert answer["payload"]["workstation_name"] == "FLO-LAPTOP"
+
+
+def test_machine_name_is_bounded_and_never_blank_on_the_server() -> None:
+    from pydantic import ValidationError
+    from studio_contracts.auth import MachineCreate
+
+    assert MachineCreate(display_name="  FLO-LAPTOP  ").display_name == "FLO-LAPTOP"
+    with pytest.raises(ValidationError):
+        MachineCreate(display_name="   ")
+    with pytest.raises(ValidationError):
+        MachineCreate(display_name="x" * 101)
+
+
 def test_enroll_needs_its_negotiated_capability(tmp_path) -> None:
     server = FakeServer()
     controller = DaemonController(
@@ -258,3 +281,71 @@ def test_neither_session_nor_credential_is_ever_logged(tmp_path, caplog) -> None
     )
     assert "SESSIONSECRET" not in logged
     assert "CREDSECRET" not in logged
+
+
+def test_enroll_without_prior_identity_starts_the_heartbeat(tmp_path, monkeypatch) -> None:
+    import studio_client.daemon.runtime as runtime_module
+    from studio_client.daemon.service import DaemonController
+    from studio_contracts.local.daemon_control import DaemonAction, DaemonControlRequest
+    from studio_contracts.local.identity import IdentityEnrollRequest
+
+    server = FakeServer()
+    store = MemoryTokenStore()
+    controller = DaemonController(
+        ClientConfig(api_base_url=ORIGIN, profile_id="main"),
+        data_root=tmp_path,
+        token_store=store,
+        enroll_transport=httpx.MockTransport(server),
+        machine_resolver=lambda _config, _root: None,
+    )
+    assert controller.config.machine_id is None
+
+    seen: list[Any] = []
+    beat = threading.Event()
+
+    class FakeHeartbeatClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        async def send_heartbeat(self, machine_id, _agent_id=None, _capabilities=None):
+            seen.append(machine_id)
+            beat.set()
+            return None
+
+        async def pull_pending_launches(self, _machine_id):
+            return []
+
+    fake = FakeHeartbeatClient()
+    monkeypatch.setattr(runtime_module, "StudioApiClient", lambda _config: fake)
+
+    try:
+        result = controller.enroll(
+            IdentityEnrollRequest.model_validate(
+                {
+                    "profile": {"profile_id": "main", "server_origin": ORIGIN},
+                    "human_session": SESSION,
+                    "machine_name": "ADA-LAPTOP · Desktop",
+                }
+            )
+        )
+        assert result.machine_id == MACHINE_ID
+        assert controller.config.machine_id == MACHINE_ID
+        assert beat.wait(timeout=10), "no heartbeat sent after enrollment"
+        assert seen and seen[0] == MACHINE_ID
+    finally:
+        controller.control(
+            DaemonControlRequest(
+                action=DaemonAction.STOP,
+                profile=controller._profile(),
+            )
+        )
+        deadline = time.monotonic() + 10
+        while (
+            controller._thread is not None
+            and controller._thread.is_alive()
+            and time.monotonic() < deadline
+        ):
+            time.sleep(0.05)

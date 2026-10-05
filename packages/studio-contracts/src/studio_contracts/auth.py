@@ -10,6 +10,8 @@ from pydantic import Field, StringConstraints
 from studio_contracts.bootstrap import BootstrapFileSummary
 from studio_contracts.common import ContractModel, IdempotentCreate, VersionedModel
 
+NonEmptyStr100 = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+
 
 class Role(StrEnum):
     """Account roles, weakest to strongest: `readonly` (reads plus heartbeat
@@ -135,10 +137,18 @@ class MachineCreate(ContractModel):
     """`owner_user_id` is optional (A5): absent, the machine belongs to the
     caller's own User. A non-admin may only name itself — the server never
     lets it choose another owner, and never looks that other User up. Only
-    `admin` provisions a machine for someone else."""
+    `admin` provisions a machine for someone else. `display_name` is the
+    workstation name shown in « Postes » (default: the enrollment station's
+    own hostname, editable): stripped, never blank, at most 100 characters."""
 
     owner_user_id: UUID | None = None
-    display_name: str
+    display_name: NonEmptyStr100
+
+
+class MachineUpdate(ContractModel):
+    """Update a machine's display name. Only the owner or an admin."""
+
+    display_name: NonEmptyStr100
 
 
 class MachineCreated(Machine):

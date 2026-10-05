@@ -9207,6 +9207,123 @@
     }
    }
   },
+  "/api/v1/machines/{machine_id}": {
+   "patch": {
+    "tags": [
+     "machines"
+    ],
+    "summary": "Rename Machine",
+    "description": "Rename a machine (owner or admin). Another User's machine answers 404 for a non-admin, exactly like a nonexistent one. `agent` never renames. Uses optimistic concurrency via `If-Match-Version` (required).",
+    "operationId": "rename_machine_api_v1_machines__machine_id__patch",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "machine_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Machine Id"
+      }
+     },
+     {
+      "name": "If-Match-Version",
+      "in": "header",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "description": "Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version \u2014 re-read, merge, and retry. Updates never overwrite silently.",
+       "title": "If-Match-Version"
+      },
+      "description": "Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version \u2014 re-read, merge, and retry. Updates never overwrite silently."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/MachineUpdate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Machine"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version \u2014 re-read the object, merge, and retry with the new version.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/machines/{machine_id}/launch-grants": {
    "get": {
     "tags": [
@@ -17651,6 +17768,8 @@
      },
      "display_name": {
       "type": "string",
+      "maxLength": 100,
+      "minLength": 1,
       "title": "Display Name"
      }
     },
@@ -17885,6 +18004,23 @@
      "offline"
     ],
     "title": "MachineStatus"
+   },
+   "MachineUpdate": {
+    "properties": {
+     "display_name": {
+      "type": "string",
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Display Name"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "display_name"
+    ],
+    "title": "MachineUpdate",
+    "description": "Update a machine's display name. Only the owner or an admin."
    },
    "Page_TaskLaunch_": {
     "properties": {

@@ -7,6 +7,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 
 from studio_mcp.deprecation import deprecated, deprecated_description
+from studio_mcp.strict_args import enforce_strict_arguments
 from studio_mcp.tool_profiles import ToolProfileMiddleware
 from studio_mcp.tools.agents import studio_register_agent
 from studio_mcp.tools.ai_library import (
@@ -754,6 +755,7 @@ def create_server() -> MCPServer:
             "same key and arguments returns the original runtime instead of a duplicate)."
         ),
     )
+    enforce_strict_arguments(server)
     return server
 
 

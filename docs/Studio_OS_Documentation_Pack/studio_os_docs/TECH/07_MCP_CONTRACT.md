@@ -101,6 +101,12 @@ Un agent ne doit normalement pas envoyer lui-meme plusieurs Go via MCP. Le MCP f
 ## Format
 Reponses compactes, champs utiles uniquement, filtres `project`, `task`, `since`, `limit`. Les erreurs doivent etre explicites et machine-readable.
 
+Tout parametre inconnu est rejete : chaque outil expose
+`additionalProperties: false` dans son `inputSchema` et un appel avec un
+argument hors contrat repond `{error_code: "invalid_argument",
+unknown_arguments: [...], valid_arguments: [...]}` sans executer l'outil.
+Un appel valide garde son comportement inchange.
+
 Les outils de workflow `studio_update_task`, `studio_claim_task`,
 `studio_release_task` et `studio_start_session` conservent leur reponse
 detaillee historique par defaut (`verbose=true`). Avec `verbose=false`, les

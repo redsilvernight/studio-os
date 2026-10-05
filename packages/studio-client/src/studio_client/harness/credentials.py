@@ -153,13 +153,19 @@ def retry_pending(provisioner: CredentialProvisioner, store: CredentialStore) ->
         revoke_or_defer(provisioner, store, item.origin, item.machine_id)
 
 
-def tool_display_name(tool: str, host: Callable[[], str] = socket.gethostname) -> str:
-    """`<WORKSTATION> · <Tool>`, as the machine appears in the dashboard."""
+def workstation_name(host: Callable[[], str] = socket.gethostname) -> str:
+    """This workstation's own name, upper-cased and bounded: the `<POSTE>`
+    half of every harness machine name and the enrollment default."""
     try:
         name = host().strip() or "workstation"
     except OSError:
         name = "workstation"
-    return f"{name.upper()[:60]} · {tool}"
+    return name.upper()[:60]
+
+
+def tool_display_name(tool: str, host: Callable[[], str] = socket.gethostname) -> str:
+    """`<WORKSTATION> · <Tool>`, as the machine appears in the dashboard."""
+    return f"{workstation_name(host)} · {tool}"
 
 
 def utc_now_iso() -> str:

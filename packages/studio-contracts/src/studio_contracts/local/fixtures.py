@@ -129,6 +129,7 @@ from studio_contracts.local.machine_setup import (
     SetupSkillsStep,
 )
 from studio_contracts.local.provider import IndexInfo, IndexState, ProviderInfo
+from studio_contracts.local.outbox import OutboxLegacyStatus
 from studio_contracts.local.publication import (
     DEFAULT_PUBLICATION_POLICY,
     ComponentStatusSummary,
@@ -1626,6 +1627,32 @@ def build_fixtures() -> list[LocalFixture]:
         message_id="cnl-0001", correlation_id=CORRELATION, sent_at=NOW, request_id="req-0002"
     )
 
+    fixtures["outbox.legacy_status.absent"] = OutboxLegacyStatus(
+        exists=False, has_queued_work=False, counts={}
+    )
+    fixtures["outbox.legacy_status.empty"] = OutboxLegacyStatus(
+        exists=True, has_queued_work=False, counts={}
+    )
+    legacy_with_work = OutboxLegacyStatus(
+        exists=True,
+        has_queued_work=True,
+        counts={"pending_events": 3, "pending_mutations": 1},
+    )
+    fixtures["outbox.legacy_status.with_work"] = legacy_with_work
+    fixtures["bridge.request.outbox_legacy_status"] = _bridge_request(
+        "outbox.legacy_status", {}
+    )
+    fixtures["bridge.response.outbox_legacy_status"] = BridgeResponse.model_validate(
+        {
+            "message_id": "res-0003",
+            "correlation_id": CORRELATION,
+            "sent_at": NOW,
+            "request_id": "req-0001",
+            "command": "outbox.legacy_status",
+            "payload": _dump(legacy_with_work),
+        }
+    )
+
     return [LocalFixture(name, model) for name, model in sorted(fixtures.items())]
 
 
@@ -1985,5 +2012,20 @@ def build_invalid_fixtures() -> list[InvalidFixture]:
                 "confirmed": False,
             },
             "publication requires explicit confirmation",
+        ),
+        InvalidFixture(
+            "outbox.legacy_status.flag_mismatch",
+            "OutboxLegacyStatus",
+            _with("outbox.legacy_status.with_work", add_field("has_queued_work", False)),
+            "has_queued_work must reflect the counts",
+        ),
+        InvalidFixture(
+            "outbox.legacy_status.unknown_table",
+            "OutboxLegacyStatus",
+            _with(
+                "outbox.legacy_status.with_work",
+                lambda data: data["counts"].__setitem__("sessions", 2),
+            ),
+            "only known legacy outbox tables are reported",
         ),
     ]

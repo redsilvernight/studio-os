@@ -21,6 +21,7 @@ from studio_contracts.local.knowledge import KnowledgeReindexRequest
 from studio_contracts.local.workspace import LocalWorkspaceConfig
 
 from studio_mcp.local_tools import make_graph_query, make_memory_read, make_memory_search
+from studio_mcp.strict_args import enforce_strict_arguments
 
 _READ_ONLY = ToolAnnotations(read_only_hint=True)
 
@@ -85,6 +86,7 @@ def create_local_server(
             description=GRAPH_QUERY_DESCRIPTION,
             annotations=_READ_ONLY,
         )
+    enforce_strict_arguments(server)
     return server
 
 
@@ -141,6 +143,7 @@ def create_local_server_from_knowledge(
             description=GRAPH_QUERY_DESCRIPTION,
             annotations=_READ_ONLY,
         )
+    enforce_strict_arguments(server)
     return server
 
 
@@ -152,7 +155,9 @@ def create_local_server_from_workspace(
     the knowledge feature off yields a server without memory tools."""
     service = knowledge_service_from_workspace(config, cache_dir=cache_dir)
     if service is None:
-        return MCPServer(name="studio-os-local")
+        empty = MCPServer(name="studio-os-local")
+        enforce_strict_arguments(empty)
+        return empty
     return create_local_server_from_knowledge(
         workspace_id=service.workspace_id,
         vault_root=service.vault_root,

@@ -41,7 +41,8 @@
           },
           "status": "present"
         }
-      ]
+      ],
+      "workstation_name": null
     }
   },
   "model": "IdentityEnrollResult"
