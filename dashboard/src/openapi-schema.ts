@@ -1675,7 +1675,7 @@ export interface paths {
         head?: never;
         /**
          * Rename Machine
-         * @description Rename a machine (owner or admin). Another User's machine answers 404 for a non-admin, exactly like a nonexistent one. `agent` never renames. Uses optimistic concurrency via `If-Match-Version`.
+         * @description Rename a machine (owner or admin). Another User's machine answers 404 for a non-admin, exactly like a nonexistent one. `agent` never renames. Uses optimistic concurrency via `If-Match-Version` (required).
          */
         patch: operations["rename_machine_api_v1_machines__machine_id__patch"];
         trace?: never;
@@ -14938,10 +14938,11 @@ export interface operations {
     };
     rename_machine_api_v1_machines__machine_id__patch: {
         parameters: {
-            query?: {
-                if_match_version?: number | null;
+            query?: never;
+            header: {
+                /** @description Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version — re-read, merge, and retry. Updates never overwrite silently. */
+                "If-Match-Version": number;
             };
-            header?: never;
             path: {
                 machine_id: string;
             };

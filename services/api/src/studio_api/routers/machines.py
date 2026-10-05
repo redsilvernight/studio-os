@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, HTTPException, Response, Header, status
 from studio_contracts.auth import Machine, MachineCreate, MachineCreated, MachineUpdate, Role
 from studio_contracts.launch_grants import MachineLaunchGrant, MachineLaunchGrantCreate
 
 from studio_api.deps import CurrentMachine, CurrentPrincipal, DbSession
-from studio_api.openapi_meta import RESP_401_UNAUTHORIZED, RESP_403_FORBIDDEN, RESP_404_NOT_FOUND, RESP_409_VERSION_CONFLICT
+from studio_api.openapi_meta import RESP_401_UNAUTHORIZED, RESP_403_FORBIDDEN, RESP_404_NOT_FOUND, RESP_409_VERSION_CONFLICT, IF_MATCH_VERSION_DESCRIPTION
 from studio_api.services import heartbeats as heartbeats_service
 from studio_api.services import launch_grants as launch_grants_service
 from studio_api.services import provisioning as provisioning_service
@@ -126,7 +126,7 @@ async def revoke_machine(
     description=(
         "Rename a machine (owner or admin). Another User's machine answers "
         "404 for a non-admin, exactly like a nonexistent one. `agent` never "
-        "renames. Uses optimistic concurrency via `If-Match-Version`."
+        "renames. Uses optimistic concurrency via `If-Match-Version` (required)."
     ),
     responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND, **RESP_409_VERSION_CONFLICT},
 )
@@ -135,7 +135,9 @@ async def rename_machine(
     machine_in: MachineUpdate,
     session: DbSession,
     principal: CurrentPrincipal,
-    if_match_version: int | None = None,
+    if_match_version: int = Header(
+        alias="If-Match-Version", description=IF_MATCH_VERSION_DESCRIPTION
+    ),
 ) -> Machine:
     if principal.role == Role.AGENT:
         raise forbidden("machine", "rename")
@@ -144,14 +146,13 @@ async def rename_machine(
         principal.role != Role.ADMIN and target.owner_user_id != principal.user.id
     ):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "machine not found")
-    if if_match_version is not None and target.version != if_match_version:
+    if target.version != if_match_version:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             detail={
                 "error_code": "version_conflict",
                 "message": "machine was modified concurrently",
-                "expected_version": if_match_version,
-                "current_version": target.version,
+                "server_version": target.version,
             },
         )
     target = await provisioning_service.update_machine(session, target, machine_in.display_name)

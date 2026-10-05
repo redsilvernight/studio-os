@@ -204,6 +204,15 @@ que l'adresse existe ou non ; les e-mails partent apres la reponse.
   un non-admin, la machine d'un autre User repond `404`, a l'identique d'une
   machine inexistante (comme `GET /machines`, qui ne la liste jamais).
   Revoquer la machine appelante elle-meme est permis ; effet immediat.
+- PATCH /machines/{machine_id} (additif) — renomme la machine (`display_name`).
+  Proprietaire ou `admin` ; `agent` recoit `403`. Pour un non-admin, la machine
+  d'un autre User repond `404`. Concurrence optimiste obligatoire via header
+  `If-Match-Version` (entier) : version lue au dernier `GET` ; version etalee
+  repond `409 {"detail": {"error_code": "version_conflict",
+  "server_version": <current>}}`. Header manquant : `422`/`428`. `display_name`
+  valide = non vide, 1–100 caracteres, espaces lateraux supprimes (meme
+  validation que `MachineCreate.display_name`). Reponse = `Machine` (version
+  incrementee).
 - Etat du compte (DU-0/A, introduit par A2/DEC-0110) : ces deux operations
   exigent un User actif et verifie. Un User `pending` (`email_verified_at`
   nul) ou `disabled` (`disabled_at` pose) n'obtient aucun principal : toutes

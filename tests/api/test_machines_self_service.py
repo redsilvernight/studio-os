@@ -191,6 +191,37 @@ async def test_rename_requires_correct_version(
     )
     assert rename2.status_code == 409
     assert rename2.json()["detail"]["error_code"] == "version_conflict"
+    assert "server_version" in rename2.json()["detail"]
+
+
+async def test_rename_requires_if_match_version(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    created = (
+        await client.post("/api/v1/machines", headers=auth_headers, json={"display_name": "old-name"})
+    ).json()
+    # Missing If-Match-Version header
+    rename = await client.patch(
+        f"/api/v1/machines/{created['id']}",
+        headers=auth_headers,
+        json={"display_name": "new-name"},
+    )
+    assert rename.status_code in (422, 428)  # 422 validation error or 428 precondition required
+
+
+async def test_rename_rejects_empty_name(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    created = (
+        await client.post("/api/v1/machines", headers=auth_headers, json={"display_name": "old-name"})
+    ).json()
+    version = created["version"]
+    rename = await client.patch(
+        f"/api/v1/machines/{created['id']}",
+        headers={**auth_headers, "If-Match-Version": str(version)},
+        json={"display_name": "   "},
+    )
+    assert rename.status_code == 422  # validation error
 
 
 async def test_another_users_machine_rename_is_404(

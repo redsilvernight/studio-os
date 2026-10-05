@@ -9213,7 +9213,7 @@
      "machines"
     ],
     "summary": "Rename Machine",
-    "description": "Rename a machine (owner or admin). Another User's machine answers 404 for a non-admin, exactly like a nonexistent one. `agent` never renames. Uses optimistic concurrency via `If-Match-Version`.",
+    "description": "Rename a machine (owner or admin). Another User's machine answers 404 for a non-admin, exactly like a nonexistent one. `agent` never renames. Uses optimistic concurrency via `If-Match-Version` (required).",
     "operationId": "rename_machine_api_v1_machines__machine_id__patch",
     "security": [
      {
@@ -9232,20 +9232,15 @@
       }
      },
      {
-      "name": "if_match_version",
-      "in": "query",
-      "required": false,
+      "name": "If-Match-Version",
+      "in": "header",
+      "required": true,
       "schema": {
-       "anyOf": [
-        {
-         "type": "integer"
-        },
-        {
-         "type": "null"
-        }
-       ],
-       "title": "If Match Version"
-      }
+       "type": "integer",
+       "description": "Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version \u2014 re-read, merge, and retry. Updates never overwrite silently.",
+       "title": "If-Match-Version"
+      },
+      "description": "Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version \u2014 re-read, merge, and retry. Updates never overwrite silently."
      }
     ],
     "requestBody": {
@@ -17773,6 +17768,8 @@
      },
      "display_name": {
       "type": "string",
+      "maxLength": 100,
+      "minLength": 1,
       "title": "Display Name"
      }
     },
@@ -18012,6 +18009,8 @@
     "properties": {
      "display_name": {
       "type": "string",
+      "maxLength": 100,
+      "minLength": 1,
       "title": "Display Name"
      }
     },
