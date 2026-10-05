@@ -572,6 +572,7 @@ async def test_reset_and_verify_refuse_disabled_account(
             "message": "this link is invalid, expired or already used",
         }
     }
+    await db_session.refresh(active_user)
     await provisioning_service.enable_account(db_session, active_user)
     assert await _login(client, active_user.email, PASSWORD) == 200
     assert await _login(client, active_user.email, OTHER_PASSWORD) == 401
