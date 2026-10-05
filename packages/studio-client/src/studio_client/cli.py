@@ -757,14 +757,48 @@ def _adapters_check(args: argparse.Namespace, config: ClientConfig | None) -> No
         raise SystemExit(1)
 
 
+def _registered_workspace(
+    args: argparse.Namespace, config: ClientConfig | None
+) -> tuple[Path, Any] | None:
+    """The machine-local registry and the workspace registered for `--repo-root`,
+    or None when this folder is not registered (or no profile is configured)."""
+    from studio_contracts.local.identity import ProfileRef
+
+    from studio_client.bootstrap_workspace import WorkspaceBootstrapError, find_workspace
+
+    if config is None:
+        try:
+            config = ClientConfig()  # type: ignore[call-arg]
+        except ValidationError:
+            return None
+    registry_dir = Path(args.registry_dir) if args.registry_dir else default_config_path().parent
+    profile = ProfileRef(profile_id=config.profile_id, server_origin=origin_of(config.api_base_url))
+    try:
+        return registry_dir, find_workspace(registry_dir, profile, args.repo_root)
+    except WorkspaceBootstrapError:
+        return None
+
+
 def _bootstrap_init(args: argparse.Namespace, config: ClientConfig | None) -> None:
     """Write the `.agents/bootstrap.json` manifest (P3, offline)."""
     from studio_client.adapters import list_adapters
     from studio_client.bootstrap import BootstrapError, make_manifest, write_manifest
 
-    _ = config
     known = set(list_adapters())
-    harnesses = args.harness or sorted(known)
+    harnesses = args.harness
+    if not harnesses:
+        from studio_client.bootstrap_workspace import build_harness_service, detect_harness_ids
+
+        registered = _registered_workspace(args, config)
+        if registered is not None:
+            registry_dir, workspace = registered
+            detected = detect_harness_ids(build_harness_service(registry_dir, workspace), workspace)
+            harnesses = [harness for harness in detected if harness in known]
+            if not harnesses:
+                print("error: no harness detected on this machine; use --harness", file=sys.stderr)
+                raise SystemExit(1)
+        else:
+            harnesses = sorted(known)
     unknown = [harness for harness in harnesses if harness not in known]
     if unknown:
         print(
@@ -790,12 +824,24 @@ def _bootstrap_init(args: argparse.Namespace, config: ClientConfig | None) -> No
         print(f"Wrote {path} (harnesses: {', '.join(harnesses)}).")
 
 
+def _missing_harnesses(
+    args: argparse.Namespace, config: ClientConfig | None, manifest: Any
+) -> list[str]:
+    from studio_client.bootstrap_workspace import build_harness_service, detect_harness_ids
+
+    registered = _registered_workspace(args, config)
+    if registered is None:
+        return []
+    registry_dir, workspace = registered
+    detected = set(detect_harness_ids(build_harness_service(registry_dir, workspace), workspace))
+    return sorted(ref.id for ref in manifest.harnesses if ref.id not in detected)
+
+
 def _bootstrap_report(
     args: argparse.Namespace, config: ClientConfig | None, *, emit_diff: bool
 ) -> None:
     from studio_client.bootstrap import BootstrapError, diff_text, load_manifest, observe
 
-    _ = config
     try:
         manifest = load_manifest(args.repo_root)
         report = observe(args.repo_root, manifest)
@@ -805,6 +851,7 @@ def _bootstrap_report(
         raise SystemExit(1) from None
     if args.json:
         payload: dict[str, Any] = {"report": report.model_dump(mode="json")}
+        payload["missing_harnesses"] = _missing_harnesses(args, config, manifest)
         if emit_diff:
             payload["diff"] = diff
         print(json.dumps(payload, indent=2))
@@ -819,6 +866,9 @@ def _bootstrap_report(
             f"modified={summary.modified} incompatible={summary.incompatible} "
             f"up_to_date={summary.up_to_date}"
         )
+    missing = _missing_harnesses(args, config, manifest)
+    if missing and not args.json:
+        print(f"harnesses declared but not detected: {', '.join(missing)}")
     drifted = any(f.state is not BootstrapFileState.UP_TO_DATE for f in report.files)
     if drifted or report.conflicts or report.needs_confirmation:
         raise SystemExit(1)
@@ -832,6 +882,32 @@ def _bootstrap_diff(args: argparse.Namespace, config: ClientConfig | None) -> No
     _bootstrap_report(args, config, emit_diff=True)
 
 
+def _wire_mcp(args: argparse.Namespace, config: ClientConfig | None, manifest: Any) -> list[Any]:
+    from studio_client.bootstrap_workspace import (
+        WorkspaceBootstrapError,
+        build_harness_service,
+        detect_harness_ids,
+        wire_mcp,
+    )
+
+    registered = _registered_workspace(args, config)
+    if registered is None:
+        print(
+            "error: --wire-mcp needs a registered workspace; run `workspaces register` first",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    registry_dir, workspace = registered
+    service = build_harness_service(registry_dir, workspace)
+    declared = {ref.id for ref in manifest.harnesses}
+    targets = [h for h in detect_harness_ids(service, workspace) if h in declared]
+    try:
+        return wire_mcp(service, workspace, targets, confirm=args.yes)
+    except WorkspaceBootstrapError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
+
+
 def _bootstrap_sync(args: argparse.Namespace, config: ClientConfig | None) -> None:
     from studio_client.bootstrap import (
         BootstrapError,
@@ -841,7 +917,6 @@ def _bootstrap_sync(args: argparse.Namespace, config: ClientConfig | None) -> No
         plan_files,
     )
 
-    _ = config
     try:
         manifest = load_manifest(args.repo_root)
         planned = plan_files(args.repo_root, manifest)
@@ -850,13 +925,25 @@ def _bootstrap_sync(args: argparse.Namespace, config: ClientConfig | None) -> No
     except BootstrapError as exc:
         print(f"error: {exc}", file=sys.stderr)
         raise SystemExit(1) from None
+    wirings = _wire_mcp(args, config, manifest) if args.wire_mcp else []
     if args.json:
-        print(json.dumps({"written": written}))
-    elif written:
-        for path in written:
-            print(f"Wrote {path}.")
-    else:
+        mcp = [
+            {"adapter_id": w.adapter_id, "applied": w.applied, "changes": len(w.plan.changes)}
+            for w in wirings
+        ]
+        print(json.dumps({"written": written, "mcp": mcp}))
+        return
+    for path in written:
+        print(f"Wrote {path}.")
+    if not written:
         print("Already up to date.")
+    for wiring in wirings:
+        if wiring.applied:
+            print(f"MCP wired for {wiring.adapter_id}.")
+        elif wiring.plan.changes:
+            print(f"MCP wiring for {wiring.adapter_id} planned (rerun with --yes to apply).")
+        else:
+            print(f"MCP already wired for {wiring.adapter_id}.")
 
 
 def _bootstrap_rollback(args: argparse.Namespace, config: ClientConfig | None) -> None:
@@ -1597,6 +1684,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     bootstrap_init.add_argument("--on-modified", choices=["refuse", "ask"], default="refuse")
     bootstrap_init.add_argument("--repo-root", default=".")
+    bootstrap_init.add_argument("--registry-dir")
     bootstrap_init.add_argument("--overwrite", action="store_true")
     _add_json_flag(bootstrap_init)
     bootstrap_init.set_defaults(func=_bootstrap_init)
@@ -1605,6 +1693,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "check", help="Report bundle drift (exit 1 when out of date)."
     )
     bootstrap_check.add_argument("--repo-root", default=".")
+    bootstrap_check.add_argument("--registry-dir")
     _add_json_flag(bootstrap_check)
     bootstrap_check.set_defaults(func=_bootstrap_check)
 
@@ -1612,6 +1701,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "diff", help="Print the unified diff needed to sync the bundle."
     )
     bootstrap_diff.add_argument("--repo-root", default=".")
+    bootstrap_diff.add_argument("--registry-dir")
     _add_json_flag(bootstrap_diff)
     bootstrap_diff.set_defaults(func=_bootstrap_diff)
 
@@ -1619,8 +1709,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "sync", help="Write missing or changed bundle files (idempotent)."
     )
     bootstrap_sync.add_argument("--repo-root", default=".")
+    bootstrap_sync.add_argument("--registry-dir")
     bootstrap_sync.add_argument(
-        "--yes", action="store_true", help="Confirm replacements under the `ask` policy."
+        "--yes",
+        action="store_true",
+        help="Confirm replacements under the `ask` policy and apply the MCP wiring.",
+    )
+    bootstrap_sync.add_argument(
+        "--wire-mcp",
+        action="store_true",
+        help="Preview the machine-local MCP wiring of detected harnesses (applied with --yes).",
     )
     _add_json_flag(bootstrap_sync)
     bootstrap_sync.set_defaults(func=_bootstrap_sync)
