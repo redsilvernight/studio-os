@@ -10,6 +10,8 @@ from pydantic import Field, StringConstraints
 from studio_contracts.bootstrap import BootstrapFileSummary
 from studio_contracts.common import ContractModel, IdempotentCreate, VersionedModel
 
+NonEmptyStr100 = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+
 
 class Role(StrEnum):
     """Account roles, weakest to strongest: `readonly` (reads plus heartbeat
@@ -138,13 +140,13 @@ class MachineCreate(ContractModel):
     `admin` provisions a machine for someone else."""
 
     owner_user_id: UUID | None = None
-    display_name: str
+    display_name: NonEmptyStr100
 
 
 class MachineUpdate(ContractModel):
     """Update a machine's display name. Only the owner or an admin."""
 
-    display_name: str
+    display_name: NonEmptyStr100
 
 
 class MachineCreated(Machine):
