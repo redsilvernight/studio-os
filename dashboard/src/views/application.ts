@@ -14,7 +14,6 @@ import {
   type DesktopDiagnostics,
   type DesktopInfo,
   type Platform,
-  type ServerOriginRefusal,
   type ServerOriginState,
   type UpdateErrorCode,
   type UpdateStatus,
@@ -33,6 +32,7 @@ import type { ConnectionSnapshot } from "../connection";
 import { esc } from "../ui";
 import { dsPageHeader } from "../ds/ds";
 import { configTabsHtml } from "./configuration";
+import { originRefusalMessage } from "../originRefusal";
 import { loadOnboardingState, saveOnboardingState } from "../onboarding/state";
 import { stepById } from "../onboarding/steps";
 import { allNotes, openWhatsNew, whatsNewSectionHtml } from "../releaseNotes";
@@ -62,34 +62,7 @@ export function onboardingSectionHtml(): string {
   );
 }
 
-/** Words for the machine codes the shell answers when it refuses an address. */
-export function originRefusalMessage(reason: ServerOriginRefusal): string {
-  switch (reason) {
-    case "origin_empty":
-      return "Saisissez l'adresse du serveur, par exemple https://studio.exemple.com.";
-    case "origin_too_long":
-      return "Cette adresse est trop longue.";
-    case "origin_invalid":
-      return "Cette adresse n'est pas valide. Format attendu : https://studio.exemple.com.";
-    case "origin_unsupported_scheme":
-      return "Seules les adresses https:// sont acceptées (http:// uniquement pour localhost en développement).";
-    case "origin_credentials_not_allowed":
-      return "L'adresse ne doit contenir ni identifiant ni mot de passe.";
-    case "origin_not_an_origin":
-      return "Indiquez uniquement l'adresse du serveur, sans chemin, paramètre ni ancre.";
-    case "origin_insecure_scheme":
-      return "Une adresse http:// n'est acceptée que pour localhost ou 127.0.0.1. Utilisez https://.";
-    case "origin_is_desktop_origin":
-      return "Cette adresse est celle de l'application elle-même, pas celle du serveur Studio OS.";
-    case "storage_unavailable":
-    case "storage_failed":
-      return "L'adresse n'a pas pu être enregistrée sur ce poste.";
-    case "unavailable":
-      return "Cette commande n'est disponible que dans l'application Desktop.";
-    default:
-      return "L'adresse n'a pas pu être enregistrée.";
-  }
-}
+export { originRefusalMessage };
 
 /** What the page shows about the running Desktop shell (`null` on the web). */
 export interface DesktopSection {

@@ -35,6 +35,50 @@ npm run preview    # serve dist/ locally
 npm run test:e2e   # Playwright CSP browser test (needs dist/ built)
 ```
 
+## Bundle size and budget (task d5c1183f)
+
+Measure (reproducible, builds in memory, never touches `dist/`):
+
+```bash
+npm run analyze:bundle   # chunks (minified/gzip), initial vs lazy, top modules of the entry chunk
+npm run check:bundle     # same + exit 1 if the initial-load budget is exceeded
+```
+
+Measured on the same tree (`npm run build`, Vite 6):
+
+| | Before | After |
+|---|---|---|
+| Entry chunk (minified / gzip) | 701.87 kB / 177.71 kB (analyzer) — 723.31 kB / 181.98 kB (Vite) | 253.87 kB / 52.53 kB (analyzer) — 260.4 kB / 53.77 kB (Vite) |
+| Vite >500 kB warning | yes | no |
+| Initial CSS gzip | 14.54 kB | 11.34 kB |
+
+How: every route now loads its view with `import()` (`renderRoute` in
+`src/main.ts`, helper `src/lazyView.ts`); only the shell, router, login and
+the public account screens are in the entry chunk. `originRefusalMessage`
+moved to `src/originRefusal.ts` (still re-exported by `views/application`) so
+the login no longer drags the Application → Configuration → Library chain
+into the entry chunk. A chunk that fails to load paints an alert with a
+« Recharger la page » action (the hash — deep link — survives the reload;
+the browser caches a failed `import()` per URL, so a re-render alone would
+replay the error). Vite only emits `modulepreload` for a lazy chunk's own
+dependencies when that chunk is requested, so nothing deferred is fetched
+from the home page (checked by `e2e/bundle-lazy.spec.ts`).
+
+**Budget for the initial load: 60 kB JS gzip, 20 kB CSS gzip**
+(`INITIAL_*_GZIP_BUDGET` in `scripts/analyze-bundle.mjs`). Rationale: current
+values are 52.5 kB / 11.3 kB, leaving ~14 % / ~40 % headroom for normal growth
+of the shell; crossing it must be a deliberate, measured decision.
+`chunkSizeWarningLimit` is left at Vite's default: the warning is gone, not
+silenced.
+
+Known remaining weight in the entry chunk, not addressed here: the generated
+`src/platform/generated/local-contracts.generated.ts` (~173 kB before
+minification, imported by the Desktop bridge that `getPlatform()` statically
+links even in web mode) — it is a generated contract file, and making the
+platform adapter asynchronous is a wider change. Global CSS is still one
+entry stylesheet (per-view CSS split would risk cross-view style regressions
+for ~3 kB gzip).
+
 ## API URL configuration
 
 No URL is hardcoded. Resolution (`src/config.ts`):

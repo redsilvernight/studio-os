@@ -23,34 +23,12 @@ import { loadActorNames } from "./actorNames";
 import { resolveApiUrl } from "./config";
 import { clearToken, getToken, hasToken, setToken } from "./auth";
 import { subscribe, uiState } from "./store";
-import { createFixtureRoadmapDataSource } from "./roadmapData";
-import { createApiRoadmapDataSource } from "./roadmapApi";
-import { renderOverview } from "./views/overview";
-import { renderProjects } from "./views/projects";
-import { renderProjectDetail } from "./views/projectDetail";
-import { renderTaskDetail } from "./views/taskDetail";
-import { renderTasksInto } from "./views/tasks";
-import { renderAgentDetail, renderAgents } from "./views/agents";
-import { renderMachines } from "./views/machines";
-import { renderAccounts } from "./views/accounts";
-import { renderAdmin } from "./views/admin";
-import { renderDecisionsV2 as renderDecisions } from "./views/decisionsV2";
-import { renderTransfers } from "./views/transfers";
-import { renderLibrary, renderLibraryDetail } from "./views/library";
-import { renderApplication } from "./views/application";
-import { renderOnboarding } from "./onboarding/view";
 import { loadOnboardingState, onboardingRedirect } from "./onboarding/state";
-import { renderWorkspaces } from "./views/workspacesPage";
-import { renderGraphs } from "./views/graphs";
-import { renderIntegrations } from "./views/integrations";
-import { renderBindings, renderProjectConfig, renderRuntimeDetail, renderRuntimes } from "./views/configuration";
-import { renderInspector } from "./views/inspector";
-import { renderDesignSystem } from "./views/designSystem";
-import { renderNotFound } from "./views/notFound";
 import { loginOverlayHtml, renderLogin } from "./login";
 import { PUBLIC_HASH, publicHashScreen, readAccountLink, scrubbedPath } from "./accountLink";
 import { renderPublicAccount, type PublicScreen } from "./views/publicAccount";
 import { probeProjectAccess, renderAwaitingAccess, type ProjectAccess } from "./views/awaitingAccess";
+import { lazyView, renderViewLoadError, ViewLoadError } from "./lazyView";
 import { getPlatform } from "./platform";
 import { getDesktopShell, paintShellStatus, prepareDesktop, setDesktopHooks } from "./desktopShell";
 import { parseRoute } from "./router";
@@ -78,7 +56,7 @@ import "./styles.css";
 
 type EventEnvelope = components["schemas"]["EventEnvelope"];
 
-const fixtureRoadmapDataSource = createFixtureRoadmapDataSource();
+let fixtureRoadmapDataSource: ReturnType<typeof import("./roadmapData").createFixtureRoadmapDataSource> | undefined;
 
 const renderGuard = createRenderGuard();
 let shellListenersMounted = false;
@@ -93,6 +71,132 @@ async function projectAccess(client: ReturnType<typeof createApiClient>): Promis
   const access = await probeProjectAccess(client);
   if (access === "granted") grantedForToken = token;
   return access;
+}
+
+type Route = ReturnType<typeof parseRoute>;
+type LoadView = <T>(importer: () => Promise<T>) => Promise<T>;
+
+/** Thrown once a render is obsolete (newer navigation or session ended) while its chunk was loading. */
+class StaleRender extends Error {}
+
+/**
+ * Une vue = un chunk chargé à la demande (`lazyView`) : le chunk d'entrée ne
+ * contient que le shell, le routeur et la connexion. Les URL (`#/…`, deep
+ * links) et les rendus sont inchangés ; seul le moment du chargement du code
+ * diffère. Les sources de roadmap (API ou fixture) ne servent qu'à la route
+ * projet et suivent donc le même chunk.
+ */
+async function renderRoute(
+  staging: HTMLElement,
+  route: Route,
+  ctx: { client: ReturnType<typeof createApiClient>; baseUrl: string; authed: boolean; load: LoadView },
+): Promise<void> {
+  const { client, baseUrl, authed, load } = ctx;
+  switch (route.name) {
+    case "projects":
+      await (await load(() => import("./views/projects"))).renderProjects(staging, { client, authed });
+      break;
+    case "project": {
+      const [{ renderProjectDetail }, { createApiRoadmapDataSource }, { createFixtureRoadmapDataSource }] = await load(() =>
+        Promise.all([import("./views/projectDetail"), import("./roadmapApi"), import("./roadmapData")]),
+      );
+      // Authenticated sessions read the canonical P3 API; anonymous or
+      // development sessions keep the session-local fixture (tests, offline).
+      fixtureRoadmapDataSource ??= createFixtureRoadmapDataSource();
+      await renderProjectDetail(
+        staging,
+        {
+          client,
+          authed,
+          roadmapDataSource: authed ? createApiRoadmapDataSource(client) : fixtureRoadmapDataSource,
+        },
+        route.id,
+        route.tab,
+        route.roadmapId,
+      );
+      break;
+    }
+    case "tasks": {
+      const { renderTasksInto } = await load(() => import("./views/tasks"));
+      await renderTasksInto(staging, {
+        client,
+        authed,
+        projectId: uiState.selectedProjectId ?? undefined,
+        scopeLabel: uiState.selectedProjectId ? "Projet sélectionné (à changer dans Vue d'ensemble ou Projets)" : "Tous les projets",
+      });
+      break;
+    }
+    case "task":
+      await (await load(() => import("./views/taskDetail"))).renderTaskDetail(staging, { client, authed }, route.id);
+      break;
+    case "agents":
+      await (await load(() => import("./views/agents"))).renderAgents(staging, { client, authed });
+      break;
+    case "agent":
+      await (await load(() => import("./views/agents"))).renderAgentDetail(staging, { client, authed }, route.id);
+      break;
+    case "machines":
+      await (await load(() => import("./views/machines"))).renderMachines(staging, { client, baseUrl, authed });
+      break;
+    case "accounts":
+      await (await load(() => import("./views/accounts"))).renderAccounts(staging, { client, authed });
+      break;
+    case "admin":
+      await (await load(() => import("./views/admin"))).renderAdmin(staging);
+      break;
+    case "decisions":
+      await (await load(() => import("./views/decisionsV2"))).renderDecisionsV2(staging, { client, authed });
+      break;
+    case "transfers":
+      await (await load(() => import("./views/transfers"))).renderTransfers(staging, { client, authed });
+      break;
+    case "library":
+      await (await load(() => import("./views/library"))).renderLibrary(staging, { client, authed }, route.kind);
+      break;
+    case "libraryDetail":
+      await (await load(() => import("./views/library"))).renderLibraryDetail(staging, { client, authed }, route.kind, route.id);
+      break;
+    case "configRuntimes":
+      await (await load(() => import("./views/configuration"))).renderRuntimes(staging, { client, authed });
+      break;
+    case "configRuntime":
+      await (await load(() => import("./views/configuration"))).renderRuntimeDetail(staging, { client, authed }, route.id);
+      break;
+    case "configBindings":
+      await (await load(() => import("./views/configuration"))).renderBindings(staging, { client, authed });
+      break;
+    case "configApplication":
+      await (await load(() => import("./views/application"))).renderApplication(staging);
+      break;
+    case "configIntegrations":
+      await (await load(() => import("./views/integrations"))).renderIntegrations(staging, route.workspaceId);
+      break;
+    case "workspaces":
+      await (await load(() => import("./views/workspacesPage"))).renderWorkspaces(staging);
+      break;
+    case "onboarding":
+      await (await load(() => import("./onboarding/view"))).renderOnboarding(staging, getPlatform());
+      break;
+    case "graphs":
+      (await load(() => import("./views/graphs"))).renderGraphs(staging, route.kind, { workspaceId: route.workspaceId });
+      break;
+    case "configProject":
+      await (await load(() => import("./views/configuration"))).renderProjectConfig(staging, { client, authed }, route.tab);
+      break;
+    case "inspector":
+      await (await load(() => import("./views/inspector"))).renderInspector(staging, { client, authed, stableKey: route.stableKey });
+      break;
+    case "designSystem":
+      (await load(() => import("./views/designSystem"))).renderDesignSystem(staging);
+      break;
+    case "notFound":
+      (await load(() => import("./views/notFound"))).renderNotFound(staging, route.hash);
+      break;
+    case "dashboard":
+    default:
+      await (await load(() => import("./views/overview"))).renderOverview(staging, { client, baseUrl, authed });
+      break;
+  }
 }
 
 async function render(): Promise<void> {
@@ -122,103 +226,22 @@ async function render(): Promise<void> {
   const awaiting = authed && route.name === "dashboard" && (await projectAccess(client)) === "none";
   if (awaiting) {
     renderAwaitingAccess(staging, () => void render());
-  } else switch (route.name) {
-    case "projects":
-      await renderProjects(staging, { client, authed });
-      break;
-    case "project":
-      // Authenticated sessions read the canonical P3 API; anonymous or
-      // development sessions keep the session-local fixture (tests, offline).
-      await renderProjectDetail(
-        staging,
-        {
-          client,
-          authed,
-          roadmapDataSource: authed ? createApiRoadmapDataSource(client) : fixtureRoadmapDataSource,
-        },
-        route.id,
-        route.tab,
-        route.roadmapId,
-      );
-      break;
-    case "tasks":
-      await renderTasksInto(staging, {
-        client,
-        authed,
-        projectId: uiState.selectedProjectId ?? undefined,
-        scopeLabel: uiState.selectedProjectId ? "Projet sélectionné (à changer dans Vue d'ensemble ou Projets)" : "Tous les projets",
-      });
-      break;
-    case "task":
-      await renderTaskDetail(staging, { client, authed }, route.id);
-      break;
-    case "agents":
-      await renderAgents(staging, { client, authed });
-      break;
-    case "agent":
-      await renderAgentDetail(staging, { client, authed }, route.id);
-      break;
-    case "machines":
-      await renderMachines(staging, { client, baseUrl, authed });
-      break;
-    case "accounts":
-      await renderAccounts(staging, { client, authed });
-      break;
-    case "admin":
-      await renderAdmin(staging);
-      break;
-    case "decisions":
-      await renderDecisions(staging, { client, authed });
-      break;
-    case "transfers":
-      await renderTransfers(staging, { client, authed });
-      break;
-    case "library":
-      await renderLibrary(staging, { client, authed }, route.kind);
-      break;
-    case "libraryDetail":
-      await renderLibraryDetail(staging, { client, authed }, route.kind, route.id);
-      break;
-    case "configRuntimes":
-      await renderRuntimes(staging, { client, authed });
-      break;
-    case "configRuntime":
-      await renderRuntimeDetail(staging, { client, authed }, route.id);
-      break;
-    case "configBindings":
-      await renderBindings(staging, { client, authed });
-      break;
-    case "configApplication":
-      await renderApplication(staging);
-      break;
-    case "configIntegrations":
-      await renderIntegrations(staging, route.workspaceId);
-      break;
-    case "workspaces":
-      await renderWorkspaces(staging);
-      break;
-    case "onboarding":
-      await renderOnboarding(staging, getPlatform());
-      break;
-    case "graphs":
-      renderGraphs(staging, route.kind, { workspaceId: route.workspaceId });
-      break;
-    case "configProject":
-      await renderProjectConfig(staging, { client, authed }, route.tab);
-      break;
-    case "inspector":
-      await renderInspector(staging, { client, authed, stableKey: route.stableKey });
-      break;
-    case "designSystem":
-      renderDesignSystem(staging);
-      break;
-    case "notFound":
-      renderNotFound(staging, route.hash);
-      break;
-    case "dashboard":
-    default:
-      await renderOverview(staging, { client, baseUrl, authed });
-      break;
+  } else {
+    try {
+      // Le chunk arrive après un délai : une navigation plus récente ou une
+      // session terminée entre-temps (401 → écran de connexion) ne doit plus
+      // déclencher les appels API de la vue.
+      const load: LoadView = async (importer) => {
+        const module = await lazyView(importer);
+        if (!renderGuard.isCurrent(my) || (authed && !hasToken())) throw new StaleRender();
+        return module;
+      };
+      await renderRoute(staging, route, { client, baseUrl, authed, load });
+    } catch (error) {
+      if (error instanceof StaleRender) return;
+      if (!(error instanceof ViewLoadError)) throw error;
+      renderViewLoadError(staging, () => location.reload());
+    }
   }
   if (!renderGuard.isCurrent(my)) return;
   // Le staging DEVIENT #view : les vues capturent la racine en closure
@@ -389,7 +412,11 @@ function mountShell(): void {
     window.addEventListener("hashchange", () => {
       if (isDrawerOpen()) closeDrawer(false);
       if (isPaletteOpen()) closePalette(false);
-      void render().then(() => focusView());
+      // Le rendu est asynchrone (chunk de vue + API) : si l'utilisateur a rouvert
+      // la palette entre-temps, on ne lui reprend pas le focus.
+      void render().then(() => {
+        if (!isPaletteOpen()) focusView();
+      });
     });
   }
   const input = document.getElementById("token-input") as HTMLInputElement | null;

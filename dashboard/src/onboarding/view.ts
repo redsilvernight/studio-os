@@ -34,7 +34,7 @@ import type {
   LocalError,
 } from "../platform/generated/local-contracts.generated";
 import { esc } from "../ui";
-import { originRefusalMessage } from "../views/application";
+import { originRefusalMessage } from "../originRefusal";
 import { toWorkspaceViewModel } from "../workspaces/workspaces";
 import { pickWorkspaceFolder, type FolderPickOutcome } from "../views/workspacesPage";
 import { createProject, type Project } from "../creationsApi";
