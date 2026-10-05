@@ -5,9 +5,12 @@ import hashlib
 import uuid
 
 import httpx
+import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.transfer import TransferModel
+
+pytestmark = pytest.mark.infra("minio")
 
 
 def _md5_b64(payload: bytes) -> str:

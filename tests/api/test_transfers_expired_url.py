@@ -4,8 +4,11 @@ import asyncio
 import uuid
 
 import httpx
+import pytest
 from studio_api.settings import get_settings
 from studio_api.storage.provider import StorageProvider, safe_object_key
+
+pytestmark = pytest.mark.infra("minio")
 
 
 async def test_expired_upload_url_is_rejected_by_real_minio() -> None:
