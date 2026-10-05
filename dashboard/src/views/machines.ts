@@ -304,7 +304,7 @@ export function machinesPageHtml(data: MachinesPageData): string {
     (data.rows.length === 0 ? "" : machinesToolbarHtml(data.state, visible.length, data.rows.length)) +
     `<div id="machines-list">${body}</div>` +
     `${dsDrawerHtml({ id: "machine-drawer", title: "Détails de la machine", body: `<div id="machine-drawer-body"></div>`, actions: [{ label: "Fermer", variant: "primary" }] })}` +
-    `${dsModalHtml({ id: "machine-rename-dialog", title: "Renommer le poste", body: `<form id="machine-rename-form"><input type="hidden" id="machine-rename-id" /><input type="hidden" id="machine-rename-version" /><div class="ds-form-field"><label for="machine-rename-name">Nouveau nom</label><input class="ds-input" type="text" id="machine-rename-name" required maxlength="255" /></div><div class="ds-form-error" id="machine-rename-error" hidden></div></form>`, actions: [{ label: "Annuler", variant: "secondary", id: "machine-rename-cancel" }, { label: "Renommer", variant: "primary", id: "machine-rename-submit" }] })}</div>`
+    `${dsModalHtml({ id: "machine-rename-dialog", title: "Renommer le poste", body: `<form id="machine-rename-form"><input type="hidden" id="machine-rename-id" /><input type="hidden" id="machine-rename-version" /><div class="ds-form-field"><label for="machine-rename-name">Nouveau nom</label><input class="ds-input" type="text" id="machine-rename-name" required maxlength="100" /></div><div class="ds-form-error" id="machine-rename-error" hidden></div></form>`, actions: [{ label: "Annuler", variant: "secondary", id: "machine-rename-cancel" }, { label: "Renommer", variant: "primary", id: "machine-rename-submit" }] })}</div>`
   );
 }
 
@@ -488,16 +488,16 @@ function bindRename(root: HTMLElement, ctx: MachinesContext, data: MachinesPageD
     if (submitBtn !== null) submitBtn.disabled = true;
     try {
       const updated = await renameMachine(ctx.client, machineId, newName, version);
-      const rowIndex = data.rows.findIndex((r) => r.machineId === machineId);
-      if (rowIndex !== -1) {
-        data.rows[rowIndex].displayName = updated.display_name;
-        data.rows[rowIndex].version = updated.version ?? null;
+      const row = data.rows.find((r) => r.machineId === machineId);
+      if (row !== undefined) {
+        row.displayName = updated.display_name;
+        row.version = updated.version ?? null;
       }
       closeDsDialog(root, "machine-rename-dialog");
       refreshList(root, data);
       const drawerBody = root.querySelector("#machine-drawer-body");
       if (drawerBody !== null) {
-        const row = data.rows[rowIndex];
+        const row = data.rows.find((r) => r.machineId === machineId);
         if (row !== undefined) {
           drawerBody.innerHTML = machineDrawerBodyHtml(
             row,

@@ -10,7 +10,9 @@ from pydantic import Field, StringConstraints
 from studio_contracts.bootstrap import BootstrapFileSummary
 from studio_contracts.common import ContractModel, IdempotentCreate, VersionedModel
 
-NonEmptyStr100 = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+NonEmptyStr100 = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)
+]
 
 
 class Role(StrEnum):

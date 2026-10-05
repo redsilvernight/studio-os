@@ -335,9 +335,11 @@ export async function renameMachine(
   ifMatchVersion: number,
 ): Promise<Machine> {
   const result = await client.PATCH("/api/v1/machines/{machine_id}", {
-    params: { path: { machine_id: machineId } },
+    params: {
+      path: { machine_id: machineId },
+      header: { "If-Match-Version": ifMatchVersion },
+    },
     body: { display_name: displayName },
-    headers: { "If-Match-Version": String(ifMatchVersion) },
   });
   if (result.response.ok && result.data !== undefined) return result.data;
   throw new ApiError(parseErrorBody(result.response.status, result.error));

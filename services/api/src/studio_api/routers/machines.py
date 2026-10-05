@@ -2,12 +2,18 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Response, Header, status
+from fastapi import APIRouter, Header, HTTPException, Response, status
 from studio_contracts.auth import Machine, MachineCreate, MachineCreated, MachineUpdate, Role
 from studio_contracts.launch_grants import MachineLaunchGrant, MachineLaunchGrantCreate
 
 from studio_api.deps import CurrentMachine, CurrentPrincipal, DbSession
-from studio_api.openapi_meta import RESP_401_UNAUTHORIZED, RESP_403_FORBIDDEN, RESP_404_NOT_FOUND, RESP_409_VERSION_CONFLICT, IF_MATCH_VERSION_DESCRIPTION
+from studio_api.openapi_meta import (
+    IF_MATCH_VERSION_DESCRIPTION,
+    RESP_401_UNAUTHORIZED,
+    RESP_403_FORBIDDEN,
+    RESP_404_NOT_FOUND,
+    RESP_409_VERSION_CONFLICT,
+)
 from studio_api.services import heartbeats as heartbeats_service
 from studio_api.services import launch_grants as launch_grants_service
 from studio_api.services import provisioning as provisioning_service
@@ -128,7 +134,12 @@ async def revoke_machine(
         "404 for a non-admin, exactly like a nonexistent one. `agent` never "
         "renames. Uses optimistic concurrency via `If-Match-Version` (required)."
     ),
-    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND, **RESP_409_VERSION_CONFLICT},
+    responses={
+        **RESP_401_UNAUTHORIZED,
+        **RESP_403_FORBIDDEN,
+        **RESP_404_NOT_FOUND,
+        **RESP_409_VERSION_CONFLICT,
+    },
 )
 async def rename_machine(
     machine_id: UUID,

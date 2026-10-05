@@ -20,9 +20,7 @@ def accepted_argument_names(tool: Any) -> set[str]:
     return accepted
 
 
-def unknown_arguments_error(
-    tool_name: str, unknown: list[str], valid: list[str]
-) -> dict[str, Any]:
+def unknown_arguments_error(tool_name: str, unknown: list[str], valid: list[str]) -> dict[str, Any]:
     names = ", ".join(unknown)
     return {
         "error_code": "invalid_argument",
@@ -54,9 +52,7 @@ def enforce_strict_arguments(server: Any) -> None:
         ) -> Any:
             unknown = find_unknown(_tool, arguments)
             if unknown:
-                error = unknown_arguments_error(
-                    _tool.name, unknown, valid_argument_names(_tool)
-                )
+                error = unknown_arguments_error(_tool.name, unknown, valid_argument_names(_tool))
                 if convert_result:
                     return _tool.fn_metadata.convert_result(error)
                 return error
@@ -76,9 +72,7 @@ def enforce_strict_arguments(server: Any) -> None:
         if tool is not None:
             unknown = find_unknown(tool, arguments)
             if unknown:
-                error = unknown_arguments_error(
-                    name, unknown, valid_argument_names(tool)
-                )
+                error = unknown_arguments_error(name, unknown, valid_argument_names(tool))
                 if convert_result:
                     return tool.fn_metadata.convert_result(error)
                 return error

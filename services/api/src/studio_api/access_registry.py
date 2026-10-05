@@ -64,6 +64,7 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     # agents and user-private runtimes.
     ("POST", "/api/v1/machines"): "own",
     ("POST", "/api/v1/machines/{machine_id}/revoke"): "own",
+    ("PATCH", "/api/v1/machines/{machine_id}"): "own",
     ("GET", "/api/v1/machines"): "own",
     ("GET", "/api/v1/machines/me"): "own",
     ("GET", "/api/v1/machines/{machine_id}/launch-grants"): "own",

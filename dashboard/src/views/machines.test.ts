@@ -47,6 +47,7 @@ const row = (overrides: Partial<MachineRow> = {}): MachineRow => ({
   statusSource: "derived",
   agentCount: 1,
   activeSessionCount: 1,
+  version: null,
   ...overrides,
 });
 
