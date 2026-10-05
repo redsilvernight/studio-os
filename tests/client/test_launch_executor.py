@@ -4,6 +4,7 @@ import asyncio
 import os
 import subprocess
 import sys
+import threading
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -312,6 +313,46 @@ async def test_terminal_before_start_reports_nothing(tmp_path: Path) -> None:
     assert store.list_pending(OutboxTable.MUTATIONS) == []
 
 
+async def _wait_for_status(store: OutboxStore, status: str, *, deadline: float = 60.0) -> None:
+    async with asyncio.timeout(deadline):
+        while not any(
+            r.payload["status"] == status for r in store.list_pending(OutboxTable.MUTATIONS)
+        ):
+            await asyncio.sleep(0.02)
+
+
+class BlockingPreparer(LaunchPreparer):
+    def __init__(self) -> None:
+        self.entered = threading.Event()
+        self.release = threading.Event()
+
+    def prepare(self, request: Any) -> Any:
+        self.entered.set()
+        assert self.release.wait(timeout=60)
+        return super().prepare(request)
+
+
+async def test_cancellation_while_preparing_stops_without_running_report(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    client = FakeClient()
+    executor, store = _executor(
+        tmp_path, repo, FakeAdapter(("-c", "import time; time.sleep(30)")), client, timeout=30
+    )
+    preparer = BlockingPreparer()
+    executor._preparer = preparer
+    launch = _launch()
+    executor.submit(launch)
+    task = executor._tasks[launch.id]
+    await asyncio.to_thread(preparer.entered.wait, 60)
+    client.statuses[launch.id] = TaskLaunchStatus.CANCELLED
+    await executor._observe()
+    preparer.release.set()
+    await asyncio.gather(task, return_exceptions=True)
+
+    assert _statuses(store) == ["preparing"]
+    assert executor._processes == {}
+
+
 async def test_cancellation_while_running_stops_without_terminal_report(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
     client = FakeClient()
@@ -325,18 +366,12 @@ async def test_cancellation_while_running_stops_without_terminal_report(tmp_path
     launch = _launch()
     executor.submit(launch)
     task = executor._tasks[launch.id]
-    for _ in range(100):
-        if any(r.payload["status"] == "running" for r in store.list_pending(OutboxTable.MUTATIONS)):
-            break
-        await asyncio.sleep(0.1)
+    await _wait_for_status(store, "running")
     client.statuses[launch.id] = TaskLaunchStatus.CANCELLED
     await executor._observe()
     await asyncio.gather(task, return_exceptions=True)
 
-    assert [row.payload["status"] for row in store.list_pending(OutboxTable.MUTATIONS)] == [
-        "preparing",
-        "running",
-    ]
+    assert _statuses(store) == ["preparing", "running"]
 
 
 async def test_expired_while_running_is_stopped(tmp_path: Path) -> None:
@@ -352,7 +387,7 @@ async def test_expired_while_running_is_stopped(tmp_path: Path) -> None:
     launch = _launch()
     executor.submit(launch)
     task = executor._tasks[launch.id]
-    await asyncio.sleep(0.6)
+    await _wait_for_status(store, "running")
     client.statuses[launch.id] = TaskLaunchStatus.EXPIRED
     await executor._observe()
     await asyncio.gather(task, return_exceptions=True)
