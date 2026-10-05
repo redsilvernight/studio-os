@@ -162,6 +162,23 @@ async def revoke_machine(session: AsyncSession, machine: MachineModel) -> Machin
     return machine
 
 
+async def update_machine(
+    session: AsyncSession, machine: MachineModel, display_name: str
+) -> MachineModel:
+    if machine.display_name != display_name:
+        machine.display_name = display_name
+        machine.version += 1
+        await session.commit()
+        await session.refresh(machine)
+        security_event(
+            "machine.renamed",
+            outcome="success",
+            machine_id=machine.id,
+            owner_user_id=machine.owner_user_id,
+        )
+    return machine
+
+
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
