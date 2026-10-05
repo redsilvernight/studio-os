@@ -79,3 +79,66 @@ class SkillsCheckResult(LocalContractModel):
         if self.in_sync != (self.missing + self.outdated + self.locally_modified == 0):
             raise ValueError("in_sync is true only when no target is missing or drifted")
         return self
+
+
+class SkillSyncStatusState(StrEnum):
+    IN_PROGRESS = "in_progress"
+    UP_TO_DATE = "up_to_date"
+    UPDATED = "updated"
+    CONFLICTS = "conflicts"
+    NOT_SYNCED = "not_synced"
+    DISABLED = "disabled"
+
+
+class SkillsPreviewRequest(LocalContractModel):
+    """Request a preview (diff) of the skill synchronization plan."""
+
+
+class SkillPreviewEntry(LocalContractModel):
+    stable_key: SkillStableKey
+    version: int = Field(ge=1)
+    targets: list[SkillTargetState] = Field(min_length=1, max_length=len(SkillHarnessTarget))
+    diff: str
+
+
+class SkillsPreviewResult(LocalContractModel):
+    """Preview of the skill synchronization plan with unified diffs."""
+
+    skills: list[SkillPreviewEntry] = Field(default=[], max_length=500)
+    current: int = Field(ge=0)
+    missing: int = Field(ge=0)
+    outdated: int = Field(ge=0)
+    locally_modified: int = Field(ge=0)
+    diff: str
+    checked_at: UtcDatetime
+
+
+class SkillsApplyRequest(LocalContractModel):
+    """Apply the skill synchronization plan. Requires explicit confirmation."""
+
+    confirm: bool = Field(default=False)
+
+
+class SkillsApplyResult(LocalContractModel):
+    """Result of applying the skill synchronization plan."""
+
+    written: list[str] = Field(default=[], max_length=500)
+    backups: list[str] = Field(default=[], max_length=500)
+    manifest_path: str
+    added: list[str] = Field(default=[], max_length=500)
+    updated: list[str] = Field(default=[], max_length=500)
+    conflicts: list[str] = Field(default=[], max_length=500)
+    applied_at: UtcDatetime
+
+
+class SkillsSyncStatus(LocalContractModel):
+    """Persistent status of the last skill synchronization."""
+
+    state: SkillSyncStatusState
+    last_successful_sync: UtcDatetime | None = None
+    last_check: UtcDatetime
+    added: list[str] = Field(default=[], max_length=500)
+    updated: list[str] = Field(default=[], max_length=500)
+    conflicts: list[str] = Field(default=[], max_length=500)
+    error_message: str | None = None
+    auto_sync_enabled: bool

@@ -85,7 +85,15 @@ from studio_contracts.local.publication import (
     PublicationPublishRequest,
     PublicationResult,
 )
-from studio_contracts.local.skills import SkillsCheckRequest, SkillsCheckResult
+from studio_contracts.local.skills import (
+    SkillsApplyRequest,
+    SkillsApplyResult,
+    SkillsCheckRequest,
+    SkillsCheckResult,
+    SkillsPreviewRequest,
+    SkillsPreviewResult,
+    SkillsSyncStatus,
+)
 from studio_contracts.local.workspace import (
     LocalWorkspaceConfig,
     WorkspaceConfirmRootsRequest,
@@ -161,6 +169,9 @@ class BridgeCommand(StrEnum):
     HARNESS_ROLLBACK = "harness.rollback"
     HARNESS_VERIFY = "harness.verify"
     SKILLS_CHECK = "skills.check"
+    SKILLS_PREVIEW = "skills.preview"
+    SKILLS_APPLY = "skills.apply"
+    SKILLS_STATUS = "skills.status"
     SETUP_PLAN = "setup.plan"
     SETUP_APPLY = "setup.apply"
     LAUNCH_GET_SETTINGS = "launch.get_settings"
@@ -358,6 +369,20 @@ BRIDGE_COMMANDS: dict[BridgeCommand, CommandSpec] = dict(
             "harness.verify",
         ),
         _spec(BridgeCommand.SKILLS_CHECK, SkillsCheckRequest, SkillsCheckResult, "skills.read"),
+        _spec(
+            BridgeCommand.SKILLS_PREVIEW,
+            SkillsPreviewRequest,
+            SkillsPreviewResult,
+            "skills.read",
+        ),
+        _spec(
+            BridgeCommand.SKILLS_APPLY,
+            SkillsApplyRequest,
+            SkillsApplyResult,
+            "skills.apply",
+            mutating=True,
+        ),
+        _spec(BridgeCommand.SKILLS_STATUS, EmptyPayload, SkillsSyncStatus, "skills.read"),
         _spec(BridgeCommand.SETUP_PLAN, SetupPlanRequest, SetupPlan, "setup.plan"),
         _spec(
             BridgeCommand.SETUP_APPLY,
