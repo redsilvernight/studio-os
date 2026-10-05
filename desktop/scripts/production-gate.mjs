@@ -1,4 +1,6 @@
-import { pathToFileURL } from "node:url";
+import { spawnSync } from "node:child_process";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const PLATFORM = "windows-x86_64";
 const REGISTRATION_MODES = new Set(["present", "closed", "open"]);
@@ -13,6 +15,8 @@ export function parseArgs(argv) {
     stableTag: "desktop-prod",
     registration: "present",
     requireStable: false,
+    skipDevPreflight: false,
+    devPreflightOffline: false,
     expectedBetaApiOrigin: "http://127.0.0.1:8765",
     githubApiBase: "https://api.github.com",
     timeoutMs: 15_000,
@@ -21,6 +25,14 @@ export function parseArgs(argv) {
     const argument = argv[index];
     if (argument === "--require-stable") {
       options.requireStable = true;
+      continue;
+    }
+    if (argument === "--skip-dev-preflight") {
+      options.skipDevPreflight = true;
+      continue;
+    }
+    if (argument === "--dev-preflight-offline") {
+      options.devPreflightOffline = true;
       continue;
     }
     if (!argument.startsWith("--")) throw new UsageError(`unexpected argument: ${argument}`);
@@ -139,8 +151,34 @@ async function checkRelease(options, fetchImpl, tag, channel, expectedApiOrigin)
   };
 }
 
-export async function runGate(options, fetchImpl = fetch) {
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+
+// Read-only: compares local dev to origin/dev (scripts/dev_preflight.py). The
+// JSON record (exact SHAs + remote ref) is embedded in the gate report.
+export function runDevPreflight(options, spawn = spawnSync) {
+  const args = ["scripts/dev_preflight.py", "--root", REPO_ROOT, "--json"];
+  if (options.devPreflightOffline) args.push("--offline");
+  const proc = spawn(process.env.STUDIO_PYTHON ?? "python3", args, {
+    cwd: REPO_ROOT,
+    encoding: "utf8",
+  });
+  if (proc.error) throw new Error(`dev preflight could not run: ${proc.error.message}`);
+  let record;
+  try {
+    record = JSON.parse(proc.stdout);
+  } catch {
+    throw new Error(`dev preflight produced no JSON (exit ${proc.status}): ${proc.stderr}`);
+  }
+  assert(record.promotable === true, `${record.message} | ${JSON.stringify(record)}`);
+  return record;
+}
+
+export async function runGate(options, fetchImpl = fetch, preflight = runDevPreflight) {
   const result = { timestamp: new Date().toISOString(), ok: true, checks: [] };
+  // Opt-in for library callers (tests); main() enables it unless --skip-dev-preflight.
+  if (options.devPreflight) {
+    await addCheck(result, "repo.dev_preflight", async () => preflight(options));
+  }
   await addCheck(result, "instance.health", async () => {
     const { body } = await fetchJson(`${options.baseUrl}/healthz`, options, fetchImpl);
     assert(body.status === "ok", "health status is not ok");
@@ -198,7 +236,9 @@ export async function main(argv = process.argv.slice(2), io = console) {
     io.error(JSON.stringify({ ok: false, error: error.message }));
     return 2;
   }
+  options.devPreflight = !options.skipDevPreflight;
   const result = await runGate(options);
+  if (options.skipDevPreflight) result.dev_preflight = "skipped (--skip-dev-preflight): dev state not verified";
   io.log(JSON.stringify(result));
   return result.ok ? 0 : 1;
 }
