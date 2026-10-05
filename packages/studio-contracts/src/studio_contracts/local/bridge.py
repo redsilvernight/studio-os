@@ -77,6 +77,8 @@ from studio_contracts.local.launch import (
 from studio_contracts.local.machine_setup import (
     SetupApplyRequest,
     SetupApplyResult,
+    SetupHooksCheckRequest,
+    SetupHooksCheckResult,
     SetupPlan,
     SetupPlanRequest,
 )
@@ -166,6 +168,7 @@ class BridgeCommand(StrEnum):
     SKILLS_CHECK = "skills.check"
     SETUP_PLAN = "setup.plan"
     SETUP_APPLY = "setup.apply"
+    SETUP_HOOKS_CHECK = "setup-hooks.check"
     LAUNCH_GET_SETTINGS = "launch.get_settings"
     LAUNCH_SAVE_SETTINGS = "launch.save_settings"
     OUTBOX_LEGACY_STATUS = "outbox.legacy_status"
@@ -376,6 +379,7 @@ BRIDGE_COMMANDS: dict[BridgeCommand, CommandSpec] = dict(
             "setup.apply",
             mutating=True,
         ),
+        _spec(BridgeCommand.SETUP_HOOKS_CHECK, SetupHooksCheckRequest, SetupHooksCheckResult, "setup.plan"),
         _spec(
             BridgeCommand.LAUNCH_GET_SETTINGS,
             LaunchSettingsRequest,
