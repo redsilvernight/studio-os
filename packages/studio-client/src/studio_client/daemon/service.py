@@ -431,13 +431,15 @@ class DaemonController:
         return save_launch_settings(self.config, self.data_root, request)
 
     def outbox_legacy_status(self) -> OutboxLegacyStatus:
+        from studio_contracts.local.outbox import LegacyOutboxTable
+
         from studio_client.outbox.legacy import inspect_legacy_outbox
 
         report = inspect_legacy_outbox()
         return OutboxLegacyStatus(
             exists=report.exists,
             has_queued_work=report.has_queued_work,
-            counts=dict(report.counts),
+            counts={LegacyOutboxTable(k): v for k, v in report.counts.items()},
         )
 
     def identity_view(self) -> IdentityView:

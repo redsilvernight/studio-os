@@ -128,7 +128,7 @@ from studio_contracts.local.machine_setup import (
     SetupSkillsState,
     SetupSkillsStep,
 )
-from studio_contracts.local.outbox import OutboxLegacyStatus
+from studio_contracts.local.outbox import LegacyOutboxTable, OutboxLegacyStatus
 from studio_contracts.local.provider import IndexInfo, IndexState, ProviderInfo
 from studio_contracts.local.publication import (
     DEFAULT_PUBLICATION_POLICY,
@@ -1636,7 +1636,10 @@ def build_fixtures() -> list[LocalFixture]:
     legacy_with_work = OutboxLegacyStatus(
         exists=True,
         has_queued_work=True,
-        counts={"pending_events": 3, "pending_mutations": 1},
+        counts={
+            LegacyOutboxTable.PENDING_EVENTS: 3,
+            LegacyOutboxTable.PENDING_MUTATIONS: 1,
+        },
     )
     fixtures["outbox.legacy_status.with_work"] = legacy_with_work
     fixtures["bridge.request.outbox_legacy_status"] = _bridge_request("outbox.legacy_status", {})
