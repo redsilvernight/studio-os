@@ -71,6 +71,16 @@ un test échoue si l'export diverge des builders Python.
   (`agents`, `assistant`) pour rester neutres vis-à-vis des fournisseurs, avec
   des compteurs et `in_sync` cohérents (validés). Ni contenu de skill ni chemin
   absolu ne sortent du démon ; un Desktop sans `skills.read` ignore la commande.
+  `outbox.legacy_status` (additif, tâche f34a2732, `studio.local/v1` inchangé) : lecture
+  seule, requête vide ; le démon inspecte l'outbox d'avant l'identité
+  (`inspect_legacy_outbox`). Le résultat ne porte que `exists`, `has_queued_work` et
+  `counts` par table, clés limitées à l'énumération fermée `LegacyOutboxTable`
+  (`pending_events`, `pending_mutations`, `pending_markers`, `dead_letter`,
+  `multipart_uploads`), entiers ≥ 0, cohérents avec `has_queued_work` (validé) ; jamais
+  de chemin. Aucune purge ni import en phase 1. Le message `IDENTITY_MISMATCH` émis
+  quand une outbox héritée contient du travail renvoie désormais vers le Dashboard
+  (Réglages › Application › Outbox héritée) au lieu de la commande CLI absente du
+  `.exe` ; le code d'erreur, `retryable=false` et l'absence de chemin sont inchangés.
   `launch.get_settings` / `launch.save_settings` (additifs, tâche d4c076ab, AIB-J)
   sous la capability optionnelle `launch.settings` : le propriétaire de la machine
   règle localement l'opt-in aux lancements à distance (`opt_in`), la limite de

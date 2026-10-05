@@ -212,7 +212,7 @@ async def test_rename_requires_if_match_version(
         headers=auth_headers,
         json={"display_name": "new-name"},
     )
-    assert rename.status_code in (422, 428)  # 422 validation error or 428 precondition required
+    assert rename.status_code == 422  # header If-Match-Version obligatoire
 
 
 async def test_rename_rejects_empty_name(client: AsyncClient, auth_headers: dict[str, str]) -> None:

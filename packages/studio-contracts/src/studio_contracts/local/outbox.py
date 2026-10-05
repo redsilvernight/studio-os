@@ -1,20 +1,21 @@
 from __future__ import annotations
 
+from enum import StrEnum
 from typing import Self
 
-from pydantic import Field, model_validator
+from pydantic import Field, NonNegativeInt, model_validator
 
 from studio_contracts.local.common import LocalContractModel
 
-LEGACY_OUTBOX_TABLES = frozenset(
-    {
-        "pending_events",
-        "pending_mutations",
-        "pending_markers",
-        "dead_letter",
-        "multipart_uploads",
-    }
-)
+
+class LegacyOutboxTable(StrEnum):
+    """Closed set of tables a pre-identity outbox may hold."""
+
+    PENDING_EVENTS = "pending_events"
+    PENDING_MUTATIONS = "pending_mutations"
+    PENDING_MARKERS = "pending_markers"
+    DEAD_LETTER = "dead_letter"
+    MULTIPART_UPLOADS = "multipart_uploads"
 
 
 class OutboxLegacyStatus(LocalContractModel):
@@ -27,15 +28,10 @@ class OutboxLegacyStatus(LocalContractModel):
 
     exists: bool
     has_queued_work: bool
-    counts: dict[str, int] = Field(default_factory=dict)
+    counts: dict[LegacyOutboxTable, NonNegativeInt] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def _counts_match_presence(self) -> Self:
-        for table, count in self.counts.items():
-            if table not in LEGACY_OUTBOX_TABLES:
-                raise ValueError(f"unknown legacy outbox table {table!r}")
-            if count < 0:
-                raise ValueError(f"count for {table!r} cannot be negative")
         if not self.exists and self.counts:
             raise ValueError("an absent legacy outbox carries no counts")
         if self.has_queued_work != any(count > 0 for count in self.counts.values()):

@@ -1,10 +1,28 @@
 {
+  "$defs": {
+    "LegacyOutboxTable": {
+      "description": "Closed set of tables a pre-identity outbox may hold.",
+      "enum": [
+        "pending_events",
+        "pending_mutations",
+        "pending_markers",
+        "dead_letter",
+        "multipart_uploads"
+      ],
+      "title": "LegacyOutboxTable",
+      "type": "string"
+    }
+  },
   "additionalProperties": false,
   "description": "Read-only view of the pre-identity outbox.\n\nNever carries a filesystem path: the daemon holds the location, the\nDesktop only learns whether queued work remains and how much per table.\nPhase 1 exposes no purge or import, only this status.",
   "properties": {
     "counts": {
       "additionalProperties": {
+        "minimum": 0,
         "type": "integer"
+      },
+      "propertyNames": {
+        "$ref": "#/$defs/LegacyOutboxTable"
       },
       "title": "Counts",
       "type": "object"

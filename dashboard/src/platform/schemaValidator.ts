@@ -1,7 +1,7 @@
 /**
  * Minimal JSON Schema validator for the keyword subset the P1 export uses
  * (type, enum, const, pattern, min/max* incl. min/maxProperties, items, properties, required,
- * additionalProperties, anyOf, $ref to local $defs, format date-time/uuid).
+ * additionalProperties, propertyNames, anyOf, $ref to local $defs, format date-time/uuid).
  *
  * It validates the generated bridge schemas at the Desktop boundary. An
  * unsupported keyword or an unresolved $ref throws: this validator fails
@@ -36,6 +36,7 @@ const KNOWN = new Set([
   "minimum",
   "pattern",
   "properties",
+  "propertyNames",
   "required",
   "title",
   "type",
@@ -156,6 +157,9 @@ function check(root: Schema, schema: Schema, value: unknown, path: string, out: 
     }
     for (const key of required) {
       if (!(key in value)) out.push({ path: `${path}.${key}`, message: "is required" });
+    }
+    for (const key of Object.keys(value)) {
+      if (isObject(schema.propertyNames)) check(root, schema.propertyNames, key, `${path}.${key}`, out);
     }
     for (const [key, item] of Object.entries(value)) {
       const sub = props[key];

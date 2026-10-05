@@ -209,7 +209,7 @@ que l'adresse existe ou non ; les e-mails partent apres la reponse.
   d'un autre User repond `404`. Concurrence optimiste obligatoire via header
   `If-Match-Version` (entier) : version lue au dernier `GET` ; version etalee
   repond `409 {"detail": {"error_code": "version_conflict",
-  "server_version": <current>}}`. Header manquant : `422`/`428`. `display_name`
+  "server_version": <current>}}`. Header manquant : `422`. `display_name`
   valide = non vide, 1–100 caracteres, espaces lateraux supprimes (meme
   validation que `MachineCreate.display_name`). Reponse = `Machine` (version
   incrementee).
