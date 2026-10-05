@@ -45,7 +45,8 @@
         },
         "status": "wrong_profile"
       }
-    ]
+    ],
+    "workstation_name": null
   },
   "model": "IdentityView"
 }

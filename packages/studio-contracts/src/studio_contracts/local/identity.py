@@ -119,12 +119,16 @@ class SecretReferenceStatus(LocalContractModel):
 
 class IdentityView(LocalContractModel):
     """Everything the renderer may know about identity: who, on which machine,
-    and whether the secrets behind them are usable — never the secrets."""
+    and whether the secrets behind them are usable — never the secrets.
+    `workstation_name` is this poste's own bounded hostname, the default the
+    enrollment step offers and the `<POSTE>` half of every harness name
+    (DEC-0117); absent from a daemon that predates it."""
 
     profile: ProfileRef
     human: HumanIdentity | None = None
     machine: MachineIdentity | None = None
     secrets: list[SecretReferenceStatus] = []
+    workstation_name: ShortText | None = None
 
     @model_validator(mode="after")
     def _single_profile(self) -> Self:

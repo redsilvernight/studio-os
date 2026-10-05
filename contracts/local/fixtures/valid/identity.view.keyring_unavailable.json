@@ -45,7 +45,8 @@
         },
         "status": "keyring_unavailable"
       }
-    ]
+    ],
+    "workstation_name": null
   },
   "model": "IdentityView"
 }
