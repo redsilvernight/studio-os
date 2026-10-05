@@ -208,6 +208,7 @@ DESKTOP_CAPABILITIES = [
     "publication.publish",
     "setup.apply",
     "setup.plan",
+    "skills.apply",
     "skills.read",
     "workspace.config",
 ]

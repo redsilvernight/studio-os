@@ -125,6 +125,9 @@ class ClientConfig(BaseSettings):
     knowledge_graph_dir: Path | None = None
     knowledge_source_root: Path | None = None
     knowledge_scope_allow: tuple[str, ...] = ()
+    # Automatic synchronization of Library skills at daemon startup.
+    # When disabled, the user must manually trigger sync via the bridge.
+    skills_auto_sync: bool = True
 
     @model_validator(mode="before")
     @classmethod

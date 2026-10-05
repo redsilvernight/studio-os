@@ -8,7 +8,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
-from typing import BinaryIO
+from typing import Any, BinaryIO
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
@@ -40,6 +40,7 @@ from studio_client.daemon.launch_puller import LaunchPuller
 from studio_client.daemon.launch_report import LaunchReporter
 from studio_client.daemon.launch_runner import LaunchRunner
 from studio_client.daemon.launch_settings_bridge import effective_launch_config
+from studio_client.daemon.skills_bridge import start_auto_sync
 from studio_client.daemon.workspace_watch import (
     RepoObservation,
     WorkspaceWatchLike,
@@ -63,6 +64,7 @@ from studio_client.outbox import (
 )
 from studio_client.outbox.legacy import LegacyOutboxError, inspect_legacy_outbox
 from studio_client.retry import RetryPolicy
+from studio_client.tokens import KeyringTokenStore, TokenStore
 from studio_client.watchers import GitChangeListener, PollingWatcher
 
 _LOGGER = logging.getLogger("studio_client.daemon.runtime")
@@ -205,10 +207,14 @@ class DaemonRuntime:
         git_change_listener: GitChangeListener | None = None,
         workspace_refresh_listener: WorkspaceRefreshListener | None = None,
         git_watch_source: GitWatchSource | None = None,
+        token_store: TokenStore | None = None,
+        skills_home: Callable[[], Path] = Path.home,
     ) -> None:
         self._git_watch_source = git_watch_source
         self._git_change_listener = git_change_listener
         self._workspace_refresh_listener = workspace_refresh_listener
+        self._token_store = token_store or KeyringTokenStore("studio-os")
+        self._skills_home = skills_home
         if config.machine_id is None:
             raise ValueError("ClientConfig.machine_id must be set to run the daemon")
         self.config = config
@@ -244,6 +250,7 @@ class DaemonRuntime:
         self._workspace_sync_seconds = workspace_sync_seconds
         self._stop_event: asyncio.Event | None = None
         self._stop_requested = False
+        self._auto_sync_runner: Any = None
 
     def request_stop(
         self,
@@ -423,6 +430,15 @@ class DaemonRuntime:
                     await self.refresh_workspace_watchers()
                 if self._stop_requested:
                     self.request_stop()
+
+                # Start automatic skill synchronization after daemon is fully ready
+                self._auto_sync_runner = start_auto_sync(
+                    self.config,
+                    self._token_store,
+                    self._skills_home(),
+                    self.data_root,
+                )
+
                 await asyncio.gather(
                     self._heartbeat.run(),
                     self._workspace_sync_loop(),

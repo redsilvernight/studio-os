@@ -94,7 +94,15 @@ from studio_contracts.local.machine_setup import (
     SetupPlanRequest,
 )
 from studio_contracts.local.outbox import OutboxLegacyStatus
-from studio_contracts.local.skills import SkillsCheckRequest, SkillsCheckResult
+from studio_contracts.local.skills import (
+    SkillsApplyRequest,
+    SkillsApplyResult,
+    SkillsCheckRequest,
+    SkillsCheckResult,
+    SkillsPreviewRequest,
+    SkillsPreviewResult,
+    SkillsSyncStatus,
+)
 from studio_contracts.local.workspace import (
     WorkspaceConfirmRootsRequest,
     WorkspaceGetConfigRequest,
@@ -125,7 +133,12 @@ from studio_client.daemon.runtime import (
     WorkspaceSource,
 )
 from studio_client.daemon.setup_bridge import SetupBridge
-from studio_client.daemon.skills_bridge import check_skills
+from studio_client.daemon.skills_bridge import (
+    apply_skills,
+    check_skills,
+    preview_skills,
+    skills_status,
+)
 from studio_client.data_format import DataFormatError, ensure_data_format
 from studio_client.harness.credentials import workstation_name
 from studio_client.outbox import OutboxIdentityError
@@ -195,6 +208,9 @@ SERVED = frozenset(
         BridgeCommand.HARNESS_ROLLBACK,
         BridgeCommand.HARNESS_VERIFY,
         BridgeCommand.SKILLS_CHECK,
+        BridgeCommand.SKILLS_PREVIEW,
+        BridgeCommand.SKILLS_APPLY,
+        BridgeCommand.SKILLS_STATUS,
         BridgeCommand.SETUP_PLAN,
         BridgeCommand.SETUP_APPLY,
         BridgeCommand.SETUP_HOOKS_CHECK,
@@ -424,6 +440,26 @@ class DaemonController:
     def hooks_check(self) -> SetupHooksCheckResult:
         return check_hooks(self.config, self._token_store, home=self._skills_home())
 
+    def skills_preview(self) -> SkillsPreviewResult:
+        return preview_skills(self.config, self._token_store, home=self._skills_home())
+
+    def skills_apply(self, request: SkillsApplyRequest) -> SkillsApplyResult:
+        return apply_skills(
+            self.config,
+            self._token_store,
+            request,
+            home=self._skills_home(),
+            data_root=self.data_root,
+        )
+
+    def skills_status(self) -> SkillsSyncStatus:
+        return skills_status(
+            self.config,
+            self._token_store,
+            home=self._skills_home(),
+            data_root=self.data_root,
+        )
+
     def _workspace_roots(self) -> tuple[Path, ...]:
         features = self.local_features
         return () if features is None else features.workspace_roots()
@@ -645,6 +681,8 @@ class DaemonController:
                 workspace_refresh_listener=(
                     None if self.local_features is None else self._refresh_local_features
                 ),
+                token_store=self._token_store,
+                skills_home=self._skills_home,
             )
             self._runtime = runtime
             self._failure = None
@@ -833,6 +871,7 @@ class BridgeService:
                             "identity.view",
                             "identity.enroll",
                             "skills.read",
+                            "skills.apply",
                             "setup.plan",
                             "setup.apply",
                             "launch.settings",
@@ -867,6 +906,17 @@ class BridgeService:
         if request.command is BridgeCommand.SETUP_HOOKS_CHECK:
             SetupHooksCheckRequest.model_validate(request.payload)
             return self.controller.hooks_check()
+        if request.command is BridgeCommand.SKILLS_PREVIEW:
+            SkillsPreviewRequest.model_validate(request.payload)
+            return self.controller.skills_preview()
+        if request.command is BridgeCommand.SKILLS_APPLY:
+            apply_request = SkillsApplyRequest.model_validate(request.payload)
+            return self.controller.skills_apply(apply_request)
+        if request.command is BridgeCommand.SKILLS_STATUS:
+            from studio_contracts.local.bridge import EmptyPayload
+
+            EmptyPayload.model_validate(request.payload)
+            return self.controller.skills_status()
         if request.command is BridgeCommand.SETUP_PLAN:
             SetupPlanRequest.model_validate(request.payload)
             return self.controller.setup_plan()

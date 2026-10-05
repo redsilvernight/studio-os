@@ -49,6 +49,7 @@ pub const LOCAL_FEATURE_CAPABILITIES: &[&str] = &[
     "harness.apply",
     "harness.verify",
     "skills.read",
+    "skills.apply",
     "setup.plan",
     "setup.apply",
     "launch.settings",

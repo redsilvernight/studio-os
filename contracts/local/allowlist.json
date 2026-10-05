@@ -398,6 +398,17 @@
     },
     {
       "cancellable": false,
+      "capability": "skills.apply",
+      "command": "skills.apply",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": true,
+      "request": "SkillsApplyRequest",
+      "response": "SkillsApplyResult",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
       "capability": "skills.read",
       "command": "skills.check",
       "max_request_bytes": 65536,
@@ -405,6 +416,28 @@
       "mutating": false,
       "request": "SkillsCheckRequest",
       "response": "SkillsCheckResult",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "skills.read",
+      "command": "skills.preview",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "SkillsPreviewRequest",
+      "response": "SkillsPreviewResult",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "skills.read",
+      "command": "skills.status",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "EmptyPayload",
+      "response": "SkillsSyncStatus",
       "timeout_ms": 30000
     },
     {
