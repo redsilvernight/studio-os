@@ -85,6 +85,8 @@ from studio_contracts.local.launch import (
 from studio_contracts.local.machine_setup import (
     SetupApplyRequest,
     SetupApplyResult,
+    SetupHooksCheckRequest,
+    SetupHooksCheckResult,
     SetupPlan,
     SetupPlanRequest,
 )
@@ -118,6 +120,7 @@ from studio_client.daemon.runtime import (
     InstanceLock,
     WorkspaceSource,
 )
+from studio_client.daemon.hooks_check import check_hooks
 from studio_client.daemon.setup_bridge import SetupBridge
 from studio_client.daemon.skills_bridge import check_skills
 from studio_client.data_format import DataFormatError, ensure_data_format
@@ -191,6 +194,7 @@ SERVED = frozenset(
         BridgeCommand.SKILLS_CHECK,
         BridgeCommand.SETUP_PLAN,
         BridgeCommand.SETUP_APPLY,
+        BridgeCommand.SETUP_HOOKS_CHECK,
         BridgeCommand.LAUNCH_GET_SETTINGS,
         BridgeCommand.LAUNCH_SAVE_SETTINGS,
         BridgeCommand.OUTBOX_LEGACY_STATUS,
@@ -413,6 +417,9 @@ class DaemonController:
 
     def skills_check(self) -> SkillsCheckResult:
         return check_skills(self.config, self._token_store, home=self._skills_home())
+
+    def hooks_check(self) -> SetupHooksCheckResult:
+        return check_hooks(self.config, self._token_store, home=self._skills_home())
 
     def _workspace_roots(self) -> tuple[Path, ...]:
         features = self.local_features
@@ -812,6 +819,9 @@ class BridgeService:
         if request.command is BridgeCommand.SKILLS_CHECK:
             SkillsCheckRequest.model_validate(request.payload)
             return self.controller.skills_check()
+        if request.command is BridgeCommand.SETUP_HOOKS_CHECK:
+            SetupHooksCheckRequest.model_validate(request.payload)
+            return self.controller.hooks_check()
         if request.command is BridgeCommand.SETUP_PLAN:
             SetupPlanRequest.model_validate(request.payload)
             return self.controller.setup_plan()

@@ -22,6 +22,7 @@ from studio_contracts.local.common import (
     OpaqueId,
     SafeText,
     Sha256Hex,
+    ShortText,
     UtcDatetime,
 )
 
@@ -224,3 +225,31 @@ class SetupApplyResult(LocalContractModel):
         if self.backups_created != any(item.backed_up for item in self.hooks):
             raise ValueError("backups_created reflects the item results")
         return self
+
+
+class SetupHooksCheckRequest(LocalContractModel):
+    """Read-only: the daemon resolves the home directory and the harnesses
+    itself, so the Desktop supplies nothing."""
+
+
+class HookCheckState(StrEnum):
+    MANAGED = "managed"
+    MISSING = "missing"
+    FOREIGN = "foreign"
+    UP_TO_DATE = "up_to_date"
+
+
+class HookCheckEntry(LocalContractModel):
+    harness: Identifier
+    label: ShortText
+    hook_state: HookCheckState
+    guard_state: HookCheckState | None = None
+    plugin_state: HookCheckState | None = None
+
+
+class SetupHooksCheckResult(LocalContractModel):
+    """State of the session hooks, git guard and harness plugin for each
+    detected harness. No filesystem path or file content leaves this module."""
+
+    hooks: list[HookCheckEntry] = Field(default=[], max_length=16)
+    checked_at: UtcDatetime
