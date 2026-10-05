@@ -6,6 +6,11 @@
       "default": false,
       "title": "Confirm",
       "type": "boolean"
+    },
+    "overwrite": {
+      "default": false,
+      "title": "Overwrite",
+      "type": "boolean"
     }
   },
   "title": "SkillsApplyRequest",

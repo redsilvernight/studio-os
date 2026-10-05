@@ -117,6 +117,13 @@ class SkillsApplyRequest(LocalContractModel):
     """Apply the skill synchronization plan. Requires explicit confirmation."""
 
     confirm: bool = Field(default=False)
+    overwrite: bool = Field(default=False)
+
+
+class SkillsConfigureRequest(LocalContractModel):
+    """Enable or disable the automatic skill synchronization on this machine."""
+
+    auto_sync: bool
 
 
 class SkillsApplyResult(LocalContractModel):

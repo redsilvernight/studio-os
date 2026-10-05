@@ -124,6 +124,13 @@ un test échoue si l'export diverge des builders Python.
   `setup.plan`) rend, par harnais détecté, l'état `managed` / `missing` /
   `foreign` du hook, de la garde Git et du plugin ; ni chemin ni contenu de
   fichier ne sortent du daemon.
+- **Synchro des skills** : `skills.preview` (diff, lecture), `skills.status`
+  (état persistant du dernier cycle : en cours / à jour / mis à jour / conflits /
+  non synchronisé / désactivé), `skills.apply` (additif, capacité `skills.apply`,
+  `confirm` obligatoire ; `overwrite` remplace les copies modifiées à la main
+  après sauvegarde dans `~/.studio-os/backups/skills`) et `skills.configure`
+  (active ou désactive la synchro auto au démarrage, réglage local persistant).
+  Aucun chemin ni contenu de skill ne sort du daemon.
 - **Providers** : Knowledge (Markdown canonique, index dérivé, Obsidian
   optionnel), Code Graph (aucun détail Graphify dans les contrats publics ;
   `graphify` n'apparaît que comme valeur d'identifiant d'adaptateur dans les

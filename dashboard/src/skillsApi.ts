@@ -51,8 +51,12 @@ export function previewSkills(platform: Platform): Promise<HarnessOutcome<Skills
   return call(platform, "skills.preview", {});
 }
 
-export function applySkills(platform: Platform): Promise<HarnessOutcome<SkillsApplyResult>> {
-  return call(platform, "skills.apply", { confirm: true });
+export function applySkills(platform: Platform, overwrite = false): Promise<HarnessOutcome<SkillsApplyResult>> {
+  return call(platform, "skills.apply", overwrite ? { confirm: true, overwrite: true } : { confirm: true });
+}
+
+export function configureSkillsSync(platform: Platform, autoSync: boolean): Promise<HarnessOutcome<SkillsSyncStatus>> {
+  return call(platform, "skills.configure", { auto_sync: autoSync });
 }
 
 export const SYNC_STATE_LABELS: Record<SkillSyncStatusState, string> = {

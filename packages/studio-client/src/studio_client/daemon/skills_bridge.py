@@ -24,6 +24,7 @@ from studio_contracts.local.skills import (
     SkillsApplyRequest,
     SkillsApplyResult,
     SkillsCheckResult,
+    SkillsConfigureRequest,
     SkillsPreviewResult,
     SkillsSyncStatus,
     SkillSyncState,
@@ -58,6 +59,7 @@ _HARNESS = {
 }
 
 _STATUS_FILE_NAME = "skills-sync-status.json"
+_SETTINGS_FILE_NAME = "skills-sync-settings.json"
 
 
 def _status_path(data_root: Path) -> Path:
@@ -243,16 +245,20 @@ def apply_skills(
         added.append(target.path.name)
     for target in plan.outdated:
         updated.append(target.path.name)
+    if request.overwrite:
+        updated.extend(conflict_keys)
+        conflict_keys = []
+    enabled = auto_sync_enabled(config, data_root)
 
     try:
-        result = apply_skill_sync(plan, overwrite=False)
+        result = apply_skill_sync(plan, overwrite=request.overwrite)
     except SkillSyncConflictError as exc:
         _LOGGER.warning("skills.apply: conflicts prevented overwrite (%s)", exc)
         status = SkillsSyncStatus(
             state=SkillSyncStatusState.CONFLICTS,
             last_check=datetime.now(UTC),
             conflicts=conflict_keys,
-            auto_sync_enabled=False,
+            auto_sync_enabled=enabled,
         )
         if data_root is not None:
             _save_status(data_root, status)
@@ -272,7 +278,7 @@ def apply_skills(
         updated=updated,
         conflicts=conflict_keys,
         error_message=None,
-        auto_sync_enabled=True,
+        auto_sync_enabled=enabled,
     )
     if data_root is not None:
         _save_status(data_root, status)
@@ -318,13 +324,49 @@ def skills_status(
     return SkillsSyncStatus(
         state=state,
         last_check=datetime.now(UTC),
-        auto_sync_enabled=True,
+        auto_sync_enabled=auto_sync_enabled(config, data_root),
     )
 
 
-def auto_sync_enabled(config: ClientConfig) -> bool:
-    """Check if auto-sync is enabled in the configuration."""
+def auto_sync_enabled(config: ClientConfig, data_root: Path | None = None) -> bool:
+    """The local setting wins over the configuration default."""
+    if data_root is not None:
+        try:
+            payload = json.loads((data_root / _SETTINGS_FILE_NAME).read_text(encoding="utf-8"))
+            if isinstance(payload, dict) and isinstance(payload.get("auto_sync"), bool):
+                return bool(payload["auto_sync"])
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            pass
     return getattr(config, "skills_auto_sync", True)
+
+
+def configure_skills(
+    config: ClientConfig,
+    token_store: TokenStore,
+    request: SkillsConfigureRequest,
+    *,
+    home: Path,
+    data_root: Path,
+) -> SkillsSyncStatus:
+    """Persist the auto-sync setting; enabling starts a synchronization now."""
+    data_root.mkdir(parents=True, exist_ok=True)
+    (data_root / _SETTINGS_FILE_NAME).write_text(
+        json.dumps({"auto_sync": request.auto_sync}), encoding="utf-8"
+    )
+    if not request.auto_sync:
+        status = SkillsSyncStatus(
+            state=SkillSyncStatusState.DISABLED,
+            last_check=datetime.now(UTC),
+            auto_sync_enabled=False,
+        )
+        _save_status(data_root, status)
+        return status
+    start_auto_sync(config, token_store, home, data_root)
+    return SkillsSyncStatus(
+        state=SkillSyncStatusState.IN_PROGRESS,
+        last_check=datetime.now(UTC),
+        auto_sync_enabled=True,
+    )
 
 
 class _AutoSyncRunner:
@@ -351,7 +393,7 @@ class _AutoSyncRunner:
         with self._lock:
             if self._started:
                 return
-            if not auto_sync_enabled(self.config):
+            if not auto_sync_enabled(self.config, self.data_root):
                 _save_status(
                     self.data_root,
                     SkillsSyncStatus(

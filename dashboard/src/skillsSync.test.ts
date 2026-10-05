@@ -103,4 +103,28 @@ describe("skills sync indicator", () => {
     await flush();
     expect(calls).toContain('skills.apply:{"confirm":true}');
   });
+
+  it("overwrites conflicts only after a second confirmation", async () => {
+    const calls: string[] = [];
+    mountSkillsSync(platformWith(() => status({ state: "conflicts", conflicts: ["k"] }), calls));
+    await flush();
+    document.getElementById("skills-sync")?.click();
+    const confirm = document.querySelector<HTMLElement>('[data-skills-action="overwrite-confirm"]');
+    expect(confirm?.hasAttribute("hidden")).toBe(true);
+    document.querySelector<HTMLElement>('[data-skills-action="overwrite"]')?.click();
+    expect(calls.some((call) => call.startsWith("skills.apply"))).toBe(false);
+    confirm?.click();
+    await flush();
+    expect(calls).toContain('skills.apply:{"confirm":true,"overwrite":true}');
+  });
+
+  it("toggles the automatic synchronization", async () => {
+    const calls: string[] = [];
+    mountSkillsSync(platformWith(() => status({ auto_sync_enabled: true }), calls));
+    await flush();
+    document.getElementById("skills-sync")?.click();
+    document.querySelector<HTMLElement>('[data-skills-action="toggle"]')?.click();
+    await flush();
+    expect(calls).toContain('skills.configure:{"auto_sync":false}');
+  });
 });

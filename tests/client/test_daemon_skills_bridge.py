@@ -17,7 +17,11 @@ from studio_client.skill_sync import apply_skill_sync, plan_skill_sync
 from studio_client.tokens import MemoryTokenStore
 from studio_contracts.local.bridge import BridgeRequest
 from studio_contracts.local.handshake import HandshakeRequest
-from studio_contracts.local.skills import SkillsCheckResult
+from studio_contracts.local.skills import (
+    SkillsApplyRequest,
+    SkillsCheckResult,
+    SkillsConfigureRequest,
+)
 
 ORIGIN = "https://studio.example"
 
@@ -169,3 +173,47 @@ def test_upstream_errors_are_mapped(tmp_path: Path, monkeypatch, exc, code, retr
     assert err.value.error.code.value == code
     assert err.value.error.retryable is retryable
     assert str(tmp_path) not in err.value.error.message
+
+
+def _modified_home(tmp_path: Path) -> tuple[Path, Path]:
+    home = tmp_path / "home"
+    home.mkdir()
+    apply_skill_sync(plan_skill_sync(home, [_projection()]))
+    target = home / ".claude" / "skills" / "studio-git-flow" / "SKILL.md"
+    target.write_text(target.read_text(encoding="utf-8") + "\nlocal edit\n", encoding="utf-8")
+    return home, target
+
+
+def test_apply_refuses_conflicts_without_overwrite(tmp_path: Path, monkeypatch) -> None:
+    home, target = _modified_home(tmp_path)
+    _patch_fetch(monkeypatch, [_projection()])
+    controller = _controller(tmp_path, home)
+    with pytest.raises(LocalFeatureError):
+        controller.skills_apply(SkillsApplyRequest(confirm=True))
+    assert "local edit" in target.read_text(encoding="utf-8")
+
+
+def test_apply_overwrite_backs_up_and_resolves_conflicts(tmp_path: Path, monkeypatch) -> None:
+    home, target = _modified_home(tmp_path)
+    _patch_fetch(monkeypatch, [_projection()])
+    controller = _controller(tmp_path, home)
+    result = controller.skills_apply(SkillsApplyRequest(confirm=True, overwrite=True))
+    assert result.conflicts == [] and result.backups
+    assert "local edit" not in target.read_text(encoding="utf-8")
+    assert controller.skills_status().state.value == "updated"
+
+
+def test_configure_disables_and_persists_the_setting(tmp_path: Path, monkeypatch) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    _patch_fetch(monkeypatch, [_projection()])
+    controller = _controller(tmp_path, home)
+    status = controller.skills_configure(SkillsConfigureRequest(auto_sync=False))
+    assert status.state.value == "disabled" and not status.auto_sync_enabled
+    assert controller.skills_status().state.value == "disabled"
+    assert not skills_bridge.auto_sync_enabled(controller.config, tmp_path)
+    skills_bridge.start_auto_sync(controller.config, controller._token_store, home, tmp_path)
+    assert _snapshot(home) == {}
+    status = controller.skills_configure(SkillsConfigureRequest(auto_sync=True))
+    assert status.state.value == "in_progress"
+    assert skills_bridge.auto_sync_enabled(controller.config, tmp_path)

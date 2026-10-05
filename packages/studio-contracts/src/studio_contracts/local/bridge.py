@@ -94,6 +94,7 @@ from studio_contracts.local.skills import (
     SkillsApplyResult,
     SkillsCheckRequest,
     SkillsCheckResult,
+    SkillsConfigureRequest,
     SkillsPreviewRequest,
     SkillsPreviewResult,
     SkillsSyncStatus,
@@ -177,6 +178,7 @@ class BridgeCommand(StrEnum):
     SKILLS_PREVIEW = "skills.preview"
     SKILLS_APPLY = "skills.apply"
     SKILLS_STATUS = "skills.status"
+    SKILLS_CONFIGURE = "skills.configure"
     SETUP_PLAN = "setup.plan"
     SETUP_APPLY = "setup.apply"
     SETUP_HOOKS_CHECK = "hooks.check"
@@ -396,6 +398,13 @@ BRIDGE_COMMANDS: dict[BridgeCommand, CommandSpec] = dict(
             mutating=True,
         ),
         _spec(BridgeCommand.SKILLS_STATUS, EmptyPayload, SkillsSyncStatus, "skills.read"),
+        _spec(
+            BridgeCommand.SKILLS_CONFIGURE,
+            SkillsConfigureRequest,
+            SkillsSyncStatus,
+            "skills.apply",
+            mutating=True,
+        ),
         _spec(BridgeCommand.SETUP_PLAN, SetupPlanRequest, SetupPlan, "setup.plan"),
         _spec(
             BridgeCommand.SETUP_APPLY,

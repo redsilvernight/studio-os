@@ -57,6 +57,7 @@ pub const SERVED_BY_DAEMON: &[&str] = &[
     "skills.preview",
     "skills.apply",
     "skills.status",
+    "skills.configure",
     "setup.plan",
     "setup.apply",
     "hooks.check",
@@ -114,8 +115,8 @@ mod tests {
     fn allowlist_matches_p1_export() {
         assert_eq!(
             all_commands().len(),
-            45,
-            "studio.local/v1 exports 45 commands"
+            46,
+            "studio.local/v1 exports 46 commands"
         );
         assert!(lookup("runtime.handshake").is_some());
         assert!(lookup("daemon.status").is_some());

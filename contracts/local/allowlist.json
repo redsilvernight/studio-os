@@ -420,6 +420,17 @@
     },
     {
       "cancellable": false,
+      "capability": "skills.apply",
+      "command": "skills.configure",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": true,
+      "request": "SkillsConfigureRequest",
+      "response": "SkillsSyncStatus",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
       "capability": "skills.read",
       "command": "skills.preview",
       "max_request_bytes": 65536,

@@ -99,6 +99,7 @@ from studio_contracts.local.skills import (
     SkillsApplyResult,
     SkillsCheckRequest,
     SkillsCheckResult,
+    SkillsConfigureRequest,
     SkillsPreviewRequest,
     SkillsPreviewResult,
     SkillsSyncStatus,
@@ -136,6 +137,7 @@ from studio_client.daemon.setup_bridge import SetupBridge
 from studio_client.daemon.skills_bridge import (
     apply_skills,
     check_skills,
+    configure_skills,
     preview_skills,
     skills_status,
 )
@@ -445,6 +447,15 @@ class DaemonController:
 
     def skills_apply(self, request: SkillsApplyRequest) -> SkillsApplyResult:
         return apply_skills(
+            self.config,
+            self._token_store,
+            request,
+            home=self._skills_home(),
+            data_root=self.data_root,
+        )
+
+    def skills_configure(self, request: SkillsConfigureRequest) -> SkillsSyncStatus:
+        return configure_skills(
             self.config,
             self._token_store,
             request,
@@ -912,6 +923,10 @@ class BridgeService:
         if request.command is BridgeCommand.SKILLS_APPLY:
             apply_request = SkillsApplyRequest.model_validate(request.payload)
             return self.controller.skills_apply(apply_request)
+        if request.command is BridgeCommand.SKILLS_CONFIGURE:
+            return self.controller.skills_configure(
+                SkillsConfigureRequest.model_validate(request.payload)
+            )
         if request.command is BridgeCommand.SKILLS_STATUS:
             from studio_contracts.local.bridge import EmptyPayload
 

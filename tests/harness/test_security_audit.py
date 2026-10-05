@@ -89,8 +89,8 @@ def test_40_bridge_security_allowlist_only():
     # All commands must be in allowlist
     # 31 original + knowledge.init_vault + harness.verify + identity.enroll (DEC-0130)
     # + setup.plan / setup.apply (Configurer ce poste) + outbox.legacy_status
-    # + identity.forget + hooks.check + skills.preview / skills.apply / skills.status
-    assert len(BRIDGE_COMMANDS) == 45
+    # + identity.forget + hooks.check + skills.preview / apply / status / configure
+    assert len(BRIDGE_COMMANDS) == 46
 
     # No command should contain forbidden primitives
     for cmd in BridgeCommand:

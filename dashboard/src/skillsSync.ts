@@ -10,6 +10,7 @@ import { harnessErrorMessage } from "./harnessApi";
 import type { Platform } from "./platform";
 import {
   applySkills,
+  configureSkillsSync,
   getSkillsSyncStatus,
   previewSkills,
   SYNC_STATE_LABELS,
@@ -72,8 +73,16 @@ export function skillsDetailHtml(status: SkillsSyncStatus | null, failed: boolea
     (updated ? `<h3>Mis à jour</h3>${updated}` : "") +
     (conflicts ? `<h3>Conflits</h3>${conflicts}` : "") +
     `<pre class="skills-sync-diff" data-testid="skills-sync-diff" hidden></pre>` +
+    (conflicts
+      ? `<p class="skills-sync-overwrite" data-testid="skills-sync-overwrite" hidden>Les skills en conflit seront remplacés par la version de la Library ; votre copie locale est sauvegardée dans ~/.studio-os/backups/skills.</p>`
+      : "") +
     `<div class="ds-dialog-actions">` +
     `<button class="ds-btn" type="button" data-skills-action="diff">Voir les différences</button>` +
+    (conflicts
+      ? `<button class="ds-btn" type="button" data-skills-action="overwrite">Écraser avec la Library</button>` +
+        `<button class="ds-btn ds-btn--danger" type="button" data-skills-action="overwrite-confirm" hidden>Confirmer l'écrasement</button>`
+      : "") +
+    `<button class="ds-btn" type="button" data-skills-action="toggle">${status.auto_sync_enabled ? "Désactiver la synchro auto" : "Activer la synchro auto"}</button>` +
     `<button class="ds-btn ds-btn--primary" type="button" data-skills-action="retry"${status.state === "in_progress" ? " disabled" : ""}>Réessayer</button>` +
     `</div>`
   );
@@ -132,11 +141,24 @@ function bindActions(platform: Platform): void {
       box.textContent = outcome.ok ? outcome.value.diff || "Aucune différence." : harnessErrorMessage(outcome.error);
     });
   });
-  root.querySelector('[data-skills-action="retry"]')?.addEventListener("click", () => {
+  const runApply = (overwrite: boolean): void => {
     if (busy) return;
     busy = true;
-    void applySkills(platform).then(async (outcome) => {
+    void applySkills(platform, overwrite).then(async (outcome) => {
       busy = false;
+      if (!outcome.ok) dsNotify(harnessErrorMessage(outcome.error), "warning");
+      await refresh(platform);
+    });
+  };
+  root.querySelector('[data-skills-action="retry"]')?.addEventListener("click", () => runApply(false));
+  root.querySelector('[data-skills-action="overwrite"]')?.addEventListener("click", () => {
+    root.querySelector<HTMLElement>(".skills-sync-overwrite")?.removeAttribute("hidden");
+    root.querySelector<HTMLElement>('[data-skills-action="overwrite-confirm"]')?.removeAttribute("hidden");
+  });
+  root.querySelector('[data-skills-action="overwrite-confirm"]')?.addEventListener("click", () => runApply(true));
+  root.querySelector('[data-skills-action="toggle"]')?.addEventListener("click", () => {
+    const enable = current?.auto_sync_enabled !== true;
+    void configureSkillsSync(platform, enable).then(async (outcome) => {
       if (!outcome.ok) dsNotify(harnessErrorMessage(outcome.error), "warning");
       await refresh(platform);
     });
