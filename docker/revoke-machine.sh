@@ -8,7 +8,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # shellcheck disable=SC1091
-set -a; source ./.env; set +a
+source "${SCRIPT_DIR}/dotenv.sh"
+load_dotenv "${SCRIPT_DIR}/.env"
 
 MACHINE_ID="${1:?usage: revoke-machine.sh <machine_id>}"
 
