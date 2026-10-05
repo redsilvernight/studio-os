@@ -32,6 +32,7 @@ import { lazyView, renderViewLoadError, ViewLoadError } from "./lazyView";
 import { forgetLocalIdentity } from "./localIdentity";
 import { getPlatform } from "./platform";
 import { getDesktopShell, paintShellStatus, prepareDesktop, setDesktopHooks } from "./desktopShell";
+import { mountSkillsSync } from "./skillsSync";
 import { parseRoute } from "./router";
 import { closePalette, isPaletteOpen, mountPalette, paletteEntries } from "./commandPalette";
 import { loadNavMode, saveNavMode, toggledNavMode } from "./navMode";
@@ -381,6 +382,7 @@ function mountShell(): void {
   if (app === null) throw new Error("#app missing");
   app.innerHTML = shellHtml(parseRoute(location.hash), hasToken(), getDesktopShell() !== null, loadNavMode());
   paintShellStatus(document);
+  mountSkillsSync(getPlatform());
   paintUpdateBanner(document);
   mountPalette(() => paletteEntries(parseRoute(location.hash), getDesktopShell() !== null));
   mountAdminFlyout();

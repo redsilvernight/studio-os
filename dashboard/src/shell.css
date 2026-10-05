@@ -607,3 +607,19 @@ a.app-connection:hover .app-connection-label {
   padding: var(--ds-space-2) var(--ds-space-4);
   border-top: 1px solid var(--ds-border);
 }
+
+/* Indicateur de synchronisation des skills (Desktop) : même gabarit que la pastille de connexion. */
+.app-skills-sync {
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.skills-sync-diff {
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-size: var(--ds-text-sm);
+}
