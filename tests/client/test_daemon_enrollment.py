@@ -236,6 +236,27 @@ def test_an_invalid_session_is_refused_without_echo(tmp_path) -> None:
     assert_no_secret(answer)
 
 
+def test_identity_view_exposes_the_workstation_name(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr("studio_client.daemon.service.workstation_name", lambda: "FLO-LAPTOP")
+    bridge, _ = service(tmp_path, FakeServer())
+
+    answer = bridge.handle_line(line("identity.get_view", {}))
+
+    assert answer["kind"] == "response"
+    assert answer["payload"]["workstation_name"] == "FLO-LAPTOP"
+
+
+def test_machine_name_is_bounded_and_never_blank_on_the_server() -> None:
+    from pydantic import ValidationError
+    from studio_contracts.auth import MachineCreate
+
+    assert MachineCreate(display_name="  FLO-LAPTOP  ").display_name == "FLO-LAPTOP"
+    with pytest.raises(ValidationError):
+        MachineCreate(display_name="   ")
+    with pytest.raises(ValidationError):
+        MachineCreate(display_name="x" * 101)
+
+
 def test_enroll_needs_its_negotiated_capability(tmp_path) -> None:
     server = FakeServer()
     controller = DaemonController(

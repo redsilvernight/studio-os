@@ -120,6 +120,7 @@ from studio_client.daemon.runtime import (
 from studio_client.daemon.setup_bridge import SetupBridge
 from studio_client.daemon.skills_bridge import check_skills
 from studio_client.data_format import DataFormatError, ensure_data_format
+from studio_client.harness.credentials import workstation_name
 from studio_client.outbox import OutboxIdentityError
 from studio_client.tokens import KeyringTokenStore, TokenStore
 
@@ -465,6 +466,7 @@ class DaemonController:
                     error=error,
                 )
             ],
+            workstation_name=workstation_name(),
         )
 
     def enroll(self, request: IdentityEnrollRequest) -> IdentityEnrollResult:

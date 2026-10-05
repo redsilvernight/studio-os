@@ -642,8 +642,26 @@ async function daemonGrantsEnroll(platform: Platform): Promise<boolean> {
   }
 }
 
-function enrollMachineName(): string {
+const MAX_MACHINE_NAME = 100;
+
+/**
+ * Nom proposé à l'enrôlement : le nom d'hôte du poste exposé par le démon
+ * (même source que les noms de harnais, DEC-0117). Un démon antérieur ne le
+ * fournit pas : repli sur l'ancien libellé.
+ */
+function defaultMachineName(view: IdentityView | null): string {
+  const workstation = view?.workstation_name?.trim();
+  if (workstation) return workstation.slice(0, MAX_MACHINE_NAME);
   return `Studi'OS Desktop · ${new Date().toISOString().slice(0, 10)}`;
+}
+
+/** `null` = nom acceptable ; sinon le message de refus, borné comme le serveur. */
+function machineNameRefusal(name: string): string | null {
+  if (!name) return "Indiquez un nom pour ce poste.";
+  if (name.length > MAX_MACHINE_NAME) {
+    return `Le nom du poste est limité à ${MAX_MACHINE_NAME} caractères.`;
+  }
+  return null;
 }
 
 async function paintVerification(
@@ -670,7 +688,9 @@ async function paintVerification(
       ? `<p class="settings-intro" data-testid="enroll-unavailable">${esc(ENROLL_UPDATE_MESSAGE)}</p>`
       : ""
     : hasToken()
-      ? `<div class="settings-actions" data-testid="enroll-machine"><button class="ds-btn ds-btn--primary" type="button" data-action="enroll">Enregistrer ce poste</button></div>`
+      ? `<label class="settings-field">Nom de ce poste` +
+        `<input id="enroll-machine-name" name="machine_name" type="text" autocomplete="off" maxlength="${MAX_MACHINE_NAME}" value="${esc(defaultMachineName(view))}" /></label>` +
+        `<div class="settings-actions" data-testid="enroll-machine"><button class="ds-btn ds-btn--primary" type="button" data-action="enroll">Enregistrer ce poste</button></div>`
       : `<p class="settings-intro" data-testid="enroll-needs-login">Connectez-vous à l'étape « Connexion » pour enregistrer ce poste.</p>`;
   const body =
     errorHtml(session.error) +
@@ -694,6 +714,13 @@ async function paintVerification(
   root.querySelector<HTMLButtonElement>("[data-action=enroll]")?.addEventListener("click", (event) => {
     const token = getToken();
     if (view === null || token === null) return;
+    const machineName = (root.querySelector<HTMLInputElement>("#enroll-machine-name")?.value ?? "").trim();
+    const refusal = machineNameRefusal(machineName);
+    if (refusal) {
+      session.error = refusal;
+      void again();
+      return;
+    }
     if (!lockButton(event.currentTarget as HTMLButtonElement, "Enregistrement…")) return;
     void daemonGrantsEnroll(platform)
       .then((granted) => {
@@ -701,7 +728,7 @@ async function paintVerification(
         return platform.request("identity.enroll", {
           profile: view.profile,
           human_session: token,
-          machine_name: enrollMachineName(),
+          machine_name: machineName,
           replace_existing: secretStatus === "revoked",
         });
       })
