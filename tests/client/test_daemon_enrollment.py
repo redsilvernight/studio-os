@@ -349,3 +349,88 @@ def test_enroll_without_prior_identity_starts_the_heartbeat(tmp_path, monkeypatc
             and time.monotonic() < deadline
         ):
             time.sleep(0.05)
+
+
+def test_enrolling_another_account_rebinds_the_running_daemon(tmp_path, monkeypatch) -> None:
+    import studio_client.daemon.runtime as runtime_module
+    from studio_client.daemon.machine_identity import _cache_path
+    from studio_client.daemon.service import DaemonController
+    from studio_contracts.local.daemon_control import DaemonAction, DaemonControlRequest
+    from studio_contracts.local.identity import IdentityEnrollRequest
+
+    previous_machine = uuid4()
+    server = FakeServer()
+    store = MemoryTokenStore()
+    store.set_token(ORIGIN, "previous-account-credential")
+    config = ClientConfig(api_base_url=ORIGIN, profile_id="main", machine_id=previous_machine)
+    controller = DaemonController(
+        config,
+        data_root=tmp_path,
+        token_store=store,
+        enroll_transport=httpx.MockTransport(server),
+    )
+
+    seen: list[Any] = []
+    lock = threading.Lock()
+
+    class FakeHeartbeatClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        async def send_heartbeat(self, machine_id, _agent_id=None, _capabilities=None):
+            with lock:
+                seen.append(machine_id)
+            return None
+
+        async def pull_pending_launches(self, _machine_id):
+            return []
+
+    fake = FakeHeartbeatClient()
+    monkeypatch.setattr(runtime_module, "StudioApiClient", lambda _config: fake)
+    profile = controller._profile()
+
+    def stop() -> None:
+        controller.control(DaemonControlRequest(action=DaemonAction.STOP, profile=profile))
+        deadline = time.monotonic() + 10
+        while (
+            controller._thread is not None
+            and controller._thread.is_alive()
+            and time.monotonic() < deadline
+        ):
+            time.sleep(0.05)
+
+    def wait_for(machine_id: Any) -> bool:
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            with lock:
+                if machine_id in seen:
+                    return True
+            time.sleep(0.05)
+        return False
+
+    try:
+        controller.control(DaemonControlRequest(action=DaemonAction.START, profile=profile))
+        assert wait_for(previous_machine), "daemon never used the previous identity"
+
+        result = controller.enroll(
+            IdentityEnrollRequest.model_validate(
+                {
+                    "profile": {"profile_id": "main", "server_origin": ORIGIN},
+                    "human_session": SESSION,
+                    "machine_name": "ADA-LAPTOP · Desktop",
+                    "replace_existing": True,
+                }
+            )
+        )
+
+        assert result.machine_id == MACHINE_ID
+        assert controller.config.machine_id == MACHINE_ID
+        assert store.get_token(ORIGIN) == CREDENTIAL
+        assert wait_for(MACHINE_ID), "daemon kept the previous account's identity"
+        cache = json.loads(_cache_path(controller.config, tmp_path).read_text(encoding="utf-8"))
+        assert cache["machine_id"] == str(MACHINE_ID)
+    finally:
+        stop()
