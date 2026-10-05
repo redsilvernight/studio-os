@@ -310,6 +310,17 @@
     },
     {
       "cancellable": false,
+      "capability": "daemon.health",
+      "command": "outbox.legacy_status",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "EmptyPayload",
+      "response": "OutboxLegacyStatus",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
       "capability": "publication.plan",
       "command": "publication.preview",
       "max_request_bytes": 65536,

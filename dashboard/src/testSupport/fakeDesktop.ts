@@ -1,5 +1,5 @@
 import type { BridgeAnswer } from "../platform/contracts";
-import type { DaemonRunState, PeerInfo } from "../platform/generated/local-contracts.generated";
+import type { DaemonRunState, OutboxLegacyStatus, PeerInfo } from "../platform/generated/local-contracts.generated";
 import type { BridgeCommand } from "../platform/contracts";
 import type { DesktopDiagnostics, Platform, ServerOriginState } from "../platform";
 
@@ -95,6 +95,7 @@ export function fakeDesktop(over: Partial<Platform> = {}, origin: ServerOriginSt
     checkForUpdate: async () => ({ ok: true, status: { state: "not_configured" } }),
     installUpdate: async () => ({ ok: false, code: "not_configured" }),
     sessionVault: null,
+    outboxLegacyStatus: async () => ({ exists: false, has_queued_work: false, counts: {} } as OutboxLegacyStatus),
     ...over,
   };
 }
