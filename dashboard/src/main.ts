@@ -29,6 +29,7 @@ import { PUBLIC_HASH, publicHashScreen, readAccountLink, scrubbedPath } from "./
 import { renderPublicAccount, type PublicScreen } from "./views/publicAccount";
 import { probeProjectAccess, renderAwaitingAccess, type ProjectAccess } from "./views/awaitingAccess";
 import { lazyView, renderViewLoadError, ViewLoadError } from "./lazyView";
+import { forgetLocalIdentity } from "./localIdentity";
 import { getPlatform } from "./platform";
 import { getDesktopShell, paintShellStatus, prepareDesktop, setDesktopHooks } from "./desktopShell";
 import { parseRoute } from "./router";
@@ -432,6 +433,7 @@ function mountShell(): void {
   });
   document.getElementById("token-clear")?.addEventListener("click", () => {
     void endPersistentSession();
+    void forgetLocalIdentity(getPlatform());
     clearToken();
     syncRealtimeConnection();
     getDesktopShell()?.monitor.clearAuthExpired();

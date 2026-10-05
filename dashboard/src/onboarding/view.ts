@@ -626,7 +626,7 @@ const ENROLL_UPDATE_MESSAGE =
  * `identity.enroll` à l'instant (négociation fraîche : un démon redémarré
  * oublie ses accords). Un ancien démon ne la reçoit jamais.
  */
-async function daemonGrantsEnroll(platform: Platform): Promise<boolean> {
+export async function daemonGrantsEnroll(platform: Platform): Promise<boolean> {
   try {
     const peer = (await platform.desktopInfo())?.peer;
     if (!peer) return false;
