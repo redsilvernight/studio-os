@@ -1,0 +1,85 @@
+{
+  "$defs": {
+    "HookCheckEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "guard_state": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HookCheckState"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "harness": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Harness",
+          "type": "string"
+        },
+        "hook_state": {
+          "$ref": "#/$defs/HookCheckState"
+        },
+        "label": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "plugin_state": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HookCheckState"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "harness",
+        "label",
+        "hook_state"
+      ],
+      "title": "HookCheckEntry",
+      "type": "object"
+    },
+    "HookCheckState": {
+      "enum": [
+        "managed",
+        "missing",
+        "foreign",
+        "up_to_date"
+      ],
+      "title": "HookCheckState",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "State of the session hooks, git guard and harness plugin for each\ndetected harness. No filesystem path or file content leaves this module.",
+  "properties": {
+    "checked_at": {
+      "format": "date-time",
+      "title": "Checked At",
+      "type": "string"
+    },
+    "hooks": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/HookCheckEntry"
+      },
+      "maxItems": 16,
+      "title": "Hooks",
+      "type": "array"
+    }
+  },
+  "required": [
+    "checked_at"
+  ],
+  "title": "SetupHooksCheckResult",
+  "type": "object"
+}

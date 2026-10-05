@@ -120,6 +120,10 @@ un test échoue si l'export diverge des builders Python.
   (additif, capacité `identity.enroll`) est son inverse à la déconnexion : le
   daemon s'arrête, efface le credential machine du trousseau et le `machine_id`
   en cache ; rien n'est supprimé côté serveur.
+- **Hooks de session** : `hooks.check` (additif, lecture seule, capacité
+  `setup.plan`) rend, par harnais détecté, l'état `managed` / `missing` /
+  `foreign` du hook, de la garde Git et du plugin ; ni chemin ni contenu de
+  fichier ne sortent du daemon.
 - **Providers** : Knowledge (Markdown canonique, index dérivé, Obsidian
   optionnel), Code Graph (aucun détail Graphify dans les contrats publics ;
   `graphify` n'apparaît que comme valeur d'identifiant d'adaptateur dans les

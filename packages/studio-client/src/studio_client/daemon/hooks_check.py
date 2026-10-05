@@ -1,8 +1,8 @@
-"""Read-only ``setup-hooks.check`` bridge command.
+"""Read-only ``hooks.check`` bridge command.
 
 Reuses ``hooks.detect_harnesses``, ``hooks.is_managed``, ``hooks.render_hook``,
 ``hooks.render_guard``, ``opencode_plugin.render_plugin`` and
-``opencode_plugin.guard_state`` (the same engine as
+(the same engine as
 ``studio-client setup-hooks --dry-run``) and never writes: the Desktop only
 learns which hooks/guard/plugin are managed, missing, foreign or up-to-date for
 each detected harness. No hook content or filesystem path leaves this module.
@@ -10,26 +10,20 @@ each detected harness. No hook content or filesystem path leaves this module.
 
 from __future__ import annotations
 
-import logging
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Callable
 
-from studio_contracts.local.common import ComponentId, LocalError, LocalErrorCode
 from studio_contracts.local.machine_setup import (
     HookCheckEntry,
     HookCheckState,
-    SetupHooksCheckRequest,
     SetupHooksCheckResult,
 )
 
 from studio_client.config import ClientConfig
-from studio_client.daemon.local_features import LocalFeatureError
-from studio_client.hooks import HARNESSES, detect_harnesses, guard_state, is_managed, render_guard, render_hook
+from studio_client.hooks import detect_harnesses, render_guard, render_hook
 from studio_client.opencode_plugin import plugin_target, render_plugin
-from studio_client.tokens import TokenStore, origin_of
-
-_LOGGER = logging.getLogger("studio_client.daemon.hooks_check")
+from studio_client.tokens import TokenStore
 
 
 def _read(path: Path) -> str | None:
@@ -41,42 +35,19 @@ def _read(path: Path) -> str | None:
         return ""
 
 
-def _hook_check_state(home: Path, spec, target: Path) -> HookCheckState:
+def _state(target: Path, rendered: str) -> HookCheckState:
     current = _read(target)
     if current is None:
         return HookCheckState.MISSING
-    rendered = render_hook(spec)
-    if current == rendered:
-        return HookCheckState.MANAGED
-    if is_managed(target):
-        return HookCheckState.FOREIGN
-    return HookCheckState.FOREIGN
+    return HookCheckState.MANAGED if current == rendered else HookCheckState.FOREIGN
 
 
 def _guard_check_state(home: Path) -> HookCheckState:
-    target = home / ".claude" / "scripts" / "studio-git-guard.ps1"
-    current = _read(target)
-    if current is None:
-        return HookCheckState.MISSING
-    rendered = render_guard()
-    if current == rendered:
-        return HookCheckState.MANAGED
-    if is_managed(target):
-        return HookCheckState.FOREIGN
-    return HookCheckState.FOREIGN
+    return _state(home / ".claude" / "scripts" / "studio-git-guard.ps1", render_guard())
 
 
 def _plugin_check_state(home: Path) -> HookCheckState:
-    target = plugin_target(home)
-    current = _read(target)
-    if current is None:
-        return HookCheckState.MISSING
-    rendered = render_plugin(home)
-    if current == rendered:
-        return HookCheckState.MANAGED
-    if is_managed(target):
-        return HookCheckState.FOREIGN
-    return HookCheckState.FOREIGN
+    return _state(plugin_target(home), render_plugin(home))
 
 
 def check_hooks(
@@ -95,7 +66,7 @@ def check_hooks(
     entries: list[HookCheckEntry] = []
     for spec in detected:
         hook_target = actual_home / spec.hook_rel
-        hook_state = _hook_check_state(actual_home, spec, hook_target)
+        hook_state = _state(hook_target, render_hook(spec))
 
         guard_state_entry: HookCheckState | None = None
         if spec.harness in {"claude-code", "opencode"}:

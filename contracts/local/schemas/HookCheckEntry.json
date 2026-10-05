@@ -1,0 +1,60 @@
+{
+  "$defs": {
+    "HookCheckState": {
+      "enum": [
+        "managed",
+        "missing",
+        "foreign",
+        "up_to_date"
+      ],
+      "title": "HookCheckState",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "guard_state": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HookCheckState"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "harness": {
+      "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+      "title": "Harness",
+      "type": "string"
+    },
+    "hook_state": {
+      "$ref": "#/$defs/HookCheckState"
+    },
+    "label": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Label",
+      "type": "string"
+    },
+    "plugin_state": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HookCheckState"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "harness",
+    "label",
+    "hook_state"
+  ],
+  "title": "HookCheckEntry",
+  "type": "object"
+}

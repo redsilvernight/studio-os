@@ -108,6 +108,7 @@ from studio_workspaces.workspace_bridge import WorkspaceBridge
 from studio_client.config import ClientConfig, default_config_path, reload_git_watches
 from studio_client.daemon.desktop_origin import DesktopOriginError, desktop_client_config
 from studio_client.daemon.enrollment import EnrollmentError, enroll_machine
+from studio_client.daemon.hooks_check import check_hooks
 from studio_client.daemon.launch_settings_bridge import get_launch_settings, save_launch_settings
 from studio_client.daemon.local_features import (
     FEATURE_CAPABILITIES,
@@ -123,7 +124,6 @@ from studio_client.daemon.runtime import (
     InstanceLock,
     WorkspaceSource,
 )
-from studio_client.daemon.hooks_check import check_hooks
 from studio_client.daemon.setup_bridge import SetupBridge
 from studio_client.daemon.skills_bridge import check_skills
 from studio_client.data_format import DataFormatError, ensure_data_format

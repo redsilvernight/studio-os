@@ -39,6 +39,7 @@
         "skills.check",
         "setup.plan",
         "setup.apply",
+        "hooks.check",
         "launch.get_settings",
         "launch.save_settings",
         "outbox.legacy_status",

@@ -1,4 +1,4 @@
-"""`setup-hooks.check`: read-only hook state over the daemon bridge."""
+"""`hooks.check`: read-only hook state over the daemon bridge."""
 
 from __future__ import annotations
 
@@ -6,12 +6,10 @@ import json
 from pathlib import Path
 from uuid import uuid4
 
-import pytest
 from studio_client.config import ClientConfig
 from studio_client.daemon import hooks_check
-from studio_client.daemon.local_features import LocalFeatureError
 from studio_client.daemon.service import BridgeService, DaemonController
-from studio_client.hooks import HARNESSES, MANAGED_MARKER, deploy_guard, deploy_hooks, is_managed
+from studio_client.hooks import HARNESSES, deploy_guard, deploy_hooks, is_managed
 from studio_client.opencode_plugin import deploy_plugin
 from studio_client.tokens import MemoryTokenStore
 from studio_contracts.local.bridge import BridgeRequest
@@ -213,7 +211,7 @@ def test_served_over_bridge_without_path_or_content(tmp_path: Path) -> None:
     deploy_plugin(home)
     service = BridgeService(_controller(tmp_path, home))
     _negotiate(service, ["daemon.control", "setup.plan"])
-    answer = service.handle_line(_line("setup-hooks.check", {}))
+    answer = service.handle_line(_line("hooks.check", {}))
     assert answer["kind"] == "response", answer
     raw = json.dumps(answer, default=str)
     assert str(tmp_path) not in raw
@@ -226,7 +224,7 @@ def test_denied_without_capability(tmp_path: Path) -> None:
     home.mkdir()
     service = BridgeService(_controller(tmp_path, home))
     _negotiate(service, ["daemon.control"])
-    answer = service.handle_line(_line("setup-hooks.check", {}))
+    answer = service.handle_line(_line("hooks.check", {}))
     assert answer["kind"] != "response", answer
 
 
