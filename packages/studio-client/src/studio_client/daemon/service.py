@@ -14,7 +14,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TextIO
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 from pydantic import ValidationError
@@ -476,6 +476,8 @@ class DaemonController:
             self._token_store,
             transport=self._enroll_transport,
         )
+        if outcome.machine_id is not None:
+            self._adopt_enrolled_identity(outcome.machine_id)
         return IdentityEnrollResult(
             outcome=IdentityEnrollOutcome.ENROLLED
             if outcome.machine_id is not None
@@ -483,6 +485,36 @@ class DaemonController:
             machine_id=outcome.machine_id,
             view=self.identity_view(),
         )
+
+    def _adopt_enrolled_identity(self, machine_id: UUID) -> None:
+        with self._lock:
+            previous = self.config.machine_id
+            running = self._thread is not None and self._thread.is_alive()
+            if previous == machine_id and running:
+                return
+            self.config = self.config.model_copy(update={"machine_id": machine_id})
+            should_start = running or previous is None
+        try:
+            from studio_client.daemon.machine_identity import _cache_path, _fingerprint
+
+            token = self._token_store.get_token(self._profile().server_origin)
+            if token:
+                from studio_client.daemon.machine_identity import _write_cache
+
+                _write_cache(
+                    _cache_path(self.config, self.data_root), _fingerprint(token), machine_id
+                )
+        except Exception:  # noqa: BLE001
+            _LOGGER.warning("enrolled identity cache not writable", exc_info=True)
+        if not should_start:
+            return
+        if running:
+            self._stop(DaemonControlRequest(action=DaemonAction.STOP, profile=self._profile()))
+        result = self._start_or_attach(
+            DaemonControlRequest(action=DaemonAction.START, profile=self._profile())
+        )
+        if result.outcome not in {DaemonControlOutcome.OK, DaemonControlOutcome.ALREADY_RUNNING}:
+            _LOGGER.warning("daemon did not start after enrollment: %s", result.outcome)
 
     def close(self, *, persist: bool = False) -> None:
         if persist:
