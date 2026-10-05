@@ -156,7 +156,9 @@ async def test_a_user_renames_its_own_machine(
     client: AsyncClient, auth_headers: dict[str, str]
 ) -> None:
     created = (
-        await client.post("/api/v1/machines", headers=auth_headers, json={"display_name": "old-name"})
+        await client.post(
+            "/api/v1/machines", headers=auth_headers, json={"display_name": "old-name"}
+        )
     ).json()
     version = created["version"]
     rename = await client.patch(
@@ -173,7 +175,9 @@ async def test_rename_requires_correct_version(
     client: AsyncClient, auth_headers: dict[str, str]
 ) -> None:
     created = (
-        await client.post("/api/v1/machines", headers=auth_headers, json={"display_name": "old-name"})
+        await client.post(
+            "/api/v1/machines", headers=auth_headers, json={"display_name": "old-name"}
+        )
     ).json()
     version = created["version"]
     # First rename succeeds
@@ -198,7 +202,9 @@ async def test_rename_requires_if_match_version(
     client: AsyncClient, auth_headers: dict[str, str]
 ) -> None:
     created = (
-        await client.post("/api/v1/machines", headers=auth_headers, json={"display_name": "old-name"})
+        await client.post(
+            "/api/v1/machines", headers=auth_headers, json={"display_name": "old-name"}
+        )
     ).json()
     # Missing If-Match-Version header
     rename = await client.patch(
@@ -209,11 +215,11 @@ async def test_rename_requires_if_match_version(
     assert rename.status_code in (422, 428)  # 422 validation error or 428 precondition required
 
 
-async def test_rename_rejects_empty_name(
-    client: AsyncClient, auth_headers: dict[str, str]
-) -> None:
+async def test_rename_rejects_empty_name(client: AsyncClient, auth_headers: dict[str, str]) -> None:
     created = (
-        await client.post("/api/v1/machines", headers=auth_headers, json={"display_name": "old-name"})
+        await client.post(
+            "/api/v1/machines", headers=auth_headers, json={"display_name": "old-name"}
+        )
     ).json()
     version = created["version"]
     rename = await client.patch(
@@ -254,7 +260,11 @@ async def test_an_agent_never_renames_machines(
         json={"display_name": "x"},
     )
     assert rename.status_code == 403
-    assert rename.json()["detail"] == {"error_code": "forbidden", "resource": "machine", "action": "rename"}
+    assert rename.json()["detail"] == {
+        "error_code": "forbidden",
+        "resource": "machine",
+        "action": "rename",
+    }
 
 
 async def test_admin_renames_any_machine(

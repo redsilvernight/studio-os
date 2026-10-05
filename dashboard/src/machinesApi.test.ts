@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { StudioClient } from "./api";
 import {
   activeSessions,
   buildMachineRows,
@@ -171,26 +172,24 @@ describe("buildMachineRows excludes the dashboard identity", () => {
 describe("renameMachine", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  const mockClient = {
-    PATCH: vi.fn(),
-  } as never;
+  const patch = vi.fn();
+  const mockClient = { PATCH: patch } as unknown as StudioClient;
 
   it("sends PATCH with display_name and If-Match-Version", async () => {
-    mockClient.PATCH.mockResolvedValue({
+    patch.mockResolvedValue({
       response: { ok: true, status: 200 },
       data: { id: "m1", display_name: "new-name", version: 2 },
     });
     const result = await renameMachine(mockClient, "m1", "new-name", 1);
-    expect(mockClient.PATCH).toHaveBeenCalledWith("/api/v1/machines/{machine_id}", {
-      params: { path: { machine_id: "m1" } },
+    expect(patch).toHaveBeenCalledWith("/api/v1/machines/{machine_id}", {
+      params: { path: { machine_id: "m1" }, header: { "If-Match-Version": 1 } },
       body: { display_name: "new-name" },
-      headers: { "If-Match-Version": "1" },
     });
     expect(result).toMatchObject({ display_name: "new-name", version: 2 });
   });
 
   it("throws on API error", async () => {
-    mockClient.PATCH.mockResolvedValue({
+    patch.mockResolvedValue({
       response: { ok: false, status: 409 },
       error: { detail: { error_code: "version_conflict" } },
     });

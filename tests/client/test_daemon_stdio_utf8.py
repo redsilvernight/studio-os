@@ -19,6 +19,7 @@ from studio_contracts.local.handshake import HandshakeRequest
 def _cleanup_transfer_storage() -> None:
     return None
 
+
 ORIGIN = "https://studio.example"
 SESSION = "e2e.human-session.SESSIONSECRET0123"
 MACHINE_NAME = "Studi'OS Desktop · Café 😀 — 2026-09-28"
@@ -93,7 +94,10 @@ def test_enroll_posts_exact_non_ascii_display_name(tmp_path) -> None:
         {
             "peer": {
                 "role": "desktop",
-                "protocol": {"minimum": {"major": 1, "minor": 0}, "maximum": {"major": 1, "minor": 0}},
+                "protocol": {
+                    "minimum": {"major": 1, "minor": 0},
+                    "maximum": {"major": 1, "minor": 0},
+                },
                 "component_version": "0.1.0",
                 "capabilities": ["daemon.control", "identity.view", "identity.enroll"],
                 "required_capabilities": ["daemon.control"],

@@ -82,13 +82,13 @@ from studio_contracts.local.launch import (
     LaunchSettingsSaveRequest,
     LaunchSettingsView,
 )
-from studio_contracts.local.outbox import OutboxLegacyStatus
 from studio_contracts.local.machine_setup import (
     SetupApplyRequest,
     SetupApplyResult,
     SetupPlan,
     SetupPlanRequest,
 )
+from studio_contracts.local.outbox import OutboxLegacyStatus
 from studio_contracts.local.skills import SkillsCheckRequest, SkillsCheckResult
 from studio_contracts.local.workspace import (
     WorkspaceConfirmRootsRequest,

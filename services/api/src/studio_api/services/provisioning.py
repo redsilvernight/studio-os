@@ -251,12 +251,13 @@ async def disable_account(session: AsyncSession, user: UserModel) -> UserModel:
     are revalidated at once. Outstanding account secrets stop working."""
     if user.disabled_at is None:
         now = datetime.now(UTC)
+        user_id = user.id  # lu avant toute expiration : pas d'IO paresseux sous asyncio
         user.disabled_at = now
         revoke_sessions_in_place(user)
         await session.execute(
             update(AccountTokenModel)
             .where(
-                AccountTokenModel.user_id == user.id,
+                AccountTokenModel.user_id == user_id,
                 AccountTokenModel.consumed_at.is_(None),
                 AccountTokenModel.expires_at > now,
             )
