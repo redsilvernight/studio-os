@@ -5,10 +5,11 @@ from datetime import UTC, datetime
 
 import bcrypt
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from studio_api.db.models.account_token import AccountTokenModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.user import UserModel
 from studio_api.security import generate_machine_token, hash_token
@@ -230,10 +231,20 @@ async def revoke_sessions_of(session: AsyncSession, user: UserModel) -> UserMode
 async def disable_account(session: AsyncSession, user: UserModel) -> UserModel:
     """Idempotent. Bumps `auth_version` (every JWT dies) and blocks every
     machine of the User while `disabled_at` stays set; open event streams
-    are revalidated at once."""
+    are revalidated at once. Outstanding account secrets stop working."""
     if user.disabled_at is None:
-        user.disabled_at = datetime.now(UTC)
+        now = datetime.now(UTC)
+        user.disabled_at = now
         revoke_sessions_in_place(user)
+        await session.execute(
+            update(AccountTokenModel)
+            .where(
+                AccountTokenModel.user_id == user.id,
+                AccountTokenModel.consumed_at.is_(None),
+                AccountTokenModel.expires_at > now,
+            )
+            .values(expires_at=now)
+        )
         await session.commit()
         await session.refresh(user)
         event_stream.revalidate_user(user.id)
