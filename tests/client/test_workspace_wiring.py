@@ -188,7 +188,7 @@ async def test_workspace_projects_are_reported_in_the_heartbeat_capabilities(
     source.entries = [entry(WS_A, game)]
     runtime = make_runtime(tmp_path, source)
     task = asyncio.create_task(runtime.run())
-    await until(lambda: len(source.calls) >= 1)
+    await until(lambda: runtime._workspace_project_ids() == (PROJECT,))  # noqa: SLF001
     (heartbeat,) = FakeHeartbeat.instances
     provider = heartbeat.capabilities_provider
     assert provider is not None
@@ -202,7 +202,7 @@ async def test_workspace_repository_is_available_to_the_launch_resolver(tmp_path
     source.entries = [entry(WS_A, game)]
     runtime = make_runtime(tmp_path, source)
     task = asyncio.create_task(runtime.run())
-    await until(lambda: len(source.calls) >= 1)
+    await until(lambda: runtime._workspace_repo_for(PROJECT) == game)  # noqa: SLF001
     assert runtime._workspace_repo_for(PROJECT) == game  # noqa: SLF001
     assert runtime._workspace_repo_for(uuid4()) is None  # noqa: SLF001
     await stop(runtime, task)
@@ -213,7 +213,7 @@ async def test_a_workspace_without_repository_creates_no_watcher(tmp_path: Path)
     source.entries = [entry(WS_A)]
     runtime = make_runtime(tmp_path, source)
     task = asyncio.create_task(runtime.run())
-    await until(lambda: len(source.calls) >= 2)
+    await until(lambda: runtime._workspace_project_ids() == (PROJECT,))  # noqa: SLF001
     assert RecordingWatcher.instances == []
     await stop(runtime, task)
 
