@@ -13,6 +13,7 @@ import {
   getPlatform,
   type DesktopDiagnostics,
   type DesktopInfo,
+  type OutboxLegacyStatus,
   type Platform,
   type ServerOriginState,
   type UpdateErrorCode,
@@ -75,6 +76,8 @@ export interface DesktopSection {
   /** The daemon misses optional capabilities that only an update brings. */
   daemonUpdateAdvised?: boolean;
   status: ShellStatus;
+  /** Legacy outbox status (Phase 1 read-only). */
+  legacyOutbox: OutboxLegacyStatus | null;
 }
 
 export interface ApplicationFormState {
@@ -179,6 +182,26 @@ function assistantSectionHtml(section: DesktopSection, info: DesktopInfo | null)
     (attention
       ? `<p class="settings-intro">L'assistant local ne répond pas. Le tableau de bord reste utilisable ; les fonctions locales sont suspendues.</p>`
       : "") +
+    `</section>`
+  );
+}
+
+function legacyOutboxSectionHtml(section: DesktopSection): string {
+  const outbox = section.legacyOutbox;
+  if (!outbox) return "";
+  const exists = outbox.exists ? "Présente" : "Absente";
+  const hasWork = outbox.has_queued_work ? "Travail en attente" : "Vide";
+  const counts = Object.entries(outbox.counts ?? {})
+    .map(([table, count]) => `${table}: ${count}`)
+    .join(", ") || "aucun";
+  return (
+    `<section class="settings-domain" data-testid="legacy-outbox-section"><h2>File d'attente héritée</h2>` +
+    `<dl class="settings-refs">` +
+    row("État", esc(exists)) +
+    row("Contenu", esc(hasWork)) +
+    row("Détail par table", esc(counts)) +
+    `</dl>` +
+    `<p class="settings-intro">Cette file date d'avant l'identité de ce poste. Elle est en lecture seule ; aucune action n'est proposée ici.</p>` +
     `</section>`
   );
 }
@@ -305,7 +328,14 @@ export function applicationPageHtml(
         `Impossible de lire l'identité Desktop${failure ? ` : ${esc(failure)}` : ""}.</div>`;
     body =
       `<section class="settings-domain"><h2>Application</h2>${identity}</section>` +
-      (section ? serverSectionHtml(section, form) + assistantSectionHtml(section, info) + onboardingSectionHtml() + whatsNewSectionHtml() + diagnosticsHtml(section, info, diag, form) : "");
+      (section
+        ? serverSectionHtml(section, form) +
+          assistantSectionHtml(section, info) +
+          legacyOutboxSectionHtml(section) +
+          onboardingSectionHtml() +
+          whatsNewSectionHtml() +
+          diagnosticsHtml(section, info, diag, form)
+        : "");
   } else {
     body =
       `<section class="settings-domain"><h2>Application</h2>` +
@@ -319,8 +349,13 @@ export function applicationPageHtml(
   return `<div class="settings">${head}${body}</div>`;
 }
 
-function sectionOf(shell: DesktopShell, origin: ServerOriginState | null): DesktopSection {
+async function sectionOf(
+  shell: DesktopShell,
+  origin: ServerOriginState | null,
+  platform: Platform,
+): Promise<DesktopSection> {
   const connection = shell.monitor.snapshot();
+  const legacyOutbox = await platform.outboxLegacyStatus().catch(() => null);
   return {
     origin,
     effectiveServer: apiBaseUrl(),
@@ -334,6 +369,7 @@ function sectionOf(shell: DesktopShell, origin: ServerOriginState | null): Deskt
       compatibility: shell.compatibility,
       restartRequired: origin?.restart_required ?? false,
     }),
+    legacyOutbox,
   };
 }
 
@@ -371,7 +407,8 @@ export async function renderApplication(
     // Refresh the daemon read when the page opens; a failure is a state, not a crash.
     await refreshDaemon(shell).catch(() => undefined);
   }
-  root.innerHTML = applicationPageHtml("desktop", info, failure, shell ? sectionOf(shell, origin) : null, form, diag);
+  const sectionData = shell ? await sectionOf(shell, origin, platform) : null;
+  root.innerHTML = applicationPageHtml("desktop", info, failure, sectionData, form, diag);
   if (shell) bindActions(root, platform, shell, form);
 }
 

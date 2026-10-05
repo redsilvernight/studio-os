@@ -1,0 +1,27 @@
+{
+  "additionalProperties": false,
+  "description": "Read-only view of the pre-identity outbox.\n\nNever carries a filesystem path: the daemon holds the location, the\nDesktop only learns whether queued work remains and how much per table.\nPhase 1 exposes no purge or import, only this status.",
+  "properties": {
+    "counts": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "title": "Counts",
+      "type": "object"
+    },
+    "exists": {
+      "title": "Exists",
+      "type": "boolean"
+    },
+    "has_queued_work": {
+      "title": "Has Queued Work",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "exists",
+    "has_queued_work"
+  ],
+  "title": "OutboxLegacyStatus",
+  "type": "object"
+}

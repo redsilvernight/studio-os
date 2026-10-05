@@ -3,7 +3,7 @@
  * Tauri: a web build and a Desktop build differ only by which adapter answers.
  */
 import type { BridgeCommand, BridgeAnswer } from "./contracts";
-import type { DaemonStatus, IdentityView, PeerInfo } from "./generated/local-contracts.generated";
+import type { DaemonStatus, IdentityView, OutboxLegacyStatus, PeerInfo } from "./generated/local-contracts.generated";
 
 export type PlatformMode = "web" | "desktop";
 
@@ -160,9 +160,11 @@ export interface Platform {
   checkForUpdate(): Promise<UpdateCheckResult>;
   /** Download the release found by `checkForUpdate`, verify it, install and restart. */
   installUpdate(): Promise<{ ok: true } | { ok: false; code: UpdateErrorCode }>;
-  /** Desktop only: 
-ull on the web, where no session outlives the page. */
+/** Desktop only: 
+null on the web, where no session outlives the page. */
   readonly sessionVault: SessionVault | null;
+  /** Read-only legacy outbox status (Phase 1). `null` in web mode. */
+  outboxLegacyStatus(): Promise<OutboxLegacyStatus | null>;
 }
 
-export type { DaemonStatus, IdentityView };
+export type { DaemonStatus, IdentityView, OutboxLegacyStatus };

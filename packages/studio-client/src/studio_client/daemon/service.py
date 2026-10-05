@@ -82,6 +82,7 @@ from studio_contracts.local.launch import (
     LaunchSettingsSaveRequest,
     LaunchSettingsView,
 )
+from studio_contracts.local.outbox import OutboxLegacyStatus
 from studio_contracts.local.machine_setup import (
     SetupApplyRequest,
     SetupApplyResult,
@@ -191,6 +192,7 @@ SERVED = frozenset(
         BridgeCommand.SETUP_APPLY,
         BridgeCommand.LAUNCH_GET_SETTINGS,
         BridgeCommand.LAUNCH_SAVE_SETTINGS,
+        BridgeCommand.OUTBOX_LEGACY_STATUS,
     }
 )
 _LOCAL_FEATURE_COMMANDS = frozenset(
@@ -311,7 +313,7 @@ class DaemonController:
                         code=LocalErrorCode.IDENTITY_MISMATCH,
                         message=(
                             "A legacy outbox holds queued work without an identity. "
-                            "Review it with `studio-client outbox legacy status`."
+                            "Review it in the Dashboard (Settings › Application › Legacy outbox)."
                         ),
                         component=ComponentId.DAEMON,
                         retryable=False,
@@ -426,6 +428,16 @@ class DaemonController:
 
     def save_launch_settings(self, request: LaunchSettingsSaveRequest) -> LaunchSettingsView:
         return save_launch_settings(self.config, self.data_root, request)
+
+    def outbox_legacy_status(self) -> OutboxLegacyStatus:
+        from studio_client.outbox.legacy import inspect_legacy_outbox
+
+        report = inspect_legacy_outbox()
+        return OutboxLegacyStatus(
+            exists=report.exists,
+            has_queued_work=report.has_queued_work,
+            counts=dict(report.counts),
+        )
 
     def identity_view(self) -> IdentityView:
         profile = self._profile()
@@ -808,6 +820,11 @@ class BridgeService:
             return self.controller.save_launch_settings(
                 LaunchSettingsSaveRequest.model_validate(request.payload)
             )
+        if request.command is BridgeCommand.OUTBOX_LEGACY_STATUS:
+            from studio_contracts.local.bridge import EmptyPayload
+
+            EmptyPayload.model_validate(request.payload)
+            return self.controller.outbox_legacy_status()
         if request.command in _WORKSPACE_COMMANDS:
             return self._workspace(request)
         if request.command in _LOCAL_FEATURE_COMMANDS:

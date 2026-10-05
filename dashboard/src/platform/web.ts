@@ -39,6 +39,9 @@ export const webPlatform: Platform = {
   async installUpdate() {
     return { ok: false, code: "not_configured" };
   },
+  async outboxLegacyStatus() {
+    return null;
+  },
   async request(): Promise<BridgeAnswer> {
     return {
       ok: false,

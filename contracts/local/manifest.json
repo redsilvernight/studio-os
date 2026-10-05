@@ -194,6 +194,16 @@
       "model": "PublicationPublishRequest",
       "name": "publication.publish_unconfirmed",
       "reason": "publication requires explicit confirmation"
+    },
+    {
+      "model": "OutboxLegacyStatus",
+      "name": "outbox.legacy_status.flag_mismatch",
+      "reason": "has_queued_work must reflect the counts"
+    },
+    {
+      "model": "OutboxLegacyStatus",
+      "name": "outbox.legacy_status.unknown_table",
+      "reason": "only known legacy outbox tables are reported"
     }
   ],
   "models": [
@@ -273,6 +283,7 @@
     "LocalWorkspaceConfig",
     "MachineIdentity",
     "OptionalComponentStatus",
+    "OutboxLegacyStatus",
     "OutboxSummary",
     "PeerInfo",
     "ProfileRef",
@@ -349,8 +360,16 @@
       "name": "bridge.request.knowledge_search"
     },
     {
+      "model": "BridgeRequest",
+      "name": "bridge.request.outbox_legacy_status"
+    },
+    {
       "model": "BridgeResponse",
       "name": "bridge.response.knowledge_search"
+    },
+    {
+      "model": "BridgeResponse",
+      "name": "bridge.response.outbox_legacy_status"
     },
     {
       "model": "CodeGraphStatus",
@@ -619,6 +638,18 @@
     {
       "model": "LaunchSettingsView",
       "name": "launch.settings.view"
+    },
+    {
+      "model": "OutboxLegacyStatus",
+      "name": "outbox.legacy_status.absent"
+    },
+    {
+      "model": "OutboxLegacyStatus",
+      "name": "outbox.legacy_status.empty"
+    },
+    {
+      "model": "OutboxLegacyStatus",
+      "name": "outbox.legacy_status.with_work"
     },
     {
       "model": "PublicationPlan",

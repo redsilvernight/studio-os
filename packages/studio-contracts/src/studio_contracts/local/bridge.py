@@ -78,6 +78,7 @@ from studio_contracts.local.machine_setup import (
     SetupPlan,
     SetupPlanRequest,
 )
+from studio_contracts.local.outbox import OutboxLegacyStatus
 from studio_contracts.local.publication import (
     PublicationPlan,
     PublicationPreviewRequest,
@@ -164,6 +165,7 @@ class BridgeCommand(StrEnum):
     SETUP_APPLY = "setup.apply"
     LAUNCH_GET_SETTINGS = "launch.get_settings"
     LAUNCH_SAVE_SETTINGS = "launch.save_settings"
+    OUTBOX_LEGACY_STATUS = "outbox.legacy_status"
     PUBLICATION_PREVIEW = "publication.preview"
     PUBLICATION_PUBLISH = "publication.publish"
 
@@ -376,6 +378,12 @@ BRIDGE_COMMANDS: dict[BridgeCommand, CommandSpec] = dict(
             LaunchSettingsView,
             "launch.settings",
             mutating=True,
+        ),
+        _spec(
+            BridgeCommand.OUTBOX_LEGACY_STATUS,
+            EmptyPayload,
+            OutboxLegacyStatus,
+            "daemon.health",
         ),
         _spec(
             BridgeCommand.PUBLICATION_PREVIEW,

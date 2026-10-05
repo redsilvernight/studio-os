@@ -40,6 +40,7 @@
         "setup.apply",
         "launch.get_settings",
         "launch.save_settings",
+        "outbox.legacy_status",
         "publication.preview",
         "publication.publish"
       ],
