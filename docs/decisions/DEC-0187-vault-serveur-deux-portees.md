@@ -13,6 +13,8 @@ Statut : **proposed** (jusqu'à accord). Équivalent serveur : DEC-0191 (`166665
 
 Le vault devient une ressource serveur à deux portées (studio, projet). Les DEC serveur deviennent la source unique ; les fiches ADR fichiers deviennent un export Markdown.
 
+D4 — droits de la portée studio (tranché par l'utilisateur le 2026-10-06, P03) : lecture pour tout compte actif ; création et modification en `draft`/`proposed` pour tout rôle autorisé à écrire ; `validated`, `superseded` et `archived` réservés au rôle admin. La portée projet suit les memberships (DEC-0103).
+
 DEC-0047 (mémoire locale read-only) est à superseder après acceptation de D2.
 
 Baseline chiffrée : `docs/DEC_BASELINE_P00.md` et `docs/DEC_RELEVANCE_BASELINE_P00.md`.

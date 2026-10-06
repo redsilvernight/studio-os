@@ -431,6 +431,28 @@ public de bootstrap, pas de secret d'environnement dedie.
   superseded` (terminal, aucune transition n'en sort). Role admin
   uniquement, memes regles de non-idempotence que `accept`.
 
+### Vault (roadmap vault serveur P03, additif, DEC-0187)
+Notes a deux portees (`studio`, `project`) ; schemas `studio_contracts.vault`.
+- POST /vault/notes (`Idempotency-Key`) — `VaultNoteCreate` -> `201 VaultNote`.
+  Le serveur fixe `id`, `version=1`, `content_hash`, l'auteur (principal) et,
+  pour `note_type=decision`, le `readable_id` (sequence commune aux DEC). Slug
+  deja pris par une note non archivee de la meme portee -> `409 vault_slug_conflict`.
+- GET /vault/notes/{id} -> `VaultNote` (liens inclus).
+- PATCH /vault/notes/{id} — `VaultNoteUpdate` (`expected_version` obligatoire) ->
+  `VaultNote`. Version perimee -> `409 version_conflict` + `server_version`.
+  Portee, projet et slug immuables ; pas de DELETE (archivage = `status`).
+- GET /vault/notes/{id}/versions?limit&cursor -> `VaultVersionPage` ;
+  GET /vault/notes/{id}/versions/{version} -> `VaultNoteVersion`. Chaque
+  ecriture acceptee (creation incluse) ajoute une version immuable.
+- GET /vault/tree?scope&project_id&prefix&status&include_archived&limit&cursor
+  -> `VaultTreePage` (resumes sans `body`, tri par slug, curseur opaque ;
+  `limit` 1..200, defaut 50 ; archivees exclues par defaut).
+- Droits : portee `project` = memberships (`403 forbidden` sinon). Portee
+  `studio` : lecture pour tout compte actif ; creation/modification en
+  `draft|proposed` pour tout role autorise a ecrire ; `validated`,
+  `superseded`, `archived` reserves au role admin. Un lien cible une note
+  lisible de la portee studio ou du meme projet (`422` sinon).
+
 ### Agents and AI work
 - GET /agents — version 2 (RUPTURE, DEC-0103 §4/§11) : uniquement les agents
   dont la machine (`Agent.machine_id`) appartient au User appelant
