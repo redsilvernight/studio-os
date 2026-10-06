@@ -25,6 +25,19 @@
   "additionalProperties": false,
   "description": "Enroll this machine for the human signed in on the Desktop, without an\nadmin (A5 self-service). The daemon checks `profile` against its own server\norigin before any network call, uses `human_session` for exactly one\n`POST /api/v1/machines`, stores the returned credential in the OS keyring\nand forgets the session. Validation errors never echo their input.",
   "properties": {
+    "adopt_machine_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Adopt Machine Id"
+    },
     "human_session": {
       "maxLength": 4096,
       "minLength": 16,

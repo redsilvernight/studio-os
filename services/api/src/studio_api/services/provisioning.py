@@ -162,6 +162,25 @@ async def revoke_machine(session: AsyncSession, machine: MachineModel) -> Machin
     return machine
 
 
+async def rotate_machine_credential(
+    session: AsyncSession, machine: MachineModel
+) -> tuple[MachineModel, str]:
+    if machine.credential_revoked_at is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "machine credential is revoked")
+    token = generate_machine_token()
+    machine.credential_hash = hash_token(token)
+    machine.version += 1
+    await session.commit()
+    await session.refresh(machine)
+    security_event(
+        "credential.machine_adopted",
+        outcome="success",
+        machine_id=machine.id,
+        owner_user_id=machine.owner_user_id,
+    )
+    return machine, token
+
+
 async def update_machine(
     session: AsyncSession, machine: MachineModel, display_name: str
 ) -> MachineModel:

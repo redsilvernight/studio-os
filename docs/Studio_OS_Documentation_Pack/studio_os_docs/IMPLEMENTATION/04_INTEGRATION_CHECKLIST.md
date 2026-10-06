@@ -12,8 +12,8 @@
 - [ ] Aucun changement incompatible non annonce.
 - [ ] API change request documente si Bloc B manque un endpoint.
 - [ ] Migrations DB accompagnees de schemas/API.
-- [ ] Les mocks suivent le contrat reel.
-- [ ] Tests contractuels executes.
+- [x] Les mocks suivent le contrat reel (fixtures `contracts/fixtures/*.json` validees contre les contrats par `tests/contracts/test_fixtures.py`, inclus dans la suite complete du 2026-10-05, voir « Preuves de validation »).
+- [x] Tests contractuels executes (`tests/contracts/` dans `uv run pytest -n 6 -q`, 2026-10-05, commit `95ea4e2`).
 - [x] AI Library P8 MCP minimal (2026-09-17) : 5 outils use-cases additifs (`studio_resolve_agent`, `studio_discover_definitions`, `studio_publish_definition`, `studio_configure_runtime`, `studio_register_runtime`, DEC-0072, `TECH/07` amende dans le meme lot) sur les services communs HTTP P7, output schemas explicites, aucun des 29 outils historiques modifie, aucun mock Bloc B ni `dashboard/openapi.json` concerne (HTTP inchange). Preuve : `tests/mcp/test_p8_ai_library.py` (14 tests) + `tests/mcp/test_uc2b_tools_metadata.py` (34 outils).
 - [x] Roadmaps P8 — propositions, revision et relecture humaine (2026-09-20, DEC-0089) : contrat additif (`ReviewQueueKind.roadmap_proposal`, `RoadmapRevisionSummary`) ; routes `POST /roadmaps/{id}/proposals` (`Idempotency-Key`, `201`), `GET /roadmaps/{id}/revisions`, `GET /roadmaps/{id}/revisions/{n}`, `GET .../proposals/{n}/diff`, `POST .../proposals/{n}/review` (`admin`/`developer`) ; `approve` applique par `key` (liens preserves), base perimee -> `409 base_revision_stale`, revue refusee hors `active` ; numeros de revision uniques par roadmap ; MCP minimal (`studio_propose_roadmap` + `roadmap_id`/`base_revision_no`, `studio_get_roadmap.pending_proposals`) ; Dashboard (panneau de relecture + diff, entree Review Queue). Preuves : `tests/api/test_roadmaps_p8.py` (19 tests), `tests/mcp/test_roadmaps_p8.py` (3), vitest 693, Playwright roadmap 7 (dont le scenario P8). `contract-guardian` : 2 defauts corriges (garde de statut, collision de numerotation) ; `studio-tester` Tier 3.
 - [x] Decisions accept/supersede (2026-09-21, DEC-0098) : contrat additif (`EventType.decision.accepted`/`decision.superseded`) ; routes `POST /decisions/{id}/accept` et `POST /decisions/{id}/supersede` (`admin` uniquement, pas d'`Idempotency-Key` — transition d'etat, pas une creation) ; `proposed -> accepted`, `proposed|accepted -> superseded` (terminal) ; CAS via `SELECT ... FOR UPDATE` (pas de colonne `version` ajoutee) ; MCP additif (`studio_accept_decision`, `studio_supersede_decision`, 42 -> 44 outils mesures) ; Review Queue reconciliee (`decision_proposal` desormais actionable) ; aucun mock Bloc B concerne (`packages/studio-client` ne consomme aucun endpoint/event `decision.*`, verifie) ; `dashboard/openapi.json` regenere. Preuves : `tests/api/test_decisions.py` (+13 tests), `tests/api/test_decisions_concurrency.py` (course reelle 10 requetes, exactement 1 succes), `tests/api/test_decisions_sse.py` (livraison reelle sur `GET /events/stream`, pas seulement l'ecriture), `tests/mcp/test_decisions.py` (+4), `tests/mcp/test_uc2b_tools_metadata.py` (44 outils) ; Vitest dashboard 706. `contract-guardian` : additif conforme, 0 defaut bloquant.
@@ -34,6 +34,15 @@
 - [x] Dashboard, MCP et CLI coherents : dashboard DASH-0 -> DASH-5 (95 tests passed, 2026-09-15), MCP 29 outils VPS (27 + `studio_get_builds`/`studio_request_producer_job` 9.1b, DEC-0059) + 3 outils locaux read-only conditionnels UC-3/DEC-0047 (`TECH/07`), CLI tasks/projects/sessions/claims/ai-work/review-queue/timeline/mark/builds/producer.
 - [x] Tests de charge legers : `tests/api/test_load_basic.py` 3 passed.
 
+## Livraisons posterieures au 2026-09-20 (verifiees par merge dans `dev` et suite du 2026-10-05)
+
+- [x] Refresh token rotatif et session desktop persistante (DEC-0142) : migration `0018_refresh_tokens`, `POST /auth/refresh`, coffre OS cote desktop. Preuve : `tests/api/test_refresh_tokens.py`, `dashboard/src/persistentSession.test.ts`, merge `2428ff7` (PR #42).
+- [x] Project AI Bootstrap P1-P7 (contrat `studio.bootstrap/v1`, plan P2, generateur local P3, fusion Library P4, drift P5, onglet « Integration IA » P6, onboarding E2E P7) et lancement distant TaskLaunch (AIB R2/R3) : merges dans `dev`, tests `tests/contracts/test_bootstrap_p1.py`, `tests/client/`. Annulation TaskLaunch deterministe (`f33682c`).
+- [x] Publication non destructive des canaux desktop (`50b6af9`, `.github/workflows/desktop-channels.yml` : `--force-with-lease`, `release edit`, creation seulement si absente). Non rejoue en CI dans cette passe.
+- [x] Synchro automatique des skills Library (task 0b568e8d, `4ac405a`, `22eb9c1`, `95ea4e2`).
+
+Non verifie dans cette passe : les cases « Integration quotidienne » restantes (pratiques de processus, sans test unique), et toutes les cases « Integration finale » non cochees ci-dessus (deux machines reelles/deux connexions, deconnexion/reconnexion, conflit de claim reel, memoire partagee read-only, multipart > 5 Go) — elles exigent un essai reel, suivi par les taches Etape 9 / 9.4-9.5.
+
 ## Etape 9 — Producer, media, dashboard et Context Package (etat 2026-09-15)
 
 ### Implemente et verifie
@@ -50,10 +59,14 @@
 - [x] Studio Producer 9.1 — amendements de contrat annonces par DEC-0059 (`TECH/02/03/04/05/07`) : **rediges dans le meme lot** (additif : endpoints webhook/builds/producer-jobs, `producer.job.*`, exception webhook HMAC, `Build`/`GitHubIntegration`/`ProducerJob`/`Transfer.build_id`, inventaire MCP 27 -> 29 outils).
 - [x] Studio Producer 9.1 — implementation 9.1a (fondation : `packages/studio-contracts/.../builds.py`, modeles, migration Alembic `0008` reversible) + 9.1b (webhook `POST /github/webhook`, `services/producer.py` deterministe, `services/github.py`, endpoints builds/producer-jobs, Review Queue etendue, worker `studio-admin builds reconcile`, outils MCP `studio_get_builds`/`studio_request_producer_job`, CLI `builds`/`producer`). Preuve : `tests/api/test_github_webhook.py` (17), `tests/api/test_producer.py` (10), `tests/api/test_builds.py` (4), `tests/mcp/test_builds.py` (4), CLI (4) — Postgres 16 + MinIO conteneurises, `ruff`/`mypy` (scope CI) verts. 9.1c (dispatch `workflow_dispatch`) **differe** par DEC-0059.
 
-## Preuves de validation (2026-09-15)
+## Preuves de validation (2026-09-15, completees le 2026-10-05)
 
 | Suite | Resultat | Commande |
 |---|---|---|
+| Backend + client complet (2026-10-05, `95ea4e2`) | 3392 passed, 9 skipped, 1 failed : `tests/client/test_bootstrap_p8.py::test_shared_repository_config_is_clean` echoue a cause d'une modification locale non commitee de `.codex/config.toml` (chemin absolu, `scan_committed_files`), pas d'une regression du depot | `uv run pytest -n 6 -q` |
+| Dashboard (2026-10-05) | 1373 passed (101 fichiers) | `cd dashboard && npm test` |
+| Inventaire MCP (2026-10-05) | 54 outils, 10 passed | `uv run pytest tests/mcp/test_uc2b_tools_metadata.py` |
+| Index ADR (2026-10-05) | a jour | `uv run python -m scripts.adr_index --root . --check` |
 | Backend | 537 passed, 3 skipped | `uv run pytest` |
 | Dashboard | 95 passed | `cd dashboard && npm test` |
 | Recording (9.2) | 27 passed | `uv run pytest tests/client/test_recording_provider.py tests/client/test_recording_cli.py -q` |

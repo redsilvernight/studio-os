@@ -143,6 +143,62 @@ def test_enrolls_with_one_call_and_stores_the_credential(tmp_path) -> None:
     assert_no_secret(answer)
 
 
+def test_adopting_an_existing_machine_keeps_its_id(tmp_path) -> None:
+    server = FakeServer()
+
+    def adopt_handler(request: httpx.Request) -> httpx.Response:
+        server.calls.append(request)
+        now = datetime.now(UTC).isoformat()
+        return httpx.Response(
+            200,
+            json={
+                "id": str(MACHINE_ID),
+                "owner_user_id": str(USER_ID),
+                "display_name": "Existing",
+                "status": "offline",
+                "credential": CREDENTIAL,
+                "version": 2,
+                "created_at": now,
+                "updated_at": now,
+            },
+        )
+
+    store = MemoryTokenStore()
+    controller = DaemonController(
+        ClientConfig(api_base_url=ORIGIN, profile_id="main", machine_id=uuid4()),
+        data_root=tmp_path,
+        token_store=store,
+        enroll_transport=httpx.MockTransport(adopt_handler),
+    )
+    bridge = BridgeService(controller)
+    bridge.handle_line(
+        line(
+            "runtime.handshake",
+            {
+                "peer": {
+                    "role": "desktop",
+                    "protocol": {
+                        "minimum": {"major": 1, "minor": 0},
+                        "maximum": {"major": 1, "minor": 0},
+                    },
+                    "component_version": "0.1.0",
+                    "capabilities": ["daemon.control", "identity.view", "identity.enroll"],
+                    "required_capabilities": ["daemon.control"],
+                }
+            },
+        )
+    )
+    answer = bridge.handle_line(enroll(adopt_machine_id=str(MACHINE_ID)))
+
+    assert answer["payload"]["outcome"] == "enrolled", answer
+    assert answer["payload"]["machine_id"] == str(MACHINE_ID)
+    assert store.get_token(ORIGIN) == CREDENTIAL
+    assert [(c.method, c.url.path) for c in server.calls] == [
+        ("POST", f"/api/v1/machines/{MACHINE_ID}/adopt")
+    ]
+    assert_no_secret(answer)
+
+
 def test_an_enrolled_machine_is_not_enrolled_twice(tmp_path) -> None:
     server = FakeServer()
     store = MemoryTokenStore()

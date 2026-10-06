@@ -224,6 +224,7 @@ class IdentityEnrollRequest(LocalContractModel):
     human_session: HumanSession
     machine_name: ShortText
     replace_existing: bool = False
+    adopt_machine_id: UUID | None = None
 
 
 class IdentityEnrollOutcome(StrEnum):

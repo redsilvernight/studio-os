@@ -279,3 +279,47 @@ async def test_admin_renames_any_machine(
     )
     assert rename.status_code == 200
     assert rename.json()["display_name"] == "renamed-by-admin"
+
+
+async def test_a_user_adopts_its_own_machine_and_the_old_credential_dies(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    created = (
+        await client.post("/api/v1/machines", headers=auth_headers, json={"display_name": "t"})
+    ).json()
+    adopted = await client.post(f"/api/v1/machines/{created['id']}/adopt", headers=auth_headers)
+    assert adopted.status_code == 200
+    body = adopted.json()
+    assert body["id"] == created["id"]
+    assert body["credential"] != created["credential"]
+    assert body["version"] == created["version"] + 1
+
+    old = await client.get("/api/v1/machines/me", headers=_bearer(created["credential"]))
+    new = await client.get("/api/v1/machines/me", headers=_bearer(body["credential"]))
+    assert (old.status_code, new.status_code) == (401, 200)
+
+
+async def test_adopting_hides_foreign_machines_and_refuses_revoked_and_agents(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    agent_auth_headers: dict[str, str],
+    other_machine: tuple[MachineModel, str],
+) -> None:
+    theirs = await client.post(
+        f"/api/v1/machines/{other_machine[0].id}/adopt", headers=auth_headers
+    )
+    missing = await client.post(f"/api/v1/machines/{uuid.uuid4()}/adopt", headers=auth_headers)
+    assert theirs.status_code == missing.status_code == 404
+    assert theirs.json() == missing.json()
+
+    created = (
+        await client.post("/api/v1/machines", headers=auth_headers, json={"display_name": "t"})
+    ).json()
+    await client.post(f"/api/v1/machines/{created['id']}/revoke", headers=auth_headers)
+    revoked = await client.post(f"/api/v1/machines/{created['id']}/adopt", headers=auth_headers)
+    assert revoked.status_code == 409
+
+    agent = await client.post(
+        f"/api/v1/machines/{created['id']}/adopt", headers=agent_auth_headers
+    )
+    assert agent.status_code == 403

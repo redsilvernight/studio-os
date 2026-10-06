@@ -63,6 +63,7 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     # Own: the caller's machines (self-service, A5 — admin for any User),
     # agents and user-private runtimes.
     ("POST", "/api/v1/machines"): "own",
+    ("POST", "/api/v1/machines/{machine_id}/adopt"): "own",
     ("POST", "/api/v1/machines/{machine_id}/revoke"): "own",
     ("PATCH", "/api/v1/machines/{machine_id}"): "own",
     ("GET", "/api/v1/machines"): "own",

@@ -99,6 +99,39 @@ async def create_machine(
 
 
 @router.post(
+    "/{machine_id}/adopt",
+    response_model=MachineCreated,
+    description=(
+        "Take over an existing machine of the caller's own User (A5): its "
+        "credential is rotated, the machine keeps its `id` and history, and "
+        "the new credential is returned in clear text exactly once. The "
+        "previous credential stops working immediately. Another User's "
+        "machine answers 404 for a non-admin, exactly like a nonexistent "
+        "one; `agent` gets 403; a revoked machine answers 409. Not "
+        "replayable: no `Idempotency-Key`."
+    ),
+    responses={
+        **RESP_401_UNAUTHORIZED,
+        **RESP_403_FORBIDDEN,
+        **RESP_404_NOT_FOUND,
+        **RESP_409_VERSION_CONFLICT,
+    },
+)
+async def adopt_machine(
+    machine_id: UUID, session: DbSession, principal: CurrentPrincipal
+) -> MachineCreated:
+    if principal.role == Role.AGENT:
+        raise forbidden("machine", "adopt")
+    target = await provisioning_service.get_machine(session, machine_id)
+    if target is None or (
+        principal.role != Role.ADMIN and target.owner_user_id != principal.user.id
+    ):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "machine not found")
+    rotated, token = await provisioning_service.rotate_machine_credential(session, target)
+    return MachineCreated(**Machine.model_validate(rotated).model_dump(), credential=token)
+
+
+@router.post(
     "/{machine_id}/revoke",
     response_model=Machine,
     description=(

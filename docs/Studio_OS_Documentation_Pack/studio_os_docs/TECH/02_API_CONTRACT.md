@@ -204,6 +204,13 @@ que l'adresse existe ou non ; les e-mails partent apres la reponse.
   un non-admin, la machine d'un autre User repond `404`, a l'identique d'une
   machine inexistante (comme `GET /machines`, qui ne la liste jamais).
   Revoquer la machine appelante elle-meme est permis ; effet immediat.
+- POST /machines/{machine_id}/adopt (additif) — reprise d'une machine existante
+  (meme controle d'acces que `revoke`) : le credential est tourne, la machine
+  garde son `id` et son historique ; reponse = `Machine` + `credential` en clair,
+  une seule fois (`200`). L'ancien credential est invalide immediatement ;
+  machine revoquee = `409` ; pas de `Idempotency-Key`. Cote client,
+  `IdentityEnrollRequest.adopt_machine_id` (optionnel) l'emploie a la place de
+  `POST /machines`.
 - PATCH /machines/{machine_id} (additif) — renomme la machine (`display_name`).
   Proprietaire ou `admin` ; `agent` recoit `403`. Pour un non-admin, la machine
   d'un autre User repond `404`. Concurrence optimiste obligatoire via header
