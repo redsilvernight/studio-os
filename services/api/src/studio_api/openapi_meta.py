@@ -391,6 +391,26 @@ RESP_422_RESOLUTION: ErrorResponses = {
 }
 
 
+RESP_409_VAULT_SLUG: ErrorResponses = {
+    409: _json_response(
+        "Vault slug conflict: a non-archived note of the same scope already "
+        "owns this slug. Archive the previous note or pick another slug.",
+        {"detail": {"error_code": "vault_slug_conflict", "slug": "..."}},
+    )
+}
+
+RESP_422_VAULT: ErrorResponses = {
+    422: _json_response(
+        "Vault payload rejected, nothing stored: a link targets a note that "
+        "is not a readable studio note nor in the same project "
+        "(`invalid_vault_link`), a project listing lacks `project_id` "
+        "(`missing_project_id`), or a pagination cursor is malformed "
+        "(`invalid_cursor`).",
+        {"detail": {"error_code": "invalid_vault_link", "target_note_id": "..."}},
+    )
+}
+
+
 RESP_409_TRANSFER_STATE: ErrorResponses = {
     409: _json_response(
         "Upload state conflict: the transfer is already `ready` "

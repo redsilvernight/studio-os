@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from collections.abc import Iterable, Sequence
 from datetime import datetime
@@ -97,20 +99,10 @@ def _check_unique_links(links: Sequence[VaultNoteLink]) -> None:
         raise ValueError("a link (target, kind) appears at most once")
 
 
-class VaultNote(VersionedModel):
-    """A vault note, the unit of knowledge stored by the server.
-
-    Identity: `id` is stable; `(scope, project_id, slug)` is unique among notes
-    that are not archived. `readable_id` is assigned by the server, never by the
-    client, and only for numbered note types (a decision gets its readable identifier);
-    it is `None` for every other type.
-
-    Concurrency: `version` starts at 1 and grows by one on each accepted write;
-    a write carries `expected_version` and a stale one is a 409 carrying the
-    server version. Every accepted write appends a `VaultNoteVersion`.
-
-    Precedence: for the same `slug`, the project note prevails over the studio
-    note within that project (see `effective_notes`)."""
+class VaultNoteSummary(VersionedModel):
+    """The tree view of a note: everything a `VaultNote` carries except `body`,
+    so a listing never ships the note's prose. See `VaultNote` for the shared
+    invariants."""
 
     id: UUID
     scope: VaultScope
@@ -120,7 +112,6 @@ class VaultNote(VersionedModel):
     note_type: VaultNoteType = VaultNoteType.NOTE
     title: str = Field(min_length=1, max_length=VAULT_TITLE_MAX)
     summary: str = Field(default="", max_length=VAULT_SUMMARY_MAX)
-    body: str = Field(max_length=VAULT_BODY_MAX)
     status: VaultNoteStatus = VaultNoteStatus.DRAFT
     tags: list[VaultTag] = Field(default_factory=list, max_length=VAULT_TAGS_MAX)
     links: list[VaultNoteLink] = Field(default_factory=list, max_length=VAULT_LINKS_MAX)
@@ -135,6 +126,24 @@ class VaultNote(VersionedModel):
         if self.readable_id is not None and self.note_type is not VaultNoteType.DECISION:
             raise ValueError("only a decision note carries a readable_id")
         return self
+
+
+class VaultNote(VaultNoteSummary):
+    """A vault note, the unit of knowledge stored by the server.
+
+    Identity: `id` is stable; `(scope, project_id, slug)` is unique among notes
+    that are not archived. `readable_id` is assigned by the server, never by the
+    client, and only for numbered note types (a decision gets its readable identifier);
+    it is `None` for every other type.
+
+    Concurrency: `version` starts at 1 and grows by one on each accepted write;
+    a write carries `expected_version` and a stale one is a 409 carrying the
+    server version. Every accepted write appends a `VaultNoteVersion`.
+
+    Precedence: for the same `slug`, the project note prevails over the studio
+    note within that project (see `effective_notes`)."""
+
+    body: str = Field(max_length=VAULT_BODY_MAX)
 
 
 class VaultNoteCreate(IdempotentCreate):
@@ -211,6 +220,58 @@ class VaultNoteVersion(ContractModel):
     author_type: VaultActorType
     author_id: UUID
     created_at: datetime
+
+
+class VaultTreePage(ContractModel):
+    """A page of the vault tree: summaries (no `body`) ordered by slug, plus an
+    opaque cursor to fetch the next page (`null` when the last page was read)."""
+
+    items: list[VaultNoteSummary]
+    next_cursor: str | None = None
+
+
+class VaultVersionPage(ContractModel):
+    """A page of a note's immutable history, ordered by ascending `version`,
+    plus an opaque cursor to fetch the next page (`null` on the last one)."""
+
+    items: list[VaultNoteVersion]
+    next_cursor: str | None = None
+
+
+def content_hash(
+    *,
+    title: str,
+    summary: str,
+    body: str,
+    status: VaultNoteStatus,
+    tags: Sequence[str],
+    links: Sequence[VaultNoteLink],
+) -> str:
+    """SHA-256 of a note's canonical content: the mutable fields only (title,
+    summary, body, status, tags, links), sorted for determinism. Identity fields
+    (scope, slug, note_type, author) are deliberately excluded — the hash is a
+    content fingerprint, never an identity."""
+
+    canonical = json.dumps(
+        {
+            "title": title,
+            "summary": summary,
+            "body": body,
+            "status": status.value,
+            "tags": sorted(tags),
+            "links": sorted(
+                (
+                    {"target_note_id": str(link.target_note_id), "kind": link.kind.value}
+                    for link in links
+                ),
+                key=lambda entry: (entry["target_note_id"], entry["kind"]),
+            ),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def effective_notes[N: VaultNote](notes: Iterable[N], project_id: UUID | None) -> list[N]:
