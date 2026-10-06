@@ -7,6 +7,7 @@ from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy import and_, delete, or_, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.auth import Role
 from studio_contracts.vault import (
@@ -114,7 +115,11 @@ def authorize_create(principal: Principal, note_in: VaultNoteCreate) -> None:
 
 
 def _authorize_scope_write(
-    principal: Principal, scope: str, project_id: uuid.UUID | None, target_status: str
+    principal: Principal,
+    scope: str,
+    project_id: uuid.UUID | None,
+    target_status: str,
+    current_status: str | None = None,
 ) -> None:
     if scope == VaultScope.PROJECT.value:
         if project_id is None:
@@ -123,7 +128,10 @@ def _authorize_scope_write(
         ensure_can_write(principal, "vault_note")
         return
     ensure_can_write(principal, "vault_note")
-    if target_status in _ADMIN_ONLY_STATUSES and principal.role != Role.ADMIN:
+    # A studio note in an admin-only status is admin-owned: a non-admin can
+    # neither reach that status nor leave it (no demote-then-edit bypass).
+    statuses = {target_status, current_status} & _ADMIN_ONLY_STATUSES
+    if statuses and principal.role != Role.ADMIN:
         raise forbidden("vault_note", "write")
 
 
@@ -235,7 +243,11 @@ async def create_note(
         author_id=principal.user.id,
     )
     session.add(note)
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError as exc:  # concurrent create of the same slug
+        await session.rollback()
+        raise _slug_conflict(note_in.slug) from exc
     await _append_version(session, note, note_in.links, None)
     await _replace_links(session, note.id, note_in.links)
     await session.commit()
@@ -269,7 +281,7 @@ async def update_note(
 ) -> VaultNoteModel:
     note = await _lock_note(session, note_id)
     target_status = note_in.status.value if note_in.status is not None else note.status
-    _authorize_scope_write(principal, note.scope, note.project_id, target_status)
+    _authorize_scope_write(principal, note.scope, note.project_id, target_status, note.status)
     if note.version != note_in.expected_version:
         raise _version_conflict(note.version)
 
@@ -484,7 +496,7 @@ async def list_tree(
     elif (visible := _tree_visibility_clause(principal)) is not None:
         stmt = stmt.where(visible)
     if prefix is not None:
-        stmt = stmt.where(VaultNoteModel.slug.like(f"{prefix}%"))
+        stmt = stmt.where(VaultNoteModel.slug.startswith(prefix, autoescape=True))
     if status_filter is not None:
         stmt = stmt.where(VaultNoteModel.status == status_filter.value)
     if not include_archived:

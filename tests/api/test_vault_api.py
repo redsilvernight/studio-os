@@ -247,6 +247,24 @@ async def test_studio_validated_status_is_admin_only(
     assert allowed.status_code == 200
     assert allowed.json()["status"] == "validated"
 
+    for change in ({"status": "draft"}, {"title": "edited by a non-admin"}):
+        locked = await client.patch(
+            f"/api/v1/vault/notes/{note['id']}",
+            headers=auth_headers,
+            json={"expected_version": 2, **change},
+        )
+        assert locked.status_code == 403, change
+
+
+async def test_tree_prefix_is_literal(client: AsyncClient, auth_headers: dict[str, str]) -> None:
+    base = _slug("lit")
+    await _create(client, auth_headers, _note_payload("studio", f"{base}_x"))
+    await _create(client, auth_headers, _note_payload("studio", f"{base}-x"))
+    page = await client.get(
+        "/api/v1/vault/tree", headers=auth_headers, params={"scope": "studio", "prefix": f"{base}_"}
+    )
+    assert [i["slug"] for i in page.json()["items"]] == [f"{base}_x"]
+
 
 @pytest.mark.isolation
 async def test_non_member_gets_403_on_project_note(
