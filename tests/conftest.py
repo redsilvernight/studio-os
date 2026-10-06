@@ -56,15 +56,19 @@ def _clone_database(url: str, name: str, template: str) -> None:
             database="postgres",
         )
         try:
-            await conn.execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
-            for attempt in range(20):
-                try:
-                    await conn.execute(f'CREATE DATABASE "{name}" TEMPLATE "{template}"')
-                    return
-                except asyncpg.ObjectInUseError:
-                    if attempt == 19:
-                        raise
-                    time.sleep(0.25)
+            await conn.execute("SELECT pg_advisory_lock(8103140014)")
+            try:
+                await conn.execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
+                for attempt in range(20):
+                    try:
+                        await conn.execute(f'CREATE DATABASE "{name}" TEMPLATE "{template}"')
+                        return
+                    except asyncpg.ObjectInUseError:
+                        if attempt == 19:
+                            raise
+                        time.sleep(0.25)
+            finally:
+                await conn.execute("SELECT pg_advisory_unlock(8103140014)")
         finally:
             await conn.close()
 

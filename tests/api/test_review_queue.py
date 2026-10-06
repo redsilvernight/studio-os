@@ -97,7 +97,7 @@ async def test_review_queue_sorted_by_requested_at_descending(
     machine: tuple[MachineModel, str],
 ) -> None:
     machine_model, _ = machine
-    await client.post(
+    first = await client.post(
         "/api/v1/ai-work",
         headers=auth_headers,
         json={"project_id": str(project.id), "agent_id": str(agent.id), "summary": "First"},
@@ -107,11 +107,10 @@ async def test_review_queue_sorted_by_requested_at_descending(
         headers=auth_headers,
         json={"project_id": str(project.id), "agent_id": str(agent.id), "summary": "Second"},
     )
-    first_id = (
-        await client.get(
-            "/api/v1/ai-work", headers=auth_headers, params={"project_id": str(project.id)}
-        )
-    ).json()[0]["id"]
+    # Les identifiants viennent des réponses de création : l'ordre de
+    # GET /ai-work n'est pas contractuel (pas de ORDER BY), donc [0]
+    # ne désigne pas forcément "First".
+    first_id = first.json()["id"]
     second_id = ai_work.json()["id"]
     await client.patch(
         f"/api/v1/ai-work/{first_id}", headers=auth_headers, json={"status": "review_requested"}
