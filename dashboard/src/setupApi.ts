@@ -43,9 +43,9 @@ export function applySetup(
 }
 
 export const ITEM_KIND_LABELS: Record<SetupItemKind, string> = {
-  hook: "Démarrage de session",
-  guard: "Garde Git",
-  plugin: "Extension de session",
+  hook: "Script de démarrage de session",
+  guard: "Script de protection Git",
+  plugin: "Extension de l'outil",
 };
 
 export const ITEM_STATE_LABELS: Record<SetupItemState, string> = {
