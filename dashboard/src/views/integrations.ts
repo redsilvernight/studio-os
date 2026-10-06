@@ -22,6 +22,7 @@ import {
   detectHarnesses,
   harnessErrorMessage,
   latestRollbackId,
+  mergeSetupHarnesses,
   previewHarness,
   rollbackHarness,
   verifyHarness,
@@ -256,16 +257,20 @@ export function launchSettingsHtml(view: LaunchSettingsView, draft?: LaunchSetti
 export function integrationsHtml(harnesses: HarnessStatus[], view: IntegrationsView = {}): string {
   const notice = view.notice ? `<p class="settings-notice" role="status" data-testid="notice">${esc(view.notice)}</p>` : "";
   const error = view.error ? `<p class="ds-field-error" role="alert" data-testid="error">${esc(view.error)}</p>` : "";
-  const list = harnesses.length === 0
+  // Same source as « Harnais détectés » (setup.plan): a harness the setup
+  // preview reports as detected always gets its MCP line and its card, even
+  // when harness.detect omits it or still marks it not_detected (Codex).
+  const all = mergeSetupHarnesses(harnesses, view.setup?.plan?.harnesses);
+  const list = all.length === 0
     ? dsEmptyState("Aucun harnais connu", "Studi'OS Desktop ne connaît aucun harnais IA à configurer.")
-    : harnesses.map((status) => harnessHtml(status, view)).join("");
+    : all.map((status) => harnessHtml(status, view)).join("");
   return (
     header() +
     `<section class="settings-domain" data-testid="integrations">` +
     `<p class="settings-intro">Studi'OS ne gère ni modèle, ni abonnement, ni clé de fournisseur : seule la connexion du harnais au MCP Studi'OS est configurée. Chaque outil reçoit son propre identifiant Studi'OS, rangé dans sa seule configuration utilisateur et jamais affiché ; les fichiers du projet n'en contiennent aucun.</p>` +
     notice +
     error +
-    setupSectionHtml(view.setup, harnesses) +
+    setupSectionHtml(view.setup, all) +
     `<div class="integrations-list">${list}</div></section>` +
     (view.skills ? skillsHtml(view.skills) : "") +
     (view.launch ? launchSettingsHtml(view.launch, view.launchDraft, view.launchNotice, view.launchError) : "")

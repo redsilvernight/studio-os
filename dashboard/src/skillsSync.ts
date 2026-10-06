@@ -49,7 +49,7 @@ export function skillsIndicatorHtml(status: SkillsSyncStatus | null, failed = fa
   return (
     `<button class="app-connection app-connection--${level} app-skills-sync" id="skills-sync" type="button" ` +
     `data-testid="skills-sync" data-state="${known ? status.state : "unavailable"}" ` +
-    `aria-haspopup="dialog" aria-controls="${DIALOG_ID}" title="${esc(label)}">` +
+    `aria-haspopup="dialog" aria-controls="${DIALOG_ID}" title="${esc(label + suffix)}">` +
     `<span class="app-connection-dot" aria-hidden="true"></span>` +
     `<span class="app-connection-label">${esc(label + suffix)}</span></button>`
   );

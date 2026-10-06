@@ -154,6 +154,66 @@ export const STATE_TONES: Record<HarnessState, "neutral" | "success" | "warning"
   error: "danger",
 };
 
+/**
+ * Display names for harness ids the daemon may report through `setup.plan`
+ * before `harness.detect` knows them (e.g. Codex on an older daemon). The
+ * contract carries no vendor concept: only these fixed labels are shown.
+ */
+export const HARNESS_DISPLAY_NAMES: Record<string, string> = {
+  "claude-code": "Claude Code",
+  opencode: "OpenCode",
+  codex: "Codex",
+};
+
+export interface SetupHarnessLike {
+  harness: string;
+  detected: boolean;
+}
+
+/**
+ * One coherent harness list from the two daemon sources: `harness.detect`
+ * (MCP cards) and `setup.plan` (« Harnais détectés »). A harness the setup
+ * preview reports as detected but `harness.detect` omits — or still marks
+ * `not_detected` (e.g. Codex: binary present, version probe stricter) — is
+ * shown as `detected` (« Installé · non configuré ») with a card, so the
+ * preview, the MCP step and the cards agree. Nothing else is rewritten: a
+ * configured / incompatible / error state from `harness.detect` always wins.
+ */
+export function mergeSetupHarnesses(
+  detected: HarnessStatus[],
+  setupHarnesses?: readonly SetupHarnessLike[] | null,
+): HarnessStatus[] {
+  if (!setupHarnesses || setupHarnesses.length === 0) return detected;
+  const seen = new Set(setupHarnesses.filter((h) => h.detected).map((h) => h.harness));
+  if (seen.size === 0) return detected;
+  const byAdapter = new Map(detected.map((h) => [h.adapter_id, h]));
+  const byHarness = new Map(detected.map((h) => [h.harness_id, h]));
+  let changed = false;
+  const merged = detected.map((status) => {
+    const key = seen.has(status.adapter_id) || seen.has(status.harness_id);
+    if (key && status.state === "not_detected") {
+      changed = true;
+      return { ...status, state: "detected" as const, error: null };
+    }
+    return status;
+  });
+  for (const id of seen) {
+    if (byAdapter.has(id) || byHarness.has(id)) continue;
+    changed = true;
+    merged.push({
+      adapter_id: id,
+      harness_id: id,
+      display_name: HARNESS_DISPLAY_NAMES[id] ?? id,
+      state: "detected",
+      detected_version: null,
+      capabilities: [],
+      managed_files: [],
+      error: null,
+    });
+  }
+  return changed ? merged : detected;
+}
+
 const REASONS: Record<string, string> = {
   executable_not_found: "L'exécutable n'a pas été trouvé sur ce poste.",
   unsupported_version: "Cette version n'est pas prise en charge : Studi'OS ne modifie pas une configuration qu'il ne connaît pas.",
