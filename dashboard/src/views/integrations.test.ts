@@ -11,6 +11,7 @@ import {
   detectHarnesses,
   harnessErrorMessage,
   latestRollbackId,
+  mergeSetupHarnesses,
   previewHarness,
   rollbackHarness,
   verifyHarness,
@@ -620,5 +621,54 @@ describe("launch settings section", () => {
   it("escapes harness ids", () => {
     const html = launchSettingsHtml({ opt_in: true, max_concurrent: 1, detected_harnesses: ["<img src=x onerror=alert(1)>"] });
     expect(html).not.toContain("<img src=x");
+  });
+});
+
+describe("setup/harness coherence (Codex)", () => {
+  it("adds a harness the setup preview detected but harness.detect omits", () => {
+    const merged = mergeSetupHarnesses([status("claude-code", "detected") as never], [{ harness: "codex", detected: true }]);
+    const codex = merged.find((h) => h.adapter_id === "codex");
+    expect(codex?.state).toBe("detected");
+    expect(codex?.display_name).toBe("Codex");
+  });
+
+  it("upgrades a not_detected entry the setup preview reports as detected", () => {
+    const merged = mergeSetupHarnesses([status("codex", "not_detected") as never], [{ harness: "codex", detected: true }]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.state).toBe("detected");
+  });
+
+  it("never downgrades a configured/incompatible state and ignores undetected setup rows", () => {
+    const merged = mergeSetupHarnesses(
+      [status("codex", "configured") as never, status("claude-code", "incompatible") as never],
+      [
+        { harness: "codex", detected: true },
+        { harness: "opencode", detected: false },
+      ],
+    );
+    expect(merged.find((h) => h.adapter_id === "codex")?.state).toBe("configured");
+    expect(merged.find((h) => h.adapter_id === "claude-code")?.state).toBe("incompatible");
+    expect(merged.some((h) => h.adapter_id === "opencode")).toBe(false);
+  });
+
+  it("shows the same Codex state in the MCP step and in the cards", () => {
+    const plan = {
+      plan_id: "setup-1",
+      plan_hash: "b".repeat(64),
+      created_at: "2026-10-04T10:00:00Z",
+      expires_at: "2026-10-04T10:10:00Z",
+      requires_confirmation: true,
+      harnesses: [{ harness: "codex", detected: true }],
+      hooks: [],
+      skills: { state: "checked", current: 1, missing: 0, outdated: 0, locally_modified: 0 },
+      adapters: { state: "checked", workspaces: 0, checked: 0, drifted: 0 },
+    };
+    const html = integrationsHtml([status("claude-code", "detected") as never], { setup: { plan } as never });
+    expect(html).toContain('data-harness="codex"');
+    expect(html).toContain("Codex");
+    expect(html).toContain("Installé · non configuré");
+    expect(html).not.toContain("Non installé");
+    const codexCard = html.split('data-harness="codex"')[1] ?? "";
+    expect(codexCard).toContain("Configurer");
   });
 });

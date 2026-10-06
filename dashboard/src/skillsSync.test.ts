@@ -55,6 +55,18 @@ describe("skills sync indicator", () => {
     expect(skillsIndicatorHtml(null, true)).toContain("état indisponible");
   });
 
+  it("exposes the full pill label in the tooltip (no truncated « Skil… »)", () => {
+    for (const html of [
+      skillsIndicatorHtml(status({ state: "up_to_date" })),
+      skillsIndicatorHtml(status({ state: "conflicts", conflicts: ["a"] })),
+      skillsIndicatorHtml(null, true),
+    ]) {
+      const label = html.match(/<span class="app-connection-label">(.*?)<\/span>/)?.[1] ?? "";
+      expect(label.length).toBeGreaterThan(0);
+      expect(html).toContain(`title="${label}"`);
+    }
+  });
+
   it("does nothing on the web", async () => {
     mountSkillsSync(webPlatform);
     await flush();

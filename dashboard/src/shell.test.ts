@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
 import { parseRoute } from "./router";
-import { mountAdminFlyout, paintConnection, shellHtml, shellNavGroups } from "./shell";
+import { mountAdminFlyout, paintConnection, shellHtml, shellNavGroups, connectionStatusHtml } from "./shell";
 import { notFoundHtml } from "./views/notFound";
 
 function authedShell(routeName: Parameters<typeof shellHtml>[0]): string {
@@ -208,6 +208,15 @@ describe("shellHtml (P03-shell)", () => {
     paintConnection({ level: "ok", label: "Connecté", href: "#/configuration/application", action: null }, document);
     expect(document.querySelectorAll("#connection-status")).toHaveLength(1);
     expect(document.querySelector("#connection-action")).toBeNull();
+  });
+
+  it("exposes the full footer label in the DOM and in the tooltip (no truncated « Co… »)", () => {
+    const html = connectionStatusHtml({ level: "ok", label: "Connecté", href: "#/configuration/application" });
+    expect(html).toContain('title="Connecté"');
+    expect(html).toContain('<span class="app-connection-label">Connecté</span>');
+    const long = connectionStatusHtml({ level: "warn", label: "Assistant local en reprise", href: "#/configuration/application" });
+    expect(long).toContain('title="Assistant local en reprise"');
+    expect(long).toContain("Assistant local en reprise");
   });
 });
 
