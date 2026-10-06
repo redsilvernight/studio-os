@@ -448,16 +448,27 @@ a.app-connection:hover .app-connection-label {
   .app-me {
     flex-direction: row;
     align-items: center;
+    flex-wrap: wrap;
   }
   .app-connection {
-    flex: 1;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  /* Seconde pastille (synchro des skills) sur sa propre ligne : les deux
+     libellés gardent une largeur suffisante au lieu d'être tronqués (« Co… »,
+     « Skil… »). Le libellé complet reste aussi dans l'infobulle (title). */
+  .app-skills-sync {
+    flex: 1 1 100%;
+    min-width: 0;
   }
   .app-connection-label {
     position: static;
     width: auto;
     height: auto;
+    min-width: 0;
     overflow: hidden;
     clip: auto;
+    white-space: nowrap;
     text-overflow: ellipsis;
   }
   .app-me--guest {

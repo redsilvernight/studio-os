@@ -107,10 +107,64 @@ describe("« Configurer ce poste » — aperçu", () => {
     expect(setup(state).map((c) => c.command)).toEqual(["setup.plan"]);
     expect(root.querySelector("[data-testid=setup-harnesses]")?.textContent).toContain("claude-code");
     expect(root.querySelector("[data-testid=setup-harnesses]")?.textContent).not.toContain("opencode");
-    expect(root.querySelector("[data-testid=needs-registration]")?.textContent).toContain("manuelle");
+    expect(root.querySelector("[data-testid=needs-registration]")?.textContent).toContain("À enregistrer dans les réglages de l'outil (étape manuelle)");
     expect(root.querySelector("[data-testid=setup-skills]")?.textContent).toContain("jamais écrasées");
     expect(root.querySelector("[data-testid=setup-adapters]")?.textContent).toContain("Lecture seule");
+    expect(root.querySelector("[data-testid=setup-adapters]")?.textContent).not.toContain("commande de développement");
     expect(root.querySelector("[data-testid=setup-mcp]")?.textContent).toContain("jamais déclaré configuré");
+  });
+
+  it("nomme les fichiers en clair, sans jargon", async () => {
+    const plan = makePlan({
+      hooks: [
+        hook("hook:claude-code", "missing", { needs_registration: true }),
+        hook("guard", "current", { kind: "guard" }),
+        hook("plugin:opencode", "current", { kind: "plugin" }),
+      ],
+    });
+    const text = setupSectionHtml({ plan });
+    expect(text).not.toContain("Garde Git");
+    expect(text).not.toContain("Extension de session");
+    expect(text).toContain("Script de démarrage de session (claude-code)");
+    expect(text).toContain("Script de protection Git (x)");
+    expect(text).toContain("Extension de l'outil (opencode)");
+  });
+
+  it("renvoie aux cartes de harnais pour le MCP au lieu d'y répéter leurs badges", () => {
+    const html = setupSectionHtml({ plan: makePlan() }, [
+      { adapter_id: "claude-code", display_name: "Claude Code", state: "detected" } as never,
+      { adapter_id: "opencode", display_name: "OpenCode", state: "configured" } as never,
+    ]);
+    const mcp = html.slice(html.indexOf('data-testid="setup-mcp"'));
+    expect(mcp).not.toContain("ds-badge");
+    expect(mcp).not.toContain("Claude Code");
+    expect(mcp).toContain("2 outils IA chargés");
+    expect(mcp).toContain("carte ci-dessous");
+    expect(mcp).toContain("jamais déclaré configuré");
+  });
+
+  it("replie chaque diff dans un détail et annonce le nombre de lignes", async () => {
+    const { platform } = rig();
+    const root = await mount(platform);
+    await click(root, "[data-action=preview-setup]");
+    const details = root.querySelector<HTMLDetailsElement>("details.setup-diff")!;
+    expect(details.querySelector("summary")?.textContent).toBe("Voir les 3 lignes modifiées");
+    expect(details.querySelector("[data-testid=setup-diff]")?.textContent).toContain("+new");
+    expect(details.hasAttribute("open")).toBe(false);
+  });
+
+  it("résume avant la confirmation ce qui restera inchangé", async () => {
+    const { platform } = rig();
+    const root = await mount(platform);
+    await click(root, "[data-action=preview-setup]");
+    const plan = root.querySelector("[data-testid=setup-plan]")!;
+    expect(plan.querySelector("[data-testid=setup-summary]")?.textContent).toContain("1 fichier restera inchangé");
+    expect(plan.innerHTML.indexOf("setup-summary")).toBeLessThan(plan.innerHTML.indexOf('data-action="confirm-setup"'));
+  });
+
+  it("n'annonce plus de fichier à laisser tel quel quand la case est cochée", () => {
+    expect(setupSectionHtml({ plan: makePlan() })).toContain("1 fichier restera inchangé");
+    expect(setupSectionHtml({ plan: makePlan(), overwrite: ["guard"] })).not.toContain("restera inchangé");
   });
 
   it("montre le diff d'un fichier divergent, case de remplacement décochée par défaut", async () => {
@@ -118,9 +172,19 @@ describe("« Configurer ce poste » — aperçu", () => {
     const root = await mount(platform);
     await click(root, "[data-action=preview-setup]");
     expect(root.querySelector("[data-testid=setup-diff]")?.textContent).toContain("+new");
+    expect(root.querySelector("[data-setup-item=guard]")?.textContent).toContain("Fichier qui n'est pas géré par Studi'OS");
     const box = root.querySelector<HTMLInputElement>("[data-setup-overwrite=guard]");
     expect(box?.checked).toBe(false);
+    expect(box?.closest("label")?.textContent).toContain("Remplacer ce fichier par la version gérée");
     expect(root.querySelector("[data-setup-overwrite=hook\\:claude-code]")).toBeNull();
+  });
+
+  it("explique en clair une copie gérée qui s'écarte de la version actuelle", () => {
+    const html = setupSectionHtml({
+      plan: makePlan({ hooks: [hook("guard", "differs", { managed: true, lines_added: 1, lines_removed: 1, diff: "+x\n-y" })] }),
+    });
+    expect(html).toContain("Copie gérée différente de la version actuelle (obsolète ou modifiée)");
+    expect(html).toContain("Voir les 2 lignes modifiées");
   });
 
   it("échappe le contenu d'un diff étranger", () => {
