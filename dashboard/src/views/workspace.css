@@ -167,7 +167,17 @@
   }
 }
 
-/* Onglet Réservations : formulaire de création aéré, champs en grille. */
+/* Onglet Réservations : filtre d'état, pagination, puis formulaire de création. */
+.claims-filter,
+.claims-pager {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-3);
+  margin: var(--ds-space-3) 0;
+}
+.claims-pager {
+  justify-content: flex-end;
+}
 .claims-create {
   margin-top: var(--ds-space-6);
 }
