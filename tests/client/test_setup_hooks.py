@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -73,7 +74,7 @@ def test_codex_spec() -> None:
 def test_render_carries_no_secret() -> None:
     for spec in HARNESSES:
         rendered = render_hook(spec).lower()
-        assert "bearer" not in rendered
+        assert not re.search(r"bearer\s+[a-z0-9_-]{20,}", rendered)
         assert "token" not in rendered or "credential" in rendered
         assert "BEGIN PRIVATE KEY" not in rendered
 
@@ -581,3 +582,12 @@ def test_guard_blocks_commit_on_protected_branch(tmp_path: Path) -> None:
     assert run("git status") == 0
     subprocess.run(["git", "checkout", "-q", "-b", "task/abc"], cwd=repo, check=True)
     assert run("git commit -m wip") == 0
+
+
+def test_claude_hook_authenticates_ensure_with_the_mcp_credential() -> None:
+    rendered = render_hook(_SPECS["claude-code"])
+    assert ".claude.json" in rendered
+    assert "STUDIO_CLIENT_MACHINE_TOKEN_ORIGIN" in rendered
+    assert '$originKey = "${originKey}#$fp"' in rendered
+    for harness in ("opencode", "codex"):
+        assert "'claude-code' -eq 'claude-code'" not in render_hook(_SPECS[harness])
