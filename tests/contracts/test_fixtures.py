@@ -9,6 +9,7 @@ from studio_contracts.projects import Project
 from studio_contracts.roadmaps import HydrationResult, Roadmap, RoadmapDocument
 from studio_contracts.tasks import Task
 from studio_contracts.transfers import Transfer
+from studio_contracts.vault import VaultNote
 
 from tests.conftest import load_fixture
 
@@ -23,6 +24,7 @@ FIXTURE_MODELS: dict[str, type[BaseModel]] = {
     "roadmaps": Roadmap,
     "roadmap_documents": RoadmapDocument,
     "roadmap_hydration": HydrationResult,
+    "vault_notes": VaultNote,
 }
 
 
