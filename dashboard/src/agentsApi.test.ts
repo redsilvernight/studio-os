@@ -179,7 +179,7 @@ describe("deriveAgentActivity (DERIVED, jamais canonique)", () => {
   });
 });
 
-describe("filterAgents (recherche locale, champs humains chargés)", () => {
+describe("filterAgents (recherche locale : nom et rôle, P05-agents)", () => {
   const agents = [agent(A1), agent(A2, { display_name: "Kimi Scribe", agent_kind: "docs", provider: null, model: null })];
 
   it("sans requête retourne tout, dans l'ordre du serveur", () => {
@@ -187,11 +187,17 @@ describe("filterAgents (recherche locale, champs humains chargés)", () => {
     expect(filterAgents(agents, "   ")).toEqual(agents);
   });
 
-  it("cherche nom, nature et technique déclarée, insensible à la casse", () => {
+  it("cherche nom, nature et profil, insensible à la casse", () => {
     expect(filterAgents(agents, "atlas").map((a) => a.id)).toEqual([A1]);
     expect(filterAgents(agents, "DOCS").map((a) => a.id)).toEqual([A2]);
-    expect(filterAgents(agents, "anthropic").map((a) => a.id)).toEqual([A1]);
-    expect(filterAgents(agents, "claude-test").map((a) => a.id)).toEqual([A1]);
+    expect(
+      filterAgents([agent(A1, { agent_profile: "Revue et correction" })], "revue").map((a) => a.id),
+    ).toEqual([A1]);
+  });
+
+  it("la technique déclarée dort en fiche : non cherchée", () => {
+    expect(filterAgents(agents, "anthropic")).toEqual([]);
+    expect(filterAgents(agents, "claude-test")).toEqual([]);
   });
 
   it("ne fabrique rien : sans correspondance, vide", () => {

@@ -70,6 +70,23 @@ class AdapterArtifact:
         object.__setattr__(self, "sha256", sha256(self.content.encode("utf-8")).hexdigest())
 
 
+def classify_artifact_state(
+    current: str | None,
+    artifact: AdapterArtifact,
+    managed_hash: str | None,
+) -> str:
+    """Classify one on-disk file against a fresh adapter artifact (AIB P5).
+
+    Same four states as ``skill_sync`` (``current``, ``missing``,
+    ``outdated``, ``locally_modified``); ``outdated`` means the disk still
+    carries the last managed hash while the canonical definition moved on.
+    ``adapters check`` adopts this instead of a single drifted/missing flag.
+    """
+    from studio_client.drift import classify_state
+
+    return classify_state(current, artifact.content, managed_hash)
+
+
 @dataclass(frozen=True)
 class AdapterResult:
     """Complete translation outcome: artifacts, warnings and

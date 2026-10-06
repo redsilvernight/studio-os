@@ -71,18 +71,25 @@ describe("P3 x P5 native folder pick", () => {
   });
 });
 
-describe("Dossiers navigation", () => {
+describe("Espaces de travail navigation", () => {
   it("routes #/workspaces", () => {
     expect(parseRoute("#/workspaces")).toEqual({ name: "workspaces" });
     expect(parseRoute("#/workspaces/x").name).toBe("notFound");
   });
 
-  it("is desktop-only: the web navigation is unchanged", () => {
+  it("is visible on web and desktop: one Administration entry", () => {
     const web = shellNavGroups({ name: "dashboard" }).flatMap((g) => g.items.map((i) => i.href));
-    expect(web).not.toContain("#/workspaces");
-    expect(shellHtml({ name: "dashboard" }, true)).not.toContain("Dossiers");
+    expect(web).toContain("#/workspaces");
+    expect(shellHtml({ name: "dashboard" }, true)).toContain("Espaces de travail");
     const desktop = shellNavGroups({ name: "workspaces" }, true).flatMap((g) => g.items);
     expect(desktop.filter((i) => i.href === "#/workspaces" && i.active)).toHaveLength(1);
-    expect(shellHtml({ name: "dashboard" }, true, true)).toContain("Dossiers");
+    expect(shellHtml({ name: "dashboard" }, true, true)).toContain("Espaces de travail");
+  });
+
+  it("titles the page Espaces de travail with a folded technical block", () => {
+    expect(workspacesPageHtml("desktop", null)).toContain("Espaces de travail");
+    expect(workspacesPageHtml("desktop", null)).toContain("Administration / Espaces de travail");
+    expect(workspacesPageHtml("desktop", null)).toContain("Détails techniques");
+    expect(workspacesPageHtml("web", null)).toContain("Studi'OS Desktop");
   });
 });

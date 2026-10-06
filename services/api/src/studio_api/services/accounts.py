@@ -274,7 +274,8 @@ async def forgot_password(
 async def reset_password(session: AsyncSession, secret: str, new_password: str) -> dict[str, str]:
     """Consumes the secret, sets the password and revokes every session (A2).
     Owning the mailbox also proves the address: a pending User becomes
-    verified. A User disabled meanwhile stays disabled."""
+    verified. A disabled User gets the terminal invalid-token error without
+    any password change."""
     password_hash = provisioning_service.hash_password(new_password)
     token = await _consume(session, secret, AccountTokenPurpose.PASSWORD_RESET)
     if token is None:
@@ -283,6 +284,10 @@ async def reset_password(session: AsyncSession, secret: str, new_password: str) 
         raise _invalid_token()
     user = await session.get(UserModel, token.user_id)
     assert user is not None
+    if user.status == "disabled":
+        await session.rollback()
+        security_event("credential.password_reset", outcome="failure", user_id=user.id)
+        raise _invalid_token()
     _apply_new_password(user, password_hash)
     if user.email_verified_at is None:
         user.email_verified_at = datetime.now(UTC)

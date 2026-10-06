@@ -7,6 +7,7 @@ without regen) fails here exactly as `studio adapters check` fails in CI.
 
 from __future__ import annotations
 
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,8 @@ from studio_client.adapters import (
 )
 from studio_client.adapters.base import AdapterArtifact
 from studio_client.canonical import (
+    LibrarySnapshot,
+    build_merged_resolved,
     build_offline_resolved,
     canonical_agent_keys,
     canonical_rule_keys,
@@ -201,3 +204,128 @@ def test_rule_frontmatter_neutral() -> None:
         data = yaml.safe_load(raw.split("---\n", 2)[1])
         assert "paths" not in data  # harness envelope lives in the projection
         assert isinstance(data.get("applies_to"), list)
+
+
+def _write_definition(
+    root: Path, key: str, *, rules: tuple[str, ...], skills: tuple[str, ...]
+) -> None:
+    definitions = root / ".agents" / "definitions"
+    definitions.mkdir(parents=True)
+    definitions.joinpath(f"{key}.md").write_text(
+        "---\n"
+        f"stable_key: {key}\n"
+        "title: T\n"
+        "summary: S\n"
+        "intended_use: U\n"
+        f"rules: [{', '.join(rules)}]\n"
+        f"skills: [{', '.join(skills)}]\n"
+        "---\n"
+        "Body.\n",
+        encoding="utf-8",
+    )
+
+
+def test_merged_without_library_matches_offline() -> None:
+    for key in KEYS:
+        assert build_merged_resolved(REPO, key) == build_offline_resolved(REPO, key)
+
+
+def test_merged_roundtrip_through_snapshot() -> None:
+    """`from_resolved` + merge over a complete repo changes nothing: every
+    piece resolves file-backed, with the file identity namespace."""
+    offline = build_offline_resolved(REPO, "studio-tester")
+    snapshot = LibrarySnapshot.from_resolved(offline)
+    assert build_merged_resolved(REPO, "studio-tester", library=snapshot) == offline
+
+
+def test_merged_project_file_wins_over_library() -> None:
+    offline = build_offline_resolved(REPO, "studio-tester")
+    snapshot = LibrarySnapshot.from_resolved(offline)
+    poisoned_rule = snapshot.rules["contracts"].model_copy(
+        update={
+            "resource_id": uuid.uuid4(),
+            "version": 99,
+            "content": {"content_schema": "studio.library.rule/v1", "text": "POISON"},
+        }
+    )
+    poisoned = LibrarySnapshot(
+        agent=snapshot.agent,
+        rules={**snapshot.rules, "contracts": poisoned_rule},
+        skills=snapshot.skills,
+        requirements=snapshot.requirements,
+    )
+    merged = build_merged_resolved(REPO, "studio-tester", library=poisoned)
+    by_key = {rule.stable_key: rule for rule in merged.rules}
+    assert by_key["contracts"].content["text"] != "POISON"
+    assert by_key["contracts"].version == 1  # file namespace, not Library 99
+
+
+def test_merged_library_fills_missing_project_files(tmp_path: Path) -> None:
+    _write_definition(tmp_path, "x-agent", rules=("x-rule",), skills=())
+    offline = build_offline_resolved(REPO, "studio-tester")
+    snapshot = LibrarySnapshot.from_resolved(offline)
+    library_rule = snapshot.rules["contracts"]
+    library_only = LibrarySnapshot(
+        agent=snapshot.agent.model_copy(update={"stable_key": "x-agent"}),
+        rules={"x-rule": library_rule.model_copy(update={"stable_key": "x-rule"})},
+        skills={},
+        requirements=snapshot.requirements,
+    )
+    merged = build_merged_resolved(tmp_path, "x-agent", library=library_only)
+    assert [rule.stable_key for rule in merged.rules] == ["x-rule"]
+    assert merged.rules[0].resource_id == library_rule.resource_id
+    assert merged.rules[0].version == library_rule.version
+    assert merged.agent.content["instructions"] == "Body.\n"  # file head wins
+
+
+def test_merged_no_project_files_uses_library_head(tmp_path: Path) -> None:
+    """Near-empty repo: no `.agents/` at all — the Library snapshot
+    supplies the head (with defaulted file-only keys) and the pieces."""
+    offline = build_offline_resolved(REPO, "studio-tester")
+    snapshot = LibrarySnapshot.from_resolved(offline)
+    library_rule = snapshot.rules["contracts"].model_copy(update={"stable_key": "x-rule"})
+    library_only = LibrarySnapshot(
+        agent=snapshot.agent.model_copy(update={"stable_key": "x-agent"}),
+        rules={"x-rule": library_rule},
+        skills={},
+        requirements=snapshot.requirements,
+    )
+    merged = build_merged_resolved(tmp_path, "x-agent", library=library_only)
+    assert merged.agent.resource_id == library_only.agent.resource_id
+    assert merged.agent.content["instructions"] == ""  # Library never carries file-only keys
+    assert merged.agent.content["edit_policy"] == "deny"
+    assert [rule.stable_key for rule in merged.rules] == ["x-rule"]
+
+
+def test_merged_missing_everywhere_raises(tmp_path: Path) -> None:
+    _write_definition(tmp_path, "x-agent", rules=("ghost-rule",), skills=())
+    offline = build_offline_resolved(REPO, "studio-tester")
+    snapshot = LibrarySnapshot.from_resolved(offline)
+    agent_only = LibrarySnapshot(
+        agent=snapshot.agent.model_copy(update={"stable_key": "x-agent"}),
+        rules={},
+        skills={},
+        requirements=snapshot.requirements,
+    )
+    with pytest.raises(FileNotFoundError):
+        build_merged_resolved(tmp_path, "x-agent", library=agent_only)
+    with pytest.raises(ValueError):
+        build_merged_resolved(tmp_path, "other-agent", library=agent_only)
+
+
+def test_snapshot_rejects_textless_entry() -> None:
+    offline = build_offline_resolved(REPO, "studio-tester")
+    broken_rule = offline.rules[0].model_copy(update={"content": {}})
+    with pytest.raises(ValueError):
+        LibrarySnapshot.from_resolved(
+            offline.model_copy(update={"rules": [broken_rule, *offline.rules[1:]]})
+        )
+
+
+def test_merged_corrupt_project_file_never_falls_back(tmp_path: Path) -> None:
+    definitions = tmp_path / ".agents" / "definitions"
+    definitions.mkdir(parents=True)
+    definitions.joinpath("x-agent.md").write_text("no frontmatter here\n", encoding="utf-8")
+    snapshot = LibrarySnapshot.from_resolved(build_offline_resolved(REPO, "studio-tester"))
+    with pytest.raises(ValueError):
+        build_merged_resolved(tmp_path, "x-agent", library=snapshot)

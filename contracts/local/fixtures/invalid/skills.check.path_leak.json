@@ -1,0 +1,43 @@
+{
+  "data": {
+    "checked_at": "2026-01-15T12:00:00Z",
+    "current": 1,
+    "in_sync": false,
+    "locally_modified": 1,
+    "missing": 1,
+    "outdated": 1,
+    "skills": [
+      {
+        "path": "C:/Users/dev/.claude/skills",
+        "stable_key": "studio-handoff",
+        "targets": [
+          {
+            "harness": "agents",
+            "state": "current"
+          },
+          {
+            "harness": "assistant",
+            "state": "locally_modified"
+          }
+        ],
+        "version": 5
+      },
+      {
+        "stable_key": "studio-session",
+        "targets": [
+          {
+            "harness": "agents",
+            "state": "missing"
+          },
+          {
+            "harness": "assistant",
+            "state": "outdated"
+          }
+        ],
+        "version": 3
+      }
+    ]
+  },
+  "model": "SkillsCheckResult",
+  "reason": "a skill entry carries no filesystem path"
+}

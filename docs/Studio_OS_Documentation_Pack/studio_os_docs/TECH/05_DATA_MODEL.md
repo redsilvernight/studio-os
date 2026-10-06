@@ -94,9 +94,17 @@ presente de nouveau revoque la famille.
 `id`, `owner_user_id` (FK User), `display_name`, `credential_hash` (token
 opaque hashe, jamais le token en clair — DEC-0003 `docs/DECISIONS.md`),
 `credential_revoked_at` (nullable), `last_seen_at` (nullable, alimente par
-`POST /heartbeats`), + champs communs mutables. `status` (`online|idle|offline`)
-n'est PAS stocke : derive de `last_seen_at` a la lecture
-(`TECH/04_AUTH_SYNC_CONTRACT.md`).
+`POST /heartbeats`), `capabilities` (JSONB nullable, rapport
+`MachineCapabilities` rafraichi par chaque heartbeat qui en envoie un —
+harnesses par `harness_id` (`CapabilityToken`), `project_ids` UUID seuls,
+opt-in et occupation ; jamais un chemin ni un secret),
+`capabilities_reported_at` (nullable, heure de reception du dernier
+rapport — un rapport stale n'est jamais presente comme courant ;
+l'eligibilite e1963627 s'en sert), + champs communs mutables (contrat
+e1963627, etendu DEC-0171, migration Alembic `0024`, additive et
+reversible). `status`
+(`online|idle|offline`) n'est PAS stocke : derive de `last_seen_at` a la
+lecture (`TECH/04_AUTH_SYNC_CONTRACT.md`).
 
 ## Agent
 `id`, `machine_id` (FK Machine, nullable — un agent garde son identite
@@ -142,6 +150,14 @@ donnee partagee sans projet, lisible par `admin` ou par un User ayant au moins
 une membership, sauf ressource propre (Transfer emetteur/destinataire,
 Library User, runtimes, bindings User) dont la regle existante s'applique
 seule (`TECH/04_AUTH_SYNC_CONTRACT.md` section Autorisation).
+
+
+## MachineLaunchGrant (AIB-J, additif — migration Alembic reversible)
+Table `machine_launch_grants` : `machine_id` (FK Machine, `ON DELETE CASCADE`), `user_id`
+(FK User, `ON DELETE CASCADE`), `project_id` (FK Project, nullable, `ON DELETE CASCADE`),
+`expires_at` (nullable), `granted_by_user_id` (FK User, `ON DELETE CASCADE`), `created_at`.
+Cle primaire `(machine_id, user_id)` ; pas de `version` : un droit est accorde ou retire,
+jamais modifie. Ne remplace ni la membership projet ni l'opt-in local de la machine.
 
 ## Task
 `id`, `readable_id` (nullable, unique — ID lisible optionnel a cote de l'UUID
@@ -263,6 +279,29 @@ une proposition, l'appelant cree les sous-taches via `POST /tasks`.
 
 `build_id` (FK Build, nullable, additif optionnel) relie un artefact a
 son build. Quotas (DEC-0019) et autorisation Transfer inchanges.
+
+## TaskLaunch (AIB R2, DEC-0173, migration Alembic `0026`)
+
+Demande typee de demarrer une tache sur une machine cible, donnees seules
+jamais une commande. `id`, `project_id` (FK Project), `task_id` (FK Task),
+`machine_id` (FK Machine cible), `requested_by_user_id` (FK User, demandeur
+AIB-J fixe a la creation), `harness_id`, `agent_stable_key` (nullable),
+`status` (`requested|accepted|preparing|running|succeeded|failed|cancelled|
+rejected|expired`, miroir des transitions `ALLOWED_TRANSITIONS`),
+`reason_code` (vocabulaire ferme), `session_id` (FK WorkSession, nullable,
+lie par la machine), `output_excerpt` (borne, expurge par la machine),
+`expires_at`, `finished_at` (nullable), + `created_at`/`updated_at`/
+`version` (concurrence optimiste, `409` + version serveur si perime).
+
+## LaunchCredential (AIB P9, migration Alembic `0027`, table `launch_credentials`)
+
+Table interne, sans modele de contrat (le modele de reponse `TaskLaunchCredential` de
+TECH/02 n'expose que `token` et `expires_at`). Credential ephemere du harnais d'un lancement. `id`, `launch_id` (FK TaskLaunch),
+`machine_id` (FK Machine cible), `project_id` (FK Project), `task_id` (FK Task),
+`credential_hash` (SHA-256, index unique ; le token n'est jamais stocke),
+`expires_at` (au plus `TaskLaunch.expires_at`), `revoked_at` (nullable, pose par la
+reemission), `created_at`. Valide seulement si non revoque, non expire et lancement
+non terminal.
 
 ## AI Library — P1 (DEC-0062/0063/0064, migration Alembic `0009`)
 

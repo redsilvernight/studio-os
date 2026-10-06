@@ -177,7 +177,8 @@ describe("libraryKindPageHtml (liste #/library/<kind>)", () => {
   it("affiche l'en-tête FR, la création et la barre de recherche locale", () => {
     const html = libraryKindPageHtml("rule", all, blank);
     expect(html).toContain("<h1>Règles</h1>");
-    expect(html).toContain("+ Nouvelle ressource");
+    expect(html).toContain("Créer un élément");
+    expect(html).toContain("Administration / Bibliothèque");
     expect(html).toContain('role="search"');
     expect(html).toContain("Rechercher par clé stable");
     expect(html).toContain("2 élément(s) affiché(s) sur 2 chargé(s)");

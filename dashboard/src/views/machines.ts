@@ -36,6 +36,7 @@ import {
   isMachinesDefaultState,
   machineDisplayTitle,
   MACHINE_PRESENCE_EVENT_TYPES,
+  renameMachine,
   type Agent,
   type EventEnvelope,
   type Machine,
@@ -49,12 +50,15 @@ import {
   dsBadge,
   dsDrawerHtml,
   dsEmptyState,
+  dsModalHtml,
   dsPageHeader,
   dsSkeleton,
   dsStatus,
   openDsDialog,
+  closeDsDialog,
 } from "../ds/ds";
-import { describeError, esc, fmtTime, shortId } from "../ui";
+import { describeError, esc, fmtTime } from "../ui";
+import { ACTION_LABEL, FALLBACK_LABEL } from "../language";
 import "./machines.css";
 
 export interface MachinesContext {
@@ -76,7 +80,8 @@ async function settle<T>(promise: Promise<T>): Promise<Settled<T>> {
 export function machinesLoadingHtml(): string {
   return (
     `<div class="machines">` +
-    `${dsPageHeader("Machines", "Environnements enregistrés sur lesquels le travail s'exécute.")}` +
+    `<p class="ds-hero-eyebrow">Administration / Postes</p>` +
+    `${dsPageHeader("Postes", "Environnements enregistrés où le travail s'exécute.")}` +
     `${dsSkeleton(4)}</div>`
   );
 }
@@ -94,14 +99,14 @@ export function machinesToolbarHtml(state: MachinesPageState, shown: number, tot
       `<option value="${option.value}"${state.activity === option.value ? " selected" : ""}>${esc(option.label)}</option>`,
   ).join("");
   return (
-    `<div class="machines-toolbar" role="search" aria-label="Filtrer les machines chargées">` +
+    `<div class="machines-toolbar" role="search" aria-label="Filtrer les postes chargés">` +
     `<div class="ds-search"><span class="ds-search-icon" aria-hidden="true">⌕</span>` +
-    `<label class="ds-sr-only" for="machines-search">Filtrer les machines déjà chargées</label>` +
-    `<input class="ds-input" type="search" id="machines-search" value="${esc(state.query)}" placeholder="Filtrer par nom ou identifiant…" autocomplete="off" /></div>` +
+    `<label class="ds-sr-only" for="machines-search">Filtrer les postes déjà chargés</label>` +
+    `<input class="ds-input" type="search" id="machines-search" value="${esc(state.query)}" placeholder="Filtrer par nom…" autocomplete="off" /></div>` +
     `<label class="machines-activity-filter"><span>Activité</span>` +
     `<select class="ds-select" id="machines-activity">${options}</select></label>` +
     `<button class="ds-btn ds-btn--ghost" type="button" data-reset${isMachinesDefaultState(state) ? " disabled" : ""}>Réinitialiser</button>` +
-    `<p class="ds-list-sub" role="status" aria-live="polite">${shown} machine(s) affichée(s) sur ${total} chargée(s) — recherche et filtre locaux.</p>` +
+    `<p class="ds-list-sub" role="status" aria-live="polite">${shown} poste(s) affiché(s) sur ${total} chargé(s) — recherche et filtre locaux.</p>` +
     `</div>`
   );
 }
@@ -144,7 +149,7 @@ function machineContextLine(row: MachineRow, info: MachineCardInfo): string {
 export function machineCardHtml(row: MachineRow, info: MachineCardInfo, now: number): string {
   return (
     `<li class="ds-list-item machine-row"><div class="grow">` +
-    `<h3 class="ds-list-title" title="${esc(row.machineId)}">${esc(machineDisplayTitle(row))}</h3>` +
+    `<h3 class="ds-list-title">${esc(machineDisplayTitle(row))}</h3>` +
     `<div class="ds-list-sub">${machineContextLine(row, info)}</div>` +
     `<div class="ds-list-sub">Dernière activité : ${machineTimeHtml(row.lastActivityAt, now)}</div>` +
     `</div><div class="machine-side">${machineStatusHtml(row)}` +
@@ -162,16 +167,16 @@ export function machinesListHtml(rows: MachineRow[], infos: Map<string, MachineC
 
 export function machinesEmptyHtml(): string {
   return dsEmptyState(
-    "Aucune machine observée",
-    "Une machine est l'environnement enregistré sur lequel le travail s'exécute — à distinguer des agents qui y travaillent. " +
-      "Chaque utilisateur enregistre ses propres machines (ou un administrateur) hors de cette interface : aucune n'a encore laissé de trace visible pour ce jeton.",
+    "Aucun poste observé",
+    "Un poste est l'environnement enregistré sur lequel le travail s'exécute — à distinguer des agents qui y travaillent. " +
+      "Chaque utilisateur enregistre ses propres postes (ou un administrateur) hors de cette interface : aucun n'a encore laissé de trace visible pour ce jeton.",
   );
 }
 
 export function machinesNoMatchHtml(): string {
   return dsEmptyState(
-    "Aucune machine ne correspond",
-    "Modifiez la recherche ou le filtre d'activité pour retrouver vos machines déjà chargées.",
+    "Aucun poste ne correspond",
+    "Modifiez la recherche ou le filtre d'activité pour retrouver vos postes déjà chargés.",
   );
 }
 
@@ -199,10 +204,10 @@ export function machineDrawerBodyHtml(
   const linked = runtimes.filter((runtime) => runtime.machine_id === row.machineId);
 
   const sessionItem = (session: WorkSession): string =>
-    `<li><a href="#/tasks/${esc(session.task_id)}">Tâche ${esc(shortId(session.task_id))}</a>` +
+    `<li><a href="#/tasks/${esc(session.task_id)}">${esc(ACTION_LABEL.openTask)}</a>` +
     ` · démarrée le ${machineTimeHtml(session.started_at, now)}` +
     (session.agent_id !== null && session.agent_id !== undefined && agentById.has(session.agent_id)
-      ? ` · agent <a href="#/agents/${esc(session.agent_id)}" title="${esc(session.agent_id)}">${esc(agentById.get(session.agent_id)?.display_name ?? shortId(session.agent_id))}</a>`
+      ? ` · agent <a href="#/agents/${esc(session.agent_id)}">${esc(agentById.get(session.agent_id)?.display_name ?? FALLBACK_LABEL.agent)}</a>`
       : "") +
     `</li>`;
 
@@ -229,7 +234,7 @@ export function machineDrawerBodyHtml(
   const environment =
     `<h3>Environnement</h3>` +
     (linked.length === 0
-      ? `<p class="ds-list-sub">Aucun runtime rattaché à cette machine. La configuration des runtimes reste dans Paramètres.</p>`
+      ? `<p class="ds-list-sub">Aucun runtime rattaché à cette machine. La configuration des runtimes reste dans Configuration.</p>`
       : `<ul class="machine-runtimes">` +
         linked
           .map(
@@ -244,10 +249,12 @@ export function machineDrawerBodyHtml(
     `<details class="machine-technical"><summary>Informations techniques</summary><dl class="machine-facts">` +
     `<div><dt>Identifiant complet</dt><dd><code class="mono">${esc(row.machineId)}</code></dd></div>` +
     `<div><dt>Nom enregistré</dt><dd>${row.displayName === null || row.displayName.trim() === "" ? "Non renseigné" : esc(row.displayName)}</dd></div>` +
-    `<div><dt>Propriétaire</dt><dd>${row.ownerUserId === null ? "Inconnu — lecture canonique indisponible" : esc(shortId(row.ownerUserId))}</dd></div>` +
+    `<div><dt>Propriétaire</dt><dd>${row.ownerUserId === null ? "Inconnu — lecture canonique indisponible" : esc(FALLBACK_LABEL.user)}</dd></div>` +
     `<div><dt>Dernier heartbeat serveur</dt><dd>${row.lastSeenAt === null ? "Indisponible — pas de lecture canonique" : machineTimeHtml(row.lastSeenAt, now)}</dd></div>` +
     `<div><dt>Statut technique</dt><dd><code class="mono">${esc(row.status)}</code> (${row.statusSource === "canonical" ? "canonique" : "déduit"})</dd></div>` +
-    `</dl><p class="ds-list-sub">Révocation : par le propriétaire de la machine ou un administrateur, non proposée dans cette interface.</p></details>`;
+    `</dl>` +
+    `<button class="ds-btn ds-btn--sm" type="button" data-machine-rename="${esc(row.machineId)}" data-machine-version="${esc(String(row.version ?? 0))}">Renommer</button>` +
+    `<p class="ds-list-sub">Révocation : par le propriétaire de la machine ou un administrateur, non proposée dans cette interface.</p></details>`;
 
   return `<h3 class="machine-drawer-title">${esc(machineDisplayTitle(row))}</h3>` + summary + usage + environment + technical;
 }
@@ -264,11 +271,16 @@ export interface MachinesPageData {
 }
 
 export function machinesPageHtml(data: MachinesPageData): string {
-  const header = dsPageHeader(
-    "Machines",
-    "Environnements enregistrés sur lesquels le travail s'exécute — à distinguer des agents qui y travaillent.",
-    [{ label: "Actualiser", id: "machines-reload" }],
-  );
+  const header =
+    `<p class="ds-hero-eyebrow">Administration / Postes</p>` +
+    dsPageHeader(
+      "Postes",
+      "Environnements enregistrés où le travail s'exécute — à distinguer des agents qui y travaillent.",
+      [
+        { label: "Revoir le poste sans activité", id: "machines-review" },
+        { label: "Actualiser", id: "machines-reload" },
+      ],
+    );
   const notice = data.canonicalAvailable
     ? `<div class="machines-notice" role="status">Présence confirmée par le serveur (heartbeat).</div>`
     : `<div class="machines-notice" role="status">Présence déduite des agents, sessions et événements récents — <strong>pas un état de connexion garanti</strong>. ` +
@@ -291,7 +303,8 @@ export function machinesPageHtml(data: MachinesPageData): string {
     `<div class="machines">${header}${notice}${degraded}` +
     (data.rows.length === 0 ? "" : machinesToolbarHtml(data.state, visible.length, data.rows.length)) +
     `<div id="machines-list">${body}</div>` +
-    `${dsDrawerHtml({ id: "machine-drawer", title: "Détails de la machine", body: `<div id="machine-drawer-body"></div>`, actions: [{ label: "Fermer", variant: "primary" }] })}</div>`
+    `${dsDrawerHtml({ id: "machine-drawer", title: "Détails de la machine", body: `<div id="machine-drawer-body"></div>`, actions: [{ label: "Fermer", variant: "primary" }] })}` +
+    `${dsModalHtml({ id: "machine-rename-dialog", title: "Renommer le poste", body: `<form id="machine-rename-form"><input type="hidden" id="machine-rename-id" /><input type="hidden" id="machine-rename-version" /><div class="ds-form-field"><label for="machine-rename-name">Nouveau nom</label><input class="ds-input" type="text" id="machine-rename-name" required maxlength="100" /></div><div class="ds-form-error" id="machine-rename-error" hidden></div></form>`, actions: [{ label: "Annuler", variant: "secondary", id: "machine-rename-cancel" }, { label: "Renommer", variant: "primary", id: "machine-rename-submit" }] })}</div>`
   );
 }
 
@@ -319,8 +332,8 @@ export function cardInfos(
 export async function renderMachines(root: HTMLElement, ctx: MachinesContext): Promise<void> {
   if (!ctx.authed) {
     root.innerHTML =
-      `<div class="machines">${dsPageHeader("Machines", "Environnements enregistrés sur lesquels le travail s'exécute.")}` +
-      `${dsEmptyState("Connexion requise", "Définissez un jeton pour voir les machines visibles pour ce jeton.")}</div>`;
+      `<div class="machines"><p class="ds-hero-eyebrow">Administration / Postes</p>${dsPageHeader("Postes", "Environnements enregistrés où le travail s'exécute.")}` +
+      `${dsEmptyState("Connexion requise", "Définissez un jeton pour voir les postes visibles pour ce jeton.")}</div>`;
     return;
   }
   root.innerHTML = machinesLoadingHtml();
@@ -354,8 +367,8 @@ export async function renderMachines(root: HTMLElement, ctx: MachinesContext): P
 
   if (rows.length === 0 && problems.length > 0) {
     root.innerHTML =
-      `<div class="machines">${dsPageHeader("Machines", "Environnements enregistrés sur lesquels le travail s'exécute.", [{ label: "Actualiser", id: "machines-reload" }])}` +
-      `<div class="state error" role="alert">Impossible de charger les machines : ${esc(problems.join(" · "))}</div></div>`;
+      `<div class="machines"><p class="ds-hero-eyebrow">Administration / Postes</p>${dsPageHeader("Postes", "Environnements enregistrés où le travail s'exécute.", [{ label: "Actualiser", id: "machines-reload" }])}` +
+      `<div class="state error" role="alert">Impossible de charger les postes : ${esc(problems.join(" · "))}</div></div>`;
     root.querySelector("#machines-reload")?.addEventListener("click", () => {
       void renderMachines(root, ctx);
     });
@@ -437,12 +450,99 @@ function bindDetails(root: HTMLElement, data: MachinesPageData): void {
   });
 }
 
+function bindRename(root: HTMLElement, ctx: MachinesContext, data: MachinesPageData): void {
+  root.querySelectorAll<HTMLElement>("[data-machine-rename]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const id = button.getAttribute("data-machine-rename") ?? "";
+      const version = button.getAttribute("data-machine-version") ?? "";
+      const row = data.rows.find((candidate) => candidate.machineId === id);
+      if (row === undefined) return;
+      const nameInput = root.querySelector<HTMLInputElement>("#machine-rename-name");
+      const idInput = root.querySelector<HTMLInputElement>("#machine-rename-id");
+      const versionInput = root.querySelector<HTMLInputElement>("#machine-rename-version");
+      const errorBox = root.querySelector<HTMLElement>("#machine-rename-error");
+      if (nameInput !== null && idInput !== null && versionInput !== null && errorBox !== null) {
+        nameInput.value = row.displayName ?? "";
+        idInput.value = id;
+        versionInput.value = version;
+        errorBox.hidden = true;
+        errorBox.textContent = "";
+      }
+      openDsDialog(root, "machine-rename-dialog", button);
+    });
+  });
+
+  const form = root.querySelector<HTMLFormElement>("#machine-rename-form");
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const idInput = root.querySelector<HTMLInputElement>("#machine-rename-id");
+    const versionInput = root.querySelector<HTMLInputElement>("#machine-rename-version");
+    const nameInput = root.querySelector<HTMLInputElement>("#machine-rename-name");
+    const errorBox = root.querySelector<HTMLElement>("#machine-rename-error");
+    if (idInput === null || versionInput === null || nameInput === null || errorBox === null) return;
+    const machineId = idInput.value;
+    const version = parseInt(versionInput.value, 10);
+    const newName = nameInput.value.trim();
+    if (!machineId || !newName || Number.isNaN(version)) return;
+    const submitBtn = root.querySelector<HTMLButtonElement>("#machine-rename-submit");
+    if (submitBtn !== null) submitBtn.disabled = true;
+    try {
+      const updated = await renameMachine(ctx.client, machineId, newName, version);
+      const row = data.rows.find((r) => r.machineId === machineId);
+      if (row !== undefined) {
+        row.displayName = updated.display_name;
+        row.version = updated.version ?? null;
+      }
+      closeDsDialog(root, "machine-rename-dialog");
+      refreshList(root, data);
+      const drawerBody = root.querySelector("#machine-drawer-body");
+      if (drawerBody !== null) {
+        const row = data.rows.find((r) => r.machineId === machineId);
+        if (row !== undefined) {
+          drawerBody.innerHTML = machineDrawerBodyHtml(
+            row,
+            data.agents.filter((agent) => agent.machine_id === machineId),
+            data.sessions.filter((session) => session.machine_id === machineId),
+            data.runtimes,
+            data.now,
+          );
+        }
+      }
+    } catch (error) {
+      errorBox.textContent = describeError(error);
+      errorBox.hidden = false;
+    } finally {
+      if (submitBtn !== null) submitBtn.disabled = false;
+    }
+  });
+
+  root.querySelector("#machine-rename-cancel")?.addEventListener("click", () => {
+    closeDsDialog(root, "machine-rename-dialog");
+  });
+}
+
 function bindMachines(root: HTMLElement, ctx: MachinesContext, data: MachinesPageData): void {
   root.querySelector("#machines-reload")?.addEventListener("click", () => {
     void renderMachines(root, ctx);
   });
+  root.querySelector("#machines-review")?.addEventListener("click", () => {
+    const target = root.querySelector<HTMLElement>('[data-machine-details]');
+    const rows = [...root.querySelectorAll<HTMLElement>("[data-machine-details]")];
+    const idle = data.rows.find((row) => row.status !== "online");
+    const chosen =
+      idle !== undefined
+        ? rows.find((node) => node.getAttribute("data-machine-details") === idle.machineId) ?? null
+        : (target ?? null);
+    if (chosen instanceof HTMLElement) {
+      chosen.scrollIntoView({ block: "nearest" });
+      chosen.focus();
+    } else {
+      root.querySelector<HTMLInputElement>("#machines-search")?.focus();
+    }
+  });
   bindToolbar(root, data);
   bindDetails(root, data);
+  bindRename(root, ctx, data);
 }
 
 async function fetchEvents(client: StudioClient): Promise<EventEnvelope[]> {

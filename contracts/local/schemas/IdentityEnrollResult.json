@@ -65,7 +65,7 @@
     },
     "IdentityView": {
       "additionalProperties": false,
-      "description": "Everything the renderer may know about identity: who, on which machine,\nand whether the secrets behind them are usable — never the secrets.",
+      "description": "Everything the renderer may know about identity: who, on which machine,\nand whether the secrets behind them are usable — never the secrets.\n`workstation_name` is this poste's own bounded hostname, the default the\nenrollment step offers and the `<POSTE>` half of every harness name\n(DEC-0117); absent from a daemon that predates it.",
       "properties": {
         "human": {
           "anyOf": [
@@ -99,6 +99,20 @@
           },
           "title": "Secrets",
           "type": "array"
+        },
+        "workstation_name": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Workstation Name"
         }
       },
       "required": [

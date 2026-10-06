@@ -202,9 +202,12 @@ def source_references(description: str | None) -> list[str]:
         match = _SOURCE_RE.match(line)
         if match is None:
             continue
-        value = match.group(1).strip()
-        if value and len(value) <= MAX_PATH_CHARS and value not in references:
-            references.append(value)
+        for part in re.split(r"[;,]", match.group(1)):
+            value = part.strip().strip("\"'").strip()
+            if value and len(value) <= MAX_PATH_CHARS and value not in references:
+                references.append(value)
+            if len(references) == MAX_SOURCE_REFERENCES:
+                break
         if len(references) == MAX_SOURCE_REFERENCES:
             break
     return references
@@ -769,7 +772,7 @@ async def prepare_project_context(
 
     project = await projects_service.get_project(session, principal, project_id)
 
-    if objective is None:
+    if objective is None or (task_id is not None and not objective.strip()):
         if task_id is None:
             raise _invalid("objective is required when task_id is omitted")
         objective_task = await tasks_service.get_task(session, task_id)

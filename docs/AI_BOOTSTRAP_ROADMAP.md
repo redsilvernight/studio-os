@@ -163,13 +163,14 @@ Objectif PDF : auditer les briques, classer global/projet/généré/versionné/l
 décider le contrat de bootstrap sans coder, vérifier l'absence de duplication.
 
 - **STATUS** : audit fait (21/09) et complété (addendum §13, 27/09) ; décisions
-  AIB-A…J **proposées, non acceptées**. La réconciliation Desktop est faite (livré).
+  AIB-A…J **acceptées le 27/09** (fiches DEC-0143…0152 + DEC-0154/0155, serveur
+  et fichiers alignés). La réconciliation Desktop est faite (livré).
   La collision des fiches DEC-0090…0094 est résolue ; les identifiants serveur
   restent distincts selon DEC-0088/DEC-0089 et la CI vérifie l'index ADR.
 - **EXISTING BUILDING BLOCKS** : tout le §2/§3 et le §13 de l'audit.
 - **FILES/MODULES** : `docs/AI_BOOTSTRAP_P0_AUDIT.md`, `docs/decisions/`.
 - **REUSE** : `docs/decisions/` + `scripts.adr_index`.
-- **MISSING** : acceptation ou rejet des DEC AIB-A…J.
+- **MISSING** : aucun (P0 clos le 27/09).
 - **DEPENDENCIES** : aucune.
 - **RISKS** : canal de lancement mal borné (sécurité) ; confusion possible entre
   numéro de fiche ADR et `Decision.readable_id` serveur malgré la table de correspondance.
@@ -248,17 +249,19 @@ Objectif PDF : contrat déclaratif minimal de l'intégration IA d'un projet,
 références par stable keys/versions/bindings, harnesses/capacités/politique, dry-run
 et conflits explicites, aucune écriture distante.
 
-- **STATUS** : MANQUE (aucun contrat existant).
+- **STATUS** : LIVRÉ le 27/09 : `C/bootstrap.py` (`studio.bootstrap/v1` :
+  manifest + dry-run/états/conflits), fixtures valides, 29 tests contrats,
+  `contract-guardian` PASS, CI verte sur `dev`. Durcissement de la lecture proposé
+  en P9 par DEC-0181.
 - **EXISTING BUILDING BLOCKS** : `studio.initialization/v1` (`C/initialization.py:175`)
   comme patron preview/apply/`problems`/actions ; `extra="forbid"` ; rejet des clés
   secrètes (`C/runtime.py:64`) ; skill `contract-change` ; agent `contract-guardian`.
-- **FILES/MODULES** : nouveau module de contrat dans `C/` (nom à fixer) ; docs TECH
+- **FILES/MODULES** : module de contrat `C/bootstrap.py` ; docs TECH
   02/05 seulement si contrat serveur ; schémas/fixtures valides+invalides sur le
   modèle de `contracts/local/` (Desktop).
 - **REUSE** : neutralité harness du contrat d'initialisation ; conventions Pydantic ;
   vocabulaire ouvert `harness_ref`.
-- **MISSING** : schéma `studio.bootstrap/v1` (AIB-A) ; représentation des conflits et
-  états ; format du rapport dry-run ; vocabulaire des ids de harness.
+- **MISSING** : aucun (vocabulaire : DEC-0155, implémenté et testé).
 - **DEPENDENCIES** : P0 (AIB-A, AIB-C) ; nommage cohérent avec `studio.local/v1`.
 - **RISKS** : doublonner le plan d'initialisation ; fuite de concepts harness dans le
   Core ; représenter un chemin absolu ou un secret ; migration si `Project.metadata`
@@ -310,6 +313,9 @@ supportées ; jamais d'écrasement silencieux ; adapters existants ; `init`, `ch
   `HARNESS_MISMATCH` (`base.py:167`) ; `skills check/diff/sync` avec manifeste local,
   écritures atomiques, sauvegardes et protection des modifications locales
   (`K/skill_sync.py`, tâche `35c2d265`, 2026-09-25).
+  Tranche Desktop « Configurer ce poste » (tâche `695c38a3`) : `setup.plan`/`setup.apply`
+  (hooks setup-hooks avec aperçu et sauvegarde, skills, contrôle des adapters ; MCP via
+  `harness.*`), consommés par Paramètres › Intégrations IA.
 - **FILES/MODULES** : `K/adapters/`, `K/canonical.py`, `K/cli.py`, `K/config.py`,
   `K/skill_sync.py`, `tests/client/test_skill_sync.py`.
 - **REUSE** : adapters et `materialize` ; pattern de bloc `BEGIN/END`.
@@ -529,14 +535,18 @@ Objectif PDF : sécurité Git/filesystem, idempotence, conflits, rollback, compa
 de versions ; docs utilisateur courtes ; docs techniques centrées contrats ; gate final
 sans régression Agent Integration ni dépendance à Claude.
 
-- **STATUS** : MANQUE (rollback inexistant aujourd'hui).
+- **STATUS** : EN COURS — rollback livré ; compatibilité du manifest implémentée
+  sur la branche de tâche, en attente d'acceptation de DEC-0181 ; guides humain
+  et technique livrés ; revue sécurité publiée, avec durcissement filesystem
+  local appliqué et remédiations TaskLaunch/coordination encore ouvertes.
 - **EXISTING BUILDING BLOCKS** : refus d'écraser et atomicité de `materialize`,
   `tests/protocol/`, `tests/client/test_canonical_p3.py`, `adapters check` en CI,
   guide consommateur externe (`INTEGRATION/00_EXTERNAL_CONSUMER_GUIDE.md` §11).
 - **FILES/MODULES** : `K/adapters/`, `docs/`, `INTEGRATION/00_EXTERNAL_CONSUMER_GUIDE.md`.
 - **REUSE** : suites existantes comme garde de non-régression.
-- **MISSING** : rollback ; compatibilité de versions du manifest ; docs « connecter un
-  projet », « ajouter un harness », « réparer le drift ».
+- **MISSING** : acceptation de DEC-0181 ; isolation des hooks et credentials du
+  lancement distant ; atomicité `expected_version` et quota coordination ;
+  validation project-scoped des sessions TaskLaunch et références Decision.
 - **DEPENDENCIES** : P3–P8, R5 (ajouter la revue de sécurité du lancement à distance).
 - **RISKS** : régression Agent Integration ; dépendance implicite à Claude.
 - **TEST STRATEGY** : suites Agent Integration inchangées ; tests d'agnosticisme

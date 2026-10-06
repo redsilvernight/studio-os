@@ -1,0 +1,7 @@
+{
+  "additionalProperties": false,
+  "description": "Read-only: the daemon resolves the Library, the profile and the home\ndirectory itself, so the Desktop supplies nothing.",
+  "properties": {},
+  "title": "SkillsCheckRequest",
+  "type": "object"
+}

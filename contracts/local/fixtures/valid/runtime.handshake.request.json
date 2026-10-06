@@ -17,8 +17,13 @@
         "knowledge.index",
         "knowledge.init",
         "knowledge.read",
+        "launch.settings",
         "publication.plan",
         "publication.publish",
+        "setup.apply",
+        "setup.plan",
+        "skills.apply",
+        "skills.read",
         "workspace.config"
       ],
       "component_version": "0.1.0",

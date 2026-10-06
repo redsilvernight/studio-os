@@ -68,7 +68,7 @@ describe("onglet Membres", () => {
     const html = membersPanelHtml([
       { project_id: P, user_id: U, granted_by_user_id: OTHER, created_at: "2026-09-25T10:00:00Z" },
     ]);
-    expect(html).toContain(`title="${OTHER}"`);
+    expect(html).not.toContain(OTHER);
     expect(html).toContain("Utilisateur inconnu");
   });
 

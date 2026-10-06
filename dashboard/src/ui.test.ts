@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "./api";
-import { describeError, newUuid } from "./ui";
+import { describeError, isOfflineError, newUuid } from "./ui";
 
 describe("newUuid", () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -60,5 +60,22 @@ describe("describeError", () => {
     expect(describeError(new TypeError("Cannot read properties of undefined"))).toBe("Cannot read properties of undefined");
     expect(describeError(new Error("boom"))).toBe("boom");
     expect(describeError("texte")).toBe("texte");
+  });
+});
+
+describe("isOfflineError", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("reconnaît une coupure réseau, pas un refus du serveur", () => {
+    expect(isOfflineError(new TypeError("Failed to fetch"))).toBe(true);
+    expect(isOfflineError(apiError(503, null))).toBe(false);
+    expect(isOfflineError(new Error("boom"))).toBe(false);
+  });
+
+  it("suit l'état du navigateur : hors ligne, même une erreur métier est une coupure", () => {
+    vi.stubGlobal("navigator", { onLine: false });
+    expect(isOfflineError(apiError(500, null))).toBe(true);
+    vi.stubGlobal("navigator", { onLine: true });
+    expect(isOfflineError(apiError(500, null))).toBe(false);
   });
 });

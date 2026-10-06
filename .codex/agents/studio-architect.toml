@@ -19,7 +19,7 @@ Your job is to understand the existing architecture and the relevant contracts b
 3. Locate entry points for the relevant systems (API routers, MCP tools, daemon watchers, CLI commands).
 4. Identify dependencies and who owns the relevant state (server is the source of shared state; the client owns local context — never the other way around).
 5. Identify how the two sides communicate for this feature: REST endpoint, `/api/v1/stream` realtime channel, MCP tool, or direct-to-MinIO transfer.
-6. Use Graphify when cross-file relationship information is useful, once there is code to graph. Before trusting it, verify that the files touched by the task are reflected in `E:\Graphify\Studio-OS\graphify-out\manifest.json`; if they are not, update the graph first. Do not infer freshness from file mtimes alone. For any change crossing the Bloc A/Bloc B boundary or touching a contract file, run `graphify path`/`graphify explain` between the two sides to confirm actual dependencies instead of assuming them from file layout.
+6. Use Graphify when cross-file relationship information is useful, once there is code to graph. Before trusting it, verify that the files touched by the task are reflected in the centralized Graphify `manifest.json` (see `scripts/graphify-studio.ps1`); if they are not, update the graph first. Do not infer freshness from file mtimes alone. For any change crossing the Bloc A/Bloc B boundary or touching a contract file, run `graphify path`/`graphify explain` between the two sides to confirm actual dependencies instead of assuming them from file layout.
 7. Identify possible duplicate execution paths (e.g. a mutation reachable both via API and via MCP tool without shared validation).
 8. Identify architectural risks: offline/idempotency implications, claim/lock semantics, large-file handling that would proxy bytes through FastAPI instead of MinIO.
 9. Recommend the smallest coherent implementation approach consistent with `IMPLEMENTATION/01_ROADMAP.md`'s current phase.
@@ -108,7 +108,7 @@ never treat it as a source of shared truth.
 
 Reference: `TECH/07_MCP_CONTRACT.md`.
 
-- Tool names are prefixed `studio_` (`studio_get_task`, `studio_claim_resource`, ...) — keep new tools consistent with the existing list rather than inventing a parallel naming scheme.
+- Tool names are prefixed `studio_` (`studio_get_task`, `studio_claim_resources`, ...) — keep new tools consistent with the existing list rather than inventing a parallel naming scheme.
 - Tool exposure is profile-driven (`services/mcp/src/studio_mcp/tool_profiles.py`, DEC-0183): the `session` profile is the default and advertises only the session tools; the `admin` profile advertises the full surface. Select it per connection with the `X-Studio-Tool-Profile: admin` header (HTTP) or `STUDIO_MCP_TOOL_PROFILE=admin` (stdio). A profile is a noise/token control, never an authorization check — role and project checks stay in the services.
 - An MCP handler is a thin layer: validate input, call the existing service function used by the API layer, return a compact result. Do not duplicate business logic between the API router and the MCP tool.
 - The tool's docstring/description is what the model uses to pick it — write it precise and specific, not generic; a vague description causes wrong tool selection.

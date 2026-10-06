@@ -144,7 +144,17 @@ async def test_runtime_assembles_existing_services_and_stops_cleanly(
             return None
 
     class FakeHeartbeat:
-        def __init__(self, _client, _config, *, agent_id=None, replayer=None):
+        def __init__(
+            self,
+            _client,
+            _config,
+            *,
+            agent_id=None,
+            replayer=None,
+            capabilities_provider=None,
+            launch_puller=None,
+            launch_executor=None,
+        ):
             self.replayer = replayer
             self.stop = asyncio.Event()
             self.last_attempt_at = None
@@ -184,7 +194,17 @@ def test_health_is_readable_from_a_thread_other_than_the_runtime_loop(
             return None
 
     class FakeHeartbeat:
-        def __init__(self, _client, _config, *, agent_id=None, replayer=None):
+        def __init__(
+            self,
+            _client,
+            _config,
+            *,
+            agent_id=None,
+            replayer=None,
+            capabilities_provider=None,
+            launch_puller=None,
+            launch_executor=None,
+        ):
             self.stop = asyncio.Event()
             self.last_attempt_at = None
             self.last_success_at = None
@@ -233,7 +253,17 @@ async def test_health_reports_project_isolation_dead_letters(
             return None
 
     class FakeHeartbeat:
-        def __init__(self, _client, _config, *, agent_id=None, replayer=None):
+        def __init__(
+            self,
+            _client,
+            _config,
+            *,
+            agent_id=None,
+            replayer=None,
+            capabilities_provider=None,
+            launch_puller=None,
+            launch_executor=None,
+        ):
             self.stop = asyncio.Event()
             self.last_attempt_at = None
             self.last_success_at = None

@@ -21,6 +21,8 @@ import {
   homeTasksHtml,
   homeTransferSignalHtml,
   pickHomeProjects,
+  pickNowTasks,
+  projectHealth,
   reviewActionsHtml,
   reviewQueueItemDetail,
   type HomeData,
@@ -90,18 +92,23 @@ describe("homeLoadingHtml", () => {
 });
 
 describe("homePageHtml nominal", () => {
-  it("rend l'en-tête, le résumé et les quatre sections avec leurs liens Voir tout", () => {
+  it("rend les trois blocs prioritaires dans l'ordre, compteurs en dernier", () => {
     const html = homePageHtml(fullData());
     expect(html).toContain("<h1>Accueil</h1>");
-    expect(html).toContain("Projets actifs");
-    expect(html).toContain("Tâches en cours");
-    expect(html).toContain("À examiner");
-    expect(html).toContain("Projets");
-    expect(html).toContain("Travail en cours");
+    const now = html.indexOf("À faire maintenant");
+    const review = html.indexOf("À valider");
+    const recent = html.indexOf("Projets récents");
+    const counts = html.indexOf("home-counts");
+    expect(now).toBeGreaterThan(-1);
+    expect(now).toBeLessThan(review);
+    expect(review).toBeLessThan(recent);
+    expect(recent).toBeLessThan(counts);
+    expect(html).toContain("Reprendre");
+    expect(html).not.toContain("ds-metric");
     expect(html).toContain("href=\"#/projects\"");
     expect(html).toContain("href=\"#/tasks\"");
     expect(html).toContain("href=\"#/decisions\"");
-    expect(html).toContain("Système opérationnel");
+    expect(html).toContain("Studio OS est joignable");
   });
 
   it("ne rend aucun tableau : ni Kanban complet, ni table transferts", () => {
@@ -151,14 +158,23 @@ describe("homeProjectsHtml", () => {
     expect(html.match(/ds-list-item/g)).toHaveLength(HOME_PROJECT_LIMIT);
   });
 
-  it("affiche la description utile et le badge Archivé, jamais de slug/UUID", () => {
-    const withDesc = { ...(project("p1", "Phare") as unknown as Record<string, unknown>), description: "Jeu phare" } as never;
-    const html = homeProjectsHtml({
-      ok: true,
-      value: [withDesc],
-    });
-    expect(html).toContain("Jeu phare");
+  it("affiche la santé du projet (point + libellé), jamais de slug/UUID", () => {
+    const html = homeProjectsHtml(
+      { ok: true, value: [project("p1", "Phare"), project("p2", "Digue"), project("p3", "Quai", true)] as never },
+      [task("t1", "blocked", "p1", "Bloquée"), task("t2", "in_progress", "p2", "En cours")] as never,
+    );
+    expect(html).toContain("Blocage à lever");
+    expect(html).toContain("Travail en cours");
+    expect(html).toContain("Archivé");
+    expect(html).toContain("ds-status--warning");
     expect(html).not.toContain("slug-p1");
+  });
+
+  it("projectHealth : bloquée > en cours > calme, terminées ignorées", () => {
+    const tasks = [task("a", "completed", "p1", "A"), task("b", "created", "p1", "B")] as never;
+    expect(projectHealth("p1", tasks).state).toBe("idle");
+    expect(projectHealth("p1", [...(tasks as never[]), task("c", "in_progress", "p1", "C")] as never).state).toBe("info");
+    expect(projectHealth("p1", [...(tasks as never[]), task("d", "blocked", "p1", "D")] as never).state).toBe("warning");
   });
 
   it("état vide contextualisé et erreur humaine discrète", () => {
@@ -182,7 +198,7 @@ describe("pickHomeProjects", () => {
 });
 
 describe("homeTasksHtml", () => {
-  it("limite à 5, exclut les terminées, montre projet et statut en français", () => {
+  it("carte Reprendre + suites (3 max), exclut les terminées, projet et statut en français", () => {
     const tasks = [
       task("t1", "in_progress", "p1", "Optimiser les éclairages"),
       task("t2", "completed", "p1", "Finie"),
@@ -196,35 +212,49 @@ describe("homeTasksHtml", () => {
       { ok: true, value: tasks as never },
       [project("p1", "Apotheosis"), project("p2", "BLFinder")] as never,
     );
-    expect(html.match(/ds-list-item/g)).toHaveLength(HOME_WORK_LIMIT);
+    expect(html.match(/ds-hero"/g)).toHaveLength(1);
+    expect(html.match(/ds-list-item/g)).toHaveLength(HOME_WORK_LIMIT - 1);
     expect(html).not.toContain("Finie");
     expect(html).not.toContain("T7");
     expect(html).toContain("Apotheosis");
     expect(html).toContain("En cours");
-    expect(html).toContain("Bloquée");
+    expect(html).toContain("Bloqué");
     expect(html).toContain("href=\"#/tasks/t1\"");
+    expect(html).toContain("Reprendre");
     expect(html).toContain("Voir toutes les tâches");
   });
 
+  it("pickNowTasks : en cours, puis bloquées, puis à démarrer (récentes en tête)", () => {
+    const old = { ...(task("n1", "created", "p1", "N1") as unknown as Record<string, unknown>), updated_at: "2026-09-01T00:00:00Z" };
+    const recent = { ...(task("n2", "created", "p1", "N2") as unknown as Record<string, unknown>), updated_at: "2026-09-09T00:00:00Z" };
+    const picked = pickNowTasks([
+      old,
+      recent,
+      task("b1", "blocked", "p1", "B1"),
+      task("i1", "in_progress", "p1", "I1"),
+    ] as never);
+    expect(picked.map((t) => t.id)).toEqual(["i1", "b1", "n2"]);
+  });
+
   it("état vide contextualisé et erreur humaine", () => {
-    expect(homeTasksHtml({ ok: true, value: [] }, []).toString()).toContain("Rien en cours");
+    expect(homeTasksHtml({ ok: true, value: [] }, []).toString()).toContain("Rien à faire maintenant");
     expect(homeTasksHtml({ ok: false, message: "coupure" }, [])).toContain("Tâches indisponibles");
   });
 });
 
 describe("reviewQueueItemDetail", () => {
   it("décrit honnêtement chaque kind sans inventer d'action", () => {
-    expect(reviewQueueItemDetail(aiItem("a1"))).toContain("agent");
+    expect(reviewQueueItemDetail(aiItem("a1"))).toContain("Relire le travail de");
     expect(reviewQueueItemDetail(decisionItem("d1"))).toBe("DEC-0049");
     expect(
       reviewQueueItemDetail({ kind: "resource_conflict", resource_path: "scenes/level_01.tscn" } as never),
     ).toBe("scenes/level_01.tscn");
     expect(
       reviewQueueItemDetail({ kind: "build_failure", workflow_name: "ci", branch: "main" } as never),
-    ).toBe("ci on main");
+    ).toBe("ci sur main");
     expect(
       reviewQueueItemDetail({ kind: "pr_ready", pr_number: 7, head_branch: "feat", base_branch: "main" } as never),
-    ).toBe("PR #7 feat → main");
+    ).toBe("Demande de fusion #7");
   });
 });
 
@@ -246,25 +276,25 @@ describe("homeReviewHtml", () => {
   it("affiche le total, 3 éléments max et le reliquat", () => {
     const items = [aiItem("a1"), decisionItem("d1"), aiItem("a2"), decisionItem("d2")];
     const html = homeReviewHtml({ ok: true, value: { items, generated_at: "" } as never }, true);
-    expect(html).toContain("4 élément(s) à examiner");
+    expect(html).toContain("4 élément(s) à valider");
     expect(html.match(/ds-list-item/g)).toHaveLength(HOME_REVIEW_LIMIT);
     expect(html).toContain("+ 1 autre(s)");
-    expect(html).toContain("Voir les décisions");
+    expect(html).toContain("Voir la file complète");
   });
 
   it("état vide et erreur discrète", () => {
     expect(homeReviewHtml({ ok: true, value: { items: [], generated_at: "" } as never }, true)).toContain(
-      "Rien à examiner",
+      "Rien à valider",
     );
-    expect(homeReviewHtml({ ok: false, message: "coupure" }, true)).toContain("File d'examen indisponible");
+    expect(homeReviewHtml({ ok: false, message: "coupure" }, true)).toContain("File À valider indisponible");
   });
 });
 
 describe("homeHealthHtml", () => {
   it("compacte : opérationnel ou indisponible, sans détail technique", () => {
-    expect(homeHealthHtml({ reachable: true })).toContain("Système opérationnel");
+    expect(homeHealthHtml({ reachable: true })).toContain("Studio OS est joignable");
     const down = homeHealthHtml({ reachable: false });
-    expect(down).toContain("Système indisponible");
+    expect(down).toContain("Studio OS est injoignable");
     expect(down).not.toContain("/healthz");
     expect(down).not.toMatch(/HTTP|unreachable/i);
   });

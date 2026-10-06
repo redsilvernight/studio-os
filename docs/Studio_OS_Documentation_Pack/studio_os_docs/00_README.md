@@ -19,6 +19,7 @@ Studio OS est la couche de coordination commune d'un studio de jeu video de deux
 3. HUMAN/03_WORKFLOWS_QUOTIDIENS.md
 4. HUMAN/04_DEPLOIEMENT_OVH.md
 5. HUMAN/05_SECURITE_EXPLOITATION.md
+6. HUMAN/06_PROJECT_AI_BOOTSTRAP.md
 
 ### Pour une IA
 1. AI/01_AI_OPERATING_REFERENCE.md
@@ -34,6 +35,7 @@ Studio OS est la couche de coordination commune d'un studio de jeu video de deux
 11. TECH/08_OFFLINE_SYNC.md
 12. TECH/09_OBSIDIAN_GRAPHIFY.md
 13. TECH/10_TEST_ACCEPTANCE.md
+14. TECH/11_PROJECT_AI_BOOTSTRAP_OPERATIONS.md
 
 ### Pour construire le produit
 - IMPLEMENTATION/01_ROADMAP.md
@@ -42,6 +44,10 @@ Studio OS est la couche de coordination commune d'un studio de jeu video de deux
 - IMPLEMENTATION/04_INTEGRATION_CHECKLIST.md
 - Chantier Project AI Bootstrap : [../../AI_BOOTSTRAP_ROADMAP.md](../../AI_BOOTSTRAP_ROADMAP.md)
   (audit : [../../AI_BOOTSTRAP_P0_AUDIT.md](../../AI_BOOTSTRAP_P0_AUDIT.md))
+- Guide opérateur : [HUMAN/06_PROJECT_AI_BOOTSTRAP.md](HUMAN/06_PROJECT_AI_BOOTSTRAP.md)
+- Contrats d'exploitation : [TECH/11_PROJECT_AI_BOOTSTRAP_OPERATIONS.md](TECH/11_PROJECT_AI_BOOTSTRAP_OPERATIONS.md)
+- Revue sécurité P9 : [../../AI_BOOTSTRAP_P9_SECURITY_REVIEW.md](../../AI_BOOTSTRAP_P9_SECURITY_REVIEW.md)
+- Revue sécurité P9 : [../../AI_BOOTSTRAP_P9_SECURITY_REVIEW.md](../../AI_BOOTSTRAP_P9_SECURITY_REVIEW.md)
 
 ### Pour un consommateur externe (developpeur tiers)
 1. INTEGRATION/00_EXTERNAL_CONSUMER_GUIDE.md — parcours complet, de zero au

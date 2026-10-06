@@ -1,0 +1,66 @@
+{
+  "additionalProperties": false,
+  "description": "Result of applying the skill synchronization plan.",
+  "properties": {
+    "added": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 500,
+      "title": "Added",
+      "type": "array"
+    },
+    "applied_at": {
+      "format": "date-time",
+      "title": "Applied At",
+      "type": "string"
+    },
+    "backups": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 500,
+      "title": "Backups",
+      "type": "array"
+    },
+    "conflicts": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 500,
+      "title": "Conflicts",
+      "type": "array"
+    },
+    "manifest_path": {
+      "title": "Manifest Path",
+      "type": "string"
+    },
+    "updated": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 500,
+      "title": "Updated",
+      "type": "array"
+    },
+    "written": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 500,
+      "title": "Written",
+      "type": "array"
+    }
+  },
+  "required": [
+    "manifest_path",
+    "applied_at"
+  ],
+  "title": "SkillsApplyResult",
+  "type": "object"
+}

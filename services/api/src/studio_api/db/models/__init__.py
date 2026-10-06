@@ -9,6 +9,7 @@ from studio_api.db.models.claim import ResourceClaimModel
 from studio_api.db.models.decision import DecisionModel
 from studio_api.db.models.event import EventModel
 from studio_api.db.models.idempotency import IdempotencyKeyModel
+from studio_api.db.models.launch_credential import LaunchCredentialModel
 from studio_api.db.models.library import (
     LibraryProjectLockModel,
     LibraryResourceLinkModel,
@@ -16,6 +17,7 @@ from studio_api.db.models.library import (
     LibraryResourceVersionModel,
 )
 from studio_api.db.models.machine import MachineModel
+from studio_api.db.models.machine_launch_grant import MachineLaunchGrantModel
 from studio_api.db.models.project import ProjectModel
 from studio_api.db.models.project_membership import ProjectMembershipModel
 from studio_api.db.models.refresh_token import RefreshTokenModel
@@ -29,11 +31,13 @@ from studio_api.db.models.roadmap import (
 )
 from studio_api.db.models.runtime import RuntimeBindingModel, RuntimeModel
 from studio_api.db.models.task import TaskModel
+from studio_api.db.models.task_launch import TaskLaunchModel
 from studio_api.db.models.transfer import TransferModel
 from studio_api.db.models.user import UserModel
 from studio_api.db.models.work_session import WorkSessionModel
 
 __all__ = [
+    "LaunchCredentialModel",
     "Base",
     "UserModel",
     "AccountTokenModel",
@@ -41,8 +45,10 @@ __all__ = [
     "MachineModel",
     "AgentModel",
     "ProjectModel",
+    "MachineLaunchGrantModel",
     "ProjectMembershipModel",
     "TaskModel",
+    "TaskLaunchModel",
     "WorkSessionModel",
     "ResourceClaimModel",
     "DecisionModel",

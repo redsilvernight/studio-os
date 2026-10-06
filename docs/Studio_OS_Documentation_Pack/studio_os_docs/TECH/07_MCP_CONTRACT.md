@@ -101,6 +101,12 @@ Un agent ne doit normalement pas envoyer lui-meme plusieurs Go via MCP. Le MCP f
 ## Format
 Reponses compactes, champs utiles uniquement, filtres `project`, `task`, `since`, `limit`. Les erreurs doivent etre explicites et machine-readable.
 
+Tout parametre inconnu est rejete : chaque outil expose
+`additionalProperties: false` dans son `inputSchema` et un appel avec un
+argument hors contrat repond `{error_code: "invalid_argument",
+unknown_arguments: [...], valid_arguments: [...]}` sans executer l'outil.
+Un appel valide garde son comportement inchange.
+
 Les outils de workflow `studio_update_task`, `studio_claim_task`,
 `studio_release_task` et `studio_start_session` conservent leur reponse
 detaillee historique par defaut (`verbose=true`). Avec `verbose=false`, les
@@ -146,6 +152,10 @@ Le MCP n'accepte que des tokens machine, jamais un JWT dashboard. Depuis A2
 verifie est refuse comme un token revoque : erreur `unauthenticated`
 (« invalid or revoked machine token »), sans reveler la cause ; reactiver le
 User rend le token de nouveau utilisable.
+Credential ephemere de lancement (AIB P9, additif) : un token emis pour un lancement
+distant est accepte comme un token machine, mais restreint a une allowlist d'outils et
+au projet du lancement ; tout autre outil repond l'erreur `launch_credential_scope`.
+Allowlist et limites : `TECH/04_AUTH_SYNC_CONTRACT.md`.
 Exception : les outils locaux UC-3 (section ci-dessous, DEC-0047) tournent
 dans un processus stdio lance par le consommateur lui-meme, sans DB ni
 `Principal` serveur — la frontiere de confiance est le processus, pas un
@@ -365,6 +375,27 @@ mute jamais taches ni claims. `idempotency_key` optionnel (namespace
 `MCP studio_request_producer_job`, DEC-0027). L'enregistrement d'une
 integration GitHub et la reception du webhook restent HTTP-only (pas de
 secret partageable comme parametre d'outil).
+
+## Outils depreciés (DEC-0186)
+
+Cinq outils redondants restent appelables, sans changement de comportement,
+jusqu'au `2026-11-04` ; ils sont signales (changement additif) :
+
+| Outil deprecie | Remplacant |
+|---|---|
+| `studio_start_session` | `studio_start_work` |
+| `studio_end_session` | `studio_handoff` |
+| `studio_claim_task` | `studio_start_work` |
+| `studio_release_task` | `studio_handoff` |
+| `studio_claim_resource` | `studio_claim_resources` (un seul chemin) |
+
+Signalement : la description de `tools/list` commence par `DEPRECATED, removal
+on or after 2026-11-04: use <remplacant> instead.` ; chaque reponse reussie
+porte un objet `deprecation` `{replaced_by, sunset}` ; les erreurs restent
+inchangees (`services/mcp/src/studio_mcp/deprecation.py`). Ces outils sont
+deja absents du profil `session` (DEC-0183). Le retrait, apres la date, est un
+changement cassant traite par le skill `contract-change` ; les routes HTTP
+equivalentes ne sont pas concernees.
 
 ## Evolution des contrats d'outils (CC-3, DEC-0048)
 

@@ -14,6 +14,7 @@
 import type { StudioClient } from "../api";
 import { ApiError, parseErrorBody } from "../api";
 import { createProject, type Project, type ProjectCreate } from "../creationsApi";
+import type { components } from "../openapi-schema";
 import { newIdempotencyKey } from "../claimsApi";
 import {
   closeDsDialog,
@@ -25,10 +26,14 @@ import {
   dsNotify,
   dsPageHeader,
   dsSkeleton,
+  dsStatusDot,
   openDsDialog,
 } from "../ds/ds";
+import { projectHealth } from "./overview";
 import { selectProject } from "../store";
 import { describeError, esc, fmtTime } from "../ui";
+
+type Task = components["schemas"]["Task"];
 
 export type ProjectStateFilter = "all" | "active" | "archived";
 
@@ -67,24 +72,28 @@ function toolbarHtml(state: ProjectsPageState, shown: number, total: number): st
   const selected = (value: ProjectStateFilter): string => (state.stateFilter === value ? " selected" : "");
   return `<div class="projects-toolbar" role="search" aria-label="Filtrer les projets chargés">` +
     `<div class="ds-search">${'<span class="ds-search-icon" aria-hidden="true">⌕</span>'}<label class="ds-sr-only" for="projects-filter">Filtrer les projets déjà chargés</label>` +
-    `<input class="ds-input" type="search" id="projects-filter" name="q" value="${esc(state.query)}" placeholder="Filtrer par nom, description ou slug…" autocomplete="off" /></div>` +
+    `<input class="ds-input" type="search" id="projects-filter" name="q" value="${esc(state.query)}" placeholder="Filtrer par nom, description ou identifiant…" autocomplete="off" /></div>` +
     `<label class="projects-state-filter"><span>État</span><select class="ds-select" id="projects-state">` +
     `<option value="all"${selected("all")}>Tous</option>` +
     `<option value="active"${selected("active")}>Actifs</option>` +
     `<option value="archived"${selected("archived")}>Archivés</option>` +
     `</select></label>` +
-    `<p class="ds-list-sub" role="status" aria-live="polite">${shown} projet(s) affiché(s) sur ${total} chargé(s) — filtre local.</p>` +
+    `<p class="ds-list-sub" role="status" aria-live="polite">${shown} projet(s) affiché(s) sur ${total} chargé(s) — filtre appliqué aux projets chargés.</p>` +
     `</div>`;
 }
 
-function cardHtml(project: Project): string {
+function cardHtml(project: Project, tasks: Task[] | null): string {
   const rawDesc = (project.description ?? "").trim();
   const desc =
     rawDesc === "" ? `<p class="ds-list-sub">Sans description.</p>` : `<p class="project-card-desc">${esc(rawDesc)}</p>`;
   const badge = project.archived ? dsBadge("Archivé", "warning") : dsBadge("Actif", "success");
-  return `<li class="ds-card project-card"><div class="project-card-top"><h2 class="project-card-title"><a href="#/projects/${esc(project.id)}" data-open="${esc(project.id)}">${esc(project.name)}</a></h2>${badge}</div>` +
+  // Santé par point de couleur (tâches bloquées / en cours) ; absente si les tâches n'ont pas pu être chargées.
+  const health = project.archived || tasks === null ? null : projectHealth(project.id, tasks);
+  const dot = health === null ? "" : dsStatusDot(health.state, health.label, true);
+  const healthLabel = health === null ? "" : `${esc(health.label)} · `;
+  return `<li class="ds-card project-card"><div class="project-card-top">${dot}<h2 class="project-card-title"><a href="#/projects/${esc(project.id)}" data-open="${esc(project.id)}">${esc(project.name)}</a></h2>${badge}</div>` +
     `${desc}` +
-    `<p class="ds-list-sub"><code class="mono">${esc(project.slug)}</code></p>` +
+    `<p class="ds-list-sub">${healthLabel}<code class="mono">${esc(project.slug)}</code></p>` +
     `<details class="project-card-tech"><summary>Informations techniques</summary><dl>` +
     `<div><dt>Identifiant</dt><dd><code class="mono">${esc(project.id)}</code></dd></div>` +
     `<div><dt>Version</dt><dd>${project.version}</dd></div>` +
@@ -97,7 +106,7 @@ function cardHtml(project: Project): string {
 /** Corps de la modale de création : champs labellisés, aide et zone d'erreur. */
 export function projectCreateFormHtml(): string {
   return `<form id="project-create-form" novalidate>` +
-    dsField("project-slug", "Slug", `<input class="ds-input" id="FIELD" name="slug" required placeholder="mon-projet" autocomplete="off" />`, "Identifiant lisible, sans espaces.") +
+    dsField("project-slug", "Identifiant court", `<input class="ds-input" id="FIELD" name="slug" required placeholder="mon-projet" autocomplete="off" />`, "Identifiant lisible, sans espaces.") +
     dsField("project-name", "Nom", `<input class="ds-input" id="FIELD" name="name" required autocomplete="off" />`) +
     dsField("project-desc", "Description (facultative)", `<textarea class="ds-textarea" id="FIELD" name="description" rows="3"></textarea>`) +
     `<p class="ds-list-sub">Réservé aux administrateurs et aux développeurs. Un envoi répété ne crée pas de doublon.</p>` +
@@ -111,6 +120,8 @@ export interface ProjectsPageData {
   projects: Project[];
   state: ProjectsPageState;
   authed: boolean;
+  /** Tâches chargées pour dériver la santé ; null = indisponibles (pas de point). */
+  tasks?: Task[] | null;
 }
 
 export function projectsPageHtml(data: ProjectsPageData): string {
@@ -128,7 +139,7 @@ export function projectsPageHtml(data: ProjectsPageData): string {
       "Modifiez ou effacez le filtre pour retrouver vos projets déjà chargés.",
     );
   } else {
-    body = `<ul class="projects-grid">${visible.map(cardHtml).join("")}</ul>`;
+    body = `<ul class="projects-grid">${visible.map((project) => cardHtml(project, data.tasks ?? null)).join("")}</ul>`;
   }
   return `<div class="projects">${header}${toolbar}${body}${dsModalHtml({ id: "project-create-dialog", title: "Nouveau projet", body: projectCreateFormHtml() })}</div>`;
 }
@@ -137,6 +148,16 @@ async function fetchProjects(client: StudioClient): Promise<Project[]> {
   const result = await client.GET("/api/v1/projects");
   if (result.response.ok && result.data !== undefined) return result.data;
   throw new ApiError(parseErrorBody(result.response.status, result.error));
+}
+
+/** Santé indicative : un échec de chargement des tâches ne bloque jamais la liste. */
+async function fetchTasks(client: StudioClient): Promise<Task[] | null> {
+  try {
+    const result = await client.GET("/api/v1/tasks", { params: { query: { limit: 100, offset: 0 } } });
+    return result.response.ok && result.data !== undefined ? result.data : null;
+  } catch {
+    return null;
+  }
 }
 
 function setCreateError(root: HTMLElement, message: string): void {
@@ -173,7 +194,7 @@ function bindCreateDialog(root: HTMLElement, client: StudioClient, refresh: () =
       })(),
     };
     if (input.slug === "" || input.name === "") {
-      setCreateError(root, "Le slug et le nom sont obligatoires.");
+      setCreateError(root, "L'identifiant court et le nom sont obligatoires.");
       root.querySelector<HTMLElement>(input.slug === "" ? "#project-slug" : "#project-name")?.focus();
       return;
     }
@@ -223,9 +244,10 @@ export async function renderProjects(root: HTMLElement, ctx: { client: StudioCli
     return;
   }
   const state: ProjectsPageState = { query: "", stateFilter: "all" };
+  let tasks: Task[] | null = await fetchTasks(ctx.client);
 
   const paint = (): void => {
-    root.innerHTML = projectsPageHtml({ projects, state, authed: ctx.authed });
+    root.innerHTML = projectsPageHtml({ projects, state, authed: ctx.authed, tasks });
     bind();
   };
 
@@ -235,6 +257,7 @@ export async function renderProjects(root: HTMLElement, ctx: { client: StudioCli
     } catch {
       return;
     }
+    tasks = await fetchTasks(ctx.client);
     paint();
   };
 

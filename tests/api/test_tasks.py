@@ -381,3 +381,73 @@ async def test_reclaim_after_completion_is_a_real_claim(
         "task.completed",
         "task.started",
     ]
+
+
+async def test_list_tasks_status_and_mine_filters(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    project: ProjectModel,
+    db_session: AsyncSession,
+) -> None:
+    """`status` (repeatable, OR) and `mine` narrow the listing (DEC-0185);
+    without them the listing is unchanged."""
+    ids: dict[str, str] = {}
+    for title in ("todo", "doing", "stuck", "done", "theirs"):
+        created = await client.post(
+            "/api/v1/tasks",
+            headers=auth_headers,
+            json={"project_id": str(project.id), "title": title},
+        )
+        ids[title] = created.json()["id"]
+    for title in ("doing", "stuck", "done"):
+        claimed = await client.post(f"/api/v1/tasks/{ids[title]}/claim", headers=auth_headers)
+        assert claimed.status_code == 200
+
+    other_user = UserModel(
+        display_name="Other",
+        email=f"{uuid.uuid4()}@example.test",
+        role="developer",
+        email_verified_at=datetime.now(UTC),
+    )
+    db_session.add(other_user)
+    await db_session.flush()
+    other_machine = MachineModel(
+        owner_user_id=other_user.id,
+        display_name="other-machine",
+        credential_hash=hash_token(generate_machine_token()),
+    )
+    db_session.add(other_machine)
+    await db_session.flush()
+    await db_session.execute(
+        update(TaskModel)
+        .where(TaskModel.id == uuid.UUID(ids["theirs"]))
+        .values(status="in_progress", claimed_by_machine_id=other_machine.id)
+    )
+    for title, status in (("stuck", "blocked"), ("done", "completed")):
+        await db_session.execute(
+            update(TaskModel).where(TaskModel.id == uuid.UUID(ids[title])).values(status=status)
+        )
+    await db_session.flush()
+
+    async def titles(**params: object) -> set[str]:
+        response = await client.get(
+            "/api/v1/tasks",
+            headers=auth_headers,
+            params={"project_id": str(project.id), **params},
+        )
+        assert response.status_code == 200
+        return {t["title"] for t in response.json()}
+
+    assert await titles() == set(ids)
+    assert await titles(status="blocked") == {"stuck"}
+    assert await titles(status=["in_progress", "blocked"]) == {"doing", "stuck", "theirs"}
+    assert await titles(mine="true") == {"doing", "stuck", "done"}
+    assert await titles(mine="true", status=["in_progress", "blocked"]) == {"doing", "stuck"}
+    assert await titles(mine="false") == set(ids)
+
+    unfiltered = await client.get(
+        "/api/v1/tasks", headers=auth_headers, params={"status": "created"}
+    )
+    assert {t["title"] for t in unfiltered.json()} >= {"todo"}
+    bad = await client.get("/api/v1/tasks", headers=auth_headers, params={"status": "nope"})
+    assert bad.status_code == 422

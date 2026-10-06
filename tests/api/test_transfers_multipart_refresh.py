@@ -11,6 +11,8 @@ from studio_api.db.models.machine import MachineModel
 from studio_api.services import transfers as transfers_service
 from studio_api.storage.provider import get_storage
 
+pytestmark = pytest.mark.infra("minio")
+
 MULTIPART_SIZE_BYTES = transfers_service.MULTIPART_THRESHOLD_BYTES + 1  # -> 3 parts
 PART_SIZE_BYTES = transfers_service.PART_SIZE_BYTES
 

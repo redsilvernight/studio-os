@@ -32,7 +32,7 @@ ressource rattachee a un projet.
 - Dates ISO 8601 UTC.
 - Ecriture mutable sur un objet existant (`PATCH`) : header `If-Match-Version` avec la `version` lue par le client ; 409 + version serveur courante en cas de conflit (`TECH/04_AUTH_SYNC_CONTRACT.md`).
 - Authentification : header `Authorization: Bearer <machine-token>` sur tout endpoint sous `/api/v1` (sauf `/healthz`, `/metrics`, `GET /version`, `POST /auth/token`, `POST /auth/refresh`, `POST /auth/logout`, les routes publiques d'inscription et de recuperation A4 et `POST /github/webhook` — ce dernier est signe HMAC `X-Hub-Signature-256`, jamais Bearer) — voir `TECH/04_AUTH_SYNC_CONTRACT.md`. Le dashboard humain obtient un JWT court-terme via `POST /auth/token` (DASH-4, DEC-0056) et le presente ensuite comme `Authorization: Bearer <jwt>`.
-- Enveloppe reelle d'une erreur machine-readable (`error_code` present dans ce document, ex. `413`/`507`/`409 idempotency_key_payload_mismatch`) : `{"detail": {"error_code": "...", ...}}` — FastAPI enveloppe systematiquement `HTTPException.detail`, jamais `{"error_code": "..."}` a plat. Une erreur sans `error_code` (401/403/404 génériques) renvoie `{"detail": "<message>"}`, une simple chaine. `studio_contracts.common.ErrorResponse`/`VersionConflictError` ne sont utilises par aucun code serveur actuel — clarification documentaire (DEC-0024), pas un changement de comportement.
+- Enveloppe reelle d'une erreur machine-readable (`error_code` present dans ce document, ex. `413`/`507`/`409 idempotency_key_payload_mismatch`) : `{"detail": {"error_code": "...", ...}}` — FastAPI enveloppe systematiquement `HTTPException.detail`, jamais `{"error_code": "..."}` a plat. Une erreur sans `error_code` (401/403/404 génériques) renvoie `{"detail": "<message>"}`, une simple chaine. Aucun modele plat `{"error_code": ...}` n'existe cote contrats partages : `{"detail": {...}}`/`{"detail": "<message>"}` est l'unique forme reelle, inchangee (DEC-0024).
 
 ## Endpoints principaux
 ### Version et compatibilite (C1, additif)
@@ -175,6 +175,17 @@ que l'adresse existe ou non ; les e-mails partent apres la reponse.
   a laquelle appartient le credential presente, `status` derive comme dans la
   liste. Toute machine authentifiee peut lire. Sert au daemon local a
   connaitre son propre `id` a partir du seul credential.
+- GET|PUT|DELETE /machines/{machine_id}/launch-grants[/{user_id}] (AIB-J, additif) —
+  droit de lancer du travail sur une machine, accorde par son proprietaire (ou `admin`) a
+  un autre User (`MachineLaunchGrant`, `studio_contracts.launch_grants`). `PUT` : corps
+  optionnel `{project_id?, expires_at?}` (`expires_at` futur, sinon `422`) ; `201` a la
+  creation, `200` + droit inchange si deja accorde (revoquer puis re-accorder pour le
+  modifier) ; naturellement idempotent, sans `Idempotency-Key`. `DELETE` : `204` idempotent.
+  Proprietaire ou `admin` seulement ; un autre appelant recoit le meme `403` que la machine
+  existe ou non (un `admin` recoit `404` pour une machine inconnue). S'accorder ou se
+  retirer le droit a soi-meme : `403 self_modification_forbidden`, avant toute lecture.
+  `404` si l'utilisateur ou le projet vise n'existe pas ; `project_id` exige l'acces a ce
+  projet.
 - POST /machines (A5, additif : libre-service, DU-0/A) — tout principal
   authentifie (machine ou JWT) dont le role n'est pas `agent` cree une
   machine dont son propre User est proprietaire. Pour un non-admin, le
@@ -193,6 +204,22 @@ que l'adresse existe ou non ; les e-mails partent apres la reponse.
   un non-admin, la machine d'un autre User repond `404`, a l'identique d'une
   machine inexistante (comme `GET /machines`, qui ne la liste jamais).
   Revoquer la machine appelante elle-meme est permis ; effet immediat.
+- POST /machines/{machine_id}/adopt (additif) — reprise d'une machine existante
+  (meme controle d'acces que `revoke`) : le credential est tourne, la machine
+  garde son `id` et son historique ; reponse = `Machine` + `credential` en clair,
+  une seule fois (`200`). L'ancien credential est invalide immediatement ;
+  machine revoquee = `409` ; pas de `Idempotency-Key`. Cote client,
+  `IdentityEnrollRequest.adopt_machine_id` (optionnel) l'emploie a la place de
+  `POST /machines`.
+- PATCH /machines/{machine_id} (additif) — renomme la machine (`display_name`).
+  Proprietaire ou `admin` ; `agent` recoit `403`. Pour un non-admin, la machine
+  d'un autre User repond `404`. Concurrence optimiste obligatoire via header
+  `If-Match-Version` (entier) : version lue au dernier `GET` ; version etalee
+  repond `409 {"detail": {"error_code": "version_conflict",
+  "server_version": <current>}}`. Header manquant : `422`. `display_name`
+  valide = non vide, 1–100 caracteres, espaces lateraux supprimes (meme
+  validation que `MachineCreate.display_name`). Reponse = `Machine` (version
+  incrementee).
 - Etat du compte (DU-0/A, introduit par A2/DEC-0110) : ces deux operations
   exigent un User actif et verifie. Un User `pending` (`email_verified_at`
   nul) ou `disabled` (`disabled_at` pose) n'obtient aucun principal : toutes
@@ -238,7 +265,11 @@ hors-bande par la CLI serveur `studio-admin` (DEC-0011) — aucun endpoint
 public de bootstrap, pas de secret d'environnement dedie.
 
 ### Tasks
-- GET /tasks
+- GET /tasks — filtres optionnels additifs (P04-work, DEC-0185) : `status`
+  (repetable, valeurs `TaskStatus`, OU logique ; absent = tous) et `mine`
+  (booleen, defaut `false` ; `true` = taches reclamees par une machine dont
+  le proprietaire est l'utilisateur authentifie). Combinables avec
+  `project_id`, `limit`, `offset` ; tri et visibilite inchanges.
 - POST /tasks
 - GET /tasks/{id}
 - PATCH /tasks/{id}
@@ -795,6 +826,51 @@ absente = etat valide. Le serveur ne decide rien : il valide et applique.
 
 ### Heartbeats
 - POST /heartbeats
+
+### AI integration status (AIB P6, additif, lecture seule)
+- GET /projects/{project_id}/ai-integration -> `AiIntegrationStatus` (`studio_contracts.ai_integration`).
+  `desired` = resume du plan de bootstrap (P2 : `plan_hash`, `agent_keys`, compte d'artefacts par
+  kind) ou `desired_error` (code public) si le plan est impossible a construire. `machines` = les
+  machines de l'appelant (toutes pour `admin`) avec le dernier rapport de capacites (R1) :
+  `freshness` (`fresh` | `stale` | `never_reported`), `reported_at`, `project_registered`,
+  `harnesses` (revendications `detected`/`configured` de la machine). `bootstrap?` (`checked_at`, comptes par etat, `in_sync`) = dernier `bootstrap check` local du poste pour ce projet, absent tant qu'il n'a rien rapporte ; `in_sync` = tous les fichiers observes a jour, y compris quand `freshness` vaut `stale` (a lire avec `freshness`). Aucune ecriture n'est
+  affirmee par le serveur (les champs sans valeur sont absents de la reponse, pas `null`) ; un poste sans rapport ou perime est signale comme tel. Acces projet
+  identique aux autres routes (`403` unique, pas d'oracle d'existence).
+
+### Task launches (AIB R2, additif, contrat fige — implemente)
+Ressource `TaskLaunch` (`studio_contracts.task_launch`) : demande typee de demarrer une tache sur
+une machine cible. Donnees seules, jamais une commande : ids et cles stables uniquement
+(`task_id`, `machine_id`, `harness_id`, `agent_stable_key?`, `expires_in_seconds`) ; champs
+inconnus refuses, donc ni ligne de commande, argument, chemin, ni variable d'environnement
+representables. `reason_code` = vocabulaire ferme, jamais du texte libre.
+- POST /projects/{project_id}/task-launches (`Idempotency-Key`, `TaskLaunchCreate`) -> `TaskLaunch`
+  `requested`. Rejoue = meme lancement ; corps different = `409 idempotency_key_payload_mismatch`.
+  Autorisation (AIB-J) : proprietaire de la machine cible ou droit explicite accorde par lui,
+  sinon `403` unique. Tache, projet et machine doivent correspondre ; machine sans opt-in ou
+  rapport perime (R1) = `409` explicite.
+- GET /task-launches/{id} ; GET /projects/{project_id}/task-launches (page) — lecture.
+- POST /task-launches/{id}/cancel (`TaskLaunchCancel`) — demandeur seul, lancement non terminal.
+- GET /machines/{machine_id}/task-launches/pending -> `TaskLaunchPull` — tirage par le daemon de
+  la machine cible seule ; lancements non terminaux, plus anciens d'abord, au plus 20 ; sans effet
+  de bord.
+- POST /task-launches/{id}/report (`TaskLaunchMachineReport`) — machine cible seule ;
+  `expected_version` obligatoire (`409` + version serveur si perime) ; `session_id` lie la session.
+- POST /task-launches/{id}/credential -> `TaskLaunchCredential` (`token`, `expires_at`), `201`
+  (AIB P9, additif) — machine cible seule, authentifiee par son token durable (jamais par un
+  credential ephemere) ; lancement `accepted|preparing|running` et non expire, sinon
+  `409 launch_not_active`. Le token est rendu une seule fois ; une nouvelle demande revoque le
+  precedent. Sans `Idempotency-Key` : volontairement non rejouable (un rejeu emettrait un
+  second token). Avec un credential ephemere, toute route hors allowlist repond
+  `403 {"detail": {"error_code": "launch_credential_scope"}}`. Voir
+  `04_AUTH_SYNC_CONTRACT.md` (credential ephemere de lancement).
+Cycle : `requested -> accepted -> preparing -> running -> succeeded|failed`, plus
+`requested -> rejected` (machine), `cancelled` (demandeur) et `expired` (serveur seul, jamais
+rapporte par la machine). Etats terminaux sans sortie ; toute paire non listee dans
+`ALLOWED_TRANSITIONS` = `409 invalid_launch_transition`, mauvais acteur = `403`. Seule la machine
+cible rapporte l'execution ; `output_excerpt` borne (4000 car.) et expurge par la machine.
+Expiration serveur (defaut 900 s, max 86400 s) : `expired_unpulled` si jamais tire,
+`expired_timeout` sinon. Evenements (additif) : `task_launch.requested|accepted|rejected|
+cancelled|expired|finished`, charge utile = ids + statut + `reason_code`, aucun texte libre.
 
 ### GitHub, Builds & Producer (etape 9.1, additif, DEC-0059)
 - POST /github/webhook — ingress webhook GitHub (`push`, `pull_request`,

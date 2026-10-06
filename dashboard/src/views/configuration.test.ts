@@ -66,13 +66,13 @@ const binding = (overrides: Partial<RuntimeBinding> = {}): RuntimeBinding =>
   }) as RuntimeBinding;
 
 describe("configTabsHtml", () => {
-  it("liste les domaines réels (Runtimes / Bindings / Projet) en français", () => {
+  it("liste les domaines réels (Runtimes / Liaisons / Projet) en français", () => {
     const html = configTabsHtml("bindings");
     expect(html).toContain("#/configuration/runtimes");
     expect(html).toContain("#/configuration/bindings");
     expect(html).toContain("#/configuration/project");
     expect(html).toContain("Runtimes");
-    expect(html).toContain("Bindings");
+    expect(html).toContain("Liaisons");
     expect(html).toContain("Projet");
     expect(html).toMatch(/class="tab active" href="#\/configuration\/bindings"/);
     expect(html).toContain('aria-current="page"');
@@ -234,19 +234,21 @@ describe("bindingTargetHtml", () => {
     const map = new Map([["rt-1", runtime()]]);
     const html = bindingTargetHtml(binding(), map);
     expect(html).toContain("harness-a · provider-a · model-a");
-    expect(html).toContain("rt-1"); // visible en title technique, jamais comme libellé
+    expect(html).not.toContain("rt-1"); // aucun identifiant exposé (C2)
   });
 
   it("retombe sur un libellé honnête si le runtime n'est pas chargé", () => {
     const html = bindingTargetHtml(binding(), new Map());
-    expect(html).toContain("Runtime rt-1");
+    expect(html).toContain("Runtime sans nom");
+    expect(html).not.toContain("rt-1");
   });
 });
 
 describe("runtimesPageHtml (rendu)", () => {
-  it("rend une page Paramètres française, sans table SQL, avec lien Inspecteur", () => {
+  it("rend une page Configuration française, sans table SQL, avec lien Inspecteur", () => {
     const html = runtimesPageHtml([runtime()]);
-    expect(html).toContain("Paramètres");
+    expect(html).toContain("Configuration");
+    expect(html).toContain("Administration / Configuration");
     expect(html).toContain("Runtimes enregistrés");
     expect(html).toContain("environnement/cible d'exécution");
     expect(html).toContain("#/inspector");
@@ -293,7 +295,7 @@ describe("runtimeDetailHtml", () => {
   it("dégrade partiellement : le runtime reste consultable si les bindings échouent", () => {
     const html = runtimeDetailHtml(runtime(), null, "HTTP 503 · indisponible");
     expect(html).toContain("Configuration du runtime");
-    expect(html).toContain("Bindings indisponibles");
+    expect(html).toContain("Liaisons indisponibles");
     expect(html).toContain("le runtime reste consultable");
   });
 

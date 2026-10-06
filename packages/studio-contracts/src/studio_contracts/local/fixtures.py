@@ -88,6 +88,8 @@ from studio_contracts.local.identity import (
     IdentityBinding,
     IdentityEnrollOutcome,
     IdentityEnrollResult,
+    IdentityForgetOutcome,
+    IdentityForgetResult,
     IdentityView,
     MachineIdentity,
     ProfileRef,
@@ -109,6 +111,26 @@ from studio_contracts.local.knowledge import (
     KnowledgeStatus,
     KnowledgeVaultState,
 )
+from studio_contracts.local.launch import LaunchSettingsSaveRequest, LaunchSettingsView
+from studio_contracts.local.machine_setup import (
+    SetupAdaptersState,
+    SetupAdaptersStep,
+    SetupApplyRequest,
+    SetupApplyResult,
+    SetupHarness,
+    SetupItemKind,
+    SetupItemOutcome,
+    SetupItemPlan,
+    SetupItemResult,
+    SetupItemState,
+    SetupPlan,
+    SetupPlanRequest,
+    SetupSkillsOutcome,
+    SetupSkillsResult,
+    SetupSkillsState,
+    SetupSkillsStep,
+)
+from studio_contracts.local.outbox import LegacyOutboxTable, OutboxLegacyStatus
 from studio_contracts.local.provider import IndexInfo, IndexState, ProviderInfo
 from studio_contracts.local.publication import (
     DEFAULT_PUBLICATION_POLICY,
@@ -118,6 +140,13 @@ from studio_contracts.local.publication import (
     PublicationPlan,
     PublicationResult,
     SharedStatusSummary,
+)
+from studio_contracts.local.skills import (
+    SkillCheckEntry,
+    SkillHarnessTarget,
+    SkillsCheckResult,
+    SkillSyncState,
+    SkillTargetState,
 )
 from studio_contracts.local.workspace import (
     CodeGraphConfig,
@@ -174,8 +203,13 @@ DESKTOP_CAPABILITIES = [
     "knowledge.index",
     "knowledge.init",
     "knowledge.read",
+    "launch.settings",
     "publication.plan",
     "publication.publish",
+    "setup.apply",
+    "setup.plan",
+    "skills.apply",
+    "skills.read",
     "workspace.config",
 ]
 REQUIRED_CAPABILITIES = ["daemon.control", "identity.view", "workspace.config"]
@@ -1213,6 +1247,14 @@ def build_fixtures() -> list[LocalFixture]:
         outcome=IdentityEnrollOutcome.ALREADY_ENROLLED,
         view=_identity_view(_secret_status(SecretStatus.PRESENT, None)),
     )
+    fixtures["identity.forget.forgotten"] = IdentityForgetResult(
+        outcome=IdentityForgetOutcome.FORGOTTEN,
+        view=_identity_view(_secret_status(SecretStatus.ABSENT, LocalErrorCode.SECRET_ABSENT)),
+    )
+    fixtures["identity.forget.nothing_to_forget"] = IdentityForgetResult(
+        outcome=IdentityForgetOutcome.NOTHING_TO_FORGET,
+        view=_identity_view(_secret_status(SecretStatus.ABSENT, LocalErrorCode.SECRET_ABSENT)),
+    )
 
     fixtures["knowledge.status.disabled"] = _knowledge_status(
         ComponentState.DISABLED,
@@ -1417,6 +1459,107 @@ def build_fixtures() -> list[LocalFixture]:
         details={"method": "studio_get_projects"},
     )
 
+    fixtures["skills.check.result"] = SkillsCheckResult(
+        skills=[
+            SkillCheckEntry(
+                stable_key="studio-handoff",
+                version=5,
+                targets=[
+                    SkillTargetState(
+                        harness=SkillHarnessTarget.AGENTS, state=SkillSyncState.CURRENT
+                    ),
+                    SkillTargetState(
+                        harness=SkillHarnessTarget.ASSISTANT, state=SkillSyncState.LOCALLY_MODIFIED
+                    ),
+                ],
+            ),
+            SkillCheckEntry(
+                stable_key="studio-session",
+                version=3,
+                targets=[
+                    SkillTargetState(
+                        harness=SkillHarnessTarget.AGENTS, state=SkillSyncState.MISSING
+                    ),
+                    SkillTargetState(
+                        harness=SkillHarnessTarget.ASSISTANT, state=SkillSyncState.OUTDATED
+                    ),
+                ],
+            ),
+        ],
+        current=1,
+        missing=1,
+        outdated=1,
+        locally_modified=1,
+        in_sync=False,
+        checked_at=NOW,
+    )
+
+    fixtures["setup.plan.request"] = SetupPlanRequest()
+    fixtures["setup.plan.result"] = SetupPlan(
+        plan_id="setup-plan-0001",
+        plan_hash=hashlib.sha256(b"setup-plan-0001").hexdigest(),
+        created_at=NOW,
+        expires_at=NOW + timedelta(minutes=10),
+        harnesses=[
+            SetupHarness(harness="agent-a", detected=True),
+            SetupHarness(harness="codex", detected=False),
+        ],
+        hooks=[
+            SetupItemPlan(
+                item_id="hook:agent-a",
+                kind=SetupItemKind.HOOK,
+                harness="agent-a",
+                state=SetupItemState.DIFFERS,
+                managed=False,
+                lines_added=2,
+                lines_removed=1,
+                diff="--- a/hook:agent-a\n+++ b/hook:agent-a\n-old\n+new",
+                needs_registration=True,
+            ),
+            SetupItemPlan(
+                item_id="guard",
+                kind=SetupItemKind.GUARD,
+                harness="git-guard",
+                state=SetupItemState.MISSING,
+                managed=False,
+            ),
+        ],
+        skills=SetupSkillsStep(
+            state=SetupSkillsState.CHECKED, current=2, missing=1, outdated=0, locally_modified=1
+        ),
+        adapters=SetupAdaptersStep(
+            state=SetupAdaptersState.CHECKED, workspaces=1, checked=4, drifted=1
+        ),
+    )
+    fixtures["setup.apply.request"] = SetupApplyRequest(
+        plan_id="setup-plan-0001",
+        plan_hash=hashlib.sha256(b"setup-plan-0001").hexdigest(),
+        confirmed=True,
+        overwrite_items=["hook:agent-a"],
+        sync_skills=True,
+    )
+    fixtures["setup.apply.result"] = SetupApplyResult(
+        plan_id="setup-plan-0001",
+        hooks=[
+            SetupItemResult(
+                item_id="hook:agent-a", outcome=SetupItemOutcome.WRITTEN, backed_up=True
+            ),
+            SetupItemResult(item_id="guard", outcome=SetupItemOutcome.WRITTEN),
+        ],
+        skills=SetupSkillsResult(outcome=SetupSkillsOutcome.SYNCED, written=1, left_modified=1),
+        backups_created=True,
+    )
+
+    fixtures["launch.settings.view"] = LaunchSettingsView(
+        opt_in=True,
+        max_concurrent=2,
+        allowed_harnesses=["harness-a"],
+        detected_harnesses=["harness-a", "harness-b"],
+    )
+    fixtures["launch.settings.save_request"] = LaunchSettingsSaveRequest(
+        opt_in=True, max_concurrent=2, allowed_harnesses=["harness-a"], confirmed=True
+    )
+
     fixtures["publication.plan.preview"] = _publication_plan()
     fixtures["publication.result.published"] = PublicationResult(
         plan_id="pub-0001", outcome=PublicationOutcome.PUBLISHED, published_at=NOW
@@ -1493,6 +1636,33 @@ def build_fixtures() -> list[LocalFixture]:
     )
     fixtures["bridge.cancel.reindex"] = BridgeCancel(
         message_id="cnl-0001", correlation_id=CORRELATION, sent_at=NOW, request_id="req-0002"
+    )
+
+    fixtures["outbox.legacy_status.absent"] = OutboxLegacyStatus(
+        exists=False, has_queued_work=False, counts={}
+    )
+    fixtures["outbox.legacy_status.empty"] = OutboxLegacyStatus(
+        exists=True, has_queued_work=False, counts={}
+    )
+    legacy_with_work = OutboxLegacyStatus(
+        exists=True,
+        has_queued_work=True,
+        counts={
+            LegacyOutboxTable.PENDING_EVENTS: 3,
+            LegacyOutboxTable.PENDING_MUTATIONS: 1,
+        },
+    )
+    fixtures["outbox.legacy_status.with_work"] = legacy_with_work
+    fixtures["bridge.request.outbox_legacy_status"] = _bridge_request("outbox.legacy_status", {})
+    fixtures["bridge.response.outbox_legacy_status"] = BridgeResponse.model_validate(
+        {
+            "message_id": "res-0003",
+            "correlation_id": CORRELATION,
+            "sent_at": NOW,
+            "request_id": "req-0001",
+            "command": "outbox.legacy_status",
+            "payload": _dump(legacy_with_work),
+        }
     )
 
     return [LocalFixture(name, model) for name, model in sorted(fixtures.items())]
@@ -1756,6 +1926,96 @@ def build_invalid_fixtures() -> list[InvalidFixture]:
             "a missing token is a condition, not a failure: it carries no error",
         ),
         InvalidFixture(
+            "skills.check.in_sync_with_drift",
+            "SkillsCheckResult",
+            _with("skills.check.result", add_field("in_sync", True)),
+            "in_sync is true only when no target is missing or drifted",
+        ),
+        InvalidFixture(
+            "skills.check.path_leak",
+            "SkillsCheckResult",
+            _with(
+                "skills.check.result",
+                lambda data: data["skills"][0].__setitem__("path", "C:/Users/dev/.claude/skills"),
+            ),
+            "a skill entry carries no filesystem path",
+        ),
+        InvalidFixture(
+            "setup.apply.unconfirmed",
+            "SetupApplyRequest",
+            _with("setup.apply.request", add_field("confirmed", False)),
+            "applying the workstation setup requires explicit confirmation",
+        ),
+        InvalidFixture(
+            "setup.apply.duplicate_overwrite",
+            "SetupApplyRequest",
+            _with("setup.apply.request", add_field("overwrite_items", ["guard", "guard"])),
+            "a replacement is named once",
+        ),
+        InvalidFixture(
+            "setup.plan.diff_on_current_file",
+            "SetupPlan",
+            _with(
+                "setup.plan.result",
+                lambda data: data["hooks"][1].__setitem__("diff", "-old\n+new"),
+            ),
+            "only a differing file carries a diff",
+        ),
+        InvalidFixture(
+            "setup.plan.diff_path_leak",
+            "SetupPlan",
+            _with(
+                "setup.plan.result",
+                lambda data: data["hooks"][0].__setitem__("diff", "+C:/Users/dev/.claude/hook.py"),
+            ),
+            "a diff carries no absolute filesystem path",
+        ),
+        InvalidFixture(
+            "setup.plan.skills_unavailable_without_reason",
+            "SetupPlan",
+            _with(
+                "setup.plan.result",
+                lambda data: data.__setitem__(
+                    "skills",
+                    {"state": "unavailable", "current": 0, "missing": 0, "outdated": 0},
+                ),
+            ),
+            "an unavailable skills check states why",
+        ),
+        InvalidFixture(
+            "setup.apply.backup_flag_mismatch",
+            "SetupApplyResult",
+            _with("setup.apply.result", add_field("backups_created", False)),
+            "the backup flag reflects the item results",
+        ),
+        InvalidFixture(
+            "launch.settings.save_unconfirmed",
+            "LaunchSettingsSaveRequest",
+            _with("launch.settings.save_request", add_field("confirmed", False)),
+            "saving the launch opt-in requires explicit confirmation",
+        ),
+        InvalidFixture(
+            "launch.settings.duplicate_harness",
+            "LaunchSettingsView",
+            _with(
+                "launch.settings.view",
+                add_field("allowed_harnesses", ["harness-a", "harness-a"]),
+            ),
+            "a harness is allowed at most once",
+        ),
+        InvalidFixture(
+            "launch.settings.concurrency_out_of_range",
+            "LaunchSettingsView",
+            _with("launch.settings.view", add_field("max_concurrent", 0)),
+            "concurrency is bounded between one and the documented maximum",
+        ),
+        InvalidFixture(
+            "launch.settings.path_leak",
+            "LaunchSettingsView",
+            _with("launch.settings.view", add_field("project_root", "C:/Users/dev/repo")),
+            "the settings view carries no filesystem path",
+        ),
+        InvalidFixture(
             "publication.publish_unconfirmed",
             "PublicationPublishRequest",
             {
@@ -1764,5 +2024,20 @@ def build_invalid_fixtures() -> list[InvalidFixture]:
                 "confirmed": False,
             },
             "publication requires explicit confirmation",
+        ),
+        InvalidFixture(
+            "outbox.legacy_status.flag_mismatch",
+            "OutboxLegacyStatus",
+            _with("outbox.legacy_status.with_work", add_field("has_queued_work", False)),
+            "has_queued_work must reflect the counts",
+        ),
+        InvalidFixture(
+            "outbox.legacy_status.unknown_table",
+            "OutboxLegacyStatus",
+            _with(
+                "outbox.legacy_status.with_work",
+                lambda data: data["counts"].__setitem__("sessions", 2),
+            ),
+            "only known legacy outbox tables are reported",
         ),
     ]

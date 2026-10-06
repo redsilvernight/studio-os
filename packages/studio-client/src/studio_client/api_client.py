@@ -15,6 +15,7 @@ from studio_contracts.auth import (
     HeartbeatRequest,
     HeartbeatResponse,
     Machine,
+    MachineCapabilities,
     MachineCreate,
     MachineCreated,
 )
@@ -27,12 +28,20 @@ from studio_contracts.builds import (
 from studio_contracts.claims import ResourceClaim, ResourceClaimCreate
 from studio_contracts.decisions import Decision
 from studio_contracts.events import EventCreate, EventEnvelope
-from studio_contracts.library import LibraryProjectLock, LibraryResource, LibraryVersion
+from studio_contracts.library import (
+    LibraryActivate,
+    LibraryProjectLock,
+    LibraryResource,
+    LibraryResourceCreate,
+    LibraryVersion,
+    LibraryVersionCreate,
+)
 from studio_contracts.project_state import ProjectState
 from studio_contracts.projects import Project
 from studio_contracts.resolution import AgentResolutionRequest, ResolvedAgentDefinition
 from studio_contracts.review_queue import ReviewQueue
 from studio_contracts.sessions import WorkSession, WorkSessionCreate
+from studio_contracts.task_launch import TaskLaunch, TaskLaunchCredential, TaskLaunchPull
 from studio_contracts.tasks import Task, TaskCreate, TaskUpdate
 from studio_contracts.timeline import Timeline
 from studio_contracts.transfers import (
@@ -47,6 +56,7 @@ from studio_contracts.transfers import (
 )
 from studio_contracts.version import VersionInfo
 
+from studio_client.canonical import LibrarySnapshot
 from studio_client.config import ClientConfig
 from studio_client.errors import StudioApiError, TransportError, error_from_response
 from studio_client.retry import RetryPolicy, is_retryable, sleep
@@ -237,10 +247,16 @@ class StudioApiClient:
         return result.agent, result.created
 
     async def send_heartbeat(
-        self, machine_id: UUID, agent_id: UUID | None = None
+        self,
+        machine_id: UUID,
+        agent_id: UUID | None = None,
+        capabilities: MachineCapabilities | None = None,
     ) -> HeartbeatResponse:
         payload = HeartbeatRequest(
-            machine_id=machine_id, agent_id=agent_id, client_timestamp=datetime.now(UTC)
+            machine_id=machine_id,
+            agent_id=agent_id,
+            client_timestamp=datetime.now(UTC),
+            capabilities=capabilities,
         )
         response = await self._request(
             "POST",
@@ -249,6 +265,28 @@ class StudioApiClient:
             idempotent=True,
         )
         return HeartbeatResponse.model_validate(response.json())
+
+    async def pull_pending_launches(self, machine_id: UUID) -> list[TaskLaunch]:
+        """Non-terminal launches targeting `machine_id`, oldest first. Read
+        only: a pull never changes a launch."""
+        response = await self._request(
+            "GET", f"/api/v1/machines/{machine_id}/task-launches/pending"
+        )
+        return TaskLaunchPull.model_validate(response.json()).items
+
+    async def get_task_launch(self, launch_id: UUID) -> TaskLaunch:
+        """One launch by id, whatever its status. The pending pull only returns
+        non-terminal launches, so this is how a running machine observes a
+        requester cancellation or a server expiry and stops the work."""
+        response = await self._request("GET", f"/api/v1/task-launches/{launch_id}")
+        return TaskLaunch.model_validate(response.json())
+
+    async def issue_launch_credential(self, launch_id: UUID) -> TaskLaunchCredential:
+        """Ephemeral credential for the harness a launch starts: bound to the
+        launch's project and task, void when the launch ends. Needs this
+        client's durable machine credential."""
+        response = await self._request("POST", f"/api/v1/task-launches/{launch_id}/credential")
+        return TaskLaunchCredential.model_validate(response.json())
 
     async def post_event(self, event: EventCreate) -> EventEnvelope:
         """Idempotent by construction: `event.event_id` is the replay key
@@ -273,11 +311,21 @@ class StudioApiClient:
         return Task.model_validate(response.json())
 
     async def list_tasks(
-        self, *, project_id: UUID | None = None, limit: int = 100, offset: int = 0
+        self,
+        *,
+        project_id: UUID | None = None,
+        limit: int = 100,
+        offset: int = 0,
+        status: list[str] | None = None,
+        mine: bool = False,
     ) -> list[Task]:
         params: dict[str, Any] = {"limit": limit, "offset": offset}
         if project_id is not None:
             params["project_id"] = str(project_id)
+        if status:
+            params["status"] = [str(s) for s in status]
+        if mine:
+            params["mine"] = "true"
         response = await self._request("GET", "/api/v1/tasks", params=params)
         return [Task.model_validate(item) for item in response.json()]
 
@@ -604,6 +652,42 @@ class StudioApiClient:
         response = await self._request("GET", f"/api/v1/library/{resource_id}/versions")
         return [LibraryVersion.model_validate(item) for item in response.json()]
 
+    async def create_library_resource(
+        self, resource_in: LibraryResourceCreate, *, idempotency_key: str
+    ) -> LibraryResource:
+        response = await self._request(
+            "POST",
+            "/api/v1/library",
+            json=resource_in.model_dump(mode="json"),
+            extra_headers={"Idempotency-Key": idempotency_key},
+            idempotent=True,
+        )
+        return LibraryResource.model_validate(response.json())
+
+    async def create_library_version(
+        self, resource_id: UUID, version_in: LibraryVersionCreate, *, idempotency_key: str
+    ) -> LibraryVersion:
+        response = await self._request(
+            "POST",
+            f"/api/v1/library/{resource_id}/versions",
+            json=version_in.model_dump(mode="json"),
+            extra_headers={"Idempotency-Key": idempotency_key},
+            idempotent=True,
+        )
+        return LibraryVersion.model_validate(response.json())
+
+    async def activate_library_version(
+        self, resource_id: UUID, activate_in: LibraryActivate, *, idempotency_key: str
+    ) -> LibraryResource:
+        response = await self._request(
+            "POST",
+            f"/api/v1/library/{resource_id}/activate",
+            json=activate_in.model_dump(mode="json"),
+            extra_headers={"Idempotency-Key": idempotency_key},
+            idempotent=True,
+        )
+        return LibraryResource.model_validate(response.json())
+
     async def list_library_locks(
         self, *, project_id: UUID | None = None
     ) -> list[LibraryProjectLock]:
@@ -629,6 +713,17 @@ class StudioApiClient:
             idempotent=True,
         )
         return ResolvedAgentDefinition.model_validate(response.json())
+
+    async def fetch_library_snapshot(
+        self, stable_key: str, *, project_id: UUID | None = None
+    ) -> LibrarySnapshot:
+        """Pre-fetch the Library side of a P4 runtime fusion (AIB-D,
+        DEC-0168): `resolve_full` over HTTP, reduced to the merge surface.
+        Pure read, same retry terms as `resolve_agent`. Carries the
+        project context so locks and User > Project > Studio precedence
+        apply server-side; the merge itself never re-decides versions."""
+        resolved = await self.resolve_agent(stable_key, project_id=project_id)
+        return LibrarySnapshot.from_resolved(resolved)
 
     async def send_mutation(
         self, method: str, path: str, payload: dict[str, Any], *, idempotency_key: str

@@ -12,7 +12,9 @@ import {
   dsBadge,
   dsDrawerHtml,
   dsEmptyState,
+  dsErrorState,
   dsField,
+  dsHeroCard,
   dsMetric,
   dsModalHtml,
   dsNotify,
@@ -20,8 +22,11 @@ import {
   dsProgress,
   dsSectionHeader,
   dsSkeleton,
+  dsStateHtml,
   dsStatus,
+  dsStatusDot,
   dsTabsHtml,
+  dsTechDetails,
   initDsTabs,
   openDsDialog,
 } from "../ds/ds";
@@ -29,6 +34,54 @@ import { esc } from "../ui";
 
 function demoSection(title: string, hint: string, body: string): string {
   return `<section class="ds-demo-section" aria-label="${esc(title)}">${dsSectionHeader(title)}<p>${esc(hint)}</p>${body}</section>`;
+}
+
+/** Une carte du catalogue : plusieurs sections, respiration conservée. */
+function demoCard(title: string, hint: string, sections: string[]): string {
+  return `<div class="ds-card tool-stack"><h2 class="ds-card-title">${esc(title)}</h2><p class="ds-card-hint">${esc(hint)}</p>${sections.join("")}</div>`;
+}
+
+/**
+ * Les cinq états transverses, rendus par le composant partagé : la même
+ * langue partout (wireframes/tools.html, écran « États »), une seule action
+ * primaire par état, les identifiants repliés.
+ */
+function sharedStates(): string {
+  const block = (title: string, hint: string, state: Parameters<typeof dsStateHtml>[0], options: Parameters<typeof dsStateHtml>[1]): string =>
+    `<section class="ds-card">${dsSectionHeader(title)}<p class="ds-demo-hint">${esc(hint)}</p>${dsStateHtml(state, options)}</section>`;
+  return (
+    `<div class="state-grid">` +
+    block("Introuvable", "404 explicite : l'adresse est rappelée, un seul retour.", "notFound", {
+      title: "Adresse inconnue",
+      message: "« #/ancien-lien » n'existe pas ou a été déplacée.",
+      action: { label: "Retour à l'accueil", href: "#/" },
+      details: [{ label: "Route", value: "#/ancien-lien", mono: true }],
+    }) +
+    block("Vide", "Explication + action, jamais un vide sans issue.", "empty", {
+      title: "Aucune inspection lancée",
+      message: "Choisissez un champ, puis lancez une résolution.",
+      action: { label: "Lancer une inspection", href: "#/inspector" },
+    }) +
+    block("Chargement", "Squelette silencieux, une annonce unique.", "loading", {
+      title: "Chargement",
+      message: "Les barres sont décoratives.",
+    }) +
+    block("Erreur", "Cause affichée, réessai possible, technique repliée.", "error", {
+      title: "Résolution impossible",
+      message: "Serveur injoignable. Vérifiez la connexion.",
+      action: { label: "Réessayer", href: "#/design-system" },
+      details: [{ label: "Route", value: "POST /resolutions", mono: true }],
+    }) +
+    `<section class="ds-card state-grid-full">${dsSectionHeader("Hors ligne")}<p class="ds-demo-hint">Le statut de connexion du shell passe en dégradé ; aucune bannière dupliquée ici.</p>` +
+    dsStateHtml("offline", {
+      title: "Hors ligne",
+      message: "Le statut unique passe en dégradé, la file locale reste active et les actions attendent la reconnexion.",
+      action: { label: "Reprendre quand reconnecté", href: "#/design-system" },
+      secondary: { label: "Voir la file locale", href: "#/design-system" },
+    }) +
+    `</section>` +
+    `</div>`
+  );
 }
 
 export function designSystemHtml(): string {
@@ -86,14 +139,7 @@ export function designSystemHtml(): string {
     <li class="ds-list-item"><div class="grow"><div class="ds-list-title">Relire la proposition d'agent</div><div class="ds-list-sub">En attente depuis hier</div></div>${dsBadge("À examiner", "warning")}</li>
   </ul>`;
 
-  const states = `<div class="ds-card">${dsEmptyState("Aucune tâche", "Créez votre première tâche pour démarrer.", { label: "Créer une tâche", href: "#/design-system" })}</div>
-  <div class="ds-card">${dsSkeleton(3)}</div>
-  <div class="ds-demo-row">
-    <div class="ds-notice ds-notice--success"><strong>Succès.</strong>La tâche a été créée.</div>
-    <div class="ds-notice ds-notice--warning"><strong>En attente.</strong>La décision n'a pas encore de réponse.</div>
-    <div class="ds-notice ds-notice--danger"><strong>Erreur.</strong>Le transfert a été interrompu, réessayez.</div>
-    <div class="ds-notice ds-notice--info"><strong>Information.</strong>La présence affichée est dérivée, jamais canonique.</div>
-  </div>`;
+  const states = `${dsEmptyState("Aucune tâche", "Créez votre première tâche pour démarrer.", { label: "Créer une tâche", href: "#/design-system" })}<div>${dsSkeleton(3)}</div>`;
 
   const indicators = `<div class="ds-demo-grid">
     <div class="ds-card">${dsMetric("Tâches en cours", 4)}</div>
@@ -116,25 +162,85 @@ export function designSystemHtml(): string {
 
   const tooltip = `<p><button class="ds-btn ds-btn--ghost" type="button" data-ds-tip="Explication affichée au survol et au clavier.">Survolez ou tabulez ici</button></p>`;
 
-  return `${dsPageHeader("Design System", "Primitives visuelles de StudiOS : un langage calme, aéré et accessible. Page interne de validation, absente de la navigation.", [{ label: "Interne", variant: "ghost" }])}
-  <div class="ds-demo">
-    ${demoSection("Boutons", "Primaire = bleu, une seule action principale par surface. Clavier : Tab puis Entrée ou Espace.", buttons)}
-    ${demoSection("Badges et statuts", "La couleur ne suffit jamais : chaque état porte son libellé.", badges)}
-    ${demoSection("Champs", "Label visible, aide et erreur associées au champ.", fields)}
-    ${demoSection("Onglets", "Clavier : flèches gauche/droite pour changer d'onglet.", tabs)}
-    ${demoSection("Tableaux", "Colonnes utiles uniquement ; défilement horizontal sous 640 px.", table)}
-    ${demoSection("Listes", "Une information par ligne ; le détail attend un clic.", list)}
-    ${demoSection("États", "Vide = explication + action. Chargement = squelette silencieux.", states)}
-    ${demoSection("Indicateurs", "Un chiffre fort, une progression expliquée, des identités lisibles.", indicators)}
-    ${demoSection("Modale et tiroir", "Échap ferme. Le focus revient au déclencheur.", dialogs)}
-    ${demoSection("Notifications", "Annoncées aux lecteurs d'écran, refermables, jamais seules pour une info critique.", toasts)}
-    ${demoSection("Infobulle", "Accessible au clavier autant qu'à la souris.", tooltip)}
+  const progressive =
+    dsHeroCard({
+      eyebrow: "Agents / Fiche",
+      title: "Travaille sur « Valider des wireframes »",
+      body: "Studi'OS · mis à jour il y a 12 min. La relecture détaillée se fait dans À valider.",
+      status: dsStatusDot("info", "Session de travail ouverte"),
+      primary: { label: "Ouvrir le travail", href: "#/design-system" },
+      secondary: [{ label: "Voir la tâche liée", href: "#/design-system" }],
+    }) +
+    `<div class="ds-demo-row">${dsStatusDot("success", "Opérationnel")}${dsStatusDot("warning", "En attente", true)}<span class="ds-list-sub">La seconde pastille est compacte : libellé réservé aux lecteurs d'écran.</span></div>` +
+    dsTechDetails([
+      { label: "Identifiant", value: "aaaaaaaa-0000-4111-8111-000000000001", mono: true },
+      { label: "Révision", value: "v3", mono: true },
+      { label: "Créé le", value: "il y a 12 min" },
+    ]) +
+    dsErrorState("Chargement impossible", "Les données n'ont pas pu être rechargées.", {
+      label: "Réessayer",
+      href: "#/design-system",
+    });
+
+  const hero = `<section class="ds-hero">
+    <p class="ds-hero-eyebrow">Une seule action principale par surface</p>
+    <h2>Tester une primitive sans quitter la page</h2>
+    <p class="ds-hero-body">Clavier : Tab puis Entrée. La couleur n'est jamais seule : chaque statut porte son libellé.</p>
+    <div class="ds-hero-actions"><button class="ds-btn ds-btn--primary" type="button" data-ds-jump="ds-demo-etats">Voir les états</button></div>
+  </section>`;
+
+  const notices = `<div class="ds-demo-column">
+    <div class="ds-notice ds-notice--success"><strong>Succès.</strong>La tâche a été créée.</div>
+    <div class="ds-notice ds-notice--warning"><strong>En attente.</strong>La décision n'a pas encore de réponse.</div>
+    <div class="ds-notice ds-notice--danger"><strong>Erreur.</strong>Le transfert a été interrompu, réessayez.</div>
+    <div class="ds-notice ds-notice--info"><strong>Information.</strong>La présence affichée est dérivée, jamais canonique.</div>
+    <div>${dsProgress(2, 5, "2 Mo sur 5 Mo transférés (40 %)")}</div>
+  </div>`;
+
+  return `<p class="ds-eyebrow">Interne · absente de la navigation</p>${dsPageHeader("Design System", "Primitives calmes et accessibles, validées avant usage. Page interne de validation, absente de la navigation.", [{ label: "Interne", variant: "ghost" }])}
+  <div class="tool-columns">
+  <div class="tool-main">
+    ${hero}
+    ${demoCard("Actions et statuts", "Une action primaire par surface, la couleur jamais seule.", [
+      demoSection("Boutons", "Primaire = bleu, une seule action principale par surface. Clavier : Tab puis Entrée ou Espace.", buttons),
+      demoSection("Badges et statuts", "La couleur ne suffit jamais : chaque état porte son libellé.", badges),
+    ])}
+    ${demoCard("Saisie", "Label visible, aide et erreur associées au champ.", [
+      demoSection("Champs", "Label visible, aide et erreur associées au champ.", fields),
+      demoSection("Onglets", "Clavier : flèches gauche/droite pour changer d'onglet.", tabs),
+    ])}
+    ${demoCard("Données", "Colonnes utiles uniquement, une information par ligne.", [
+      demoSection("Tableaux", "Colonnes utiles uniquement ; défilement horizontal sous 640 px.", table),
+      demoSection("Listes", "Une information par ligne ; le détail attend un clic.", list),
+    ])}
+    ${demoCard("États et divulgation", "Cinq états transverses, un seul composant partagé, le technique replié.", [
+      demoSection("États", "Vide = explication + action. Chargement = squelette silencieux.", states),
+      `<section class="ds-demo-section" id="ds-demo-etats" aria-label="Cinq états transverses">${dsSectionHeader("Cinq états, une seule langue")}<p>Introuvable, vide, chargement, erreur et hors ligne : même gabarit, une seule action primaire, détails repliés.</p>${sharedStates()}</section>`,
+      demoSection("Divulgation progressive", "L'essentiel d'abord, le technique replié sur place : héros à action unique, pastille de statut, détails repliés, erreur cohérente avec le vide et le chargement.", progressive),
+      demoSection("Indicateurs", "Un chiffre fort, une progression expliquée, des identités lisibles.", indicators),
+    ])}
+  </div>
+  <aside class="ds-card tool-context" aria-label="Notices, progression et dialogues">
+    <div><h2>Notices et progression</h2>${notices}</div>
+    <div>${demoSection("Modale et tiroir", "Échap ferme. Le focus revient au déclencheur.", dialogs)}</div>
+    <div>${demoSection("Notifications", "Annoncées aux lecteurs d'écran, refermables, jamais seules pour une info critique.", toasts)}</div>
+    <div>${demoSection("Infobulle", "Accessible au clavier autant qu'à la souris.", tooltip)}</div>
+    <div><h2>Identités lisibles</h2><p>Initiales et nom humain par défaut ; un identifiant brut n'apparaît que dans un bloc technique replié.</p>${dsTechDetails([
+      { label: "Jetons", value: "couleurs sémantiques, remplacées par thème", mono: true },
+      { label: "Variantes", value: "ds-tone, ds-state — jamais de style inline", mono: true },
+    ], "Détails techniques")}</div>
+  </aside>
   </div>`;
 }
 
 export function renderDesignSystem(view: HTMLElement): void {
   view.innerHTML = designSystemHtml();
   initDsTabs(view, "ds-demo");
+  // Le héros propose une seule entrée : descendre aux états, sans changer de route.
+  view.querySelector("[data-ds-jump]")?.addEventListener("click", (event) => {
+    const target = (event.currentTarget as HTMLElement).dataset.dsJump ?? "";
+    view.querySelector(`#${CSS.escape(target)}`)?.scrollIntoView();
+  });
   view.querySelector("#ds-open-modal")?.addEventListener("click", (event) => {
     openDsDialog(view, "ds-demo-modal", event.currentTarget as HTMLElement);
   });

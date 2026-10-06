@@ -3,7 +3,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request, status
-from studio_contracts.tasks import Task, TaskCreate, TaskUpdate
+from studio_contracts.tasks import Task, TaskCreate, TaskStatus, TaskUpdate
 
 from studio_api.deps import CurrentPrincipal, DbSession
 from studio_api.openapi_meta import (
@@ -28,7 +28,9 @@ router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
     description=(
         "List tasks of the caller's accessible projects, optionally filtered "
         "by project. A `project_id` the caller cannot access (or that does "
-        "not exist) answers `403 forbidden`."
+        "not exist) answers `403 forbidden`. `status` (repeatable, OR) and "
+        "`mine` (tasks claimed by a machine the caller's user owns) narrow "
+        "the listing; both are optional and additive."
     ),
     responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
 )
@@ -38,9 +40,17 @@ async def list_tasks(
     project_id: UUID | None = Query(default=None),
     limit: int = Query(default=100, le=500),
     offset: int = Query(default=0),
+    status_filter: list[TaskStatus] | None = Query(default=None, alias="status"),
+    mine: bool = Query(default=False),
 ) -> list[Task]:
     tasks = await tasks_service.list_tasks(
-        session, principal, project_id=project_id, limit=limit, offset=offset
+        session,
+        principal,
+        project_id=project_id,
+        limit=limit,
+        offset=offset,
+        statuses=status_filter,
+        mine=mine,
     )
     return [Task.model_validate(t) for t in tasks]
 

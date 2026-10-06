@@ -1,5 +1,5 @@
 /**
- * UI-6 — Agents IA : première surface dédiée aux collaborateurs logiciels.
+ * UI-6 + P05-agents — Agents IA : liste compacte, fiche lisible.
  *
  * Page calme (ni table de processus, ni monitoring) : qui sont les agents,
  * que font-ils, sur quoi travaillent-ils, avec quel environnement.
@@ -8,6 +8,14 @@
  * ≠ Binding (association stockée). Seules les relations backend réelles
  * sont affichées (voir agentsApi) : aucune définition associée simulée,
  * aucun mapping runtime/model inventé, aucune présence canonique.
+ *
+ * P05-agents (docs/ux/desktop-dashboard-v2/wireframes/agents.html) :
+ * la liste montre rôle, disponibilité et projet — nom + rôle + projet par
+ * ligne, groupées par disponibilité, statut porté par un point de couleur.
+ * Modèle, permissions et identifiants dorment dans « Détails techniques »
+ * (repliés) ; les actions d'administration vivent dans une section séparée,
+ * hors du flux quotidien. Aucune fonction experte perdue : tout ce que les
+ * cartes affichaient reste accessible en fiche.
  *
  * Activité toujours DERIVED : « Actif récemment » / « Dernière activité »
  * signifient « activité observée via sessions, AI work, tâches, events » —
@@ -30,20 +38,23 @@ import {
   type AgentActivity,
   type AgentEvent,
   type AgentProject,
+  type AgentSignal,
   type AgentTask,
   type AIWorkLog,
   type WorkSession,
 } from "../agentsApi";
 import {
-  dsAvatar,
   dsBadge,
   dsEmptyState,
   dsPageHeader,
   dsSkeleton,
   dsStatus,
+  dsStatusDot,
+  dsTechDetails,
 } from "../ds/ds";
 import { machineName, machineRef } from "../actorNames";
-import { describeError, esc, fmtTime, shortId } from "../ui";
+import { describeError, esc, fmtTime } from "../ui";
+import { FALLBACK_LABEL } from "../language";
 // Styles colocalisés : la page reste autonome sans toucher au CSS global.
 import "./agents.css";
 
@@ -94,7 +105,7 @@ export function agentSignalHtml(activity: AgentActivity): string {
 /* ------------------------------------------------------------------ */
 
 function taskLinkHtml(task: AgentTask | undefined, fallbackId: string): string {
-  if (task === undefined) return `<code class="mono" title="${esc(fallbackId)}">${esc(shortId(fallbackId))}</code>`;
+  if (task === undefined) return `<span class="actor-name actor-name--unknown">${esc(FALLBACK_LABEL.task)}</span>`;
   return `<a href="#/tasks/${esc(task.id)}">« ${esc(task.title)} »</a>`;
 }
 
@@ -105,92 +116,268 @@ function projectSuffixHtml(names: AgentNames, projectId: string | null | undefin
   return ` — <a href="#/projects/${esc(projectId)}">${esc(name)}</a>`;
 }
 
-/** « Travaille sur » honnête : session ouverte > dernier AI work > tâche prise > rien affirmé. */
-export function agentWorkSummaryHtml(
+/* ------------------------------------------------------------------ */
+/* Identité humaine : nom et rôle, jamais d'identifiant (C2).          */
+/* ------------------------------------------------------------------ */
+
+/** Nom humain, repli générique — jamais un UUID ni un préfixe d'UUID. */
+export function agentDisplayName(agent: Agent): string {
+  const name = agent.display_name.trim();
+  return name === "" ? FALLBACK_LABEL.agent : name;
+}
+
+/** Rôle déclaré (nature) : null quand non renseigné. */
+export function agentRoleLabel(agent: Agent): string | null {
+  const kind = agent.agent_kind.trim();
+  return kind === "" ? null : kind;
+}
+
+/* ------------------------------------------------------------------ */
+/* Projet prioritaire : session ouverte > dernier AI work > tâche prise.*/
+/* Même ordre honnête que le résumé, réduit au seul projet pour la     */
+/* ligne compacte (le détail complet vit dans le héros de la fiche).   */
+/* ------------------------------------------------------------------ */
+
+export interface AgentPrimaryProject {
+  id: string;
+  name: string;
+}
+
+export function agentPrimaryProject(
   agent: Agent,
   activity: AgentActivity,
-  sessions: WorkSession[],
   aiWork: AIWorkLog[],
   tasks: AgentTask[],
   names: AgentNames,
-): string {
-  const secondaryDown = activity.signal === "unknown";
+): AgentPrimaryProject | null {
   if (activity.openSession !== null) {
     const task = names.tasksById.get(activity.openSession.task_id);
-    return `<p class="agent-work"><strong>Travaille sur</strong> ${taskLinkHtml(task, activity.openSession.task_id)}${projectSuffixHtml(names, task?.project_id)}</p>`;
+    const projectId = task?.project_id;
+    if (projectId !== null && projectId !== undefined) {
+      const name = projectName(names, projectId);
+      if (name !== null) return { id: projectId, name };
+    }
   }
   const ownWork = aiWork
     .filter((work) => work.agent_id === agent.id)
     .sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime());
   const latest = ownWork[0];
   if (latest !== undefined) {
-    const task = latest.task_id !== null && latest.task_id !== undefined ? names.tasksById.get(latest.task_id) : undefined;
-    const taskPart = latest.task_id === null || latest.task_id === undefined ? "" : ` sur ${taskLinkHtml(task, latest.task_id)}`;
-    const projectPart = task !== undefined ? projectSuffixHtml(names, task.project_id) : projectSuffixHtml(names, latest.project_id);
-    return `<p class="agent-work"><strong>Dernier travail observé</strong> — ${esc(latest.summary)}${taskPart}${projectPart} ${dsBadge(aiWorkStatusLabel(latest.status), aiWorkStatusTone(latest.status))}</p>`;
+    const task = latest.task_id !== null && latest.task_id !== undefined
+      ? names.tasksById.get(latest.task_id)
+      : undefined;
+    const projectId = task?.project_id ?? latest.project_id;
+    if (projectId !== null && projectId !== undefined) {
+      const name = projectName(names, projectId);
+      if (name !== null) return { id: projectId, name };
+    }
   }
   const claimed = tasks
     .filter((task) => task.claimed_by_agent_id === agent.id)
     .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0];
-  if (claimed !== undefined) {
-    return `<p class="agent-work"><strong>Tâche prise</strong> ${taskLinkHtml(claimed, claimed.id)}${projectSuffixHtml(names, claimed.project_id)}</p>`;
+  if (claimed !== undefined && claimed.project_id !== null && claimed.project_id !== undefined) {
+    const name = projectName(names, claimed.project_id);
+    if (name !== null) return { id: claimed.project_id, name };
   }
-  void sessions;
-  if (secondaryDown) {
-    return `<p class="agent-work ds-list-sub">Travail inconnu — sources secondaires indisponibles.</p>`;
-  }
-  return `<p class="agent-work ds-list-sub">Aucun travail observé pour cet agent.</p>`;
+  return null;
 }
 
 /* ------------------------------------------------------------------ */
-/* Carte agent : identité d'abord, technique en second.                 */
+/* Ligne compacte : nom + rôle + projet, point de couleur pour la      */
+/* disponibilité (le groupe porte le libellé, la pastille est le seul  */
+/* rappel visuel par ligne). Technique et IDs : en fiche uniquement.   */
 /* ------------------------------------------------------------------ */
 
-function declaredTechHtml(agent: Agent): string {
-  const parts: string[] = [];
-  if (agent.provider !== null && agent.provider !== undefined && agent.provider !== "") {
-    parts.push(`Fournisseur déclaré : ${esc(agent.provider)}`);
+export type AgentAvailabilityGroup = "active" | "recent" | "inactive";
+
+/** Projection lisible des 5 signaux en 3 groupes (les signaux exacts restent en fiche). */
+export function agentAvailabilityGroup(signal: AgentSignal): AgentAvailabilityGroup {
+  switch (signal) {
+    case "open-session":
+      return "active";
+    case "recent":
+      return "recent";
+    default:
+      return "inactive";
   }
-  if (agent.model !== null && agent.model !== undefined && agent.model !== "") {
-    parts.push(`Modèle déclaré : ${esc(agent.model)}`);
-  }
-  if (agent.harness !== null && agent.harness !== undefined && agent.harness !== "") {
-    parts.push(`Harnais déclaré : ${esc(agent.harness)}`);
-  }
-  if (parts.length === 0) return "";
-  return `<p class="ds-list-sub">${parts.join(" · ")}</p>`;
 }
 
-export function agentCardHtml(
+function agentDotLabel(activity: AgentActivity): string {
+  switch (activity.signal) {
+    case "open-session":
+      return "Session de travail ouverte";
+    case "recent":
+      return "Actif récemment";
+    case "past":
+      return `Dernière activité le ${fmtTime(activity.lastActivityAt)}`;
+    case "unknown":
+      return "Activité inconnue";
+    case "none":
+    default:
+      return "Aucune activité observée";
+  }
+}
+
+function agentDotState(activity: AgentActivity): "info" | "success" | "idle" {
+  switch (activity.signal) {
+    case "open-session":
+      return "info";
+    case "recent":
+      return "success";
+    default:
+      return "idle";
+  }
+}
+
+export function agentRowHtml(
+  agent: Agent,
+  activity: AgentActivity,
+  primaryProject: AgentPrimaryProject | null,
+): string {
+  const name = agentDisplayName(agent);
+  const role = agentRoleLabel(agent);
+  const sub = role !== null
+    ? (primaryProject !== null ? `${role} · ${primaryProject.name}` : role)
+    : (primaryProject !== null ? `Rôle non renseigné · ${primaryProject.name}` : "Rôle non renseigné · aucun projet");
+  return (
+    `<li class="agent-row"><a class="agent-row-link" href="#/agents/${esc(agent.id)}">` +
+    `${dsStatusDot(agentDotState(activity), agentDotLabel(activity), true)}` +
+    `<span class="grow"><span class="agent-row-name">${esc(name)}</span>` +
+    `<span class="ds-list-sub">${esc(sub)}</span></span>` +
+    `<span class="agent-row-chev" aria-hidden="true">›</span></a></li>`
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Héros de fiche : « Travaille sur… » + unique action primaire (C1).  */
+/* Même ordre honnête que la liste : session ouverte > dernier AI work */
+/* > tâche prise > rien affirmé.                                       */
+/* ------------------------------------------------------------------ */
+
+export interface AgentHeroTarget {
+  title: string;
+  body: string;
+  taskId: string | null;
+  taskTitle: string | null;
+  projectId: string | null;
+  projectName: string | null;
+}
+
+export function agentHeroTarget(
   agent: Agent,
   activity: AgentActivity,
   sessions: WorkSession[],
   aiWork: AIWorkLog[],
   tasks: AgentTask[],
   names: AgentNames,
-): string {
-  const kind = agent.agent_kind.trim() === "" ? null : agent.agent_kind;
-  const profile =
-    agent.agent_profile !== null && agent.agent_profile !== undefined && agent.agent_profile.trim() !== ""
-      ? agent.agent_profile
+): AgentHeroTarget {
+  const secondaryDown = activity.signal === "unknown";
+  if (activity.openSession !== null) {
+    const task = names.tasksById.get(activity.openSession.task_id);
+    const taskId = activity.openSession.task_id;
+    const taskTitle = task?.title ?? FALLBACK_LABEL.task;
+    const projectId = task?.project_id ?? null;
+    const name = projectId !== null && projectId !== undefined ? projectName(names, projectId) : null;
+    return {
+      title: `Travaille sur « ${taskTitle} »`,
+      body: name !== null
+        ? `${name} · session de travail ouverte : signal d'activité, pas preuve de connexion.`
+        : "Session de travail ouverte : signal d'activité, pas preuve de connexion.",
+      taskId,
+      taskTitle,
+      projectId: projectId ?? null,
+      projectName: name,
+    };
+  }
+  void sessions;
+  const ownWork = aiWork
+    .filter((work) => work.agent_id === agent.id)
+    .sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime());
+  const latest = ownWork[0];
+  if (latest !== undefined) {
+    const task = latest.task_id !== null && latest.task_id !== undefined ? names.tasksById.get(latest.task_id) : undefined;
+    const taskTitle = task?.title ?? (latest.task_id === null || latest.task_id === undefined ? null : FALLBACK_LABEL.task);
+    const projectId = task?.project_id ?? latest.project_id ?? null;
+    const name = projectId !== null && projectId !== undefined ? projectName(names, projectId) : null;
+    const where = taskTitle !== null ? ` sur « ${taskTitle} »` : "";
+    const projectPart = name !== null ? ` · ${name}` : "";
+    return {
+      title: `Dernier travail : ${latest.summary}`,
+      body: `${aiWorkStatusLabel(latest.status)}${where}${projectPart} · ${fmtTime(latest.started_at)}.`,
+      taskId: latest.task_id ?? null,
+      taskTitle,
+      projectId,
+      projectName: name,
+    };
+  }
+  const claimed = tasks
+    .filter((task) => task.claimed_by_agent_id === agent.id)
+    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0];
+  if (claimed !== undefined) {
+    const name = claimed.project_id !== null && claimed.project_id !== undefined
+      ? projectName(names, claimed.project_id)
       : null;
+    return {
+      title: `Tâche prise : « ${claimed.title} »`,
+      body: name !== null ? `${name} · prise par cet agent.` : "Prise par cet agent.",
+      taskId: claimed.id,
+      taskTitle: claimed.title,
+      projectId: claimed.project_id ?? null,
+      projectName: name,
+    };
+  }
+  if (secondaryDown) {
+    return {
+      title: "Travail inconnu",
+      body: "Sources secondaires indisponibles — aucun travail affirmé.",
+      taskId: null,
+      taskTitle: null,
+      projectId: null,
+      projectName: null,
+    };
+  }
+  return {
+    title: "Aucun travail observé",
+    body: "Ni session, ni travail, ni tâche attribués à cet agent.",
+    taskId: null,
+    taskTitle: null,
+    projectId: null,
+    projectName: null,
+  };
+}
+
+/** Héros : une seule action primaire « verbe + objet » vers la tâche (C1), projet en secondaire. */
+export function agentHeroHtml(target: AgentHeroTarget): string {
+  let actions = "";
+  if (target.taskId !== null) {
+    const primaryLabel = target.taskTitle !== null
+      ? `Ouvrir le travail « ${target.taskTitle} »`
+      : "Ouvrir le travail";
+    const secondary = target.projectId !== null && target.projectName !== null
+      ? `<a class="ds-hero-link" href="#/projects/${esc(target.projectId)}">Ouvrir le projet « ${esc(target.projectName)} »</a>`
+      : "";
+    actions =
+      `<div class="ds-hero-actions"><a class="ds-btn ds-btn--primary" href="#/tasks/${esc(target.taskId)}">${esc(primaryLabel)}</a>${secondary}</div>`;
+  } else if (target.projectId !== null && target.projectName !== null) {
+    actions =
+      `<div class="ds-hero-actions"><a class="ds-btn ds-btn--primary" href="#/projects/${esc(target.projectId)}">Ouvrir le projet « ${esc(target.projectName)} »</a></div>`;
+  }
   return (
-    `<li class="ds-card agent-card"><div class="agent-card-top">${dsAvatar(agent.display_name)}` +
-    `<div class="grow"><h3 class="agent-card-title"><a href="#/agents/${esc(agent.id)}">${esc(agent.display_name)}</a></h3>` +
-    (kind !== null ? `<p class="ds-list-sub">Nature déclarée : <code class="mono">${esc(kind)}</code></p>` : "") +
-    (profile !== null ? `<p>${esc(profile)}</p>` : "") +
-    `</div></div>` +
-    `<div class="agent-signal" role="status">${agentSignalHtml(activity)}</div>` +
-    `${agentWorkSummaryHtml(agent, activity, sessions, aiWork, tasks, names)}` +
-    `<p class="ds-list-sub">Exécuté sur la machine <a href="#/machines">${machineRef(agent.machine_id)}</a> · <a href="#/agents/${esc(agent.id)}">Ouvrir la fiche</a></p>` +
-    `${declaredTechHtml(agent)}` +
-    `</li>`
+    `<section class="ds-hero agent-hero" aria-label="Travail actuel">` +
+    `<p class="ds-hero-eyebrow">Travail actuel</p><h2>${esc(target.title)}</h2>` +
+    `<p class="ds-hero-body">${esc(target.body)}</p>${actions}</section>`
   );
 }
 
 /* ------------------------------------------------------------------ */
 /* Page liste.                                                          */
 /* ------------------------------------------------------------------ */
+
+const AGENT_GROUPS: Array<{ key: AgentAvailabilityGroup; title: string }> = [
+  { key: "active", title: "En activité" },
+  { key: "recent", title: "Actifs récemment" },
+  { key: "inactive", title: "Inactifs" },
+];
 
 export function agentsListHtml(
   agents: Agent[],
@@ -205,7 +392,7 @@ export function agentsListHtml(
     `<div class="agents-toolbar" role="search" aria-label="Rechercher parmi les agents chargés">` +
     `<div class="ds-search"><span class="ds-search-icon" aria-hidden="true">⌕</span>` +
     `<label class="ds-sr-only" for="agents-search">Rechercher un agent déjà chargé</label>` +
-    `<input class="ds-input" type="search" id="agents-search" value="${esc(query)}" placeholder="Rechercher par nom, nature ou modèle déclaré…" autocomplete="off" /></div>` +
+    `<input class="ds-input" type="search" id="agents-search" value="${esc(query)}" placeholder="Rechercher par nom ou rôle…" autocomplete="off" /></div>` +
     `<p class="ds-list-sub" role="status" aria-live="polite">${visible.length} agent(s) affiché(s) sur ${agents.length} chargé(s) — recherche locale.</p></div>`;
   const notice = secondaryOk
     ? ""
@@ -222,23 +409,34 @@ export function agentsListHtml(
       "Modifiez la recherche pour retrouver vos agents déjà chargés.",
     );
   } else {
-    const cards = visible
-      .map((agent) => {
-        const activity = activities.get(agent.id) ?? {
-          signal: secondaryOk ? ("none" as const) : ("unknown" as const),
-          openSession: null,
-          lastActivityAt: null,
-          lastActivitySource: null,
-          workCount: 0,
-          sessionCount: 0,
-        };
-        return agentCardHtml(agent, activity, evidence.sessions, evidence.aiWork, evidence.tasks, names);
-      })
-      .join("");
-    body = `<ul class="agents-list">${cards}</ul>`;
+    const activityOf = (agent: Agent): AgentActivity =>
+      activities.get(agent.id) ?? {
+        signal: secondaryOk ? ("none" as const) : ("unknown" as const),
+        openSession: null,
+        lastActivityAt: null,
+        lastActivitySource: null,
+        workCount: 0,
+        sessionCount: 0,
+      };
+    const sections = AGENT_GROUPS.map((group) => {
+      const members = visible.filter((agent) => agentAvailabilityGroup(activityOf(agent).signal) === group.key);
+      if (members.length === 0) return "";
+      const rows = members
+        .map((agent) => {
+          const activity = activityOf(agent);
+          return agentRowHtml(agent, activity, agentPrimaryProject(agent, activity, evidence.aiWork, evidence.tasks, names));
+        })
+        .join("");
+      return (
+        `<section class="agents-group" aria-label="${esc(group.title)}">` +
+        `<h2 class="agents-group-title">${esc(group.title)} <span class="ds-list-sub">(${members.length})</span></h2>` +
+        `<ul class="agents-list">${rows}</ul></section>`
+      );
+    }).join("");
+    body = `<div class="agents-groups">${sections}</div>`;
   }
   return (
-    `${dsPageHeader("Agents IA", "Vos collaborateurs logiciels : qui ils sont, sur quoi ils travaillent, avec quel environnement.")}` +
+    `${dsPageHeader("Agents IA", "Rôle, disponibilité et projet visibles d'un coup d'œil. Le reste dort dans la fiche.")}` +
     `${notice}${toolbar}${body}`
   );
 }
@@ -316,7 +514,7 @@ export function agentNotFoundHtml(id: string): string {
   return (
     `${dsPageHeader("Agent introuvable", "")}` +
     `<p><a href="#/agents">← Retour aux agents</a></p>` +
-    dsEmptyState("Agent introuvable", `Aucun agent « ${shortId(id)} » parmi les agents chargés. Il a peut-être été révoqué, ou votre jeton ne le voit pas.`)
+    dsEmptyState("Agent introuvable", `Cet agent n'apparaît pas parmi les agents chargés. Il a peut-être été révoqué, ou votre jeton ne le voit pas.`)
   );
 }
 
@@ -349,35 +547,25 @@ export function agentDetailHtml(
   aiWork: AIWorkLog[],
   names: AgentNames,
 ): string {
-  const kind = agent.agent_kind.trim() === "" ? null : agent.agent_kind;
+  const name = agentDisplayName(agent);
+  const role = agentRoleLabel(agent);
+  const hero = agentHeroTarget(agent, activity, sessions, aiWork, [...names.tasksById.values()], names);
+  const subtitle = `${role ?? "Rôle non renseigné"} · ${hero.projectName ?? "aucun projet"}`;
   const ownWork = aiWork
     .filter((work) => work.agent_id === agent.id)
     .sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime());
   const ownSessions = sessions
     .filter((session) => session.agent_id === agent.id)
     .sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime());
-  const declared: Array<[string, string | null | undefined]> = [
-    ["Nature déclarée", kind],
-    ["Profil déclaré", agent.agent_profile],
-    ["Harnais déclaré", agent.harness],
-    ["Fournisseur déclaré", agent.provider],
-    ["Modèle déclaré", agent.model],
-  ];
-  const declaredHtml = declared
-    .map(([label, value]) => {
-      const text = value !== null && value !== undefined && value.trim() !== "" ? esc(value) : '<span class="ds-list-sub">—</span>';
-      return `<div><dt>${esc(label)}</dt><dd>${text}</dd></div>`;
-    })
-    .join("");
+  const declaredOrDash = (value: string | null | undefined): string =>
+    value !== null && value !== undefined && value.trim() !== "" ? value : "—";
 
   return (
     `<p><a href="#/agents">← Retour aux agents</a></p>` +
-    `${dsPageHeader(agent.display_name, kind !== null ? `Nature déclarée : ${kind}` : "Collaborateur logiciel.")}` +
+    `${dsPageHeader(name, subtitle)}` +
+    `${agentHeroHtml(hero)}` +
     `<section class="ds-panel" aria-label="Activité"><header><h2>Activité</h2></header><div class="body" role="status">${agentSignalHtml(activity)}</div></section>` +
-    `<section class="ds-panel" aria-label="Travail actuel"><header><h2>Travail actuel</h2></header><div class="body">${agentWorkSummaryHtml(agent, activity, sessions, aiWork, [...names.tasksById.values()], names)}</div></section>` +
-    `<section class="ds-panel" aria-label="Résumé"><header><h2>Résumé</h2></header><div class="body"><dl class="library-kv">${declaredHtml}</dl>` +
-    `<p class="ds-list-sub">${ownWork.length} travail(aux) · ${ownSessions.length} session(s) attribué(s) à cet agent.</p></div></section>` +
-    `<section class="ds-panel" aria-label="Travail produit"><header><h2>Travail produit</h2><span class="ds-list-sub">${ownWork.length} entrée(s) — la relecture détaillée se fait dans Décisions, onglet À examiner</span></header><div class="body">` +
+    `<section class="ds-panel" aria-label="Travail réalisé"><header><h2>Travail réalisé</h2><span class="ds-list-sub">${ownWork.length} entrée(s) — la relecture détaillée se fait dans Décisions, onglet À valider</span></header><div class="body">` +
     (ownWork.length === 0
       ? `<p class="ds-list-sub">Aucun travail attribué à cet agent.</p>`
       : `<ul class="ds-list">${ownWork.map((work) => workRowHtml(work, names)).join("")}</ul>`) +
@@ -392,13 +580,32 @@ export function agentDetailHtml(
     `<p class="ds-list-sub">${machineName(agent.machine_id) === undefined ? "Le nom de cette machine n'est pas connu du tableau de bord. " : ""}L'agent n'est pas une sous-catégorie de la machine — voir <a href="#/machines">Machines</a> pour l'environnement d'exécution.</p>` +
     `<p class="ds-list-sub">Aucune définition d'agent n'est associée : la nature déclarée est une simple étiquette libre, sans lien avec la <a href="#/library/agent-definitions">Bibliothèque</a>. Aucune configuration runtime détaillée ici : voir <a href="#/configuration/runtimes">Paramètres</a>.</p>` +
     `</div></section>` +
-    `<details class="library-tech"><summary>Informations techniques</summary><dl class="library-tech-list">` +
-    `<div><dt>Identifiant agent</dt><dd><code class="mono">${esc(agent.id)}</code></dd></div>` +
-    `<div><dt>Identifiant machine</dt><dd>${agent.machine_id ? `<code class="mono">${esc(agent.machine_id)}</code>` : '<span class="ds-list-sub">—</span>'}</dd></div>` +
-    `<div><dt>Révision</dt><dd>v${agent.version}</dd></div>` +
-    `<div><dt>Créé le</dt><dd>${fmtTime(agent.created_at)}</dd></div>` +
-    `<div><dt>Mis à jour le</dt><dd>${fmtTime(agent.updated_at)}</dd></div>` +
-    `</dl></details>`
+    dsTechDetails(
+      [
+        { label: "Modèle déclaré", value: declaredOrDash(agent.model) },
+        { label: "Fournisseur déclaré", value: declaredOrDash(agent.provider) },
+        { label: "Harnais déclaré", value: declaredOrDash(agent.harness) },
+        {
+          label: "Permissions",
+          value: "Aucune permission déclarée par l'agent — voir Paramètres d'exécution",
+        },
+        { label: "Définition liée", value: "Aucune définition associée" },
+        { label: "Identifiant agent", value: agent.id, mono: true },
+        {
+          label: "Identifiant machine",
+          value: agent.machine_id ? agent.machine_id : "—",
+          mono: agent.machine_id ? true : undefined,
+        },
+        { label: "Révision", value: `v${agent.version}`, mono: true },
+        { label: "Créé le", value: fmtTime(agent.created_at) },
+        { label: "Mis à jour le", value: fmtTime(agent.updated_at) },
+      ],
+      "Détails techniques · modèle, permissions, identifiants",
+    ) +
+    `<section class="ds-panel agent-admin" aria-label="Administration"><header><h2>Administration</h2><span class="ds-list-sub">séparée du quotidien</span></header><div class="body">` +
+    `<p class="ds-list-sub">Réglages sensibles : ils ne changent pas le statut du jour et restent ici, hors du flux de travail. Renommer et révoquer se font depuis la machine d'exécution — il n'y a aucune action à distance ici.</p>` +
+    `<p class="agent-admin-actions"><a class="ds-btn" href="#/machines">Voir la machine</a> <a class="ds-btn" href="#/configuration/runtimes">Paramètres d'exécution</a></p>` +
+    `</div></section>`
   );
 }
 

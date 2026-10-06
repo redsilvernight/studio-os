@@ -1,0 +1,24 @@
+{
+  "data": {
+    "backups_created": true,
+    "hooks": [
+      {
+        "backed_up": true,
+        "item_id": "hook:agent-a",
+        "outcome": "written"
+      },
+      {
+        "backed_up": false,
+        "item_id": "guard",
+        "outcome": "written"
+      }
+    ],
+    "plan_id": "setup-plan-0001",
+    "skills": {
+      "left_modified": 1,
+      "outcome": "synced",
+      "written": 1
+    }
+  },
+  "model": "SetupApplyResult"
+}

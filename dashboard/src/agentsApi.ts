@@ -168,12 +168,12 @@ export function deriveAgentActivity(agentId: string, evidence: AgentEvidence): A
 /* Recherche locale — champs humains réellement chargés.                */
 /* ------------------------------------------------------------------ */
 
-/** Sous-chaîne insensible à la casse sur nom, nature et technique déclarée. */
+/** Sous-chaîne insensible à la casse sur nom et rôle déclaré (P05-agents : la technique dort en fiche). */
 export function filterAgents(agents: Agent[], query: string): Agent[] {
   const needle = query.trim().toLowerCase();
   if (needle === "") return agents;
   return agents.filter((agent) => {
-    const haystack = [agent.display_name, agent.agent_kind, agent.agent_profile, agent.harness, agent.provider, agent.model]
+    const haystack = [agent.display_name, agent.agent_kind, agent.agent_profile]
       .filter((field): field is string => typeof field === "string")
       .join("\n")
       .toLowerCase();

@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.session import get_session_factory
 from studio_api.services.authz import Principal, load_principal
+from studio_api.services.launch_credentials import ensure_tool_allowed
 
 from studio_mcp.auth import McpAuthError, authenticate
 
@@ -37,6 +38,14 @@ def _http_exception_to_dict(exc: HTTPException) -> dict[str, Any]:
     return {"error_code": "error", "message": str(detail)}
 
 
+def _tool_name(handler: Callable[..., Any]) -> str | None:
+    """Tools define their handler as a closure inside the tool function, so
+    its qualified name starts with the registered tool name."""
+    qualname = getattr(handler, "__qualname__", "")
+    head, sep, _ = qualname.partition(".<locals>.")
+    return head if sep else None
+
+
 async def run_tool[T](
     ctx: Context, handler: Callable[[AsyncSession, Principal], Awaitable[T]]
 ) -> T:
@@ -51,6 +60,7 @@ async def run_tool[T](
     async with session_factory() as session:
         try:
             machine = await authenticate(ctx, session)
+            ensure_tool_allowed(machine, _tool_name(handler))
             principal = await load_principal(session, machine)
             return await handler(session, principal)
         except McpAuthError as exc:

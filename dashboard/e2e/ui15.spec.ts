@@ -534,13 +534,13 @@ test.describe("UI-15 matrice sans overflow global (données longues)", () => {
     const routes: Array<[string, string]> = [
       ["#/", "Accueil"],
       ["#/projects", "Projets"],
-      ["#/tasks", "Tâches"],
+      ["#/tasks", "Travail"],
       ["#/library", "Bibliothèque"],
       ["#/transfers", "Transferts"],
-      ["#/machines", "Machines"],
-      ["#/decisions", "Décisions"],
+      ["#/machines", "Postes"],
+      ["#/decisions", "À valider"],
       ["#/inspector", "Inspecteur"],
-      ["#/configuration/runtimes", "Paramètres"],
+      ["#/configuration/runtimes", "Configuration"],
       ["#/design-system", "Design System"],
     ];
     for (const [hash] of routes) {
@@ -786,21 +786,21 @@ test.describe("UI-15 en-têtes et hiérarchie", () => {
     expectClean(watch);
   });
 
-  test("Workspace tabs à 375 : 7 onglets, ARIA, flèches, deep links", async ({ page }) => {
+  test("Workspace tabs à 375 : 6 onglets + Plus, ARIA, flèches, deep links", async ({ page }) => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 375, height: 800 });
     await login(page, `#/projects/${P1}`, false);
     const tablist = page.locator('[data-ws-tabs][role="tablist"]');
     await expect(tablist).toBeVisible();
     const tabs = tablist.locator('[role="tab"]');
-    await expect(tabs).toHaveCount(7);
+    await expect(tabs).toHaveCount(6);
     await expectNoGlobalOverflow(page, "workspace tabs @375");
     // Roving tabindex + flèches (invariant UI-14).
     await tabs.nth(0).focus();
     await page.keyboard.press("ArrowRight");
     await expect(tabs.nth(1)).toBeFocused();
     await page.keyboard.press("End");
-    await expect(tabs.nth(6)).toBeFocused();
+    await expect(tabs.nth(5)).toBeFocused();
     await page.keyboard.press("Home");
     await expect(tabs.nth(0)).toBeFocused();
     // Activation = deep link réel.
@@ -817,7 +817,7 @@ test.describe("UI-15 tâches : liste et kanban étroits", () => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 375, height: 800 });
     await login(page, "#/tasks", true);
-    await expect(page.locator("#view h1").first()).toContainText("Tâches");
+    await expect(page.locator("#view h1").first()).toContainText("Travail");
     await expect(page.locator("#view .task-row").first()).toBeVisible({ timeout: 10_000 });
     await expectNoGlobalOverflow(page, "task list @375 long");
     // L'information principale (titre) précède les métadonnées dans le DOM.
@@ -840,6 +840,7 @@ test.describe("UI-15 tâches : liste et kanban étroits", () => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 375, height: 800 });
     await login(page, "#/tasks", true);
+    await page.locator('#view [data-scope="all"]').first().click();
     await page.locator('#view [data-view="board"]').click();
     const board = page.locator("#view .tasks-board");
     await expect(board).toBeVisible({ timeout: 10_000 });
@@ -1022,7 +1023,7 @@ test.describe("UI-15 contextes particuliers", () => {
     const watch = watchErrors(page);
     await page.setViewportSize({ width: 667, height: 375 });
     await login(page, "#/tasks", false);
-    await expect(page.locator("#view h1").first()).toContainText("Tâches");
+    await expect(page.locator("#view h1").first()).toContainText("Travail");
     await expectNoGlobalOverflow(page, "tasks paysage 667×375");
     await expect(page.locator("#nav-open")).toBeVisible();
     await page.locator("#nav-open").click();
@@ -1047,7 +1048,7 @@ test.describe("UI-15 contextes particuliers", () => {
     // Reflow extrême : une surface représentative reste fonctionnelle.
     await page.setViewportSize({ width: 360, height: 800 });
     await go(page, "#/tasks");
-    await expect(page.locator("#view h1").first()).toContainText("Tâches");
+    await expect(page.locator("#view h1").first()).toContainText("Travail");
     await expectNoGlobalOverflow(page, "tasks @360 (reflow extrême)");
     expectClean(watch);
   });

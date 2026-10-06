@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 from studio_client.harness import fsafe
+from studio_client.harness import probe as probe_module
 from studio_client.harness.base import DetectionState
 from studio_client.harness.claude_code import ClaudeCodeAdapter
 from studio_client.harness.fsafe import FsError, resolve_target
@@ -133,6 +134,53 @@ def test_relative_and_current_directory_path_entries_are_ignored(tmp_path: Path)
         ("claude",), path_env=os.pathsep.join(["rel", ".", ""]), excluded_dirs=[]
     )
     assert found is None
+
+
+def test_a_native_exe_later_in_path_wins_over_an_earlier_cmd_shim(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(probe_module, "_ALLOWED_SUFFIXES", (".exe", ".cmd"))
+    shim_dir = tmp_path / "npm"
+    native_dir = tmp_path / "native"
+    shim_dir.mkdir()
+    native_dir.mkdir()
+    (shim_dir / "opencode.cmd").write_text("@echo off\n")
+    (native_dir / "opencode.exe").write_bytes(b"MZ")
+    found = locate_executable(
+        ("opencode",), path_env=os.pathsep.join([str(shim_dir), str(native_dir)])
+    )
+    assert found == native_dir / "opencode.exe"
+    only_shim = locate_executable(("opencode",), path_env=str(shim_dir))
+    assert only_shim == shim_dir / "opencode.cmd"
+
+
+def test_a_cmd_shim_is_followed_to_its_native_exe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(probe_module, "_ALLOWED_SUFFIXES", (".exe", ".cmd"))
+    shim_dir = tmp_path / "npm"
+    native = shim_dir / "node_modules" / "opencode-ai" / "bin" / "opencode.exe"
+    native.parent.mkdir(parents=True)
+    native.write_bytes(b"MZ")
+    relative = os.sep.join(["", "node_modules", "opencode-ai", "bin", "opencode.exe"])
+    (shim_dir / "opencode.cmd").write_text(
+        f'@ECHO off\nSET dp0=%~dp0\n"%dp0%{relative}" %*\n',
+        encoding="utf-8",
+    )
+    assert locate_executable(("opencode",), path_env=str(shim_dir)) == native
+
+
+def test_a_cmd_shim_targeting_outside_its_tree_is_not_followed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(probe_module, "_ALLOWED_SUFFIXES", (".exe", ".cmd"))
+    shim_dir = tmp_path / "npm"
+    shim_dir.mkdir()
+    outside = tmp_path / "elsewhere" / "opencode.exe"
+    outside.parent.mkdir()
+    outside.write_bytes(b"MZ")
+    (shim_dir / "opencode.cmd").write_text(f'@ECHO off\n"{outside}" %*\n', encoding="utf-8")
+    assert locate_executable(("opencode",), path_env=str(shim_dir)) == shim_dir / "opencode.cmd"
 
 
 def test_a_directory_named_like_the_executable_is_not_launched(tmp_path: Path) -> None:

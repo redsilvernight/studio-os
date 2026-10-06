@@ -1,0 +1,14 @@
+{
+  "data": {
+    "allowed_harnesses": [
+      "harness-a"
+    ],
+    "detected_harnesses": [
+      "harness-a",
+      "harness-b"
+    ],
+    "max_concurrent": 2,
+    "opt_in": true
+  },
+  "model": "LaunchSettingsView"
+}

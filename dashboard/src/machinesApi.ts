@@ -91,6 +91,8 @@ export interface MachineRow {
   statusSource: "canonical" | "derived";
   agentCount: number;
   activeSessionCount: number;
+  /** Optimistic concurrency version, only when canonical. */
+  version: number | null;
 }
 
 export interface MachineEvidence {
@@ -129,6 +131,7 @@ export function buildMachineRows(evidence: MachineEvidence): MachineRow[] {
       statusSource: "canonical",
       agentCount: 0,
       activeSessionCount: 0,
+      version: machine.version ?? null,
     });
   }
 
@@ -145,6 +148,7 @@ export function buildMachineRows(evidence: MachineEvidence): MachineRow[] {
       statusSource: "derived",
       agentCount: 0,
       activeSessionCount: 0,
+      version: null,
     };
     rows.set(machineId, created);
     return created;
@@ -320,6 +324,23 @@ export async function fetchAgents(client: StudioClient): Promise<Agent[]> {
 
 export async function fetchSessions(client: StudioClient): Promise<WorkSession[]> {
   const result = await client.GET("/api/v1/sessions");
+  if (result.response.ok && result.data !== undefined) return result.data;
+  throw new ApiError(parseErrorBody(result.response.status, result.error));
+}
+
+export async function renameMachine(
+  client: StudioClient,
+  machineId: string,
+  displayName: string,
+  ifMatchVersion: number,
+): Promise<Machine> {
+  const result = await client.PATCH("/api/v1/machines/{machine_id}", {
+    params: {
+      path: { machine_id: machineId },
+      header: { "If-Match-Version": ifMatchVersion },
+    },
+    body: { display_name: displayName },
+  });
   if (result.response.ok && result.data !== undefined) return result.data;
   throw new ApiError(parseErrorBody(result.response.status, result.error));
 }

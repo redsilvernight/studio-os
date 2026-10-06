@@ -72,6 +72,28 @@ describe("filterProjects (client-side, données déjà chargées)", () => {
   });
 });
 
+describe("santé par point de couleur", () => {
+  const t = (project_id: string, status: string) => ({ id: `${project_id}-${status}`, project_id, status }) as never;
+
+  it("bloquée > en cours > calme, sans pourcentage inventé", () => {
+    const tasks = [t(ID_A, "blocked"), t(ID_A, "in_progress")];
+    const html = projectsPageHtml({ projects: [all[0]!], state: blank, authed: true, tasks });
+    expect(html).toContain("Blocage à lever");
+    expect(html).toContain("ds-status--warning");
+    expect(html).not.toMatch(/%|score|<progress/i);
+    const calm = projectsPageHtml({ projects: [all[0]!], state: blank, authed: true, tasks: [] });
+    expect(calm).toContain("Aucun travail ouvert");
+  });
+
+  it("tâches indisponibles ou projet archivé : aucun point, la liste reste utilisable", () => {
+    const unknown = projectsPageHtml({ projects: all, state: blank, authed: true, tasks: null });
+    expect(unknown).not.toContain("ds-status");
+    expect(unknown).toContain("Jeu Phare");
+    const archived = projectsPageHtml({ projects: [all[1]!], state: blank, authed: true, tasks: [] });
+    expect(archived).not.toContain("ds-status");
+  });
+});
+
 describe("projectsPageHtml nominal", () => {
   const html = projectsPageHtml({ projects: all, state: blank, authed: true });
 
@@ -79,7 +101,7 @@ describe("projectsPageHtml nominal", () => {
     expect(html).toContain("<h1>Projets</h1>");
     expect(html).toContain("Nouveau projet");
     expect(html).toContain('role="search"');
-    expect(html).toContain("filtre local");
+    expect(html).toContain("filtre appliqué aux projets chargés");
     expect(html).toContain("2 projet(s) affiché(s) sur 2 chargé(s)");
   });
 
@@ -111,7 +133,7 @@ describe("projectsPageHtml nominal", () => {
     expect(html).toContain('id="project-create-dialog"');
     expect(html).toContain('role="dialog"');
     expect(html).toContain('aria-modal="true"');
-    expect(html).toContain("Slug");
+    expect(html).toContain("Identifiant court");
     expect(html).toContain("Description (facultative)");
     expect(html).toContain('role="alert"');
   });
@@ -172,8 +194,8 @@ describe("projectCreateFormHtml", () => {
 describe("projects.css responsive", () => {
   const css = readFileSync(join(__dirname, "projects.css"), "utf-8");
 
-  it("grille fluide auto-fill, une colonne sur mobile", () => {
-    expect(css).toMatch(/auto-fill\s*,\s*minmax/);
+  it("liste compacte à une colonne fluide, responsive sur mobile", () => {
+    expect(css).toMatch(/\.projects-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/);
     expect(css).toMatch(/@media[^{]*max-width:\s*640px/);
   });
 

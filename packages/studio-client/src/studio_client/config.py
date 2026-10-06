@@ -83,6 +83,22 @@ class ClientConfig(BaseSettings):
     # Spreads concurrent machines' heartbeats instead of a synchronized
     # thundering herd hitting the server every interval at once.
     heartbeat_jitter_ratio: float = 0.1
+    launch_opt_in: bool = False
+    max_concurrent_launches: int = 1
+    # Harness ids this machine agrees to start for a remote launch. Empty =
+    # none: opting in never allows a harness implicitly (AIB R3).
+    launch_allowed_harnesses: tuple[str, ...] = ()
+    # Model imposed per harness id on a remote launch (`[launch_models]` in
+    # TOML), so a run never falls back to the tool's own default model. A
+    # harness absent here keeps its configured default.
+    launch_models: dict[str, str] = {}
+    # Hard ceiling on a single non-interactive harness run; past it the process
+    # tree is killed and the launch reported failed (AIB R3).
+    launch_timeout_seconds: float = 3600.0
+    # Interval at which a running launch is re-read by id to observe a
+    # requester cancellation or a server expiry (the pending pull hides
+    # terminal statuses). One GET per active launch per interval.
+    launch_status_poll_seconds: float = 30.0
     # Canonical Git watching: one entry per repository (`[[git_watches]]` in
     # TOML, a JSON array in `STUDIO_CLIENT_GIT_WATCHES`). The historical
     # `git_watch_repo_path` + `git_watch_project_id` pair is still accepted as
@@ -109,6 +125,9 @@ class ClientConfig(BaseSettings):
     knowledge_graph_dir: Path | None = None
     knowledge_source_root: Path | None = None
     knowledge_scope_allow: tuple[str, ...] = ()
+    # Automatic synchronization of Library skills at daemon startup.
+    # When disabled, the user must manually trigger sync via the bridge.
+    skills_auto_sync: bool = True
 
     @model_validator(mode="before")
     @classmethod

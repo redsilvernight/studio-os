@@ -76,13 +76,13 @@ describe("taskClaimHint (données réelles uniquement)", () => {
     expect(taskClaimHint({})).toBe("Disponible");
   });
 
-  it("signale la machine (tronquée) et l'agent quand ils existent", () => {
+  it("signale la machine et l'agent par leur nom, sans identifiant", () => {
     expect(taskClaimHint({ claimed_by_machine_id: "abcdef12-3456-7890-abcd-ef1234567890" })).toBe(
-      "Prise · machine abcdef12…",
+      "Prise sur Poste sans nom",
     );
     expect(
       taskClaimHint({ claimed_by_machine_id: "m123456789", claimed_by_agent_id: "a987654321" }),
-    ).toBe("Prise · machine m1234567… · agent a9876543…");
+    ).toBe("Prise par Agent sans nom sur Poste sans nom");
   });
 
   it("n'invente ni priorité ni assigné", () => {

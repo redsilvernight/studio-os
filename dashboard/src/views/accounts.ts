@@ -15,7 +15,8 @@ import { applyAccountAction, listUserMemberships, type AccountAction } from "../
 import { dsBadge, dsEmptyState, dsField, dsPageHeader, focusDsErrorBox, type DsTone } from "../ds/ds";
 import { fetchIdentity } from "../identityApi";
 import { searchUsers, type DirectoryUser, type ProjectMember } from "../membersApi";
-import { describeError, esc, idCell } from "../ui";
+import { describeError, esc } from "../ui";
+import { projectLabel } from "../actorNames";
 
 export interface AccountsContext {
   client: StudioClient;
@@ -78,14 +79,17 @@ export function membershipsHtml(memberships: ProjectMember[]): string {
     return `<p class="ds-list-sub">Aucun projet accessible. Un compte actif sans accès se connecte et voit des listes vides ; donnez-lui accès depuis l'onglet Membres d'un projet.</p>`;
   }
   const items = memberships
-    .map((m) => `<li><a href="#/projects/${esc(m.project_id)}/members">${idCell(m.project_id)}</a></li>`)
+    .map((m) => `<li><a href="#/projects/${esc(m.project_id)}/members">${esc(projectLabel(m.project_id))}</a></li>`)
     .join("");
   return `<ul class="ds-list" aria-label="Projets accessibles">${items}</ul>`;
 }
 
 function pageHtml(body: string): string {
   return (
+    `<p class="ds-hero-eyebrow">Administration / Comptes et membres</p>` +
     dsPageHeader("Comptes", "État des comptes, sessions et accès aux projets. Les administrateurs accèdent à tous les projets.") +
+    `<nav class="tabs" aria-label="Comptes et membres"><span class="on">Comptes</span><a href="#/projects">Membres d'un projet</a></nav>` +
+    `<p class="ds-list-sub">Les accès se règlent dans l'onglet Membres de chaque projet.</p>` +
     body
   );
 }
@@ -105,7 +109,7 @@ function searchFormHtml(query: string): string {
       `<input class="ds-input" id="FIELD" name="q" type="search" maxlength="200" placeholder="Nom ou e-mail" autocomplete="off" spellcheck="false" value="${esc(query)}" />`,
       "Laisser vide pour lister les premiers comptes.",
     ) +
-    `<button type="submit" class="ds-btn">Rechercher</button></form>`
+    `<button type="submit" class="ds-btn ds-btn--primary">Rechercher un compte</button></form>`
   );
 }
 

@@ -6,7 +6,9 @@ import { describe, expect, it } from "vitest";
 import {
   OVERVIEW_PREVIEW_LIMIT,
   PROJECT_TABS,
+  currentRoadmapStep,
   projectAttentionItems,
+  projectHeroHtml,
   projectOverviewHtml,
   workspaceHeaderHtml,
   workspaceTabsHtml,
@@ -54,7 +56,7 @@ const claim = (resource_path: string, expires_at: string) =>
 const NOW = new Date("2026-09-12T10:00:00Z").getTime();
 
 describe("PROJECT_TABS", () => {
-  it("sept onglets adossés à des capacités réelles, jamais décoratifs", () => {
+  it("huit onglets adossés à des capacités réelles, jamais décoratifs", () => {
     expect(PROJECT_TABS.map((t) => t.id)).toEqual([
       "overview",
       "roadmap",
@@ -63,6 +65,7 @@ describe("PROJECT_TABS", () => {
       "activity",
       "decisions",
       "members",
+      "ai-integration",
     ]);
   });
 });
@@ -77,6 +80,7 @@ describe("workspaceTabsHtml", () => {
     expect(html).toContain(`href="#/projects/${ID}/claims"`);
     expect(html).toContain(`href="#/projects/${ID}/activity"`);
     expect(html).toContain(`href="#/projects/${ID}/decisions"`);
+    expect(html).toContain(`href="#/projects/${ID}/ai-integration"`);
   });
 
   it("onglets accessibles : tablist, sélection unique, page courante", () => {
@@ -102,13 +106,13 @@ describe("workspaceHeaderHtml", () => {
     expect(html).toContain("Le jeu principal du studio");
     expect(html).toContain("Actif");
     expect(html).toContain('href="#/projects"');
-    expect(html).toContain("phare");
+    expect(html).not.toContain("phare");
   });
 
   it("technique secondaire : UUID/version/dates dans le détail replié", () => {
-    expect(html).toContain("Informations techniques");
+    expect(html).toContain("Détails techniques");
     expect(html).toContain(ID);
-    const [foreground] = html.split("Informations techniques");
+    const [foreground] = html.split("Détails techniques");
     expect(foreground).not.toContain(ID);
     expect(foreground).not.toContain(">7<");
   });
@@ -166,7 +170,7 @@ describe("projectOverviewHtml", () => {
     const html = projectOverviewHtml(project, state, NOW);
     expect(html.match(/ds-list-title/g)?.length).toBeLessThanOrEqual(OVERVIEW_PREVIEW_LIMIT + 1);
     expect(html).toContain("+ 2 autre(s)");
-    expect(html).toContain("À surveiller");
+    expect(html).toContain("Blocage à lever");
     expect(OVERVIEW_PREVIEW_LIMIT).toBe(5);
   });
 
@@ -174,7 +178,55 @@ describe("projectOverviewHtml", () => {
     const html = projectOverviewHtml(project, { active_tasks: [], active_claims: [] } as never, NOW);
     expect(html).toContain("Aucune tâche active");
     expect(html).toContain("Aucune réservation active");
-    expect(html).toContain("Rien ne demande d'attention");
+    expect(html).toContain("Aucun blocage");
     expect(html).not.toMatch(/GET \//);
+  });
+});
+
+describe("héros du projet (objectif, santé, étape, blocages)", () => {
+  const calm = { active_tasks: [], active_claims: [] } as never;
+
+  it("objectif, santé et étape courante en tête de la vue d'ensemble", () => {
+    const step = { title: "Simplifier Accueil", phaseTitle: "P05", progress: "1/3 critères" };
+    const html = projectOverviewHtml(project, calm, NOW, step);
+    expect(html.indexOf("workspace-hero")).toBeLessThan(html.indexOf("Tâches actives"));
+    expect(html).toContain("Objectif");
+    expect(html).toContain("Le jeu principal du studio");
+    expect(html).toContain("En bonne voie");
+    expect(html).toContain("Simplifier Accueil");
+    expect(html).toContain("1/3 critères");
+  });
+
+  it("sans étape : renvoie vers la roadmap ; blocage visible dans le héros", () => {
+    const state = { active_tasks: [task("t1", "blocked", "Caméra")], active_claims: [] } as never;
+    const html = projectHeroHtml(project, state, null, NOW);
+    expect(html).toContain(`href="#/projects/${ID}/roadmap"`);
+    expect(html).toContain("Blocage à lever");
+    expect(html).toContain("Tâche bloquée : Caméra");
+  });
+
+  it("currentRoadmapStep : seulement pour une roadmap active avec étape courante", () => {
+    const roadmap = {
+      status: "active",
+      current_step_key: "s1",
+      phases: [{ title: "P05", steps: [{ key: "s1", title: "Étape 1", acceptance_criteria: ["a", "b"], criteria_checked: [0] }] }],
+    } as never;
+    expect(currentRoadmapStep(roadmap)).toEqual({ title: "Étape 1", phaseTitle: "P05", progress: "1/2 critères" });
+    expect(currentRoadmapStep({ ...(roadmap as object), status: "archived" } as never)).toBeNull();
+    expect(currentRoadmapStep(null)).toBeNull();
+  });
+});
+
+describe("onglets : 6 visibles + Plus", () => {
+  it("Membres et Intégration IA sous « Plus », ouverts si actifs", () => {
+    const html = workspaceTabsHtml(ID, "overview");
+    const cut = html.indexOf("<details");
+    const visible = html.slice(0, cut);
+    const more = html.slice(cut);
+    expect(visible).not.toContain("data-ws-tab=\"members\"");
+    expect(more).toContain("data-ws-tab=\"members\"");
+    expect(more).toContain("data-ws-tab=\"ai-integration\"");
+    expect(html).not.toMatch(/<details class="workspace-more" open/);
+    expect(workspaceTabsHtml(ID, "members")).toMatch(/<details class="workspace-more" open/);
   });
 });

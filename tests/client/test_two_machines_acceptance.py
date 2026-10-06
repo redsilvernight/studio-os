@@ -19,6 +19,7 @@ Postgres."""
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from pathlib import Path
 
@@ -197,6 +198,8 @@ async def test_two_independent_machines_never_sharing_local_state_converge_on_se
         # the same SQLite file (a real restart), replays its queue, and
         # downloads machine A's file straight from storage — never from
         # machine A, never through the API process. ---
+        # Let the failed rows' retry backoff elapse so they are ready again.
+        await asyncio.sleep(0.1)
         resumed_store_b = OutboxStore(connect(outbox_path_b))
         open_stores.append(resumed_store_b)
         async with StudioApiClient(config_b, tokens_b, transport=app_transport) as api_b:

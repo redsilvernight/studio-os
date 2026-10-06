@@ -250,9 +250,9 @@ async function main() {
     await page.fill("#login-email", "a@example.test");
     await page.fill("#login-password", "whatever");
     await page.click("#login-form button[type=submit]");
-    await page.waitForSelector("#shell-status", { timeout: 20_000 });
-    if (!sidecarShipped) await page.waitForFunction(() => /Assistant local indisponible/.test(document.querySelector("#shell-status")?.textContent ?? ""), null, { timeout: 20_000 }).catch(() => undefined);
-    const pill = await page.textContent("#shell-status");
+    await page.waitForSelector("#connection-status", { timeout: 20_000 });
+    if (!sidecarShipped) await page.waitForFunction(() => /Assistant local indisponible/.test(document.querySelector("#connection-status")?.textContent ?? ""), null, { timeout: 20_000 }).catch(() => undefined);
+    const pill = await page.textContent("#connection-status");
     check("status.daemon_unavailable_pill", /Assistant local indisponible/.test(pill ?? "") === !sidecarShipped, `sidecar ${sidecarState}; pill: ${pill?.trim()}`);
 
     // ---- 5b. A5: active account without project waits, then reaches the dashboard
@@ -302,13 +302,13 @@ async function main() {
     await page.evaluate(() => {
       location.hash = "#/projects";
     });
-    await page.waitForFunction(() => /injoignable/i.test(document.querySelector("#shell-status")?.textContent ?? ""), null, { timeout: 30_000 }).catch(() => undefined);
-    const down = await page.textContent("#shell-status");
+    await page.waitForFunction(() => /injoignable/i.test(document.querySelector("#connection-status")?.textContent ?? ""), null, { timeout: 30_000 }).catch(() => undefined);
+    const down = await page.textContent("#connection-status");
     check("status.unreachable_pill", /injoignable/i.test(down ?? ""), `pill: ${down?.trim()}`);
     const back = await startLiveServer();
     await page.evaluate(() => document.querySelector("[data-action=retry]")?.click());
-    await page.waitForFunction(() => !/injoignable/i.test(document.querySelector("#shell-status")?.textContent ?? "") , null, { timeout: 60_000 }).catch(() => undefined);
-    const up = await page.textContent("#shell-status");
+    await page.waitForFunction(() => !/injoignable/i.test(document.querySelector("#connection-status")?.textContent ?? "") , null, { timeout: 60_000 }).catch(() => undefined);
+    const up = await page.textContent("#connection-status");
     check("status.recovers_without_restart", !/injoignable/i.test(up ?? ""), `pill: ${up?.trim()}`);
     back.close();
 

@@ -148,9 +148,11 @@ test.describe("Roadmaps P10 - Dashboard release gate", () => {
       ),
     );
     await go(page, "#/decisions");
-    await expect(page.getByText("Proposition de roadmap").first()).toBeVisible();
-    await expect(page.getByText("révision 3 de « Plan P10 »")).toBeVisible();
-    const link = page.getByRole("link", { name: "Examiner dans Roadmap" });
+    await expect(page.getByText("Proposition de plan").first()).toBeVisible();
+    // Carte unique « Révision N du plan », héros compris : l'objet n'apparaît qu'une fois.
+    await expect(page.getByRole("heading", { name: "Approuver la révision 3 du plan" })).toBeVisible();
+    await expect(page.locator('.review-card[data-kind="roadmap_proposal"]')).toHaveCount(0);
+    const link = page.getByRole("link", { name: "Relire la révision 3" }).first();
     await expect(link).toHaveAttribute("href", `#/projects/${P1}/roadmap/${ROADMAP_ID}`);
     await link.click();
     // ...and the reviewer lands on the pending proposal with its diff and the decision actions
@@ -180,6 +182,9 @@ test.describe("Roadmaps P10 - Dashboard release gate", () => {
   test("bureau 1440 : grande roadmap sans débordement horizontal", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await openRoadmap(page, { phases: 12 });
+    await expect(page.locator(".roadmap-phase-strip")).toBeVisible();
+    await expect(page.locator("[data-current-step]")).toBeVisible();
+    await page.getByRole("tab", { name: "Plan" }).click();
     await expect(page.locator(".roadmap-timeline h3", { hasText: "Phase 12" })).toBeVisible();
     expect(await globalOverflow(page)).toBe(0);
   });
@@ -198,7 +203,7 @@ test.describe("Roadmaps P10 - Dashboard release gate", () => {
         (window as unknown as { __printed: number }).__printed += 1;
       };
     });
-    await page.getByRole("button", { name: "Exporter PDF" }).click();
+    await page.getByRole("button", { name: "Exporter en PDF" }).click();
     expect(await page.evaluate(() => (window as unknown as { __printed: number }).__printed)).toBe(1);
     expect(serverPdf).toBe(0);
 

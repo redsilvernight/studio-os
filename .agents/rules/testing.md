@@ -14,6 +14,7 @@ applies_to: ["tests/**/*.py", "pyproject.toml", "services/*/pyproject.toml"]
 
 ## Test database
 
+- Before any test run (Docker, PostgreSQL, MinIO, migration): `pwsh scripts/test-env.ps1`. MinIO is required by the transfer and two-machine acceptance tests in `tests/client`.
 - `STUDIO_TEST_DATABASE_URL` points at a PostgreSQL database migrated to head (`alembic upgrade head` from `services/api`). Use `127.0.0.1`, not `localhost`: on Windows `localhost` tries IPv6 first and costs ~2 s per connection (`tests/conftest.py` rewrites it anyway).
 - Under `pytest -n`, each worker clones that database into `<name>_gwN` at startup (`CREATE DATABASE … TEMPLATE`), so the template must have no open connection: do not share it with another running suite.
 - All async tests and fixtures share the session event loop and a session-scoped engine; a fixture that needs its own loop must say so explicitly with `loop_scope`.

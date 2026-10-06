@@ -239,6 +239,8 @@ def test_every_user_targeted_mutation_is_covered() -> None:
         ("POST", "/api/v1/users/{user_id}/revoke-sessions"),
         ("PUT", "/api/v1/projects/{project_id}/members/{user_id}"),
         ("DELETE", "/api/v1/projects/{project_id}/members/{user_id}"),
+        ("PUT", "/api/v1/machines/{machine_id}/launch-grants/{user_id}"),
+        ("DELETE", "/api/v1/machines/{machine_id}/launch-grants/{user_id}"),
     }
     assert not [
         (method, path)
@@ -263,10 +265,17 @@ async def test_no_endpoint_modifies_the_callers_own_account(
     before = await db_session.get(UserModel, admin_id, populate_existing=True)
     assert before is not None
     snapshot = (before.role, before.status, before.auth_version, before.version)
+    # Compare memberships before/after rather than assuming the caller starts
+    # with exactly one: the invariant under test is that the endpoint leaves
+    # the caller's access untouched, not the absolute starting set.
+    memberships_before = {
+        m.project_id for m in await projects_service.list_user_memberships(db_session, admin_id)
+    }
+    assert project.id in memberships_before
 
     response = await client.request(
         method,
-        path.format(user_id=admin_id, project_id=project.id),
+        path.format(user_id=admin_id, project_id=project.id, machine_id=uuid.uuid4()),
         headers=admin_auth_headers,
     )
 
@@ -275,8 +284,10 @@ async def test_no_endpoint_modifies_the_callers_own_account(
     after = await db_session.get(UserModel, admin_id, populate_existing=True)
     assert after is not None
     assert (after.role, after.status, after.auth_version, after.version) == snapshot
-    memberships = await projects_service.list_user_memberships(db_session, admin_id)
-    assert [m.project_id for m in memberships] == [project.id]
+    memberships_after = {
+        m.project_id for m in await projects_service.list_user_memberships(db_session, admin_id)
+    }
+    assert memberships_after == memberships_before
     assert (await client.get("/api/v1/auth/me", headers=admin_auth_headers)).status_code == 200
 
 

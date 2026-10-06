@@ -32,6 +32,9 @@ READ_ONLY_TOOLS = {
     "studio_get_project_state",
     "studio_get_task",
     "studio_get_active_tasks",
+    "studio_get_task_launch",
+    "studio_list_task_launches",
+    "studio_pull_pending_launches",
     "studio_get_resource_claims",
     "studio_get_decisions",
     "studio_get_recent_changes",
@@ -97,7 +100,7 @@ def _by_name(tools: list[Tool]) -> dict[str, Tool]:
 
 
 def test_all_tools_have_external_descriptions(tools: list[Tool]) -> None:
-    assert len(tools) == 51
+    assert len(tools) == 54
     for tool in tools:
         assert tool.description, f"{tool.name} has no description"
         assert len(tool.description) >= 40, f"{tool.name} description is stub-like"

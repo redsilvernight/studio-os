@@ -113,44 +113,59 @@ try {
     if ($projectInfo) { $projText = $projectInfo }
     $base = 'Projet suivi par Studio OS ; ' + $projText + ' Branches : skill studio-git-flow.'
     $agentPath = Join-Path $HOME '.claude\\studio-agent.json'
+    # Le cache est scope par origine serveur : un id d'agent n'a de sens que sur
+    # le serveur qui l'a emis. Sans cela, un lancement sur une autre origine
+    # reutilise un id etranger, studio_start_work echoue et l'agent s'enregistre
+    # a nouveau a chaque lancement.
+    $originKey = if ($wsServerOrigin) { $wsServerOrigin } else { 'default' }
     $agentId = $null
-    try {
-        if (Test-Path -LiteralPath $agentPath) {
-            $agentId = (Get-Content -LiteralPath $agentPath -Raw | ConvertFrom-Json).'__AGENT_KEY__'
-        }
-    } catch {}
+    $agentLabel = 'ce harness'
+    # Identite = (harness, provider, modele) des que le harnais expose son
+    # modele (AIB L2) ; sinon repli sur l'agent du harnais (DEC-0099). Le bloc
+    # modele est commun aux sorties texte et JSON.
+__MODEL_BLOCK__
     if (-not $agentId) {
-        # W2 (DEC-0099) : assurer l'agent du harnais via studio-client (fail-open).
+        $baseAgentKey = "__AGENT_KEY__:${originKey}"
         try {
-            if ($wsServerOrigin -and (Get-Command studio-client -ErrorAction SilentlyContinue)) {
-                $env:STUDIO_CLIENT_API_BASE_URL = $wsServerOrigin
-                $cmdOut = (& studio-client agents ensure --harness __HARNESS__ --json 2>$null)
-                $ensured = ($cmdOut | ConvertFrom-Json)
-                if ($ensured -and $ensured.id) {
-                    $agentId = [string]$ensured.id
-                    $doc = @{}
-                    try {
-                        $raw = Get-Content -LiteralPath $agentPath -Raw -ErrorAction Stop
-                        $parsed = $raw | ConvertFrom-Json -ErrorAction Stop
-                        foreach ($p in $parsed.PSObject.Properties) { $doc[$p.Name] = $p.Value }
-                    } catch {}
-                    $doc['__AGENT_KEY__'] = $agentId
-                    $docJson = ($doc | ConvertTo-Json -Compress)
-                    $docJson | Set-Content -LiteralPath $agentPath -Encoding utf8
-                }
+            if (Test-Path -LiteralPath $agentPath) {
+                $storedAgent = Get-Content -LiteralPath $agentPath -Raw | ConvertFrom-Json
+                $agentId = $storedAgent.$baseAgentKey
             }
         } catch {}
+        if (-not $agentId) {
+            # W2 (DEC-0099) : assurer l'agent du harnais via studio-client (fail-open).
+            try {
+                $haveClient = Get-Command studio-client -ErrorAction SilentlyContinue
+                if ($wsServerOrigin -and $haveClient) {
+                    $env:STUDIO_CLIENT_API_BASE_URL = $wsServerOrigin
+                    $cmdOut = (& studio-client agents ensure --harness __HARNESS__ --json 2>$null)
+                    $ensured = ($cmdOut | ConvertFrom-Json)
+                    if ($ensured -and $ensured.id) {
+                        $agentId = [string]$ensured.id
+                        $doc = @{}
+                        try {
+                            $raw = Get-Content -LiteralPath $agentPath -Raw -ErrorAction Stop
+                            $parsed = $raw | ConvertFrom-Json -ErrorAction Stop
+                            foreach ($p in $parsed.PSObject.Properties) { $doc[$p.Name] = $p.Value }
+                        } catch {}
+                        $doc[$baseAgentKey] = $agentId
+                        $docJson = ($doc | ConvertTo-Json -Compress)
+                        $docJson | Set-Content -LiteralPath $agentPath -Encoding utf8
+                    }
+                }
+            } catch {}
+        }
     }
-    $idSuffix = '(studio_start_session, studio_log_ai_work).'
+    $idSuffix = '(studio_start_work, studio_log_ai_work).'
     if ($OutputFormat -eq 'json') {
         $ctx = $base
-        if ($agentId) { $ctx += " agent_id Studio OS de ce harness : $agentId $idSuffix" }
+        if ($agentId) { $ctx += " agent_id Studio OS de $agentLabel : $agentId $idSuffix" }
         $hookOut = @{ hookEventName = 'SessionStart'; additionalContext = $ctx }
         $envelope = @{ hookSpecificOutput = $hookOut }
         $envelope | ConvertTo-Json -Compress -Depth 4
     } else {
         $lines = @($base)
-        if ($agentId) { $lines += "agent_id Studio OS de ce harness : $agentId $idSuffix" }
+        if ($agentId) { $lines += "agent_id Studio OS de $agentLabel : $agentId $idSuffix" }
         else {
             $lines += "agent_id __HARNESS_LABEL__ manquant (hors ligne ou sans credential) :"
             $lines += 'le signaler en cloture, ne pas chercher de jeton.'
@@ -164,11 +179,12 @@ __MODEL_BLOCK__
 """
 
 _MODEL_BLOCK_PS = """
-    # Bloc modele (AIB L1, sortie texte) : un agent par couple (harness, modele).
-    # Cache local "__AGENT_KEY__:<provider>/<model>" dans studio-agent.json.
-    # Resolu via POST /agents/ensure (idempotent, stable_key dedie), fail-open.
+    # Bloc modele (AIB L2, toutes sorties) : un agent par couple
+    # (harness, provider, modele), jamais l'agent du harnais en plus. Cache
+    # local "__AGENT_KEY__:<origin>:<provider>/<model>" dans studio-agent.json,
+    # resolu via POST /agents/ensure (idempotent, stable_key dedie), fail-open.
     if ($modelRef) {
-        $cacheKey = "__AGENT_KEY__:$modelRef"
+        $cacheKey = "__AGENT_KEY__:${originKey}:$modelRef"
         $modelAgentId = $null
         try {
             if (Test-Path -LiteralPath $agentPath) {
@@ -215,8 +231,8 @@ _MODEL_BLOCK_PS = """
             } catch {}
         }
         if ($modelAgentId) {
-            $lines += "agent_id Studio OS de ce harness/modele ($modelRef) : " +
-                "$modelAgentId (studio_start_session, studio_log_ai_work)."
+            $agentId = $modelAgentId
+            $agentLabel = "ce harness/modele ($modelRef)"
         }
     }
 """
@@ -332,12 +348,11 @@ HARNESSES: tuple[HarnessSpec, ...] = (
 def render_hook(spec: HarnessSpec) -> str:
     """Render the versioned session-start hook for `spec`. Pure text: no
     secret, no absolute path — the harness name, agent key, output format,
-    managed marker and (text harnesses) the per-model agent block are the
-    only interpolations. The model block reads/writes only the non-secret
-    agent id store; any network call goes through `studio-client`."""
-    model_block = _MODEL_BLOCK_PS if spec.model_protocol else ""
+    managed marker and the per-model agent block are the only interpolations.
+    The model block reads/writes only the non-secret agent id store; any
+    network call goes through `studio-client`."""
     return (
-        _HOOK_PS_TEMPLATE.replace("__MODEL_BLOCK__", model_block)
+        _HOOK_PS_TEMPLATE.replace("__MODEL_BLOCK__", _MODEL_BLOCK_PS)
         .replace("__HARNESS__", spec.harness)
         .replace("__HARNESS_LABEL__", spec.label)
         .replace("__AGENT_KEY__", spec.agent_key)

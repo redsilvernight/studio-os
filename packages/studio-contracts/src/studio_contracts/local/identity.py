@@ -119,12 +119,16 @@ class SecretReferenceStatus(LocalContractModel):
 
 class IdentityView(LocalContractModel):
     """Everything the renderer may know about identity: who, on which machine,
-    and whether the secrets behind them are usable — never the secrets."""
+    and whether the secrets behind them are usable — never the secrets.
+    `workstation_name` is this poste's own bounded hostname, the default the
+    enrollment step offers and the `<POSTE>` half of every harness name
+    (DEC-0117); absent from a daemon that predates it."""
 
     profile: ProfileRef
     human: HumanIdentity | None = None
     machine: MachineIdentity | None = None
     secrets: list[SecretReferenceStatus] = []
+    workstation_name: ShortText | None = None
 
     @model_validator(mode="after")
     def _single_profile(self) -> Self:
@@ -220,6 +224,7 @@ class IdentityEnrollRequest(LocalContractModel):
     human_session: HumanSession
     machine_name: ShortText
     replace_existing: bool = False
+    adopt_machine_id: UUID | None = None
 
 
 class IdentityEnrollOutcome(StrEnum):
@@ -240,3 +245,21 @@ class IdentityEnrollResult(LocalContractModel):
         if self.outcome is IdentityEnrollOutcome.ENROLLED and self.machine_id is None:
             raise ValueError("an enrolled outcome names the new machine")
         return self
+
+
+class IdentityForgetRequest(LocalContractModel):
+    """Forget the local machine identity on sign-out: the daemon checks
+    `profile` against its own server origin, stops, clears the stored machine
+    credential and the cached machine id. Nothing is deleted server-side."""
+
+    profile: ProfileRef
+
+
+class IdentityForgetOutcome(StrEnum):
+    FORGOTTEN = "forgotten"
+    NOTHING_TO_FORGET = "nothing_to_forget"
+
+
+class IdentityForgetResult(LocalContractModel):
+    outcome: IdentityForgetOutcome
+    view: IdentityView

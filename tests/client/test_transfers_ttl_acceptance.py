@@ -26,6 +26,8 @@ from studio_client.tokens import MemoryTokenStore
 from studio_client.transfers import TransferClient
 from studio_contracts.transfers import TransferCategory, TransferCreate, TransferStatus
 
+pytestmark = pytest.mark.infra("minio")
+
 _PART_SIZE_BYTES = 64 * 1024 * 1024  # must match services/api PART_SIZE_BYTES
 
 

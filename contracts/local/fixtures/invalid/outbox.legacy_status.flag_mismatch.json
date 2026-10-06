@@ -1,0 +1,12 @@
+{
+  "data": {
+    "counts": {
+      "pending_events": 3,
+      "pending_mutations": 1
+    },
+    "exists": true,
+    "has_queued_work": false
+  },
+  "model": "OutboxLegacyStatus",
+  "reason": "has_queued_work must reflect the counts"
+}

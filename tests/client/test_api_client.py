@@ -328,6 +328,24 @@ async def test_list_tasks_sends_project_id_as_query_param() -> None:
     assert seen["project_id"] == str(project_id)
 
 
+async def test_list_tasks_sends_status_and_mine_only_when_set() -> None:
+    seen: list[httpx.QueryParams] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.url.params)
+        return httpx.Response(200, json=[])
+
+    async with StudioApiClient(
+        _config(), _token_store(), transport=httpx.MockTransport(handler)
+    ) as client:
+        await client.list_tasks(status=["in_progress", "blocked"], mine=True)
+        await client.list_tasks()
+
+    assert seen[0].get_list("status") == ["in_progress", "blocked"]
+    assert seen[0].get("mine") == "true"
+    assert "status" not in seen[1] and "mine" not in seen[1]
+
+
 async def test_update_task_sends_if_match_version_and_only_set_fields() -> None:
     seen: dict[str, Any] = {}
     task_id = uuid4()
@@ -612,3 +630,33 @@ async def test_server_version_probe_is_unauthenticated() -> None:
     assert seen["authorization"] == ""
     assert info.api_version == "1"
     assert info.latest["daemon"] == "0.2.0"
+
+
+async def test_fetch_library_snapshot_posts_resolutions() -> None:
+    """P4/AIB-D: the Library side of the runtime fusion comes from the
+    existing pure-read `POST /api/v1/resolutions`, reduced to the merge
+    surface — no new endpoint, no re-decided version."""
+    from pathlib import Path
+
+    from studio_client.canonical import LibrarySnapshot, build_offline_resolved
+
+    repo = Path(__file__).resolve().parents[2]
+    payload = build_offline_resolved(repo, "studio-tester").model_dump(mode="json")
+    seen: dict[str, str] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["path"] = request.url.path
+        seen["body"] = request.content.decode("utf-8")
+        return httpx.Response(200, json=payload)
+
+    async with StudioApiClient(
+        _config(), _token_store(), transport=httpx.MockTransport(handler)
+    ) as client:
+        snapshot = await client.fetch_library_snapshot("studio-tester")
+
+    assert seen["path"] == "/api/v1/resolutions"
+    assert json_module.loads(seen["body"])["stable_key"] == "studio-tester"
+    assert isinstance(snapshot, LibrarySnapshot)
+    assert snapshot.agent.stable_key == "studio-tester"
+    assert set(snapshot.rules) == {rule["stable_key"] for rule in payload["rules"]}
+    assert set(snapshot.skills) == {skill["stable_key"] for skill in payload["skills"]}

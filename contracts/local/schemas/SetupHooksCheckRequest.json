@@ -1,0 +1,7 @@
+{
+  "additionalProperties": false,
+  "description": "Read-only: the daemon resolves the home directory and the harnesses\nitself, so the Desktop supplies nothing.",
+  "properties": {},
+  "title": "SetupHooksCheckRequest",
+  "type": "object"
+}

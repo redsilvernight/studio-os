@@ -39,9 +39,7 @@ describe("applicationPageHtml", () => {
     const html = applicationPageHtml("desktop", info);
     expect(html).toContain("Studi'OS Desktop");
     expect(html).toContain("0.1.0");
-    expect(html).toContain("Version Desktop");
-    expect(html).toContain("Version studio.local");
-    expect(html).toContain("studio.local/v1");
+    expect(html).toContain("Version <code");
     expect(html).toContain('aria-current="page"');
   });
 
@@ -121,6 +119,7 @@ describe("Settings › Application (Desktop)", () => {
     expect(root.querySelector("[data-testid=compatibility]")?.textContent).toBe("Compatible");
     expect(root.querySelector("[data-testid=daemon-state]")?.textContent).toBe("Non disponible dans cette version");
     expect(root.querySelector("[data-testid=diagnostics]")).not.toBeNull();
+    expect(root.querySelector("[data-testid=diagnostics]")?.textContent).toContain("studio.local/v1");
   });
 
   it("the logs entry opens the logs folder and the export reports the file, never a secret", async () => {
@@ -296,7 +295,7 @@ describe("Settings › Application (Desktop)", () => {
     expect(root.querySelector("[data-testid=daemon-state]")?.textContent).toBe("En marche");
     expect(root.querySelector("[data-testid=health-heartbeat]")?.textContent).toBe("Fonctionne");
     expect(root.querySelector("[data-testid=health-watchers]")?.textContent).toBe("1 / 1 en bonne santé");
-    document.body.innerHTML = '<header class="app-topbar"><span id="token-state"></span></header>';
+    document.body.innerHTML = '<aside class="app-sidebar"><div class="app-sidebar-foot"></div></aside><header class="app-topbar"></header>';
     resetDesktopShellForTests();
     const older = fakeDaemon({ offers: ["daemon.control", "identity.view"] });
     const second = await mount(
@@ -314,7 +313,7 @@ describe("Settings › Application (Desktop)", () => {
     expect(root.querySelector("[data-testid=compatibility]")?.textContent).toBe(
       "Compatible — mettez à jour l'assistant local pour disposer de toutes les fonctions",
     );
-    document.body.innerHTML = '<header class="app-topbar"><span id="token-state"></span></header>';
+    document.body.innerHTML = '<aside class="app-sidebar"><div class="app-sidebar-foot"></div></aside><header class="app-topbar"></header>';
     resetDesktopShellForTests();
     const current = fakeDaemon();
     const again = await mount(

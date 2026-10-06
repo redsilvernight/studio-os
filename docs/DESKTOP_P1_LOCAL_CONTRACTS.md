@@ -38,6 +38,7 @@ un test échoue si l'export diverge des builders Python.
 | `code_graph` | `CodeGraphProvider` |
 | `harness` | `HarnessAdapter` |
 | `graph` | Schéma de graphe commun |
+| `skills` | État des skills Library sur le poste (`skills.check`) |
 | `publication` | Politique local/partagé |
 | `fixtures`, `export` | Fixtures nommées et export JSON |
 
@@ -51,7 +52,7 @@ un test échoue si l'export diverge des builders Python.
   capability optionnelle est inconnue du démon (`missing_optional`), et
   `install_optional_component` seulement quand un composant présent n'est pas
   prêt (`degraded`).
-- **Bridge** : 34 commandes et 4 événements, table `CommandSpec` par commande
+- **Bridge** : 35 commandes et 4 événements, table `CommandSpec` par commande
   (capability, mutation, annulation, délai, tailles). Aucune primitive shell,
   filesystem arbitraire, spawn ou proxy HTTP ; `allowlist_violations()` doit
   renvoyer `[]`.
@@ -62,6 +63,48 @@ un test échoue si l'export diverge des builders Python.
   muter la configuration du harness. `VerifyState` : `unconfigured`,
   `configured`, `token_missing` (configuration en place, aucun jeton machine
   disponible ; sans `error`, ajout additif DEC-0104), `verified`, `failed`.
+  `skills.check` (additif, tâche 167368b1) sous la capability optionnelle
+  `skills.read` : lecture seule, requête vide ; le démon résout la Library, le
+  profil et le répertoire personnel. Le résultat ne porte que, par skill
+  (`stable_key`, `version`), l'état (`current`, `missing`, `outdated`,
+  `locally_modified`) de chacune des deux cibles globales, nommées par rôle
+  (`agents`, `assistant`) pour rester neutres vis-à-vis des fournisseurs, avec
+  des compteurs et `in_sync` cohérents (validés). Ni contenu de skill ni chemin
+  absolu ne sortent du démon ; un Desktop sans `skills.read` ignore la commande.
+  `outbox.legacy_status` (additif, tâche f34a2732, `studio.local/v1` inchangé) : lecture
+  seule, requête vide ; le démon inspecte l'outbox d'avant l'identité
+  (`inspect_legacy_outbox`). Le résultat ne porte que `exists`, `has_queued_work` et
+  `counts` par table, clés limitées à l'énumération fermée `LegacyOutboxTable`
+  (`pending_events`, `pending_mutations`, `pending_markers`, `dead_letter`,
+  `multipart_uploads`), entiers ≥ 0, cohérents avec `has_queued_work` (validé) ; jamais
+  de chemin. Aucune purge ni import en phase 1. Le message `IDENTITY_MISMATCH` émis
+  quand une outbox héritée contient du travail renvoie désormais vers le Dashboard
+  (Réglages › Application › Outbox héritée) au lieu de la commande CLI absente du
+  `.exe` ; le code d'erreur, `retryable=false` et l'absence de chemin sont inchangés.
+  `launch.get_settings` / `launch.save_settings` (additifs, tâche d4c076ab, AIB-J)
+  sous la capability optionnelle `launch.settings` : le propriétaire de la machine
+  règle localement l'opt-in aux lancements à distance (`opt_in`), la limite de
+  concurrence (`max_concurrent`, 1 à 8) et la liste explicite des harnesses
+  autorisés (`allowed_harnesses`, vide = aucun : l'opt-in n'autorise jamais un
+  harness implicitement). `get` renvoie en plus `detected_harnesses` (identifiants
+  seuls). `save` exige `confirmed: true`, refuse un harness inconnu du démon et
+  écrit `launch_settings.json` de façon atomique dans le répertoire de données ;
+  un fichier illisible retombe sur « pas d'opt-in ». Ni chemin ni inventaire au-delà
+  des identifiants ne sortent du démon ; un Desktop sans `launch.settings` ignore
+  les commandes.
+  `setup.plan` / `setup.apply` (additifs, tâche 695c38a3, tranche Desktop de P3)
+  sous les capabilities optionnelles `setup.plan` et `setup.apply` : action
+  « Configurer ce poste » sans second moteur (modèles `setup-hooks`, `skill_sync`,
+  contrôle de dérive des adapters). `setup.plan` ne modifie rien et renvoie, par
+  étape, les harnesses détectés, les hooks/garde/extension (`missing`, `current`,
+  `differs` avec diff borné, redacté et sans chemin), l'état des skills, la dérive
+  des adapters ; le câblage MCP reste sur `harness.*`. `setup.apply` exige
+  `confirmed: true` lié à `plan_id` + `plan_hash` ; un fichier `differs` n'est
+  remplacé que s'il est nommé dans `overwrite_items`, après sauvegarde sous
+  `~/.studio-os/backups/setup/`. Un fichier relu identique est seul rapporté
+  `written` ; une seconde exécution n'écrit rien (`unchanged`). Les skills
+  `locally_modified` ne sont jamais écrasées. L'enregistrement des hooks
+  Claude/Codex reste manuel (DEC-0096).
   Ajouts additifs DEC-0104 §2 : `HarnessChange.scope` (`workspace` par défaut
   | `user`, cible alors relative au home) et `HarnessPreviewRequest.renew`
   (défaut `false` : renouvelle l'identifiant dédié de l'outil).
@@ -73,7 +116,21 @@ un test échoue si l'export diverge des builders Python.
   les références et leur statut traversent la frontière, à une exception près :
   `identity.enroll` (DEC-0130) porte la session humaine en entrée seule
   (`IdentityEnrollRequest.human_session`, `SecretStr`, jamais renvoyée ni
-  journalisée) pour enregistrer le poste sans administrateur.
+  journalisée) pour enregistrer le poste sans administrateur. `identity.forget`
+  (additif, capacité `identity.enroll`) est son inverse à la déconnexion : le
+  daemon s'arrête, efface le credential machine du trousseau et le `machine_id`
+  en cache ; rien n'est supprimé côté serveur.
+- **Hooks de session** : `hooks.check` (additif, lecture seule, capacité
+  `setup.plan`) rend, par harnais détecté, l'état `managed` / `missing` /
+  `foreign` du hook, de la garde Git et du plugin ; ni chemin ni contenu de
+  fichier ne sortent du daemon.
+- **Synchro des skills** : `skills.preview` (diff, lecture), `skills.status`
+  (état persistant du dernier cycle : en cours / à jour / mis à jour / conflits /
+  non synchronisé / désactivé), `skills.apply` (additif, capacité `skills.apply`,
+  `confirm` obligatoire ; `overwrite` remplace les copies modifiées à la main
+  après sauvegarde dans `~/.studio-os/backups/skills`) et `skills.configure`
+  (active ou désactive la synchro auto au démarrage, réglage local persistant).
+  Aucun chemin ni contenu de skill ne sort du daemon.
 - **Providers** : Knowledge (Markdown canonique, index dérivé, Obsidian
   optionnel), Code Graph (aucun détail Graphify dans les contrats publics ;
   `graphify` n'apparaît que comme valeur d'identifiant d'adaptateur dans les

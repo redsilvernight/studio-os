@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-135 decision(s). Detail complet dans chaque ADR lie.
+148 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -157,3 +157,16 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0162 | Desktop : deux builds Prod/Dev distincts et serveur local Dev | accepted | [decisions/DEC-0162-desktop-deux-builds-prod-dev.md](decisions/DEC-0162-desktop-deux-builds-prod-dev.md) |
 | DEC-0163 | L3 : handoff composite en un appel + repli end_session (claims, ai_work, session) | accepted | [decisions/DEC-0163-l3-handoff-cloture.md](decisions/DEC-0163-l3-handoff-cloture.md) |
 | DEC-0164 | AI Bootstrap P2 : expansion récursive de composed_agent dans le moteur P5, sans second moteur | active | [decisions/DEC-0164-p2-expansion-composed-agents.md](decisions/DEC-0164-p2-expansion-composed-agents.md) |
+| DEC-0167 | AIB P3 : générateur local du bundle, offline d'abord | accepted | [decisions/DEC-0167-aib-p3-generateur-local-bundle-offline.md](decisions/DEC-0167-aib-p3-generateur-local-bundle-offline.md) |
+| DEC-0168 | AIB-D : loader runtime fusion .agents/ projet + Library, source injectee | accepted | [decisions/DEC-0168-aib-d-loader-runtime-fusion.md](decisions/DEC-0168-aib-d-loader-runtime-fusion.md) |
+| DEC-0171 | AIB R1 : rapport de capacites machine additif au heartbeat (IDs seuls) | accepted | [decisions/DEC-0171-aib-r1-rapport-capacites-machine.md](decisions/DEC-0171-aib-r1-rapport-capacites-machine.md) |
+| DEC-0172 | AIB P7 : définition du bootstrap permanent et cibles d'actions manuelles | proposed | [decisions/DEC-0172-aib-p7-onboarding-metriques.md](decisions/DEC-0172-aib-p7-onboarding-metriques.md) |
+| DEC-0173 | AIB R2 : contrat TaskLaunch (demande de lancement typee, jamais une commande) | accepted | [decisions/DEC-0173-aib-r2-contrat-task-launch.md](decisions/DEC-0173-aib-r2-contrat-task-launch.md) |
+| DEC-0175 | AIB-J : droits de lancement sur une machine (table dediee, owner ou droit explicite) | accepted | [decisions/DEC-0175-aib-j-droits-de-lancement-machine.md](decisions/DEC-0175-aib-j-droits-de-lancement-machine.md) |
+| DEC-0176 | AIB R3 : lancement non interactif des harness (permissions bornees, timeout dur) | accepted | [decisions/DEC-0176-aib-r3-lancement-harness-non-interactif.md](decisions/DEC-0176-aib-r3-lancement-harness-non-interactif.md) |
+| DEC-0177 | AIB R3 : annulation d'un lancement en cours livree par GET polling | accepted | [decisions/DEC-0177-aib-r3-annulation-par-polling-get.md](decisions/DEC-0177-aib-r3-annulation-par-polling-get.md) |
+| DEC-0179 | AIB R3 : reglages de lancement locaux persistes dans launch_settings.json | accepted | [decisions/DEC-0179-aib-r3-reglages-lancement-locaux.md](decisions/DEC-0179-aib-r3-reglages-lancement-locaux.md) |
+| DEC-0180 | AIB L2 : identite agent par (harnais, provider, modele) sur tous les harnais | accepted | [decisions/DEC-0180-identite-agent-par-harnais-provider-modele.md](decisions/DEC-0180-identite-agent-par-harnais-provider-modele.md) |
+| DEC-0181 | Compatibilité du manifest bootstrap : lecture v1 uniquement et refus explicite | proposed | [decisions/DEC-0181-compatibilite-manifest-bootstrap-v1.md](decisions/DEC-0181-compatibilite-manifest-bootstrap-v1.md) |
+| DEC-0185 | GET /tasks : filtres additifs status et mine pour les vues Travail | proposed | [decisions/DEC-0185-filtres-taches-status-mine.md](decisions/DEC-0185-filtres-taches-status-mine.md) |
+| DEC-0186 | MCP : déprécier les outils redondants de session et de claim, retrait après la fenêtre de transition | proposed | [decisions/DEC-0186-deprecation-outils-mcp-redondants.md](decisions/DEC-0186-deprecation-outils-mcp-redondants.md) |

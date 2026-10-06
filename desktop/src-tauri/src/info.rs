@@ -33,7 +33,7 @@ pub const P2_CAPABILITIES: &[&str] = &["daemon.control", "identity.view"];
 /// is simply absent instead of failing the handshake.
 pub const OPTIONAL_CAPABILITIES: &[&str] = &["daemon.health"];
 
-/// Additive Wave 2 capabilities (P6 Knowledge, P7 Code Graph, P9 Harness). Offered but
+/// Additive Wave 2 capabilities (P6 Knowledge, P7 Code Graph, P9 Harness, skills.check, launch settings). Offered but
 /// never required: a daemon without local features answers `compatible_degraded`
 /// and the graph views simply report the source as unavailable.
 pub const LOCAL_FEATURE_CAPABILITIES: &[&str] = &[
@@ -48,6 +48,11 @@ pub const LOCAL_FEATURE_CAPABILITIES: &[&str] = &[
     "harness.plan",
     "harness.apply",
     "harness.verify",
+    "skills.read",
+    "skills.apply",
+    "setup.plan",
+    "setup.apply",
+    "launch.settings",
 ];
 
 /// Additive P11 capability (workspace configuration, served by the daemon
@@ -155,6 +160,10 @@ mod tests {
             );
         }
         assert!(offered.contains(&json!("harness.verify")));
+        assert!(offered.contains(&json!("skills.read")));
+        assert!(offered.contains(&json!("setup.plan")));
+        assert!(offered.contains(&json!("setup.apply")));
+        assert!(offered.contains(&json!("launch.settings")));
         assert!(offered.contains(&json!("workspace.config")));
     }
 

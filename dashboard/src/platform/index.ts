@@ -7,6 +7,7 @@ export type {
   DesktopDiagnostics,
   DesktopInfo,
   DiagnosticsExportResult,
+  OutboxLegacyStatus,
   PickerOptions,
   PickResult,
   Platform,

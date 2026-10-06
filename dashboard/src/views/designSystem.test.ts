@@ -12,6 +12,7 @@ describe("designSystemHtml (internal UI-1 demo, DEC-0078)", () => {
       "Tableaux",
       "Listes",
       "États",
+      "Divulgation progressive",
       "Indicateurs",
       "Modale et tiroir",
       "Notifications",
@@ -27,6 +28,9 @@ describe("designSystemHtml (internal UI-1 demo, DEC-0078)", () => {
       "ds-table",
       "ds-list",
       "ds-empty",
+      "ds-empty--error",
+      "ds-hero",
+      "ds-tech",
       "ds-skeleton",
       "ds-metric",
       "ds-progress",
@@ -56,5 +60,26 @@ describe("designSystemHtml (internal UI-1 demo, DEC-0078)", () => {
     // data-ds-close / ds-btn--loading are code hooks, not user text.
     const userText = html.replace(/data-ds-close|ds-btn--loading/g, "");
     expect(userText).not.toMatch(/Loading|Nothing to show|See all|Sign in|Submit/i);
+  });
+  it("aligns on the tools wireframe: internal eyebrow, hero, 4 cards + context", () => {
+    const html = designSystemHtml();
+    expect(html).toContain("Interne · absente de la navigation");
+    expect(html).toContain('class="ds-hero"');
+    expect(html).toContain("Voir les états");
+    expect(html.match(/class="ds-card tool-stack"/g) ?? []).toHaveLength(4);
+    expect(html).toContain('class="ds-card tool-context"');
+  });
+
+  it("demonstrates the five shared states through the shared component", () => {
+    const html = designSystemHtml();
+    for (const state of ["Introuvable", "Vide", "Chargement", "Erreur", "Hors ligne"]) {
+      expect(html).toContain(state);
+    }
+    expect(html).toContain("ds-state-actions");
+    expect(html).toContain("ds-notice--warning");
+    // Les notices gardent leurs quatre tons, désormais en colonne de contexte.
+    for (const tone of ["success", "warning", "danger", "info"]) {
+      expect(html).toContain(`ds-notice--${tone}`);
+    }
   });
 });

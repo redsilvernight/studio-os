@@ -53,6 +53,13 @@ def test_render_outputs_differ_per_harness() -> None:
     assert "'text'" in render_hook(_SPECS["codex"])
 
 
+def test_hook_scopes_the_agent_cache_by_server_origin() -> None:
+    for spec in HARNESSES:
+        rendered = render_hook(spec)
+        assert "${originKey}" in rendered
+        assert f"{spec.agent_key}:${{originKey}}" in rendered
+
+
 def test_codex_spec() -> None:
     spec = _SPECS["codex"]
     assert spec.agent_key == "codex"
@@ -235,12 +242,16 @@ def test_opencode_render_carries_the_model_protocol() -> None:
     assert "$modelRef = $payload.model" in rendered
 
 
-def test_claude_code_render_has_no_model_block() -> None:
-    """Sans regression Claude Code : la sortie JSON ne porte pas le bloc modele
-    (actif uniquement pour la sortie texte)."""
-    rendered = render_hook(_SPECS["claude-code"])
-    assert "harness/modele" not in rendered
-    assert "$modelAgentId" not in rendered
+def test_all_harnesses_carry_the_model_protocol() -> None:
+    """AIB L2 : l'identite agent est le couple (harness, modele) sur tous les
+    harnais — le bloc modele est present quelle que soit la sortie (texte ou
+    JSON), avec une stable_key dediee par couple harness+modele."""
+    for spec in HARNESSES:
+        rendered = render_hook(spec)
+        assert "harness/modele" in rendered
+        assert f"agents-ensure-{spec.harness}:" in rendered
+        assert f"'--harness', '{spec.harness}'" in rendered
+        assert "$modelRef = $payload.model" in rendered
 
 
 def _run_hook(hook: Path, cwd: Path) -> subprocess.CompletedProcess[str]:
@@ -449,7 +460,92 @@ def test_hook_emits_model_agent_line_from_ensured_agent(
     assert agent_id in result.stdout
 
     store = json.loads((tmp_path / ".claude" / "studio-agent.json").read_text(encoding="utf-8"))
-    assert store["opencode:opencode-go/deepseek-v4.1-flash"] == agent_id
+    assert store["opencode:http://example.invalid:opencode-go/deepseek-v4.1-flash"] == agent_id
+    # Pas de doublon : l'agent du harnais n'est pas cree quand le modele est connu.
+    assert "opencode:http://example.invalid" not in store
+
+
+@pytest.mark.skipif(_PS is None, reason="PowerShell absent de cette machine")
+def test_claude_json_hook_emits_model_agent_in_context(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AIB L2 : la sortie JSON de Claude Code porte elle aussi l'agent du
+    couple (harness, modele) dans `additionalContext`, sans creer l'agent du
+    harnais en plus."""
+    repo = tmp_path / "Studi'os"
+    repo.mkdir()
+    monkeypatch.delenv("STUDIO_CLIENT_CHANNEL", raising=False)
+    monkeypatch.delenv("STUDIO_CLIENT_CONFIG_FILE", raising=False)
+    if os.name == "nt":
+        monkeypatch.setenv("APPDATA", str(tmp_path))
+        profile = tmp_path / "StudioOS-Dev"
+    else:
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+        profile = tmp_path / "studio-os-dev"
+
+    project_id = "2a836038-153c-41cf-879a-73bd794760b0"
+    ws_dir = profile / "workspaces"
+    ws_dir.mkdir(parents=True)
+    (ws_dir / f"{project_id}.json").write_text(
+        json.dumps(
+            {
+                "project_id": project_id,
+                "project_slug": "studio-os",
+                "roots": {
+                    "workspace_root": str(repo),
+                    "repo_roots": [{"name": "Studi'os", "path": str(repo)}],
+                },
+                "profile": {"server_origin": "http://example.invalid"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    agent_id = "22222222-2222-2222-2222-222222222222"
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    if os.name == "nt":
+        (bindir / "studio-client.cmd").write_text(
+            f'@echo {{"id": "{agent_id}"}}\r\n', encoding="utf-8"
+        )
+    else:
+        stub = bindir / "studio-client"
+        stub.write_text(f'#!/bin/sh\necho \'{{"id": "{agent_id}"}}\'\n', encoding="utf-8")
+        stub.chmod(0o755)
+
+    env = os.environ.copy()
+    env["PATH"] = str(bindir) + os.pathsep + env.get("PATH", "")
+    env["HOME"] = str(tmp_path)
+    if os.name == "nt":
+        env["USERPROFILE"] = str(tmp_path)
+
+    hook = tmp_path / "hook-claude-model.ps1"
+    hook.write_text(render_hook(_SPECS["claude-code"]), encoding="utf-8")
+    (tmp_path / ".claude").mkdir(parents=True, exist_ok=True)
+
+    args = [_PS, "-NoProfile"]
+    if os.name == "nt":
+        args += ["-ExecutionPolicy", "Bypass"]
+    args += ["-File", str(hook)]
+    result = subprocess.run(
+        args,
+        input=json.dumps({"cwd": str(repo), "model": "anthropic/claude-opus-5-5"}),
+        capture_output=True,
+        text=True,
+        cwd=str(repo),
+        timeout=120,
+        env=env,
+    )
+    assert result.returncode == 0, result.stderr
+    envelope = json.loads(result.stdout)
+    context = envelope["hookSpecificOutput"]["additionalContext"]
+    assert "harness/modele" in context
+    assert "anthropic/claude-opus-5-5" in context
+    assert agent_id in context
+
+    store = json.loads((tmp_path / ".claude" / "studio-agent.json").read_text(encoding="utf-8"))
+    assert store["claude-code:http://example.invalid:anthropic/claude-opus-5-5"] == agent_id
+    assert "claude-code:http://example.invalid" not in store
 
 
 @pytest.mark.skipif(_PS is None, reason="PowerShell absent de cette machine")

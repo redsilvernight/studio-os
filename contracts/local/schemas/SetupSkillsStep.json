@@ -1,0 +1,68 @@
+{
+  "$defs": {
+    "SetupSkillsState": {
+      "enum": [
+        "checked",
+        "unavailable"
+      ],
+      "title": "SetupSkillsState",
+      "type": "string"
+    },
+    "SetupUnavailableReason": {
+      "enum": [
+        "not_signed_in",
+        "credential_rejected",
+        "library_unreachable",
+        "invalid_skill"
+      ],
+      "title": "SetupUnavailableReason",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "current": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Current",
+      "type": "integer"
+    },
+    "locally_modified": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Locally Modified",
+      "type": "integer"
+    },
+    "missing": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Missing",
+      "type": "integer"
+    },
+    "outdated": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Outdated",
+      "type": "integer"
+    },
+    "reason": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SetupUnavailableReason"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "state": {
+      "$ref": "#/$defs/SetupSkillsState"
+    }
+  },
+  "required": [
+    "state"
+  ],
+  "title": "SetupSkillsStep",
+  "type": "object"
+}

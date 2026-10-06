@@ -14,6 +14,7 @@ router = APIRouter(prefix="/api/v1/heartbeats", tags=["heartbeats"])
 @router.post(
     "",
     response_model=HeartbeatResponse,
+    response_model_exclude_none=True,
     description=(
         "Report machine presence. Any authenticated machine may "
         "heartbeat, including read-only ones — this is the one write "
@@ -29,9 +30,15 @@ async def post_heartbeat(
 ) -> HeartbeatResponse:
     settings = get_settings()
     machine, now = await heartbeats_service.record_heartbeat(session, machine, req, settings)
+    echo = (
+        heartbeats_service.parse_stored_capabilities(machine.capabilities)
+        if req.capabilities is not None
+        else None
+    )
     return HeartbeatResponse(
         machine_id=machine.id,
         status=heartbeats_service.derive_status(machine, settings),
         last_seen_at=now,
         server_timestamp=now,
+        capabilities=echo,
     )

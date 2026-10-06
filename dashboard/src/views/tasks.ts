@@ -1,12 +1,16 @@
 /**
- * UI-5 — Tâches : véritable surface de travail quotidienne.
+ * UI-5 / P04-work — Travail : trois vues nommées plutôt qu'une liste brute.
  *
- * - Deux présentations des MÊMES données et actions : Liste (trouver,
- *   filtrer, parcourir — vue par défaut, la plus accessible) et Tableau
- *   (comprendre et modifier les états rapidement).
- * - Source : GET /api/v1/tasks?project_id&limit&offset (pagination réelle,
- *   sans total/filtre/tri/recherche serveur — tout le reste est un filtre
- *   client honnête sur les tâches déjà chargées, dans l'ordre du serveur).
+ * - Maintenant (défaut) : en cours + bloquées, plus quelques tâches à
+ *   démarrer — jamais une page de 100 tâches brutes. Mon travail : tâches
+ *   prises par les postes de l'utilisateur, non terminées. Toutes : liste
+ *   paginée complète, seule vue à proposer aussi le Tableau.
+ * - Source : GET /api/v1/tasks?project_id&status&mine&limit&offset
+ *   (filtres serveur DEC-0185, pas de total). La recherche reste un filtre
+ *   client honnête sur les tâches chargées, dans l'ordre du serveur.
+ * - Liste groupée par statut réel (En cours / Bloquées / À démarrer /
+ *   Terminées), sans menu de statut par ligne : le statut se change depuis
+ *   la fiche (ou le Tableau de « Toutes »).
  * - Clés backend inchangées (created/in_progress/blocked/completed), seuls
  *   les libellés visibles sont français (taskStatus.ts).
  * - Changement de statut : drag & drop + alternative clavier explicite
@@ -37,12 +41,12 @@ import {
   statusColumn,
   TASK_COLUMNS,
   taskClaimHint,
-  taskClaimTitle,
   taskStatusLabel,
   taskStatusTone,
   type TaskStatus,
 } from "../taskStatus";
 import { describeError, esc } from "../ui";
+import { FALLBACK_LABEL } from "../language";
 // Styles colocalisés : la page reste autonome sans toucher au bloc
 // d'imports CSS de main.ts.
 import "./tasks.css";
@@ -58,11 +62,11 @@ export interface TasksContext {
 
 export type TasksView = "list" | "board";
 
-export type TasksStatusFilter = "all" | TaskStatus;
+export type TasksScope = "now" | "mine" | "all";
 
 export interface TasksPageState {
+  scope: TasksScope;
   view: TasksView;
-  filter: TasksStatusFilter;
   query: string;
 }
 
@@ -72,21 +76,66 @@ export interface TasksPageMessage {
 }
 
 const STATUSES: TaskStatus[] = ["created", "in_progress", "blocked", "completed"];
+const OPEN_STATUSES: TaskStatus[] = ["in_progress", "blocked", "created"];
 
-/** État initial : Liste par défaut (meilleure accessibilité et lisibilité). */
-export function initialTasksState(): TasksPageState {
-  return { view: "list", filter: "all", query: "" };
-}
+export const TASK_SCOPES: { id: TasksScope; label: string; hint: string }[] = [
+  { id: "now", label: "Maintenant", hint: "Ce qui avance ou bloque, et les prochaines tâches à démarrer." },
+  { id: "mine", label: "Mon travail", hint: "Les tâches prises par vos postes, non terminées." },
+  { id: "all", label: "Toutes les tâches", hint: "Toutes les tâches, terminées comprises." },
+];
 
-/** Rien de saisi, rien de filtré : le bouton de réinitialisation dort. */
-export function isTasksDefaultState(state: TasksPageState): boolean {
-  return state.filter === "all" && state.query.trim() === "";
+/** Plafonds de « Maintenant » : une vue de pilotage, pas un inventaire. */
+export const NOW_ACTIVE_LIMIT = 50;
+export const NOW_UPCOMING_LIMIT = 5;
+
+/** Groupes de la liste, dans l'ordre d'attention. */
+const GROUPS: { status: TaskStatus; label: string }[] = [
+  { status: "in_progress", label: "En cours" },
+  { status: "blocked", label: "Bloquées" },
+  { status: "created", label: "À faire" },
+  { status: "completed", label: "Terminées" },
+];
+
+export interface TasksScopeRequest {
+  status?: TaskStatus[];
+  mine?: boolean;
+  limit: number;
 }
 
 /**
- * Filtre client honnête sur les tâches déjà chargées : statut exact, puis
- * sous-chaîne insensible à la casse sur titre, description et nom de projet.
- * L'ordre du serveur est toujours conservé (aucun tri inventé).
+ * Requêtes serveur d'une vue (DEC-0185). « Maintenant » est bornée et sans
+ * pagination ; « Mon travail » et « Toutes » se paginent par `limit`.
+ */
+export function tasksScopeRequests(scope: TasksScope, limit: number = TASK_PAGE_LIMIT): TasksScopeRequest[] {
+  if (scope === "now") {
+    return [
+      { status: ["in_progress", "blocked"], limit: NOW_ACTIVE_LIMIT },
+      { status: ["created"], limit: NOW_UPCOMING_LIMIT },
+    ];
+  }
+  if (scope === "mine") return [{ mine: true, status: OPEN_STATUSES, limit }];
+  return [{ limit }];
+}
+
+/** Statuts qu'une vue peut montrer (garde-fou si le serveur ignore le filtre). */
+function scopeStatuses(scope: TasksScope): TaskStatus[] {
+  return scope === "all" ? STATUSES : OPEN_STATUSES;
+}
+
+/** État initial : Maintenant, en Liste (meilleure accessibilité et lisibilité). */
+export function initialTasksState(): TasksPageState {
+  return { scope: "now", view: "list", query: "" };
+}
+
+/** Rien de saisi : le bouton de réinitialisation dort. */
+export function isTasksDefaultState(state: TasksPageState): boolean {
+  return state.query.trim() === "";
+}
+
+/**
+ * Filtre client honnête sur les tâches déjà chargées : statuts de la vue,
+ * puis sous-chaîne insensible à la casse sur titre, description et nom de
+ * projet. L'ordre du serveur est toujours conservé (aucun tri inventé).
  */
 export function filterTasks(
   tasks: Task[],
@@ -94,8 +143,10 @@ export function filterTasks(
   projectNames: Record<string, string> = {},
 ): Task[] {
   const query = state.query.trim().toLowerCase();
+  const allowed = scopeStatuses(state.scope);
   return tasks.filter((task) => {
-    if (state.filter !== "all" && task.status !== state.filter) return false;
+    if (!allowed.includes(task.status as TaskStatus)) return false;
+    if (state.scope === "mine" && task.claimed_by_machine_id === null) return false;
     if (query === "") return true;
     const haystack = `${task.title}\n${task.description ?? ""}\n${projectNames[task.project_id] ?? ""}`.toLowerCase();
     return haystack.includes(query);
@@ -112,12 +163,12 @@ export function tasksLoadingHtml(scopeLabel: string, headingLevel: 1 | 2 = 1): s
  */
 export function tasksHeaderHtml(scopeLabel: string, authed: boolean, headingLevel: 1 | 2 = 1): string {
   if (headingLevel === 1) {
-    return dsPageHeader("Tâches", scopeLabel, authed ? [{ label: "+ Nouvelle tâche", id: "task-new", variant: "primary" }] : []);
+    return dsPageHeader("Travail", scopeLabel, authed ? [{ label: "+ Nouvelle tâche", id: "task-new", variant: "primary" }] : []);
   }
   const action = authed
     ? `<p><button class="ds-btn ds-btn--primary" type="button" id="task-new">+ Nouvelle tâche</button></p>`
     : "";
-  return `<div class="ds-section-header"><h2>Tâches</h2></div><p class="ds-list-sub">${esc(scopeLabel)}</p>${action}`;
+  return action;
 }
 
 function viewToggleHtml(view: TasksView): string {
@@ -126,8 +177,18 @@ function viewToggleHtml(view: TasksView): string {
     view === value ? "ds-btn ds-btn--primary" : "ds-btn";
   return `<div class="tasks-view-toggle" role="group" aria-label="Présentation des tâches">` +
     `<button class="${cls("list")}" type="button" data-view="list"${pressed("list")}>Liste</button>` +
-    `<button class="${cls("board")}" type="button" data-view="board"${pressed("board")}>Tableau</button>` +
+    `<button class="${cls("board")}" type="button" data-view="board"${pressed("board")}>Kanban</button>` +
     `</div>`;
+}
+
+/** Vues nommées : un bouton par vue, l'active marquée sans dépendre de la couleur. */
+export function tasksScopeTabsHtml(scope: TasksScope, activeCount?: number): string {
+  const buttons = TASK_SCOPES.map((item) => {
+    const active = item.id === scope;
+    const count = active && activeCount !== undefined ? ` <span class="tasks-scope-count">${activeCount}</span>` : "";
+    return `<button class="${active ? "ds-btn ds-btn--primary" : "ds-btn"}" type="button" data-scope="${item.id}" aria-pressed="${active ? "true" : "false"}" title="${esc(item.hint)}">${esc(item.label)}${count}</button>`;
+  }).join("");
+  return `<div class="tasks-scopes"><div class="tasks-scope-tabs" role="group" aria-label="Vues du travail">${buttons}</div></div>`;
 }
 
 export function tasksToolbarHtml(
@@ -135,23 +196,15 @@ export function tasksToolbarHtml(
   shown: number,
   total: number,
 ): string {
-  const statusOptions = [`<option value="all"${state.filter === "all" ? " selected" : ""}>Tous les statuts</option>`]
-    .concat(
-      STATUSES.map(
-        (status) =>
-          `<option value="${status}"${state.filter === status ? " selected" : ""}>${esc(taskStatusLabel(status))}</option>`,
-      ),
-    )
-    .join("");
   return `<div class="tasks-toolbar" role="search" aria-label="Filtrer les tâches chargées">` +
-    `${viewToggleHtml(state.view)}` +
+    `${state.scope === "all" ? viewToggleHtml(state.view) : ""}` +
     `<div class="ds-search"><span class="ds-search-icon" aria-hidden="true">⌕</span>` +
     `<label class="ds-sr-only" for="tasks-search">Filtrer les tâches déjà chargées</label>` +
     `<input class="ds-input" type="search" id="tasks-search" value="${esc(state.query)}" placeholder="Filtrer par titre, description ou projet…" autocomplete="off" /></div>` +
-    `<label class="tasks-status-filter"><span>Statut</span>` +
-    `<select class="ds-select" id="tasks-status">${statusOptions}</select></label>` +
     `<button class="ds-btn ds-btn--ghost" type="button" data-reset${isTasksDefaultState(state) ? " disabled" : ""}>Réinitialiser</button>` +
-    `<p class="ds-list-sub" role="status" aria-live="polite">${shown} tâche(s) affichée(s) sur ${total} chargée(s) — recherche et filtre locaux.</p>` +
+    (state.query.trim() === ""
+      ? ""
+      : `<p class="ds-list-sub" role="status" aria-live="polite">${shown} sur ${total}</p>`) +
     `</div>`;
 }
 
@@ -186,7 +239,7 @@ function taskContextLine(task: Task, options: TasksRenderOptions): string {
   const parts: string[] = [];
   if (options.showProject) {
     const name = options.projectNames?.[task.project_id] ?? null;
-    parts.push(name === null || name === "" ? "Projet inconnu" : name);
+    parts.push(name === null || name === "" ? FALLBACK_LABEL.project : name);
   }
   const excerpt = taskDescriptionExcerpt(task);
   if (excerpt !== "") parts.push(excerpt);
@@ -194,29 +247,38 @@ function taskContextLine(task: Task, options: TasksRenderOptions): string {
   return parts.map((part) => esc(part)).join(" · ");
 }
 
-/** Liste : titre + statut, puis projet · prise, puis extrait (secondaires). */
+/**
+ * Liste : titre + statut, puis projet · prise, puis extrait (secondaires).
+ * Aucun contrôle de statut par ligne : il vit dans la fiche.
+ */
 function taskListRowHtml(task: Task, options: TasksRenderOptions): string {
   const meta: string[] = [];
   if (options.showProject) {
     const name = options.projectNames?.[task.project_id] ?? null;
-    meta.push(`<span class="task-project">${esc(name === null || name === "" ? "Projet inconnu" : name)}</span>`);
+    meta.push(`<span class="task-project">${esc(name === null || name === "" ? FALLBACK_LABEL.project : name)}</span>`);
   }
-  const claimTitle = taskClaimTitle(task);
-  meta.push(claimTitle === "" ? esc(taskClaimHint(task)) : `<span title="${esc(claimTitle)}">${esc(taskClaimHint(task))}</span>`);
+  meta.push(esc(taskClaimHint(task)));
   const excerpt = taskDescriptionExcerpt(task);
   return `<li class="ds-list-item task-row"><div class="grow task-main">` +
     `<div class="task-head"><div class="ds-list-title"><a href="#/tasks/${esc(task.id)}">${esc(task.title)}</a></div>` +
     `${dsBadge(taskStatusLabel(task.status), taskStatusTone(task.status))}</div>` +
     `<div class="ds-list-sub task-meta">${meta.join(" · ")}</div>` +
     `${excerpt === "" ? "" : `<div class="ds-list-sub task-excerpt">${esc(excerpt)}</div>`}` +
-    `</div>${taskMoveControlHtml(task, options.authed)}</li>`;
+    `</div></li>`;
 }
 
+/** Liste groupée par statut réel ; les groupes vides sont omis. */
 export function tasksListHtml(tasks: Task[], options: TasksRenderOptions): string {
   if (tasks.length === 0) return "";
-  return `<ul class="ds-list ds-list--card tasks-list">` +
-    tasks.map((task) => taskListRowHtml(task, options)).join("") +
-    `</ul>`;
+  return GROUPS.map((group) => {
+    const rows = tasks.filter((task) => task.status === group.status);
+    if (rows.length === 0) return "";
+    const id = `tasks-group-${group.status}`;
+    return `<section class="tasks-group" aria-labelledby="${id}">` +
+      `<h3 class="tasks-group-title" id="${id}">${esc(group.label)} <span class="ds-list-sub">(${rows.length})</span></h3>` +
+      `<ul class="ds-list ds-list--card tasks-list">${rows.map((task) => taskListRowHtml(task, options)).join("")}</ul>` +
+      `</section>`;
+  }).join("");
 }
 
 export function tasksBoardHtml(tasks: Task[], options: TasksRenderOptions): string {
@@ -283,6 +345,24 @@ export interface TasksPageData {
   projects: Project[];
   projectNames: Record<string, string>;
   msg: TasksPageMessage;
+  /** Vue en cours de chargement (changement de vue) : squelette, pas de vide trompeur. */
+  loading?: boolean;
+}
+
+function scopeEmptyState(data: TasksPageData): string {
+  const toAll = `<p><button class="ds-btn" type="button" data-scope="all">Voir toutes les tâches</button></p>`;
+  if (data.state.scope === "now") {
+    return dsEmptyState("Rien en cours", "Aucune tâche en cours, bloquée ou à démarrer.") + toAll;
+  }
+  if (data.state.scope === "mine") {
+    return dsEmptyState("Aucune tâche prise par vos postes", "Reprenez une tâche depuis sa fiche pour la retrouver ici.") + toAll;
+  }
+  return dsEmptyState(
+    "Aucune tâche",
+    data.projectId === undefined
+      ? "Créez votre première tâche pour commencer à travailler."
+      : "Ce projet ne contient aucune tâche pour le moment.",
+  );
 }
 
 export function tasksPageHtml(data: TasksPageData): string {
@@ -290,15 +370,15 @@ export function tasksPageHtml(data: TasksPageData): string {
   const showProject = data.projectId === undefined;
   const options: TasksRenderOptions = { authed: data.authed, showProject, projectNames: data.projectNames };
   const header = tasksHeaderHtml(data.scopeLabel, data.authed, data.headingLevel ?? 1);
-  const toolbar = tasksToolbarHtml(data.state, visible.length, data.tasks.length);
+  const inScope = filterTasks(data.tasks, { ...data.state, query: "" }, data.projectNames);
+  const tabs = tasksScopeTabsHtml(data.state.scope, data.loading || !data.exhausted ? undefined : inScope.length);
+  const toolbar = tasksToolbarHtml(data.state, visible.length, inScope.length);
+  const board = data.state.scope === "all" && data.state.view === "board";
   let body: string;
-  if (data.tasks.length === 0) {
-    body = dsEmptyState(
-      "Aucune tâche",
-      data.projectId === undefined
-        ? "Créez votre première tâche pour commencer à travailler."
-        : "Ce projet ne contient aucune tâche pour le moment.",
-    );
+  if (data.loading) {
+    body = dsSkeleton(3);
+  } else if (inScope.length === 0) {
+    body = scopeEmptyState(data);
   } else if (visible.length === 0) {
     body =
       dsEmptyState(
@@ -306,14 +386,16 @@ export function tasksPageHtml(data: TasksPageData): string {
         "Modifiez ou réinitialisez les filtres pour retrouver vos tâches déjà chargées.",
       ) + `<p><button class="ds-btn" type="button" data-reset>Réinitialiser les filtres</button></p>`;
   } else {
-    body = data.state.view === "list" ? tasksListHtml(visible, options) : tasksBoardHtml(visible, options);
+    body = board ? tasksBoardHtml(visible, options) : tasksListHtml(visible, options);
   }
-  const more = data.exhausted
-    ? `<p class="ds-list-sub">Toutes les tâches chargées.</p>`
-    : `<button class="ds-btn" type="button" data-more>Afficher plus</button>`;
+  const reloadButton = `<button class="ds-btn ds-btn--ghost" type="button" data-reload>Actualiser</button>`;
   const footer =
-    `<div class="tasks-footer"><button class="ds-btn ds-btn--ghost" type="button" data-reload>Actualiser</button>${more}` +
-    `<p class="ds-list-sub">Chargement par pages de ${TASK_PAGE_LIMIT} — les filtres s'appliquent aux tâches chargées, dans l'ordre du serveur.</p></div>`;
+    data.state.scope === "now"
+      ? `<div class="tasks-footer">${reloadButton}<button class="ds-btn" type="button" data-scope="all">Voir toutes les tâches</button>` +
+        `</div>`
+      : `<div class="tasks-footer">${reloadButton}` +
+        (data.exhausted ? "" : `<button class="ds-btn" type="button" data-more>Afficher plus de tâches</button>`) +
+        `</div>`;
   const msg =
     data.msg.human === ""
       ? `<div data-msg class="ds-list-sub" role="status" aria-live="polite"></div>`
@@ -325,10 +407,10 @@ export function tasksPageHtml(data: TasksPageData): string {
     ? dsModalHtml({ id: "task-create-dialog", title: "Nouvelle tâche", body: taskCreateFormHtml(data.projectId, data.projects, data.scopeLabel) })
     : "";
   const boardHint =
-    data.state.view === "board" && data.authed
+    board && data.authed
       ? `<p class="ds-list-sub">Glissez une carte vers une colonne pour changer son statut — ou utilisez « Déplacer vers… » au clavier.</p>`
       : "";
-  return `<div class="tasks">${header}${toolbar}${readonlyNote}${boardHint}${body}${footer}${msg}${modal}</div>`;
+  return `<div class="tasks">${header}${tabs}${toolbar}${readonlyNote}${boardHint}${body}${footer}${msg}${modal}</div>`;
 }
 
 export async function renderTasksInto(root: HTMLElement, ctx: TasksContext): Promise<void> {
@@ -344,6 +426,8 @@ export async function renderTasksInto(root: HTMLElement, ctx: TasksContext): Pro
   let painted = false;
   let movePending = false;
   let createPending = false;
+  let loading = false;
+  let generation = 0;
 
   const reload = async (keepMsg?: TasksPageMessage): Promise<void> => {
     if (painted) paint(keepMsg ?? { human: "" });
@@ -351,12 +435,24 @@ export async function renderTasksInto(root: HTMLElement, ctx: TasksContext): Pro
       projects = await loadProjects(ctx);
       projectNames = Object.fromEntries(projects.map((project) => [project.id, project.name]));
     }
+    const current = ++generation;
+    const requests = tasksScopeRequests(state.scope, limit);
     try {
-      tasks = await listTasks(ctx.client, { projectId: ctx.projectId, limit, offset: 0 });
-      exhausted = tasks.length < limit;
+      const pages = await Promise.all(
+        requests.map((request) => listTasks(ctx.client, { projectId: ctx.projectId, ...request, offset: 0 })),
+      );
+      // Une vue plus récente a été demandée entre-temps : sa réponse prime.
+      if (current !== generation) return;
+      // Une tâche peut changer de statut entre deux requêtes parallèles : une seule ligne par id.
+      tasks = [...new Map(pages.flat().map((task) => [task.id, task])).values()];
+      exhausted =
+        state.scope === "now" || pages.every((page, index) => page.length < (requests[index]?.limit ?? limit));
+      loading = false;
       msg = keepMsg ?? { human: "" };
       paint();
     } catch (error) {
+      if (current !== generation) return;
+      loading = false;
       root.innerHTML =
         `${tasksHeaderHtml(ctx.scopeLabel, false, headingLevel)}` +
         `<div class="ds-notice ds-notice--danger" role="alert"><strong>Tâches indisponibles.</strong> ${esc(describeError(error))} <button class="ds-btn ds-btn--sm" type="button" data-reload>Réessayer</button></div>`;
@@ -384,6 +480,7 @@ export async function renderTasksInto(root: HTMLElement, ctx: TasksContext): Pro
       projects,
       projectNames,
       msg,
+      loading,
     });
     if (existingDialog !== null) {
       root.querySelector("#task-create-dialog")?.remove();
@@ -453,6 +550,19 @@ export async function renderTasksInto(root: HTMLElement, ctx: TasksContext): Pro
   };
 
   const bind = (): void => {
+    root.querySelectorAll<HTMLButtonElement>("[data-scope]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const scope = (button.dataset["scope"] ?? "now") as TasksScope;
+        if (scope === state.scope) return;
+        state.scope = scope;
+        if (scope !== "all") state.view = "list";
+        limit = TASK_PAGE_LIMIT;
+        tasks = [];
+        loading = true;
+        paint({ human: "" }, `.tasks-scope-tabs [data-scope="${scope}"]`);
+        void reload();
+      });
+    });
     root.querySelectorAll<HTMLButtonElement>("[data-view]").forEach((button) => {
       button.addEventListener("click", () => {
         state.view = (button.dataset["view"] ?? "list") as TasksView;
@@ -464,13 +574,8 @@ export async function renderTasksInto(root: HTMLElement, ctx: TasksContext): Pro
       state.query = search.value;
       paint(undefined, "#tasks-search");
     });
-    root.querySelector<HTMLSelectElement>("#tasks-status")?.addEventListener("change", (event) => {
-      state.filter = (event.target as HTMLSelectElement).value as TasksStatusFilter;
-      paint(undefined, "#tasks-status");
-    });
     root.querySelectorAll("[data-reset]").forEach((button) => {
       button.addEventListener("click", () => {
-        state.filter = "all";
         state.query = "";
         paint(undefined, "#tasks-search");
       });

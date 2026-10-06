@@ -27,8 +27,8 @@ import { postResolution, resolutionErrorView, type ResolvedAgentDefinition, type
 import { buildBindingCreateTarget } from "./configForms";
 import { formReader, type FormReader } from "./libraryForms";
 import { uiState } from "../store";
-import { describeError, esc } from "../ui";
-import { dsEmptyState, dsPageHeader, dsSkeleton } from "../ds/ds";
+import { describeError, esc, isOfflineError } from "../ui";
+import { dsEmptyState, dsPageHeader, dsSkeleton, dsStateHtml, dsStatus, dsTechDetails } from "../ds/ds";
 import "./inspector.css";
 
 export interface InspectorContext {
@@ -36,6 +36,9 @@ export interface InspectorContext {
   authed: boolean;
   stableKey: string | null;
 }
+
+/** Défilement interne : les sauts du héros ne changent pas de route. */
+const INSPECTOR_JUMP = "[data-inspector-jump]";
 
 type ResolvedRule = components["schemas"]["ResolvedRule"];
 type ResolvedSkill = components["schemas"]["ResolvedSkill"];
@@ -101,14 +104,14 @@ export function inspectorFormHtml(stableKey: string | null, projectId: string | 
     `<h3>Demande d'inspection</h3>` +
     `<label class="stack">Clé stable AgentDefinition <input name="stable_key" list="agent-keys" value="${esc(stableKey ?? "")}" placeholder="ex : review-helper" required /></label>` +
     `<datalist id="agent-keys">${options}</datalist>` +
-    `<label class="stack">ID Projet (contexte optionnel) <input name="project_id" value="${esc(projectId ?? "")}" placeholder="uuid" /></label>` +
+    `<label class="stack">ID Projet (contexte optionnel) <input name="project_id" value="${esc(projectId ?? "")}" placeholder="Laissé vide ici" /><span class="meta">Vide = sans contexte projet.</span></label>` +
     `</div>` +
     `<details class="editor inspector-form-section"><summary>Remplacement de session éphémère — non persisté</summary>` +
     `<label class="check">Activer le remplacement <input name="enable_override" type="checkbox" /></label>` +
     `<label class="stack">Type de cible <select name="override_target_kind"><option value="agent_definition">Agent Definition</option><option value="model_profile">Model Profile</option></select></label>` +
     `<label class="stack">Clé stable cible <input name="override_stable_key" placeholder="clé stable à remplacer" /></label>` +
-    `<label class="stack">Runtime registry ID <input name="override_runtime_id" placeholder="uuid (exclusif des ancres inline)" /></label>` +
-    `<label class="stack">Machine ID <input name="override_machine_id" placeholder="uuid" /></label>` +
+    `<label class="stack">Runtime registry ID <input name="override_runtime_id" placeholder="identifiant du registre (exclusif des ancres inline)" /></label>` +
+    `<label class="stack">Machine ID <input name="override_machine_id" placeholder="poste cible" /></label>` +
     `<label class="stack">Harness ref <input name="override_harness_ref" placeholder="chaîne ouverte" /></label>` +
     `<label class="stack">Provider ref <input name="override_provider_ref" placeholder="chaîne ouverte" /></label>` +
     `<label class="stack">Model ref <input name="override_model_ref" placeholder="chaîne ouverte" /></label>` +
@@ -120,6 +123,19 @@ export function inspectorFormHtml(stableKey: string | null, projectId: string | 
   );
 }
 
+/**
+ * Verdict canonique du serveur, repris tel quel : jamais « compatible » par
+ * défaut ni de repli local (P12).
+ */
+function verdictHtml(resolved: ResolvedAgentDefinition): string {
+  const runtime = resolved.runtime;
+  if (runtime == null) return dsStatus("idle", "Compatibilité inconnue");
+  const unsatisfied = runtime.unsatisfied ?? [];
+  return unsatisfied.length === 0
+    ? dsStatus("success", "Compatible")
+    : dsStatus("danger", `Incompatible — ${unsatisfied.length} exigence(s) non satisfaite(s)`);
+}
+
 export function identityHtml(resolved: ResolvedAgentDefinition): string {
   const agent = resolved.agent;
   const deprecated = agent.deprecated ? ' <span class="status bad">Déprécié</span>' : "";
@@ -127,9 +143,15 @@ export function identityHtml(resolved: ResolvedAgentDefinition): string {
     `<dl class="detail-grid">` +
     `<dt>AgentDefinition</dt><dd>${resourceLink("agent_definition", agent.resource_id, agent.stable_key)}${deprecated}</dd>` +
     `<dt>Version effective</dt><dd><strong>v${agent.version}</strong> · origine : ${esc(versionOriginLabel(agent.version_origin))} · portée : ${esc(scopeLabel(agent.scope))}</dd>` +
-    `<dt>Ressource</dt><dd><code class="mono">${esc(agent.resource_id)}</code>${agent.title !== "" ? ` · ${esc(agent.title)}` : ""}</dd>` +
     `<dt>Provenance</dt><dd>Pourquoi : ${esc(provenanceReason(agent.provenance))}</dd>` +
-    `</dl>`
+    `</dl>` +
+    dsTechDetails(
+      [
+        { label: "Identifiant", value: agent.resource_id, mono: true },
+        ...(agent.title !== "" ? [{ label: "Titre", value: agent.title }] : []),
+      ],
+      "Identifiant de la ressource",
+    )
   );
 }
 
@@ -370,15 +392,51 @@ export function rawJsonHtml(resolved: ResolvedAgentDefinition): string {
   return `<details class="editor inspector-raw"><summary>Données brutes (JSON filtré)</summary><pre class="code">${esc(safeResponseJson(resolved))}</pre></details>`;
 }
 
+/** Héros : identité résolue, verdict serveur, une seule action primaire. */
+function resultHeroHtml(resolved: ResolvedAgentDefinition): string {
+  const agent = resolved.agent;
+  const label = agent.title !== "" ? agent.title : agent.stable_key;
+  return (
+    `<section class="ds-hero inspector-hero">` +
+    `<p class="ds-hero-eyebrow">${esc(agent.stable_key)} · v${agent.version} effective · ${esc(scopeLabel(agent.scope))}</p>` +
+    `<h2>Identité résolue : ${esc(label)}</h2>` +
+    `<p class="ds-hero-body">${
+      resolved.runtime == null
+        ? "Le serveur a retenu la définition canonique sans runtime applicable : résultat valide, compatibilité non évaluée."
+        : (resolved.runtime.unsatisfied ?? []).length === 0
+          ? "Aucune exigence non satisfaite n'est signalée par le serveur."
+          : "Le serveur signale des exigences non satisfaites : le binding retenu reste le binding retenu, sans repli."
+    }</p>` +
+    `<p class="ds-hero-status">${verdictHtml(resolved)}</p>` +
+    `<div class="ds-hero-actions">` +
+    `<button class="ds-btn ds-btn--primary" type="button" data-inspector-jump="inspector-compatibility">Voir la compatibilité</button>` +
+    `<button class="ds-btn ds-btn--ghost" type="button" data-inspector-jump="inspector-provenance">Pourquoi ce résultat ?</button>` +
+    `</div></section>`
+  );
+}
+
+/** Colonne de contexte : pourquoi ce résultat, et ce que le serveur refuse. */
+function resultContextHtml(resolved: ResolvedAgentDefinition): string {
+  return (
+    `<aside class="ds-card tool-context" aria-label="Provenance et échecs structurés">` +
+    `<section><h2 id="inspector-provenance">Pourquoi ce résultat ?</h2>${provenanceReasonsHtml(resolved)}</section>` +
+    `<section><h2>Échecs structurés</h2><p>Incompatible : aucun repli automatique vers un niveau inférieur. Introuvable : le serveur ne révèle ni l'existence ni le propriétaire de la ressource.</p></section>` +
+    `</aside>`
+  );
+}
+
 export function resolutionResultHtml(resolved: ResolvedAgentDefinition): string {
   return (
+    resultHeroHtml(resolved) +
+    `<div class="tool-columns">` +
+    `<div class="tool-main">` +
     `<section class="ds-panel inspector-section" aria-labelledby="inspector-identity"><header><h2 id="inspector-identity">Identité résolue</h2></header><div class="body">${identityHtml(resolved)}</div></section>` +
     `<section class="ds-panel inspector-section" aria-labelledby="inspector-model-profile"><header><h2 id="inspector-model-profile">Model Profile et exigences</h2></header><div class="body">${modelProfileHtml(resolved.model_profile)}</div></section>` +
     `<section class="ds-panel inspector-section" aria-labelledby="inspector-runtime"><header><h2 id="inspector-runtime">Runtime sélectionné</h2></header><div class="body">${runtimeHtml(resolved.runtime)}</div></section>` +
     `<section class="ds-panel inspector-section" aria-labelledby="inspector-compatibility"><header><h2 id="inspector-compatibility">Compatibilité — exigences vs runtime</h2></header><div class="body">${compatibilityComparisonHtml(resolved)}</div></section>` +
-    `<section class="ds-panel inspector-section" aria-labelledby="inspector-provenance"><header><h2 id="inspector-provenance">Pourquoi ce résultat ?</h2></header><div class="body">${provenanceReasonsHtml(resolved)}</div></section>` +
     `<section class="ds-panel inspector-section" aria-labelledby="inspector-rules"><header><h2 id="inspector-rules">Règles (${(resolved.rules ?? []).length})</h2></header><div class="body">${rulesTableHtml(resolved.rules)}</div></section>` +
     `<section class="ds-panel inspector-section" aria-labelledby="inspector-skills"><header><h2 id="inspector-skills">Compétences (${(resolved.skills ?? []).length})</h2></header><div class="body">${skillsTableHtml(resolved.skills)}</div></section>` +
+    `</div>${resultContextHtml(resolved)}</div>` +
     rawJsonHtml(resolved)
   );
 }
@@ -386,15 +444,20 @@ export function resolutionResultHtml(resolved: ResolvedAgentDefinition): string 
 export async function renderInspector(root: HTMLElement, ctx: InspectorContext): Promise<void> {
   const title = "Inspecteur de résolution";
   const subtitle =
-    "Inspectez ici la manière dont Studi'OS résout une configuration d'agent et évalue la compatibilité avec le runtime — le serveur décide, cette page explique.";
+    "Le serveur décide, cette page explique : lecture pure sur POST /resolutions, aucun binding créé ni modifié.";
   if (!ctx.authed) {
     root.innerHTML =
+      `<p class="ds-eyebrow">Administration · Lecture seule</p>` +
       dsPageHeader(title, subtitle) +
-      dsEmptyState("Non connecté", "Saisissez un jeton machine pour lancer une inspection.", { label: "Aller à l'accueil", href: "#/" });
+      dsStateHtml("empty", {
+        title: "Non connecté",
+        message: "Saisissez un jeton machine sur l'accueil pour lancer une inspection.",
+        action: { label: "Aller à l'accueil", href: "#/" },
+      });
     return;
   }
 
-  root.innerHTML = dsPageHeader(title, subtitle) + dsSkeleton(4);
+  root.innerHTML = `<p class="ds-eyebrow">Administration · Lecture seule</p>` + dsPageHeader(title, subtitle) + dsStateHtml("loading", { title: "Préparation", message: "Chargement des clés connues." });
 
   let agentKeys: string[] = [];
   try {
@@ -406,6 +469,7 @@ export async function renderInspector(root: HTMLElement, ctx: InspectorContext):
 
   const projectId = uiState.selectedProjectId;
   root.innerHTML =
+    `<p class="ds-eyebrow">Administration · Lecture seule</p>` +
     dsPageHeader(title, subtitle) +
     `<div class="inspector-grid">` +
     `<div class="inspector-form-panel">${inspectorFormHtml(ctx.stableKey, projectId, agentKeys)}</div>` +
@@ -420,14 +484,10 @@ export async function renderInspector(root: HTMLElement, ctx: InspectorContext):
 }
 
 function emptyResultHtml(): string {
-  return (
-    `<div class="ds-panel inspector-section"><div class="body">` +
-    dsEmptyState(
-      "Aucune inspection lancée",
-      "Choisissez un champ puis lancez une résolution : le résultat détaille l'identité résolue, le runtime retenu, la compatibilité et la provenance.",
-    ) +
-    `</div></div>`
-  );
+  return dsStateHtml("empty", {
+    title: "Aucune inspection lancée",
+    message: "Choisissez une clé stable puis lancez une résolution : le serveur répondra par l'identité résolue, le runtime retenu, la compatibilité et la provenance.",
+  });
 }
 
 function readInspectorInput(form: HTMLFormElement): InspectorInput {
@@ -479,6 +539,17 @@ function releaseSubmit(form: HTMLFormElement): void {
 
 function bindInspector(root: HTMLElement, ctx: InspectorContext): void {
   const form = root.querySelector<HTMLFormElement>("[data-resolve]");
+  const panel = root.querySelector<HTMLElement>(".inspector-result-panel");
+  // Héros et états partagent deux gestes : saut de section et réessai.
+  panel?.addEventListener("click", (event) => {
+    const target = (event.target as Element | null)?.closest(INSPECTOR_JUMP);
+    if (target instanceof HTMLElement) {
+      panel.querySelector(`#${CSS.escape(target.dataset.inspectorJump ?? "")}`)?.scrollIntoView();
+      return;
+    }
+    if ((event.target as Element | null)?.closest("#inspector-retry") === null) return;
+    form?.requestSubmit();
+  });
   form?.addEventListener("submit", (event) => {
     event.preventDefault();
     const built = buildResolutionRequest(readInspectorInput(form));
@@ -515,6 +586,16 @@ async function runResolution(root: HTMLElement, ctx: InspectorContext): Promise<
   setFormMessage(form, status.text, status.error);
 }
 
+/** Rendered when the request never reached the server (réseau coupé). */
+function offlineResultHtml(error: unknown): string {
+  return dsStateHtml("offline", {
+    title: "Serveur injoignable",
+    message: "L'inspection n'a pas pu partir : le serveur n'a rien décidé. Vérifiez la connexion, puis réessayez.",
+    action: { label: "Réessayer", id: "inspector-retry" },
+    details: [{ label: "Cause", value: error instanceof Error ? error.message : String(error), mono: true }],
+  });
+}
+
 /** Renders the canonical response or its structured failure; returns a status
  *  string for the form message. Never throws. */
 async function executeResolution(
@@ -530,6 +611,10 @@ async function executeResolution(
     result.innerHTML = resolutionResultHtml(resolved);
     return { text: "Résolution terminée — résultat serveur affiché.", error: false };
   } catch (error) {
+    if (isOfflineError(error)) {
+      result.innerHTML = offlineResultHtml(error);
+      return { text: "Serveur injoignable — aucune résolution affichée.", error: true };
+    }
     const view = resolutionErrorView(error);
     result.innerHTML = resolutionFailureHtml(view);
     return { text: view.code ?? describeError(error), error: true };

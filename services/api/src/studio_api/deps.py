@@ -19,6 +19,10 @@ from studio_api.openapi_meta import machine_bearer_scheme
 from studio_api.security import hash_token
 from studio_api.security_log import security_event
 from studio_api.services.authz import Principal, load_principal
+from studio_api.services.launch_credentials import (
+    ensure_rest_allowed,
+    resolve_launch_credential,
+)
 from studio_api.settings import get_settings
 
 DbSession = Annotated[AsyncSession, Depends(get_session)]
@@ -41,7 +45,10 @@ async def resolve_machine(session: AsyncSession, token: str) -> MachineModel | N
             UserModel.email_verified_at.is_not(None),
         )
     )
-    return result.scalar_one_or_none()
+    machine = result.scalar_one_or_none()
+    if machine is None:
+        machine = await resolve_launch_credential(session, token)
+    return machine
 
 
 JWT_AUTH_VERSION_STATE = "jwt_auth_version"
@@ -95,6 +102,8 @@ async def get_current_machine(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid or revoked machine token")
     # Lets the rate limiter key this token on its own bucket from now on.
     setattr(request.state, AUTHENTICATED_STATE_FLAG, True)
+    route = request.scope.get("route")
+    ensure_rest_allowed(machine, request.method, getattr(route, "path", None))
     return machine
 
 

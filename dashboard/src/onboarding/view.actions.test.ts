@@ -32,6 +32,7 @@ vi.mock("../creationsApi", async (importOriginal) => {
 
 const WS = "11111111-1111-4111-8111-111111111111";
 const PROJECT = "22222222-2222-4222-8222-222222222222";
+const MACHINE = "33333333-3333-4333-8333-333333333333";
 
 const ok = (payload: unknown): BridgeAnswer => ({ ok: true, response: { payload } }) as unknown as BridgeAnswer;
 const refused = (code: string): BridgeAnswer =>
@@ -461,6 +462,56 @@ describe("A5 — enregistrement du poste sans admin (DEC-0130)", () => {
     expect(root.querySelector("[data-testid=onboarding-notice]")?.textContent).toContain("Poste enregistré.");
     expect(root.querySelector<HTMLButtonElement>("[data-action=next]")!.disabled).toBe(false);
     expect(root.innerHTML).not.toContain("session-token");
+  });
+
+  it("propose les machines non révoquées et transmet adopt_machine_id en reprise", async () => {
+    api.GET.mockImplementation(async (path: string) =>
+      path === "/api/v1/machines"
+        ? { response: { ok: true }, data: [{ id: MACHINE, display_name: "Atelier", owner_user_id: PROJECT, status: "offline" }] }
+        : { response: { ok: true }, data: [] },
+    );
+    const { platform, calls } = enrollingDesktop({
+      status: () => "absent",
+      enroll: () => ok({ outcome: "enrolled", machine_id: MACHINE, view: { profile: PROFILE, secrets: [] } }),
+    });
+    const root = mount();
+    await renderOnboarding(root, platform, verification());
+    expect(root.querySelector("[data-testid=enroll-machine-choice]")).not.toBeNull();
+    expect(root.textContent).toContain("Reprendre la machine « Atelier »");
+
+    root.querySelector<HTMLInputElement>(`input[name=enroll-mode][value="${MACHINE}"]`)!.checked = true;
+    root.querySelector<HTMLButtonElement>("[data-action=enroll]")!.click();
+    await tick(20);
+    const payload = calls.find((c) => c.command === "identity.enroll")!.payload;
+    expect(payload["adopt_machine_id"]).toBe(MACHINE);
+  });
+
+  it("par défaut, crée une nouvelle machine sans adopt_machine_id", async () => {
+    api.GET.mockImplementation(async (path: string) =>
+      path === "/api/v1/machines"
+        ? { response: { ok: true }, data: [{ id: MACHINE, display_name: "Atelier", owner_user_id: PROJECT, status: "offline" }] }
+        : { response: { ok: true }, data: [] },
+    );
+    const { platform, calls } = enrollingDesktop({
+      status: () => "absent",
+      enroll: () => ok({ outcome: "enrolled", machine_id: PROJECT, view: { profile: PROFILE, secrets: [] } }),
+    });
+    const root = mount();
+    await renderOnboarding(root, platform, verification());
+    expect(root.querySelector<HTMLInputElement>("input[name=enroll-mode][value=new]")!.checked).toBe(true);
+    root.querySelector<HTMLButtonElement>("[data-action=enroll]")!.click();
+    await tick(20);
+    const payload = calls.find((c) => c.command === "identity.enroll")!.payload;
+    expect("adopt_machine_id" in payload).toBe(false);
+  });
+
+  it("sans machine connue, l'enrôlement garde son unique geste", async () => {
+    api.GET.mockResolvedValue({ response: { ok: true }, data: [] });
+    const { platform } = enrollingDesktop({ status: () => "absent" });
+    const root = mount();
+    await renderOnboarding(root, platform, verification());
+    expect(root.querySelector("[data-testid=enroll-machine-choice]")).toBeNull();
+    expect(root.querySelector("[data-action=enroll]")).not.toBeNull();
   });
 
   it("un credential révoqué est remplacé explicitement", async () => {

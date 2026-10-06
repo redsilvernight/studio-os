@@ -1,0 +1,8 @@
+{
+  "data": {
+    "counts": {},
+    "exists": true,
+    "has_queued_work": false
+  },
+  "model": "OutboxLegacyStatus"
+}

@@ -6,11 +6,14 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import httpx
+import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_api.db.models.transfer import TransferModel
 from studio_api.services import transfers as transfers_service
 from studio_api.storage.provider import get_storage
+
+pytestmark = pytest.mark.infra("minio")
 
 
 def _md5_b64(payload: bytes) -> str:

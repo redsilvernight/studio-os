@@ -1,0 +1,82 @@
+{
+  "$defs": {
+    "SetupItemKind": {
+      "enum": [
+        "hook",
+        "guard",
+        "plugin"
+      ],
+      "title": "SetupItemKind",
+      "type": "string"
+    },
+    "SetupItemState": {
+      "enum": [
+        "missing",
+        "current",
+        "differs"
+      ],
+      "title": "SetupItemState",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "diff": {
+      "default": "",
+      "maxLength": 8200,
+      "title": "Diff",
+      "type": "string"
+    },
+    "diff_truncated": {
+      "default": false,
+      "title": "Diff Truncated",
+      "type": "boolean"
+    },
+    "harness": {
+      "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+      "title": "Harness",
+      "type": "string"
+    },
+    "item_id": {
+      "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+      "title": "Item Id",
+      "type": "string"
+    },
+    "kind": {
+      "$ref": "#/$defs/SetupItemKind"
+    },
+    "lines_added": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Lines Added",
+      "type": "integer"
+    },
+    "lines_removed": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Lines Removed",
+      "type": "integer"
+    },
+    "managed": {
+      "title": "Managed",
+      "type": "boolean"
+    },
+    "needs_registration": {
+      "default": false,
+      "title": "Needs Registration",
+      "type": "boolean"
+    },
+    "state": {
+      "$ref": "#/$defs/SetupItemState"
+    }
+  },
+  "required": [
+    "item_id",
+    "kind",
+    "harness",
+    "state",
+    "managed"
+  ],
+  "title": "SetupItemPlan",
+  "type": "object"
+}

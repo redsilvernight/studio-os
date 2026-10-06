@@ -56,7 +56,7 @@ test.describe("appshell", () => {
 
     await login(page, "#/tasks");
     await expect(page.locator('.app-sidebar a[href="#/tasks"]')).toHaveAttribute("aria-current", "page");
-    await expect(page.locator(".app-sidebar")).toContainText("Agents IA");
+    await expect(page.locator(".app-sidebar")).toContainText("Agents");
     await expect(page.locator('.app-sidebar a[href="#/agents"]')).toBeVisible();
     await expect(page.locator(".app-sidebar")).not.toContainText("Bientôt");
     await expect(page.locator(".app-sidebar")).not.toContainText("Design System");
@@ -77,7 +77,7 @@ test.describe("appshell", () => {
     page.on("pageerror", (error) => pageErrors.push(error));
 
     await login(page, "#/tasks");
-    await expect(page.locator("#view")).toContainText("Tâches");
+    await expect(page.locator("#view")).toContainText("Travail");
     await expect(page).toHaveURL(/#\/tasks$/);
 
     // Marque le nœud #view courant : tout render() parasite le remplacerait
@@ -102,7 +102,7 @@ test.describe("appshell", () => {
       );
       expect(sameNode).toBe(true);
       // Le contenu reste celui de la route courante, pas un 404 "#view".
-      await expect(page.locator("#view")).toContainText("Tâches");
+      await expect(page.locator("#view")).toContainText("Travail");
     };
 
     // Premier arrêt Tab naturel depuis le chargement : le skip-link.
@@ -149,7 +149,7 @@ test.describe("appshell", () => {
     });
     // Let the stale overview request resolve long after the navigation.
     await page.waitForTimeout(2500);
-    await expect(page.locator("#view")).toContainText("Machines");
+    await expect(page.locator("#view")).toContainText("Postes");
     await expect(page.locator("#view")).not.toContainText("À examiner");
     expect(pageErrors).toEqual([]);
   });

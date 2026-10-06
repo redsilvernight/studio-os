@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { contractRoadmapDocuments, contractRoadmaps } from "./roadmapFixtures";
 import {
+  findRoadmapCurrentStep,
+  getRoadmapFocus,
+  isRoadmapPhaseDone,
   parseRoadmapDocument,
   roadmapToDocument,
   serializeRoadmapDocument,
@@ -135,5 +138,35 @@ describe("roadmap document import/export", () => {
       revision_no: 3,
     });
     expect(parsed.metadata).toEqual({ source: "portable", count: 2, enabled: true, optional: null });
+  });
+});
+
+describe("roadmap focus (P05-roadmaps)", () => {
+  it("épingle l'étape courante et sépare phases terminées et ouvertes", () => {
+    const fixture = contractRoadmaps[0];
+    if (fixture === undefined) throw new Error("fixture missing");
+    const current = findRoadmapCurrentStep(fixture);
+    expect(current?.key).toBe(fixture.current_step_key);
+    const focus = getRoadmapFocus(fixture);
+    expect(focus.currentKey).toBe(fixture.current_step_key);
+    expect(focus.openPhaseKeys.length).toBeGreaterThan(0);
+    expect(focus.donePhaseKeys).toEqual(
+      (fixture.phases ?? []).filter(isRoadmapPhaseDone).map((phase) => phase.key),
+    );
+  });
+
+  it("replie une phase entièrement terminée et ignore les phases vides", () => {
+    expect(isRoadmapPhaseDone({ key: "P1", title: "P1", objective: null, steps: [] })).toBe(false);
+    expect(
+      isRoadmapPhaseDone({
+        key: "P1",
+        title: "P1",
+        objective: null,
+        steps: [
+          { key: "A", title: "A", objective: null, context: null, instructions: null, acceptance_criteria: [], notes: null, metadata: {}, depends_on: [], tasks: [], state: "done" },
+          { key: "B", title: "B", objective: null, context: null, instructions: null, acceptance_criteria: [], notes: null, metadata: {}, depends_on: [], tasks: [], state: "skipped" },
+        ],
+      }),
+    ).toBe(true);
   });
 });

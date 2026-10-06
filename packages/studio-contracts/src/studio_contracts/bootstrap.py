@@ -26,6 +26,7 @@ goes through reconciliation (skill `contract-change`).
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from enum import StrEnum
 from typing import Annotated, Literal
 
@@ -37,6 +38,47 @@ from studio_contracts.initialization import InitializationProjectSpec
 BOOTSTRAP_FORMAT = "studio.bootstrap/v1"
 """Manifest format tag. Additive fields stay in v1; a reader older than the
 writer rejects explicitly (`extra="forbid"`) rather than silently truncating."""
+
+UNSUPPORTED_BOOTSTRAP_MANIFEST_VERSION = "unsupported_bootstrap_manifest_version"
+BOOTSTRAP_VERSION_REPAIR_ACTION = (
+    "Regenerate with studio-client bootstrap init --overwrite after reviewing local changes."
+)
+
+
+class BootstrapVersionError(ValueError):
+    """Raised by `bootstrap_version_gate` when the manifest's `format` field
+    is not a string or not the supported version, or when the document root
+    is not an object."""
+
+    def __init__(
+        self,
+        received: object,
+        *,
+        expected: str = BOOTSTRAP_FORMAT,
+        code: str = UNSUPPORTED_BOOTSTRAP_MANIFEST_VERSION,
+        action: str = BOOTSTRAP_VERSION_REPAIR_ACTION,
+    ) -> None:
+        self.code = code
+        self.received = received
+        self.expected = expected
+        self.action = action
+        super().__init__(
+            f"manifest format {received!r} is not supported (expected {expected!r}); {action}"
+        )
+
+
+def bootstrap_version_gate(raw: object) -> None:
+    """Reject unsupported bootstrap documents before schema validation."""
+    if not isinstance(raw, Mapping):
+        raise BootstrapVersionError(f"<non-object:{type(raw).__name__}>")
+    if "format" not in raw:
+        return
+    received: object = raw["format"]
+    if not isinstance(received, str):
+        raise BootstrapVersionError(received)
+    if received != BOOTSTRAP_FORMAT:
+        raise BootstrapVersionError(received)
+
 
 # --- bounds: every free-text and collection field is bounded ------------------
 MAX_BOOTSTRAP_HARNESSES = 10

@@ -528,3 +528,37 @@ describe("Accessibility and responsive structure", () => {
     expect(compatibilityComparisonHtml(resolved())).toContain('class="ds-table-wrap"');
   });
 });
+
+describe("V2 alignment (wireframes/tools.html)", () => {
+  it("puts the resolved identity first, verdict included, with one primary action", () => {
+    const html = resolutionResultHtml(resolved());
+    const hero = html.slice(0, html.indexOf("tool-columns"));
+    expect(hero).toContain('class="ds-hero inspector-hero"');
+    expect(hero).toContain("Identité résolue :");
+    expect(hero).toContain("Compatible");
+    expect(hero.match(/ds-btn--primary/g) ?? []).toHaveLength(1);
+    expect(hero).toContain('data-inspector-jump="inspector-compatibility"');
+  });
+
+  it("moves provenance and structured failures to the context column, keeps the ids", () => {
+    const html = resolutionResultHtml(resolved());
+    const aside = html.slice(html.indexOf('class="ds-card tool-context"'));
+    expect(aside).toContain('id="inspector-provenance"');
+    expect(aside).toContain("Quel binding a gagné");
+    expect(aside).toContain("Échecs structurés");
+    expect(html.indexOf('id="inspector-provenance"')).toBeGreaterThan(html.indexOf("tool-columns"));
+  });
+
+  it("folds the resource identifier instead of showing it in the flow", () => {
+    const identity = identityHtml(resolved());
+    expect(identity).not.toContain("<dt>Ressource</dt>");
+    expect(identity).toContain('<details class="ds-tech">');
+    expect(identity).toContain(resolved().agent.resource_id);
+  });
+
+  it("no inline styles or handlers in the new layout", () => {
+    const html = resolutionResultHtml(resolved());
+    expect(html).not.toMatch(/style\s*=/i);
+    expect(html).not.toMatch(/on\w+\s*=/i);
+  });
+});
