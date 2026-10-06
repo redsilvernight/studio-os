@@ -14,6 +14,7 @@
 import type { NavMode } from "./navMode";
 import type { Route } from "./router";
 import { esc } from "./ui";
+import brandLogoUrl from "./assets/studio-os-logo.png";
 
 export interface ShellNavItem {
   href: string;
@@ -224,7 +225,7 @@ export function shellHtml(route: Route, authed: boolean, desktop = false, mode: 
 <div class="app-shell">
   <div class="app-scrim" id="app-scrim" hidden></div>
   <aside class="app-sidebar" id="app-sidebar">
-    <div class="app-brand"><span class="app-brand-mark" aria-hidden="true">S</span><span class="app-brand-name">Studi'OS</span><button class="app-iconbtn" type="button" id="nav-close" aria-label="Fermer la navigation">${icon("close")}</button></div>
+    <div class="app-brand"><img class="app-brand-mark" src="${esc(brandLogoUrl)}" alt="" aria-hidden="true" width="36" height="36"><span class="app-brand-name">Studi'OS</span><button class="app-iconbtn" type="button" id="nav-close" aria-label="Fermer la navigation">${icon("close")}</button></div>
     <button class="app-cmdk" type="button" id="palette-open" aria-haspopup="dialog" aria-controls="app-palette" aria-keyshortcuts="Control+K" title="Aller à… (Ctrl K)">${icon("goto")}<span class="app-lbl-full">Aller à…</span><kbd class="app-lbl-full" aria-hidden="true">Ctrl K</kbd></button>
     <nav class="app-nav" aria-label="Navigation principale">${groups}</nav>
     ${navModeToggleHtml(mode)}

@@ -47,16 +47,9 @@
   padding: 0 var(--ds-space-1) var(--ds-space-2);
 }
 .app-brand-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
   width: 36px;
   height: 36px;
-  border-radius: var(--ds-radius-md);
-  background: var(--ds-action);
-  color: #fff;
-  font-weight: 800;
-  font-size: var(--ds-text-lg);
   flex: none;
 }
 .app-brand-name {
