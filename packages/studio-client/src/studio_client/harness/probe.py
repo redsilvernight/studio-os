@@ -155,6 +155,52 @@ def locate_executable(
     return None
 
 
+_EMBEDDED_VERSION = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
+_EMBEDDED_DIRS = ("Claude", "claude-code")
+_EMBEDDED_NAMES = ("claude.exe", "claude")
+
+
+def locate_embedded_claude_code(
+    appdata: str | os.PathLike[str] | None,
+    *,
+    excluded_dirs: Sequence[Path] = (),
+) -> Path | None:
+    """The Claude Code bundled with Claude Desktop, under
+    `%APPDATA%\\Claude\\claude-code\\<version>\\claude.exe`. The highest version
+    wins; a symlinked tree, a workspace path and an unreadable root are all
+    refused, because a repository must never choose what Studi'OS launches."""
+    if not appdata:
+        return None
+    root = Path(appdata).joinpath(*_EMBEDDED_DIRS)
+    try:
+        directories = [
+            child for child in root.iterdir() if child.is_dir() and not child.is_symlink()
+        ]
+    except OSError:
+        return None
+    excluded = [directory.resolve() for directory in excluded_dirs if directory.exists()]
+    ranked: list[tuple[tuple[int, int, int], Path]] = []
+    for directory in directories:
+        match = _EMBEDDED_VERSION.match(directory.name)
+        if match is None:
+            continue
+        for name in _EMBEDDED_NAMES:
+            candidate = directory / name
+            try:
+                if not candidate.is_file() or candidate.is_symlink():
+                    continue
+                resolved = candidate.resolve()
+            except OSError:
+                continue
+            if any(_is_within(resolved, block) for block in excluded):
+                continue
+            ranked.append(((int(match[1]), int(match[2]), int(match[3])), resolved))
+            break
+    if not ranked:
+        return None
+    return max(ranked, key=lambda item: item[0])[1]
+
+
 def launch_environment(source: Mapping[str, str]) -> dict[str, str]:
     """Allowlisted environment for a remotely launched harness: only what it
     needs to start and find its own login, never the daemon's other secrets

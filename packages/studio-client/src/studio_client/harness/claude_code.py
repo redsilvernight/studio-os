@@ -25,7 +25,11 @@ from studio_client.harness.base import (
 )
 from studio_client.harness.fsafe import read_document, resolve_target
 from studio_client.harness.json_mcp import JsonMcpAdapter
-from studio_client.harness.probe import ProbeFailure, locate_executable, run_probe
+from studio_client.harness.probe import (
+    ProbeFailure,
+    locate_embedded_claude_code,
+    run_probe,
+)
 from studio_client.hooks import GUARD_REL, HARNESSES
 
 _USER_CONFIG = ".claude.json"
@@ -112,15 +116,22 @@ class ClaudeCodeAdapter(JsonMcpAdapter):
                 return True
         return False
 
-    def _executable(self, ctx: HarnessContext) -> Path:
-        executable = locate_executable(
-            self.executable_names,
-            path_env=ctx.env_value("PATH"),
-            excluded_dirs=[ctx.workspace_root],
-        )
-        if executable is None:
+    def resolve_executable(self, ctx: HarnessContext) -> Path:
+        """PATH first; when Claude Code is not installed there, fall back to the
+        copy bundled with Claude Desktop, still refusing the workspace."""
+        try:
+            return super().resolve_executable(ctx)
+        except AdapterRefusal as refusal:
+            if refusal.reason != "executable_not_found":
+                raise
+        appdata = ctx.env_value("APPDATA") or str(ctx.home / "AppData" / "Roaming")
+        embedded = locate_embedded_claude_code(appdata, excluded_dirs=[ctx.workspace_root])
+        if embedded is None:
             raise AdapterRefusal("executable_not_found")
-        return executable
+        return embedded
+
+    def _executable(self, ctx: HarnessContext) -> Path:
+        return self.resolve_executable(ctx)
 
     def _cli(self, ctx: HarnessContext, executable: Path, args: Sequence[str]) -> None:
         try:

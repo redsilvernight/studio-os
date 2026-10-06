@@ -203,25 +203,33 @@ def _backfilled_memberships(request: pytest.FixtureRequest) -> Iterator[None]:
         return
 
     def _grant(session: Any, _flush_context: Any) -> None:
+        if session is not db_session.sync_session:
+            return
+        from sqlalchemy.exc import IntegrityError
+
         conn = session.connection()
         for obj in list(session.new):
             if isinstance(obj, ProjectModel):
-                conn.execute(
-                    text(
-                        "INSERT INTO project_memberships (project_id, user_id) "
-                        "SELECT :pid, u.id FROM users u WHERE u.display_name NOT LIKE :outsider "
-                        "ON CONFLICT DO NOTHING"
-                    ),
-                    {"pid": obj.id, "outsider": f"{OUTSIDER_PREFIX}%"},
+                statement = text(
+                    "INSERT INTO project_memberships (project_id, user_id) "
+                    "SELECT p.id, u.id FROM projects p, users u "
+                    "WHERE p.id = :pid AND u.display_name NOT LIKE :outsider "
+                    "ON CONFLICT DO NOTHING"
                 )
+                params = {"pid": obj.id, "outsider": f"{OUTSIDER_PREFIX}%"}
             elif isinstance(obj, UserModel) and not obj.display_name.startswith(OUTSIDER_PREFIX):
-                conn.execute(
-                    text(
-                        "INSERT INTO project_memberships (project_id, user_id) "
-                        "SELECT p.id, :uid FROM projects p ON CONFLICT DO NOTHING"
-                    ),
-                    {"uid": obj.id},
+                statement = text(
+                    "INSERT INTO project_memberships (project_id, user_id) "
+                    "SELECT p.id, :uid FROM projects p ON CONFLICT DO NOTHING"
                 )
+                params = {"uid": obj.id}
+            else:
+                continue
+            try:
+                with conn.begin_nested():
+                    conn.execute(statement, params)
+            except IntegrityError:
+                continue
 
     real_scope = authz.load_project_scope
 
