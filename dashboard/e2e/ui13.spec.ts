@@ -177,14 +177,16 @@ test.describe("UI-13 navigation et shell", () => {
     const baseline = captured.tasksListRequests;
 
     // 10 allers-retours Tasks → Projects : chaque retour doit produire
-    // EXACTEMENT une requête de liste (donc un seul render, un seul listener).
+    // EXACTEMENT un chargement de « Maintenant » (2 requêtes : actives + à
+    // démarrer), donc un seul render, un seul listener.
     for (let i = 0; i < 10; i += 1) {
       await go(page, "#/projects");
       await expect(view.locator("h1")).toContainText("Projets");
       await go(page, "#/tasks");
       await expect(view.locator(".task-row")).toHaveCount(2);
     }
-    expect(captured.tasksListRequests - baseline).toBe(10);
+    // + 1 requête de santé par rendu de la liste Projets (point de couleur).
+    expect(captured.tasksListRequests - baseline).toBe(10 * 2 + 10);
     expect(await page.locator(".app-shell").count()).toBe(1);
     expect(await page.locator("#view").count()).toBe(1);
     expect(csp).toEqual([]);
@@ -201,7 +203,7 @@ test.describe("UI-13 navigation et shell", () => {
     await go(page, "#/agents");
     await expect(view.locator("h1")).toContainText("Agents");
     await page.goBack();
-    await expect(view.locator("h1")).toContainText("Tâches");
+    await expect(view.locator("h1")).toContainText("Travail");
     await page.goForward();
     await expect(view.locator("h1")).toContainText("Agents");
     expect(await page.locator(".app-shell").count()).toBe(1);
@@ -215,9 +217,9 @@ test.describe("UI-13 navigation et shell", () => {
     await login(page, "#/projects", captured);
     const routes: [string, string][] = [
       ["#/projects", "Projets"],
-      ["#/tasks", "Tâches"],
+      ["#/tasks", "Travail"],
       ["#/agents", "Agents IA"],
-      ["#/configuration/runtimes", "Paramètres"],
+      ["#/configuration/runtimes", "Configuration"],
     ];
     for (const [route, title] of routes) {
       await go(page, route);

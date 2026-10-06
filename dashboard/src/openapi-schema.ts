@@ -361,7 +361,7 @@ export interface paths {
         };
         /**
          * List Tasks
-         * @description List tasks of the caller's accessible projects, optionally filtered by project. A `project_id` the caller cannot access (or that does not exist) answers `403 forbidden`.
+         * @description List tasks of the caller's accessible projects, optionally filtered by project. A `project_id` the caller cannot access (or that does not exist) answers `403 forbidden`. `status` (repeatable, OR) and `mine` (tasks claimed by a machine the caller's user owns) narrow the listing; both are optional and additive.
          */
         get: operations["list_tasks_api_v1_tasks_get"];
         put?: never;
@@ -411,7 +411,7 @@ export interface paths {
         put?: never;
         /**
          * Claim Task
-         * @description Claim a task for the caller's machine (sets status to in_progress). Requires a writer role. Fails with `already_claimed` if another machine holds it.
+         * @description Claim a task for the caller's machine (sets status to in_progress). Requires a writer role. Fails with `already_claimed` if another machine holds it. Re-claiming a task this machine already holds while it is still `in_progress` with the same agent is a no-op (no version bump, no duplicate event), so a replayed call is safe even without an `Idempotency-Key`. Accepts `Idempotency-Key` for safe retries: the same key returns the original claim instead of re-running it.
          */
         post: operations["claim_task_api_v1_tasks__task_id__claim_post"];
         delete?: never;
@@ -431,9 +431,133 @@ export interface paths {
         put?: never;
         /**
          * Release Task
-         * @description Release a task's claim. Only the machine holding the claim (or a privileged role) may release it; anyone else receives `403 forbidden`.
+         * @description Release a task's claim. Only the machine holding the claim (or a privileged role) may release it; anyone else receives `403 forbidden`. The `If-Match-Version` header is optional: when sent, a stale version is rejected with the live server version.
          */
         post: operations["release_task_api_v1_tasks__task_id__release_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/task-launches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Task Launches
+         * @description List task launches of a project, oldest first.
+         */
+        get: operations["list_task_launches_api_v1_projects__project_id__task_launches_get"];
+        put?: never;
+        /**
+         * Create Task Launch
+         * @description Request a typed task launch on a target machine (AIB R2). Data only, never a command: ids and stable keys. Requires a writer role; the target machine's owner (or an admin) may request. Accepts `Idempotency-Key`: the same key with the identical body returns the original launch instead of a duplicate.
+         */
+        post: operations["create_task_launch_api_v1_projects__project_id__task_launches_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/task-launches/{launch_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Task Launch
+         * @description Get one task launch by id.
+         */
+        get: operations["get_task_launch_api_v1_task_launches__launch_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/task-launches/{launch_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Task Launch
+         * @description Cancel a task launch. Only the requester (or an admin) may cancel, on a non-terminal launch. Requires the current version; a stale version is rejected with the live server version.
+         */
+        post: operations["cancel_task_launch_api_v1_task_launches__launch_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/machines/{machine_id}/task-launches/pending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pull Pending Launches
+         * @description The target machine pulls its non-terminal launches, oldest first, at most 20. Only that machine may pull. A pull changes nothing and emits no event.
+         */
+        get: operations["pull_pending_launches_api_v1_machines__machine_id__task_launches_pending_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/task-launches/{launch_id}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report Task Launch
+         * @description The target machine reports execution (`accepted` -> `preparing` -> `running` -> terminal, or `rejected`/`failed`). Only the launch's target machine may report. Requires the current version; a stale version is rejected with the live server version.
+         */
+        post: operations["report_task_launch_api_v1_task_launches__launch_id__report_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/task-launches/{launch_id}/credential": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Issue Task Launch Credential
+         * @description The target machine obtains the ephemeral credential of the harness this launch starts (AIB P9). Only the launch's target machine, authenticated with its durable credential, on an accepted, preparing or running launch. The token is returned once, bound to the launch's project and task, void when the launch is terminal or expires, and opens only the launch allowlist of routes and tools. A new request revokes the previous credential of the launch.
+         */
+        post: operations["issue_task_launch_credential_api_v1_task_launches__launch_id__credential_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -449,7 +573,7 @@ export interface paths {
         };
         /**
          * List Sessions
-         * @description List work sessions, optionally filtered by task, restricted to sessions whose task belongs to an accessible project. A task of an inaccessible project answers `403 forbidden`.
+         * @description List work sessions, optionally filtered by task, agent and/or open state, restricted to sessions whose task belongs to an accessible project. A task of an inaccessible project answers `403 forbidden`. `open=true` returns only sessions never ended (the live ones). Each session carries derived presence (C1): `status` (`active|idle|expired|ended`) and `expires_at`, computed from `last_activity_at` at read time.
          */
         get: operations["list_sessions_api_v1_sessions_get"];
         put?: never;
@@ -482,6 +606,86 @@ export interface paths {
          * @description End a work session. Only the machine that started the session (or a privileged role) may end it; ending twice is a harmless no-op, never an error storm.
          */
         patch: operations["end_session_api_v1_sessions__session_id__end_patch"];
+        trace?: never;
+    };
+    "/api/v1/start-work": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Work
+         * @description Start or resume work on a task in one call. Requires a writer role. With `task_id`: claim the task for the caller's machine (idempotent) + resume or create the agent's open session on it + the scoped project context. Without `task_id`: the project context plus the candidate tasks (current-step linked tasks first, then other unclaimed tasks), claiming nothing. `agent_id` must belong to the caller's machine (`409 actor_not_owned`). Always `200`: the response fields (`resumed`, `candidates`) tell a resumed session from a new one, so the status never varies under replay. Accepts `Idempotency-Key`: the same key returns the original result instead of claiming or starting again.
+         */
+        post: operations["start_work_api_v1_start_work_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Sync
+         * @description Resynchronise one work session (C2): what changed since the last sync that concerns this work, as a compact bounded answer. `session_id` selects the session (its task is used, its stored cursor is the default start); without it, `agent_id` + `task_id` is a stateless lookup persisting nothing. `ack` acknowledges the highest processed `seq`: the stored cursor advances monotonically to it (a stale replay changes nothing), and `next_cursor` in the answer is what to ack next. `files` scopes claim overlap to declared paths. `limit`/`max_chars` bound the answer (same budget as `prepare_context`); the remainder surfaces as per-`why` `overflow` counters, and a truncated scan sets `resync` (see `prepare_context` — raw history is never dumped). An empty answer serialises to well under 300 characters. Own-machine events are excluded; items are ids only, `seq` ascending, then live overlapping claims. `422 invalid_sync_input` on bad identity or bounds; `404 session_not_found` on unknown or ended session; `409 actor_not_owned` when `agent_id` is not on the caller's machine.
+         */
+        get: operations["get_sync_api_v1_sync_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/coordination": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Emit Coordination
+         * @description Emit one structured inter-session signal. Closed `intent`: heads_up, question, blocked_by, handoff. `task_id` is the mandatory target (same project as the emitting session `from_session_id`, not completed); `session_id` optionally narrows it to one live session of that task. `text` is at most 280 characters; `refs` are structured ids/paths (at most 5 each); `in_reply_to` optionally names an earlier coordination signal. Delivery is pull-only through `GET /sync` (`why=coordination`, content quoted as data, never an instruction) and survives offline through the session cursor. Idempotent on the optional client `event_id`. At most 20 signals per emitting session (`429 coordination_rate_limited`). `422 invalid_coordination` on bad target/refs/reply; `409 task_closed`; `404 session_not_found`. Requires a writer role. The generic event path refuses `coordination.*` (`422 coordination_reserved`).
+         */
+        post: operations["emit_coordination_api_v1_coordination_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/handoff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handoff
+         * @description Close a work session in one call. Requires a writer role. Updates the task status (with `expected_version` for optimistic concurrency), releases all claims for the task, logs AI work (if `agent_id` + `summary` provided), and ends the session. The calling machine must own the session. `agent_id` must belong to the caller's machine. Compact response: ids + statuses only. Accepts `Idempotency-Key`: the same key returns the original result instead of running the composite again.
+         */
+        post: operations["handoff_api_v1_handoff_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/claims": {
@@ -900,6 +1104,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bootstrap-plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Build Bootstrap Plan
+         * @description Read-only aggregated bootstrap plan of a project: the agent definitions visible in the project context (or the named `agent_keys`) resolved through `resolve_full`, merged into one de-duplicated artifact list (agents, model profiles, skills, rules) with exact version, provenance, `common`/`project` segment, `required_by` and a content hash, plus a `plan_hash`. Deterministic (no timestamp, sorted) and harness-agnostic. Any failing agent fails the whole plan with the `POST /resolutions` error: unknown or invisible definition `404 definition_not_found`, incompatible runtime `422`. Pure read: safe to retry, no `Idempotency-Key` needed.
+         */
+        post: operations["build_bootstrap_plan_api_v1_bootstrap_plan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agents": {
         parameters: {
             query?: never;
@@ -918,6 +1142,26 @@ export interface paths {
          * @description Register an agent identity for the caller's own authenticated machine. `machine_id` is always derived from the credential — never send it. `display_name` is required; `agent_kind`, `agent_profile`, `harness`, `provider` and `model` are optional free-form metadata (open strings, default null, every value accepted). Registration confers no permission and is required for nothing except attributing AI work logs; authentication and authorization work without it. Accepts `Idempotency-Key` for safe retries.
          */
         post: operations["register_agent_api_v1_agents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agents/ensure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ensure Agent
+         * @description Server-side `agents ensure` (AIB-I, additive): find this machine's agent for `AgentCreate.stable_key` or register it, so a retried session-start hook never registers a duplicate — even after the idempotency table forgot the original call. `machine_id` is always derived from the credential, never sent. Same machine + same key + same metadata returns the existing agent (`created=false`, `200`); same key + different metadata is `409 idempotency_key_payload_mismatch`, never a silent second agent. Without a `stable_key` this is a plain registration (`created=true`, `201`). The `stable_key` itself is the replay key (same pattern as `event_id` for `POST /events` and the natural key of `PUT /projects/{id}/members/{user_id}`), so no `Idempotency-Key` is needed here. Authorization: `ensure_can_write` — `readonly` -> `403 forbidden`. Confers no permission.
+         */
+        post: operations["ensure_agent_api_v1_agents_ensure_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1410,6 +1654,110 @@ export interface paths {
          * @description Revoke a machine credential immediately (self-service, A5): its owner or `admin`. Another User's machine answers 404 for a non-admin, exactly like a nonexistent one, so its existence cannot be inferred (as `GET /machines` never lists it). `agent` never revokes. Revoking the calling machine itself is allowed. Revocation takes effect on the next request — there is no grace period and no rotation to manage.
          */
         post: operations["revoke_machine_api_v1_machines__machine_id__revoke_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/machines/{machine_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Rename Machine
+         * @description Rename a machine (owner or admin). Another User's machine answers 404 for a non-admin, exactly like a nonexistent one. `agent` never renames. Uses optimistic concurrency via `If-Match-Version` (required).
+         */
+        patch: operations["rename_machine_api_v1_machines__machine_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/machines/{machine_id}/launch-grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Launch Grants
+         * @description List the launch grants on a machine (AIB-J). Only the machine's owner or an admin; anyone else gets `403 forbidden` whether the machine exists or not.
+         */
+        get: operations["list_launch_grants_api_v1_machines__machine_id__launch_grants_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/machines/{machine_id}/launch-grants/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Grant Launch
+         * @description Let a User launch work on this machine (AIB-J). Only the owner or an admin. Optional `project_id` limits it to one project, optional `expires_at` (future) ends it; the grantee still needs access to the task's project. `201` with the new grant; an existing grant is returned unchanged with `200` (revoke then grant to change it). Naturally idempotent: no `Idempotency-Key`. Granting yourself: `403 self_modification_forbidden`. Unknown user or project: 404.
+         */
+        put: operations["grant_launch_api_v1_machines__machine_id__launch_grants__user_id__put"];
+        post?: never;
+        /**
+         * Revoke Launch
+         * @description Withdraw a User's launch right on this machine (owner or admin). Idempotent `204`, also when no grant exists.
+         */
+        delete: operations["revoke_launch_api_v1_machines__machine_id__launch_grants__user_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tasks/{task_id}/eligible-machines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Eligible Machines
+         * @description Machines able to receive a launch for this task (AIB R1): the caller's own User's machines, every machine for `admin`. A machine is eligible when it is online, its latest capability report is fresh, its owner can access the task's project, the project is registered on it, it accepts launches, it has the requested `harness_id` (any detected harness when omitted) and a free slot. Every ineligible machine lists all its `reasons`, evaluated in a fixed order. Eligible machines come first, then by name.
+         */
+        get: operations["get_eligible_machines_api_v1_tasks__task_id__eligible_machines_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/ai-integration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Ai Integration
+         * @description Read-only AI integration status of a project (AIB P6): the desired state (aggregated bootstrap plan: `plan_hash`, agent keys, artifact counts; `desired_error` when it cannot be built) next to what each of the caller's machines (every machine for `admin`) last reported through its heartbeat capability report. Reported values are machine claims with their reception time and a `freshness` (`fresh`, `stale`, `never_reported`): the server never asserts a write on a machine it has not been told about. Inaccessible and unknown projects answer the same `403`.
+         */
+        get: operations["get_ai_integration_api_v1_projects__project_id__ai_integration_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2050,12 +2398,16 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AIWorkItem: {
+            [key: string]: unknown;
+        };
         /**
          * AIWorkLog
          * @description A work entry. `agent_profile`, `harness`, `provider` and `model` are
          *     optional additive observability metadata — open strings snapshotting the
          *     runtime that produced the work, never whitelisted, never an
-         *     authorization or capability input.
+         *     authorization or capability input. `session_id` (L3) links the entry to
+         *     the work session that produced it for handoff traceability.
          */
         AIWorkLog: {
             /**
@@ -2077,6 +2429,8 @@ export interface components {
             agent_id: string;
             /** Machine Id */
             machine_id?: string | null;
+            /** Session Id */
+            session_id?: string | null;
             /** Summary */
             summary: string;
             /** @default started */
@@ -2112,7 +2466,9 @@ export interface components {
          * @description `status`, `changed_files` and `tests_run` are optional additive
          *     fields so work already finished can be logged in one call: a terminal
          *     status sets `ended_at`. `approved`/`changes_requested` are never a valid
-         *     initial status (they only exit `review_requested`).
+         *     initial status (they only exit `review_requested`). `session_id` (L3)
+         *     links the entry to the work session that produced it for handoff
+         *     traceability.
          */
         AIWorkLogCreate: {
             /** Task Id */
@@ -2129,6 +2485,8 @@ export interface components {
             agent_id: string;
             /** Machine Id */
             machine_id?: string | null;
+            /** Session Id */
+            session_id?: string | null;
             /** Summary */
             summary: string;
             /** @default started */
@@ -2161,6 +2519,8 @@ export interface components {
             changed_files?: string[] | null;
             /** Tests Run */
             tests_run?: string[] | null;
+            /** Session Id */
+            session_id?: string | null;
         };
         /**
          * AIWorkStatus
@@ -2199,6 +2559,14 @@ export interface components {
          * @enum {string}
          */
         AccountStatus: "pending" | "active" | "disabled";
+        /** ActiveWork */
+        ActiveWork: {
+            /**
+             * Claims
+             * @default []
+             */
+            claims: components["schemas"]["ClaimItem"][];
+        };
         /**
          * Agent
          * @description Provenance identity attached to one machine: who did the work, for
@@ -2206,7 +2574,11 @@ export interface components {
          *     from the machine owner's role alone. `agent_profile`, `harness`,
          *     `provider` and `model` are optional additive observability metadata:
          *     open strings, never whitelisted, never a capability or compatibility
-         *     condition, never read to make a decision.
+         *     condition, never read to make a decision. `stable_key` (AIB-I, additive)
+         *     is the local stable key set by `agents ensure` (default
+         *     `agents-ensure-{harness}`), unique per owning machine: the idempotent
+         *     lookup key for session-start, never an authorization input, and never
+         *     `AgentDefinition.stable_key` (a resolution parameter, not an identity).
          */
         Agent: {
             /**
@@ -2240,6 +2612,8 @@ export interface components {
             provider?: string | null;
             /** Model */
             model?: string | null;
+            /** Stable Key */
+            stable_key?: string | null;
         };
         /**
          * AgentCreate
@@ -2250,7 +2624,10 @@ export interface components {
          *     server-generated `Agent.id` is). `agent_profile`, `harness`, `provider`
          *     and `model` are optional open-string observability metadata: any value
          *     is accepted, unknown values are never rejected, and none of them is ever
-         *     required.
+         *     required. `stable_key` (AIB-I, additive, optional) is the local stable
+         *     key for `POST /agents/ensure`: same machine + same key returns the
+         *     existing agent, same key + different metadata is `409
+         *     idempotency_key_payload_mismatch`. Never `AgentDefinition.stable_key`.
          */
         AgentCreate: {
             /** Display Name */
@@ -2268,6 +2645,18 @@ export interface components {
             provider?: string | null;
             /** Model */
             model?: string | null;
+            /** Stable Key */
+            stable_key?: string | null;
+        };
+        /**
+         * AgentEnsureResult
+         * @description Result of `POST /agents/ensure` (AIB-I, additive): the caller's own
+         *     machine's agent for `stable_key`, plus whether this call created it.
+         */
+        AgentEnsureResult: {
+            agent: components["schemas"]["Agent"];
+            /** Created */
+            created: boolean;
         };
         /**
          * AgentResolutionRequest
@@ -2288,6 +2677,40 @@ export interface components {
              * @default []
              */
             session_overrides: components["schemas"]["SessionRuntimeOverride"][];
+        };
+        /**
+         * AiIntegrationStatus
+         * @description `desired` is `None` when the plan cannot be built; `desired_error`
+         *     then carries the public error code (never a stack or a path). `machines`
+         *     are the caller's own machines (every machine for `admin`).
+         */
+        AiIntegrationStatus: {
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            desired?: components["schemas"]["DesiredIntegration"] | null;
+            /** Desired Error */
+            desired_error?: string | null;
+            /** Machines */
+            machines?: components["schemas"]["ReportedMachineIntegration"][];
+        };
+        /**
+         * AppliedBootstrap
+         * @description The machine's own last local check of this project's AI bundle.
+         *     `in_sync` is true only when every planned file was observed up to date;
+         *     it is machine-observed, never inferred by the server.
+         */
+        AppliedBootstrap: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            summary: components["schemas"]["BootstrapFileSummary"];
+            /** In Sync */
+            in_sync: boolean;
         };
         /** AuthIdentity */
         AuthIdentity: {
@@ -2319,6 +2742,127 @@ export interface components {
          * @enum {string}
          */
         BindingRelation: "requires_model_profile" | "uses_skill" | "applies_rule" | "composes_agent" | "references_workflow" | "refines_skill_rule";
+        /**
+         * BootstrapFileSummary
+         * @description State counts: the glanceable roll-up of a dry-run, mirroring
+         *     `InitializationSummary` (created/reused/skipped).
+         */
+        BootstrapFileSummary: {
+            /**
+             * Absent
+             * @default 0
+             */
+            absent: number;
+            /**
+             * Obsolete
+             * @default 0
+             */
+            obsolete: number;
+            /**
+             * Modified
+             * @default 0
+             */
+            modified: number;
+            /**
+             * Incompatible
+             * @default 0
+             */
+            incompatible: number;
+            /**
+             * Up To Date
+             * @default 0
+             */
+            up_to_date: number;
+        };
+        /**
+         * BootstrapPlan
+         * @description `plan_hash` covers `(kind, stable_key, scope, version, content_hash)` of
+         *     every artifact in order: two equal hashes mean two equal expected bundles.
+         */
+        BootstrapPlan: {
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /**
+             * Agent Keys
+             * @default []
+             */
+            agent_keys: string[];
+            /**
+             * Artifacts
+             * @default []
+             */
+            artifacts: components["schemas"]["BootstrapPlanArtifact"][];
+            /** Plan Hash */
+            plan_hash: string;
+        };
+        /**
+         * BootstrapPlanArtifact
+         * @description One expected artifact, de-duplicated by `(resource_id, version)`.
+         *     `required_by` lists the agent stable keys that need it; `provenance`
+         *     (agents, skills) or `paths` (rules) explains why this version was chosen.
+         */
+        BootstrapPlanArtifact: {
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            kind: components["schemas"]["LibraryKind"];
+            /** Stable Key */
+            stable_key: string;
+            scope: components["schemas"]["LibraryScope"];
+            segment: components["schemas"]["BootstrapSegment"];
+            /** Version */
+            version: number;
+            version_origin: components["schemas"]["VersionOrigin"];
+            /**
+             * Deprecated
+             * @default false
+             */
+            deprecated: boolean;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /** Content Hash */
+            content_hash: string;
+            /**
+             * Required By
+             * @default []
+             */
+            required_by: string[];
+            provenance?: components["schemas"]["studio_contracts__resolution__Provenance"] | null;
+            /**
+             * Paths
+             * @default []
+             */
+            paths: components["schemas"]["RulePath"][];
+        };
+        /**
+         * BootstrapPlanRequest
+         * @description `agent_keys` empty selects every active agent definition visible in the
+         *     project context; otherwise exactly the named ones (unknown or invisible key
+         *     fails closed with the public `definition_not_found`).
+         */
+        BootstrapPlanRequest: {
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Agent Keys */
+            agent_keys?: string[];
+        };
+        /**
+         * BootstrapSegment
+         * @description Common (Studio-wide or user-owned) versus project-owned artifact.
+         * @enum {string}
+         */
+        BootstrapSegment: "common" | "project";
         /**
          * Build
          * @description A CI build observed on a project's GitHub repository.
@@ -2439,6 +2983,33 @@ export interface components {
              */
             new_password: string;
         };
+        /** ClaimItem */
+        ClaimItem: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Resource Path */
+            resource_path: string;
+            /** Resource Type */
+            resource_type: string;
+            /** Task Id */
+            task_id?: string | null;
+            /**
+             * Claimed By Machine Id
+             * Format: uuid
+             */
+            claimed_by_machine_id: string;
+            /** Claimed By Self */
+            claimed_by_self: boolean;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            why: components["schemas"]["Why"];
+        };
         /**
          * ClaimStatus
          * @description A claim past `expires_at` is not active regardless of stored status.
@@ -2447,6 +3018,116 @@ export interface components {
          * @enum {string}
          */
         ClaimStatus: "active" | "released" | "expired";
+        ContextLimits: {
+            [key: string]: unknown;
+        };
+        /** ContextStep */
+        ContextStep: {
+            /** Key */
+            key: string;
+            /** Title */
+            title: string;
+            state: components["schemas"]["StepState"];
+            /** Available */
+            available: boolean;
+            /** Waiting On */
+            waiting_on?: string[];
+            /** Acceptance Criteria */
+            acceptance_criteria?: string[];
+            /** Linked Task Ids */
+            linked_task_ids?: string[];
+        };
+        /**
+         * CoordinationEmit
+         * @description Emission request. `from_session_id` is the emitter's own live session
+         *     (rate-limit and attribution unit). `task_id` is the mandatory target;
+         *     `session_id` optionally narrows it to one live session of that task.
+         *     `event_id` is the optional client idempotency key (replay returns the
+         *     original signal, nothing new is stored).
+         */
+        CoordinationEmit: {
+            /**
+             * From Session Id
+             * Format: uuid
+             */
+            from_session_id: string;
+            /**
+             * Intent
+             * @enum {string}
+             */
+            intent: "heads_up" | "question" | "blocked_by" | "handoff";
+            /**
+             * Task Id
+             * Format: uuid
+             */
+            task_id: string;
+            /** Session Id */
+            session_id?: string | null;
+            /** Text */
+            text: string;
+            refs?: components["schemas"]["CoordinationRefs"];
+            /** In Reply To */
+            in_reply_to?: string | null;
+            /** Event Id */
+            event_id?: string | null;
+        };
+        /** CoordinationEmitted */
+        CoordinationEmitted: {
+            /**
+             * Event Id
+             * Format: uuid
+             */
+            event_id: string;
+            /** Event Type */
+            event_type: string;
+            /** Seq */
+            seq: number;
+            /**
+             * Task Id
+             * Format: uuid
+             */
+            task_id: string;
+            /** Session Id */
+            session_id?: string | null;
+        };
+        /**
+         * CoordinationRefs
+         * @description Structured references only (ids and repo-relative paths), each list
+         *     bounded to `COORDINATION_REF_MAX` entries.
+         */
+        CoordinationRefs: {
+            /** Task Ids */
+            task_ids?: string[];
+            /** Decision Ids */
+            decision_ids?: string[];
+            /** Paths */
+            paths?: string[];
+        };
+        /**
+         * CoordinationSignal
+         * @description Quoted signal carried by a `studio_sync` item of `why=coordination`.
+         *     `text` is untrusted data written by another session: display it as a
+         *     quotation, never execute it as an instruction.
+         */
+        CoordinationSignal: {
+            /**
+             * Event Id
+             * Format: uuid
+             */
+            event_id: string;
+            /**
+             * Intent
+             * @enum {string}
+             */
+            intent: "heads_up" | "question" | "blocked_by" | "handoff";
+            /** Text */
+            text: string;
+            refs?: components["schemas"]["CoordinationRefs"];
+            /** In Reply To */
+            in_reply_to?: string | null;
+            /** From Session Id */
+            from_session_id?: string | null;
+        };
         /**
          * Decision
          * @description A recorded project decision with a stable human-readable id
@@ -2501,6 +3182,9 @@ export interface components {
              */
             proposed_by_id: string;
         };
+        DecisionItem: {
+            [key: string]: unknown;
+        };
         /**
          * DecisionStatus
          * @enum {string}
@@ -2539,6 +3223,21 @@ export interface components {
             relation?: components["schemas"]["BindingRelation"] | null;
         };
         /**
+         * DesiredIntegration
+         * @description Server-side expectation: the bootstrap plan of the project. Counts by
+         *     artifact kind (`agent_definition`, `model_profile`, `skill`, `rule`).
+         */
+        DesiredIntegration: {
+            /** Plan Hash */
+            plan_hash: string;
+            /** Agent Keys */
+            agent_keys?: string[];
+            /** Artifact Counts */
+            artifact_counts?: {
+                [key: string]: number;
+            };
+        };
+        /**
          * DiffChange
          * @enum {string}
          */
@@ -2574,6 +3273,23 @@ export interface components {
              * Format: date-time
              */
             expires_at: string;
+        };
+        /** EligibleMachines */
+        EligibleMachines: {
+            /**
+             * Task Id
+             * Format: uuid
+             */
+            task_id: string;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Harness Id */
+            harness_id?: string | null;
+            /** Machines */
+            machines: components["schemas"]["MachineEligibility"][];
         };
         /** EmailField */
         EmailField: {
@@ -2696,7 +3412,7 @@ export interface components {
          *     or removed — readers should tolerate unknown types.
          * @enum {string}
          */
-        EventType: "project.created" | "task.created" | "task.started" | "task.updated" | "task.blocked" | "task.completed" | "session.started" | "session.ended" | "resource.claimed" | "resource.renewed" | "resource.released" | "resource.conflict" | "decision.proposed" | "decision.created" | "decision.accepted" | "decision.superseded" | "library.version.created" | "library.version.activated" | "library.resource.deprecated" | "library.lock.set" | "library.lock.released" | "roadmap.created" | "roadmap.updated" | "roadmap.proposed" | "roadmap.approved" | "roadmap.changes_requested" | "roadmap.rejected" | "roadmap.activated" | "roadmap.completed" | "roadmap.archived" | "roadmap.hydrated" | "agent.started" | "agent.stopped" | "ai_work.started" | "ai_work.completed" | "ai_work.failed" | "ai_work.review_requested" | "ai_work.approved" | "ai_work.changes_requested" | "git.commit" | "git.branch.changed" | "git.pr.opened" | "git.pr.merged" | "graph.updated" | "memory.proposed" | "memory.updated" | "godot.started" | "godot.stopped" | "recording.started" | "recording.finished" | "recording.marker.created" | "build.started" | "build.succeeded" | "build.failed" | "producer.job.requested" | "producer.job.completed" | "producer.job.failed" | "transfer.created" | "transfer.uploading" | "transfer.ready" | "transfer.downloaded" | "transfer.expired" | "transfer.deleted" | "marketing.candidate.created" | "marketing.post.published";
+        EventType: "project.created" | "task.created" | "task.started" | "task.updated" | "task.blocked" | "task.completed" | "task_launch.requested" | "task_launch.accepted" | "task_launch.rejected" | "task_launch.cancelled" | "task_launch.expired" | "task_launch.finished" | "session.started" | "session.ended" | "resource.claimed" | "resource.renewed" | "resource.released" | "resource.conflict" | "decision.proposed" | "decision.created" | "decision.accepted" | "decision.superseded" | "library.version.created" | "library.version.activated" | "library.resource.deprecated" | "library.lock.set" | "library.lock.released" | "roadmap.created" | "roadmap.updated" | "roadmap.proposed" | "roadmap.approved" | "roadmap.changes_requested" | "roadmap.rejected" | "roadmap.activated" | "roadmap.completed" | "roadmap.archived" | "roadmap.hydrated" | "agent.started" | "agent.stopped" | "ai_work.started" | "ai_work.completed" | "ai_work.failed" | "ai_work.review_requested" | "ai_work.approved" | "ai_work.changes_requested" | "git.commit" | "git.branch.changed" | "git.pr.opened" | "git.pr.merged" | "graph.updated" | "memory.proposed" | "memory.updated" | "godot.started" | "godot.stopped" | "recording.started" | "recording.finished" | "recording.marker.created" | "build.started" | "build.succeeded" | "build.failed" | "producer.job.requested" | "producer.job.completed" | "producer.job.failed" | "transfer.created" | "transfer.uploading" | "transfer.ready" | "transfer.downloaded" | "transfer.expired" | "transfer.deleted" | "marketing.candidate.created" | "marketing.post.published" | "coordination.heads_up" | "coordination.question" | "coordination.blocked_by" | "coordination.handoff";
         /**
          * GitHubIntegration
          * @description Per-project GitHub wiring. At most one row per project in
@@ -2790,7 +3506,118 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
-        /** HeartbeatRequest */
+        /**
+         * HandoffCoordination
+         * @description Optional `coordination.handoff` signal (C4, additive)
+         *     emitted on the handed-off task, delivered to its next session through
+         *     `studio_sync`. The event id is derived from the session, so a replay
+         *     never emits a second signal. `text` is quoted data for the recipient.
+         */
+        HandoffCoordination: {
+            /** Text */
+            text: string;
+            refs?: components["schemas"]["CoordinationRefs"];
+        };
+        /**
+         * HandoffRequest
+         * @description Composite handoff input. `project_id` and `session_id` are required.
+         *     `expected_version` is the task version for optimistic concurrency on
+         *     the status update (like `update_task`); required only when `task_status`
+         *     is provided. `task_status` is optional:
+         *     when provided, updates the task status (e.g. `completed`, `blocked`).
+         *     `agent_id` + `summary` are optional: when both present, logs an AI
+         *     work entry with the given status (default `completed`) linked to the
+         *     session for traceability. `changed_files`/`tests_run` are passed
+         *     through to the AI work entry. All composed steps are idempotent on
+         *     their own; the `Idempotency-Key` covers the whole composite.
+         */
+        HandoffRequest: {
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /** Expected Version */
+            expected_version?: number | null;
+            task_status?: components["schemas"]["TaskUpdate"] | null;
+            /** Agent Id */
+            agent_id?: string | null;
+            /** Summary */
+            summary?: string | null;
+            ai_work_status?: components["schemas"]["AIWorkStatus"] | null;
+            /** Changed Files */
+            changed_files?: string[] | null;
+            /** Tests Run */
+            tests_run?: string[] | null;
+            coordination?: components["schemas"]["HandoffCoordination"] | null;
+        };
+        /**
+         * HandoffResult
+         * @description Compact result: ids + statuses only, never full descriptions.
+         *     Replaying the same `Idempotency-Key` with the same body returns the
+         *     original result — no second status update, no duplicate claim
+         *     releases, no duplicate AI work entry, no second session end. C4 adds:
+         *     `sync` (last bounded `studio_sync` answer, acknowledged), the task's new
+         *     `handoff_cursor_seq` that the next session inherits, and the emitted
+         *     `coordination_event_id` when a `coordination` signal was requested.
+         */
+        HandoffResult: {
+            /**
+             * Task Id
+             * Format: uuid
+             */
+            task_id: string;
+            task_status: components["schemas"]["TaskStatus"];
+            /** Task Version */
+            task_version: number;
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /** Released Claims */
+            released_claims: string[];
+            /** Ai Work Id */
+            ai_work_id?: string | null;
+            sync?: components["schemas"]["SyncResult"] | null;
+            /** Handoff Cursor Seq */
+            handoff_cursor_seq?: number | null;
+            /** Coordination Event Id */
+            coordination_event_id?: string | null;
+        };
+        /**
+         * HarnessReport
+         * @description One harness as reported by a machine (AIB R1): `detected` means the
+         *     tool is present on the machine, `configured` means it is wired for
+         *     Studio OS. IDs and stable tokens only: never a path, secret,
+         *     fingerprint or file listing.
+         */
+        HarnessReport: {
+            /** Harness Id */
+            harness_id: string;
+            /** Version */
+            version?: string | null;
+            /**
+             * Detected
+             * @default false
+             */
+            detected: boolean;
+            /**
+             * Configured
+             * @default false
+             */
+            configured: boolean;
+        };
+        /**
+         * HeartbeatRequest
+         * @description `capabilities` is optional and additive: absent, the previous report
+         *     is kept untouched.
+         */
         HeartbeatRequest: {
             /**
              * Machine Id
@@ -2804,6 +3631,7 @@ export interface components {
              * Format: date-time
              */
             client_timestamp: string;
+            capabilities?: components["schemas"]["MachineCapabilities"] | null;
         };
         /** HeartbeatResponse */
         HeartbeatResponse: {
@@ -2823,6 +3651,7 @@ export interface components {
              * Format: date-time
              */
             server_timestamp: string;
+            capabilities?: components["schemas"]["MachineCapabilities"] | null;
         };
         /**
          * HydrationAction
@@ -2918,6 +3747,12 @@ export interface components {
             items?: components["schemas"]["HydrationItem"][];
             counts?: components["schemas"]["HydrationCounts"];
         };
+        /**
+         * IneligibilityReason
+         * @description Deterministic, evaluated in this declaration order.
+         * @enum {string}
+         */
+        IneligibilityReason: "offline" | "no_capabilities_report" | "capabilities_stale" | "owner_no_project_access" | "project_not_registered" | "launches_not_accepted" | "harness_incompatible" | "at_capacity";
         /** InitializationAction */
         InitializationAction: {
             section: components["schemas"]["InitializationSection"];
@@ -3141,6 +3976,37 @@ export interface components {
         LibraryDeprecate: {
             /** Expected Resource Version */
             expected_resource_version: number;
+        };
+        /** LibraryItem */
+        LibraryItem: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "rule" | "skill";
+            /** Stable Key */
+            stable_key: string;
+            /** Title */
+            title: string;
+            /** Scope */
+            scope: string;
+            /** Version */
+            version: number;
+            /** Version Origin */
+            version_origin: string;
+            /** Text */
+            text: string;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+            why: components["schemas"]["Why"];
+            /**
+             * Agent Applies
+             * @default false
+             */
+            agent_applies: boolean;
         };
         /**
          * LibraryKind
@@ -3402,6 +4268,35 @@ export interface components {
             status: components["schemas"]["MachineStatus"];
         };
         /**
+         * MachineCapabilities
+         * @description Machine-reported launch aptitude (AIB R1, additive). Ids only - never a
+         *     path, hostname or secret. The server stores the latest report with its
+         *     reception time and never presents a stale one as current.
+         */
+        MachineCapabilities: {
+            /** Harnesses */
+            harnesses?: components["schemas"]["HarnessReport"][];
+            /** Project Ids */
+            project_ids?: string[];
+            /**
+             * Accepts Launches
+             * @default false
+             */
+            accepts_launches: boolean;
+            /**
+             * Running Launches
+             * @default 0
+             */
+            running_launches: number;
+            /**
+             * Max Launches
+             * @default 0
+             */
+            max_launches: number;
+            /** Bootstrap */
+            bootstrap?: components["schemas"]["ProjectBootstrapStatus"][] | null;
+        };
+        /**
          * MachineCreate
          * @description `owner_user_id` is optional (A5): absent, the machine belongs to the
          *     caller's own User. A non-admin may only name itself — the server never
@@ -3451,11 +4346,99 @@ export interface components {
             /** Credential */
             credential: string;
         };
+        /** MachineEligibility */
+        MachineEligibility: {
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Display Name */
+            display_name: string;
+            status: components["schemas"]["MachineStatus"];
+            /** Eligible */
+            eligible: boolean;
+            /** Reasons */
+            reasons?: components["schemas"]["IneligibilityReason"][];
+            /** Harnesses */
+            harnesses?: components["schemas"]["HarnessReport"][];
+            /**
+             * Free Slots
+             * @default 0
+             */
+            free_slots: number;
+            /** Reported At */
+            reported_at?: string | null;
+        };
+        /**
+         * MachineLaunchGrant
+         * @description Right, given by a machine's owner (AIB-J), for another User to launch
+         *     work on that machine. Granted or removed, never modified — hence no
+         *     `version`. It never widens project access: the grantee must also be a
+         *     member of the task's project.
+         */
+        MachineLaunchGrant: {
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** Project Id */
+            project_id?: string | null;
+            /** Expires At */
+            expires_at?: string | null;
+            /**
+             * Granted By User Id
+             * Format: uuid
+             */
+            granted_by_user_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * MachineLaunchGrantCreate
+         * @description Body of `PUT /machines/{machine_id}/launch-grants/{user_id}`. Both
+         *     bounds are optional: no `project_id` = any project the grantee is a
+         *     member of, no `expires_at` = until revoked.
+         */
+        MachineLaunchGrantCreate: {
+            /** Project Id */
+            project_id?: string | null;
+            /** Expires At */
+            expires_at?: string | null;
+        };
         /**
          * MachineStatus
          * @enum {string}
          */
         MachineStatus: "online" | "idle" | "offline";
+        /**
+         * MachineUpdate
+         * @description Update a machine's display name. Only the owner or an admin.
+         */
+        MachineUpdate: {
+            /** Display Name */
+            display_name: string;
+        };
+        /** Page[TaskLaunch] */
+        Page_TaskLaunch_: {
+            /** Items */
+            items: components["schemas"]["TaskLaunch"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total?: number | null;
+        };
         /** Phase */
         Phase: {
             /**
@@ -3523,12 +4506,16 @@ export interface components {
             objective?: string | null;
             provenance?: components["schemas"]["WriteProvenance"];
         };
+        PreparedContext: {
+            [key: string]: unknown;
+        };
         /**
          * PreservedReference
          * @description A `composes_agent` / `references_workflow` dependency, preserved with
-         *     identity, exact version and provenance — never expanded: workflow
-         *     execution semantics belong to P11 and agent-composition execution has no
-         *     defined semantics yet (library bindings, resolution engine).
+         *     identity, exact version and provenance. `references_workflow` is never
+         *     expanded (workflow execution semantics belong to P11). `composes_agent`
+         *     is additionally described by `ResolvedComposedAgent.resolved` — this
+         *     reference alone still carries no execution semantics.
          */
         PreservedReference: {
             /**
@@ -3661,6 +4648,26 @@ export interface components {
              */
             archived: boolean;
         };
+        /**
+         * ProjectBootstrapStatus
+         * @description Machine-observed state of one project's AI bundle (AIB P6): the result
+         *     of the machine's own local `bootstrap check` at `checked_at`. Counts only
+         *     - never a path or file name. It says what the machine observed, not what
+         *     the server expects.
+         */
+        ProjectBootstrapStatus: {
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            summary: components["schemas"]["BootstrapFileSummary"];
+        };
         /** ProjectCreate */
         ProjectCreate: {
             /** Slug */
@@ -3734,6 +4741,25 @@ export interface components {
             /** User Email */
             user_email?: string | null;
         };
+        /** ProjectRef */
+        ProjectRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Slug */
+            slug: string;
+            /** Name */
+            name: string;
+            /** Description */
+            description?: string | null;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+        };
         /**
          * ProjectState
          * @description GET /projects/{id}/state — the aggregate view a client bootstraps from.
@@ -3799,6 +4825,38 @@ export interface components {
             /** Expected Roadmap Version */
             expected_roadmap_version: number;
             provenance?: components["schemas"]["WriteProvenance"];
+        };
+        /**
+         * ReportFreshness
+         * @description `fresh`: reported within the offline threshold. `stale`: older than
+         *     that, shown for information only. `never_reported`: no report at all.
+         * @enum {string}
+         */
+        ReportFreshness: "fresh" | "stale" | "never_reported";
+        /**
+         * ReportedMachineIntegration
+         * @description What one machine reported, and only that. `harnesses` are the
+         *     machine's own `detected`/`configured` claims; `project_registered` is
+         *     `None` when the machine never reported; `bootstrap` is `None` until the
+         *     machine has reported a local check of this project.
+         */
+        ReportedMachineIntegration: {
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Display Name */
+            display_name: string;
+            status: components["schemas"]["MachineStatus"];
+            freshness: components["schemas"]["ReportFreshness"];
+            /** Reported At */
+            reported_at?: string | null;
+            /** Project Registered */
+            project_registered?: boolean | null;
+            /** Harnesses */
+            harnesses?: components["schemas"]["HarnessReport"][];
+            bootstrap?: components["schemas"]["AppliedBootstrap"] | null;
         };
         /** ResetPasswordRequest */
         ResetPasswordRequest: {
@@ -3877,13 +4935,25 @@ export interface components {
              * Composed Agents
              * @default []
              */
-            composed_agents: components["schemas"]["PreservedReference"][];
+            composed_agents: components["schemas"]["ResolvedComposedAgent"][];
             /**
              * Workflows
              * @default []
              */
             workflows: components["schemas"]["PreservedReference"][];
             runtime?: components["schemas"]["ResolvedRuntime"] | null;
+        };
+        /**
+         * ResolvedComposedAgent
+         * @description One `composes_agent` dependency, resolved: the reference itself
+         *     (identity, exact version, provenance — same shape as before) plus its
+         *     own complete, independently resolved `ResolvedAgentDefinition`. Built by
+         *     the same pure core recursing on its own sub-graph — never a second
+         *     resolver, never merged/flattened into the parent's rules or skills.
+         */
+        ResolvedComposedAgent: {
+            reference: components["schemas"]["PreservedReference"];
+            resolved: components["schemas"]["ResolvedAgentDefinition"];
         };
         /** ResolvedModelProfile */
         ResolvedModelProfile: {
@@ -4465,12 +5535,84 @@ export interface components {
             provenance?: components["schemas"]["WriteProvenance"];
         };
         /**
+         * RoadmapItem
+         * @description `RoadmapContext` extended with the fields a consumer needs to
+         *     trust it: status, provenance, truncation and the step of the requested Task.
+         */
+        RoadmapItem: {
+            /**
+             * Roadmap Id
+             * Format: uuid
+             */
+            roadmap_id: string;
+            /** Title */
+            title: string;
+            progress: components["schemas"]["Progress"];
+            /** Current Phase Key */
+            current_phase_key?: string | null;
+            current_step?: components["schemas"]["RoadmapStepItem"] | null;
+            /** Upcoming Steps */
+            upcoming_steps?: components["schemas"]["ContextStep"][];
+            /** Blocking */
+            blocking?: string[];
+            /**
+             * Draft Pending
+             * @default 0
+             */
+            draft_pending: number;
+            status: components["schemas"]["RoadmapStatus"];
+            /** Objective */
+            objective?: string | null;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+            task_step?: components["schemas"]["RoadmapStepItem"] | null;
+            why: components["schemas"]["Why"];
+        };
+        /**
          * RoadmapOrigin
          * @description How content entered Studio OS. Self-declared by the writer: a workflow
          *     guard, not a security boundary; the boundary is the role.
          * @enum {string}
          */
         RoadmapOrigin: "manual" | "ai_proposal" | "import";
+        /**
+         * RoadmapOverview
+         * @description Roadmaps other than the active one, by reference: what is waiting for a
+         *     human decision (`draft_pending`) or finished.
+         */
+        RoadmapOverview: {
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /** Draft Pending */
+            draft_pending: number;
+            /**
+             * Others
+             * @default []
+             */
+            others: components["schemas"]["RoadmapRef"][];
+        };
+        /** RoadmapRef */
+        RoadmapRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title: string;
+            status: components["schemas"]["RoadmapStatus"];
+            progress: components["schemas"]["Progress"];
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+        };
         /** RoadmapRevision */
         RoadmapRevision: {
             /**
@@ -4538,6 +5680,49 @@ export interface components {
          * @enum {string}
          */
         RoadmapStatus: "draft" | "proposed" | "active" | "completed" | "archived";
+        /**
+         * RoadmapStepItem
+         * @description A step the agent may work on now: the shared `ContextStep` plus its
+         *     objective and the Tasks tied to it. `acceptance_criteria` lists the criteria
+         *     still to satisfy (already checked ones are only counted).
+         */
+        RoadmapStepItem: {
+            /** Key */
+            key: string;
+            /** Title */
+            title: string;
+            state: components["schemas"]["StepState"];
+            /** Available */
+            available: boolean;
+            /** Waiting On */
+            waiting_on?: string[];
+            /** Acceptance Criteria */
+            acceptance_criteria?: string[];
+            /** Linked Task Ids */
+            linked_task_ids?: string[];
+            /** Objective */
+            objective?: string | null;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+            /**
+             * Criteria Total
+             * @default 0
+             */
+            criteria_total: number;
+            /**
+             * Criteria Checked
+             * @default 0
+             */
+            criteria_checked: number;
+            /**
+             * Linked Tasks
+             * @default []
+             */
+            linked_tasks: components["schemas"]["RoadmapTaskRef"][];
+        };
         /** RoadmapSummary */
         RoadmapSummary: {
             /**
@@ -4575,6 +5760,24 @@ export interface components {
             /** Current Step Key */
             current_step_key?: string | null;
             provenance?: components["schemas"]["studio_contracts__roadmaps__Provenance"] | null;
+        };
+        /**
+         * RoadmapTaskRef
+         * @description A Task linked to a step: a bare reference when the package already
+         *     carries it (`in_context`), a title and status otherwise.
+         */
+        RoadmapTaskRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title?: string | null;
+            /** Status */
+            status?: string | null;
+            /** In Context */
+            in_context?: ("task" | "related_tasks") | null;
         };
         /**
          * RoadmapTransition
@@ -4937,6 +6140,116 @@ export interface components {
             target_stable_key: string;
             target: components["schemas"]["RuntimeTarget"];
         };
+        /**
+         * SessionStatus
+         * @description Presence derived at read time (C1), never stored: `active`
+         *     (recent activity), `idle` (no activity past the idle threshold),
+         *     `expired` (no activity past the expire threshold — L2 closes these),
+         *     `ended` (`ended_at` set). Same pattern as `MachineStatus` from
+         *     `last_seen_at`, but driven by session-attached activity, never by a
+         *     dedicated agent heartbeat.
+         * @enum {string}
+         */
+        SessionStatus: "active" | "idle" | "expired" | "ended";
+        /**
+         * StartWorkCandidate
+         * @description One unclaimed task a fresh start could pick up (no-task path only):
+         *     compact by construction — id, title, status, plus the `why` relation that
+         *     surfaced it (`active_roadmap` for the current step, `project_scope` for
+         *     another unclaimed project task), never the description.
+         */
+        StartWorkCandidate: {
+            /**
+             * Task Id
+             * Format: uuid
+             */
+            task_id: string;
+            /** Title */
+            title: string;
+            status: components["schemas"]["TaskStatus"];
+            why: components["schemas"]["Why"];
+        };
+        /**
+         * StartWorkRequest
+         * @description Composite start-work input. `project_id` and `agent_id` are required:
+         *     the agent must belong to the caller's own machine (`409 actor_not_owned`
+         *     otherwise — same rule as `POST /ai-work`). `task_id` selects
+         *     the mode: with it, claim (idempotent for the same machine) + resume or
+         *     create the agent's open session on the task + scoped context; without
+         *     it, context + candidates only, never a claim nor a session (AIB-G).
+         *     `objective` defaults server-side (`reprendre la tâche <titre>` /
+         *     `vue projet`) when omitted. `files` follows the `prepare_context`
+         *     bounds (at most 20 cleaned paths); `limit`/`max_chars` are passed
+         *     through to `prepare_context` unchanged.
+         */
+        StartWorkRequest: {
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /**
+             * Agent Id
+             * Format: uuid
+             */
+            agent_id: string;
+            /** Task Id */
+            task_id?: string | null;
+            /** Objective */
+            objective?: string | null;
+            /** Agent Stable Key */
+            agent_stable_key?: string | null;
+            /** Files */
+            files?: string[] | null;
+            /**
+             * Limit
+             * @default 5
+             */
+            limit: number;
+            /**
+             * Max Chars
+             * @default 12000
+             */
+            max_chars: number;
+        };
+        /**
+         * StartWorkResult
+         * @description One call, one replayable result — not a single database transaction:
+         *     the composed services commit their own steps, so a partial failure
+         *     converges on the next call. `task`/`session`
+         *     are set only on the with-task path; `claimed` tells whether the task is
+         *     now claimed by the caller's machine; `resumed` tells whether the
+         *     session was resumed (`True`) or created (`False`) — meaningless without
+         *     a task. `sync` (C4, additive) is the initial bounded `studio_sync` block of
+         *     the session, with-task path only: computed from the cursor the session
+         *     holds (inherited from the task's last handoff), never acknowledged here —
+         *     the agent acks `next_cursor` on its next `studio_sync`. `prepared_context`
+         *     is present on every successful response (bounded); `candidates` only on
+         *     the no-task path. Replaying the same `Idempotency-Key` with the same body
+         *     returns the original result — never a second claim nor a second session;
+         *     a different body is `409 idempotency_key_payload_mismatch`.
+         */
+        StartWorkResult: {
+            task?: components["schemas"]["Task"] | null;
+            session?: components["schemas"]["WorkSession"] | null;
+            /**
+             * Claimed
+             * @default false
+             */
+            claimed: boolean;
+            /**
+             * Resumed
+             * @default false
+             */
+            resumed: boolean;
+            prepared_context?: components["schemas"]["PreparedContext"] | null;
+            /**
+             * Candidates
+             * @default []
+             */
+            candidates: components["schemas"]["StartWorkCandidate"][];
+            sync?: components["schemas"]["SyncResult"] | null;
+        };
         /** Step */
         Step: {
             /**
@@ -5110,6 +6423,66 @@ export interface components {
             tasks?: components["schemas"]["TaskPlanItem"][] | null;
             provenance?: components["schemas"]["WriteProvenance"];
         };
+        /**
+         * SyncItem
+         * @description One compact sync element, ids only — never a task description nor
+         *     any long text. `seq`/`event_type` are set on `event` items;
+         *     `claim_id`/`resource_path` on `claim` items (live claim state, no `seq`).
+         *     `why` names the deterministic filter branch that surfaced it.
+         */
+        SyncItem: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "event" | "claim";
+            /**
+             * Why
+             * @enum {string}
+             */
+            why: "own_task" | "decision" | "claim_overlap" | "roadmap_dependency" | "coordination";
+            /** Seq */
+            seq?: number | null;
+            /** Event Type */
+            event_type?: string | null;
+            /** Task Id */
+            task_id?: string | null;
+            /** Claim Id */
+            claim_id?: string | null;
+            /** Resource Path */
+            resource_path?: string | null;
+            coordination?: components["schemas"]["CoordinationSignal"] | null;
+        };
+        /**
+         * SyncResult
+         * @description Bounded sync answer. `next_cursor` is the highest delivered `seq`
+         *     (unchanged when nothing new); ack it on the next call to advance.
+         *     `overflow` counts matched-but-unreturned items per `why` category;
+         *     `resync` (scan truncated) refers to `prepare_context` for the full
+         *     picture — raw history is never dumped. An empty answer serializes to
+         *     well under 300 characters.
+         */
+        SyncResult: {
+            /** Next Cursor */
+            next_cursor: number;
+            /**
+             * Items
+             * @default []
+             */
+            items: components["schemas"]["SyncItem"][];
+            /**
+             * Overflow
+             * @default {}
+             */
+            overflow: {
+                [key: string]: number;
+            };
+            /**
+             * Resync
+             * @default false
+             */
+            resync: boolean;
+        };
         /** Task */
         Task: {
             /**
@@ -5159,6 +6532,169 @@ export interface components {
             /** Description */
             description?: string | null;
         };
+        TaskItem: {
+            [key: string]: unknown;
+        };
+        /**
+         * TaskLaunch
+         * @description Server-held launch. `status` changes only through the transitions in
+         *     `ALLOWED_TRANSITIONS`, each carrying `expected_version`. `session_id` is
+         *     set by the machine once the work session exists. `requested_by_user_id`
+         *     is the owner-or-granted requester (AIB-J), fixed at creation.
+         */
+        TaskLaunch: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /**
+             * Task Id
+             * Format: uuid
+             */
+            task_id: string;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /**
+             * Requested By User Id
+             * Format: uuid
+             */
+            requested_by_user_id: string;
+            /** Harness Id */
+            harness_id: string;
+            /** Agent Stable Key */
+            agent_stable_key?: string | null;
+            /** @default requested */
+            status: components["schemas"]["TaskLaunchStatus"];
+            /** @default none */
+            reason_code: components["schemas"]["TaskLaunchReasonCode"];
+            /** Session Id */
+            session_id?: string | null;
+            /** Output Excerpt */
+            output_excerpt?: string | null;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Finished At */
+            finished_at?: string | null;
+        };
+        /**
+         * TaskLaunchCancel
+         * @description Requester cancel: `409` on a terminal launch. The pending pull returns
+         *     non-terminal launches only, so the target machine observes the cancellation
+         *     by re-reading the launch by id and must stop the work.
+         */
+        TaskLaunchCancel: {
+            /** Expected Version */
+            expected_version: number;
+        };
+        /**
+         * TaskLaunchCreate
+         * @description Requester input. Ids and stable keys only: the model forbids unknown
+         *     fields, so there is no field that could hold a command, argument, path or
+         *     environment value. `agent_stable_key` and `expires_in_seconds` are
+         *     optional; the server defaults the expiry. The `Idempotency-Key` header
+         *     makes a retried POST return the original launch.
+         */
+        TaskLaunchCreate: {
+            /**
+             * Task Id
+             * Format: uuid
+             */
+            task_id: string;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /** Harness Id */
+            harness_id: string;
+            /** Agent Stable Key */
+            agent_stable_key?: string | null;
+            /**
+             * Expires In Seconds
+             * @default 900
+             */
+            expires_in_seconds: number;
+        };
+        /**
+         * TaskLaunchCredential
+         * @description Ephemeral bearer credential for the harness a launch starts (AIB P9,
+         *     additive). Returned once to the target machine, bound to the launch's
+         *     project, task and machine, valid until `expires_at` (never past the
+         *     launch's own expiry) and void as soon as the launch is terminal. It opens
+         *     only the launch allowlist of REST routes and MCP tools.
+         */
+        TaskLaunchCredential: {
+            /** Token */
+            token: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
+        /**
+         * TaskLaunchMachineReport
+         * @description Machine-only transition report. The server checks the caller is the
+         *     launch's target machine and that `(current, status)` is an allowed
+         *     machine transition. `output_excerpt` is bounded and redacted by the
+         *     machine before sending.
+         */
+        TaskLaunchMachineReport: {
+            /** Expected Version */
+            expected_version: number;
+            status: components["schemas"]["TaskLaunchStatus"];
+            /** @default none */
+            reason_code: components["schemas"]["TaskLaunchReasonCode"];
+            /** Session Id */
+            session_id?: string | null;
+            /** Output Excerpt */
+            output_excerpt?: string | null;
+        };
+        /**
+         * TaskLaunchPull
+         * @description What the daemon pulls: non-terminal launches targeting its machine,
+         *     oldest first, bounded. A pull never changes a launch.
+         */
+        TaskLaunchPull: {
+            /** Items */
+            items?: components["schemas"]["TaskLaunch"][];
+        };
+        /**
+         * TaskLaunchReasonCode
+         * @description Closed vocabulary: a reason is a code, never free text, so a machine
+         *     or a requester cannot smuggle instructions through it.
+         * @enum {string}
+         */
+        TaskLaunchReasonCode: "none" | "not_opted_in" | "project_not_registered" | "harness_not_allowed" | "harness_not_found" | "agent_not_found" | "capacity_reached" | "preparation_failed" | "harness_exited" | "cancelled_by_requester" | "expired_unpulled" | "expired_timeout";
+        /**
+         * TaskLaunchStatus
+         * @enum {string}
+         */
+        TaskLaunchStatus: "requested" | "accepted" | "preparing" | "running" | "succeeded" | "failed" | "cancelled" | "rejected" | "expired";
         /**
          * TaskPlanItem
          * @description A Task the step *would* create at hydration. `hydration_key` is unique
@@ -5606,6 +7142,23 @@ export interface components {
          * @enum {string}
          */
         VersionOrigin: "lock" | "active" | "pin";
+        /**
+         * Why
+         * @description Why an item was selected — the only relations Studi'OS knows how to
+         *     establish: a structural link, or an exact-token overlap with the objective.
+         */
+        Why: {
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "requested" | "linked_to_task" | "task_claim" | "path_conflict" | "project_scope" | "lexical" | "active_roadmap";
+            /**
+             * Matched Terms
+             * @default []
+             */
+            matched_terms: string[];
+        };
         /** WorkSession */
         WorkSession: {
             /**
@@ -5632,6 +7185,14 @@ export interface components {
             started_at: string;
             /** Ended At */
             ended_at?: string | null;
+            /** Last Activity At */
+            last_activity_at?: string | null;
+            /** Sync Cursor Seq */
+            sync_cursor_seq?: number | null;
+            /** @default active */
+            status: components["schemas"]["SessionStatus"];
+            /** Expires At */
+            expires_at?: string | null;
         };
         /** WorkSessionCreate */
         WorkSessionCreate: {
@@ -6776,6 +8337,8 @@ export interface operations {
                 project_id?: string | null;
                 limit?: number;
                 offset?: number;
+                status?: components["schemas"]["TaskStatus"][] | null;
+                mine?: boolean;
             };
             header?: never;
             path?: never;
@@ -7100,7 +8663,10 @@ export interface operations {
     claim_task_api_v1_tasks__task_id__claim_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 task_id: string;
             };
@@ -7163,7 +8729,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Another machine already holds this task's claim (soft lock). Release by its owner, or pick another task — claims warn, they never queue. */
+            /** @description Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7172,7 +8738,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": {
-                     *         "error_code": "already_claimed"
+                     *         "error_code": "idempotency_key_payload_mismatch"
                      *       }
                      *     }
                      */
@@ -7193,7 +8759,10 @@ export interface operations {
     release_task_api_v1_tasks__task_id__release_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version — re-read, merge, and retry. Updates never overwrite silently. */
+                "If-Match-Version"?: number | null;
+            };
             path: {
                 task_id: string;
             };
@@ -7256,6 +8825,616 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version — re-read the object, merge, and retry with the new version. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_task_launches_api_v1_projects__project_id__task_launches_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_TaskLaunch_"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_task_launch_api_v1_projects__project_id__task_launches_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskLaunchCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskLaunch"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Task launch refused, nothing stored: unknown pair (`invalid_launch_transition` — only ALLOWED_TRANSITIONS pairs move, terminal states have no exit), a linked session that does not exist or belongs to another machine (`invalid_launch_session`), a task/project/machine mismatch (`task_project_mismatch`, `launch_machine_mismatch`), or a target machine not able to launch right now (`machine_capabilities_missing`, `machine_capabilities_stale`, `machine_offline`, `machine_not_opted_in`, `project_not_registered`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_launch_transition"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_task_launch_api_v1_task_launches__launch_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                launch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskLaunch"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_task_launch_api_v1_task_launches__launch_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                launch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskLaunchCancel"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskLaunch"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Task launch refused, nothing stored: unknown pair (`invalid_launch_transition` — only ALLOWED_TRANSITIONS pairs move, terminal states have no exit), a linked session that does not exist or belongs to another machine (`invalid_launch_session`), a task/project/machine mismatch (`task_project_mismatch`, `launch_machine_mismatch`), or a target machine not able to launch right now (`machine_capabilities_missing`, `machine_capabilities_stale`, `machine_offline`, `machine_not_opted_in`, `project_not_registered`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_launch_transition"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pull_pending_launches_api_v1_machines__machine_id__task_launches_pending_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                machine_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskLaunchPull"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    report_task_launch_api_v1_task_launches__launch_id__report_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                launch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskLaunchMachineReport"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskLaunch"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Task launch refused, nothing stored: unknown pair (`invalid_launch_transition` — only ALLOWED_TRANSITIONS pairs move, terminal states have no exit), a linked session that does not exist or belongs to another machine (`invalid_launch_session`), a task/project/machine mismatch (`task_project_mismatch`, `launch_machine_mismatch`), or a target machine not able to launch right now (`machine_capabilities_missing`, `machine_capabilities_stale`, `machine_offline`, `machine_not_opted_in`, `project_not_registered`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_launch_transition"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    issue_task_launch_credential_api_v1_task_launches__launch_id__credential_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                launch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskLaunchCredential"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Task launch refused, nothing stored: unknown pair (`invalid_launch_transition` — only ALLOWED_TRANSITIONS pairs move, terminal states have no exit), a linked session that does not exist or belongs to another machine (`invalid_launch_session`), a task/project/machine mismatch (`task_project_mismatch`, `launch_machine_mismatch`), or a target machine not able to launch right now (`machine_capabilities_missing`, `machine_capabilities_stale`, `machine_offline`, `machine_not_opted_in`, `project_not_registered`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_launch_transition"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -7271,6 +9450,8 @@ export interface operations {
         parameters: {
             query?: {
                 task_id?: string | null;
+                agent_id?: string | null;
+                open?: boolean;
             };
             header?: never;
             path?: never;
@@ -7479,6 +9660,372 @@ export interface operations {
                      */
                     "application/json": unknown;
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_work_api_v1_start_work_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartWorkRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StartWorkResult"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "idempotency_key_payload_mismatch"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_sync_api_v1_sync_get: {
+        parameters: {
+            query?: {
+                session_id?: string | null;
+                agent_id?: string | null;
+                task_id?: string | null;
+                ack?: number | null;
+                files?: string[] | null;
+                limit?: number;
+                max_chars?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncResult"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Provenance mismatch: the referenced agent identity is unknown or attached to another machine. Register an agent for the caller's own authenticated machine first (`POST /agents`), then reference it. Never silently attributed across machines. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "actor_not_owned",
+                     *         "message": "agent_id must be an agent attached to the authenticated machine"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    emit_coordination_api_v1_coordination_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoordinationEmit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoordinationEmitted"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    handoff_api_v1_handoff_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HandoffRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HandoffResult"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Invalid session (no task), version conflict, or actor_not_owned. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -9761,6 +12308,98 @@ export interface operations {
             };
         };
     };
+    build_bootstrap_plan_api_v1_bootstrap_plan_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BootstrapPlanRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BootstrapPlan"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Resolution refused, nothing stored (pure read): the winning runtime choice does not satisfy the linked model profile requirements (`runtime_incompatible`, with `level`, `matched_kind`, `matched_stable_key` and `unsatisfied` — never a silent fallback to another runtime), or the loaded snapshot is internally inconsistent (`invalid_resolution_input`, including a duplicated session override key). Missing or invisible definitions answer 404 `definition_not_found` instead, never a hint of their existence. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "runtime_incompatible",
+                     *         "level": "user",
+                     *         "matched_kind": "agent_definition",
+                     *         "matched_stable_key": "...",
+                     *         "unsatisfied": [
+                     *           "coding: required"
+                     *         ]
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
     list_agents_api_v1_agents_get: {
         parameters: {
             query?: never;
@@ -9867,6 +12506,78 @@ export interface operations {
                      */
                     "application/json": unknown;
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ensure_agent_api_v1_agents_ensure_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentEnsureResult"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description `idempotency_key_payload_mismatch`: same stable key, different body. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -12209,6 +14920,484 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rename_machine_api_v1_machines__machine_id__patch: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Optimistic concurrency guard, required. Send the `version` value last read for the object (from any GET response). If another writer changed the object first, the update is rejected with `409 version_conflict` carrying the current server version — re-read, merge, and retry. Updates never overwrite silently. */
+                "If-Match-Version": number;
+            };
+            path: {
+                machine_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MachineUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Machine"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version — re-read the object, merge, and retry with the new version. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_launch_grants_api_v1_machines__machine_id__launch_grants_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                machine_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MachineLaunchGrant"][];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    grant_launch_api_v1_machines__machine_id__launch_grants__user_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                machine_id: string;
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["MachineLaunchGrantCreate"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MachineLaunchGrant"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_launch_api_v1_machines__machine_id__launch_grants__user_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                machine_id: string;
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_eligible_machines_api_v1_tasks__task_id__eligible_machines_get: {
+        parameters: {
+            query?: {
+                harness_id?: string | null;
+            };
+            header?: never;
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EligibleMachines"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_ai_integration_api_v1_projects__project_id__ai_integration_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiIntegrationStatus"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
                      *     }
                      */
                     "application/json": unknown;

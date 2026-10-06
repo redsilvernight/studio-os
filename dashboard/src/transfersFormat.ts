@@ -13,7 +13,8 @@
  */
 import { ApiError } from "./api";
 import type { Transfer, TransferCategory } from "./transfersApi";
-import { describeError, shortId } from "./ui";
+import { describeError } from "./ui";
+import { FALLBACK_LABEL } from "./language";
 
 export type TransferStatusKey =
   | "created"
@@ -141,7 +142,7 @@ export function expiryLabelFr(expiresAt: string | null | undefined, now: number)
 }
 
 export function senderLabelFr(transfer: Pick<Transfer, "sender_user_id">): string {
-  return `Utilisateur ${shortId(transfer.sender_user_id)}`;
+  return FALLBACK_LABEL.user;
 }
 
 /** `recipient_user_id` absent = diffusion à tous les destinataires autorisés. */
@@ -151,7 +152,7 @@ export function recipientLabelFr(
   if (transfer.recipient_user_id === null || transfer.recipient_user_id === undefined) {
     return "Diffusion (destinataires autorisés)";
   }
-  return `Utilisateur ${shortId(transfer.recipient_user_id)}`;
+  return FALLBACK_LABEL.user;
 }
 
 /**

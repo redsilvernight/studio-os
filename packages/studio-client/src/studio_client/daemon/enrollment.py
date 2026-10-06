@@ -101,9 +101,14 @@ def _create_machine(
     request: IdentityEnrollRequest,
     transport: httpx.BaseTransport | None,
 ) -> MachineCreated:
-    body = MachineCreate(display_name=request.machine_name).model_dump(
-        mode="json", exclude_none=True
-    )
+    if request.adopt_machine_id is None:
+        path = "/api/v1/machines"
+        body: dict[str, object] | None = MachineCreate(
+            display_name=request.machine_name
+        ).model_dump(mode="json", exclude_none=True)
+    else:
+        path = f"/api/v1/machines/{request.adopt_machine_id}/adopt"
+        body = None
     headers = {"Authorization": f"Bearer {request.human_session.get_secret_value()}"}
     try:
         with httpx.Client(
@@ -112,7 +117,7 @@ def _create_machine(
             verify=config.verify_tls,
             transport=transport,
         ) as client:
-            response = client.post("/api/v1/machines", json=body, headers=headers)
+            response = client.post(path, json=body, headers=headers)
     except httpx.HTTPError as exc:
         raise _refuse(
             LocalErrorCode.INTERNAL_ERROR,
@@ -134,7 +139,13 @@ def _create_machine(
             "This account may not enroll a machine.",
             reason="forbidden",
         )
-    if response.status_code != 201:
+    if response.status_code == 404 and request.adopt_machine_id is not None:
+        raise _refuse(
+            LocalErrorCode.INVALID_REQUEST,
+            "This machine does not exist for this account.",
+            reason="machine_not_found",
+        )
+    if response.status_code != (201 if request.adopt_machine_id is None else 200):
         raise _refuse(
             LocalErrorCode.INTERNAL_ERROR,
             "The server refused to enroll this machine.",

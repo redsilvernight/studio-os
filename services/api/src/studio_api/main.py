@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
@@ -9,13 +13,18 @@ from studio_api.observability import configure_logging
 from studio_api.routers import (
     accounts,
     agents,
+    ai_integration,
     ai_work,
     auth,
+    bootstrap_plan,
     builds,
     claims,
+    coordination,
     decisions,
+    eligibility,
     events,
     github,
+    handoff,
     health,
     heartbeats,
     initialization,
@@ -30,6 +39,9 @@ from studio_api.routers import (
     runtime_bindings,
     runtimes,
     sessions,
+    start_work,
+    sync,
+    task_launches,
     tasks,
     timeline,
     transfers,
@@ -146,6 +158,11 @@ OPENAPI_TAG_DESCRIPTIONS: dict[str, str] = {
         "Register, read, update under optimistic concurrency, and logically "
         "revoke. No secret is ever accepted or stored."
     ),
+    "bootstrap-plan": (
+        "Read-only aggregated bootstrap plan of a project (AIB-B): agents resolved "
+        "through `resolve_full`, merged into deterministic, harness-agnostic "
+        "artifacts with provenance, segment and content hash."
+    ),
     "resolutions": (
         "Canonical full resolution of an `AgentDefinition` to its "
         "`ResolvedAgentDefinition` (P5 engine via `resolve_full`): "
@@ -171,6 +188,26 @@ OPENAPI_TAG_DESCRIPTIONS: dict[str, str] = {
 }
 
 
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    from studio_api.services.event_listener import EventListener
+    from studio_api.settings import get_settings
+
+    settings = get_settings()
+    if not settings.realtime_listener_enabled:
+        yield
+        return
+    listener = EventListener(settings.database_url)
+    app.state.event_listener = listener
+    task = asyncio.create_task(listener.run())
+    try:
+        yield
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Studio OS API",
@@ -180,6 +217,7 @@ def create_app() -> FastAPI:
             {"name": name, "description": description}
             for name, description in OPENAPI_TAG_DESCRIPTIONS.items()
         ],
+        lifespan=_lifespan,
     )
 
     from studio_api.jwt_auth import is_weak_jwt_secret
@@ -213,7 +251,12 @@ def create_app() -> FastAPI:
     app.include_router(accounts.router, prefix="/api/v1")
     app.include_router(projects.router)
     app.include_router(tasks.router)
+    app.include_router(task_launches.router)
     app.include_router(sessions.router)
+    app.include_router(start_work.router)
+    app.include_router(sync.router)
+    app.include_router(coordination.router)
+    app.include_router(handoff.router)
     app.include_router(claims.router)
     app.include_router(decisions.router)
     app.include_router(library.router)
@@ -221,6 +264,7 @@ def create_app() -> FastAPI:
     app.include_router(runtime_bindings.router)
     app.include_router(runtimes.router)
     app.include_router(resolutions.router)
+    app.include_router(bootstrap_plan.router)
     app.include_router(agents.router)
     app.include_router(ai_work.router)
     app.include_router(review_queue.router)
@@ -232,6 +276,8 @@ def create_app() -> FastAPI:
     app.include_router(events.router)
     app.include_router(transfers.router)
     app.include_router(machines.router)
+    app.include_router(eligibility.router)
+    app.include_router(ai_integration.router)
     app.include_router(users.router)
     app.include_router(roadmaps.router)
     app.include_router(initialization.router)

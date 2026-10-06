@@ -28,8 +28,18 @@ async def studio_get_teammate_activity(project_id: str, ctx: Context) -> dict[st
 
         tasks = await projects_service.get_active_tasks(session, principal, parsed)
         claims = await projects_service.get_active_claims(session, principal, parsed)
-        machine_ids = {t.claimed_by_machine_id for t in tasks if t.claimed_by_machine_id}
-        machine_ids.update(c.claimed_by_machine_id for c in claims)
+        tasks_by_machine: dict[Any, list[dict[str, Any]]] = {}
+        for task in tasks:
+            if task.claimed_by_machine_id:
+                tasks_by_machine.setdefault(task.claimed_by_machine_id, []).append(
+                    {"id": str(task.id), "title": task.title, "status": task.status}
+                )
+        claims_by_machine: dict[Any, list[dict[str, Any]]] = {}
+        for claim in claims:
+            claims_by_machine.setdefault(claim.claimed_by_machine_id, []).append(
+                {"resource_path": claim.resource_path, "resource_type": claim.resource_type}
+            )
+        machine_ids = set(tasks_by_machine) | set(claims_by_machine)
 
         settings = get_settings()
         teammates = []
@@ -47,6 +57,8 @@ async def studio_get_teammate_activity(project_id: str, ctx: Context) -> dict[st
                     "last_seen_at": (
                         teammate.last_seen_at.isoformat() if teammate.last_seen_at else None
                     ),
+                    "tasks": tasks_by_machine.get(machine_id, []),
+                    "claims": claims_by_machine.get(machine_id, []),
                 }
             )
         return {"teammates": teammates}

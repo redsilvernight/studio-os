@@ -1,4 +1,6 @@
-import { pathToFileURL } from "node:url";
+import { spawnSync } from "node:child_process";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const PLATFORM = "windows-x86_64";
 const REGISTRATION_MODES = new Set(["present", "closed", "open"]);
@@ -13,6 +15,9 @@ export function parseArgs(argv) {
     stableTag: "desktop-prod",
     registration: "present",
     requireStable: false,
+    skipDevPreflight: false,
+    devPreflightOffline: false,
+    expectedBetaApiOrigin: "http://127.0.0.1:8765",
     githubApiBase: "https://api.github.com",
     timeoutMs: 15_000,
   };
@@ -22,6 +27,14 @@ export function parseArgs(argv) {
       options.requireStable = true;
       continue;
     }
+    if (argument === "--skip-dev-preflight") {
+      options.skipDevPreflight = true;
+      continue;
+    }
+    if (argument === "--dev-preflight-offline") {
+      options.devPreflightOffline = true;
+      continue;
+    }
     if (!argument.startsWith("--")) throw new UsageError(`unexpected argument: ${argument}`);
     const [rawName, inlineValue] = argument.slice(2).split("=", 2);
     const value = inlineValue ?? argv[++index];
@@ -29,6 +42,7 @@ export function parseArgs(argv) {
     const key = {
       "base-url": "baseUrl",
       "expected-api-origin": "expectedApiOrigin",
+      "expected-beta-api-origin": "expectedBetaApiOrigin",
       repo: "repo",
       "beta-tag": "betaTag",
       "stable-tag": "stableTag",
@@ -49,6 +63,7 @@ export function parseArgs(argv) {
   }
   options.baseUrl = normalizeOrigin(options.baseUrl);
   options.expectedApiOrigin = normalizeOrigin(options.expectedApiOrigin);
+  options.expectedBetaApiOrigin = normalizeOrigin(options.expectedBetaApiOrigin);
   options.githubApiBase = options.githubApiBase.replace(/\/+$/, "");
   if (!/^[^/]+\/[^/]+$/.test(options.repo)) throw new UsageError("--repo must be owner/name");
   return options;
@@ -102,7 +117,7 @@ function repositoryPath(repo) {
   return repo.split("/").map(encodeURIComponent).join("/");
 }
 
-async function checkRelease(options, fetchImpl, tag, channel) {
+async function checkRelease(options, fetchImpl, tag, channel, expectedApiOrigin) {
   const releaseUrl = `${options.githubApiBase}/repos/${repositoryPath(options.repo)}/releases/tags/${encodeURIComponent(tag)}`;
   const { body: release } = await fetchJson(releaseUrl, options, fetchImpl);
   assert(!release.draft, `${tag} is a draft release`);
@@ -111,7 +126,7 @@ async function checkRelease(options, fetchImpl, tag, channel) {
   const { body: manifest } = await fetchJson(manifestAsset.browser_download_url, options, fetchImpl);
   assert(manifest.schema_version === 1, `${tag} has unsupported schema_version`);
   assert(manifest.channel === channel, `${tag} channel is ${manifest.channel}, expected ${channel}`);
-  assert(normalizeOrigin(manifest.api_origin) === options.expectedApiOrigin, `${tag} api_origin is ${manifest.api_origin}`);
+  assert(normalizeOrigin(manifest.api_origin) === expectedApiOrigin, `${tag} api_origin is ${manifest.api_origin}`);
   const artifact = manifest.artifacts?.[PLATFORM];
   const platform = manifest.platforms?.[PLATFORM];
   assert(artifact?.file, `${tag} manifest has no ${PLATFORM} artifact file`);
@@ -136,8 +151,34 @@ async function checkRelease(options, fetchImpl, tag, channel) {
   };
 }
 
-export async function runGate(options, fetchImpl = fetch) {
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+
+// Read-only: compares local dev to origin/dev (scripts/dev_preflight.py). The
+// JSON record (exact SHAs + remote ref) is embedded in the gate report.
+export function runDevPreflight(options, spawn = spawnSync) {
+  const args = ["scripts/dev_preflight.py", "--root", REPO_ROOT, "--json"];
+  if (options.devPreflightOffline) args.push("--offline");
+  const proc = spawn(process.env.STUDIO_PYTHON ?? "python3", args, {
+    cwd: REPO_ROOT,
+    encoding: "utf8",
+  });
+  if (proc.error) throw new Error(`dev preflight could not run: ${proc.error.message}`);
+  let record;
+  try {
+    record = JSON.parse(proc.stdout);
+  } catch {
+    throw new Error(`dev preflight produced no JSON (exit ${proc.status}): ${proc.stderr}`);
+  }
+  assert(record.promotable === true, `${record.message} | ${JSON.stringify(record)}`);
+  return record;
+}
+
+export async function runGate(options, fetchImpl = fetch, preflight = runDevPreflight) {
   const result = { timestamp: new Date().toISOString(), ok: true, checks: [] };
+  // Opt-in for library callers (tests); main() enables it unless --skip-dev-preflight.
+  if (options.devPreflight) {
+    await addCheck(result, "repo.dev_preflight", async () => preflight(options));
+  }
   await addCheck(result, "instance.health", async () => {
     const { body } = await fetchJson(`${options.baseUrl}/healthz`, options, fetchImpl);
     assert(body.status === "ok", "health status is not ok");
@@ -176,9 +217,13 @@ export async function runGate(options, fetchImpl = fetch) {
       return { url, status: response.status, mode: options.registration };
     });
   }
-  await addCheck(result, "release.beta", () => checkRelease(options, fetchImpl, options.betaTag, "beta"));
+  await addCheck(result, "release.beta", () =>
+    checkRelease(options, fetchImpl, options.betaTag, "beta", options.expectedBetaApiOrigin),
+  );
   if (options.requireStable) {
-    await addCheck(result, "release.stable", () => checkRelease(options, fetchImpl, options.stableTag, "stable"));
+    await addCheck(result, "release.stable", () =>
+      checkRelease(options, fetchImpl, options.stableTag, "stable", options.expectedApiOrigin),
+    );
   }
   return result;
 }
@@ -191,7 +236,9 @@ export async function main(argv = process.argv.slice(2), io = console) {
     io.error(JSON.stringify({ ok: false, error: error.message }));
     return 2;
   }
+  options.devPreflight = !options.skipDevPreflight;
   const result = await runGate(options);
+  if (options.skipDevPreflight) result.dev_preflight = "skipped (--skip-dev-preflight): dev state not verified";
   io.log(JSON.stringify(result));
   return result.ok ? 0 : 1;
 }

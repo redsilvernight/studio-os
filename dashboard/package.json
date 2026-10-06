@@ -8,6 +8,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
+    "analyze:bundle": "node scripts/analyze-bundle.mjs",
+    "check:bundle": "node scripts/analyze-bundle.mjs --check",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",

@@ -8,7 +8,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
-from typing import BinaryIO
+from typing import Any, BinaryIO
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
@@ -27,16 +27,32 @@ from studio_contracts.local.daemon_control import (
 )
 from studio_contracts.local.handshake import ProtocolVersion
 from studio_contracts.local.identity import IdentityBinding, ProfileRef, partition_key
+from studio_contracts.task_launch import TaskLaunch
 
 from studio_client.api_client import StudioApiClient
+from studio_client.capabilities import build_capabilities, neutral_context
 from studio_client.config import ClientConfig, GitWatchConfig, default_config_path
 from studio_client.daemon.heartbeat import HeartbeatDaemon, build_godot_watchers
+from studio_client.daemon.launch_executor import LaunchExecutor, ResolvedLaunch
+from studio_client.daemon.launch_policy import build_launch_policy
+from studio_client.daemon.launch_prepare import LaunchPreparer
+from studio_client.daemon.launch_puller import LaunchPuller
+from studio_client.daemon.launch_report import LaunchReporter
+from studio_client.daemon.launch_runner import LaunchRunner
+from studio_client.daemon.launch_settings_bridge import effective_launch_config
+from studio_client.daemon.skills_bridge import start_auto_sync
 from studio_client.daemon.workspace_watch import (
     RepoObservation,
     WorkspaceWatchLike,
     WorkspaceWatchSet,
 )
-from studio_client.errors import AuthenticationError, ServerError, TransportError
+from studio_client.errors import (
+    AuthenticationError,
+    ServerError,
+    StudioApiError,
+    TransportError,
+)
+from studio_client.harness.registry import HarnessRegistry
 from studio_client.outbox import (
     OutboxIdentityError,
     OutboxReplayer,
@@ -48,6 +64,7 @@ from studio_client.outbox import (
 )
 from studio_client.outbox.legacy import LegacyOutboxError, inspect_legacy_outbox
 from studio_client.retry import RetryPolicy
+from studio_client.tokens import KeyringTokenStore, TokenStore
 from studio_client.watchers import GitChangeListener, PollingWatcher
 
 _LOGGER = logging.getLogger("studio_client.daemon.runtime")
@@ -129,6 +146,54 @@ def server_origin(api_base_url: str) -> str:
     return f"{parsed.scheme.lower()}://{parsed.netloc.lower()}"
 
 
+def _launch_secrets() -> tuple[str, ...]:
+    """Literal secrets a launched harness could echo in its output. The machine
+    token lives in the environment only in headless/CI runs; the harness's own
+    MCP credential is masked by `redact_text`'s `Bearer` rule."""
+    token = os.environ.get("STUDIO_CLIENT_MACHINE_TOKEN")
+    return (token,) if token else ()
+
+
+def build_launch_resolver(
+    client: StudioApiClient,
+    registry: HarnessRegistry,
+    config: ClientConfig,
+    *,
+    workspace_repo: Callable[[UUID], Path | None] | None = None,
+) -> Callable[[TaskLaunch], Awaitable[ResolvedLaunch | None]]:
+    """Resolves a launch to the repository, task title, adapter and probing
+    context. The repository comes from `git_watches`, else from a registered
+    workspace (`workspace_repo`). `None` means the launch cannot be prepared
+    locally (no known repository, or unknown harness)."""
+
+    async def resolve(launch: TaskLaunch) -> ResolvedLaunch | None:
+        repo_root = config.git_repo_for_project(launch.project_id)
+        if repo_root is None and workspace_repo is not None:
+            repo_root = workspace_repo(launch.project_id)
+        if repo_root is None:
+            _LOGGER.warning(
+                "launch cannot be prepared: no repository for project %s", launch.project_id
+            )
+            return None
+        adapter = registry.get(launch.harness_id)
+        if adapter is None:
+            _LOGGER.warning("launch cannot be prepared: unknown harness %s", launch.harness_id)
+            return None
+        title: str | None = None
+        try:
+            title = (await client.get_task(launch.task_id)).title
+        except StudioApiError:
+            _LOGGER.warning("launch task title unavailable; using a generic slug", exc_info=True)
+        return ResolvedLaunch(
+            repo_root=repo_root,
+            task_title=title,
+            adapter=adapter,
+            ctx=neutral_context(config),
+        )
+
+    return resolve
+
+
 class DaemonRuntime:
     def __init__(
         self,
@@ -142,10 +207,14 @@ class DaemonRuntime:
         git_change_listener: GitChangeListener | None = None,
         workspace_refresh_listener: WorkspaceRefreshListener | None = None,
         git_watch_source: GitWatchSource | None = None,
+        token_store: TokenStore | None = None,
+        skills_home: Callable[[], Path] = Path.home,
     ) -> None:
         self._git_watch_source = git_watch_source
         self._git_change_listener = git_change_listener
         self._workspace_refresh_listener = workspace_refresh_listener
+        self._token_store = token_store or KeyringTokenStore("studio-os")
+        self._skills_home = skills_home
         if config.machine_id is None:
             raise ValueError("ClientConfig.machine_id must be set to run the daemon")
         self.config = config
@@ -171,6 +240,7 @@ class DaemonRuntime:
         self._store: OutboxStore | None = None
         self._heartbeat: HeartbeatDaemon | None = None
         self._replayer: OutboxReplayer | None = None
+        self._launch_executor: LaunchExecutor | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._watchers: list[PollingWatcher] = []
         self._workspace_watches: WorkspaceWatchSet | None = None
@@ -180,6 +250,7 @@ class DaemonRuntime:
         self._workspace_sync_seconds = workspace_sync_seconds
         self._stop_event: asyncio.Event | None = None
         self._stop_requested = False
+        self._auto_sync_runner: Any = None
 
     def request_stop(
         self,
@@ -258,6 +329,24 @@ class DaemonRuntime:
                 self._workspace_inputs = list(workspaces)
         return await self.reconcile_workspace_watchers()
 
+    def _workspace_project_ids(self) -> tuple[UUID, ...]:
+        """Project IDs registered as Desktop workspaces. A workspace is a local
+        project registration, so it feeds both the capability report and the
+        local launch gate — not only the watchers."""
+        return tuple(watch.project_id for watch in self._workspace_inputs)
+
+    def _workspace_repo_for(self, project_id: UUID) -> Path | None:
+        """First repository declared by a workspace of `project_id`, if any. A
+        workspace is a project registration, so its repository is a valid launch
+        root, just like a `git_watches` entry."""
+        for watch in self._workspace_inputs:
+            if watch.project_id != project_id:
+                continue
+            paths = watch.plan.repo_paths
+            if paths:
+                return Path(paths[0])
+        return None
+
     async def _workspace_sync_loop(self) -> None:
         stop = self._stop_event
         if stop is None or (self._workspace_source is None and self._git_watch_source is None):
@@ -287,11 +376,48 @@ class DaemonRuntime:
                 )
                 replayer = OutboxReplayer(store, client, policy, active_binding=self.binding)
                 self._replayer = replayer
+                registry = HarnessRegistry()
+                reporter = LaunchReporter(store)
+                executor = LaunchExecutor(
+                    client=client,
+                    reporter=reporter,
+                    preparer=LaunchPreparer(),
+                    runner=LaunchRunner(),
+                    resolve=build_launch_resolver(
+                        client,
+                        registry,
+                        self.config,
+                        workspace_repo=self._workspace_repo_for,
+                    ),
+                    timeout_seconds=self.config.launch_timeout_seconds,
+                    poll_seconds=self.config.launch_status_poll_seconds,
+                    secrets=_launch_secrets(),
+                    models=self.config.launch_models,
+                )
+                self._launch_executor = executor
+                executor.start()
                 self._heartbeat = HeartbeatDaemon(
                     client,
                     self.config,
                     agent_id=self.agent_id,
                     replayer=replayer,
+                    capabilities_provider=lambda: build_capabilities(
+                        effective_launch_config(self.config, self.data_root),
+                        registry=registry,
+                        running_launches=executor.running,
+                        extra_project_ids=self._workspace_project_ids(),
+                    ),
+                    launch_puller=LaunchPuller(
+                        client,
+                        self.binding.machine_id,
+                        lambda: build_launch_policy(
+                            effective_launch_config(self.config, self.data_root),
+                            registry=registry,
+                            extra_project_ids=self._workspace_project_ids(),
+                        ),
+                        reporter,
+                    ),
+                    launch_executor=executor,
                 )
                 self._watchers = build_godot_watchers(self.config, store)
                 self._workspace_watches = WorkspaceWatchSet(
@@ -304,6 +430,15 @@ class DaemonRuntime:
                     await self.refresh_workspace_watchers()
                 if self._stop_requested:
                     self.request_stop()
+
+                # Start automatic skill synchronization after daemon is fully ready
+                self._auto_sync_runner = start_auto_sync(
+                    self.config,
+                    self._token_store,
+                    self._skills_home(),
+                    self.data_root,
+                )
+
                 await asyncio.gather(
                     self._heartbeat.run(),
                     self._workspace_sync_loop(),
@@ -314,6 +449,9 @@ class DaemonRuntime:
             if self._workspace_watches is not None:
                 await self._workspace_watches.stop()
                 self._workspace_watches = None
+            if self._launch_executor is not None:
+                await self._launch_executor.aclose()
+                self._launch_executor = None
             if self._store is not None:
                 self._store.connection.close()
             self._store = None

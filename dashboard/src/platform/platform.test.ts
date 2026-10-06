@@ -37,7 +37,7 @@ describe("P1 contract boundary (no second source of truth)", () => {
     };
     expect(LOCAL_PROTOCOL).toBe(exported.protocol);
     expect(knownCommands().sort()).toEqual(exported.commands.map((c) => c.command).sort());
-    expect(knownCommands()).toHaveLength(34);
+    expect(knownCommands()).toHaveLength(46);
   });
 
   it("bundles the request and response schema of every allowlisted command", () => {

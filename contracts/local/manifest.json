@@ -131,9 +131,79 @@
       "reason": "a missing token is a condition, not a failure: it carries no error"
     },
     {
+      "model": "SkillsCheckResult",
+      "name": "skills.check.in_sync_with_drift",
+      "reason": "in_sync is true only when no target is missing or drifted"
+    },
+    {
+      "model": "SkillsCheckResult",
+      "name": "skills.check.path_leak",
+      "reason": "a skill entry carries no filesystem path"
+    },
+    {
+      "model": "SetupApplyRequest",
+      "name": "setup.apply.unconfirmed",
+      "reason": "applying the workstation setup requires explicit confirmation"
+    },
+    {
+      "model": "SetupApplyRequest",
+      "name": "setup.apply.duplicate_overwrite",
+      "reason": "a replacement is named once"
+    },
+    {
+      "model": "SetupPlan",
+      "name": "setup.plan.diff_on_current_file",
+      "reason": "only a differing file carries a diff"
+    },
+    {
+      "model": "SetupPlan",
+      "name": "setup.plan.diff_path_leak",
+      "reason": "a diff carries no absolute filesystem path"
+    },
+    {
+      "model": "SetupPlan",
+      "name": "setup.plan.skills_unavailable_without_reason",
+      "reason": "an unavailable skills check states why"
+    },
+    {
+      "model": "SetupApplyResult",
+      "name": "setup.apply.backup_flag_mismatch",
+      "reason": "the backup flag reflects the item results"
+    },
+    {
+      "model": "LaunchSettingsSaveRequest",
+      "name": "launch.settings.save_unconfirmed",
+      "reason": "saving the launch opt-in requires explicit confirmation"
+    },
+    {
+      "model": "LaunchSettingsView",
+      "name": "launch.settings.duplicate_harness",
+      "reason": "a harness is allowed at most once"
+    },
+    {
+      "model": "LaunchSettingsView",
+      "name": "launch.settings.concurrency_out_of_range",
+      "reason": "concurrency is bounded between one and the documented maximum"
+    },
+    {
+      "model": "LaunchSettingsView",
+      "name": "launch.settings.path_leak",
+      "reason": "the settings view carries no filesystem path"
+    },
+    {
       "model": "PublicationPublishRequest",
       "name": "publication.publish_unconfirmed",
       "reason": "publication requires explicit confirmation"
+    },
+    {
+      "model": "OutboxLegacyStatus",
+      "name": "outbox.legacy_status.flag_mismatch",
+      "reason": "has_queued_work must reflect the counts"
+    },
+    {
+      "model": "OutboxLegacyStatus",
+      "name": "outbox.legacy_status.unknown_table",
+      "reason": "only known legacy outbox tables are reported"
     }
   ],
   "models": [
@@ -184,10 +254,13 @@
     "HarnessStatusRequest",
     "HarnessVerifyRequest",
     "HarnessVerifyResult",
+    "HookCheckEntry",
     "HumanIdentity",
     "IdentityBinding",
     "IdentityEnrollRequest",
     "IdentityEnrollResult",
+    "IdentityForgetRequest",
+    "IdentityForgetResult",
     "IdentityView",
     "IndexInfo",
     "IndexLocation",
@@ -204,11 +277,16 @@
     "KnowledgeSearchRequest",
     "KnowledgeSearchResult",
     "KnowledgeStatus",
+    "LaunchSettings",
+    "LaunchSettingsRequest",
+    "LaunchSettingsSaveRequest",
+    "LaunchSettingsView",
     "LocalError",
     "LocalFeatures",
     "LocalWorkspaceConfig",
     "MachineIdentity",
     "OptionalComponentStatus",
+    "OutboxLegacyStatus",
     "OutboxSummary",
     "PeerInfo",
     "ProfileRef",
@@ -225,7 +303,30 @@
     "RuntimeServiceHealth",
     "SecretReference",
     "SecretReferenceStatus",
+    "SetupAdaptersStep",
+    "SetupApplyRequest",
+    "SetupApplyResult",
+    "SetupHarness",
+    "SetupHooksCheckRequest",
+    "SetupHooksCheckResult",
+    "SetupItemPlan",
+    "SetupItemResult",
+    "SetupPlan",
+    "SetupPlanRequest",
+    "SetupSkillsResult",
+    "SetupSkillsStep",
     "SharedStatusSummary",
+    "SkillCheckEntry",
+    "SkillPreviewEntry",
+    "SkillTargetState",
+    "SkillsApplyRequest",
+    "SkillsApplyResult",
+    "SkillsCheckRequest",
+    "SkillsCheckResult",
+    "SkillsConfigureRequest",
+    "SkillsPreviewRequest",
+    "SkillsPreviewResult",
+    "SkillsSyncStatus",
     "WatcherConfig",
     "WorkspaceConfirmRootsRequest",
     "WorkspaceConfirmRootsResult",
@@ -271,8 +372,16 @@
       "name": "bridge.request.knowledge_search"
     },
     {
+      "model": "BridgeRequest",
+      "name": "bridge.request.outbox_legacy_status"
+    },
+    {
       "model": "BridgeResponse",
       "name": "bridge.response.knowledge_search"
+    },
+    {
+      "model": "BridgeResponse",
+      "name": "bridge.response.outbox_legacy_status"
     },
     {
       "model": "CodeGraphStatus",
@@ -467,6 +576,14 @@
       "name": "identity.enroll.enrolled"
     },
     {
+      "model": "IdentityForgetResult",
+      "name": "identity.forget.forgotten"
+    },
+    {
+      "model": "IdentityForgetResult",
+      "name": "identity.forget.nothing_to_forget"
+    },
+    {
       "model": "IdentityView",
       "name": "identity.view.keyring_unavailable"
     },
@@ -535,6 +652,26 @@
       "name": "knowledge.status.unavailable"
     },
     {
+      "model": "LaunchSettingsSaveRequest",
+      "name": "launch.settings.save_request"
+    },
+    {
+      "model": "LaunchSettingsView",
+      "name": "launch.settings.view"
+    },
+    {
+      "model": "OutboxLegacyStatus",
+      "name": "outbox.legacy_status.absent"
+    },
+    {
+      "model": "OutboxLegacyStatus",
+      "name": "outbox.legacy_status.empty"
+    },
+    {
+      "model": "OutboxLegacyStatus",
+      "name": "outbox.legacy_status.with_work"
+    },
+    {
       "model": "PublicationPlan",
       "name": "publication.plan.preview"
     },
@@ -581,6 +718,26 @@
     {
       "model": "HandshakeRequest",
       "name": "runtime.handshake.request"
+    },
+    {
+      "model": "SetupApplyRequest",
+      "name": "setup.apply.request"
+    },
+    {
+      "model": "SetupApplyResult",
+      "name": "setup.apply.result"
+    },
+    {
+      "model": "SetupPlanRequest",
+      "name": "setup.plan.request"
+    },
+    {
+      "model": "SetupPlan",
+      "name": "setup.plan.result"
+    },
+    {
+      "model": "SkillsCheckResult",
+      "name": "skills.check.result"
     },
     {
       "model": "LocalWorkspaceConfig",

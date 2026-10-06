@@ -1,8 +1,9 @@
 /**
  * UI-3 — Accueil calme (remplace le cockpit DASH-1).
  *
- * Densité = limite haute : résumé (3 indicateurs) + Projets (3 max) +
- * Travail en cours (5 max) + À examiner (3 max) + état système compact.
+ * P05-home-project — trois blocs prioritaires : À faire maintenant (une
+ * carte « Reprendre » + 2 suites), À valider (3 max), Projets récents (3 max,
+ * santé par point de couleur) ; compteurs non actionnables en ligne discrète.
  * Le reste vit sur ses pages : Kanban et détail → #/tasks, transferts →
  * #/transfers, diagnostics → Inspector, activité → onglet projet (UI-4).
  *
@@ -20,9 +21,12 @@ import type { StudioClient } from "../api";
 import { ApiError, parseErrorBody } from "../api";
 import { observedFetch } from "../apiEvents";
 import { joinUrl } from "../config";
-import { dsBadge, dsEmptyState, dsMetric, dsPageHeader, dsSectionHeader, dsSkeleton, dsStatus } from "../ds/ds";
+import { dsBadge, dsEmptyState, dsHeroCard, dsPageHeader, dsSectionHeader, dsSkeleton, dsStatus, dsStatusDot } from "../ds/ds";
 import { resolveReview, type ReviewResolution } from "../reviewApi";
 import { describeError, esc } from "../ui";
+import { REVIEW_KIND_SHORT_LABEL } from "../language";
+import { agentLabel } from "../actorNames";
+import { TASK_STATUS_LABEL_FR } from "../taskStatus";
 import type { components } from "../openapi-schema";
 
 type Project = components["schemas"]["Project"];
@@ -33,49 +37,32 @@ type ReviewQueueItem = ReviewQueue["items"][number];
 
 export const HOME_TASK_LIMIT = 100;
 export const HOME_PROJECT_LIMIT = 3;
-export const HOME_WORK_LIMIT = 5;
+export const HOME_WORK_LIMIT = 3;
 export const HOME_REVIEW_LIMIT = 3;
 
-const REVIEW_KIND_LABEL: Record<ReviewQueueItem["kind"], string> = {
-  ai_work_review: "IA",
-  decision_proposal: "Décision",
-  resource_conflict: "Conflit",
-  build_failure: "Build",
-  pr_ready: "PR",
-  roadmap_proposal: "Roadmap",
-};
+const REVIEW_KIND_LABEL: Record<ReviewQueueItem["kind"], string> = REVIEW_KIND_SHORT_LABEL;
 
-const TASK_STATUS_LABEL: Record<string, string> = {
-  created: "À faire",
-  in_progress: "En cours",
-  blocked: "Bloquée",
-  completed: "Terminée",
-};
+const TASK_STATUS_LABEL: Record<string, string> = TASK_STATUS_LABEL_FR;
 
 /** Sub-title for a review-queue row: AI work → agent, decision → readable_id,
  * conflict → resource path, build → workflow + branch, PR → number + branch. */
 export function reviewQueueItemDetail(item: ReviewQueueItem): string {
   switch (item.kind) {
     case "ai_work_review":
-      return `agent ${shortAgent(item.agent_id)}`;
+      return `Relire le travail de ${agentLabel(item.agent_id)}`;
     case "decision_proposal":
       return item.readable_id;
     case "resource_conflict":
       return item.resource_path;
     case "build_failure":
-      return `${item.workflow_name} on ${item.branch}`;
+      return `${item.workflow_name} sur ${item.branch}`;
     case "pr_ready":
-      return `PR #${item.pr_number} ${item.head_branch} → ${item.base_branch}`;
+      return `Demande de fusion #${item.pr_number}`;
     case "roadmap_proposal":
       return item.scope === "revision"
         ? `révision ${item.revision_no} de « ${item.title} »`
         : `« ${item.title} » soumise pour validation`;
   }
-}
-
-function shortAgent(id: string | null | undefined): string {
-  if (!id) return "—";
-  return id.length > 8 ? `${id.slice(0, 8)}…` : id;
 }
 
 export type HomeResult<T> = { ok: true; value: T } | { ok: false; message: string };
@@ -161,13 +148,13 @@ export function homePageHtml(data: HomeData): string {
   const activeProjects = projectList.filter((p) => !p.archived).length;
   const activeTasks = taskList.filter((t) => t.status !== "completed").length;
   const sections = [
-    dsPageHeader("Accueil", "L'essentiel en un coup d'œil : projets, travail en cours et points à examiner."),
+    dsPageHeader("Accueil", "L'essentiel en un coup d'œil : ce qui demande une action aujourd'hui."),
     homeHealthHtml(data.health),
-    homeMetricsHtml(activeProjects, activeTasks, reviewTotal),
-    homeProjectsHtml(data.projects),
     homeTasksHtml(data.tasks, projectList),
     homeReviewHtml(data.reviewQueue, data.authed),
+    homeProjectsHtml(data.projects, taskList),
     homeTransferSignalHtml(data.transfers),
+    homeMetricsHtml(activeProjects, activeTasks, reviewTotal),
   ];
   if (!data.authed) {
     sections.push(
@@ -182,16 +169,15 @@ export function homePageHtml(data: HomeData): string {
 
 export function homeHealthHtml(health: HealthInfo): string {
   return `<p class="home-health">${
-    health.reachable ? dsStatus("success", "Système opérationnel") : dsStatus("danger", "Système indisponible")
+    health.reachable ? dsStatus("success", "Studio OS est joignable") : dsStatus("danger", "Studio OS est injoignable")
   }</p>`;
 }
 
 export function homeMetricsHtml(activeProjects: number, activeTasks: number, reviewTotal: number | null): string {
-  return `<section class="home-section" aria-label="Résumé"><div class="home-metrics">` +
-    `${dsMetric("Projets actifs", activeProjects)}` +
-    `${dsMetric("Tâches en cours", activeTasks)}` +
-    `${dsMetric("À examiner", reviewTotal ?? "—")}` +
-    `</div></section>`;
+  return `<p class="home-counts" aria-label="Résumé">` +
+    `<span><strong>${activeProjects}</strong> projet(s) actif(s)</span>` +
+    `<span><strong>${activeTasks}</strong> tâche(s) ouverte(s)</span>` +
+    `<span><strong>${reviewTotal ?? "—"}</strong> à valider</span></p>`;
 }
 
 /** Projets récents non archivés d'abord (tri updated_at desc), 3 max. */
@@ -204,8 +190,16 @@ export function pickHomeProjects(projects: Project[]): Project[] {
     .slice(0, HOME_PROJECT_LIMIT);
 }
 
-export function homeProjectsHtml(result: HomeResult<Project[]>): string {
-  const header = dsSectionHeader("Projets", { label: "Voir tous les projets", href: "#/projects" });
+/** Santé d'un projet d'après ses tâches ouvertes : bloquée > en cours > calme. */
+export function projectHealth(projectId: string, tasks: Task[]): { state: "warning" | "info" | "idle"; label: string } {
+  const own = tasks.filter((t) => t.project_id === projectId && t.status !== "completed");
+  if (own.some((t) => t.status === "blocked")) return { state: "warning", label: "Blocage à lever" };
+  if (own.some((t) => t.status === "in_progress")) return { state: "info", label: "Travail en cours" };
+  return { state: "idle", label: "Aucun travail ouvert" };
+}
+
+export function homeProjectsHtml(result: HomeResult<Project[]>, tasks: Task[] = []): string {
+  const header = dsSectionHeader("Projets récents", { label: "Voir tous les projets", href: "#/projects" });
   if (!result.ok) {
     return `<section class="home-section home-section--projects" aria-labelledby="home-projets"><div id="home-projets">${header}</div><div class="ds-notice ds-notice--danger"><strong>Projets indisponibles.</strong>${esc(result.message)}</div></section>`;
   }
@@ -214,10 +208,9 @@ export function homeProjectsHtml(result: HomeResult<Project[]>): string {
   }
   const items = pickHomeProjects(result.value)
     .map((p) => {
-      const rawDesc = p.description ?? "";
-      const desc = rawDesc.trim() === "" ? "" : `<div class="ds-list-sub">${esc(rawDesc)}</div>`;
-      const badge = p.archived ? dsBadge("Archivé", "warning") : "";
-      return `<li class="ds-list-item"><div class="grow"><div class="ds-list-title"><a href="#/projects/${esc(p.id)}">${esc(p.name)}</a></div>${desc}</div>${badge}</li>`;
+      const health = projectHealth(p.id, tasks);
+      const dot = p.archived ? dsBadge("Archivé", "warning") : dsStatusDot(health.state, health.label, true);
+      return `<li class="ds-list-item">${dot}<div class="grow"><div class="ds-list-title"><a href="#/projects/${esc(p.id)}">${esc(p.name)}</a></div><div class="ds-list-sub">${esc(p.archived ? "Archivé" : health.label)}</div></div></li>`;
     })
     .join("");
   return `<section class="home-section home-section--projects" aria-labelledby="home-projets"><div id="home-projets">${header}</div><ul class="ds-list ds-list--card">${items}</ul></section>`;
@@ -236,24 +229,43 @@ function taskTone(status: string): "neutral" | "info" | "warning" | "success" {
   }
 }
 
+const TASK_PRIORITY: Record<string, number> = { in_progress: 0, blocked: 1, created: 2 };
+
+/** À faire maintenant : en cours d'abord, puis bloquées, puis à démarrer ; plus récentes en tête. */
+export function pickNowTasks(tasks: Task[]): Task[] {
+  return tasks
+    .filter((t) => t.status !== "completed")
+    .sort((a, b) => (TASK_PRIORITY[a.status] ?? 3) - (TASK_PRIORITY[b.status] ?? 3) || b.updated_at.localeCompare(a.updated_at))
+    .slice(0, HOME_WORK_LIMIT);
+}
+
 export function homeTasksHtml(result: HomeResult<Task[]>, projects: Project[]): string {
-  const header = dsSectionHeader("Travail en cours", { label: "Voir toutes les tâches", href: "#/tasks" });
+  const header = dsSectionHeader("À faire maintenant", { label: "Voir toutes les tâches", href: "#/tasks" });
   if (!result.ok) {
     return `<section class="home-section home-section--work" aria-labelledby="home-travail"><div id="home-travail">${header}</div><div class="ds-notice ds-notice--danger"><strong>Tâches indisponibles.</strong>${esc(result.message)}</div></section>`;
   }
-  const active = result.value.filter((t) => t.status !== "completed").slice(0, HOME_WORK_LIMIT);
-  if (active.length === 0) {
-    return `<section class="home-section home-section--work" aria-labelledby="home-travail"><div id="home-travail">${header}</div>${dsEmptyState("Rien en cours", "Aucune tâche active pour le moment.", { label: "Voir les tâches", href: "#/tasks" })}</section>`;
+  const picked = pickNowTasks(result.value);
+  if (picked.length === 0) {
+    return `<section class="home-section home-section--work" aria-labelledby="home-travail"><div id="home-travail">${header}</div>${dsEmptyState("Rien à faire maintenant", "Aucune tâche active pour le moment.", { label: "Voir les tâches", href: "#/tasks" })}</section>`;
   }
   const names = new Map(projects.map((p) => [p.id, p.name]));
-  const items = active
+  const [first, ...rest] = picked as [Task, ...Task[]];
+  const firstLabel = TASK_STATUS_LABEL[first.status] ?? first.status;
+  const hero = dsHeroCard({
+    eyebrow: `${names.get(first.project_id) ?? "Projet"} · ${firstLabel}`,
+    title: first.title,
+    body: first.description ?? "",
+    primary: { label: first.status === "in_progress" ? "Reprendre" : "Ouvrir", href: `#/tasks/${first.id}` },
+  });
+  const items = rest
     .map((t) => {
       const project = names.get(t.project_id) ?? "Projet";
       const label = TASK_STATUS_LABEL[t.status] ?? t.status;
       return `<li class="ds-list-item"><div class="grow"><div class="ds-list-title"><a href="#/tasks/${esc(t.id)}">${esc(t.title)}</a></div><div class="ds-list-sub">${esc(project)} · ${esc(label)}</div></div>${dsBadge(label, taskTone(t.status))}</li>`;
     })
     .join("");
-  return `<section class="home-section home-section--work" aria-labelledby="home-travail"><div id="home-travail">${header}</div><ul class="ds-list ds-list--card">${items}</ul></section>`;
+  const list = items === "" ? "" : `<ul class="ds-list ds-list--card">${items}</ul>`;
+  return `<section class="home-section home-section--work" aria-labelledby="home-travail"><div id="home-travail">${header}</div>${hero}${list}</section>`;
 }
 
 export function reviewActionsHtml(item: ReviewQueueItem, authed: boolean): string {
@@ -263,13 +275,13 @@ export function reviewActionsHtml(item: ReviewQueueItem, authed: boolean): strin
 }
 
 export function homeReviewHtml(result: HomeResult<ReviewQueue | null>, authed: boolean): string {
-  const header = dsSectionHeader("À examiner", { label: "Voir les décisions", href: "#/decisions" });
+  const header = dsSectionHeader("À valider", { label: "Voir la file complète", href: "#/decisions" });
   if (!result.ok) {
-    return `<section class="home-section home-section--review" aria-labelledby="home-examiner"><div id="home-examiner">${header}</div><div class="ds-notice ds-notice--danger"><strong>File d'examen indisponible.</strong>${esc(result.message)}</div></section>`;
+    return `<section class="home-section home-section--review" aria-labelledby="home-examiner"><div id="home-examiner">${header}</div><div class="ds-notice ds-notice--danger"><strong>File À valider indisponible.</strong>${esc(result.message)}</div></section>`;
   }
   const items = result.value?.items ?? [];
   if (items.length === 0) {
-    return `<section class="home-section home-section--review" aria-labelledby="home-examiner"><div id="home-examiner">${header}</div>${dsEmptyState("Rien à examiner", "Aucun élément n'attend une décision humaine.", { label: "Voir les décisions", href: "#/decisions" })}</section>`;
+    return `<section class="home-section home-section--review" aria-labelledby="home-examiner"><div id="home-examiner">${header}</div>${dsEmptyState("Rien à valider", "Aucun élément n'attend une décision humaine.", { label: "Voir les éléments À valider", href: "#/decisions" })}</section>`;
   }
   const shown = items.slice(0, HOME_REVIEW_LIMIT);
   const rows = shown
@@ -278,8 +290,8 @@ export function homeReviewHtml(result: HomeResult<ReviewQueue | null>, authed: b
       return `<li class="ds-list-item"><div class="grow"><div class="ds-list-title">${esc(title)}</div><div class="ds-list-sub">${esc(REVIEW_KIND_LABEL[item.kind])} · ${esc(reviewQueueItemDetail(item))}</div></div>${reviewActionsHtml(item, authed)}</li>`;
     })
     .join("");
-  const more = items.length > shown.length ? `<p class="ds-list-sub">+ ${items.length - shown.length} autre(s) — voir les décisions.</p>` : "";
-  return `<section class="home-section home-section--review" aria-labelledby="home-examiner"><div id="home-examiner">${header}</div><p class="ds-list-sub">${items.length} élément(s) à examiner.</p><ul class="ds-list ds-list--card">${rows}</ul>${more}<div data-review-msg class="ds-list-sub" role="status"></div></section>`;
+  const more = items.length > shown.length ? `<p class="ds-list-sub">+ ${items.length - shown.length} autre(s) — voir les éléments À valider.</p>` : "";
+  return `<section class="home-section home-section--review" aria-labelledby="home-examiner"><div id="home-examiner">${header}</div><p class="ds-list-sub">${items.length} élément(s) à valider.</p><ul class="ds-list ds-list--card">${rows}</ul>${more}<div data-review-msg class="ds-list-sub" role="status"></div></section>`;
 }
 
 /** Signal discret uniquement si un envoi est réellement en cours. */

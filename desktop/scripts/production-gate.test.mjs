@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { afterEach, test } from "node:test";
 
-import { parseArgs, runGate } from "./production-gate.mjs";
+import { parseArgs, runDevPreflight, runGate } from "./production-gate.mjs";
 
 const servers = [];
 
@@ -69,7 +69,7 @@ async function fixture(overrides = {}) {
         schema_version: 1,
         version: tag === "desktop-dev" ? "1.0.1" : "1.0.0",
         channel: tag === "desktop-dev" ? "beta" : "stable",
-        api_origin: tag === "desktop-dev" && state.betaOrigin ? state.betaOrigin : origin,
+        api_origin: tag === "desktop-dev" ? (state.betaOrigin ?? "http://127.0.0.1:8765") : origin,
         artifacts: { ["windows-x86_64"]: { file, size_bytes: 1234, sha256: "a".repeat(64) } },
         platforms: { ["windows-x86_64"]: { url: `${origin}/assets/${tag}/${file}`, signature: "signed" } },
       });
@@ -132,4 +132,38 @@ test("fails when the stable release is required but absent", async () => {
   const result = await runGate(options(origin, ["--require-stable"]));
   assert.equal(result.ok, false);
   assert.match(result.checks.find((check) => check.name === "release.stable").details.error, /status 404/);
+});
+
+const fakeSpawn = (record, status = 0) => () => ({ status, stdout: JSON.stringify(record), stderr: "" });
+const baseRecord = { status: "aligned", promotable: true, local_sha: "a", remote_sha: "a", remote_ref: "origin/dev", message: "ok" };
+
+test("dev preflight check passes only for a verified aligned dev and records the SHAs", async () => {
+  const { origin } = await fixture();
+  const opts = { ...options(origin), devPreflight: true };
+  const pass = await runGate(opts, fetch, () => runDevPreflight(opts, fakeSpawn(baseRecord)));
+  const check = pass.checks.find((c) => c.name === "repo.dev_preflight");
+  assert.equal(pass.ok, true);
+  assert.equal(check.details.remote_sha, "a");
+  assert.equal(check.details.remote_ref, "origin/dev");
+});
+
+test("dev preflight check fails (behind / offline) and keeps the record in the report", async () => {
+  const { origin } = await fixture();
+  const opts = { ...options(origin), devPreflight: true };
+  for (const status of ["behind", "offline"]) {
+    const record = { ...baseRecord, status, promotable: false, remote_sha: "b", message: `dev ${status}` };
+    const res = await runGate(opts, fetch, () => runDevPreflight(opts, fakeSpawn(record, 1)));
+    const check = res.checks.find((c) => c.name === "repo.dev_preflight");
+    assert.equal(res.ok, false);
+    assert.match(check.details.error, new RegExp(`dev ${status}`));
+    assert.match(check.details.error, /"remote_sha":"b"/);
+  }
+});
+
+test("dev preflight is skippable only explicitly", () => {
+  assert.equal(parseArgs(["--base-url", "http://x", "--expected-api-origin", "http://x"]).skipDevPreflight, false);
+  assert.equal(
+    parseArgs(["--base-url", "http://x", "--expected-api-origin", "http://x", "--skip-dev-preflight"]).skipDevPreflight,
+    true,
+  );
 });

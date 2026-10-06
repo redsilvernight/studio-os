@@ -5,15 +5,20 @@ import {
   dsBadge,
   dsDrawerHtml,
   dsEmptyState,
+  dsErrorState,
   dsField,
+  dsHeroCard,
   dsMetric,
   dsModalHtml,
   dsPageHeader,
   dsProgress,
   dsSectionHeader,
   dsSkeleton,
+  dsStateHtml,
   dsStatus,
+  dsStatusDot,
   dsTabsHtml,
+  dsTechDetails,
 } from "./ds";
 
 describe("dsBadge", () => {
@@ -178,5 +183,188 @@ describe("dialog wiring contract", () => {
       actions: [{ label: "Fermer", variant: "primary" }],
     });
     expect(html).toContain("data-ds-close");
+  });
+});
+
+describe("dsHeroCard", () => {
+  const hero = () =>
+    dsHeroCard({
+      eyebrow: "Agents / Fiche",
+      title: "Travaille sur « Valider »",
+      body: "Résumé calme.",
+      status: dsStatusDot("info", "Session ouverte"),
+      primary: { label: "Ouvrir le travail", href: "#/travail" },
+      secondary: [
+        { label: "Voir la tâche", href: "#/taches" },
+        { label: "Voir le projet", href: "#/projets" },
+      ],
+    });
+
+  it("renders a single primary button action, secondaries as discreet links", () => {
+    const html = hero();
+    expect(html).toContain("ds-hero");
+    expect(html).toContain("<h2>Travaille sur « Valider »</h2>");
+    expect(html.match(/ds-btn--primary/g)).toHaveLength(1);
+    expect(html).toContain('class="ds-hero-link"');
+    expect(html).not.toContain("<button");
+  });
+
+  it("escapes user content but keeps the pre-rendered status fragment", () => {
+    const html = dsHeroCard({
+      title: "<script>",
+      primary: { label: "<b>Ouvrir</b>", href: "#/x?a=<b>" },
+      secondary: [{ label: "<i>Voir</i>", href: "#/y" }],
+    });
+    expect(html).not.toContain("<script>");
+    expect(html).not.toContain("<b>Ouvrir</b>");
+    expect(html).not.toContain("<i>Voir</i>");
+  });
+
+  it("omits optional blocks when absent", () => {
+    const html = dsHeroCard({ title: "Titre seul", primary: { label: "Ouvrir", href: "#/x" } });
+    expect(html).not.toContain("ds-hero-eyebrow");
+    expect(html).not.toContain("ds-hero-body");
+    expect(html).not.toContain("ds-hero-status");
+  });
+});
+
+describe("dsStatusDot", () => {
+  it("pairs the dot with a visible label by default, like dsStatus", () => {
+    const html = dsStatusDot("danger", "Bloqué");
+    expect(html).toContain('aria-hidden="true"');
+    expect(html).toContain("Bloqué");
+    expect(html).toContain("ds-status--danger");
+    expect(html).not.toContain("ds-sr-only");
+  });
+
+  it("moves the label to screen readers only when compact", () => {
+    const html = dsStatusDot("warning", "En attente", true);
+    expect(html).toContain("ds-status--warning");
+    expect(html).toContain('<span class="ds-sr-only">En attente</span>');
+  });
+
+  it("escapes the label", () => {
+    expect(dsStatusDot("info", "<script>", true)).not.toContain("<script>");
+  });
+});
+
+describe("dsTechDetails", () => {
+  it("is closed by default with a dl list and mono values", () => {
+    const html = dsTechDetails([
+      { label: "Identifiant", value: "aaaaaaaa-0000-4111-8111-000000000001", mono: true },
+      { label: "Révision", value: "v3", mono: true },
+      { label: "Créé le", value: "il y a 12 min" },
+    ]);
+    expect(html).toContain("<details");
+    expect(html).not.toContain("open");
+    expect(html).toContain("Détails techniques");
+    expect(html).toContain("<dl");
+    expect(html).toContain("<code class=\"mono\">aaaaaaaa-0000-4111-8111-000000000001</code>");
+    expect(html).not.toContain("Informations techniques");
+  });
+
+  it("accepts a custom summary and escapes labels, values and summary", () => {
+    const html = dsTechDetails([{ label: "<b>Clé</b>", value: "<script>alert(1)</script>", mono: true }], "<i>Résumé</i>");
+    expect(html).toContain("&lt;i&gt;Résumé&lt;/i&gt;");
+    expect(html).not.toContain("<script>");
+    expect(html).not.toContain("<b>Clé</b>");
+  });
+
+  it("renders an empty string when there is nothing to disclose", () => {
+    expect(dsTechDetails([])).toBe("");
+  });
+});
+
+describe("dsErrorState", () => {
+  it("shares the empty-state template but announces as an alert", () => {
+    const html = dsErrorState("Chargement impossible", "Réessayez plus tard.");
+    expect(html).toContain('role="alert"');
+    expect(html).toContain("ds-empty");
+    expect(html).toContain("ds-empty--error");
+    expect(html).toContain("<h3>Chargement impossible</h3>");
+    expect(html).toContain("Réessayez plus tard.");
+  });
+
+  it("offers a retry without leaving the page: link or button", () => {
+    const link = dsErrorState("Échec", "Message.", { label: "Réessayer", href: "#/ici" });
+    expect(link).toContain('href="#/ici"');
+    expect(link).toContain("ds-btn--primary");
+    const button = dsErrorState("Échec", "Message.", { label: "Réessayer", id: "retry" });
+    expect(button).toContain('<button class="ds-btn ds-btn--primary" type="button" id="retry">Réessayer</button>');
+  });
+
+  it("escapes user content", () => {
+    expect(dsErrorState("<script>", "<b>gras</b>")).not.toContain("<script>");
+  });
+});
+
+describe("dsStateHtml (les cinq états transverses)", () => {
+  const options = { title: "Titre", message: "Message." };
+
+  it("intouvable : l'adresse est rappelée avec un retour unique", () => {
+    const html = dsStateHtml("notFound", {
+      ...options,
+      title: "Adresse inconnue",
+      message: "« #/ancien-lien » n'existe pas ou a été déplacée.",
+      action: { label: "Retour à l'accueil", href: "#/" },
+      details: [{ label: "Route", value: "#/ancien-lien", mono: true }],
+    });
+    expect(html).toContain('role="status"');
+    expect(html).toContain("Adresse inconnue");
+    expect(html).toContain("#/ancien-lien");
+    expect(html).toContain('<a class="ds-btn ds-btn--primary" href="#/">Retour à l\'accueil</a>');
+    expect(html).toContain("<details");
+    expect(html).toContain('<code class="mono">#/ancien-lien</code>');
+  });
+
+  it("vide : explication + action, sans identifiant par défaut", () => {
+    const html = dsStateHtml("empty", { ...options, action: { label: "Lancer", id: "start" } });
+    expect(html).toContain('role="status"');
+    expect(html).toContain("<h3>Titre</h3>");
+    expect(html).toContain('<button class="ds-btn ds-btn--primary" type="button" id="start">Lancer</button>');
+    expect(html).not.toContain("<details");
+  });
+
+  it("chargement : squelette silencieux, aucune action ni bannière", () => {
+    const html = dsStateHtml("loading", options);
+    expect(html).toContain("ds-skeleton");
+    expect(html).toContain("Chargement en cours");
+    expect(html).not.toContain("ds-empty");
+    expect(html).not.toContain("ds-notice");
+  });
+
+  it("erreur : cause, réessai primaire et détail discret", () => {
+    const html = dsStateHtml("error", {
+      ...options,
+      action: { label: "Réessayer", id: "retry" },
+      secondary: { label: "Voir la file", href: "#/offline" },
+      details: [{ label: "Cause", value: "connexion" }],
+    });
+    expect(html).toContain('role="alert"');
+    expect(html).toContain("ds-empty--error");
+    expect(html).toContain('id="retry"');
+    expect(html).toContain('class="ds-btn ds-btn--ghost" href="#/offline"');
+  });
+
+  it("hors ligne : statut dégradé, pas de seconde bannière de connexion", () => {
+    const html = dsStateHtml("offline", {
+      ...options,
+      message: "La file locale reste active.",
+      action: { label: "Reprendre quand reconnecté", href: "#/" },
+      secondary: { label: "Voir la file", href: "#/offline" },
+    });
+    expect(html).toContain('role="status"');
+    expect(html).toContain("ds-notice--warning");
+    expect(html).toContain("Hors ligne.");
+    expect(html).toContain("La file locale reste active.");
+    expect(html.match(/class="ds-notice /g) ?? []).toHaveLength(1);
+    expect(html.match(/ds-btn--primary/g) ?? []).toHaveLength(1);
+  });
+
+  it("échappe le contenu et n'ajoute aucun style ni gestionnaire (CSP)", () => {
+    const html = dsStateHtml("empty", { title: "<script>x</script>", message: "<b>gras</b>" });
+    expect(html).not.toContain("<script>");
+    expect(html).not.toMatch(/<[^>]*\sstyle\s*=/i);
+    expect(html).not.toMatch(/<[^>]*\son[a-z]+\s*=/i);
   });
 });

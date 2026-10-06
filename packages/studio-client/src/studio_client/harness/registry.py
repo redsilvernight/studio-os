@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from studio_client.harness.base import Detection, HarnessAdapter, HarnessContext
 from studio_client.harness.claude_code import ClaudeCodeAdapter
+from studio_client.harness.codex import CodexAdapter
 from studio_client.harness.opencode import OpenCodeAdapter
 
 
@@ -37,4 +38,4 @@ class HarnessRegistry:
 
 
 def default_adapters() -> list[HarnessAdapter]:
-    return [ClaudeCodeAdapter(), OpenCodeAdapter()]
+    return [ClaudeCodeAdapter(), OpenCodeAdapter(), CodexAdapter()]

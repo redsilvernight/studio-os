@@ -1,7 +1,7 @@
 /**
  * UI-4 Projets & Workspace projet (browser, API stubbée déterministe) :
  * page Projets (cartes, filtre local clavier, ouverture), workspace
- * (header stable, 7 onglets, deep links, back/forward), overview résumée,
+ * (header stable, 8 onglets, deep links, back/forward), overview résumée,
  * activité lisible, claims soft-lock, décisions liées au projet.
  * Zéro violation CSP, zéro erreur page. Captures dans le dossier temp
  * (hors dépôt) pour la validation visuelle du rapport UI-4.
@@ -243,20 +243,20 @@ test.describe("UI-4 projets et workspace", () => {
     expect(fatal).toEqual([]);
   });
 
-  test("workspace : header stable, 7 onglets, deep links, back/forward", async ({ page }) => {
+  test("workspace : header stable, 8 onglets, deep links, back/forward", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     await login(page, `#/projects/${P1}`);
     const view = page.locator("#view");
     await expect(view.locator("h1")).toContainText("Jeu Phare");
 
     const tabs = view.locator('[role="tab"]');
-    await expect(tabs).toHaveCount(7);
+    await expect(tabs).toHaveCount(8);
     await expect(view.locator('[data-ws-tab="overview"]')).toHaveAttribute("aria-selected", "true");
 
     // Overview résumée : pas de tableau complet.
     await expect(view).toContainText("Tâches actives (2)");
     await expect(view).toContainText("Réservations actives (2)");
-    await expect(view).toContainText("À surveiller");
+    await expect(view).toContainText("Blocage à lever");
     await expect(view.locator(".workspace-overview table")).toHaveCount(0);
 
     // Flèches clavier entre onglets.
@@ -307,6 +307,8 @@ test.describe("UI-4 projets et workspace", () => {
     await login(page, `#/projects/${P1}/claims`);
     const view = page.locator("#view");
     await expect(view).toContainText("sans jamais bloquer Git");
+    // Les réservations actives sont listées par défaut : « Toutes » inclut les expirées.
+    await view.locator("[data-filter]").selectOption("all");
     await expect(view).toContainText("godot/scenes/niveau.tscn");
     await expect(view.locator("[data-renew]")).toHaveCount(2);
     await expect(view.locator("[data-release]")).toHaveCount(2);
@@ -375,8 +377,9 @@ test.describe("UI-4 viewports 1280 et tablette 768", () => {
       }
       if (name === "1280") {
         await page.goto(`/#/projects/${P1}/tasks`);
-        // UI-5 : la Liste est la vue par défaut, le Tableau reste disponible.
+        // P04-work : Maintenant en liste par défaut, le Tableau reste disponible dans Toutes.
         await expect(view.locator(".tasks-list").first()).toBeVisible();
+        await view.locator('[data-scope="all"]').first().click();
         await view.locator('[data-view="board"]').click();
         await expect(view.locator(".kanban").first()).toBeVisible();
         await page.screenshot({ path: `${SHOTS}/workspace-tasks-1280.png` });
@@ -399,7 +402,7 @@ test.describe("UI-4 mobile 375", () => {
 
     await page.goto(`/#/projects/${P1}`);
     await expect(view.locator("h1")).toContainText("Jeu Phare");
-    await expect(view.locator('[role="tab"]')).toHaveCount(7);
+    await expect(view.locator('[role="tab"]')).toHaveCount(8);
     await page.screenshot({ path: `${SHOTS}/workspace-overview-mobile.png` });
 
     await page.goto(`/#/projects/${P1}/activity`);

@@ -1,0 +1,38 @@
+{
+  "$defs": {
+    "SetupSkillsOutcome": {
+      "enum": [
+        "synced",
+        "unchanged",
+        "skipped",
+        "unavailable",
+        "failed"
+      ],
+      "title": "SetupSkillsOutcome",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "left_modified": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Left Modified",
+      "type": "integer"
+    },
+    "outcome": {
+      "$ref": "#/$defs/SetupSkillsOutcome"
+    },
+    "written": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Written",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "outcome"
+  ],
+  "title": "SetupSkillsResult",
+  "type": "object"
+}

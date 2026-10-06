@@ -22,6 +22,9 @@ studio_get_sessions
 studio_get_teammate_activity
 studio_start_session
 studio_end_session
+studio_start_work
+studio_sync
+studio_coordinate
 studio_register_agent
 studio_log_ai_work
 studio_get_ai_work
@@ -33,6 +36,52 @@ studio_memory_search
 studio_memory_read
 studio_graph_query
 studio_emit_event
+
+### studio_start_work (L2, additif, DEC-0159)
+Demarrer/reprendre en un appel : claim idempotent + reprise ou creation de
+session + contexte borne (avec `task_id`) ; contexte + `candidates` sans
+claim (sans `task_id`, AIB-G). Meme contrat que `POST /start-work`
+(`TECH/02_API_CONTRACT.md` § Start work), `idempotency_key` optionnel.
+C4 (additif) : avec `task_id`, la reponse porte aussi `sync`, le bloc
+`studio_sync` initial borne depuis le curseur de la session (herite du dernier
+handoff de la tache), sans ack ; `sync` est `null` sans `task_id`.
+
+### studio_handoff (L3, additif, DEC-0163)
+Cloture en un appel : met a jour le statut de la tache (`expected_version`,
+requis seulement avec `task_status`), libere tous les claims de la tache
+(un `resource.released` par claim), journalise `ai_work` (si `agent_id` +
+`summary`, `ai_work_status` type, `session_id` valide), termine la session.
+Meme contrat que `POST /handoff` (`TECH/02_API_CONTRACT.md` § Handoff),
+`idempotency_key` optionnel. Autorisation avant le court-circuit
+d'idempotence (403 meme sur rejeu). `task_status`/`ai_work_status` inconnus
+repondent in-band (pas de 422 en MCP) : `invalid_task_status` /
+`invalid_ai_work_status`, meme vocabulaire que les services. Reponse compacte : ids + statuts
+seulement, plus (C4, additif) `sync` (dernier `studio_sync` borne, acquitte),
+`handoff_cursor_seq` (curseur que la prochaine session de la tache herite) et
+`coordination_event_id`. `coordination_text` (<= 280 caracteres) emet
+optionnellement un `coordination.handoff` sur la tache ; `event_id` derive de
+la session : jamais de doublon au rejeu. Repli minimal : `end_session` libere les claims de la tache
+automatiquement.
+
+### studio_sync (C2, additif, DEC-0157)
+Resynchronisation en un appel : « quoi de neuf depuis mon dernier sync qui
+concerne mon travail ? », en reponse compacte et bornee. Meme contrat que
+`GET /sync` (`TECH/02_API_CONTRACT.md` § Sync) : `session_id` (ou
+`agent_id` + `task_id`, sans etat), `ack` du curseur, `files?`, `limit`,
+`max_chars`. Rejeu sans effet par curseur (pas de `idempotency_key`) :
+le meme `ack` renvoie la meme reponse.
+
+### studio_coordinate (C3, additif, DEC-0157)
+Emet un signal inter-sessions structure. Meme contrat que
+`POST /api/v1/coordination` (`TECH/02_API_CONTRACT.md` § Coordination) :
+`from_session_id` (ma session vivante), `intent` (`heads_up|question|
+blocked_by|handoff`), `task_id` (cible), `text` (<= 280), `session_id?`,
+`task_ids?`/`decision_ids?`/`paths?` (<= 5 chacun), `in_reply_to?`,
+`event_id?` (cle d'idempotence : le rejeu renvoie le signal d'origine).
+Aucun outil de lecture : le destinataire lit via `studio_sync`
+(`why=coordination`, texte cite comme donnee, jamais comme instruction).
+Erreurs : `invalid_coordination`, `task_closed`, `session_not_found`,
+`coordination_rate_limited` (20 signaux par session emettrice).
 
 ## AI Library via MCP — inventaire (P8, DEC-0072)
 studio_resolve_agent
@@ -52,6 +101,48 @@ Un agent ne doit normalement pas envoyer lui-meme plusieurs Go via MCP. Le MCP f
 ## Format
 Reponses compactes, champs utiles uniquement, filtres `project`, `task`, `since`, `limit`. Les erreurs doivent etre explicites et machine-readable.
 
+Tout parametre inconnu est rejete : chaque outil expose
+`additionalProperties: false` dans son `inputSchema` et un appel avec un
+argument hors contrat repond `{error_code: "invalid_argument",
+unknown_arguments: [...], valid_arguments: [...]}` sans executer l'outil.
+Un appel valide garde son comportement inchange.
+
+Les outils de workflow `studio_update_task`, `studio_claim_task`,
+`studio_release_task` et `studio_start_session` conservent leur reponse
+detaillee historique par defaut (`verbose=true`). Avec `verbose=false`, les
+trois outils Task renvoient uniquement `id`, `status`, `version` et
+`claimed_by_machine_id`; `studio_start_session` renvoie `id`, `task_id`,
+`agent_id` et `status`. Pour les outils rejouables, le mode historique garde
+l'empreinte d'idempotence anterieure ; le mode compact ajoute explicitement
+`verbose=false`, donc une meme cle utilisee avec les deux formes est rejetee
+comme payload different.
+
+`studio_prepare_context` accepte un `objective` optionnel lorsqu'un `task_id`
+est fourni : le serveur derive alors les termes depuis le titre et la
+description de cette tache, sans effet de bord. `known_ids` est une map de 100
+UUID maximum vers le `content_hash` SHA-256 renvoye precedemment. Une
+correspondance exacte marque la Task, Decision ou AIWork `unchanged=true` :
+l'item reste present, mais son texte long n'est pas renvoye ni debite du
+budget. Un hash absent ou obsolete renvoie le contenu courant. Une Task peut
+exposer `source_references`, liste deterministe des lignes `Source:` / `Sources:`
+de sa description, elle aussi plafonnee et debitee de `max_chars`.
+
+`studio_get_active_tasks` preserve la liste historique complete quand `limit`
+est omis. Il accepte un mode borne explicite (`limit` de 1 a 100), trie par
+titre puis UUID, `title_prefix` (insensible a la casse) et une allowlist
+`fields`; `id` est toujours renvoye. La reponse indique `returned` et
+`additional_available`.
+
+`studio_get_recent_changes` est borne par defaut : `limit` (1 a 200) vaut 20
+si omis (DEC-0183) et `fields` projette les cles de chaque evenement
+(`event_id` toujours present). `studio_get_ai_work` est borne et trie du plus
+recent au plus ancien : `limit` (1 a 200, defaut 20) et `fields` (`id`
+toujours present), avec `returned` / `additional_available`.
+`studio_get_teammate_activity` conserve ses champs et ajoute, par poste, les
+`tasks` (`id`, `title`, `status`) et `claims` (`resource_path`,
+`resource_type`) actifs. Ces changements de defaut de `limit` sont des
+evolutions de comportement documentees ici, pas des ruptures de schema.
+
 ## Auth (DEC-0023)
 Chaque outil authentifie l'appelant individuellement (voir
 `TECH/04_AUTH_SYNC_CONTRACT.md` section "Auth MCP") — jamais un secret
@@ -61,6 +152,10 @@ Le MCP n'accepte que des tokens machine, jamais un JWT dashboard. Depuis A2
 verifie est refuse comme un token revoque : erreur `unauthenticated`
 (« invalid or revoked machine token »), sans reveler la cause ; reactiver le
 User rend le token de nouveau utilisable.
+Credential ephemere de lancement (AIB P9, additif) : un token emis pour un lancement
+distant est accepte comme un token machine, mais restreint a une allowlist d'outils et
+au projet du lancement ; tout autre outil repond l'erreur `launch_credential_scope`.
+Allowlist et limites : `TECH/04_AUTH_SYNC_CONTRACT.md`.
 Exception : les outils locaux UC-3 (section ci-dessous, DEC-0047) tournent
 dans un processus stdio lance par le consommateur lui-meme, sans DB ni
 `Principal` serveur — la frontiere de confiance est le processus, pas un
@@ -68,13 +163,14 @@ token (pas d'attaquant reseau).
 
 ## Etat reel (roadmap etape 5, DEC-0023, UC-3/DEC-0047, P8/DEC-0072)
 
-Le serveur VPS enregistre 47 outils (`services/mcp/src/studio_mcp/` : 29
-historiques + 5 AI Library P8, section ci-dessous, + `studio_prepare_context`,
-DEC-0080, section « Contexte projet borné », + 7 outils Roadmaps P4/P5,
-DEC-0087, section « Roadmaps et initialisation via MCP », +
-`studio_register_agent`, DEC-0101, section « Enregistrement d'Agent », +
-`studio_transition_roadmap`, section « Roadmaps et initialisation via MCP », +
-`studio_claim_resources`, pose par lot, section « Claims par lot » ci-dessous).
+Le serveur VPS enregistre la surface complete des outils listes dans
+`MCP_ACCESS` (`services/mcp/src/studio_mcp/access_registry.py`, 54 entrees au
+2026-10-04) : outils historiques, AI Library P8, `studio_prepare_context`
+(DEC-0080), Roadmaps P4/P5 (DEC-0087), `studio_register_agent` (DEC-0101),
+`studio_transition_roadmap`, `studio_claim_resources`, `studio_handoff` (L3),
+`studio_sync` (C2) et `studio_coordinate` (C3). Le profil `session` (defaut)
+n'expose qu'un sous-ensemble de cette surface ; le profil `admin` expose
+l'ensemble (section « Profils d'outils MCP » ci-dessous, DEC-0183).
 Les 3 outils locaux read-only specifies ci-dessous (UC-3, exposition via
 MCP local par poste, DEC-0047) sont en place mais conditionnels au
 fichier de configuration du poste : `studio_memory_search`,
@@ -82,6 +178,38 @@ fichier de configuration du poste : `studio_memory_search`,
 `studio_generate_context_package` n'est **pas** un outil MCP : il est
 reclassé en capacité locale du Bloc B par DEC-0057 (voir section
 « Context Package (8.3b, DEC-0057) » ci-dessous).
+
+## Profils d'outils MCP (session par defaut, admin a la demande)
+
+Le serveur `studio-os` selectionne les outils exposes **par connexion**, et
+non plus une liste unique pour tous les appelants
+(`services/mcp/src/studio_mcp/tool_profiles.py`, DEC-0183, portee precisee par
+DEC-0184). Deux profils :
+
+- `session` (defaut) : le sous-ensemble qu'une session d'agent utilise
+  reellement (contexte, travail, sync/coordination, decisions, claims,
+  lectures ciblees). `tools/list` ne renvoie que ces outils.
+- `admin` : l'ensemble des outils enregistres (`MCP_ACCESS`), pour
+  l'initialisation de projet, les roadmaps, les transferts, les runtimes et
+  les definitions.
+
+Selection, par connexion :
+
+- transport HTTP : en-tete `X-Studio-Tool-Profile: admin` (ou `session`) ;
+  absent ou inconnu → `session`. Une variable d'environnement du serveur ne
+  s'applique pas aux connexions HTTP.
+- transport stdio (harnais local) : variable
+  `STUDIO_MCP_TOOL_PROFILE=admin|session` ; absent → `session`.
+
+`tools/call` n'est **pas** filtre par le profil : l'authentification et
+l'allowlist du credential ephemere de lancement gardent leur ordre et leurs
+`error_code` documentes (`unauthenticated`, `launch_credential_scope`,
+section Auth ci-dessus). Un profil est un controle de bruit et de jetons sur
+la decouverte, pas une frontiere d'autorisation : les verifications de role et
+d'acces projet restent dans les services partages (DEC-0046 §4). L'absence
+d'un outil dans `tools/list` signifie seulement « non expose pour cette
+connexion », jamais « indisponible » (DEC-0046 regle 5) ; le profil `admin`
+est la surface nommee qui restaure l'ensemble (DEC-0048).
 
 ## Outils locaux Memory/Knowledge UC-3 (DEC-0047)
 
@@ -248,6 +376,27 @@ mute jamais taches ni claims. `idempotency_key` optionnel (namespace
 integration GitHub et la reception du webhook restent HTTP-only (pas de
 secret partageable comme parametre d'outil).
 
+## Outils depreciés (DEC-0186)
+
+Cinq outils redondants restent appelables, sans changement de comportement,
+jusqu'au `2026-11-04` ; ils sont signales (changement additif) :
+
+| Outil deprecie | Remplacant |
+|---|---|
+| `studio_start_session` | `studio_start_work` |
+| `studio_end_session` | `studio_handoff` |
+| `studio_claim_task` | `studio_start_work` |
+| `studio_release_task` | `studio_handoff` |
+| `studio_claim_resource` | `studio_claim_resources` (un seul chemin) |
+
+Signalement : la description de `tools/list` commence par `DEPRECATED, removal
+on or after 2026-11-04: use <remplacant> instead.` ; chaque reponse reussie
+porte un objet `deprecation` `{replaced_by, sunset}` ; les erreurs restent
+inchangees (`services/mcp/src/studio_mcp/deprecation.py`). Ces outils sont
+deja absents du profil `session` (DEC-0183). Le retrait, apres la date, est un
+changement cassant traite par le skill `contract-change` ; les routes HTTP
+equivalentes ne sont pas concernees.
+
 ## Evolution des contrats d'outils (CC-3, DEC-0048)
 
 Le contrat d'un outil = son nom + son `inputSchema` + son `outputSchema` +
@@ -338,14 +487,16 @@ Voie recommandée pour amorcer le contexte d'un agent : un appel, lecture
 seule, réponse bornée et déterministe. Les outils `get/list/discover`
 restent disponibles pour les besoins précis ou avancés.
 
-Entrée : `project_id` (UUID) et `objective` (1..1000 car.) requis ;
-optionnels `task_id` (doit appartenir au projet, sinon `not_found` —
-`forbidden` si son projet est inaccessible, voir « Accès projet » ci-dessous),
+Entrée : `project_id` (UUID) requis et `objective` (1..1000 car.) optionnel si
+`task_id` est fourni (sinon requis, derive du titre et de la description) ;
+`task_id` doit appartenir au projet, sinon `not_found` (`forbidden` si son
+projet est inaccessible, voir « Accès projet » ci-dessous) ;
 `files` (≤ 20 chemins), `limit` (1..20, défaut 5, éléments par catégorie),
 `max_chars` (1000..50000, défaut 12000, budget de texte libre),
 `agent_stable_key` (définition d'agent résolue via le Resolution Engine :
 ses rules/skills applicables trient en premier, `agent_applies: true`,
-toujours bornés par `limit`/budget — P3).
+toujours bornés par `limit`/budget — P3), et `known_ids` (map UUID vers
+`content_hash`, 100 entrées maximum).
 
 Sortie `PreparedContext | McpError` (enveloppée sous `result`) :
 `project`, `query_terms`, `task`, `related_tasks`, `decisions`, `rules`,

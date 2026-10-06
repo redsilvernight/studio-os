@@ -57,9 +57,13 @@ export function outcomeMessage(outcome: FolderPickOutcome | null): string {
 }
 
 export function workspacesPageHtml(mode: "web" | "desktop", outcome: FolderPickOutcome | null): string {
-  const header = dsPageHeader("Dossiers", "Dossiers locaux associés à vos projets.");
+  const header =
+    `<p class="ds-hero-eyebrow">Administration / Espaces de travail</p>` +
+    dsPageHeader("Espaces de travail", "Dossiers locaux suivis sur ce poste · Desktop uniquement.", [
+      ...(mode === "desktop" ? [{ label: "Ajouter un dossier", id: "workspace-add-top" }] : []),
+    ]);
   if (mode === "web") {
-    return `${header}<section class="ds-card" data-testid="workspaces-web"><p>Les dossiers locaux sont gérés dans Studi'OS Desktop.</p></section>`;
+    return `${header}<section class="ds-card" data-testid="workspaces-web"><p>Les dossiers locaux sont gérés dans Studi'OS Desktop.</p><p class="ds-list-sub">Sur le web, ces dossiers se gèrent dans Studi'OS Desktop : rien n'est simulé ici.</p></section>`;
   }
   const message = outcomeMessage(outcome);
   const status = message === "" ? "" : `<p role="status" data-testid="workspaces-outcome" data-outcome="${esc(outcome?.kind ?? "")}">${esc(message)}</p>`;
@@ -67,13 +71,16 @@ export function workspacesPageHtml(mode: "web" | "desktop", outcome: FolderPickO
 ${workspaceListHtml([])}
 <p><button class="ds-btn ds-btn--primary" type="button" id="workspace-add">Ajouter un dossier</button></p>
 ${status}
+<details class="ds-tech"><summary>Détails techniques</summary><dl class="ds-tech-list"><div><dt>Chemins</dt><dd>Les chemins des dossiers restent locaux au poste, jamais affichés ici par défaut</dd></div><div><dt>Suivi</dt><dd>Le suivi des dossiers est actif par défaut et se recharge sans redémarrer</dd></div></dl></details>
 </section>`;
 }
 
 export async function renderWorkspaces(root: HTMLElement, platform: Platform = getPlatform(), outcome: FolderPickOutcome | null = null): Promise<void> {
   root.innerHTML = workspacesPageHtml(platform.mode, outcome);
   if (platform.mode === "web") return;
-  root.querySelector<HTMLButtonElement>("#workspace-add")?.addEventListener("click", () => {
+  const pick = (): void => {
     void pickWorkspaceFolder(platform).then((picked) => renderWorkspaces(root, platform, picked));
-  });
+  };
+  root.querySelector<HTMLButtonElement>("#workspace-add")?.addEventListener("click", pick);
+  root.querySelector<HTMLButtonElement>("#workspace-add-top")?.addEventListener("click", pick);
 }

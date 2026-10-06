@@ -304,3 +304,114 @@
   font-size: var(--ds-text-sm);
   color: var(--ds-text-muted);
 }
+
+/* Paramètres › Application : version + mise à jour en tête, état en tuiles. */
+.app-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-4);
+  padding: var(--ds-space-5, var(--ds-space-4));
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface);
+}
+.app-hero--update {
+  border-color: var(--ds-action);
+  background: var(--ds-surface-soft, var(--ds-surface));
+}
+.app-hero-main {
+  display: grid;
+  gap: var(--ds-space-1);
+  min-width: 0;
+}
+.app-hero-eyebrow {
+  margin: 0;
+  font-size: var(--ds-text-sm);
+  color: var(--ds-text-muted);
+}
+.app-hero-version {
+  margin: 0;
+  font-size: var(--ds-text-xl, 1.5rem);
+}
+.app-hero-text {
+  margin: 0;
+  max-width: 60ch;
+  color: var(--ds-text-muted);
+}
+.app-hero-actions {
+  display: grid;
+  gap: var(--ds-space-2);
+  justify-items: start;
+}
+.app-hero .ds-btn--lg {
+  padding: var(--ds-space-3) var(--ds-space-5, var(--ds-space-4));
+  font-size: var(--ds-text-base);
+}
+.app-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--ds-space-3);
+}
+.app-tile {
+  display: grid;
+  align-content: start;
+  gap: var(--ds-space-1);
+  padding: var(--ds-space-4);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface);
+}
+.app-tile-label,
+.app-tile-hint {
+  margin: 0;
+  font-size: var(--ds-text-sm);
+  color: var(--ds-text-muted);
+  overflow-wrap: anywhere;
+}
+.app-tile-value {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ds-space-2);
+  margin: 0;
+  font-weight: 600;
+}
+.app-dot {
+  flex: none;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--ds-text-muted);
+}
+.app-tile--ok .app-dot { background: var(--ds-success); }
+.app-tile--warn .app-dot { background: var(--ds-warning); }
+.app-tile--error .app-dot { background: var(--ds-danger); }
+.app-card--row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-3);
+  padding: var(--ds-space-4);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface);
+}
+.app-card-text {
+  display: grid;
+  gap: var(--ds-space-1);
+  min-width: 0;
+}
+.app-card-text h2 {
+  margin: 0;
+  font-size: var(--ds-text-base);
+}
+.app-callout {
+  display: grid;
+  gap: var(--ds-space-2);
+  justify-items: start;
+  padding: var(--ds-space-4);
+  border: 1px solid var(--ds-warning);
+  border-radius: var(--ds-radius-md);
+}

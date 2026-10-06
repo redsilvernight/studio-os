@@ -76,7 +76,7 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
   },
   {
     id: "final",
-    title: "Vérification",
+    title: "Prêt",
     heading: "Votre projet est prêt",
     intro: "Contrôlez le résumé avant de terminer. Chaque point est revalidé à l'instant, pas recopié d'une étape précédente.",
     required: true,

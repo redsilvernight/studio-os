@@ -19,6 +19,7 @@ import uuid
 from pathlib import Path
 
 import httpx
+import pytest
 from httpx import ASGITransport
 from studio_api.db.models.project import ProjectModel
 from studio_client.api_client import StudioApiClient
@@ -27,6 +28,8 @@ from studio_client.outbox import OutboxStore, connect, transaction
 from studio_client.tokens import MemoryTokenStore
 from studio_client.transfers import TransferClient
 from studio_contracts.transfers import TransferCategory, TransferCreate, TransferStatus
+
+pytestmark = pytest.mark.infra("minio")
 
 _PART_SIZE_BYTES = 64 * 1024 * 1024  # must match services/api PART_SIZE_BYTES
 _PART_COUNT = 16  # 16 * 64 MiB = 1 GiB exactly
@@ -61,6 +64,7 @@ def _read_part(path: Path, part_number: int) -> bytes:
         return handle.read(_PART_SIZE_BYTES)
 
 
+@pytest.mark.timeout(1800)
 async def test_multipart_upload_1gb_streamed_real_interruption_and_resume(
     tmp_path: Path,
     app_transport: ASGITransport,

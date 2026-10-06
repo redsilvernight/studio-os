@@ -73,7 +73,8 @@ import {
   openDsDialog,
   type DsStatusState,
 } from "../ds/ds";
-import { describeError, esc, fmtTime, shortId } from "../ui";
+import { describeError, esc, fmtTime } from "../ui";
+import { FALLBACK_LABEL } from "../language";
 import type { components } from "../openapi-schema";
 import "./transfers.css";
 
@@ -129,7 +130,8 @@ export function transferInfo(transfer: Transfer, ctx: TransfersFilterContext): T
 export function transfersLoadingHtml(): string {
   return (
     `<div class="transfers">` +
-    `${dsPageHeader("Transferts", "Échange de fichiers via Studi'OS.")}` +
+    `<p class="ds-hero-eyebrow">Administration / Transferts</p>` +
+    `${dsPageHeader("Transferts", "Fichiers échangés entre postes.")}` +
     `${dsSkeleton(4)}</div>`
   );
 }
@@ -153,12 +155,12 @@ function projectLineHtml(transfer: Transfer, info: TransferInfo): string {
   if (info.projectName !== null) {
     return ` · <a href="#/projects/${esc(transfer.project_id)}">${esc(info.projectName)}</a>`;
   }
-  return ` · <span title="${esc(transfer.project_id)}">projet non résolu (${esc(shortId(transfer.project_id))})</span>`;
+  return ` · <span>${esc(FALLBACK_LABEL.project)}</span>`;
 }
 
 function taskLineHtml(transfer: Transfer, info: TransferInfo): string {
   if (transfer.task_id === null || transfer.task_id === undefined) return "";
-  const label = info.taskTitle !== null ? info.taskTitle : `Tâche ${shortId(transfer.task_id)}`;
+  const label = info.taskTitle !== null ? info.taskTitle : FALLBACK_LABEL.task;
   return ` · <a href="#/tasks/${esc(transfer.task_id)}">${esc(label)}</a>`;
 }
 
@@ -215,13 +217,13 @@ export function transferDrawerBodyHtml(
       ? "Aucun"
       : info.projectName !== null
         ? `<a href="#/projects/${esc(transfer.project_id)}">${esc(info.projectName)}</a>`
-        : `<code class="mono" title="${esc(transfer.project_id)}">${esc(shortId(transfer.project_id))}</code> (nom non résolu)`;
+        : esc(FALLBACK_LABEL.project);
   const task =
     transfer.task_id === null || transfer.task_id === undefined
       ? "Aucune"
       : info.taskTitle !== null
         ? `<a href="#/tasks/${esc(transfer.task_id)}">${esc(info.taskTitle)}</a>`
-        : `<a href="#/tasks/${esc(transfer.task_id)}">Tâche ${esc(shortId(transfer.task_id))}</a>`;
+        : `<a href="#/tasks/${esc(transfer.task_id)}">${esc(FALLBACK_LABEL.task)}</a>`;
 
   const download = downloadable
     ? `<button class="ds-btn ds-btn--primary ds-btn--sm" type="button" data-transfer-download="${esc(transfer.id)}">Télécharger</button>`
@@ -289,7 +291,7 @@ const CATEGORY_OPTIONS: { value: "all" | TransferCategory; label: string }[] = [
 function projectOptionsHtml(transfers: Transfer[], state: TransfersFilterState, ctx: TransfersFilterContext): string {
   const options = transferProjectIds(transfers)
     .map((id) => {
-      const name = ctx.projectNameById?.get(id) ?? `Projet ${shortId(id)}`;
+      const name = ctx.projectNameById?.get(id) ?? FALLBACK_LABEL.project;
       return `<option value="${esc(id)}"${state.projectId === id ? " selected" : ""}>${esc(name)}</option>`;
     })
     .join("");
@@ -377,7 +379,7 @@ export function uploadModalBodyHtml(projects: Project[], consumption: TransferCo
     dsField("transfer-file", "Fichier", `<input class="ds-input" type="file" id="FIELD" name="file" required />`, "Le fichier est envoyé directement au stockage, sans passer par le serveur d'API.") +
     `<p class="ds-list-sub" data-file-info role="status" aria-live="polite"></p>` +
     projectSelectHtml(projects, quota) +
-    dsField("transfer-recipient", "Destinataire (identifiant utilisateur, optionnel)", `<input class="ds-input" type="text" id="FIELD" name="recipient_user_id" placeholder="uuid" autocomplete="off" />`, "Laissez vide pour diffuser aux destinataires autorisés. Aucun annuaire utilisateur n'est consultable ici.") +
+    dsField("transfer-recipient", "Destinataire (optionnel)", `<input class="ds-input" type="text" id="FIELD" name="recipient_user_id" placeholder="Identifiant du compte" autocomplete="off" />`, "Laissez vide pour diffuser aux destinataires autorisés. L'identifiant du compte reste replié ici, jamais affiché en liste.") +
     dsField("transfer-category", "Catégorie", `<select class="ds-select" id="FIELD" name="category">${categoryOptions}</select>`, "Temporaire : 7 jours. Build : 30 jours. Ressource et enregistrement brut : conservation manuelle.") +
     `<button class="ds-btn ds-btn--primary" type="submit">Envoyer le fichier</button>` +
     `<div data-upload-progress class="transfer-upload-progress" role="status" aria-live="polite"></div>` +
@@ -415,11 +417,13 @@ export interface TransfersPageData {
 }
 
 export function transfersPageHtml(data: TransfersPageData): string {
-  const header = dsPageHeader(
-    "Transferts",
-    "Échange de fichiers via Studi'OS — chaque transfert relie un fichier à un expéditeur et, éventuellement, à un destinataire ou un projet.",
-    [{ label: "Envoyer un fichier", id: "transfer-upload-open", variant: "primary" }],
-  );
+  const header =
+    `<p class="ds-hero-eyebrow">Administration / Transferts</p>` +
+    dsPageHeader(
+      "Transferts",
+      "Fichiers échangés entre postes — chaque transfert relie un fichier à un expéditeur et, éventuellement, à un destinataire ou un projet.",
+      [{ label: "Envoyer un fichier", id: "transfer-upload-open", variant: "primary" }],
+    );
   const degraded =
     data.problems.length === 0
       ? ""
@@ -459,7 +463,7 @@ export function transfersPageHtml(data: TransfersPageData): string {
 export async function renderTransfers(root: HTMLElement, ctx: TransfersContext): Promise<void> {
   if (!ctx.authed) {
     root.innerHTML =
-      `<div class="transfers">${dsPageHeader("Transferts", "Échange de fichiers via Studi'OS.")}` +
+      `<div class="transfers"><p class="ds-hero-eyebrow">Administration / Transferts</p>${dsPageHeader("Transferts", "Fichiers échangés entre postes.")}` +
       `<div class="ds-empty" role="status"><span class="ds-empty-icon" aria-hidden="true">○</span>` +
       `<h3>Connexion requise</h3><p>Définissez un jeton pour voir les transferts visibles pour ce jeton.</p></div></div>`;
     return;
@@ -475,7 +479,7 @@ export async function renderTransfers(root: HTMLElement, ctx: TransfersContext):
 
   if (!transfersResult.ok) {
     root.innerHTML =
-      `<div class="transfers">${dsPageHeader("Transferts", "Échange de fichiers via Studi'OS.", [{ label: "Actualiser", id: "transfers-reload" }])}` +
+      `<div class="transfers"><p class="ds-hero-eyebrow">Administration / Transferts</p>${dsPageHeader("Transferts", "Fichiers échangés entre postes.", [{ label: "Actualiser", id: "transfers-reload" }])}` +
       `<div class="state error" role="alert">Impossible de charger les transferts : ${esc(describeError(transfersResult.error))}</div></div>`;
     root.querySelector("#transfers-reload")?.addEventListener("click", () => {
       void renderTransfers(root, ctx);

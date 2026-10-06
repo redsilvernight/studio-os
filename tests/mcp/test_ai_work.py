@@ -11,6 +11,8 @@ from studio_api.services.ai_work import _derive_event_id
 from studio_api.services.authz import load_principal
 from studio_contracts.events import EventType
 from studio_mcp.tools.ai_work import studio_get_ai_work, studio_log_ai_work
+from studio_mcp.tools.sessions import studio_start_session
+from studio_mcp.tools.tasks import studio_create_task
 
 from tests.mcp.conftest import FakeContext
 
@@ -225,3 +227,85 @@ async def test_log_ai_work_create_refuses_review_resolution_status(
         assert result["error_code"] == "invalid_status_transition"
     listing = await studio_get_ai_work(auth_ctx, project_id=str(project.id))
     assert listing["ai_work"] == []
+
+
+async def test_log_ai_work_persists_and_returns_session_id(
+    auth_ctx: FakeContext, project: ProjectModel, agent: AgentModel
+) -> None:
+    task = await studio_create_task(str(project.id), "Linked work", auth_ctx)
+    started = await studio_start_session(task["id"], auth_ctx, agent_id=str(agent.id))
+
+    created = await studio_log_ai_work(
+        str(project.id),
+        "Linked to a session",
+        str(agent.id),
+        auth_ctx,
+        task_id=task["id"],
+        session_id=started["id"],
+    )
+    assert created["session_id"] == started["id"]
+
+    listing = await studio_get_ai_work(auth_ctx, project_id=str(project.id))
+    assert [w["session_id"] for w in listing["ai_work"]] == [started["id"]]
+
+
+async def test_log_ai_work_rejects_malformed_session_id(
+    auth_ctx: FakeContext, project: ProjectModel, agent: AgentModel
+) -> None:
+    result = await studio_log_ai_work(
+        str(project.id), "Bad session", str(agent.id), auth_ctx, session_id="not-a-uuid"
+    )
+    assert "error_code" in result
+
+
+async def test_log_ai_work_idempotency_key_replay_creates_no_duplicate(
+    auth_ctx: FakeContext, project: ProjectModel, agent: AgentModel
+) -> None:
+    first = await studio_log_ai_work(
+        str(project.id), "Replay-safe", str(agent.id), auth_ctx, idempotency_key="ai-work-key-1"
+    )
+    second = await studio_log_ai_work(
+        str(project.id), "Replay-safe", str(agent.id), auth_ctx, idempotency_key="ai-work-key-1"
+    )
+    assert second["id"] == first["id"]
+
+    listing = await studio_get_ai_work(auth_ctx, project_id=str(project.id))
+    assert len(listing["ai_work"]) == 1
+
+
+async def test_log_ai_work_idempotency_key_rejects_different_arguments(
+    auth_ctx: FakeContext, project: ProjectModel, agent: AgentModel
+) -> None:
+    await studio_log_ai_work(
+        str(project.id), "First payload", str(agent.id), auth_ctx, idempotency_key="ai-work-key-2"
+    )
+    mismatch = await studio_log_ai_work(
+        str(project.id), "Other payload", str(agent.id), auth_ctx, idempotency_key="ai-work-key-2"
+    )
+    assert "error_code" in mismatch
+    listing = await studio_get_ai_work(auth_ctx, project_id=str(project.id))
+    assert len(listing["ai_work"]) == 1
+
+
+async def test_get_ai_work_projects_selected_fields(
+    auth_ctx: FakeContext, project: ProjectModel, agent: AgentModel
+) -> None:
+    await studio_log_ai_work(str(project.id), "Projection", str(agent.id), auth_ctx)
+    result = await studio_get_ai_work(auth_ctx, project_id=str(project.id), fields=["status"])
+    assert result["ai_work"]
+    for entry in result["ai_work"]:
+        assert set(entry) == {"id", "status"}
+
+
+async def test_get_ai_work_rejects_out_of_range_limit(
+    auth_ctx: FakeContext, project: ProjectModel
+) -> None:
+    result = await studio_get_ai_work(auth_ctx, project_id=str(project.id), limit=0)
+    assert result["error_code"] == "invalid_argument"
+
+
+async def test_get_ai_work_rejects_unknown_field(
+    auth_ctx: FakeContext, project: ProjectModel
+) -> None:
+    result = await studio_get_ai_work(auth_ctx, project_id=str(project.id), fields=["nope"])
+    assert result["error_code"] == "invalid_argument"

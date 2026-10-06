@@ -41,12 +41,7 @@ from studio_client.harness.fsafe import (
     read_document,
     resolve_target,
 )
-from studio_client.harness.probe import (
-    ProbeFailure,
-    extract_version,
-    locate_executable,
-    run_probe,
-)
+from studio_client.harness.probe import ProbeFailure, extract_version, run_probe
 from studio_client.harness.redaction import (
     bearer_token,
     canonical,
@@ -103,12 +98,11 @@ class JsonMcpAdapter(HarnessAdapter):
         return entry
 
     def _version(self, ctx: HarnessContext) -> tuple[str | None, Detection | None]:
-        executable = locate_executable(
-            self.executable_names,
-            path_env=ctx.env_value("PATH"),
-            excluded_dirs=[ctx.workspace_root],
-        )
-        if executable is None:
+        try:
+            executable = self.resolve_executable(ctx)
+        except AdapterRefusal as refusal:
+            if refusal.reason != "executable_not_found":
+                raise
             return None, Detection(DetectionState.NOT_INSTALLED, reason="executable_not_found")
         try:
             version = extract_version(

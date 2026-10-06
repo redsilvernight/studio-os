@@ -94,9 +94,17 @@ presente de nouveau revoque la famille.
 `id`, `owner_user_id` (FK User), `display_name`, `credential_hash` (token
 opaque hashe, jamais le token en clair — DEC-0003 `docs/DECISIONS.md`),
 `credential_revoked_at` (nullable), `last_seen_at` (nullable, alimente par
-`POST /heartbeats`), + champs communs mutables. `status` (`online|idle|offline`)
-n'est PAS stocke : derive de `last_seen_at` a la lecture
-(`TECH/04_AUTH_SYNC_CONTRACT.md`).
+`POST /heartbeats`), `capabilities` (JSONB nullable, rapport
+`MachineCapabilities` rafraichi par chaque heartbeat qui en envoie un —
+harnesses par `harness_id` (`CapabilityToken`), `project_ids` UUID seuls,
+opt-in et occupation ; jamais un chemin ni un secret),
+`capabilities_reported_at` (nullable, heure de reception du dernier
+rapport — un rapport stale n'est jamais presente comme courant ;
+l'eligibilite e1963627 s'en sert), + champs communs mutables (contrat
+e1963627, etendu DEC-0171, migration Alembic `0024`, additive et
+reversible). `status`
+(`online|idle|offline`) n'est PAS stocke : derive de `last_seen_at` a la
+lecture (`TECH/04_AUTH_SYNC_CONTRACT.md`).
 
 ## Agent
 `id`, `machine_id` (FK Machine, nullable — un agent garde son identite
@@ -105,7 +113,12 @@ ex: "build-bot", "local-assistant"), `agent_profile`, `harness`, `provider`,
 `model` (str libres, nullables), + champs communs mutables. `agent_profile`,
 `harness`, `provider` et `model` sont des metadonnees d'observabilite
 additives (DEC-0043 amendee, UC-5) : chaines ouvertes jamais whitelistees,
-jamais lues par l'autorisation.
+jamais lues par l'autorisation. `stable_key` (AIB-I, additif, nullable) :
+cle stable locale posee par `agents ensure` (defaut `agents-ensure-{harness}`),
+contrainte unique `(machine_id, stable_key)` (migration Alembic reversible ;
+les NULL restent distincts, lignes existantes inchangees) — cle de recherche
+idempotente du demarrage de session, jamais entree d'autorisation, jamais
+confondue avec `AgentDefinition.stable_key` (parametre de resolution).
 
 ## Project
 `id`, `slug` (unique), `name`, `description` (nullable), `archived` (bool,
@@ -138,6 +151,14 @@ une membership, sauf ressource propre (Transfer emetteur/destinataire,
 Library User, runtimes, bindings User) dont la regle existante s'applique
 seule (`TECH/04_AUTH_SYNC_CONTRACT.md` section Autorisation).
 
+
+## MachineLaunchGrant (AIB-J, additif — migration Alembic reversible)
+Table `machine_launch_grants` : `machine_id` (FK Machine, `ON DELETE CASCADE`), `user_id`
+(FK User, `ON DELETE CASCADE`), `project_id` (FK Project, nullable, `ON DELETE CASCADE`),
+`expires_at` (nullable), `granted_by_user_id` (FK User, `ON DELETE CASCADE`), `created_at`.
+Cle primaire `(machine_id, user_id)` ; pas de `version` : un droit est accorde ou retire,
+jamais modifie. Ne remplace ni la membership projet ni l'opt-in local de la machine.
+
 ## Task
 `id`, `readable_id` (nullable, unique — ID lisible optionnel a cote de l'UUID
 per `TECH/02_API_CONTRACT.md`), `project_id` (FK Project), `title`,
@@ -149,7 +170,10 @@ mutables.
 ## WorkSession
 `id`, `task_id` (FK Task), `machine_id` (FK Machine), `agent_id` (FK Agent,
 nullable), `started_at`, `ended_at` (nullable). Append-only : pas de
-`version`.
+`version`. `last_activity_at` (C1, additif, nullable, backfill =
+`started_at`, migration Alembic reversible) : ecrit par `touch_session`
+depuis les appels authentifies rattaches (pas de heartbeat) ; `status` et
+`expires_at` derives a la lecture, jamais stockes.
 
 ## Decision
 `id`, `readable_id` (unique, format `DEC-XXXX`), `project_id` (FK Project,
@@ -160,7 +184,10 @@ Append-only.
 
 ## AIWorkLog
 `id`, `task_id` (FK Task, nullable), `project_id` (FK Project), `agent_id`
-(FK Agent), `machine_id` (FK Machine, nullable), `summary`, `status`
+(FK Agent), `machine_id` (FK Machine, nullable), `session_id` (FK
+WorkSession, nullable, `ondelete=SET NULL`, indexe — L3, DEC-0163 : le lien
+vers la session qui a produit le travail, valide a l'ecriture — meme
+tache/projet/machine — pour la tracabilite du handoff), `summary`, `status`
 (`started|completed|failed|review_requested|approved|changes_requested`,
 miroir des event types `ai_work.*`), `changed_files` (liste de strings),
 `tests_run` (liste de strings), `started_at`, `ended_at` (nullable),
@@ -252,6 +279,29 @@ une proposition, l'appelant cree les sous-taches via `POST /tasks`.
 
 `build_id` (FK Build, nullable, additif optionnel) relie un artefact a
 son build. Quotas (DEC-0019) et autorisation Transfer inchanges.
+
+## TaskLaunch (AIB R2, DEC-0173, migration Alembic `0026`)
+
+Demande typee de demarrer une tache sur une machine cible, donnees seules
+jamais une commande. `id`, `project_id` (FK Project), `task_id` (FK Task),
+`machine_id` (FK Machine cible), `requested_by_user_id` (FK User, demandeur
+AIB-J fixe a la creation), `harness_id`, `agent_stable_key` (nullable),
+`status` (`requested|accepted|preparing|running|succeeded|failed|cancelled|
+rejected|expired`, miroir des transitions `ALLOWED_TRANSITIONS`),
+`reason_code` (vocabulaire ferme), `session_id` (FK WorkSession, nullable,
+lie par la machine), `output_excerpt` (borne, expurge par la machine),
+`expires_at`, `finished_at` (nullable), + `created_at`/`updated_at`/
+`version` (concurrence optimiste, `409` + version serveur si perime).
+
+## LaunchCredential (AIB P9, migration Alembic `0027`, table `launch_credentials`)
+
+Table interne, sans modele de contrat (le modele de reponse `TaskLaunchCredential` de
+TECH/02 n'expose que `token` et `expires_at`). Credential ephemere du harnais d'un lancement. `id`, `launch_id` (FK TaskLaunch),
+`machine_id` (FK Machine cible), `project_id` (FK Project), `task_id` (FK Task),
+`credential_hash` (SHA-256, index unique ; le token n'est jamais stocke),
+`expires_at` (au plus `TaskLaunch.expires_at`), `revoked_at` (nullable, pose par la
+reemission), `created_at`. Valide seulement si non revoque, non expire et lancement
+non terminal.
 
 ## AI Library — P1 (DEC-0062/0063/0064, migration Alembic `0009`)
 
@@ -398,12 +448,20 @@ voir la section P4 ci-dessus.)
 `ResolvedAgentDefinition` (`studio_contracts/resolution.py`, coeur pur
 sans SQL/HTTP/LLM/horloge) : agent + rules + skills + model_profile 0..1
 aux versions exactes epinglees, `CapabilityRequirement` exacte (aucune
-exigence implicite sans profil), references `composes_agent`/
-`references_workflow` preservees sans expansion (workflow = definition
-declarative P11/DEC-0075, jamais executee par le resolver),
-runtime gagnant + niveau + verdict. Seule transitivite : `skill → rule`
-un niveau ; meme rule par deux chemins = un objet + un `RulePath` par
-chemin. Provenance structuree (`source`, `resource_id`, `stable_key`,
+exigence implicite sans profil), `references_workflow` preserve sans
+expansion (workflow = definition declarative P11/DEC-0075, jamais executee
+par le resolver), runtime gagnant + niveau + verdict. Seule transitivite
+structurelle directe : `skill → rule` un niveau (aucune arete sortante sur
+`RULE`, c'est le seul niveau possible) ; meme rule par deux chemins = un
+objet + un `RulePath` par chemin, localement a chaque noeud (aucune fusion
+entre arbres). `composes_agent` est resolu recursivement depuis P2/DEC-0164
+(`ResolvedComposedAgent{reference: PreservedReference, resolved:
+ResolvedAgentDefinition}`) : chaque agent compose porte son propre arbre
+resolu independant, produit par le meme coeur pur qui recurse sur son
+sous-graphe — jamais un second moteur. Garde-fous fermes : identite deja
+visitee sur le chemin de composition → `composition_cycle_detected`,
+profondeur > `MAX_COMPOSITION_DEPTH` (8) → `composition_depth_exceeded`.
+Provenance structuree (`source`, `resource_id`, `stable_key`,
 `scope`, `version`, `version_origin` — dont `pin` additif emis par la
 seule sortie P5 — `locked`, `relation`, `binding_level`, `via`).
 Precedence unique et partagee avec P4 (`select_runtime` : `session >
@@ -414,13 +472,22 @@ inchange). Selection puis jugement : incompatible explicite =
 jamais de `null` silencieux ; sans choix `runtime = null` valide ;
 `unknown != compatible`. Erreurs fermees
 (`definition_not_found`/`unresolvable_dependency`/`runtime_incompatible`/
-`invalid_resolution_input`), dependances invisibles toujours
-`404 definition_not_found` (non-oracle). Acquisition (`resolve_full`)
-: racine P2, visibilite/liveness P4, puis coeur
-pur — exposee par `POST /resolutions` (body `AgentResolutionRequest`,
-`session_overrides` ephemeres, reponse `ResolvedAgentDefinition`
-complete). Harness-neutral et provider-neutral (`provider_ref`/`model_ref`
-opaques). Frontiere P6 : aucun catalogue, aucune discovery.
+`invalid_resolution_input`/`composition_cycle_detected`/
+`composition_depth_exceeded`), dependances invisibles toujours
+`404 definition_not_found` (non-oracle), les deux nouveaux codes composition
+en `422` (meme famille que `invalid_resolution_input`). Acquisition
+(`resolve_full`) : racine P2, visibilite/liveness P4, chargement transitif
+du sous-graphe `composes_agent` borne/garde-cycle (defense en profondeur,
+le coeur pur revalide), puis coeur pur — exposee par `POST /resolutions`
+(body `AgentResolutionRequest`, `session_overrides` ephemeres, reponse
+`ResolvedAgentDefinition` complete). Limite connue (DEC-0164) : les
+candidats runtime charges par `resolve_full` restent scopes a l'agent
+racine (et son propre profil) — un agent compose n'a pas ses propres
+candidats charges, donc `resolved.runtime` est toujours `null` pour un
+noeud compose via ce chemin (sortie valide, pas une erreur), jusqu'a un
+suivi qui etend le chargement des candidats par noeud. Harness-neutral et
+provider-neutral (`provider_ref`/`model_ref` opaques). Frontiere P6 :
+aucun catalogue, aucune discovery.
 
 ## AI Library — P11 Workflow definition (DEC-0075, sans DDL)
 

@@ -33,7 +33,7 @@ open whether Graphify may be bundled, pending a distribution audit.
 3. **Binaries and user data are separate.** Nothing mutable lives in the install
    directory. Daemon data stays in `%APPDATA%\StudioOS` (with a `format.json`
    marker and stepwise, backed-up migrations that fail closed on an unknown or
-   newer format), shell settings in `%APPDATA%\dev.studio-os.desktop`,
+   newer format), shell settings in `%APPDATA%\stable.studio-os.desktop`,
    credentials in Windows Credential Manager. Uninstall keeps all of it unless
    the user ticks the explicit full-clean option; a Vault is never moved or
    deleted automatically.

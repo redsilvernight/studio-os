@@ -1,0 +1,18 @@
+{
+  "additionalProperties": false,
+  "description": "Apply the skill synchronization plan. Requires explicit confirmation.",
+  "properties": {
+    "confirm": {
+      "default": false,
+      "title": "Confirm",
+      "type": "boolean"
+    },
+    "overwrite": {
+      "default": false,
+      "title": "Overwrite",
+      "type": "boolean"
+    }
+  },
+  "title": "SkillsApplyRequest",
+  "type": "object"
+}

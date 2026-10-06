@@ -92,12 +92,7 @@ export function taskClaimHint(task: TaskClaimHolder): string {
   if (machine === null || machine === "") return "Disponible";
   const agent = task.claimed_by_agent_id ?? null;
   if (agent !== null && agent !== "") {
-    return `Prise · machine ${machineLabel(machine)} · agent ${agentLabel(agent)}`;
+    return `Prise par ${agentLabel(agent)} sur ${machineLabel(machine)}`;
   }
-  return `Prise · machine ${machineLabel(machine)}`;
-}
-
-/** Identifiants complets de la prise, pour l'infobulle. */
-export function taskClaimTitle(task: TaskClaimHolder): string {
-  return [task.claimed_by_machine_id, task.claimed_by_agent_id].filter((id) => id !== null && id !== undefined && id !== "").join(" · ");
+  return `Prise sur ${machineLabel(machine)}`;
 }

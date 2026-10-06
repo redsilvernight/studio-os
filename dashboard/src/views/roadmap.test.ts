@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createFixtureRoadmapDataSource } from "../roadmapData";
 import { roadmapFixtureProjectIds } from "../roadmapFixtures";
 import { ApiError, parseErrorBody } from "../api";
-import { isRoadmapManagerRole, roadmapExecutionHtml, roadmapFullyDone, roadmapLifecycleHtml, roadmapPlanHtml, roadmapPrintHtml, roadmapShellHtml, roadmapStepDetailHtml, roadmapSwitcherHtml, renderRoadmapInto } from "./roadmap";
-import type { RoadmapDataSource } from "../roadmapTypes";
+import { isRoadmapManagerRole, roadmapCurrentStepHtml, roadmapDonePhasesHtml, roadmapExecutionHtml, roadmapFullyDone, roadmapLifecycleHtml, roadmapPhaseStripHtml, roadmapPlanHtml, roadmapPrintHtml, roadmapProposalsHtml, roadmapShellHtml, roadmapStepDetailHtml, roadmapSwitcherHtml, renderRoadmapInto } from "./roadmap";
+import type { Roadmap, RoadmapDataSource, RoadmapPendingProposal } from "../roadmapTypes";
 
 describe("Roadmap workspace", () => {
   beforeEach(() => {
@@ -53,8 +53,8 @@ describe("Roadmap workspace", () => {
     const plan = roadmapPlanHtml(roadmap, roadmap.current_step_key ?? null);
     const execution = roadmapExecutionHtml(roadmap, roadmap.current_step_key ?? null);
     expect(plan).toContain("Plan par phases");
-    expect(execution).toContain("Disponible maintenant");
-    expect(execution).toContain("En attente");
+    expect(execution).toContain("Peut démarrer maintenant");
+    expect(execution).toContain("Bloquées ou en attente");
     expect(`${plan}${execution}`).not.toContain("kanban");
   });
 
@@ -90,7 +90,7 @@ describe("Roadmap workspace", () => {
     expect(root.querySelector(".roadmap-proposal-review")).not.toBeNull();
     expect(root.textContent).toContain("Proposition à examiner");
     expect(root.textContent).toContain("Clarifier la première étape");
-    expect(root.textContent).toContain("version de base");
+    expect(root.textContent).toContain("fondée sur la révision");
     expect(root.textContent).toContain("Modifications proposées");
     expect(root.querySelectorAll("[data-proposal-review]")).toHaveLength(3);
 
@@ -323,5 +323,127 @@ describe("Roadmap lifecycle and review errors", () => {
     await flush();
     expect(root.querySelector("[data-review-error] [role=alert]")?.textContent).toContain("Impossible de joindre le serveur");
     expect(root.querySelector(".roadmap-title-line")?.textContent).toContain("À examiner");
+  });
+});
+
+describe("Roadmap recentrée sur l'étape courante (P05-roadmaps)", () => {
+  beforeEach(() => {
+    document.body.innerHTML = `<div id="ds-toast-region"></div><main id="root"></main>`;
+  });
+
+  async function renderDefault(projectId: string): Promise<HTMLElement> {
+    const root = document.getElementById("root") as HTMLElement;
+    await renderRoadmapInto(root, {
+      dataSource: createFixtureRoadmapDataSource(),
+      projectId,
+      projectName: "Projet test",
+    });
+    return root;
+  }
+
+  function doneRoadmap(): Roadmap {
+    const step = (key: string, state: "done" | "in_progress" | "not_started", available = false) => ({
+      key,
+      title: `Étape ${key}`,
+      objective: `Objectif ${key}`,
+      context: null,
+      instructions: null,
+      acceptance_criteria: [`Critère ${key}`],
+      notes: null,
+      metadata: {},
+      depends_on: [],
+      tasks: [],
+      state,
+      available,
+      waiting_on: [],
+      linked_tasks: [],
+      criteria_checked: [],
+    });
+    return {
+      id: "r-focus",
+      project_id: "p-focus",
+      title: "Plan focus",
+      objective: "Recentrer",
+      status: "active",
+      revision_no: 2,
+      approved_revision_no: 1,
+      context: null,
+      metadata: {},
+      progress: { done: 2, total: 3, skipped: 0, ratio: 2 / 3 },
+      current_step_key: "P2.1",
+      phases: [
+        { key: "P1", title: "Phase terminée", objective: null, steps: [step("P1.1", "done"), step("P1.2", "done")] },
+        { key: "P2", title: "Phase courante", objective: null, steps: [step("P2.1", "in_progress", true)] },
+      ],
+    };
+  }
+
+  it("s'ouvre en Exécution avec l'étape courante et ses critères visibles", async () => {
+    const root = await renderDefault(roadmapFixtureProjectIds.active);
+    const executionTab = root.querySelector('[data-mode="execution"]');
+    expect(executionTab?.getAttribute("aria-selected")).toBe("true");
+    const current = root.querySelector("[data-current-step]");
+    expect(current).not.toBeNull();
+    expect(root.querySelector(".roadmap-phase-strip")).not.toBeNull();
+    expect(root.querySelector(".roadmap-current-criteria")?.textContent).toContain("Critères d'acceptation");
+    expect(root.textContent).toContain("Peut démarrer maintenant");
+    expect(root.textContent).toContain("Bloquées ou en attente");
+  });
+
+  it("affiche le bandeau des phases avec la position courante", async () => {
+    const roadmap = (await createFixtureRoadmapDataSource().load(roadmapFixtureProjectIds.active))!;
+    const html = roadmapPhaseStripHtml(roadmap);
+    expect(html).toContain("roadmap-phase-strip");
+    expect(html).toContain("Phase");
+    expect(roadmapCurrentStepHtml(roadmap, roadmap.current_step_key ?? null)).toContain("data-current-step");
+  });
+
+  it("replit les phases terminées en un seul élément tout en les gardant dans le DOM", () => {
+    const roadmap = doneRoadmap();
+    const plan = roadmapPlanHtml(roadmap, "P2.1");
+    expect(plan).toContain("1 phase terminée");
+    expect(plan).toContain("Phase terminée");
+    expect(plan).toContain("<details");
+    const execution = roadmapExecutionHtml(roadmap, "P2.1");
+    expect(execution).toContain("roadmap-done-phases");
+    expect(execution).toContain("Phase terminée");
+    expect(roadmapDonePhasesHtml(roadmap, "P2.1")).toContain("masquée");
+  });
+
+  it("regroupe proposition et révision en un seul bloc sans perdre de carte", async () => {
+    const source = createFixtureRoadmapDataSource();
+    const proposed = (await source.load(roadmapFixtureProjectIds.proposed))!;
+    const pending: RoadmapPendingProposal = {
+      roadmapId: proposed.id,
+      roadmapVersion: 1,
+      revision: {
+        id: "rev-group",
+        roadmap_id: proposed.id,
+        revision_no: 2,
+        kind: "proposal",
+        status: "pending",
+        base_revision_no: 1,
+        summary: "Révision groupée",
+        provenance: { origin: "ai_proposal", actor_type: "agent", actor_id: "a", agent_id: "a", machine_id: null, at: "2026-09-20T11:00:00Z" },
+        reviewed_by_user_id: null,
+        reviewed_at: null,
+        review_comment: null,
+      },
+      diff: { base_revision_no: 1, proposal_revision_no: 2, entries: [] },
+    };
+    const grouped = roadmapProposalsHtml(proposed, pending);
+    expect(grouped).toContain("roadmap-proposals");
+    expect(grouped).toContain("Propositions (2)");
+    expect(grouped).toContain("roadmap-proposal-review");
+    const single = roadmapProposalsHtml(proposed, null);
+    expect(single).toContain("roadmap-proposals");
+    expect(roadmapProposalsHtml({ ...proposed, status: "active" }, null)).toBe("");
+  });
+
+  it("garde l'onglet Plan complet après recentrage", async () => {
+    const root = await renderDefault(roadmapFixtureProjectIds.active);
+    (root.querySelector('[data-mode="plan"]') as HTMLButtonElement).click();
+    expect(root.querySelector('[data-mode="plan"]')?.getAttribute("aria-selected")).toBe("true");
+    expect(root.querySelector(".roadmap-timeline")).not.toBeNull();
   });
 });

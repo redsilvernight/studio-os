@@ -15,6 +15,7 @@ import type {
   DesktopDiagnostics,
   DesktopInfo,
   DiagnosticsExportResult,
+  OutboxLegacyStatus,
   PickerOptions,
   PickResult,
   Platform,
@@ -288,6 +289,13 @@ export function createDesktopPlatform(invoke: TauriInvoke): Platform {
           return false;
         }
       },
+    },
+    async outboxLegacyStatus(): Promise<OutboxLegacyStatus | null> {
+      const answer = await this.request("outbox.legacy_status", {});
+      if (answer.ok && answer.command === "outbox.legacy_status") {
+        return answer.response.payload as unknown as OutboxLegacyStatus;
+      }
+      return null;
     },
   };
 }

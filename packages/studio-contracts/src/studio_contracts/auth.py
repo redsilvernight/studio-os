@@ -2,9 +2,17 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
+from typing import Annotated
 from uuid import UUID
 
+from pydantic import Field, StringConstraints
+
+from studio_contracts.bootstrap import BootstrapFileSummary
 from studio_contracts.common import ContractModel, IdempotentCreate, VersionedModel
+
+NonEmptyStr100 = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)
+]
 
 
 class Role(StrEnum):
@@ -70,7 +78,11 @@ class Agent(VersionedModel):
     from the machine owner's role alone. `agent_profile`, `harness`,
     `provider` and `model` are optional additive observability metadata:
     open strings, never whitelisted, never a capability or compatibility
-    condition, never read to make a decision."""
+    condition, never read to make a decision. `stable_key` (AIB-I, additive)
+    is the local stable key set by `agents ensure` (default
+    `agents-ensure-{harness}`), unique per owning machine: the idempotent
+    lookup key for session-start, never an authorization input, and never
+    `AgentDefinition.stable_key` (a resolution parameter, not an identity)."""
 
     id: UUID
     machine_id: UUID | None = None
@@ -80,6 +92,7 @@ class Agent(VersionedModel):
     harness: str | None = None
     provider: str | None = None
     model: str | None = None
+    stable_key: str | None = None
 
 
 class AgentCreate(IdempotentCreate):
@@ -90,7 +103,10 @@ class AgentCreate(IdempotentCreate):
     server-generated `Agent.id` is). `agent_profile`, `harness`, `provider`
     and `model` are optional open-string observability metadata: any value
     is accepted, unknown values are never rejected, and none of them is ever
-    required."""
+    required. `stable_key` (AIB-I, additive, optional) is the local stable
+    key for `POST /agents/ensure`: same machine + same key returns the
+    existing agent, same key + different metadata is `409
+    idempotency_key_payload_mismatch`. Never `AgentDefinition.stable_key`."""
 
     display_name: str
     agent_kind: str = ""
@@ -98,6 +114,15 @@ class AgentCreate(IdempotentCreate):
     harness: str | None = None
     provider: str | None = None
     model: str | None = None
+    stable_key: str | None = None
+
+
+class AgentEnsureResult(ContractModel):
+    """Result of `POST /agents/ensure` (AIB-I, additive): the caller's own
+    machine's agent for `stable_key`, plus whether this call created it."""
+
+    agent: Agent
+    created: bool
 
 
 class UserCreate(ContractModel):
@@ -114,10 +139,18 @@ class MachineCreate(ContractModel):
     """`owner_user_id` is optional (A5): absent, the machine belongs to the
     caller's own User. A non-admin may only name itself — the server never
     lets it choose another owner, and never looks that other User up. Only
-    `admin` provisions a machine for someone else."""
+    `admin` provisions a machine for someone else. `display_name` is the
+    workstation name shown in « Postes » (default: the enrollment station's
+    own hostname, editable): stripped, never blank, at most 100 characters."""
 
     owner_user_id: UUID | None = None
-    display_name: str
+    display_name: NonEmptyStr100
+
+
+class MachineUpdate(ContractModel):
+    """Update a machine's display name. Only the owner or an admin."""
+
+    display_name: NonEmptyStr100
 
 
 class MachineCreated(Machine):
@@ -127,10 +160,55 @@ class MachineCreated(Machine):
     credential: str
 
 
+CapabilityToken = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$")]
+"""Opaque identifier or version string: no separator, whitespace or drive
+letter, so a filesystem path cannot be represented."""
+
+
+class HarnessReport(ContractModel):
+    """One harness as reported by a machine (AIB R1): `detected` means the
+    tool is present on the machine, `configured` means it is wired for
+    Studio OS. IDs and stable tokens only: never a path, secret,
+    fingerprint or file listing."""
+
+    harness_id: CapabilityToken
+    version: CapabilityToken | None = None
+    detected: bool = False
+    configured: bool = False
+
+
+class ProjectBootstrapStatus(ContractModel):
+    """Machine-observed state of one project's AI bundle (AIB P6): the result
+    of the machine's own local `bootstrap check` at `checked_at`. Counts only
+    - never a path or file name. It says what the machine observed, not what
+    the server expects."""
+
+    project_id: UUID
+    checked_at: datetime
+    summary: BootstrapFileSummary
+
+
+class MachineCapabilities(ContractModel):
+    """Machine-reported launch aptitude (AIB R1, additive). Ids only - never a
+    path, hostname or secret. The server stores the latest report with its
+    reception time and never presents a stale one as current."""
+
+    harnesses: list[HarnessReport] = Field(default_factory=list, max_length=32)
+    project_ids: list[UUID] = Field(default_factory=list, max_length=256)
+    accepts_launches: bool = False
+    running_launches: int = Field(default=0, ge=0)
+    max_launches: int = Field(default=0, ge=0)
+    bootstrap: list[ProjectBootstrapStatus] | None = Field(default=None, max_length=256)
+
+
 class HeartbeatRequest(ContractModel):
+    """`capabilities` is optional and additive: absent, the previous report
+    is kept untouched."""
+
     machine_id: UUID
     agent_id: UUID | None = None
     client_timestamp: datetime
+    capabilities: MachineCapabilities | None = None
 
 
 class HeartbeatResponse(ContractModel):
@@ -138,3 +216,35 @@ class HeartbeatResponse(ContractModel):
     status: MachineStatus
     last_seen_at: datetime
     server_timestamp: datetime
+    capabilities: MachineCapabilities | None = None
+
+
+class IneligibilityReason(StrEnum):
+    """Deterministic, evaluated in this declaration order."""
+
+    OFFLINE = "offline"
+    NO_CAPABILITIES_REPORT = "no_capabilities_report"
+    CAPABILITIES_STALE = "capabilities_stale"
+    OWNER_NO_PROJECT_ACCESS = "owner_no_project_access"
+    PROJECT_NOT_REGISTERED = "project_not_registered"
+    LAUNCHES_NOT_ACCEPTED = "launches_not_accepted"
+    HARNESS_INCOMPATIBLE = "harness_incompatible"
+    AT_CAPACITY = "at_capacity"
+
+
+class MachineEligibility(ContractModel):
+    machine_id: UUID
+    display_name: str
+    status: MachineStatus
+    eligible: bool
+    reasons: list[IneligibilityReason] = Field(default_factory=list)
+    harnesses: list[HarnessReport] = Field(default_factory=list)
+    free_slots: int = 0
+    reported_at: datetime | None = None
+
+
+class EligibleMachines(ContractModel):
+    task_id: UUID
+    project_id: UUID
+    harness_id: CapabilityToken | None = None
+    machines: list[MachineEligibility]

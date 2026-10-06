@@ -44,6 +44,18 @@ test("asset URLs are https and percent-encode the installer name", () => {
   assert.throws(() => assetUrl("http://example.test", INSTALLER), /must be https/);
 });
 
+test("the update notes default to the release note of the version", () => {
+  const dir = fixtureDir();
+  try {
+    const base = { bundleDir: dir, urlBase: "https://example.test/rel" };
+    assert.match(buildManifest({ ...base, version: "0.1.0" }).notes, /Version 0\.1\.0/);
+    assert.equal(buildManifest({ ...base, version: "0.1.0", notes: "court" }).notes, "court");
+    assert.equal(buildManifest({ ...base, version: "9.9.9" }).notes, "Studi'OS Desktop 9.9.9");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("the manifest carries the plugin fields plus additive, versioned data", () => {
   const dir = fixtureDir();
   try {

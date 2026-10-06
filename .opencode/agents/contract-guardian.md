@@ -26,7 +26,7 @@ Studio OS is built by two parallel tracks (Bloc A: Cloud/Core, Bloc B: Local Cli
 5. Check event envelope fields (`event_id`, `event_type`, `actor_type`, `schema_version`, ...) are not altered incompatibly.
 6. Check whether both Bloc A and Bloc B mocks/consumers need updating in the same change, per `IMPLEMENTATION/04_INTEGRATION_CHECKLIST.md`.
 7. Check whether the change corresponds to a recorded Decision (`DEC-XXXX` in `docs/decisions/`); if it should have one and doesn't, flag it. `docs/decisions/` is canonical — do not cross-check the AI-Memory vault, it is a non-canonical mirror.
-8. Use Graphify (`graphify path`/`graphify explain`) to find every consumer of the changed field/event/endpoint on both Bloc A and Bloc B — grep alone misses call sites reached indirectly (MCP tool wrapping a router, a daemon watcher constructing the same envelope). Before relying on it, verify that the changed files are reflected in `E:\Graphify\Studio-OS\graphify-out\manifest.json`; if they are not, update the graph first. Do not infer freshness from file mtimes alone.
+8. Use Graphify (`graphify path`/`graphify explain`) to find every consumer of the changed field/event/endpoint on both Bloc A and Bloc B — grep alone misses call sites reached indirectly (MCP tool wrapping a router, a daemon watcher constructing the same envelope). Before relying on it, verify that the changed files are reflected in the centralized Graphify `manifest.json` (see `scripts/graphify-studio.ps1`); if they are not, update the graph first. Do not infer freshness from file mtimes alone.
 
 ## Important
 
@@ -105,7 +105,8 @@ never treat it as a source of shared truth.
 
 Reference: `TECH/07_MCP_CONTRACT.md`.
 
-- Tool names are prefixed `studio_` (`studio_get_task`, `studio_claim_resource`, ...) — keep new tools consistent with the existing list rather than inventing a parallel naming scheme.
+- Tool names are prefixed `studio_` (`studio_get_task`, `studio_claim_resources`, ...) — keep new tools consistent with the existing list rather than inventing a parallel naming scheme.
+- Tool exposure is profile-driven (`services/mcp/src/studio_mcp/tool_profiles.py`, DEC-0183): the `session` profile is the default and advertises only the session tools; the `admin` profile advertises the full surface. Select it per connection with the `X-Studio-Tool-Profile: admin` header (HTTP) or `STUDIO_MCP_TOOL_PROFILE=admin` (stdio). A profile is a noise/token control, never an authorization check — role and project checks stay in the services.
 - An MCP handler is a thin layer: validate input, call the existing service function used by the API layer, return a compact result. Do not duplicate business logic between the API router and the MCP tool.
 - The tool's docstring/description is what the model uses to pick it — write it precise and specific, not generic; a vague description causes wrong tool selection.
 - Responses are compact: useful fields only, and support the standard filters (`project`, `task`, `since`, `limit`) where the underlying resource supports them.

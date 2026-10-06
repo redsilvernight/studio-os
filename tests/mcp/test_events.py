@@ -163,3 +163,32 @@ async def test_emit_event_replay_same_event_id_creates_no_duplicate(
     result = await studio_get_recent_changes(auth_ctx, project_id=str(project.id))
     matches = [e for e in result["events"] if e["event_id"] == stable_id]
     assert len(matches) == 1
+
+
+async def test_get_recent_changes_projects_selected_fields(
+    auth_ctx: FakeContext, project: ProjectModel, machine: tuple[MachineModel, str]
+) -> None:
+    machine_model, _ = machine
+    await studio_emit_event(
+        str(project.id), "task.started", "user", str(machine_model.owner_user_id), auth_ctx
+    )
+    result = await studio_get_recent_changes(
+        auth_ctx, project_id=str(project.id), fields=["event_type"]
+    )
+    assert result["events"]
+    for event in result["events"]:
+        assert set(event) == {"event_id", "event_type"}
+
+
+async def test_get_recent_changes_rejects_out_of_range_limit(
+    auth_ctx: FakeContext, project: ProjectModel
+) -> None:
+    result = await studio_get_recent_changes(auth_ctx, project_id=str(project.id), limit=0)
+    assert result["error_code"] == "invalid_argument"
+
+
+async def test_get_recent_changes_rejects_unknown_field(
+    auth_ctx: FakeContext, project: ProjectModel
+) -> None:
+    result = await studio_get_recent_changes(auth_ctx, project_id=str(project.id), fields=["nope"])
+    assert result["error_code"] == "invalid_argument"

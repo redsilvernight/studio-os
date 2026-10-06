@@ -1,14 +1,25 @@
 /**
- * UI-5 — Détail d'une tâche : vraie page de travail en français.
+ * UI-5 / P04-task-detail — Fiche tâche action-first en français.
  *
  * - Vérité : GET /api/v1/tasks/{id}. Compléments en lecture seule :
  *   GET /sessions?task_id, GET /ai-work?task_id, GET /claims?project_id
  *   (filtré côté client sur task_id). Machines et agents affichés par leur
- *   nom (actorNames), identifiant en infobulle.
- * - Sections verticales lisibles : vue générale, modification (PATCH +
- *   If-Match-Version affiché), prise en charge (claim/release machine —
- *   à ne pas confondre avec les réservations de ressources), sessions,
- *   travail IA, informations techniques repliées.
+ *   nom (actorNames), jamais par leur identifiant.
+ * - Tête sans défilement : carte héros (ds-hero) à UNE action primaire,
+ *   point de statut DS, responsable, Objectif et Prochaine action dérivée de
+ *   l'état réel — aucune checklist inventée (Task n'a ni priorité, ni
+ *   échéance, ni critères d'acceptation).
+ * - Juste après, dans cet ordre : Blocages puis Validation, toujours
+ *   ouverts. Ensuite seulement la mécanique : Modifier la tâche, Prise en
+ *   charge.
+ * - Divulgation progressive : sessions, journaux et automatisations d'un
+ *   côté ; UUID et métadonnées de l'autre (dsTechDetails) — deux blocs
+ *   <details> fermés par défaut, donc aucun UUID visible d'emblée.
+ * - Propriétés en colonne latérale dès 1600 px, en ligne de métadonnées
+ *   en dessous (wireframes P04-task-detail).
+ * - Modification (PATCH + If-Match-Version affiché), prise en charge
+ *   (claim/release machine — à ne pas confondre avec les réservations de
+ *   ressources) : aucune fonction perdue.
  * - 409 version_conflict → explication humaine + relecture immédiate, AUCUN
  *   retry automatique : l'utilisateur réapplique consciemment.
  * - Les compléments sont best-effort : leur échec n'efface jamais la tâche
@@ -28,14 +39,45 @@ import {
   dsPageHeader,
   dsSectionHeader,
   dsSkeleton,
+  dsStatus,
+  dsTechDetails,
+  type DsStatusState,
 } from "../ds/ds";
 import { taskClaimHint, taskStatusLabel, taskStatusTone } from "../taskStatus";
-import { agentLabel, agentRef, machineRef } from "../actorNames";
-import { describeError, esc, fmtTime, shortId } from "../ui";
+import { agentLabel, agentRef, machineLabel, machineRef } from "../actorNames";
+import { describeError, esc, fmtTime } from "../ui";
+import { fetchIdentity, type AuthIdentity } from "../identityApi";
+import { newIdempotencyKey } from "../claimsApi";
+import { listLibraryResources } from "../libraryApi";
+import { postResolution } from "../resolutionApi";
+// Styles colocalisés : même fichier que la page Travail (P04-work),
+// la fiche reste autonome sans toucher au bloc d'imports CSS de main.ts.
+import "./tasks.css";
+import {
+  cancelTaskLaunch,
+  createTaskLaunch,
+  getEligibleMachines,
+  getTaskLaunch,
+  listTaskLaunches,
+  type TaskLaunch,
+} from "../taskLaunchesApi";
+import {
+  canCancelLaunch,
+  cancelLaunchConfirmText,
+  isTerminalLaunch,
+  launchConfirmText,
+  launchPanelHtml,
+  selectedMachine,
+  type AgentOption,
+  type LaunchPanelData,
+  type LaunchPanelState,
+} from "./taskLaunchPanel";
 
 export interface TaskDetailContext {
   client: StudioClient;
   authed: boolean;
+  /** Identité de l'appelant (`/auth/me`) ; `null` = inconnue, le serveur tranche. */
+  identity?: AuthIdentity | null;
 }
 
 export interface SessionRow {
@@ -70,12 +112,12 @@ async function fetchJson<T>(
 }
 
 export function taskDetailLoadingHtml(taskId: string): string {
-  return `${dsPageHeader("Tâche", `Chargement de ${shortId(taskId)}…`)}${dsSkeleton(4)}`;
+  return `${dsPageHeader("Tâche", "Chargement de la tâche…")}${dsSkeleton(4)}`;
 }
 
 export function taskDetailErrorHtml(taskId: string, message: string): string {
   return (
-    `${dsPageHeader("Tâche", `Identifiant ${shortId(taskId)}`)}` +
+    `${dsPageHeader("Tâche", "Tâche introuvable")}` +
     `<div class="ds-notice ds-notice--danger" role="alert"><strong>Tâche indisponible.</strong> ${esc(message)}</div>`
   );
 }
@@ -122,11 +164,33 @@ export function sessionStateLabel(session: SessionRow): { label: string; tone: "
     : { label: "Terminée", tone: "neutral" };
 }
 
-function claimSectionHtml(task: Task, authed: boolean): string {
+/** Confirmation de libération : nomme la machine (et l'agent) détenteurs. */
+export function releaseTaskConfirmText(task: Task): string {
+  const agent = task.claimed_by_agent_id ? ` (agent ${agentLabel(task.claimed_by_agent_id)})` : "";
+  return (
+    `Libérer la tâche « ${task.title} », prise par la machine ${machineLabel(task.claimed_by_machine_id)}${agent} ? ` +
+    `Réservé au détenteur ou à un administrateur ; le statut reste inchangé.`
+  );
+}
+
+/**
+ * Indice UI (le serveur revérifie, DEC-0036) : seule la machine détentrice ou
+ * un administrateur peut libérer. Identité inconnue : bouton laissé actif.
+ */
+export function canReleaseTask(task: Task, authed: boolean, identity: AuthIdentity | null | undefined): boolean {
+  const holder = task.claimed_by_machine_id;
+  if (!authed || holder === null || holder === undefined || holder === "") return false;
+  if (identity === null || identity === undefined || typeof identity.machine_id !== "string") return true;
+  return identity.role === "admin" || identity.machine_id === holder;
+}
+
+function claimSectionHtml(task: Task, authed: boolean, canRelease: boolean): string {
   const held = task.claimed_by_machine_id !== null && task.claimed_by_machine_id !== undefined && task.claimed_by_machine_id !== "";
   const stateLine = held
     ? `<p>Prise par la machine ${machineRef(task.claimed_by_machine_id)}${task.claimed_by_agent_id ? ` · agent ${agentRef(task.claimed_by_agent_id)}` : ""}.</p>`
     : `<p>Disponible — personne ne travaille dessus actuellement.</p>`;
+  // L'action primaire est unique et vit dans le héros (C1) : ici les mêmes
+  // fonctions restent accessibles, en boutons secondaires.
   return `<section class="task-detail-section" aria-label="Prise en charge">` +
     `${dsSectionHeader("Prise en charge")}${stateLine}` +
     `<p class="ds-list-sub">Prendre signale que votre machine travaille dessus et passe le statut à « En cours ». ` +
@@ -134,11 +198,95 @@ function claimSectionHtml(task: Task, authed: boolean): string {
     `<p class="ds-list-sub">À ne pas confondre avec les réservations de ressources (onglet Réservations du projet) : ` +
     `ici, « prendre » désigne qui travaille sur la tâche, pas la réservation d'un fichier.</p>` +
     `<div class="tasks-footer">` +
-    `<button class="ds-btn${held ? "" : " ds-btn--primary"}" type="button" data-claim${authed && !held ? "" : " disabled"}>Prendre cette tâche</button>` +
-    `<button class="ds-btn" type="button" data-release${authed && held ? "" : " disabled"}>Libérer la tâche</button>` +
-    `</div></section>`;
+    `<button class="ds-btn" type="button" data-claim${authed && !held ? "" : " disabled"}>Prendre cette tâche</button>` +
+    `<button class="ds-btn" type="button" data-release${canRelease ? "" : " disabled"}>Libérer la tâche</button>` +
+    `</div>` +
+    (authed && held && !canRelease
+      ? `<p class="ds-list-sub">Seule la machine qui a pris la tâche, ou un administrateur, peut la libérer.</p>`
+      : "") +
+    `</section>`;
 }
 
+/** Point de statut DS correspondant au statut métier (jamais la couleur seule). */
+export function taskDetailStatusState(status: string): DsStatusState {
+  switch (taskStatusTone(status)) {
+    case "info":
+      return "info";
+    case "warning":
+      return "warning";
+    case "success":
+      return "success";
+    default:
+      return "idle";
+  }
+}
+
+/**
+ * Prochaine action dérivée de l'état réel uniquement (statut, prise,
+ * relecture en attente) — aucune checklist inventée : le modèle ne porte ni
+ * priorité, ni échéance, ni critères d'acceptation. Le blocage passe avant
+ * la relecture : une tâche bloquée ne peut pas progresser.
+ */
+export function nextActionText(task: Task, pendingReview: number): string {
+  const held =
+    task.claimed_by_machine_id !== null && task.claimed_by_machine_id !== undefined && task.claimed_by_machine_id !== "";
+  switch (task.status) {
+    case "blocked":
+      return "Débloquer : dites ce qui coince, puis repassez la tâche en « En cours » (voir « Modifier la tâche »).";
+    case "created":
+      return held
+        ? "Démarrer : passez le statut à « En cours » (voir « Modifier la tâche »)."
+        : "Prendre la tâche pour démarrer le travail.";
+    case "completed":
+      return "Vérifier le résultat, puis rouvrir la tâche (« En cours ») si le travail reste à faire.";
+    default:
+      break;
+  }
+  if (pendingReview > 0) {
+    return `Faire la relecture : ${pendingReview} travail(s) attendent votre avis (voir « Validation »).`;
+  }
+  return held
+    ? "Poursuivre le travail, puis marquer « Terminé » ou « Bloqué » selon le constat."
+    : "Prendre la tâche pour poursuivre le travail.";
+}
+
+/** Blocages : prioritaire et toujours ouvert — pas de vide rassurant si bloquée. */
+function blockagesSectionHtml(task: Task): string {
+  const body =
+    task.status === "blocked"
+      ? `<div class="ds-notice ds-notice--warning" role="alert"><strong>Tâche bloquée.</strong> Décrivez ce qui coince dans « Modifier la tâche », puis repassez-la en « En cours » quand c'est levé.</div>`
+      : dsEmptyState("Aucun blocage", "Rien n'empêche cette tâche d'avancer : le travail peut se poursuivre.");
+  return `<section class="task-detail-section" aria-label="Blocages">${dsSectionHeader("Blocages")}${body}</section>`;
+}
+
+/** Relecture : ce qui attend une décision humaine, listé sans quitter la fiche. */
+function validationSectionHtml(worklogs: WorkRow[] | null): string {
+  let body: string;
+  if (worklogs === null) {
+    body = `<div class="ds-notice ds-notice--warning" role="status">Relectures indisponibles pour le moment — la tâche ci-dessus reste fiable.</div>`;
+  } else {
+    const pending = worklogs.filter((work) => work.status === "review_requested");
+    if (pending.length === 0) {
+      body = dsEmptyState("Rien à valider", "Aucun travail IA n'attend de relecture pour cette tâche.");
+    } else {
+      body =
+        `<ul class="ds-list">` +
+        pending
+          .map(
+            (work) =>
+              `<li class="ds-list-item"><div class="grow">` +
+              `<div class="ds-list-title">${esc(work.summary.length > 140 ? `${work.summary.slice(0, 140)}…` : work.summary)}</div>` +
+              `<div class="ds-list-sub">En relecture · ${esc(fmtTime(work.started_at))}</div>` +
+              `</div>${dsBadge(aiWorkStatusLabel(work.status), aiWorkStatusTone(work.status))}</li>`,
+          )
+          .join("") +
+        `</ul>`;
+    }
+  }
+  return `<section class="task-detail-section" aria-label="Validation">${dsSectionHeader("Validation")}${body}</section>`;
+}
+
+/** Sessions : repliées, jamais lisible avant que l'on les demande. */
 function sessionsSectionHtml(sessions: SessionRow[] | null): string {
   let body: string;
   if (sessions === null) {
@@ -160,9 +308,11 @@ function sessionsSectionHtml(sessions: SessionRow[] | null): string {
         .join("") +
       `</ul>`;
   }
-  return `<section class="task-detail-section" aria-label="Sessions">${dsSectionHeader(`Sessions (${sessions === null ? "?" : sessions.length})`)}${body}</section>`;
+  return `<section class="task-detail-fold-section" id="task-sessions" aria-label="Sessions">` +
+    `<h3>Sessions (${sessions === null ? "?" : sessions.length})</h3>${body}</section>`;
 }
 
+/** Journaux du travail IA : repliés, résumé + contexte sans payload brut. */
 function aiWorkSectionHtml(worklogs: WorkRow[] | null): string {
   let body: string;
   if (worklogs === null) {
@@ -194,20 +344,61 @@ function aiWorkSectionHtml(worklogs: WorkRow[] | null): string {
         .join("") +
       `</ul>`;
   }
-  return `<section class="task-detail-section" aria-label="Travail IA">${dsSectionHeader(`Travail IA (${worklogs === null ? "?" : worklogs.length})`)}${body}</section>`;
+  return `<section class="task-detail-fold-section" id="task-ai-work" aria-label="Travail IA">` +
+    `<h3>Travail IA (${worklogs === null ? "?" : worklogs.length})</h3>${body}</section>`;
+}
+
+/**
+ * Mécanique : sessions, journaux et automatisations dans UN seul bloc replié
+ * (fermé par défaut). Les ancres #task-sessions / #task-ai-work du panneau
+ * de lancement restent valides : revealFoldTarget les ouvre à la demande.
+ */
+function foldedMechanicsHtml(data: TaskDetailData): string {
+  return `<details class="ds-tech task-detail-fold" id="task-mecanique">` +
+    `<summary>Sessions, journaux et automatisations</summary>` +
+    `<div class="task-detail-fold-body">` +
+    sessionsSectionHtml(data.sessions) +
+    aiWorkSectionHtml(data.worklogs) +
+    `<section class="task-detail-fold-section" id="task-automatisations" aria-label="Automatisations">` +
+    `<h3>Automatisations</h3>${launchSectionHtml(data)}</section>` +
+    `</div></details>`;
+}
+
+/**
+ * Propriétés : colonne latérale dès 1600 px (wireframes P04-task-detail),
+ * ligne de métadonnées en dessous. Aucun UUID — l'identifiant complet reste
+ * dans le bloc « Détails techniques ».
+ */
+function propsAsideHtml(task: Task): string {
+  const held =
+    task.claimed_by_machine_id !== null && task.claimed_by_machine_id !== undefined && task.claimed_by_machine_id !== "";
+  return `<aside class="task-detail-props" aria-label="Propriétés">` +
+    `<h2>Propriétés</h2><dl>` +
+    `<div><dt>Statut</dt><dd>${dsStatus(taskDetailStatusState(task.status), taskStatusLabel(task.status))}</dd></div>` +
+    `<div><dt>Responsable</dt><dd>${held ? machineRef(task.claimed_by_machine_id as string) : "Personne — tâche disponible"}</dd></div>` +
+    `<div><dt>Projet</dt><dd><a href="#/projects/${esc(task.project_id)}">Ouvrir le projet</a></dd></div>` +
+    `<div><dt>Référence</dt><dd>${task.readable_id !== null && task.readable_id !== undefined && task.readable_id !== "" ? esc(task.readable_id) : "—"}</dd></div>` +
+    `<div><dt>Mise à jour</dt><dd>${esc(fmtTime(task.updated_at))}</dd></div>` +
+    `</dl></aside>`;
 }
 
 function techDetailsHtml(task: Task): string {
-  return `<details class="task-tech"><summary>Informations techniques</summary><dl>` +
-    `<div><dt>Identifiant</dt><dd><code class="mono">${esc(task.id)}</code></dd></div>` +
-    (task.readable_id ? `<div><dt>Référence lisible</dt><dd><code class="mono">${esc(task.readable_id)}</code></dd></div>` : "") +
-    `<div><dt>Projet</dt><dd><code class="mono">${esc(task.project_id)}</code></dd></div>` +
-    `<div><dt>Version</dt><dd>${task.version}</dd></div>` +
-    `<div><dt>Statut interne</dt><dd><code class="mono">${esc(task.status)}</code></dd></div>` +
-    `<div><dt>Machine en charge</dt><dd>${task.claimed_by_machine_id ? machineRef(task.claimed_by_machine_id) : "—"}</dd></div>` +
-    `<div><dt>Créée le</dt><dd>${esc(fmtTime(task.created_at))}</dd></div>` +
-    `<div><dt>Mise à jour le</dt><dd>${esc(fmtTime(task.updated_at))}</dd></div>` +
-    `</dl></details>`;
+  return dsTechDetails(
+    [
+      { label: "Identifiant", value: task.id, mono: true },
+      ...(task.readable_id ? [{ label: "Référence lisible", value: task.readable_id, mono: true }] : []),
+      { label: "Projet", value: task.project_id, mono: true },
+      { label: "Version", value: String(task.version), mono: true },
+      { label: "Statut interne", value: task.status, mono: true },
+      {
+        label: "Machine en charge",
+        value: task.claimed_by_machine_id ? machineLabel(task.claimed_by_machine_id) : "—",
+      },
+      { label: "Créée le", value: fmtTime(task.created_at) },
+      { label: "Mise à jour le", value: fmtTime(task.updated_at) },
+    ],
+    "Détails techniques · identifiants et métadonnées",
+  );
 }
 
 export interface TaskDetailData {
@@ -219,6 +410,10 @@ export interface TaskDetailData {
   notice: string;
   noticeTone?: "danger" | "info";
   authed: boolean;
+  /** Absent = détenue et connecté (comportement historique). */
+  canRelease?: boolean;
+  /** null/absent = données de lancement non chargées (best-effort). */
+  launch?: LaunchPanelData | null;
 }
 
 export function taskEditFormHtml(task: Task, authed: boolean): string {
@@ -243,30 +438,64 @@ export function taskEditFormHtml(task: Task, authed: boolean): string {
     `</form>`;
 }
 
+export function launchSectionHtml(data: TaskDetailData): string {
+  const state: LaunchPanelState = {
+    data: data.launch ?? null,
+    authed: data.authed,
+    canCancel: false,
+    selectedMachineId: "",
+    selectedHarnessId: "",
+    agentStableKey: "",
+    preview: null,
+    previewLoading: false,
+    previewError: "",
+    latestLoading: false,
+    notice: "",
+    error: "",
+  };
+  return `<div id="task-launch-panel">${launchPanelHtml(state)}</div>`;
+}
+
+/**
+ * Carte héros (P03-progressive-components) : titre, point de statut,
+ * responsable, Objectif et Prochaine action tiennent au-dessus de la ligne
+ * de flottaison, avec UNE action primaire (C1). Le secondaire « Modifier »
+ * n'existe que si le primaire est la prise en charge.
+ */
+function heroHtml(task: Task, data: TaskDetailData, held: boolean): string {
+  const pendingReview = (data.worklogs ?? []).filter((work) => work.status === "review_requested").length;
+  const primary =
+    data.authed && !held
+      ? `<button class="ds-btn ds-btn--primary" type="button" id="task-head-take">Prendre cette tâche</button>`
+      : `<button class="ds-btn${data.authed ? " ds-btn--primary" : ""}" type="button" id="task-head-edit">Modifier la tâche</button>`;
+  const secondary =
+    data.authed && !held
+      ? `<button class="ds-hero-link task-hero-link" type="button" id="task-head-edit">Modifier la tâche</button>`
+      : "";
+  const description = (task.description ?? "").trim();
+  const eyebrow = `${task.readable_id !== null && task.readable_id !== undefined && task.readable_id !== "" ? `${esc(task.readable_id)} · ` : ""}Tâche`;
+  return `<section class="ds-hero task-detail-hero" aria-label="Tâche">` +
+    `<p class="ds-hero-eyebrow">${eyebrow} · <a class="ds-hero-link" href="#/projects/${esc(task.project_id)}">Ouvrir le projet</a></p>` +
+    `<h1>${esc(task.title)}</h1>` +
+    `<p class="ds-hero-status">${dsStatus(taskDetailStatusState(task.status), taskStatusLabel(task.status))}` +
+    `<span class="ds-list-sub">· ${esc(taskClaimHint(task))} · Mise à jour ${esc(fmtTime(task.updated_at))}</span></p>` +
+    `<div class="task-detail-block"><h2>Objectif</h2>` +
+    (description === "" ? `<p class="ds-list-sub">Sans description.</p>` : `<p class="task-description">${esc(description)}</p>`) +
+    `</div>` +
+    `<div class="task-detail-block task-detail-next"><h2>Prochaine action</h2>` +
+    `<p>${esc(nextActionText(task, pendingReview))}</p></div>` +
+    `<div class="ds-hero-actions">${primary}${secondary}</div>` +
+    `</section>`;
+}
+
 export function taskDetailHtml(data: TaskDetailData): string {
   const { task } = data;
   const held = task.claimed_by_machine_id !== null && task.claimed_by_machine_id !== undefined && task.claimed_by_machine_id !== "";
-  const subtitle = `${task.readable_id ? `${task.readable_id} · ` : ""}${taskStatusLabel(task.status)} · ${taskClaimHint(task)}`;
-  const header = dsPageHeader(task.title, subtitle, [
-    ...(data.authed
-      ? held
-        ? [{ label: "Libérer", id: "task-head-release", variant: "secondary" as const }]
-        : [{ label: "Prendre", id: "task-head-take", variant: "primary" as const }]
-      : []),
-    { label: "Modifier", id: "task-head-edit", variant: "ghost" as const },
-  ]);
+  const canRelease = data.canRelease ?? (data.authed && held);
   const notice =
     data.notice === ""
       ? ""
       : `<div class="ds-notice ds-notice--${data.noticeTone ?? "danger"}" role="alert">${esc(data.notice)}</div>`;
-  const description = (task.description ?? "").trim();
-  const overview =
-    `<section class="task-detail-section" aria-label="Vue générale">` +
-    `${dsSectionHeader("Vue générale")}` +
-    `<div class="task-overview">${dsBadge(taskStatusLabel(task.status), taskStatusTone(task.status))}` +
-    `<p><a href="#/projects/${esc(task.project_id)}">Ouvrir le projet</a></p></div>` +
-    (description === "" ? `<p class="ds-list-sub">Sans description.</p>` : `<p class="task-description">${esc(description)}</p>`) +
-    `</section>`;
   const edit =
     `<section class="task-detail-section" aria-label="Modifier la tâche" id="task-edit-section">` +
     `${dsSectionHeader("Modifier la tâche")}${taskEditFormHtml(task, data.authed)}</section>`;
@@ -274,13 +503,23 @@ export function taskDetailHtml(data: TaskDetailData): string {
     data.taskClaims === null
       ? ""
       : `<p class="ds-list-sub">Réservations de ressources liées : ${data.taskClaims} — <a href="#/projects/${esc(task.project_id)}/claims">voir l'onglet Réservations du projet</a>.</p>`;
-  return `<div class="tasks task-detail">${header}${notice}${overview}${edit}${claimSectionHtml(task, data.authed)}` +
+  return `<div class="tasks task-detail">${heroHtml(task, data, held)}${notice}` +
+    `<div class="task-detail-body"><div class="task-detail-main">` +
+    // Prioritaires et ouverts : ce qui coince, puis ce qui attend une décision.
+    `${blockagesSectionHtml(task)}${validationSectionHtml(data.worklogs)}` +
+    // Mécanique ensuite : modifier, puis la prise en charge.
+    `${edit}${claimSectionHtml(task, data.authed, canRelease)}` +
     `<div data-msg class="ds-list-sub" role="status" aria-live="polite"></div>` +
-    `${sessionsSectionHtml(data.sessions)}${aiWorkSectionHtml(data.worklogs)}${claimsLine}${techDetailsHtml(task)}</div>`;
+    `${foldedMechanicsHtml(data)}${techDetailsHtml(task)}${claimsLine}` +
+    `</div>${propsAsideHtml(task)}</div></div>`;
 }
 
-export async function renderTaskDetail(root: HTMLElement, ctx: TaskDetailContext, taskId: string): Promise<void> {
+export async function renderTaskDetail(root: HTMLElement, baseCtx: TaskDetailContext, taskId: string): Promise<void> {
   root.innerHTML = taskDetailLoadingHtml(taskId);
+  const ctx: TaskDetailContext = {
+    ...baseCtx,
+    identity: baseCtx.identity ?? (baseCtx.authed ? await fetchIdentity(baseCtx.client) : null),
+  };
   let task: Task;
   try {
     task = await getTask(ctx.client, taskId);
@@ -306,11 +545,12 @@ export async function renderTaskDetail(root: HTMLElement, ctx: TaskDetailContext
     // Best-effort : sections « indisponible », compteur omis, page intacte.
   }
 
-  paint(root, ctx, { task, sessions, worklogs, taskClaims, notice: "", authed: ctx.authed });
+  const launch = ctx.authed ? await loadLaunchData(ctx.client, task, sessions) : null;
+  paint(root, ctx, { task, sessions, worklogs, taskClaims, notice: "", authed: ctx.authed, launch });
 }
 
 function paint(root: HTMLElement, ctx: TaskDetailContext, data: TaskDetailData): void {
-  root.innerHTML = taskDetailHtml(data);
+  root.innerHTML = taskDetailHtml({ ...data, canRelease: canReleaseTask(data.task, data.authed, ctx.identity) });
   bind(root, ctx, data);
 }
 
@@ -336,6 +576,24 @@ function setEditError(root: HTMLElement, message: string): void {
   }
 }
 
+/**
+ * Divulgation progressive à la demande : une ancre interne qui pointe dans
+ * un bloc replié l'ouvre avant de défiler. Sans cible connue, on laisse le
+ * navigateur faire (comportement natif d'un <a href="#id">).
+ */
+function revealFoldTarget(root: HTMLElement, id: string, event: Event): void {
+  const target = root.querySelector(`#${CSS.escape(id)}`);
+  if (target === null) return;
+  for (let node: Element | null = target; node !== null && node !== root; node = node.parentElement) {
+    if (node instanceof HTMLDetailsElement) {
+      node.open = true;
+      break;
+    }
+  }
+  event.preventDefault();
+  target.scrollIntoView({ block: "start" });
+}
+
 function bind(root: HTMLElement, ctx: TaskDetailContext, data: TaskDetailData): void {
   const { task } = data;
   root.querySelector<HTMLElement>("#task-head-edit")?.addEventListener("click", () => {
@@ -346,8 +604,16 @@ function bind(root: HTMLElement, ctx: TaskDetailContext, data: TaskDetailData): 
   root.querySelector<HTMLElement>("#task-head-take")?.addEventListener("click", () => {
     void doClaim(root, ctx, task.id);
   });
-  root.querySelector<HTMLElement>("#task-head-release")?.addEventListener("click", () => {
-    void doRelease(root, ctx, task.id);
+  // Ancres internes (panneau de lancement → #task-sessions / #task-ai-work) :
+  // elles vivent désormais dans un bloc replié. On ouvre le repli avant de
+  // défiler, et on neutralise la navigation pour ne pas tomber sur le 404
+  // du routeur (une ancre nue n'est pas une route).
+  root.addEventListener("click", (event) => {
+    const link = (event.target as HTMLElement | null)?.closest?.("a");
+    if (!(link instanceof HTMLAnchorElement)) return;
+    const hash = link.getAttribute("href") ?? "";
+    if (!hash.startsWith("#") || hash.startsWith("#/")) return;
+    revealFoldTarget(root, hash.slice(1), event);
   });
 
   const form = root.querySelector<HTMLFormElement>("#task-edit-form");
@@ -412,8 +678,209 @@ function bind(root: HTMLElement, ctx: TaskDetailContext, data: TaskDetailData): 
     void doClaim(root, ctx, task.id);
   });
   root.querySelector("[data-release]")?.addEventListener("click", () => {
-    void doRelease(root, ctx, task.id);
+    void doRelease(root, ctx, task);
   });
+
+  bindLaunchPanel(root, ctx, task, data.launch ?? null);
+}
+
+const LAUNCH_POLL_INTERVAL_MS = 5000;
+
+function bindLaunchPanel(
+  root: HTMLElement,
+  ctx: TaskDetailContext,
+  task: Task,
+  initial: LaunchPanelData | null,
+): void {
+  const found = root.querySelector<HTMLElement>("#task-launch-panel");
+  if (found === null || !ctx.authed) return;
+  const container: HTMLElement = found;
+  const state: LaunchPanelState = {
+    data: initial,
+    authed: true,
+    canCancel: initial !== null && initial.latest !== null ? canCancelLaunch(initial.latest, ctx.identity) : false,
+    selectedMachineId: "",
+    selectedHarnessId: "",
+    agentStableKey: "",
+    preview: null,
+    previewLoading: false,
+    previewError: "",
+    latestLoading: false,
+    notice: "",
+    error: "",
+  };
+  let pollTimer: number | null = null;
+
+  /** Adopte une lecture serveur comme seule vérité affichée. */
+  function applyLatest(launch: TaskLaunch): void {
+    if (state.data === null) return;
+    state.data = { ...state.data, latest: launch };
+    state.canCancel = canCancelLaunch(launch, ctx.identity);
+  }
+
+  function bindPanel(): void {
+    container.querySelector<HTMLSelectElement>("#launch-machine")?.addEventListener("change", (event) => {
+      state.selectedMachineId = (event.target as HTMLSelectElement).value;
+      state.selectedHarnessId = "";
+      state.preview = null;
+      state.previewError = "";
+      state.error = "";
+      render();
+    });
+    container.querySelector<HTMLSelectElement>("#launch-harness")?.addEventListener("change", (event) => {
+      state.selectedHarnessId = (event.target as HTMLSelectElement).value;
+      render();
+    });
+    container.querySelector<HTMLSelectElement>("#launch-agent")?.addEventListener("change", (event) => {
+      state.agentStableKey = (event.target as HTMLSelectElement).value;
+      state.preview = null;
+      state.previewError = "";
+      render();
+    });
+    container.querySelector("[data-action=launch-preview]")?.addEventListener("click", () => void doPreview());
+    container.querySelector("[data-action=launch-submit]")?.addEventListener("click", () => void doLaunch());
+    container.querySelector("[data-action=launch-refresh]")?.addEventListener("click", () => void doRefresh(false));
+    container.querySelector("[data-action=launch-cancel]")?.addEventListener("click", () => void doCancel());
+  }
+
+  function render(): void {
+    container.innerHTML = launchPanelHtml(state);
+    bindPanel();
+    schedulePoll();
+  }
+
+  /** Suivi borné : relit l'état tant que le lancement n'est pas terminal. */
+  function schedulePoll(): void {
+    if (pollTimer !== null) {
+      window.clearTimeout(pollTimer);
+      pollTimer = null;
+    }
+    const latest = state.data?.latest ?? null;
+    if (latest === null || isTerminalLaunch(latest.status) || !container.isConnected) return;
+    pollTimer = window.setTimeout(() => {
+      pollTimer = null;
+      void doRefresh(true);
+    }, LAUNCH_POLL_INTERVAL_MS);
+  }
+
+  async function doPreview(): Promise<void> {
+    if (state.agentStableKey === "") return;
+    state.previewLoading = true;
+    state.previewError = "";
+    render();
+    try {
+      state.preview = await postResolution(ctx.client, {
+        stable_key: state.agentStableKey,
+        project_id: task.project_id,
+        session_overrides: [],
+      });
+    } catch (error) {
+      state.preview = null;
+      state.previewError = describeError(error);
+    } finally {
+      state.previewLoading = false;
+      render();
+    }
+  }
+
+  async function doRefresh(silent: boolean): Promise<void> {
+    const latest = state.data?.latest ?? null;
+    if (latest === null) return;
+    if (silent && !container.isConnected) return;
+    if (!silent) {
+      state.latestLoading = true;
+      state.error = "";
+      render();
+    }
+    try {
+      const [fresh, sessions] = await Promise.all([
+        getTaskLaunch(ctx.client, latest.id),
+        fetchJson<SessionRow[]>(ctx.client, "/api/v1/sessions", { task_id: task.id }).catch(() => null),
+      ]);
+      applyLatest(fresh);
+      if (sessions !== null && state.data !== null) state.data = { ...state.data, sessions };
+      if (!silent) state.notice = "";
+    } catch (error) {
+      if (!silent) state.error = describeError(error);
+    } finally {
+      if (!silent) state.latestLoading = false;
+      render();
+    }
+  }
+
+  /** Relit un lancement précis après un conflit : aucune réapplication aveugle. */
+  async function reloadLatest(note: string): Promise<void> {
+    const latest = state.data?.latest ?? null;
+    if (latest === null) return;
+    try {
+      const fresh = await getTaskLaunch(ctx.client, latest.id);
+      applyLatest(fresh);
+      state.notice = note;
+    } catch (error) {
+      state.error = describeError(error);
+    }
+  }
+
+  async function doCancel(): Promise<void> {
+    const latest = state.data?.latest ?? null;
+    if (latest === null || !state.canCancel) return;
+    if (!window.confirm(cancelLaunchConfirmText(latest))) return;
+    state.error = "";
+    state.notice = "";
+    const button = container.querySelector<HTMLButtonElement>("[data-action=launch-cancel]");
+    if (button !== null) button.disabled = true;
+    try {
+      const cancelled = await cancelTaskLaunch(ctx.client, latest.id, latest.version);
+      applyLatest(cancelled);
+      state.notice = "Lancement annulé : le poste cible n'exécutera pas (ou plus) cette demande.";
+      dsNotify("Lancement annulé.", "success");
+    } catch (error) {
+      if (error instanceof ApiError && error.errorCode === "version_conflict") {
+        await reloadLatest("Ce lancement a changé ailleurs : état rechargé — vérifiez avant d'annuler à nouveau.");
+      } else if (error instanceof ApiError && error.errorCode === "invalid_launch_transition") {
+        await reloadLatest("Ce lancement est déjà terminé : état rechargé.");
+      } else if (error instanceof ApiError && error.errorCode === "forbidden") {
+        state.error = "Seul le demandeur de ce lancement (ou un administrateur) peut l'annuler.";
+      } else {
+        state.error = describeError(error);
+      }
+    } finally {
+      render();
+    }
+  }
+
+  async function doLaunch(): Promise<void> {
+    const machine = selectedMachine(state);
+    if (machine === null || !machine.eligible || state.selectedHarnessId === "") return;
+    if (!window.confirm(launchConfirmText(machine, state.selectedHarnessId, state.agentStableKey))) return;
+    state.error = "";
+    state.notice = "";
+    const submit = container.querySelector<HTMLButtonElement>("[data-action=launch-submit]");
+    if (submit !== null) submit.disabled = true;
+    try {
+      const created = await createTaskLaunch(
+        ctx.client,
+        task.project_id,
+        {
+          task_id: task.id,
+          machine_id: machine.machine_id,
+          harness_id: state.selectedHarnessId,
+          ...(state.agentStableKey === "" ? {} : { agent_stable_key: state.agentStableKey }),
+          expires_in_seconds: 900,
+        },
+        newIdempotencyKey(),
+      );
+      applyLatest(created);
+      state.notice = "Lancement demandé : en attente de la machine cible, qui seule rapporte l'exécution.";
+      dsNotify("Lancement demandé.", "success");
+      render();
+    } catch (error) {
+      state.error = describeError(error);
+      render();
+    }
+  }
+
+  render();
 }
 
 async function doClaim(root: HTMLElement, ctx: TaskDetailContext, taskId: string): Promise<void> {
@@ -436,12 +903,14 @@ async function doClaim(root: HTMLElement, ctx: TaskDetailContext, taskId: string
   }
 }
 
-async function doRelease(root: HTMLElement, ctx: TaskDetailContext, taskId: string): Promise<void> {
-  for (const button of root.querySelectorAll<HTMLButtonElement>("[data-release], #task-head-release")) {
+async function doRelease(root: HTMLElement, ctx: TaskDetailContext, task: Task): Promise<void> {
+  if (!window.confirm(releaseTaskConfirmText(task))) return;
+  const taskId = task.id;
+  for (const button of root.querySelectorAll<HTMLButtonElement>("[data-release]")) {
     button.disabled = true;
   }
   try {
-    await releaseTask(ctx.client, taskId);
+    await releaseTask(ctx.client, taskId, task.version);
     const data = await readComplements(root, ctx, taskId);
     paint(root, ctx, {
       ...data,
@@ -450,11 +919,55 @@ async function doRelease(root: HTMLElement, ctx: TaskDetailContext, taskId: stri
       authed: ctx.authed,
     });
   } catch (error) {
-    for (const button of root.querySelectorAll<HTMLButtonElement>("[data-release], #task-head-release")) {
+    for (const button of root.querySelectorAll<HTMLButtonElement>("[data-release]")) {
       button.disabled = false;
+    }
+    if (error instanceof ApiError && error.errorCode === "version_conflict") {
+      // La tâche a changé depuis la lecture (reprise, autre libération…) :
+      // on relit et on laisse l'utilisateur redécider, jamais de retry aveugle.
+      try {
+        const data = await readComplements(root, ctx, taskId);
+        paint(root, ctx, {
+          ...data,
+          notice: `Cette tâche a changé ailleurs (version ${data.task.version}) : rien n'a été libéré. Vérifiez son état puis relancez la libération si besoin.`,
+          authed: ctx.authed,
+        });
+      } catch {
+        // readComplements a déjà signalé l'échec du rechargement.
+      }
+      return;
     }
     setMsg(root, "Libération impossible.", describeError(error));
   }
+}
+
+async function loadLaunchData(
+  client: StudioClient,
+  task: Task,
+  sessions: SessionRow[] | null,
+): Promise<LaunchPanelData | null> {
+  const [machines, agents, launches] = await Promise.allSettled([
+    getEligibleMachines(client, task.id),
+    listLibraryResources(client, { kind: "agent_definition", limit: 100 }),
+    listTaskLaunches(client, task.project_id),
+  ]);
+  const machineList =
+    machines.status === "fulfilled" && Array.isArray(machines.value.machines) ? machines.value.machines : null;
+  if (machineList === null) return null;
+  const agentOptions: AgentOption[] =
+    agents.status === "fulfilled" && Array.isArray(agents.value)
+      ? agents.value
+          .filter((resource) => typeof resource.stable_key === "string")
+          .map((resource) => ({ stable_key: resource.stable_key }))
+      : [];
+  const rawLaunches = launches.status === "fulfilled" && Array.isArray(launches.value) ? launches.value : [];
+  const forTask = rawLaunches.filter((launch) => launch.task_id === task.id);
+  return {
+    machines: machineList,
+    agents: agentOptions,
+    latest: forTask.length === 0 ? null : (forTask[forTask.length - 1] ?? null),
+    sessions,
+  };
 }
 
 async function readComplements(
@@ -469,16 +982,23 @@ async function readComplements(
     setMsg(root, "Rechargement impossible.", describeError(error));
     throw error;
   }
+  let sessions: SessionRow[] | null = null;
+  let worklogs: WorkRow[] | null = null;
+  let taskClaims: number | null = null;
   try {
-    const [sessions, worklogs, claims] = await Promise.all([
+    const [fetchedSessions, fetchedWork, fetchedClaims] = await Promise.all([
       fetchJson<SessionRow[]>(ctx.client, "/api/v1/sessions", { task_id: fresh.id }),
       fetchJson<WorkRow[]>(ctx.client, "/api/v1/ai-work", { task_id: fresh.id }),
       fetchJson<{ id: string; task_id?: string | null }[]>(ctx.client, "/api/v1/claims", { project_id: fresh.project_id }),
     ]);
-    return { task: fresh, sessions, worklogs, taskClaims: claims.filter((claim) => claim.task_id === fresh.id).length };
+    sessions = fetchedSessions;
+    worklogs = fetchedWork;
+    taskClaims = fetchedClaims.filter((claim) => claim.task_id === fresh.id).length;
   } catch {
-    return { task: fresh, sessions: null, worklogs: null, taskClaims: null };
+    // Best-effort : sections « indisponible », compteur omis, page intacte.
   }
+  const launch = ctx.authed ? await loadLaunchData(ctx.client, fresh, sessions) : null;
+  return { task: fresh, sessions, worklogs, taskClaims, launch };
 }
 
 async function importSessionsWork(

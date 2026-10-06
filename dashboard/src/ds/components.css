@@ -241,6 +241,95 @@ summary:focus-visible,
 .ds-status--ai .dot { background: var(--ds-ai); }
 .ds-status--info .dot { background: var(--ds-action); }
 
+/* Carte héros : accroche + titre + résumé, une seule action primaire,
+   secondaires en liens discrets. */
+.ds-hero {
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  box-shadow: var(--ds-shadow-sm);
+  padding: var(--ds-space-6);
+  display: grid;
+  gap: var(--ds-space-2);
+  align-content: start;
+}
+.ds-hero h2 {
+  margin: 0;
+  font-size: var(--ds-text-xl);
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+.ds-hero-eyebrow {
+  margin: 0;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-sm);
+  font-weight: 600;
+}
+.ds-hero-body {
+  margin: 0;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-base);
+  max-width: 70ch;
+}
+.ds-hero-status {
+  margin: 0;
+}
+.ds-hero-actions {
+  display: flex;
+  gap: var(--ds-space-3);
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: var(--ds-space-2);
+}
+.ds-hero-link {
+  color: var(--ds-action);
+  font-weight: 600;
+  font-size: var(--ds-text-sm);
+  white-space: nowrap;
+}
+
+/* Détails techniques : repliés par défaut, secondaires. */
+.ds-tech {
+  border-top: 1px solid var(--ds-border);
+  padding-top: var(--ds-space-2);
+  font-size: var(--ds-text-sm);
+  color: var(--ds-text-muted);
+}
+.ds-tech summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: var(--ds-target-sm);
+  display: inline-flex;
+  align-items: center;
+}
+.ds-tech-list {
+  margin: var(--ds-space-2) 0 0;
+  display: grid;
+  gap: var(--ds-space-1);
+}
+.ds-tech-list > div {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: var(--ds-space-2);
+}
+.ds-tech-list dt {
+  font-weight: 600;
+}
+.ds-tech-list dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* État d'erreur : même gabarit que l'état vide, teinte erreur. */
+.ds-empty--error {
+  border: 1px solid var(--ds-danger-border);
+  border-radius: var(--ds-radius-lg);
+  background: var(--ds-danger-soft);
+}
+.ds-empty--error .ds-empty-icon {
+  color: var(--ds-danger);
+}
+
 /* Champs. */
 .ds-field {
   display: grid;
@@ -573,6 +662,12 @@ summary:focus-visible,
 }
 
 /* En-têtes de page et de section : hiérarchie nette, air. */
+.ds-eyebrow {
+  margin: 0 0 var(--ds-space-1);
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-sm);
+  font-weight: 600;
+}
 .ds-page-header {
   display: flex;
   align-items: flex-start;
@@ -699,12 +794,7 @@ summary:focus-visible,
   margin-bottom: var(--ds-space-1);
 }
 
-/* Page démo DS : sections très espacées, jamais un dashboard. */
-.ds-demo {
-  display: grid;
-  gap: var(--ds-space-12);
-  max-width: 880px;
-}
+/* Catalogue DS : sections très espacées, jamais un dashboard. */
 .ds-demo-section {
   display: grid;
   gap: var(--ds-space-4);
@@ -727,6 +817,48 @@ summary:focus-visible,
   gap: var(--ds-space-4);
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
+/* Cartes du catalogue : titre + respiration, sections groupées dedans. */
+.tool-stack {
+  display: grid;
+  gap: var(--ds-space-6);
+  align-content: start;
+}
+.ds-card-title {
+  margin: 0;
+  font-size: var(--ds-text-lg);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.ds-card-hint,
+.ds-demo-hint {
+  margin: 0;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-base);
+  max-width: 68ch;
+}
+.ds-demo-column {
+  display: grid;
+  gap: var(--ds-space-3);
+  margin-top: var(--ds-space-3);
+}
+/* Les cinq états : deux colonnes dès 1400 px, une seule action par état. */
+.state-grid {
+  display: grid;
+  gap: var(--ds-space-4);
+  margin-top: var(--ds-space-4);
+}
+@media (min-width: 1400px) {
+  .state-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .state-grid-full {
+    grid-column: 1 / -1;
+  }
+}
+.state-grid .ds-empty,
+.state-grid .ds-skeleton {
+  margin: 0;
+}
 
 /* Mouvement : discret, désactivé sur demande système. */
 @media (prefers-reduced-motion: reduce) {
@@ -739,6 +871,90 @@ summary:focus-visible,
   .ds-skeleton-bar {
     background: var(--ds-surface-soft);
   }
+}
+
+/* États partagés : actions sous la notice, jamais de bannière dupliquée. */
+.ds-state-actions {
+  display: flex;
+  gap: var(--ds-space-3);
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: var(--ds-space-3);
+}
+
+/* Écrans outils : colonne principale + contexte, empilés sous 1100 px
+   (wireframes/tools.html : 760 px + contexte 340 px dès 1400 px). */
+.tool-columns {
+  display: grid;
+  gap: var(--ds-space-6);
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+@media (min-width: 1100px) {
+  .tool-columns {
+    grid-template-columns: minmax(0, 1fr) 300px;
+  }
+}
+@media (min-width: 1440px) {
+  .tool-columns {
+    grid-template-columns: minmax(0, 760px) 340px;
+    justify-content: center;
+  }
+}
+.tool-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-4);
+  align-content: start;
+  min-width: 0;
+}
+.tool-context {
+  display: grid;
+  gap: var(--ds-space-4);
+  align-content: start;
+}
+.tool-context h2 {
+  margin: 0 0 var(--ds-space-1);
+  font-size: var(--ds-text-base);
+  font-weight: 700;
+}
+.tool-context p {
+  margin: 0;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-sm);
+  max-width: 68ch;
+}
+.tool-context a {
+  color: var(--ds-action);
+  font-weight: 600;
+}
+/* Contexte : une information par ligne, statut libellé (jamais couleur seule). */
+.context-list {
+  margin: 0;
+  display: grid;
+  gap: var(--ds-space-2);
+}
+.context-list > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--ds-space-3);
+  align-items: baseline;
+  padding-top: var(--ds-space-2);
+  border-top: 1px solid var(--ds-border);
+}
+.context-list > div:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.context-list dt {
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-sm);
+}
+.context-list dd {
+  margin: 0;
+  font-size: var(--ds-text-sm);
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 
 /* Responsive : pile, drawer plein écran, tables scrollées (.ds-table-wrap). */
@@ -765,5 +981,9 @@ summary:focus-visible,
   }
   .ds-empty {
     padding: var(--ds-space-8) var(--ds-space-4);
+  }
+  .ds-tech-list > div {
+    grid-template-columns: 1fr;
+    gap: 0;
   }
 }

@@ -1,0 +1,128 @@
+{
+  "$defs": {
+    "SkillHarnessTarget": {
+      "enum": [
+        "agents",
+        "assistant"
+      ],
+      "title": "SkillHarnessTarget",
+      "type": "string"
+    },
+    "SkillPreviewEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "diff": {
+          "title": "Diff",
+          "type": "string"
+        },
+        "stable_key": {
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,199}$",
+          "title": "Stable Key",
+          "type": "string"
+        },
+        "targets": {
+          "items": {
+            "$ref": "#/$defs/SkillTargetState"
+          },
+          "maxItems": 2,
+          "minItems": 1,
+          "title": "Targets",
+          "type": "array"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "stable_key",
+        "version",
+        "targets",
+        "diff"
+      ],
+      "title": "SkillPreviewEntry",
+      "type": "object"
+    },
+    "SkillSyncState": {
+      "enum": [
+        "current",
+        "missing",
+        "outdated",
+        "locally_modified"
+      ],
+      "title": "SkillSyncState",
+      "type": "string"
+    },
+    "SkillTargetState": {
+      "additionalProperties": false,
+      "description": "State of one harness copy of a skill. The contract carries no path and\nno skill content: only which harness directory and how it compares.",
+      "properties": {
+        "harness": {
+          "$ref": "#/$defs/SkillHarnessTarget"
+        },
+        "state": {
+          "$ref": "#/$defs/SkillSyncState"
+        }
+      },
+      "required": [
+        "harness",
+        "state"
+      ],
+      "title": "SkillTargetState",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Preview of the skill synchronization plan with unified diffs.",
+  "properties": {
+    "checked_at": {
+      "format": "date-time",
+      "title": "Checked At",
+      "type": "string"
+    },
+    "current": {
+      "minimum": 0,
+      "title": "Current",
+      "type": "integer"
+    },
+    "diff": {
+      "title": "Diff",
+      "type": "string"
+    },
+    "locally_modified": {
+      "minimum": 0,
+      "title": "Locally Modified",
+      "type": "integer"
+    },
+    "missing": {
+      "minimum": 0,
+      "title": "Missing",
+      "type": "integer"
+    },
+    "outdated": {
+      "minimum": 0,
+      "title": "Outdated",
+      "type": "integer"
+    },
+    "skills": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/SkillPreviewEntry"
+      },
+      "maxItems": 500,
+      "title": "Skills",
+      "type": "array"
+    }
+  },
+  "required": [
+    "current",
+    "missing",
+    "outdated",
+    "locally_modified",
+    "diff",
+    "checked_at"
+  ],
+  "title": "SkillsPreviewResult",
+  "type": "object"
+}

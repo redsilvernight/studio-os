@@ -35,40 +35,6 @@
   max-width: 70ch;
 }
 
-.workspace-tech {
-  font-size: var(--ds-text-sm);
-  color: var(--ds-text-muted);
-}
-
-.workspace-tech summary {
-  cursor: pointer;
-  font-weight: 600;
-  min-height: var(--ds-target-sm);
-  display: inline-flex;
-  align-items: center;
-}
-
-.workspace-tech dl {
-  margin: var(--ds-space-2) 0 0;
-  display: grid;
-  gap: var(--ds-space-1);
-}
-
-.workspace-tech dl > div {
-  display: grid;
-  grid-template-columns: 110px 1fr;
-  gap: var(--ds-space-2);
-}
-
-.workspace-tech dt {
-  font-weight: 600;
-}
-
-.workspace-tech dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
 .workspace-panel {
   display: grid;
   gap: var(--ds-space-4);
@@ -193,10 +159,6 @@
   .workspace-title-row h1 {
     font-size: var(--ds-text-xl);
   }
-  .workspace-tech dl > div {
-    grid-template-columns: 1fr;
-    gap: 0;
-  }
   .tl-item {
     grid-template-columns: 1fr;
   }
@@ -205,7 +167,17 @@
   }
 }
 
-/* Onglet Réservations : formulaire de création aéré, champs en grille. */
+/* Onglet Réservations : filtre d'état, pagination, puis formulaire de création. */
+.claims-filter,
+.claims-pager {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-3);
+  margin: var(--ds-space-3) 0;
+}
+.claims-pager {
+  justify-content: flex-end;
+}
 .claims-create {
   margin-top: var(--ds-space-6);
 }
@@ -222,4 +194,112 @@
 }
 .claims-form > button {
   justify-self: start;
+}
+
+/* Onglet Intégration IA : un poste par ligne, constat seul. */
+.ai-summary {
+  margin: var(--ds-space-2) 0;
+}
+.ai-machine-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  flex-wrap: wrap;
+}
+.ai-machine {
+  display: grid;
+  gap: var(--ds-space-2);
+  padding: var(--ds-space-3) 0;
+  border-top: 1px solid var(--line);
+}
+.ai-machine:first-child {
+  border-top: 0;
+}
+.ai-machine-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ds-space-3);
+  flex-wrap: wrap;
+}
+.ai-refresh {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-3);
+  margin-top: var(--ds-space-4);
+}
+
+
+/* Activité : calendrier du mois + événements du jour sélectionné. */
+.tl-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) 1fr;
+  gap: var(--ds-space-6);
+  align-items: start;
+  margin-bottom: var(--ds-space-6);
+}
+.cal {
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  padding: var(--ds-space-4);
+  display: grid;
+  gap: var(--ds-space-3);
+}
+.cal-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  flex-wrap: wrap;
+}
+.cal-title {
+  flex: 1;
+  text-align: center;
+  text-transform: capitalize;
+}
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--ds-space-1);
+}
+.cal-dow {
+  text-align: center;
+  font-size: var(--ds-text-sm);
+  color: var(--ds-text-muted);
+}
+.cal-day {
+  position: relative;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--ds-radius-md);
+  background: transparent;
+  font: inherit;
+  color: var(--ds-text-muted);
+}
+.cal-day--busy {
+  color: var(--ds-text);
+  font-weight: 600;
+  background: var(--ds-action-soft);
+  cursor: pointer;
+}
+.cal-day--busy.is-selected {
+  background: var(--ds-action);
+  color: #fff;
+}
+.cal-count {
+  position: absolute;
+  bottom: 1px;
+  right: 3px;
+  font-size: 10px;
+  font-weight: 400;
+  opacity: 0.8;
+}
+.tl-selected {
+  min-width: 0;
+}
+@media (max-width: 800px) {
+  .tl-layout {
+    grid-template-columns: 1fr;
+  }
 }

@@ -78,6 +78,21 @@ publique `register`/`resend-verification`/`verify-email` — contrat complet :
   `disabled_at` est pose, sans les revoquer definitivement :
   `studio-admin user enable` efface `disabled_at` et rend les machines de
   nouveau utilisables (les JWT anterieurs restent invalides).
+- **Credential ephemere de lancement** (AIB P9, additif) : le harnais lance par le
+  daemon ne recoit jamais le token machine durable. Le daemon obtient, pour ce
+  lancement, un token opaque (hash SHA-256 en base, `POST /task-launches/{id}/credential`)
+  qui authentifie la machine cible sous une `LaunchScope` (`launch_id`, `project_id`,
+  `task_id`). Valide seulement tant que : non revoque, non expire (au plus
+  `TaskLaunch.expires_at`), lancement non terminal, machine et proprietaire actifs ;
+  sinon le `401` generique. `Principal.project_scope` est reduit au seul projet du
+  lancement. Ouvre uniquement une allowlist : REST `POST /agents/ensure` et
+  `GET /agents` ; MCP `prepare_context`, `start_work`, `start_session`, `end_session`,
+  `sync`, `coordinate`, `log_ai_work`, `handoff`, `register_agent`, `get_task`,
+  `update_task`, `claim_task`, `release_task`, `claim_resource(s)`, `release_resource`,
+  `get_resource_claims`, `get_decisions`, `add_decision`. Hors allowlist :
+  `403 launch_credential_scope`. Limites connues : la portee tache/session n'est pas
+  verifiee appel par appel (seul le projet l'est) ; pas de revocation explicite
+  (`DELETE`) hors reemission.
 - **Echec** : fail-closed, sans retry automatique cote serveur. Tout echec de
   validation d'un Bearer present repond le `401` generique existant
   `{"detail": "invalid or revoked machine token"}` — la cause (expiration,
@@ -279,6 +294,12 @@ Acces projet — regles (DEC-0103 §7-12) :
   transferts dont il est emetteur/destinataire) : toujours visibles de leur
   proprietaire, avec ou sans membership. Un compte actif a 0 membership est
   valide et ne voit que celles-ci.
+- **Lancement a distance (AIB-J)** : lancer du travail sur une machine = proprietaire de la
+  machine, `admin`, ou un User titulaire d'un droit actif de la table
+  `machine_launch_grants` (non expire, projet nul ou egal a celui de la tache). Dans tous
+  les cas le role n'est pas `readonly` et le projet de la tache est accessible a l'appelant :
+  un droit n'elargit jamais l'acces projet, ni ne vaut pour une autre machine. Tout refus =
+  un `403 forbidden` unique, sans indiquer la condition en cause.
 - **Co-membership non transitive** : une membership ne donne jamais acces aux
   ressources globales d'un co-membre (`GET /machines`, `GET /agents` deviennent
   self/admin en version 2 — rupture, `TECH/02_API_CONTRACT.md`). Une session n'est visible que via `session → task → project`
@@ -403,14 +424,31 @@ lieu de bloquer la file.
 Intervalle nominal: 30 s. Etat derive de `last_seen_at` avec seuils configurables.
 
 `POST /heartbeats` — requete `HeartbeatRequest {machine_id, agent_id?,
-client_timestamp}`, reponse `HeartbeatResponse {machine_id, status,
-last_seen_at, server_timestamp}`. `machine_id` du corps doit egaler la
-machine authentifiee, sinon `409 machine_id_mismatch` (DEC-0035) — jamais
-ignore silencieusement. `status` (`online|idle|offline`) est calcule a la
-reponse a partir de `last_seen_at` et des seuils
-`heartbeat_interval_seconds` (defaut 30s, "online" en dessous de 1.5x) /
-`heartbeat_offline_after_seconds` (defaut 90s, "idle" en dessous, "offline"
-au-dela) — jamais mis en cache tel quel cote client.
+client_timestamp, capabilities?}`, reponse `HeartbeatResponse {machine_id,
+status, last_seen_at, server_timestamp, capabilities?}`.
+`capabilities` (AIB R1, additif — contrat e1963627, etendu DEC-0171)
+est le rapport `MachineCapabilities {harnesses[] {harness_id, version?,
+detected, configured}, project_ids[] (UUID seuls), accepts_launches,
+running_launches, max_launches}` : `harness_id`/`version` sont des
+`CapabilityToken` (regex sans separateur ni lettre de lecteur — un chemin
+n'y est pas representable), `detected` (outil present) vs `configured`
+(cable pour Studio OS) ; jamais un chemin, un secret, une empreinte ni un
+contenu de fichier. `bootstrap?` (AIB P6, additif) : liste optionnelle
+`ProjectBootstrapStatus {project_id, checked_at, summary}` (comptes
+`BootstrapFileSummary` du `bootstrap check` local de la machine, jamais un
+chemin ni un nom de fichier), absente quand rien n'est rapporte ; c'est
+l'observation de la machine, pas une comparaison avec le plan serveur ;
+un serveur anterieur rejette (422, `extra=forbid`) un heartbeat qui le porte : deployer le serveur avant les clients. Absent, seul `last_seen_at` est mis a jour et le
+rapport precedent est conserve ; present, il est persiste
+(`machines.capabilities` + `machines.capabilities_reported_at`) et renvoye
+en echo (`HeartbeatResponse.capabilities?`, DEC-0171). `machine_id` du
+corps doit egaler la machine authentifiee,
+sinon `409 machine_id_mismatch` (DEC-0035) — jamais ignore
+silencieusement. `status` (`online|idle|offline`) est calcule a la reponse a
+partir de `last_seen_at` et des seuils `heartbeat_interval_seconds` (defaut
+30s, "online" en dessous de 1.5x) / `heartbeat_offline_after_seconds`
+(defaut 90s, "idle" en dessous, "offline" au-dela) — jamais mis en cache tel
+quel cote client.
 
 ## Conflits de mise a jour
 Les objets mutables utilisent `updated_at` et idealement une version entiere. En cas de conflit, le client doit recevoir 409 avec la version serveur courante.

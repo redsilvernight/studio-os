@@ -30,6 +30,7 @@ from studio_contracts.version import (
 
 from studio_api.compat import check_client, client_status, family_latest, family_minimum
 from studio_api.observability import MetricsMiddleware
+from studio_api.security_log import security_event
 from studio_api.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -160,6 +161,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     AUTH_PATH_PREFIX = "/api/v1/auth/"
     AUTHENTICATED_AUTH_PATHS = frozenset({"/api/v1/auth/me"})
     MAX_AUTHENTICATED_TOKENS = 10_000
+    # 429 security events: at most one per (bucket, key) per window, so a
+    # flooding client cannot flood the security log; the next event reports
+    # how many 429s were suppressed in between.
+    EVENT_WINDOW_SECONDS = 60.0
+    MAX_EVENT_KEYS = 10_000
 
     def __init__(
         self,
@@ -188,6 +194,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._auth_last_update: dict[str, float] = defaultdict(float)
         # Bounded LRU of token hashes verified by the auth dependency.
         self._authenticated: OrderedDict[str, None] = OrderedDict()
+        # (bucket, key) -> [last event time, suppressed count since].
+        self._limit_events: OrderedDict[tuple[str, str], list[float]] = OrderedDict()
         self._lock: Any = None
 
     async def _get_lock(self) -> Any:
@@ -247,6 +255,32 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             # Revoked since it was cached: back to the IP bucket.
             self._authenticated.pop(token_hash, None)
 
+    def _log_rate_limited(self, request: Request, bucket: str, key: str, now: float) -> None:
+        """Emit a `rate_limit.exceeded` security event, once per key and window.
+
+        Only the bucket name, resolved client IP and path are logged: the key
+        may embed a token hash and the query string may carry secrets.
+        """
+        event_key = (bucket, key)
+        entry = self._limit_events.get(event_key)
+        if entry is not None and now - entry[0] < self.EVENT_WINDOW_SECONDS:
+            entry[1] += 1
+            return
+        suppressed = int(entry[1]) if entry is not None else 0
+        self._limit_events[event_key] = [now, 0.0]
+        self._limit_events.move_to_end(event_key)
+        while len(self._limit_events) > self.MAX_EVENT_KEYS:
+            self._limit_events.popitem(last=False)
+        security_event(
+            "rate_limit.exceeded",
+            outcome="blocked",
+            level=logging.WARNING,
+            bucket=bucket,
+            client_ip=self.client_ip(request),
+            path=request.url.path,
+            suppressed=suppressed or None,
+        )
+
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         path = request.url.path
         if path in {"/healthz", "/metrics", "/version"}:
@@ -260,6 +294,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return await self._dispatch_with_bucket(
                 call_next,
                 request,
+                "webhook",
                 "github-webhook" + self._key(request, None),
                 self._webhook_tokens,
                 self._webhook_last_update,
@@ -272,6 +307,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return await self._dispatch_with_bucket(
                 call_next,
                 request,
+                "auth",
                 "auth" + self._key(request, None),
                 self._auth_tokens,
                 self._auth_last_update,
@@ -282,6 +318,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         response = await self._dispatch_with_bucket(
             call_next,
             request,
+            "general",
             self._key(request, token_hash),
             self._tokens,
             self._last_update,
@@ -295,6 +332,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self,
         call_next: RequestResponseEndpoint,
         request: Request,
+        bucket: str,
         key: str,
         tokens: dict[str, float],
         last_update: dict[str, float],
@@ -310,6 +348,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 tokens.get(key, burst) + rate_per_second * (now - last),
             )
             if current < 1.0:
+                self._log_rate_limited(request, bucket, key, now)
                 return Response(
                     content='{"detail":"rate limit exceeded"}',
                     status_code=429,

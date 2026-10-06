@@ -32,6 +32,8 @@ from pathlib import Path
 from typing import Any
 
 from .adr_common import index_vault_notes_by_dec_id, load_vault_note, parse_adr_markdown
+from .dev_preflight import record as preflight_record
+from .dev_preflight import run_preflight
 
 DECISIONS_DIR_RELPATH = "docs/decisions"
 DEFAULT_VAULT_DIR = Path(r"E:\LocalAI\AI-Memory\projects\studio-os\decisions")
@@ -228,7 +230,21 @@ def main() -> int:
     ap.add_argument(
         "--check-db", type=str, default=None, help="DSN to best-effort probe (optional)"
     )
+    ap.add_argument(
+        "--no-preflight",
+        action="store_true",
+        help="skip the read-only dev == origin/dev preflight (explicit opt-out, logged)",
+    )
     args = ap.parse_args()
+
+    preflight_exit = 0
+    if args.no_preflight:
+        print("dev-preflight: SKIPPED (--no-preflight) -- dev state not verified")
+    else:
+        pre = run_preflight(args.root)
+        print(f"dev-preflight [{pre.status}] {pre.message}")
+        print(f"dev-preflight record: {json.dumps(preflight_record(pre))}")
+        preflight_exit = pre.exit_code
 
     report = run_lint(args.root, args.vault_dir, args.graph_path)
     if args.check_db is not None:
@@ -246,7 +262,7 @@ def main() -> int:
         print(f"  [{issue.severity.upper()}] {issue.check} ({issue.dec_id}): {issue.message}")
     warnings = len(report.issues) - len(report.errors)
     print(f"{len(report.errors)} erreur(s), {warnings} avertissement(s)")
-    return 1 if report.errors else 0
+    return 1 if report.errors else preflight_exit
 
 
 if __name__ == "__main__":

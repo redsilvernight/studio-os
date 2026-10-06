@@ -15,6 +15,8 @@ const MAIN_ROUTES = [
   "#/projects",
   "#/tasks",
   "#/machines",
+  "#/accounts",
+  "#/administration",
   "#/decisions",
   "#/transfers",
   "#/library",
@@ -22,6 +24,7 @@ const MAIN_ROUTES = [
   "#/configuration/runtimes",
   "#/configuration/bindings",
   "#/configuration/project",
+  "#/workspaces",
   "#/inspector",
   "#/design-system",
 ];

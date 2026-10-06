@@ -54,6 +54,8 @@ from studio_contracts.local.harness import (
 from studio_contracts.local.identity import (
     IdentityEnrollRequest,
     IdentityEnrollResult,
+    IdentityForgetRequest,
+    IdentityForgetResult,
     IdentityView,
 )
 from studio_contracts.local.knowledge import (
@@ -67,11 +69,35 @@ from studio_contracts.local.knowledge import (
     KnowledgeSearchResult,
     KnowledgeStatus,
 )
+from studio_contracts.local.launch import (
+    LaunchSettingsRequest,
+    LaunchSettingsSaveRequest,
+    LaunchSettingsView,
+)
+from studio_contracts.local.machine_setup import (
+    SetupApplyRequest,
+    SetupApplyResult,
+    SetupHooksCheckRequest,
+    SetupHooksCheckResult,
+    SetupPlan,
+    SetupPlanRequest,
+)
+from studio_contracts.local.outbox import OutboxLegacyStatus
 from studio_contracts.local.publication import (
     PublicationPlan,
     PublicationPreviewRequest,
     PublicationPublishRequest,
     PublicationResult,
+)
+from studio_contracts.local.skills import (
+    SkillsApplyRequest,
+    SkillsApplyResult,
+    SkillsCheckRequest,
+    SkillsCheckResult,
+    SkillsConfigureRequest,
+    SkillsPreviewRequest,
+    SkillsPreviewResult,
+    SkillsSyncStatus,
 )
 from studio_contracts.local.workspace import (
     LocalWorkspaceConfig,
@@ -124,6 +150,7 @@ class BridgeCommand(StrEnum):
     DAEMON_HEALTH = "daemon.health"
     IDENTITY_GET_VIEW = "identity.get_view"
     IDENTITY_ENROLL = "identity.enroll"
+    IDENTITY_FORGET = "identity.forget"
     WORKSPACE_VALIDATE = "workspace.validate"
     WORKSPACE_GET_CONFIG = "workspace.get_config"
     WORKSPACE_CONFIRM_ROOTS = "workspace.confirm_roots"
@@ -147,6 +174,17 @@ class BridgeCommand(StrEnum):
     HARNESS_APPLY = "harness.apply"
     HARNESS_ROLLBACK = "harness.rollback"
     HARNESS_VERIFY = "harness.verify"
+    SKILLS_CHECK = "skills.check"
+    SKILLS_PREVIEW = "skills.preview"
+    SKILLS_APPLY = "skills.apply"
+    SKILLS_STATUS = "skills.status"
+    SKILLS_CONFIGURE = "skills.configure"
+    SETUP_PLAN = "setup.plan"
+    SETUP_APPLY = "setup.apply"
+    SETUP_HOOKS_CHECK = "hooks.check"
+    LAUNCH_GET_SETTINGS = "launch.get_settings"
+    LAUNCH_SAVE_SETTINGS = "launch.save_settings"
+    OUTBOX_LEGACY_STATUS = "outbox.legacy_status"
     PUBLICATION_PREVIEW = "publication.preview"
     PUBLICATION_PUBLISH = "publication.publish"
 
@@ -226,6 +264,13 @@ BRIDGE_COMMANDS: dict[BridgeCommand, CommandSpec] = dict(
             BridgeCommand.IDENTITY_ENROLL,
             IdentityEnrollRequest,
             IdentityEnrollResult,
+            "identity.enroll",
+            mutating=True,
+        ),
+        _spec(
+            BridgeCommand.IDENTITY_FORGET,
+            IdentityForgetRequest,
+            IdentityForgetResult,
             "identity.enroll",
             mutating=True,
         ),
@@ -337,6 +382,61 @@ BRIDGE_COMMANDS: dict[BridgeCommand, CommandSpec] = dict(
             HarnessVerifyRequest,
             HarnessVerifyResult,
             "harness.verify",
+        ),
+        _spec(BridgeCommand.SKILLS_CHECK, SkillsCheckRequest, SkillsCheckResult, "skills.read"),
+        _spec(
+            BridgeCommand.SKILLS_PREVIEW,
+            SkillsPreviewRequest,
+            SkillsPreviewResult,
+            "skills.read",
+        ),
+        _spec(
+            BridgeCommand.SKILLS_APPLY,
+            SkillsApplyRequest,
+            SkillsApplyResult,
+            "skills.apply",
+            mutating=True,
+        ),
+        _spec(BridgeCommand.SKILLS_STATUS, EmptyPayload, SkillsSyncStatus, "skills.read"),
+        _spec(
+            BridgeCommand.SKILLS_CONFIGURE,
+            SkillsConfigureRequest,
+            SkillsSyncStatus,
+            "skills.apply",
+            mutating=True,
+        ),
+        _spec(BridgeCommand.SETUP_PLAN, SetupPlanRequest, SetupPlan, "setup.plan"),
+        _spec(
+            BridgeCommand.SETUP_APPLY,
+            SetupApplyRequest,
+            SetupApplyResult,
+            "setup.apply",
+            mutating=True,
+        ),
+        _spec(
+            BridgeCommand.SETUP_HOOKS_CHECK,
+            SetupHooksCheckRequest,
+            SetupHooksCheckResult,
+            "setup.plan",
+        ),
+        _spec(
+            BridgeCommand.LAUNCH_GET_SETTINGS,
+            LaunchSettingsRequest,
+            LaunchSettingsView,
+            "launch.settings",
+        ),
+        _spec(
+            BridgeCommand.LAUNCH_SAVE_SETTINGS,
+            LaunchSettingsSaveRequest,
+            LaunchSettingsView,
+            "launch.settings",
+            mutating=True,
+        ),
+        _spec(
+            BridgeCommand.OUTBOX_LEGACY_STATUS,
+            EmptyPayload,
+            OutboxLegacyStatus,
+            "daemon.health",
         ),
         _spec(
             BridgeCommand.PUBLICATION_PREVIEW,

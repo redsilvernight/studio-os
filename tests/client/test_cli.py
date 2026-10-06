@@ -192,6 +192,7 @@ def _ai_work_body(work_id: uuid.UUID, project_id: uuid.UUID, agent_id: uuid.UUID
         "project_id": str(project_id),
         "agent_id": str(agent_id),
         "machine_id": None,
+        "session_id": None,
         "summary": "Investigate claim TTL bug",
         "status": "review_requested",
         "changed_files": [],

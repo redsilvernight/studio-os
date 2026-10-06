@@ -39,7 +39,8 @@ State which tier was selected and why. Never run Tier 3 merely because it is ava
 
 ## Bornes d'exécution
 
-- Avant toute suite, sonde d'infra via PowerShell sur le port du projet (compose ou `.env` ; ex. `Test-NetConnection localhost -Port 5432`). Absente : ne lance pas les suites qui en dépendent, marque-les « non exécuté (infra absente) ».
+- Avant toute suite, sonde d'infra : `uv run python -m tests.infra_probe` (TCP local, 0,5 s ; code 0 = Postgres et MinIO joignables, 1 sinon) ou, sous PowerShell, `Test-NetConnection 127.0.0.1 -Port 5432`. Les tests marqués `infra` (Postgres via `db_session`/`engine`, MinIO via `@pytest.mark.infra("minio")`) sont alors ignorés automatiquement avec le service manquant nommé ; `-m "not infra"` les désélectionne, `--require-infra` échoue au lieu d'ignorer. Chaque test est borné par `pytest-timeout` (120 s par défaut).
+- Rapport obligatoire : liste les suites/fichiers « NON exécuté (infra absente) » (section `tests NON exécutés faute d'infra` du résumé pytest) et ne conclus JAMAIS à une validation de Postgres, MinIO, des migrations, des claims/transferts à partir d'un run où elles étaient ignorées : un run vert sans infra ne prouve que la partie sans infra. Contrats : `scripts/validate-contracts.ps1`.
 - Chaque commande est bornée à 300 s ; jamais de relance en boucle. Un blocage = arrêt et rapport.
 
 ## Windows

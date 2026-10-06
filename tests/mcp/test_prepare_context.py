@@ -157,7 +157,7 @@ async def _claim(
 
 
 async def _prepare(ctx: FakeContext, project: ProjectModel, objective: str, **kwargs: Any):
-    return dump(await studio_prepare_context(str(project.id), objective, ctx, **kwargs))
+    return dump(await studio_prepare_context(str(project.id), ctx, objective=objective, **kwargs))
 
 
 # ---------------------------------------------------------------------------
@@ -435,6 +435,99 @@ async def test_objective_without_usable_terms_still_returns_structural_context(
     assert result["task"]["title"] == "Anchor"
 
 
+async def test_objective_defaults_from_task_and_exposes_source_references(
+    db_session: AsyncSession, machine: Machine, auth_ctx: FakeContext
+) -> None:
+    principal = await _principal(db_session, machine)
+    project = await _project(db_session)
+    task = await _task(
+        db_session,
+        principal,
+        project,
+        "Review roadmap bootstrap",
+        "Validate the plan.\nSource: docs/roadmaps/bootstrap.pdf",
+    )
+
+    result = dump(await studio_prepare_context(str(project.id), auth_ctx, task_id=str(task.id)))
+
+    assert result["query_terms"][:3] == ["review", "roadmap", "bootstrap"]
+    assert result["task"]["source_references"] == ["docs/roadmaps/bootstrap.pdf"]
+
+
+async def test_objective_is_required_without_task(
+    auth_ctx: FakeContext, project: ProjectModel
+) -> None:
+    result = dump(await studio_prepare_context(str(project.id), auth_ctx))
+    assert result["error_code"] == "invalid_argument"
+
+
+async def test_known_ids_return_unchanged_references_without_spending_text_budget(
+    db_session: AsyncSession, machine: Machine, auth_ctx: FakeContext
+) -> None:
+    principal = await _principal(db_session, machine)
+    project = await _project(db_session)
+    task = await _task(db_session, principal, project, "Watcher task", "Long watcher description")
+    decision = await _decision(
+        db_session, principal, project, "Watcher decision", "Long watcher rationale"
+    )
+
+    baseline = await _prepare(auth_ctx, project, "watcher", task_id=str(task.id))
+    result = await _prepare(
+        auth_ctx,
+        project,
+        "watcher",
+        task_id=str(task.id),
+        known_ids={
+            str(task.id): baseline["task"]["content_hash"],
+            str(decision.id): baseline["decisions"][0]["content_hash"],
+        },
+    )
+
+    assert result["task"]["unchanged"] is True
+    assert "description" not in result["task"]
+    assert result["decisions"][0]["unchanged"] is True
+    assert result["decisions"][0]["body"] == ""
+    assert result["limits"]["chars_used"] < baseline["limits"]["chars_used"]
+
+    stale = await _prepare(
+        auth_ctx,
+        project,
+        "watcher",
+        task_id=str(task.id),
+        known_ids={str(task.id): "0" * 64},
+    )
+    assert "unchanged" not in stale["task"]
+    assert stale["task"]["description"] == "Long watcher description"
+
+
+async def test_known_ids_reject_invalid_or_excessive_maps(
+    auth_ctx: FakeContext, project: ProjectModel
+) -> None:
+    invalid = dump(
+        await studio_prepare_context(
+            str(project.id), auth_ctx, objective="watcher", known_ids={"nope": "0" * 64}
+        )
+    )
+    assert invalid["error_code"] == "invalid_argument"
+
+    excessive = dump(
+        await studio_prepare_context(
+            str(project.id),
+            auth_ctx,
+            objective="watcher",
+            known_ids={str(uuid.uuid4()): "0" * 64 for _ in range(101)},
+        )
+    )
+    assert excessive["error_code"] == "invalid_argument"
+
+    invalid_hash = dump(
+        await studio_prepare_context(
+            str(project.id), auth_ctx, objective="watcher", known_ids={str(uuid.uuid4()): "bad"}
+        )
+    )
+    assert invalid_hash["error_code"] == "invalid_argument"
+
+
 # ---------------------------------------------------------------------------
 # Isolation and permissions
 # ---------------------------------------------------------------------------
@@ -479,7 +572,11 @@ async def test_foreign_or_unknown_task_fails_closed_with_the_same_answer(
     foreign_task = await _task(db_session, principal, foreign, "Secret")
 
     for task_id in (foreign_task.id, uuid.uuid4()):
-        result = dump(await studio_prepare_context(str(mine.id), "watcher", auth_ctx, str(task_id)))
+        result = dump(
+            await studio_prepare_context(
+                str(mine.id), auth_ctx, objective="watcher", task_id=str(task_id)
+            )
+        )
         assert result["error_code"] == "not_found"
         assert "Secret" not in json.dumps(result)
 
@@ -521,12 +618,14 @@ async def test_readonly_role_can_read_like_on_every_other_read_tool(
 async def test_unauthenticated_and_invalid_token_are_rejected(
     db_session: AsyncSession, project: ProjectModel
 ) -> None:
-    anonymous = dump(await studio_prepare_context(str(project.id), "watcher", FakeContext()))
+    anonymous = dump(
+        await studio_prepare_context(str(project.id), FakeContext(), objective="watcher")
+    )
     assert anonymous["error_code"] == "unauthenticated"
     bad = FakeContext(headers={"authorization": "Bearer nope"})
-    assert dump(await studio_prepare_context(str(project.id), "x", bad))["error_code"] == (
-        "unauthenticated"
-    )
+    assert dump(await studio_prepare_context(str(project.id), bad, objective="x"))[
+        "error_code"
+    ] == ("unauthenticated")
 
 
 async def test_writes_nothing(
@@ -576,20 +675,24 @@ async def test_out_of_range_arguments_are_rejected(
 ) -> None:
     arguments = dict(kwargs)
     objective = arguments.pop("objective")
-    result = dump(await studio_prepare_context(str(project.id), objective, auth_ctx, **arguments))
+    result = dump(
+        await studio_prepare_context(str(project.id), auth_ctx, objective=objective, **arguments)
+    )
     assert result["error_code"] == "invalid_argument"
 
 
 @pytest.mark.isolation
 async def test_bad_ids_and_unknown_project(project: ProjectModel, auth_ctx: FakeContext) -> None:
-    assert dump(await studio_prepare_context("nope", "x", auth_ctx))["error_code"] == (
+    assert dump(await studio_prepare_context("nope", auth_ctx, objective="x"))["error_code"] == (
         "invalid_argument"
     )
     assert (
-        dump(await studio_prepare_context(str(project.id), "x", auth_ctx, "nope"))["error_code"]
+        dump(
+            await studio_prepare_context(str(project.id), auth_ctx, objective="x", task_id="nope")
+        )["error_code"]
         == "invalid_argument"
     )
-    unknown = dump(await studio_prepare_context(str(uuid.uuid4()), "x", auth_ctx))
+    unknown = dump(await studio_prepare_context(str(uuid.uuid4()), auth_ctx, objective="x"))
     assert (unknown["error_code"], unknown["resource"], unknown["action"]) == (
         "forbidden",
         "project",
@@ -607,7 +710,7 @@ async def test_tool_is_additive_read_only_and_has_an_output_schema() -> None:
     tool = tools["studio_prepare_context"]
     assert tool.annotations is not None and tool.annotations.read_only_hint is True
     assert tool.output_schema is not None
-    assert set(tool.input_schema["required"]) == {"project_id", "objective"}
+    assert set(tool.input_schema["required"]) == {"project_id"}
     for legacy in (
         "studio_get_projects",
         "studio_get_project_state",

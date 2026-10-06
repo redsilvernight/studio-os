@@ -1,6 +1,7 @@
+// @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
 import { parseRoute } from "./router";
-import { shellHtml, shellNavGroups } from "./shell";
+import { mountAdminFlyout, paintConnection, shellHtml, shellNavGroups } from "./shell";
 import { notFoundHtml } from "./views/notFound";
 
 function authedShell(routeName: Parameters<typeof shellHtml>[0]): string {
@@ -10,26 +11,54 @@ function authedShell(routeName: Parameters<typeof shellHtml>[0]): string {
 describe("shellNavGroups (UI-2)", () => {
   it("covers the target navigation with existing routes only", () => {
     const groups = shellNavGroups({ name: "dashboard" });
-    expect(groups.map((group) => group.title)).toEqual([
-      "Principal",
-      "Connaissances",
-      "Infrastructure",
-      "Outils",
+    expect(groups.map((group) => group.title)).toEqual(["Principal", "Administration", "Outils experts"]);
+    expect(groups[0]?.items.map((item) => [item.label, item.href])).toEqual([
+      ["Accueil", "#/"],
+      ["Projets", "#/projects"],
+      ["Travail", "#/tasks"],
+      ["À valider", "#/decisions"],
+      ["Agents", "#/agents"],
     ]);
-    const hrefs = groups.flatMap((group) => group.items.map((item) => item.href));
-    expect(hrefs).toEqual([
-      "#/",
-      "#/projects",
-      "#/tasks",
-      "#/agents",
-      "#/library",
-      "#/decisions",
-      "#/graphs/knowledge",
-      "#/transfers",
+    expect(groups[1]?.collapsible).toBe(true);
+    expect(groups[1]?.items.map((item) => item.href)).toEqual([
+      "#/administration",
       "#/machines",
       "#/accounts",
-      "#/inspector",
+      "#/transfers",
+      "#/library",
+      "#/configuration/runtimes",
+      "#/workspaces",
     ]);
+    expect(groups[2]?.items.map((item) => item.href)).toEqual(["#/graphs/knowledge", "#/inspector"]);
+  });
+
+  it("keeps Administration collapsed unless the active page belongs to it", () => {
+    expect(shellHtml({ name: "dashboard" }, true)).toContain('<details class="app-navgroup app-navgroup--secondary"><summary>');
+    expect(shellHtml({ name: "machines" }, true)).toContain('<details class="app-navgroup app-navgroup--secondary" open>');
+    expect(shellHtml({ name: "admin" }, true)).toContain('href="#/administration" aria-current="page"');
+  });
+
+  it("shows Espaces de travail in Administration on web and desktop, keeping five daily entries", () => {
+    for (const desktop of [false, true]) {
+      const groups = shellNavGroups({ name: "dashboard" }, desktop);
+      expect(groups[0]?.items).toHaveLength(5);
+      expect(groups[1]?.items.map((item) => item.label)).toEqual([
+        "Vue d'ensemble",
+        "Postes",
+        "Comptes",
+        "Transferts",
+        "Bibliothèque",
+        "Configuration",
+        "Espaces de travail",
+      ]);
+    }
+  });
+
+  it("keeps expert tools out of the Administration entry", () => {
+    const groups = shellNavGroups({ name: "dashboard" });
+    expect(groups[1]?.items.map((item) => item.href)).not.toContain("#/graphs/knowledge");
+    expect(groups[1]?.items.map((item) => item.href)).not.toContain("#/inspector");
+    expect(groups[2]?.title).toBe("Outils experts");
   });
 
   it("marks exactly one active item per route", () => {
@@ -46,11 +75,11 @@ describe("shellNavGroups (UI-2)", () => {
     }
   });
 
-  it("leaves groups inactive on configuration routes (Paramètres foot link carries it)", () => {
+  it("activates Configuration inside Administration on every configuration route", () => {
     const active = shellNavGroups({ name: "configBindings" })
       .flatMap((group) => group.items)
       .filter((item) => item.active);
-    expect(active).toHaveLength(0);
+    expect(active.map((item) => item.label)).toEqual(["Configuration"]);
     expect(shellHtml({ name: "configApplication" }, true)).toContain('href="#/configuration/runtimes" aria-current="page"');
     expect(shellHtml({ name: "configIntegrations" }, true)).toContain('href="#/configuration/runtimes" aria-current="page"');
     expect(shellHtml({ name: "configBindings" }, true)).toContain('href="#/configuration/runtimes" aria-current="page"');
@@ -63,8 +92,10 @@ describe("shellHtml (UI-2)", () => {
     expect(html).toContain('aria-label="Navigation principale"');
     expect(html).toContain("Accueil");
     expect(html).toContain("Bibliothèque");
-    expect(html).toContain("Tâches");
-    expect(html).toContain("Paramètres");
+    expect(html).toContain("Travail");
+    expect(html).toContain("À valider");
+    expect(html).toContain("Configuration");
+    expect(html).toContain("Espaces de travail");
     expect(html).toContain("Aller au contenu");
     expect(html).toContain("Se déconnecter");
   });
@@ -87,9 +118,9 @@ describe("shellHtml (UI-2)", () => {
     expect(html).not.toMatch(/notification|cloche|recherche globale/i);
   });
 
-  it("links Agents IA to the real page, no longer upcoming", () => {
+  it("links Agents to the real page, no longer upcoming", () => {
     const html = authedShell({ name: "dashboard" });
-    expect(html).toContain("Agents IA");
+    expect(html).toContain('<span class="app-navlabel">Agents</span>');
     expect(html).toContain('href="#/agents"');
     expect(html).not.toContain("Bientôt");
   });
@@ -123,6 +154,63 @@ describe("shellHtml (UI-2)", () => {
   });
 });
 
+describe("shellHtml (P03-shell)", () => {
+  function parse(html: string): Document {
+    return new DOMParser().parseFromString(html, "text/html");
+  }
+
+  it("renders exactly one connection status and no other « Connecté » (C4)", () => {
+    for (const authed of [true, false]) {
+      const doc = parse(shellHtml(parseRoute("#/"), authed));
+      const statuses = doc.querySelectorAll('[data-testid="connection-status"]');
+      expect(statuses).toHaveLength(1);
+      expect(statuses[0]?.closest(".app-me")).not.toBeNull();
+      const text = doc.body.textContent ?? "";
+      expect(text.split("Connecté").length - 1).toBe(authed ? 1 : 0);
+    }
+  });
+
+  it("opens the « Aller à… » palette from the top of the sidebar", () => {
+    const doc = parse(shellHtml(parseRoute("#/"), true));
+    const opener = doc.querySelector("#palette-open");
+    expect(opener?.closest(".app-sidebar")).not.toBeNull();
+    expect(opener?.getAttribute("aria-keyshortcuts")).toBe("Control+K");
+    expect(doc.querySelector("#app-palette")?.hasAttribute("hidden")).toBe(true);
+    expect(doc.querySelector('#app-palette-input')?.getAttribute("type")).toBe("text");
+    expect(doc.querySelector('input[type="search"]')).toBeNull();
+  });
+
+  it("separates Administration after the daily entries, with Configuration inside", () => {
+    const doc = parse(shellHtml(parseRoute("#/"), true));
+    const groups = [...doc.querySelectorAll(".app-navgroup")];
+    expect(groups).toHaveLength(3);
+    expect(groups[1]?.tagName).toBe("DETAILS");
+    expect(groups[0]?.querySelectorAll("a")).toHaveLength(5);
+    expect(groups[1]?.textContent).toContain("Configuration");
+    expect(groups[2]?.textContent).toContain("Inspecteur");
+  });
+
+  it("offers sign-out from the avatar block only when signed in", () => {
+    expect(parse(shellHtml(parseRoute("#/"), true)).querySelector(".app-me #token-clear")).not.toBeNull();
+    const anon = parse(shellHtml(parseRoute("#/"), false));
+    expect(anon.querySelector("#token-clear")).toBeNull();
+    expect(anon.querySelector(".app-me #token-input")).not.toBeNull();
+  });
+
+  it("repaints the status and its action in place, never duplicating them (P03-status)", () => {
+    document.body.innerHTML = shellHtml(parseRoute("#/"), true);
+    const down = { level: "error" as const, label: "Serveur injoignable", href: "#/configuration/application" };
+    paintConnection({ ...down, action: { kind: "retry", label: "Réessayer" } }, document);
+    paintConnection({ ...down, title: "Serveur injoignable — détail", action: { kind: "retry", label: "Réessayer" } }, document);
+    expect(document.querySelectorAll("#connection-status")).toHaveLength(1);
+    expect(document.querySelectorAll("#connection-action")).toHaveLength(1);
+    expect(document.querySelector("#connection-status")?.getAttribute("title")).toBe("Serveur injoignable — détail");
+    paintConnection({ level: "ok", label: "Connecté", href: "#/configuration/application", action: null }, document);
+    expect(document.querySelectorAll("#connection-status")).toHaveLength(1);
+    expect(document.querySelector("#connection-action")).toBeNull();
+  });
+});
+
 describe("parseRoute notFound (UI-2)", () => {
   it("routes unknown hashes to an explicit 404 instead of the dashboard", () => {
     expect(parseRoute("#/unknown")).toEqual({ name: "notFound", hash: "#/unknown" });
@@ -137,6 +225,11 @@ describe("parseRoute notFound (UI-2)", () => {
     expect(parseRoute("#/")).toEqual({ name: "dashboard" });
     expect(parseRoute("#/projects/abc/nope")).toEqual({ name: "project", id: "abc", tab: "overview" });
   });
+
+  it("routes the Administration entry to its overview", () => {
+    expect(parseRoute("#/administration")).toEqual({ name: "admin" });
+    expect(parseRoute("#/admin")).toEqual({ name: "admin" });
+  });
 });
 
 describe("notFoundHtml (UI-2)", () => {
@@ -149,5 +242,28 @@ describe("notFoundHtml (UI-2)", () => {
 
   it("escapes the hash", () => {
     expect(notFoundHtml('#/"<x>')).not.toContain("<x>");
+  });
+});
+
+describe("mountAdminFlyout (P03-shell)", () => {
+  it("keeps the rail flyout closed on admin pages and closes it on outside click or Escape", () => {
+    expect(window.matchMedia("(min-width: 901px) and (max-width: 1399.98px)").matches).toBe(true);
+    document.body.innerHTML = shellHtml(parseRoute("#/inspector"), true);
+    const groups = [...document.querySelectorAll("details.app-navgroup--secondary")] as HTMLDetailsElement[];
+    expect(groups).toHaveLength(2);
+    const admin = groups[1] as HTMLDetailsElement;
+    expect(admin.open).toBe(true);
+    mountAdminFlyout();
+    expect(admin.open).toBe(false);
+
+    admin.open = true;
+    document.getElementById("view")?.click();
+    expect(admin.open).toBe(false);
+
+    admin.open = true;
+    const link = admin.querySelector("a") as HTMLAnchorElement;
+    link.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(admin.open).toBe(false);
+    expect(document.activeElement).toBe(admin.querySelector("summary"));
   });
 });

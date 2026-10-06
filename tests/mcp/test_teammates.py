@@ -17,7 +17,8 @@ async def test_teammate_activity_lists_machine_with_claimed_task(
     await studio_claim_task(task["id"], auth_ctx)
 
     result = await studio_get_teammate_activity(str(project.id), auth_ctx)
-    assert any(t["machine_id"] == str(machine_model.id) for t in result["teammates"])
+    teammate = next(t for t in result["teammates"] if t["machine_id"] == str(machine_model.id))
+    assert [t["id"] for t in teammate["tasks"]] == [task["id"]]
 
 
 async def test_teammate_activity_lists_machine_with_active_claim(
@@ -27,7 +28,8 @@ async def test_teammate_activity_lists_machine_with_active_claim(
     await studio_claim_resource(str(project.id), "docs/plan.md", "file", 600, auth_ctx)
 
     result = await studio_get_teammate_activity(str(project.id), auth_ctx)
-    assert any(t["machine_id"] == str(machine_model.id) for t in result["teammates"])
+    teammate = next(t for t in result["teammates"] if t["machine_id"] == str(machine_model.id))
+    assert [c["resource_path"] for c in teammate["claims"]] == ["docs/plan.md"]
 
 
 async def test_teammate_activity_empty_for_idle_project(

@@ -1,0 +1,15 @@
+{
+  "data": {
+    "allowed_harnesses": [
+      "harness-a"
+    ],
+    "detected_harnesses": [
+      "harness-a",
+      "harness-b"
+    ],
+    "max_concurrent": 0,
+    "opt_in": true
+  },
+  "model": "LaunchSettingsView",
+  "reason": "concurrency is bounded between one and the documented maximum"
+}

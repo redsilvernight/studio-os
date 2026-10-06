@@ -2,12 +2,20 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
-from studio_contracts.auth import Machine, MachineCreate, MachineCreated, Role
+from fastapi import APIRouter, Header, HTTPException, Response, status
+from studio_contracts.auth import Machine, MachineCreate, MachineCreated, MachineUpdate, Role
+from studio_contracts.launch_grants import MachineLaunchGrant, MachineLaunchGrantCreate
 
 from studio_api.deps import CurrentMachine, CurrentPrincipal, DbSession
-from studio_api.openapi_meta import RESP_401_UNAUTHORIZED, RESP_403_FORBIDDEN, RESP_404_NOT_FOUND
+from studio_api.openapi_meta import (
+    IF_MATCH_VERSION_DESCRIPTION,
+    RESP_401_UNAUTHORIZED,
+    RESP_403_FORBIDDEN,
+    RESP_404_NOT_FOUND,
+    RESP_409_VERSION_CONFLICT,
+)
 from studio_api.services import heartbeats as heartbeats_service
+from studio_api.services import launch_grants as launch_grants_service
 from studio_api.services import provisioning as provisioning_service
 from studio_api.services.authz import forbidden
 from studio_api.settings import get_settings
@@ -91,6 +99,39 @@ async def create_machine(
 
 
 @router.post(
+    "/{machine_id}/adopt",
+    response_model=MachineCreated,
+    description=(
+        "Take over an existing machine of the caller's own User (A5): its "
+        "credential is rotated, the machine keeps its `id` and history, and "
+        "the new credential is returned in clear text exactly once. The "
+        "previous credential stops working immediately. Another User's "
+        "machine answers 404 for a non-admin, exactly like a nonexistent "
+        "one; `agent` gets 403; a revoked machine answers 409. Not "
+        "replayable: no `Idempotency-Key`."
+    ),
+    responses={
+        **RESP_401_UNAUTHORIZED,
+        **RESP_403_FORBIDDEN,
+        **RESP_404_NOT_FOUND,
+        **RESP_409_VERSION_CONFLICT,
+    },
+)
+async def adopt_machine(
+    machine_id: UUID, session: DbSession, principal: CurrentPrincipal
+) -> MachineCreated:
+    if principal.role == Role.AGENT:
+        raise forbidden("machine", "adopt")
+    target = await provisioning_service.get_machine(session, machine_id)
+    if target is None or (
+        principal.role != Role.ADMIN and target.owner_user_id != principal.user.id
+    ):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "machine not found")
+    rotated, token = await provisioning_service.rotate_machine_credential(session, target)
+    return MachineCreated(**Machine.model_validate(rotated).model_dump(), credential=token)
+
+
+@router.post(
     "/{machine_id}/revoke",
     response_model=Machine,
     description=(
@@ -116,3 +157,123 @@ async def revoke_machine(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "machine not found")
     target = await provisioning_service.revoke_machine(session, target)
     return Machine.model_validate(target)
+
+
+@router.patch(
+    "/{machine_id}",
+    response_model=Machine,
+    description=(
+        "Rename a machine (owner or admin). Another User's machine answers "
+        "404 for a non-admin, exactly like a nonexistent one. `agent` never "
+        "renames. Uses optimistic concurrency via `If-Match-Version` (required)."
+    ),
+    responses={
+        **RESP_401_UNAUTHORIZED,
+        **RESP_403_FORBIDDEN,
+        **RESP_404_NOT_FOUND,
+        **RESP_409_VERSION_CONFLICT,
+    },
+)
+async def rename_machine(
+    machine_id: UUID,
+    machine_in: MachineUpdate,
+    session: DbSession,
+    principal: CurrentPrincipal,
+    if_match_version: int = Header(
+        alias="If-Match-Version", description=IF_MATCH_VERSION_DESCRIPTION
+    ),
+) -> Machine:
+    if principal.role == Role.AGENT:
+        raise forbidden("machine", "rename")
+    target = await provisioning_service.get_machine(session, machine_id)
+    if target is None or (
+        principal.role != Role.ADMIN and target.owner_user_id != principal.user.id
+    ):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "machine not found")
+    if target.version != if_match_version:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={
+                "error_code": "version_conflict",
+                "message": "machine was modified concurrently",
+                "server_version": target.version,
+            },
+        )
+    target = await provisioning_service.update_machine(session, target, machine_in.display_name)
+    return Machine.model_validate(target)
+
+
+@router.get(
+    "/{machine_id}/launch-grants",
+    response_model=list[MachineLaunchGrant],
+    description=(
+        "List the launch grants on a machine (AIB-J). Only the machine's "
+        "owner or an admin; anyone else gets `403 forbidden` whether the "
+        "machine exists or not."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
+)
+async def list_launch_grants(
+    machine_id: UUID, session: DbSession, principal: CurrentPrincipal
+) -> list[MachineLaunchGrant]:
+    machine = await launch_grants_service.get_managed_machine(
+        session, principal, machine_id, "read"
+    )
+    rows = await launch_grants_service.list_grants(session, machine)
+    return [MachineLaunchGrant.model_validate(r) for r in rows]
+
+
+@router.put(
+    "/{machine_id}/launch-grants/{user_id}",
+    response_model=MachineLaunchGrant,
+    status_code=status.HTTP_201_CREATED,
+    description=(
+        "Let a User launch work on this machine (AIB-J). Only the owner or "
+        "an admin. Optional `project_id` limits it to one project, optional "
+        "`expires_at` (future) ends it; the grantee still needs access to the "
+        "task's project. `201` with the new grant; an existing grant is "
+        "returned unchanged with `200` (revoke then grant to change it). "
+        "Naturally idempotent: no `Idempotency-Key`. Granting yourself: "
+        "`403 self_modification_forbidden`. Unknown user or project: 404."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
+)
+async def grant_launch(
+    machine_id: UUID,
+    user_id: UUID,
+    response: Response,
+    session: DbSession,
+    principal: CurrentPrincipal,
+    body: MachineLaunchGrantCreate | None = None,
+) -> MachineLaunchGrant:
+    provisioning_service.ensure_not_self(principal.user, user_id, "grant_launch")
+    machine = await launch_grants_service.get_managed_machine(
+        session, principal, machine_id, "write"
+    )
+    body = body or MachineLaunchGrantCreate()
+    row, created = await launch_grants_service.grant(
+        session, principal, machine, user_id, body.project_id, body.expires_at
+    )
+    if not created:
+        response.status_code = status.HTTP_200_OK
+    return MachineLaunchGrant.model_validate(row)
+
+
+@router.delete(
+    "/{machine_id}/launch-grants/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    description=(
+        "Withdraw a User's launch right on this machine (owner or admin). "
+        "Idempotent `204`, also when no grant exists."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_404_NOT_FOUND},
+)
+async def revoke_launch(
+    machine_id: UUID, user_id: UUID, session: DbSession, principal: CurrentPrincipal
+) -> Response:
+    provisioning_service.ensure_not_self(principal.user, user_id, "revoke_launch")
+    machine = await launch_grants_service.get_managed_machine(
+        session, principal, machine_id, "write"
+    )
+    await launch_grants_service.revoke(session, machine, user_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

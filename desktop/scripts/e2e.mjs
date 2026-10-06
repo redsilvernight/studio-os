@@ -13,6 +13,7 @@ import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { chromium } from "playwright-core";
 import { buildDir, desktopDir, repoRoot, toolEnv } from "./lib.mjs";
+import { canonicalVersion } from "./version.mjs";
 
 const exe = resolve(desktopDir, "src-tauri", "target", "release", "studio-desktop.exe");
 const CDP_PORT = Number(process.env.STUDIO_E2E_CDP_PORT ?? 9333);
@@ -303,7 +304,7 @@ async function main() {
     // is on screen once the timeout elapses.
     try {
       await page.waitForFunction(
-        () => document.body.innerText.includes("Studi'OS Desktop") && document.body.innerText.includes("0.1.0") && document.body.innerText.includes("studio.local/v1"),
+        () => document.body.innerText.includes("Studi'OS Desktop") && document.body.innerText.includes(canonicalVersion()) && document.body.innerText.includes("studio.local/v1"),
         null,
         { timeout: 20_000 },
       );
@@ -311,7 +312,7 @@ async function main() {
       /* fall through to check() below, which records the failure with evidence */
     }
     const text = await page.evaluate(() => document.body.innerText);
-    check("settings.shows_identity", text.includes("Studi'OS Desktop") && text.includes("0.1.0") && text.includes("studio.local/v1"), "Settings > Application shows product, version and protocol");
+    check("settings.shows_identity", text.includes("Studi'OS Desktop") && text.includes(canonicalVersion()) && text.includes("studio.local/v1"), "Settings > Application shows product, version and protocol");
     check("settings.shows_desktop_mode", /Desktop/.test(text) && !/Application Desktop non utilisée/.test(text), "mode Desktop displayed, no web-mode fallback text");
     await page.reload();
     await page.waitForFunction(() => document.body.innerText.includes("Studi'OS Desktop") || !!document.querySelector("#login-form"), null, { timeout: 15_000 });

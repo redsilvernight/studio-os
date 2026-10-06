@@ -33,11 +33,38 @@
   min-width: 220px;
 }
 
-.tasks-status-filter {
+/* Vues nommées (Maintenant, Mon travail, Toutes) : l'active porte aria-pressed. */
+.tasks-scopes {
   display: grid;
-  gap: var(--ds-space-1);
+  gap: var(--ds-space-2);
+}
+
+.tasks-scope-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+}
+
+.tasks-scope-count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
+.tasks-scope-hint {
+  margin: 0;
+}
+
+/* Groupes de la liste par statut réel, dans l'ordre d'attention. */
+.tasks-group {
+  display: grid;
+  gap: var(--ds-space-2);
+}
+
+.tasks-group-title {
+  margin: 0;
   font-size: var(--ds-text-sm);
   font-weight: 600;
+  color: var(--ds-text-muted);
 }
 
 .tasks-toolbar .ds-list-sub {
@@ -243,7 +270,167 @@
   gap: var(--ds-space-4);
 }
 
-/* Détail tâche : sections verticales lisibles, technique repliée. */
+/* Détail tâche (P04-task-detail) : carte héros à action primaire unique
+   (titre, point de statut, responsable, Objectif, Prochaine action), puis
+   blocages et validation prioritaires, la mécanique ensuite. Sessions,
+   journaux, automatisations, identifiants et métadonnées restent dans des
+   blocs repliés fermés ; les propriétés passent en colonne latérale dès
+   1600 px, en ligne de métadonnées en dessous. */
+
+.task-detail {
+  gap: var(--ds-space-4);
+}
+
+/* Héros : components.css ne style que le h2 des héros (une page = un h1),
+   on reprend donc le même gabarit pour le titre de la fiche. */
+.task-detail-hero h1 {
+  margin: 0;
+  font-size: var(--ds-text-xl);
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.task-detail-hero .ds-hero-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-2);
+}
+
+/* Objectif et Prochaine action : deux blocs courts, l'action mise en avant.
+   Sélecteurs descendants du héros pour primer sur `.ds-hero h2`. */
+.task-detail-hero .task-detail-block {
+  display: grid;
+  gap: var(--ds-space-1);
+}
+
+.task-detail-hero .task-detail-block h2,
+.task-detail-props h2 {
+  margin: 0;
+  font-size: var(--ds-text-xs);
+  font-weight: 600;
+  color: var(--ds-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.task-detail-next {
+  background: var(--ds-action-soft);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  padding: var(--ds-space-3) var(--ds-space-4);
+}
+
+.task-detail-next p {
+  margin: 0;
+  font-weight: 500;
+}
+
+/* Le secondaire « Modifier la tâche » doit se lire comme un lien. */
+.task-hero-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Corps : colonne principale + propriétés, empilées sous 1600 px. */
+.task-detail-body {
+  display: grid;
+  gap: var(--ds-space-4);
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+.task-detail-main {
+  display: grid;
+  gap: var(--ds-space-4);
+  min-width: 0;
+}
+
+/* Propriétés : d'abord une ligne de métadonnées qui se replie selon la
+   largeur, une colonne latérale de 260–280 px au-delà de 1600 px. */
+.task-detail-props {
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  background: var(--ds-surface);
+  padding: var(--ds-space-3) var(--ds-space-4);
+  display: grid;
+  gap: var(--ds-space-2);
+  align-content: start;
+}
+
+.task-detail-props dl {
+  margin: 0;
+  display: grid;
+  gap: var(--ds-space-3);
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.task-detail-props dl > div {
+  display: grid;
+  gap: var(--ds-space-1);
+}
+
+.task-detail-props dt {
+  color: var(--ds-text-muted);
+  font-size: var(--ds-text-xs);
+  font-weight: 600;
+}
+
+.task-detail-props dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--ds-text-sm);
+  font-weight: 500;
+}
+
+/* Repliés : jamais ouverts d'emblée, mais leur contenu reste dans le DOM
+   (aucune.UUID visible). Le langage .ds-tech (border-top, texte discret) est
+   celui des autres écrans ; sessions, journaux et automatisations tiennent
+   dans un seul repli. */
+.task-detail-fold > .task-detail-fold-body {
+  display: grid;
+  gap: var(--ds-space-4);
+  margin-top: var(--ds-space-2);
+}
+
+.task-detail-fold-section h3 {
+  margin: 0 0 var(--ds-space-2);
+  font-size: var(--ds-text-sm);
+  font-weight: 600;
+  color: var(--ds-text-muted);
+}
+
+.task-detail-fold-section .ds-notice {
+  margin: 0;
+}
+
+/* Écran large : la fiche respire, les propriétés passent en colonne. */
+@media (min-width: 1600px) {
+  .task-detail-body {
+    gap: var(--ds-space-6);
+    grid-template-columns: minmax(0, 1fr) 280px;
+  }
+  .task-detail-props {
+    box-shadow: var(--ds-shadow-sm);
+    position: sticky;
+    top: var(--ds-space-4);
+  }
+  .task-detail-props dl {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--ds-space-2);
+  }
+  .task-detail-props dl > div {
+    grid-template-columns: 100px minmax(0, 1fr);
+    gap: var(--ds-space-2);
+    align-items: baseline;
+  }
+  .task-detail-props dt {
+    font-size: var(--ds-text-sm);
+  }
+}
 
 .task-detail-section {
   display: grid;
@@ -256,17 +443,6 @@
   border-bottom: none;
 }
 
-.task-overview {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--ds-space-3);
-}
-
-.task-overview p {
-  margin: 0;
-}
-
 .task-description {
   margin: 0;
   overflow-wrap: anywhere;
@@ -276,42 +452,6 @@
 #task-edit-form {
   display: grid;
   gap: var(--ds-space-4);
-}
-
-.task-tech {
-  border-top: 1px solid var(--ds-border);
-  padding-top: var(--ds-space-2);
-  font-size: var(--ds-text-sm);
-  color: var(--ds-text-muted);
-}
-
-.task-tech summary {
-  cursor: pointer;
-  font-weight: 600;
-  min-height: var(--ds-target-sm);
-  display: inline-flex;
-  align-items: center;
-}
-
-.task-tech dl {
-  margin: var(--ds-space-2) 0 0;
-  display: grid;
-  gap: var(--ds-space-1);
-}
-
-.task-tech dl > div {
-  display: grid;
-  grid-template-columns: 140px 1fr;
-  gap: var(--ds-space-2);
-}
-
-.task-tech dt {
-  font-weight: 600;
-}
-
-.task-tech dd {
-  margin: 0;
-  overflow-wrap: anywhere;
 }
 
 /* Tablette / mobile : le tableau défile horizontalement EN LOCAL, avec des

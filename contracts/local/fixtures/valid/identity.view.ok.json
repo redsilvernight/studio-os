@@ -38,7 +38,8 @@
         },
         "status": "present"
       }
-    ]
+    ],
+    "workstation_name": null
   },
   "model": "IdentityView"
 }

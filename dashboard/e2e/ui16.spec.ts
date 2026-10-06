@@ -28,6 +28,8 @@ const ROUTES = [
   `#/library/rules/${LIB_ID}`,
   "#/decisions",
   "#/machines",
+  "#/accounts",
+  "#/administration",
   "#/transfers",
   "#/inspector",
   "#/configuration/runtimes",
@@ -138,8 +140,12 @@ test.describe("UI-16 copy, routes et liens", () => {
     const watch = watchErrors(page);
     await login(page, "#/", newCaptured());
     const home = await page.locator("#view").innerText();
-    for (const label of ["Bloquée", "En cours", "À faire"]) expect(home).toContain(label);
+    for (const label of ["Bloqué", "En cours", "À faire"]) expect(home).toContain(label);
     await go(page, "#/tasks");
+    // Les terminées ne figurent que dans la vue « Toutes ».
+    await page.locator('#view [data-scope="all"]').first().click();
+    await expect(page.locator('#view [data-scope="all"]').first()).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#view .tasks-group-title").last()).toContainText("Terminées");
     const tasks = await page.locator("#view").innerText();
     for (const label of ["Bloqué", "En cours", "À faire", "Terminé"]) expect(tasks).toContain(label);
     await go(page, `#/tasks/${T1}`);
@@ -234,7 +240,8 @@ test.describe("UI-16 erreurs, confirmations, formulaires", () => {
       void dialog.dismiss();
     });
     await view.locator("[data-release]").click();
-    expect(message).toContain("Libérer cette réservation ?");
+    expect(message).toContain("Libérer la réservation « ");
+    expect(message).toContain("détenue par la machine");
     expect(captured.claimReleases).toEqual([]);
     page.once("dialog", (dialog) => void dialog.accept());
     await view.locator("[data-release]").click();
@@ -278,7 +285,9 @@ test.describe("UI-16 navigation, focus et stress", () => {
       await expect(page.locator("#view h1")).toBeVisible();
       await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
       const top = await page.locator("#view h1").evaluate((el) => el.getBoundingClientRect().top);
-      expect(top, `${from} → ${to} : titre masqué par la barre`).toBeGreaterThanOrEqual(60);
+      // P03-shell : pas de barre supérieure au-delà de 900 px (hauteur 0).
+      const bar = await page.locator("header.app-topbar").evaluate((el) => el.getBoundingClientRect().height);
+      expect(top, `${from} → ${to} : titre masqué par la barre`).toBeGreaterThanOrEqual(bar + 16);
       await expect(page.locator("#view")).toBeFocused();
     }
     expectClean(watch);
@@ -336,7 +345,8 @@ test.describe("UI-16 navigation, focus et stress", () => {
       if (i === 0) baseline = live;
       else expect(live, `cycle ${i + 1} : écouteurs document/window`).toEqual(baseline);
     }
-    expect(await page.locator("[role=dialog]").count()).toBe(1);
+    // La palette « Aller à… » (P03-shell) est un dialogue du shell, fermé.
+    expect(await page.locator("[role=dialog]:not(.app-palette)").count()).toBe(1);
     expectClean(watch);
   });
 

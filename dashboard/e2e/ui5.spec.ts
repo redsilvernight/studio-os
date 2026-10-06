@@ -103,9 +103,20 @@ interface Captured {
   idempotencyKeys: (string | null)[];
   createdBodies: unknown[];
   patches: { url: string; version: string | null; body: unknown }[];
+  releaseVersions?: (string | null)[];
 }
 
-function apiStub(captured: Captured, opts: { patchConflict?: boolean } = {}) {
+interface StubOpts {
+  patchConflict?: boolean;
+  /** Machine of the caller answered by /auth/me (role developer). */
+  meMachine?: string;
+  /** Rang dans TASKS de la tâche servie par GET /tasks/{id} (défaut : celle qui est prise). */
+  taskIndex?: number;
+}
+
+const HOLDER = "bbbbbbbb-0000-4111-8111-000000000001";
+
+function apiStub(captured: Captured, opts: StubOpts = {}) {
   return async (route: Route) => {
     const req = route.request();
     const url = req.url();
@@ -114,6 +125,16 @@ function apiStub(captured: Captured, opts: { patchConflict?: boolean } = {}) {
       route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
     if (url.endsWith("/api/v1/auth/token")) {
       await json(200, { access_token: "e2e-token", token_type: "bearer" });
+      return;
+    }
+    if (url.endsWith("/api/v1/auth/me")) {
+      await json(200, {
+        user_id: "u-e2e",
+        display_name: "E2E",
+        email: "e2e@example.test",
+        role: "developer",
+        machine_id: opts.meMachine ?? HOLDER,
+      });
       return;
     }
     if (method === "POST" && url.endsWith("/api/v1/tasks")) {
@@ -144,6 +165,7 @@ function apiStub(captured: Captured, opts: { patchConflict?: boolean } = {}) {
       return;
     }
     if (method === "POST" && url.endsWith("/release")) {
+      (captured.releaseVersions ??= []).push(req.headers()["if-match-version"] ?? null);
       await json(200, { ...TASKS[1], claimed_by_machine_id: null, version: 3 });
       return;
     }
@@ -160,7 +182,7 @@ function apiStub(captured: Captured, opts: { patchConflict?: boolean } = {}) {
       return;
     }
     if (/\/api\/v1\/tasks\/[^/]+$/.test(url)) {
-      await json(200, TASKS[1]);
+      await json(200, TASKS[opts.taskIndex ?? 1]);
       return;
     }
     if (url.includes("/api/v1/tasks")) {
@@ -183,7 +205,7 @@ function apiStub(captured: Captured, opts: { patchConflict?: boolean } = {}) {
   };
 }
 
-async function login(page: Page, startHash: string, captured: Captured, opts: { patchConflict?: boolean } = {}): Promise<void> {
+async function login(page: Page, startHash: string, captured: Captured, opts: StubOpts = {}): Promise<void> {
   await page.route("**/api/**", apiStub(captured, opts));
   await page.goto(`/${startHash}`);
   await expect(page.locator("#login-form")).toBeVisible();
@@ -209,17 +231,20 @@ test.describe("UI-5 liste des tâches", () => {
     const captured: Captured = { idempotencyKeys: [], createdBodies: [], patches: [] };
     await login(page, "#/tasks", captured);
     const view = page.locator("#view");
-    await expect(view.locator("h1")).toContainText("Tâches");
+    await expect(view.locator("h1")).toContainText("Travail");
     await expect(view.locator("h1")).toBeVisible();
-    // Vue Liste par défaut (bouton enfoncé), pas de kanban.
-    await expect(view.locator('[data-view="list"]')).toHaveAttribute("aria-pressed", "true");
-    await expect(view.locator(".tasks-list")).toBeVisible();
+    // Vue « Maintenant » par défaut : liste groupée, pas de kanban ni de menu par ligne.
+    await expect(view.locator('[data-scope="now"]')).toHaveAttribute("aria-pressed", "true");
+    await expect(view.locator("[data-view]")).toHaveCount(0);
+    await expect(view.locator(".tasks-list").first()).toBeVisible();
     await expect(view.locator(".kanban")).toHaveCount(0);
+    await expect(view.locator(".tasks-list [data-move]")).toHaveCount(0);
+    await expect(view.locator(".tasks-group-title")).toHaveText([/En cours/, /Bloquées/, /À faire/]);
     // FR : badges, recherche, statuts ; aucune clé brute visible.
     await expect(view).toContainText("À faire");
     await expect(view).toContainText("En cours");
     await expect(view).toContainText("Bloqué");
-    await expect(view).toContainText("Tous les statuts");
+    await expect(view.locator("#tasks-status")).toHaveCount(0);
     await expect(view.locator("#tasks-search")).toHaveAttribute("placeholder", /Filtrer par titre/);
     await expect(view).not.toContainText("TODO");
     await expect(view).not.toContainText("IN PROGRESS");
@@ -241,13 +266,15 @@ test.describe("UI-5 liste des tâches", () => {
     await expect(view.locator(".task-row")).toHaveCount(3);
     await view.locator("#tasks-search").fill("éclairages");
     await expect(view.locator(".task-row")).toHaveCount(1);
-    await expect(view).toContainText("1 tâche(s) affichée(s) sur 3 chargée(s)");
+    await expect(view).toContainText("1 sur 3");
     // Réinitialiser restaure tout, au clavier aussi (Tab + Entrée).
-    await view.locator("#tasks-search").fill("");
-    await view.locator("#tasks-status").selectOption("blocked");
-    await expect(view.locator(".task-row")).toHaveCount(1);
-    await expect(view).toContainText("Caméra Android bloquée");
     await view.locator("[data-reset]").first().click();
+    await expect(view.locator(".task-row")).toHaveCount(3);
+    // Filtres = vues nommées : Mon travail ne garde que la tâche prise par un poste.
+    await view.locator('[data-scope="mine"]').click();
+    await expect(view.locator('[data-scope="mine"]')).toHaveAttribute("aria-pressed", "true");
+    await expect(view.locator(".task-row")).toHaveCount(1);
+    await view.locator('[data-scope="all"]').first().click();
     await expect(view.locator(".task-row")).toHaveCount(3);
     // Aucun résultat : message distinct, pas « aucune tâche ».
     await view.locator("#tasks-search").fill("zzz-introuvable");
@@ -261,6 +288,7 @@ test.describe("UI-5 liste des tâches", () => {
     const captured: Captured = { idempotencyKeys: [], createdBodies: [], patches: [] };
     await login(page, "#/tasks", captured);
     const view = page.locator("#view");
+    await view.locator('[data-scope="all"]').first().click();
     await view.locator('[data-view="board"]').click();
     await expect(view.locator(".kanban").first()).toBeVisible();
     await expect(view).toContainText("Déplacer vers…");
@@ -282,6 +310,7 @@ test.describe("UI-5 liste des tâches", () => {
     const captured: Captured = { idempotencyKeys: [], createdBodies: [], patches: [] };
     await login(page, "#/tasks", captured, { patchConflict: true });
     const view = page.locator("#view");
+    await view.locator('[data-scope="all"]').first().click();
     await view.locator('[data-view="board"]').click();
     const card = view.locator('[data-card="aaaaaaaa-0000-4111-8111-000000000003"]');
     await card.locator("select[data-status]").selectOption("completed");
@@ -329,25 +358,107 @@ test.describe("UI-5 création en modale", () => {
 });
 
 test.describe("UI-5 détail tâche", () => {
-  test("page de travail FR : sections, prise, sessions, IA, technique repliée", async ({ page }) => {
+  test("fiche action-first : héros, blocages/validation prioritaires, mécanique repliée", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     const captured: Captured = { idempotencyKeys: [], createdBodies: [], patches: [] };
     await login(page, "#/tasks/aaaaaaaa-0000-4111-8111-000000000002", captured);
     const view = page.locator("#view");
+
+    // Tête sans défilement : titre, point de statut, responsable, objectif,
+    // prochaine action — et UNE seule action primaire.
+    const hero = view.locator(".task-detail-hero");
     await expect(view.locator("h1")).toContainText("Optimiser les éclairages");
-    await expect(view).toContainText("Vue générale");
-    await expect(view).toContainText("Modifier la tâche");
-    await expect(view).toContainText("Prise en charge");
-    await expect(view).toContainText("Sessions (1)");
-    await expect(view).toContainText("Travail IA (1)");
-    await expect(view).toContainText("En relecture");
-    await expect(view).toContainText("À ne pas confondre avec les réservations de ressources");
-    await expect(view).toContainText("Informations techniques");
+    await expect(hero).toContainText("T-002");
+    await expect(hero.locator(".ds-status")).toContainText("En cours");
+    await expect(hero).toContainText("Objectif");
+    await expect(hero).toContainText("Prochaine action");
+    await expect(hero.locator(".ds-btn--primary")).toHaveCount(1);
+    await expect(hero.locator(".ds-btn--primary")).toBeVisible();
+
+    // Prioritaires juste après : blocages puis validation, ouverts.
+    await expect(view.locator('section[aria-label="Blocages"]')).toBeVisible();
+    await expect(view.locator('section[aria-label="Blocages"]')).toContainText("Aucun blocage");
+    await expect(view.locator('section[aria-label="Validation"]')).toContainText("Réécriture du sampler");
+    await expect(view.locator('section[aria-label="Validation"]')).toContainText("En relecture");
+
+    // Propriétés : colonne latérale ≥ 1600 px, ligne de métadonnées en dessous.
+    await expect(view.locator(".task-detail-props")).toContainText("Responsable");
+    await page.setViewportSize({ width: 1600, height: 900 });
+    const props = await view.locator(".task-detail-props").boundingBox();
+    const main = await view.locator(".task-detail-main").boundingBox();
+    expect(props !== null && main !== null && props.x > main.x).toBe(true);
+    await page.setViewportSize({ width: 1280, height: 900 });
+
+    // Divulgation progressive : rien de technique ni d'identifiant visible
+    // avant que l'on ouvre le repli.
+    const folds = view.locator("details.ds-tech");
+    await expect(folds).toHaveCount(2);
+    for (const label of ["Sessions, journaux et automatisations", "Détails techniques"]) {
+      await expect(view.locator("details summary", { hasText: label })).toBeVisible();
+      await expect(view.locator("details", { hasText: label })).not.toHaveAttribute("open", "");
+    }
+    expect(await view.innerText()).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}/i);
+
+    // Ouvert, le contenu est là et les fonctions restent accessibles.
+    await view.locator("#task-mecanique summary").click();
+    await expect(view.locator("#task-sessions")).toContainText("Sessions (1)");
+    await expect(view.locator("#task-ai-work")).toContainText("Travail IA (1)");
+    await expect(view.locator("#task-ai-work")).toContainText("En relecture");
+    await expect(view.locator("#task-automatisations")).toBeVisible();
+    await expect(view.locator("#task-automatisations")).toContainText("Automatisations");
+    await view.locator("#task-mecanique summary").click();
+
+    await expect(view.locator("#task-edit-section")).toContainText("Modifier la tâche");
+    await expect(view.locator('section[aria-label="Prise en charge"]')).toContainText(
+      "À ne pas confondre avec les réservations de ressources",
+    );
     await expect(view).not.toContainText("Claim for my machine");
     await page.screenshot({ path: `${SHOTS}/tache-detail-1280.png` });
-    // Libérer : POST release, statut conservé, message explicite.
+
+    // Libérer : confirmation nommant la machine détentrice, POST release,
+    // statut conservé, message explicite.
+    let confirmMessage = "";
+    page.once("dialog", (dialog) => {
+      confirmMessage = dialog.message();
+      void dialog.accept();
+    });
     await view.locator("[data-release]").click();
+    await expect.poll(() => confirmMessage).toContain("prise par la machine");
     await expect(view.locator(".ds-notice--info")).toContainText("Le statut reste inchangé");
+    // Libération versionnée : la version lue part en If-Match-Version.
+    expect(captured.releaseVersions).toEqual([String(TASKS[1]?.version)]);
+    expect(csp).toEqual([]);
+    expect(fatal).toEqual([]);
+  });
+
+  test("bloquée : le blocage passe devant tout, jamais un vide rassurant", async ({ page }) => {
+    const { csp, fatal } = watchErrors(page);
+    const captured: Captured = { idempotencyKeys: [], createdBodies: [], patches: [] };
+    await login(page, "#/tasks/aaaaaaaa-0000-4111-8111-000000000001", captured, { taskIndex: 0 });
+    const view = page.locator("#view");
+    const hero = view.locator(".task-detail-hero");
+    await expect(hero.locator(".ds-status")).toContainText("Bloqué");
+    await expect(hero).toContainText("Prochaine action");
+    await expect(hero).toContainText("Débloquer");
+    const blocages = view.locator('section[aria-label="Blocages"]');
+    await expect(blocages).toContainText("Tâche bloquée");
+    await expect(blocages).not.toContainText("Aucun blocage");
+    // Ordre : le blocage est la première section après le héros.
+    const heroBox = await hero.boundingBox();
+    const blocagesBox = await blocages.boundingBox();
+    expect(heroBox !== null && blocagesBox !== null && blocagesBox.y > heroBox.y).toBe(true);
+    expect(csp).toEqual([]);
+    expect(fatal).toEqual([]);
+  });
+
+  test("libérer réservé au détenteur ou à un admin : autre machine = bouton inactif", async ({ page }) => {
+    const { csp, fatal } = watchErrors(page);
+    const captured: Captured = { idempotencyKeys: [], createdBodies: [], patches: [] };
+    await login(page, "#/tasks/aaaaaaaa-0000-4111-8111-000000000002", captured, { meMachine: "cccccccc-0000-4111-8111-000000000009" });
+    const view = page.locator("#view");
+    await expect(view.locator("h1")).toContainText("Optimiser les éclairages");
+    await expect(view.locator("[data-release]")).toBeDisabled();
+    await expect(view).toContainText("ou un administrateur, peut la libérer");
     expect(csp).toEqual([]);
     expect(fatal).toEqual([]);
   });
@@ -377,12 +488,11 @@ test.describe("UI-5 workspace projet / tâches", () => {
     await expect(view.locator("h1")).toHaveCount(1);
     await expect(view.locator("h1")).toContainText("Jeu Phare");
     await expect(view.locator('[data-ws-tab="tasks"]')).toHaveAttribute("aria-selected", "true");
-    await expect(view.locator(".tasks > .ds-section-header h2")).toContainText("Tâches");
-    await expect(view.locator(".tasks-list")).toBeVisible();
+    await expect(view.locator(".tasks-list").first()).toBeVisible();
     await expect(view.locator(".task-row")).toHaveCount(3);
     // Retour à la liste globale : deep link stable.
     await page.goto("/#/tasks");
-    await expect(view.locator(".tasks-list")).toBeVisible();
+    await expect(view.locator(".tasks-list").first()).toBeVisible();
     await page.goBack();
     await expect(view.locator('[data-ws-tab="tasks"]')).toHaveAttribute("aria-selected", "true");
     expect(csp).toEqual([]);
@@ -400,6 +510,7 @@ test.describe("UI-5 mobile 375", () => {
     const view = page.locator("#view");
     await expect(view.locator(".task-row").first()).toBeVisible();
     await page.screenshot({ path: `${SHOTS}/taches-liste-mobile.png` });
+    await view.locator('[data-scope="all"]').first().click();
     await view.locator('[data-view="board"]').click();
     await expect(view.locator(".kanban").first()).toBeVisible();
     await page.screenshot({ path: `${SHOTS}/taches-tableau-mobile.png` });

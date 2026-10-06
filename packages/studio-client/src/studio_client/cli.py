@@ -15,6 +15,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ValidationError
 from studio_contracts.auth import AgentCreate
+from studio_contracts.bootstrap import BootstrapFileState, OnModified
 from studio_contracts.builds import BuildStatus, ProducerJobKind, ProducerJobRequest
 from studio_contracts.claims import ResourceClaimCreate, ResourceType
 from studio_contracts.sessions import WorkSessionCreate
@@ -29,8 +30,9 @@ from studio_client.context import (
     ContextPackageOptions,
 )
 from studio_client.errors import StudioApiError
-from studio_client.hooks import HARNESSES, deploy_hooks, detect_harnesses
+from studio_client.hooks import HARNESSES, deploy_guard, deploy_hooks, detect_harnesses
 from studio_client.knowledge import GraphifyGraphProvider, ScopePolicy, VaultMemoryProvider
+from studio_client.opencode_plugin import deploy_plugin
 from studio_client.outbox import OutboxStore, connect, default_outbox_path
 from studio_client.outbox.legacy import main as legacy_outbox_main
 from studio_client.recording import (
@@ -143,13 +145,14 @@ def login(argv: Sequence[str] | None = None) -> int:
 
 
 def setup_hooks(argv: Sequence[str] | None = None) -> int:
-    """Deploy versioned session-start hooks (workflow W2b, DEC-0100): `agents
-    ensure` at every harness session start, so a fresh machine gets a stable
-    `agent_id` without manual wiring. Pure local command — no server, no
-    secret written (the template carries none; the machine token stays
-    keyring/env). Never edits user/global account configs: only Studio OS's
-    own hook files are written (DEC-0096 boundary); the one-line harness
-    registration is printed for the operator to paste."""
+    """Deploy versioned session-start hooks (workflow W2b, DEC-0100) plus the
+    OpenCode plugin: `agents ensure` at every harness session start, so a
+    fresh machine gets a stable `agent_id` without manual wiring. Pure local
+    command — no server, no secret written (the templates carry none; the
+    machine token stays keyring/env). Never edits user/global account
+    configs: only Studio OS's own hook/plugin files are written (DEC-0096
+    boundary); the one-line harness registration is printed for the operator
+    to paste."""
     parser = argparse.ArgumentParser(
         prog="studio-client setup-hooks",
         description="Deploy Studio OS session-start hooks for detected harnesses.",
@@ -181,6 +184,13 @@ def setup_hooks(argv: Sequence[str] | None = None) -> int:
         specs = [spec for spec in HARNESSES if spec.harness in installed]
         skipped = [spec.harness for spec in HARNESSES if spec.harness not in installed]
     result = deploy_hooks(home, specs, overwrite=args.overwrite, dry_run=args.dry_run)
+    if any(spec.harness in ("claude-code", "opencode") for spec in specs):
+        guard_result = deploy_guard(home, overwrite=args.overwrite, dry_run=args.dry_run)
+        result.reports.extend(guard_result.reports)
+    if any(spec.harness == "opencode" for spec in specs):
+        plugin_result = deploy_plugin(home, overwrite=args.overwrite, dry_run=args.dry_run)
+        result.reports.extend(plugin_result.reports)
+    hints = {spec.harness: spec.register_hint for spec in HARNESSES}
     if args.json:
         payload = result.to_dict()
         payload["skipped"] = skipped
@@ -194,10 +204,10 @@ def setup_hooks(argv: Sequence[str] | None = None) -> int:
         for name in skipped:
             print(f"{name}: skipped (harness not detected under {home})")
         if result.reports and not args.dry_run:
-            print(
-                "Next: register the hook in each harness (one line to paste, "
-                "see the W2b decision), then restart the harness session."
-            )
+            for report in result.reports:
+                hint = hints.get(report.harness, "")
+                if hint:
+                    print(f"Next ({report.harness}): " + hint.format(target=report.target))
     return 0
 
 
@@ -298,10 +308,10 @@ def _agents_list(args: argparse.Namespace, config: ClientConfig) -> None:
 def _agents_ensure(args: argparse.Namespace, config: ClientConfig) -> None:
     """Session-start helper (workflow W2): find this machine's agent for a
     harness or register it (CC-1, no authority conferred), so hooks can expose
-    a stable `agent_id` to `sessions start` / `studio_start_session` and
-    `studio_log_ai_work`. The default idempotency key is stable per harness so
-    a retried hook never registers a duplicate; changing the metadata with the
-    default key fails explicitly with `idempotency_key_payload_mismatch`."""
+    a stable `agent_id` to `sessions start` / `studio_start_work` and
+    `studio_log_ai_work`. The default stable key is stable per harness so
+    a retried hook never registers a duplicate; changing the metadata with
+    the default key fails explicitly with `idempotency_key_payload_mismatch`."""
     agent_in = AgentCreate(
         display_name=args.display_name or f"studio-{args.harness}",
         agent_kind=args.agent_kind,
@@ -309,11 +319,11 @@ def _agents_ensure(args: argparse.Namespace, config: ClientConfig) -> None:
         harness=args.harness,
         provider=args.provider,
         model=args.model,
+        stable_key=args.stable_key or f"agents-ensure-{args.harness}",
     )
-    key = args.idempotency_key or f"agents-ensure-{args.harness}"
 
     async def action(client: StudioApiClient) -> tuple[Any, bool]:
-        return await client.ensure_agent(agent_in, idempotency_key=key)
+        return await client.ensure_agent(agent_in)
 
     agent, created = _run(config, action)
     if args.json:
@@ -595,6 +605,21 @@ def _adapters_list(args: argparse.Namespace, config: ClientConfig) -> None:
             print(f"{adapter_id}\t{get_adapter(adapter_id).managed_dir}")
 
 
+def _fetch_library_snapshot(
+    args: argparse.Namespace, config: ClientConfig | None, stable_key: str
+) -> Any:
+    """Fetch one Library snapshot for `--with-library` (P4/AIB-D, DEC-0168).
+    Fail closed: transport/auth errors exit inside `_run`, never fall back
+    to offline silently."""
+    assert config is not None  # Library fetch needs the API configuration.
+    project_id = _parse_uuid(args.project_id, field="project_id") if args.project_id else None
+
+    async def action(client: StudioApiClient) -> Any:
+        return await client.fetch_library_snapshot(stable_key, project_id=project_id)
+
+    return _run(config, action)
+
+
 def _adapters_export(args: argparse.Namespace, config: ClientConfig | None) -> None:
     """Resolve one AgentDefinition over P7 HTTP, then project it locally
     with `studio_client.adapters` (P10/DEC-0074).
@@ -611,11 +636,19 @@ def _adapters_export(args: argparse.Namespace, config: ClientConfig | None) -> N
         print(f"error: {exc.message} ({exc.code.value})", file=sys.stderr)
         raise SystemExit(1) from None
 
+    if args.with_library and not args.from_canonical:
+        print("error: --with-library requires --from-canonical", file=sys.stderr)
+        raise SystemExit(1)
+
     if args.from_canonical:
-        from studio_client.canonical import build_offline_resolved
+        from studio_client.canonical import build_merged_resolved, build_offline_resolved
 
         try:
-            resolved = build_offline_resolved(args.repo_root, args.stable_key)
+            if args.with_library:
+                library = _fetch_library_snapshot(args, config, args.stable_key)
+                resolved = build_merged_resolved(args.repo_root, args.stable_key, library=library)
+            else:
+                resolved = build_offline_resolved(args.repo_root, args.stable_key)
             result = adapter.translate(resolved)
         except (AdapterError, ValueError, OSError) as exc:
             print(f"error: {exc}", file=sys.stderr)
@@ -702,69 +735,18 @@ def _adapters_check(args: argparse.Namespace, config: ClientConfig | None) -> No
     """Anti-drift gate (P3.7): managed harness files must equal a fresh
     offline export of the canonical definitions. Never merges — reports
     every mismatch and exits non-zero."""
-    from studio_client.adapters import AdapterError, get_adapter, list_adapters
-    from studio_client.canonical import (
-        build_offline_resolved,
-        canonical_agent_keys,
-        canonical_rule_keys,
-        load_rule_meta,
-        render_agents_rules_block,
-        render_claude_rule,
-    )
+    from studio_client.adapters_check import check_adapters
 
-    _ = config
-    root = Path(args.repo_root)
-    adapter_ids = [args.adapter] if args.adapter else list_adapters()
-    keys = [args.stable_key] if args.stable_key else canonical_agent_keys(root)
-    failures: list[dict[str, str]] = []
-    checked = 0
-    for adapter_id in adapter_ids:
-        try:
-            adapter = get_adapter(adapter_id)
-        except AdapterError as exc:
-            failures.append({"adapter": adapter_id, "key": "*", "error": exc.message})
-            continue
-        for key in keys:
-            checked += 1
-            try:
-                resolved = build_offline_resolved(root, key)
-                result = adapter.translate(resolved)
-            except (AdapterError, ValueError, OSError) as exc:
-                failures.append({"adapter": adapter_id, "key": key, "error": str(exc)})
-                continue
-            for artifact in result.artifacts:
-                current = root / artifact.path
-                on_disk = (
-                    current.read_text(encoding="utf-8").replace("\r\n", "\n")
-                    if current.is_file()
-                    else None
-                )
-                if on_disk != artifact.content:
-                    failures.append(
-                        {
-                            "adapter": adapter_id,
-                            "key": key,
-                            "error": f"drifted or missing: {artifact.path}",
-                        }
-                    )
-    if args.adapter is None and args.stable_key is None:
-        # Rule projections and the AGENTS.md block are managed too (P3.7).
-        for key in canonical_rule_keys(root):
-            checked += 1
-            applies_to, body = load_rule_meta(root, key)
-            current = root / ".claude" / "rules" / f"{key}.md"
-            on_disk = (
-                current.read_text(encoding="utf-8").replace("\r\n", "\n")
-                if current.is_file()
-                else None
-            )
-            if on_disk != render_claude_rule(key, applies_to, body):
-                failures.append({"adapter": "rules", "key": key, "error": f"drifted: {current}"})
-        checked += 1
-        agents_text = (root / "AGENTS.md").read_text(encoding="utf-8").replace("\r\n", "\n")
-        expected = render_agents_rules_block(root)
-        if expected.rstrip("\n") not in agents_text:
-            failures.append({"adapter": "rules", "key": "*", "error": "AGENTS.md block drifted"})
+    outcome = check_adapters(
+        Path(args.repo_root),
+        adapter_id=args.adapter,
+        stable_key=args.stable_key,
+        library_for=(
+            (lambda key: _fetch_library_snapshot(args, config, key)) if args.with_library else None
+        ),
+    )
+    checked = outcome.checked
+    failures = list(outcome.failures)
     if args.json:
         print(json.dumps({"checked": checked, "failures": failures}, indent=2))
     else:
@@ -773,6 +755,292 @@ def _adapters_check(args: argparse.Namespace, config: ClientConfig | None) -> No
         print(f"checked {checked}, failures {len(failures)}")
     if failures:
         raise SystemExit(1)
+
+
+def _registered_workspace(
+    args: argparse.Namespace, config: ClientConfig | None
+) -> tuple[Path, Any] | None:
+    """The machine-local registry and the workspace registered for `--repo-root`,
+    or None when this folder is not registered (or no profile is configured)."""
+    from studio_contracts.local.identity import ProfileRef
+
+    from studio_client.bootstrap_workspace import WorkspaceBootstrapError, find_workspace
+
+    if config is None:
+        try:
+            config = ClientConfig()  # type: ignore[call-arg]
+        except ValidationError:
+            return None
+    registry_dir = Path(args.registry_dir) if args.registry_dir else default_config_path().parent
+    profile = ProfileRef(profile_id=config.profile_id, server_origin=origin_of(config.api_base_url))
+    try:
+        return registry_dir, find_workspace(registry_dir, profile, args.repo_root)
+    except WorkspaceBootstrapError:
+        return None
+
+
+def _bootstrap_init(args: argparse.Namespace, config: ClientConfig | None) -> None:
+    """Write the `.agents/bootstrap.json` manifest (P3, offline)."""
+    from studio_client.adapters import list_adapters
+    from studio_client.bootstrap import BootstrapError, make_manifest, write_manifest
+
+    known = set(list_adapters())
+    harnesses = args.harness
+    if not harnesses:
+        from studio_client.bootstrap_workspace import build_harness_service, detect_harness_ids
+
+        registered = _registered_workspace(args, config)
+        if registered is not None:
+            registry_dir, workspace = registered
+            detected = detect_harness_ids(build_harness_service(registry_dir, workspace), workspace)
+            harnesses = [harness for harness in detected if harness in known]
+            if not harnesses:
+                print("error: no harness detected on this machine; use --harness", file=sys.stderr)
+                raise SystemExit(1)
+        else:
+            harnesses = sorted(known)
+    unknown = [harness for harness in harnesses if harness not in known]
+    if unknown:
+        print(
+            f"error: unknown harness {'/'.join(unknown)}; known: {', '.join(sorted(known))}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    manifest = make_manifest(
+        args.project_slug,
+        args.project_name,
+        harnesses,
+        description=args.description,
+        on_modified=OnModified(args.on_modified),
+    )
+    try:
+        path = write_manifest(args.repo_root, manifest, overwrite=args.overwrite)
+    except BootstrapError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
+    if args.json:
+        print(json.dumps({"manifest": str(path), "harnesses": harnesses}))
+    else:
+        print(f"Wrote {path} (harnesses: {', '.join(harnesses)}).")
+
+
+def _missing_harnesses(
+    args: argparse.Namespace, config: ClientConfig | None, manifest: Any
+) -> list[str]:
+    from studio_client.bootstrap_workspace import build_harness_service, detect_harness_ids
+
+    registered = _registered_workspace(args, config)
+    if registered is None:
+        return []
+    registry_dir, workspace = registered
+    detected = set(detect_harness_ids(build_harness_service(registry_dir, workspace), workspace))
+    return sorted(ref.id for ref in manifest.harnesses if ref.id not in detected)
+
+
+def _bootstrap_report(
+    args: argparse.Namespace, config: ClientConfig | None, *, emit_diff: bool
+) -> None:
+    from studio_client.bootstrap import BootstrapError, diff_text, load_manifest, observe
+
+    try:
+        manifest = load_manifest(args.repo_root)
+        report = observe(args.repo_root, manifest)
+        diff = diff_text(args.repo_root, manifest) if emit_diff else ""
+    except BootstrapError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
+    if args.json:
+        payload: dict[str, Any] = {"report": report.model_dump(mode="json")}
+        payload["missing_harnesses"] = _missing_harnesses(args, config, manifest)
+        if emit_diff:
+            payload["diff"] = diff
+        print(json.dumps(payload, indent=2))
+    elif emit_diff:
+        print(diff if diff else "no changes")
+    else:
+        for observed in report.files:
+            print(f"{observed.state.value:11} {observed.path}")
+        summary = report.summary
+        print(
+            f"absent={summary.absent} obsolete={summary.obsolete} "
+            f"modified={summary.modified} incompatible={summary.incompatible} "
+            f"up_to_date={summary.up_to_date}"
+        )
+    missing = _missing_harnesses(args, config, manifest)
+    if missing and not args.json:
+        print(f"harnesses declared but not detected: {', '.join(missing)}")
+    drifted = any(f.state is not BootstrapFileState.UP_TO_DATE for f in report.files)
+    if drifted or report.conflicts or report.needs_confirmation:
+        raise SystemExit(1)
+
+
+def _bootstrap_check(args: argparse.Namespace, config: ClientConfig | None) -> None:
+    _bootstrap_report(args, config, emit_diff=False)
+
+
+def _bootstrap_diff(args: argparse.Namespace, config: ClientConfig | None) -> None:
+    _bootstrap_report(args, config, emit_diff=True)
+
+
+def _wire_mcp(args: argparse.Namespace, config: ClientConfig | None, manifest: Any) -> list[Any]:
+    from studio_client.bootstrap_workspace import (
+        WorkspaceBootstrapError,
+        build_harness_service,
+        detect_harness_ids,
+        wire_mcp,
+    )
+
+    registered = _registered_workspace(args, config)
+    if registered is None:
+        print(
+            "error: --wire-mcp needs a registered workspace; run `workspaces register` first",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    registry_dir, workspace = registered
+    service = build_harness_service(registry_dir, workspace)
+    declared = {ref.id for ref in manifest.harnesses}
+    targets = [h for h in detect_harness_ids(service, workspace) if h in declared]
+    try:
+        return wire_mcp(service, workspace, targets, confirm=args.yes)
+    except WorkspaceBootstrapError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
+
+
+def _bootstrap_sync(args: argparse.Namespace, config: ClientConfig | None) -> None:
+    from studio_client.bootstrap import (
+        BootstrapError,
+        apply_files,
+        load_manifest,
+        observe,
+        plan_files,
+    )
+
+    try:
+        manifest = load_manifest(args.repo_root)
+        planned = plan_files(args.repo_root, manifest)
+        report = observe(args.repo_root, manifest, planned=planned)
+        written = apply_files(args.repo_root, manifest, report, planned=planned, confirm=args.yes)
+    except BootstrapError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
+    wirings = _wire_mcp(args, config, manifest) if args.wire_mcp else []
+    if args.json:
+        mcp = [
+            {"adapter_id": w.adapter_id, "applied": w.applied, "changes": len(w.plan.changes)}
+            for w in wirings
+        ]
+        print(json.dumps({"written": written, "mcp": mcp}))
+        return
+    for path in written:
+        print(f"Wrote {path}.")
+    if not written:
+        print("Already up to date.")
+    for wiring in wirings:
+        if wiring.applied:
+            print(f"MCP wired for {wiring.adapter_id}.")
+        elif wiring.plan.changes:
+            print(f"MCP wiring for {wiring.adapter_id} planned (rerun with --yes to apply).")
+        else:
+            print(f"MCP already wired for {wiring.adapter_id}.")
+
+
+def _bootstrap_rollback(args: argparse.Namespace, config: ClientConfig | None) -> None:
+    from studio_client.bootstrap import BootstrapError, list_backups, rollback
+
+    _ = config
+    if args.list:
+        backups = list_backups(args.repo_root)
+        if args.json:
+            payload: dict[str, Any] = {
+                "backups": [
+                    {
+                        "id": backup.directory.name,
+                        "created_at": backup.created_at,
+                        "status": backup.status,
+                        "entries": len(backup.entries),
+                    }
+                    for backup in backups
+                ]
+            }
+            print(json.dumps(payload, indent=2))
+        elif not backups:
+            print("No bootstrap backups.")
+        else:
+            for backup in backups:
+                print(f"{backup.directory.name} {backup.status} {len(backup.entries)} files")
+        return
+    try:
+        undone = rollback(args.repo_root, backup_id=args.backup_id, force=args.force)
+    except BootstrapError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
+    if args.json:
+        print(json.dumps({"rolled_back": undone}))
+    elif undone:
+        for path in undone:
+            print(f"Rolled back {path}.")
+    else:
+        print("Nothing to roll back.")
+
+
+def _bootstrap_scan(args: argparse.Namespace, config: ClientConfig | None) -> None:
+    """Scan the committed shared AI configuration for absolute paths/secrets (P8)."""
+    from studio_client.bootstrap import BootstrapError
+    from studio_client.team_rebuild import scan_committed_files
+
+    _ = config
+    try:
+        issues = scan_committed_files(args.repo_root)
+    except BootstrapError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
+    if args.json:
+        print(json.dumps({"issues": [vars(issue) for issue in issues]}))
+    else:
+        for issue in issues:
+            print(f"{issue.kind}\t{issue.path}:{issue.line}")
+        if not issues:
+            print("Committed files are clean.")
+    if issues:
+        raise SystemExit(1)
+
+
+def _bootstrap_rebuild(args: argparse.Namespace, config: ClientConfig) -> None:
+    """Rebuild this machine's configuration from the committed manifest (P8)."""
+    from studio_contracts.local.identity import ProfileRef
+    from studio_workspaces import WorkspaceStoreError
+
+    from studio_client.bootstrap import BootstrapError
+    from studio_client.team_rebuild import rebuild
+
+    project_id = _parse_uuid(args.project_id, field="project_id")
+    registry_dir = Path(args.registry_dir) if args.registry_dir else default_config_path().parent
+    try:
+        profile = ProfileRef(
+            profile_id=config.profile_id, server_origin=origin_of(config.api_base_url)
+        )
+        result = rebuild(args.repo_root, registry_dir, profile, project_id, confirm=args.yes)
+    except BootstrapError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
+    except WorkspaceStoreError as exc:
+        print(f"error: {exc} ({exc.code.value})", file=sys.stderr)
+        raise SystemExit(1) from None
+    summary = {
+        "workspace": result.registration.action.value,
+        "workspace_id": str(result.registration.config.workspace_id),
+        "written": result.written,
+    }
+    if args.json:
+        print(json.dumps(summary))
+    else:
+        print(f"workspace {summary['workspace']} ({summary['workspace_id']})")
+        for path in result.written:
+            print(f"Wrote {path}.")
+        if not result.written:
+            print("Already up to date.")
 
 
 def _workspaces_register(args: argparse.Namespace, config: ClientConfig) -> None:
@@ -807,11 +1075,57 @@ def _workspaces_register(args: argparse.Namespace, config: ClientConfig) -> None
         print(f"{summary['action']}	{summary['workspace_id']}	{summary['workspace_root']}")
 
 
+def _library_publish(args: argparse.Namespace, config: ClientConfig) -> None:
+    """Publish canonical `.agents/` rules, skills and agent definitions to the
+    Library (P4). Reads are always allowed; nothing is written with
+    `--dry-run`, and nothing activates without `--activate`."""
+    from studio_contracts.library import LibraryScope
+
+    from studio_client.publish import PublishError, build_publish_items, publish_items
+
+    scope = LibraryScope(args.scope)
+    project_id = UUID(args.project_id) if args.project_id else None
+    kinds = tuple(args.kind) if args.kind else ("rule", "skill", "agent")
+    try:
+        items = build_publish_items(args.repo_root, kinds=kinds, keys=args.key)
+
+        async def action(client: StudioApiClient) -> Any:
+            return await publish_items(
+                client,
+                items,
+                scope=scope,
+                project_id=project_id,
+                activate=args.activate,
+                dry_run=args.dry_run,
+            )
+
+        results = _run(config, action)
+    except (PublishError, FileNotFoundError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
+    if args.json:
+        print(
+            json.dumps(
+                {"dry_run": args.dry_run, "results": [vars(result) for result in results]},
+                indent=2,
+            )
+        )
+        return
+    for result in results:
+        suffix = " (activated)" if result.activated else ""
+        print(f"{result.kind}\t{result.stable_key}\tv{result.version}\t{result.action}{suffix}")
+    changed = sum(1 for result in results if result.action != "unchanged")
+    verb = "would publish" if args.dry_run else "published"
+    print(f"{verb} {changed} of {len(results)} resources")
+
+
 def _rules_sync(args: argparse.Namespace, config: ClientConfig | None) -> None:
     """Regenerate rule projections (P3): `.claude/rules/*.md` plus the
-    AGENTS.md rules block, both from `.agents/rules/`. Never merges."""
+    AGENTS.md rules block, both from `.agents/rules/`. Every replaced file is
+    backed up first."""
     import re
 
+    from studio_client.bootstrap import backup_file, backup_root_for
     from studio_client.canonical import (
         canonical_rule_keys,
         load_rule_meta,
@@ -821,6 +1135,7 @@ def _rules_sync(args: argparse.Namespace, config: ClientConfig | None) -> None:
 
     _ = config
     root = Path(args.repo_root)
+    backup_root = backup_root_for(root)
     written: list[str] = []
     for key in canonical_rule_keys(root):
         applies_to, body = load_rule_meta(root, key)
@@ -828,6 +1143,8 @@ def _rules_sync(args: argparse.Namespace, config: ClientConfig | None) -> None:
         if target.exists() and not args.overwrite:
             print(f"skip {target} (exists, pass --overwrite)")
             continue
+        if target.exists():
+            backup_file(root, target.relative_to(root).as_posix(), backup_root)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(render_claude_rule(key, applies_to, body), encoding="utf-8")
         written.append(str(target))
@@ -844,6 +1161,7 @@ def _rules_sync(args: argparse.Namespace, config: ClientConfig | None) -> None:
     if count != 1:
         print("error: AGENTS.md rules block markers not found", file=sys.stderr)
         raise SystemExit(1) from None
+    backup_file(root, "AGENTS.md", backup_root)
     agents_md.write_text(updated, encoding="utf-8")
     written.append(str(agents_md))
     if args.json:
@@ -851,6 +1169,9 @@ def _rules_sync(args: argparse.Namespace, config: ClientConfig | None) -> None:
     else:
         for path in written:
             print(f"Wrote {path}.")
+
+
+_SKILL_TARGET_LABELS = {"opencode": "opencode(~/.config/opencode/skills)"}
 
 
 def _skills_command(args: argparse.Namespace, config: ClientConfig) -> None:
@@ -868,7 +1189,7 @@ def _skills_command(args: argparse.Namespace, config: ClientConfig) -> None:
 
     try:
         projections = _run(config, action)
-        plan = plan_skill_sync(Path(args.home), projections)
+        plan = plan_skill_sync(Path(args.home), projections, include_opencode=not args.no_opencode)
         if args.skills_command == "diff":
             print(diff_skill_plan(plan), end="")
             return
@@ -901,7 +1222,7 @@ def _skills_command(args: argparse.Namespace, config: ClientConfig) -> None:
                         "path": str(target.path),
                         "state": target.state,
                     }
-                    for target in entry.targets
+                    for target in entry.all_targets
                 ],
             }
             for entry in plan.entries
@@ -912,7 +1233,9 @@ def _skills_command(args: argparse.Namespace, config: ClientConfig) -> None:
         else:
             for row in rows:
                 states = ", ".join(
-                    f"{target['harness']}={target['state']}" for target in row["targets"]
+                    f"{_SKILL_TARGET_LABELS.get(target['harness'], target['harness'])}"
+                    f"={target['state']}"
+                    for target in row["targets"]
                 )
                 print(f"{row['stable_key']} v{row['version']}: {states}")
             print(f"checked {len(rows)} skills, failures {failures}")
@@ -934,6 +1257,11 @@ def _build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "outbox",
         help="Review a legacy, identity-less outbox (`studio-client outbox legacy --help`).",
+    )
+
+    subparsers.add_parser(
+        "setup-hooks",
+        help="Deploy Studio OS session-start hooks (`studio-client setup-hooks --help`).",
     )
 
     projects_parser = subparsers.add_parser("projects", help="Projects.")
@@ -1019,7 +1347,7 @@ def _build_parser() -> argparse.ArgumentParser:
     agents_ensure.add_argument("--provider")
     agents_ensure.add_argument("--model")
     agents_ensure.add_argument(
-        "--idempotency-key", help="Defaults to a stable 'agents-ensure-<harness>' key."
+        "--stable-key", help="Defaults to a stable 'agents-ensure-<harness>' key."
     )
     _add_json_flag(agents_ensure)
     agents_ensure.set_defaults(func=_agents_ensure)
@@ -1237,6 +1565,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Build from `.agents/definitions/` files (authoring source, no server).",
     )
     adapters_export.add_argument(
+        "--with-library",
+        action="store_true",
+        help="Merge the Library snapshot over --from-canonical (needs API access).",
+    )
+    adapters_export.add_argument(
         "--repo-root",
         default=".",
         help="Repository root for --from-canonical and check (default: cwd).",
@@ -1251,6 +1584,12 @@ def _build_parser() -> argparse.ArgumentParser:
     adapters_check.add_argument("--adapter", help="Check one adapter id (default: all).")
     adapters_check.add_argument("--stable-key", help="Check one agent key (default: all).")
     adapters_check.add_argument("--repo-root", default=".", help="Repository root.")
+    adapters_check.add_argument("--project-id", help="Project UUID for --with-library.")
+    adapters_check.add_argument(
+        "--with-library",
+        action="store_true",
+        help="Merge the Library snapshot per key before translating (needs API access).",
+    )
     _add_json_flag(adapters_check)
     adapters_check.set_defaults(func=_adapters_check)
 
@@ -1279,9 +1618,16 @@ def _build_parser() -> argparse.ArgumentParser:
     ):
         skills_command = skills_sub.add_parser(command, help=help_text)
         skills_command.add_argument(
-            "--home", default=str(Path.home()), help="User home receiving .agents and .claude."
+            "--home",
+            default=str(Path.home()),
+            help="User home receiving .agents, .claude and .config/opencode.",
         )
         skills_command.add_argument("--library-limit", type=int, default=100)
+        skills_command.add_argument(
+            "--no-opencode",
+            action="store_true",
+            help="Skip the OpenCode copy in ~/.config/opencode/skills.",
+        )
         if command == "sync":
             skills_command.add_argument(
                 "--overwrite",
@@ -1290,6 +1636,130 @@ def _build_parser() -> argparse.ArgumentParser:
             )
         _add_json_flag(skills_command)
         skills_command.set_defaults(func=_skills_command)
+
+    library_parser = subparsers.add_parser("library", help="Library publication (P4).")
+    library_sub = library_parser.add_subparsers(dest="library_command", required=True)
+    library_publish = library_sub.add_parser(
+        "publish",
+        help="Publish `.agents/` rules, skills, agents to the Library (drafts unless --activate).",
+    )
+    library_publish.add_argument("--repo-root", default=".", help="Repository root.")
+    library_publish.add_argument(
+        "--scope", choices=("studio", "project"), default="project", help="Target scope."
+    )
+    library_publish.add_argument("--project-id", help="Project UUID (required for project scope).")
+    library_publish.add_argument(
+        "--kind",
+        action="append",
+        choices=("rule", "skill", "agent"),
+        help="Restrict to a kind (repeatable); default all.",
+    )
+    library_publish.add_argument(
+        "--key", action="append", default=[], help="Restrict to a stable key (repeatable)."
+    )
+    library_publish.add_argument(
+        "--activate", action="store_true", help="Activate the published versions."
+    )
+    library_publish.add_argument(
+        "--dry-run", action="store_true", help="Report what would change; write nothing."
+    )
+    _add_json_flag(library_publish)
+    library_publish.set_defaults(func=_library_publish)
+
+    bootstrap_parser = subparsers.add_parser(
+        "bootstrap", help="Generate the project AI bundle from `.agents/` (P3)."
+    )
+    bootstrap_sub = bootstrap_parser.add_subparsers(dest="bootstrap_command", required=True)
+
+    bootstrap_init = bootstrap_sub.add_parser(
+        "init", help="Write the `.agents/bootstrap.json` manifest."
+    )
+    bootstrap_init.add_argument("--project-slug", required=True)
+    bootstrap_init.add_argument("--project-name", required=True)
+    bootstrap_init.add_argument("--description")
+    bootstrap_init.add_argument(
+        "--harness",
+        action="append",
+        help="Target harness id (repeatable; default: every local adapter).",
+    )
+    bootstrap_init.add_argument("--on-modified", choices=["refuse", "ask"], default="refuse")
+    bootstrap_init.add_argument("--repo-root", default=".")
+    bootstrap_init.add_argument("--registry-dir")
+    bootstrap_init.add_argument("--overwrite", action="store_true")
+    _add_json_flag(bootstrap_init)
+    bootstrap_init.set_defaults(func=_bootstrap_init)
+
+    bootstrap_check = bootstrap_sub.add_parser(
+        "check", help="Report bundle drift (exit 1 when out of date)."
+    )
+    bootstrap_check.add_argument("--repo-root", default=".")
+    bootstrap_check.add_argument("--registry-dir")
+    _add_json_flag(bootstrap_check)
+    bootstrap_check.set_defaults(func=_bootstrap_check)
+
+    bootstrap_diff = bootstrap_sub.add_parser(
+        "diff", help="Print the unified diff needed to sync the bundle."
+    )
+    bootstrap_diff.add_argument("--repo-root", default=".")
+    bootstrap_diff.add_argument("--registry-dir")
+    _add_json_flag(bootstrap_diff)
+    bootstrap_diff.set_defaults(func=_bootstrap_diff)
+
+    bootstrap_sync = bootstrap_sub.add_parser(
+        "sync", help="Write missing or changed bundle files (idempotent)."
+    )
+    bootstrap_sync.add_argument("--repo-root", default=".")
+    bootstrap_sync.add_argument("--registry-dir")
+    bootstrap_sync.add_argument(
+        "--yes",
+        action="store_true",
+        help="Confirm replacements under the `ask` policy and apply the MCP wiring.",
+    )
+    bootstrap_sync.add_argument(
+        "--wire-mcp",
+        action="store_true",
+        help="Preview the machine-local MCP wiring of detected harnesses (applied with --yes).",
+    )
+    _add_json_flag(bootstrap_sync)
+    bootstrap_sync.set_defaults(func=_bootstrap_sync)
+
+    bootstrap_scan = bootstrap_sub.add_parser(
+        "scan", help="Fail if committed AI config holds an absolute path or a secret (P8)."
+    )
+    bootstrap_scan.add_argument("--repo-root", default=".")
+    _add_json_flag(bootstrap_scan)
+    bootstrap_scan.set_defaults(func=_bootstrap_scan)
+
+    bootstrap_rebuild = bootstrap_sub.add_parser(
+        "rebuild",
+        help="Rebuild this machine's config from the committed manifest (P8).",
+    )
+    bootstrap_rebuild.add_argument("--repo-root", default=".")
+    bootstrap_rebuild.add_argument("--project-id", required=True, help="Project UUID.")
+    bootstrap_rebuild.add_argument(
+        "--registry-dir", help="Workspace registry directory (default: the daemon's)."
+    )
+    bootstrap_rebuild.add_argument(
+        "--yes", action="store_true", help="Confirm replacements under the `ask` policy."
+    )
+    _add_json_flag(bootstrap_rebuild)
+    bootstrap_rebuild.set_defaults(func=_bootstrap_rebuild)
+
+    bootstrap_rollback = bootstrap_sub.add_parser(
+        "rollback", help="Undo the latest sync (restore replaced files, delete created ones)."
+    )
+    bootstrap_rollback.add_argument("--repo-root", default=".")
+    bootstrap_rollback.add_argument(
+        "--backup-id", help="Backup directory name to roll back (default: latest)."
+    )
+    bootstrap_rollback.add_argument(
+        "--force", action="store_true", help="Roll back even if a file changed since the backup."
+    )
+    bootstrap_rollback.add_argument(
+        "--list", action="store_true", help="List available backups and exit."
+    )
+    _add_json_flag(bootstrap_rollback)
+    bootstrap_rollback.set_defaults(func=_bootstrap_rollback)
 
     return parser
 
@@ -1312,6 +1782,8 @@ def main(argv: Sequence[str] | None = None) -> None:
             and getattr(args, "from_canonical", False)
         )
         or getattr(args, "rules_command", None) in ("sync",)
+        or getattr(args, "bootstrap_command", None)
+        in ("init", "check", "diff", "sync", "rollback", "scan")
     ):
         # Offline canonical commands need no server configuration.
         args.func(args, None)

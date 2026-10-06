@@ -189,6 +189,17 @@
     },
     {
       "cancellable": false,
+      "capability": "setup.plan",
+      "command": "hooks.check",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "SetupHooksCheckRequest",
+      "response": "SetupHooksCheckResult",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
       "capability": "identity.enroll",
       "command": "identity.enroll",
       "max_request_bytes": 65536,
@@ -196,6 +207,17 @@
       "mutating": true,
       "request": "IdentityEnrollRequest",
       "response": "IdentityEnrollResult",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "identity.enroll",
+      "command": "identity.forget",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": true,
+      "request": "IdentityForgetRequest",
+      "response": "IdentityForgetResult",
       "timeout_ms": 30000
     },
     {
@@ -288,6 +310,39 @@
     },
     {
       "cancellable": false,
+      "capability": "launch.settings",
+      "command": "launch.get_settings",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "LaunchSettingsRequest",
+      "response": "LaunchSettingsView",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "launch.settings",
+      "command": "launch.save_settings",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": true,
+      "request": "LaunchSettingsSaveRequest",
+      "response": "LaunchSettingsView",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "daemon.health",
+      "command": "outbox.legacy_status",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "EmptyPayload",
+      "response": "OutboxLegacyStatus",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
       "capability": "publication.plan",
       "command": "publication.preview",
       "max_request_bytes": 65536,
@@ -317,6 +372,83 @@
       "mutating": false,
       "request": "HandshakeRequest",
       "response": "HandshakeResponse",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "setup.apply",
+      "command": "setup.apply",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": true,
+      "request": "SetupApplyRequest",
+      "response": "SetupApplyResult",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "setup.plan",
+      "command": "setup.plan",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "SetupPlanRequest",
+      "response": "SetupPlan",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "skills.apply",
+      "command": "skills.apply",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": true,
+      "request": "SkillsApplyRequest",
+      "response": "SkillsApplyResult",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "skills.read",
+      "command": "skills.check",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "SkillsCheckRequest",
+      "response": "SkillsCheckResult",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "skills.apply",
+      "command": "skills.configure",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": true,
+      "request": "SkillsConfigureRequest",
+      "response": "SkillsSyncStatus",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "skills.read",
+      "command": "skills.preview",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "SkillsPreviewRequest",
+      "response": "SkillsPreviewResult",
+      "timeout_ms": 30000
+    },
+    {
+      "cancellable": false,
+      "capability": "skills.read",
+      "command": "skills.status",
+      "max_request_bytes": 65536,
+      "max_response_bytes": 1048576,
+      "mutating": false,
+      "request": "EmptyPayload",
+      "response": "SkillsSyncStatus",
       "timeout_ms": 30000
     },
     {

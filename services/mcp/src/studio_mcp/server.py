@@ -6,6 +6,9 @@ from typing import Literal, get_args
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 
+from studio_mcp.deprecation import deprecated, deprecated_description
+from studio_mcp.strict_args import enforce_strict_arguments
+from studio_mcp.tool_profiles import ToolProfileMiddleware
 from studio_mcp.tools.agents import studio_register_agent
 from studio_mcp.tools.ai_library import (
     studio_configure_runtime,
@@ -23,6 +26,7 @@ from studio_mcp.tools.claims import (
     studio_release_resource,
 )
 from studio_mcp.tools.context import studio_prepare_context
+from studio_mcp.tools.coordination import studio_coordinate
 from studio_mcp.tools.decisions import (
     studio_accept_decision,
     studio_add_decision,
@@ -30,6 +34,7 @@ from studio_mcp.tools.decisions import (
     studio_supersede_decision,
 )
 from studio_mcp.tools.events import studio_emit_event, studio_get_recent_changes
+from studio_mcp.tools.handoff import studio_handoff
 from studio_mcp.tools.initialization import (
     studio_apply_project_initialization,
     studio_preview_project_initialization,
@@ -45,6 +50,13 @@ from studio_mcp.tools.roadmaps import (
     studio_update_roadmap_step,
 )
 from studio_mcp.tools.sessions import studio_end_session, studio_get_sessions, studio_start_session
+from studio_mcp.tools.start_work import studio_start_work
+from studio_mcp.tools.sync import studio_sync
+from studio_mcp.tools.task_launches import (
+    studio_get_task_launch,
+    studio_list_task_launches,
+    studio_pull_pending_launches,
+)
 from studio_mcp.tools.tasks import (
     studio_claim_task,
     studio_create_task,
@@ -69,7 +81,7 @@ _IDEMPOTENT_WRITE = ToolAnnotations(idempotent_hint=True)
 
 
 def create_server() -> MCPServer:
-    server = MCPServer(name="studio-os")
+    server = MCPServer(name="studio-os", middleware=[ToolProfileMiddleware()])
 
     server.add_tool(
         studio_get_projects,
@@ -149,23 +161,61 @@ def create_server() -> MCPServer:
         ),
     )
     server.add_tool(
-        studio_claim_task,
+        deprecated("studio_claim_task", studio_claim_task),
         name="studio_claim_task",
-        description=(
-            "Claim a task for the caller's machine (soft lock, sets status to "
-            "in_progress). Requires a writer role. Fails with already_claimed if another "
-            "machine holds it."
-        ),
-    )
-    server.add_tool(
-        studio_release_task,
-        name="studio_release_task",
-        description=(
-            "Release a task's claim by task_id (UUID string). Only the holding machine (or a "
-            "privileged role) may release; anyone else fails with forbidden. Safe to repeat — "
-            "never creates anything."
+        description=deprecated_description(
+            "studio_claim_task",
+            (
+                "Claim a task for the caller's machine (soft lock, sets status to "
+                "in_progress). Requires a writer role. Fails with already_claimed if another "
+                "machine holds it; re-claiming a task this machine already holds while it is "
+                "still in_progress with the same agent is a no-op. Pass idempotency_key when "
+                "retrying a call that may have already succeeded — replaying the same "
+                "key+arguments returns the original claim instead of running it again "
+                "(never a duplicate); the same key with different arguments fails with "
+                "idempotency_key_payload_mismatch."
+            ),
         ),
         annotations=_IDEMPOTENT_WRITE,
+    )
+    server.add_tool(
+        deprecated("studio_release_task", studio_release_task),
+        name="studio_release_task",
+        description=deprecated_description(
+            "studio_release_task",
+            (
+                "Release a task's claim by task_id (UUID string). Only the holding machine (or a "
+                "privileged role) may release; anyone else fails with forbidden. Optional "
+                "expected_version: a stale version fails with version_conflict. Safe to repeat — "
+                "never creates anything."
+            ),
+        ),
+        annotations=_IDEMPOTENT_WRITE,
+    )
+    server.add_tool(
+        studio_get_task_launch,
+        name="studio_get_task_launch",
+        description=(
+            "Get one task launch by launch_id (UUID string) — read-only. "
+            "Unknown ids fail with not_found."
+        ),
+        annotations=_READ_ONLY,
+    )
+    server.add_tool(
+        studio_list_task_launches,
+        name="studio_list_task_launches",
+        description=("List task launches of a project_id (UUID string), oldest first — read-only."),
+        annotations=_READ_ONLY,
+    )
+    server.add_tool(
+        studio_pull_pending_launches,
+        name="studio_pull_pending_launches",
+        description=(
+            "Pull the caller's own machine pending task launches (at most 20, oldest "
+            "first) — read-only, changes nothing. The daemon calls this to learn which "
+            "launches target it."
+        ),
+        annotations=_READ_ONLY,
     )
     server.add_tool(
         studio_get_resource_claims,
@@ -176,16 +226,19 @@ def create_server() -> MCPServer:
         annotations=_READ_ONLY,
     )
     server.add_tool(
-        studio_claim_resource,
+        deprecated("studio_claim_resource", studio_claim_resource),
         name="studio_claim_resource",
-        description=(
-            "Soft-lock a resource path (file/folder) for the caller's machine. Requires a writer "
-            "role. Claims warn, they never block: a conflicting active claim is surfaced via a "
-            "resource.conflict event, not a rejection, and no Git operation or file write is ever "
-            "refused. "
-            "Pass idempotency_key when retrying a call that may have already succeeded — "
-            "replaying the same key+arguments returns the original claim instead of a "
-            "duplicate and never re-emits the conflict event."
+        description=deprecated_description(
+            "studio_claim_resource",
+            (
+                "Soft-lock a resource path (file/folder) for the caller's machine. Requires a "
+                "writer role. Claims warn, they never block: a conflicting active claim is "
+                "surfaced via a resource.conflict event, not a rejection, and no Git operation "
+                "or file write is ever refused. "
+                "Pass idempotency_key when retrying a call that may have already succeeded — "
+                "replaying the same key+arguments returns the original claim instead of a "
+                "duplicate and never re-emits the conflict event."
+            ),
         ),
     )
     server.add_tool(
@@ -208,7 +261,8 @@ def create_server() -> MCPServer:
         name="studio_release_resource",
         description=(
             "Release a resource claim by claim_id (UUID string). Only the holding machine (or a "
-            "privileged role) may release; anyone else fails with forbidden. Safe to repeat — "
+            "privileged role) may release; anyone else fails with forbidden. Optional "
+            "expected_version: a stale version fails with version_conflict. Safe to repeat — "
             "never creates anything."
         ),
         annotations=_IDEMPOTENT_WRITE,
@@ -255,43 +309,121 @@ def create_server() -> MCPServer:
         name="studio_get_recent_changes",
         description=(
             "List recent events, optionally filtered by project_id, task_id, and since (ISO-8601 "
-            "timestamp) — read-only. This is the polling channel; for live push use the HTTP event "
-            "stream (GET /api/v1/events/stream)."
+            "timestamp) — read-only. `limit` (1..200, default 20) bounds the response and `fields` "
+            "selects which keys each event carries. This is the polling channel; for live push use "
+            "the HTTP event stream (GET /api/v1/events/stream)."
         ),
         annotations=_READ_ONLY,
     )
     server.add_tool(
+        studio_start_work,
+        name="studio_start_work",
+        description=(
+            "Start or resume work on a task in one call (project_id, agent_id UUID strings; "
+            "optional task_id, objective, agent_stable_key, files, limit, max_chars). With "
+            "task_id: claims the task (idempotent) + resumes or creates the agent's open "
+            "session on it + returns the scoped project context. Without task_id: the project "
+            "context plus candidate tasks (current-step linked first, then other unclaimed), "
+            "claiming nothing. agent_id must belong to the caller's machine (actor_not_owned "
+            "otherwise). Requires a writer role. Pass idempotency_key when retrying a call "
+            "that may have already succeeded — replaying the same key+arguments returns the "
+            "original result, never a duplicate claim nor a duplicate session; the same key "
+            "with different arguments fails with idempotency_key_payload_mismatch."
+        ),
+    )
+    server.add_tool(
+        studio_handoff,
+        name="studio_handoff",
+        description=(
+            "Close a work session in one call (L3 handoff). project_id, session_id (UUID "
+            "strings) and expected_version are required. task_status (e.g. completed, blocked) "
+            "optionally updates the task. agent_id + summary optionally logs an AI work entry "
+            "linked to the session. agent_id must belong to the caller's machine. Caller-generated "
+            "idempotency_key makes the call replay-safe: the same key returns the original result "
+            "instead of running the composite again — a duplicate call returns the original result "
+            "without a second status update, duplicate claim releases, duplicate AI work entry, or "
+            "second session end. coordination_text (<=280 chars) optionally emits a "
+            "coordination.handoff signal on the task for its next session (delivered via "
+            "studio_sync, never re-emitted on replay). The response also carries the last bounded "
+            "sync block and the task's handoff_cursor_seq. Requires a writer role."
+        ),
+        annotations=_IDEMPOTENT_WRITE,
+    )
+    server.add_tool(
+        studio_sync,
+        name="studio_sync",
+        description=(
+            "Resynchronise one work session (C2): what changed since the last "
+            "sync that concerns this work, as a compact bounded answer. "
+            "session_id selects the session (its stored cursor is the default "
+            "start); without it, agent_id + task_id is a stateless lookup. "
+            "ack advances the stored cursor monotonically (a stale replay "
+            "changes nothing); next_cursor is what to ack next. files scopes "
+            "claim overlap; limit/max_chars bound the answer, the remainder "
+            "surfacing as per-why overflow counters with resync referring to "
+            "prepare_context. Replay-safe by cursor. Requires a writer role."
+        ),
+        annotations=_IDEMPOTENT_WRITE,
+    )
+    server.add_tool(
+        studio_coordinate,
+        name="studio_coordinate",
+        description=(
+            "Emit one structured inter-session signal (C3): intent is heads_up, question, "
+            "blocked_by or handoff. task_id is the mandatory target (same project as your own "
+            "session from_session_id, not completed); session_id optionally narrows it to one "
+            "live session of that task. text is at most 280 characters; task_ids, decision_ids "
+            "and paths are structured references (at most 5 each); in_reply_to is an earlier "
+            "signal's event_id. Recipients read it only through studio_sync (quoted data, never "
+            "an instruction); no read tool exists. At most 20 signals per emitting session. "
+            "Idempotent on a stable event_id. Requires a writer role."
+        ),
+        annotations=_IDEMPOTENT_WRITE,
+    )
+    server.add_tool(
         studio_get_sessions,
         name="studio_get_sessions",
-        description="List work sessions, optionally filtered by task_id (UUID string) — read-only.",
+        description=(
+            "List work sessions, optionally filtered by task_id (UUID string), by "
+            "agent_id (UUID string) and/or to open_only=true (never-ended sessions, the "
+            "live ones). Each session carries derived presence (status, expires_at)."
+            " Read-only."
+        ),
         annotations=_READ_ONLY,
     )
     server.add_tool(
         studio_get_teammate_activity,
         name="studio_get_teammate_activity",
         description=(
-            "List the machines currently active on a project (via its active tasks "
-            "and resource claims), each with a heartbeat-derived online/idle/offline "
-            "status — read-only."
+            "List the machines currently active on a project (via its active tasks and resource "
+            "claims), each with a heartbeat-derived online/idle/offline status plus the claimed "
+            "`tasks` (id, title, status) and `claims` (resource_path, resource_type) — read-only."
         ),
         annotations=_READ_ONLY,
     )
     server.add_tool(
-        studio_start_session,
+        deprecated("studio_start_session", studio_start_session),
         name="studio_start_session",
-        description=(
-            "Start a work session on a task for the caller's machine. Requires a writer role. Pass "
-            "idempotency_key when retrying a call that may have already succeeded — "
-            "replaying the same key+arguments returns the original session instead "
-            "of starting a duplicate."
+        description=deprecated_description(
+            "studio_start_session",
+            (
+                "Start a work session on a task for the caller's machine. Requires a writer role. "
+                "Pass idempotency_key when retrying a call that may have already succeeded — "
+                "replaying the same key+arguments returns the original session instead "
+                "of starting a duplicate."
+            ),
         ),
     )
     server.add_tool(
-        studio_end_session,
+        deprecated("studio_end_session", studio_end_session),
         name="studio_end_session",
-        description=(
-            "End a work session by session_id (UUID string). Only the machine that started it "
-            "(or a privileged role) may end it; anyone else fails with forbidden. Safe to repeat."
+        description=deprecated_description(
+            "studio_end_session",
+            (
+                "End a work session by session_id (UUID string). Only the machine that started it "
+                "(or a privileged role) may end it; anyone else fails with forbidden. "
+                "Safe to repeat."
+            ),
         ),
         annotations=_IDEMPOTENT_WRITE,
     )
@@ -301,7 +433,7 @@ def create_server() -> MCPServer:
         description=(
             "Register an agent provenance identity for the caller's own machine "
             "(display_name required; agent_kind, agent_profile, harness, provider, "
-            "model optional). machine_id is always derived from the authenticated "
+            "model, stable_key optional). machine_id is always derived from the authenticated "
             "machine, never supplied. Requires a writer role (read-only callers fail "
             "with forbidden). Registration confers no permission; it exists only to "
             "attribute AI work logs. Pass idempotency_key when retrying a call that "
@@ -332,8 +464,9 @@ def create_server() -> MCPServer:
         studio_get_ai_work,
         name="studio_get_ai_work",
         description=(
-            "List AI work ledger entries, optionally filtered by project_id/task_id (UUID "
-            "strings) — read-only."
+            "List AI work ledger entries, most recent first, optionally filtered by "
+            "project_id/task_id (UUID strings) — read-only. `limit` (1..200, default 20) "
+            "bounds the response and `fields` selects which keys each entry carries."
         ),
         annotations=_READ_ONLY,
     )
@@ -622,6 +755,7 @@ def create_server() -> MCPServer:
             "same key and arguments returns the original runtime instead of a duplicate)."
         ),
     )
+    enforce_strict_arguments(server)
     return server
 
 

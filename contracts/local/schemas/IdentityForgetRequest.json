@@ -1,0 +1,37 @@
+{
+  "$defs": {
+    "ProfileRef": {
+      "additionalProperties": false,
+      "description": "A local profile is one server origin on one machine. Two profiles never\nshare a secret, an outbox partition or a daemon instance.",
+      "properties": {
+        "profile_id": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Profile Id",
+          "type": "string"
+        },
+        "server_origin": {
+          "title": "Server Origin",
+          "type": "string"
+        }
+      },
+      "required": [
+        "profile_id",
+        "server_origin"
+      ],
+      "title": "ProfileRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Forget the local machine identity on sign-out: the daemon checks\n`profile` against its own server origin, stops, clears the stored machine\ncredential and the cached machine id. Nothing is deleted server-side.",
+  "properties": {
+    "profile": {
+      "$ref": "#/$defs/ProfileRef"
+    }
+  },
+  "required": [
+    "profile"
+  ],
+  "title": "IdentityForgetRequest",
+  "type": "object"
+}

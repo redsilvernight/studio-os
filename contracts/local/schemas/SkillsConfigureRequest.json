@@ -1,0 +1,15 @@
+{
+  "additionalProperties": false,
+  "description": "Enable or disable the automatic skill synchronization on this machine.",
+  "properties": {
+    "auto_sync": {
+      "title": "Auto Sync",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "auto_sync"
+  ],
+  "title": "SkillsConfigureRequest",
+  "type": "object"
+}

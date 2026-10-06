@@ -15,6 +15,23 @@ from studio_api.db.models.project_membership import ProjectMembershipModel
 from studio_api.db.models.transfer import TransferModel
 from studio_api.db.models.user import UserModel
 
+LAUNCH_SCOPE_ATTR = "launch_scope"
+
+
+@dataclass(frozen=True)
+class LaunchScope:
+    """What an ephemeral launch credential is bound to. Carried on the
+    resolved machine for the duration of one request or tool call."""
+
+    launch_id: uuid.UUID
+    project_id: uuid.UUID
+    task_id: uuid.UUID
+
+
+def get_launch_scope(machine: MachineModel) -> LaunchScope | None:
+    scope = getattr(machine, LAUNCH_SCOPE_ATTR, None)
+    return scope if isinstance(scope, LaunchScope) else None
+
 
 class _AllProjects(Enum):
     ALL = "all"
@@ -51,12 +68,12 @@ async def load_principal(session: AsyncSession, machine: MachineModel) -> Princi
     if user is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "machine owner not found")
     role = Role(user.role)
-    return Principal(
-        machine=machine,
-        user=user,
-        role=role,
-        project_scope=await load_project_scope(session, user.id, role),
-    )
+    project_scope = await load_project_scope(session, user.id, role)
+    launch_scope = get_launch_scope(machine)
+    if launch_scope is not None:
+        allowed = project_scope == ALL_PROJECTS or launch_scope.project_id in project_scope
+        project_scope = frozenset({launch_scope.project_id}) if allowed else frozenset()
+    return Principal(machine=machine, user=user, role=role, project_scope=project_scope)
 
 
 async def load_project_scope(session: AsyncSession, user_id: uuid.UUID, role: Role) -> ProjectScope:

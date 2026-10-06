@@ -21,6 +21,8 @@ from pathlib import Path
 PROBE_TIMEOUT_SECONDS = 8.0
 MAX_PROBE_OUTPUT_BYTES = 4096
 _ALLOWED_SUFFIXES = (".exe", ".cmd") if sys.platform == "win32" else ("",)
+_SHIM_SUFFIXES = (".cmd", ".bat")
+_SHIM_READ_LIMIT = 16_384
 _PASSTHROUGH_ENV = (
     "PATH",
     "PATHEXT",
@@ -34,6 +36,26 @@ _PASSTHROUGH_ENV = (
     "APPDATA",
     "LOCALAPPDATA",
     "LANG",
+)
+_LAUNCH_ENV = (
+    *_PASSTHROUGH_ENV,
+    "USERNAME",
+    "USER",
+    "LOGNAME",
+    "HOMEDRIVE",
+    "HOMEPATH",
+    "SystemDrive",
+    "windir",
+    "ProgramData",
+    "ProgramFiles",
+    "ProgramFiles(x86)",
+    "CLAUDE_CODE_GIT_BASH_PATH",
+    "SHELL",
+    "LC_ALL",
+    "XDG_CONFIG_HOME",
+    "XDG_DATA_HOME",
+    "XDG_CACHE_HOME",
+    "XDG_STATE_HOME",
 )
 
 
@@ -62,6 +84,35 @@ def _same_dir(left: Path, right: Path) -> bool:
         return False
 
 
+def _native_exe_behind_shim(shim: Path) -> Path | None:
+    """Follow a Windows `.cmd`/`.bat` shim (npm-style) to the native `.exe` it
+    launches. A harness installed through an npm shim is launched directly
+    instead of through `cmd.exe`, which the launcher refuses (cmd.exe re-parses
+    the command line and the prompt could be injected). Only an existing,
+    non-symlink `.exe` inside the shim's own directory tree is accepted;
+    anything else returns None and the shim is kept as-is."""
+    try:
+        text = shim.read_text(encoding="utf-8", errors="replace")[:_SHIM_READ_LIMIT]
+    except OSError:
+        return None
+    base = str(shim.parent)
+    for raw in re.findall(r'"?([^"\r\n]+?\.exe)"?', text, flags=re.IGNORECASE):
+        expanded = raw.strip().replace("%~dp0%", base).replace("%dp0%", base)
+        candidate = Path(expanded)
+        if not candidate.is_absolute() or candidate.suffix.lower() != ".exe":
+            continue
+        try:
+            if (
+                candidate.is_file()
+                and not candidate.is_symlink()
+                and _is_within(candidate.resolve(), shim.parent.resolve())
+            ):
+                return candidate
+        except OSError:
+            continue
+    return None
+
+
 def locate_executable(
     names: Sequence[str],
     *,
@@ -70,11 +121,14 @@ def locate_executable(
 ) -> Path | None:
     """First regular executable named `names[i]` in an absolute PATH entry,
     skipping the working directory, relative entries and `excluded_dirs`
-    (the workspace: a repository must not choose what Studi'OS launches)."""
+    (the workspace: a repository must not choose what Studi'OS launches). A
+    `.cmd` shim is followed to the native `.exe` it launches when one exists in
+    its own directory tree (npm layout)."""
     if not path_env:
         return None
     cwd = Path.cwd()
     excluded = [directory.resolve() for directory in excluded_dirs if directory.exists()]
+    directories: list[Path] = []
     for raw in path_env.split(os.pathsep):
         entry = raw.strip().strip('"')
         if not entry or not os.path.isabs(entry):
@@ -84,15 +138,74 @@ def locate_executable(
             _is_within(directory.resolve(), block) for block in excluded
         ):
             continue
-        for name in names:
-            for suffix in _ALLOWED_SUFFIXES:
+        directories.append(directory)
+    for suffix in _ALLOWED_SUFFIXES:
+        for directory in directories:
+            for name in names:
                 candidate = directory / f"{name}{suffix}"
                 try:
                     if candidate.is_file() and not candidate.is_symlink():
+                        if suffix in _SHIM_SUFFIXES:
+                            native = _native_exe_behind_shim(candidate)
+                            if native is not None:
+                                return native
                         return candidate
                 except OSError:
                     continue
     return None
+
+
+_EMBEDDED_VERSION = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
+_EMBEDDED_DIRS = ("Claude", "claude-code")
+_EMBEDDED_NAMES = ("claude.exe", "claude")
+
+
+def locate_embedded_claude_code(
+    appdata: str | os.PathLike[str] | None,
+    *,
+    excluded_dirs: Sequence[Path] = (),
+) -> Path | None:
+    """The Claude Code bundled with Claude Desktop, under
+    `%APPDATA%\\Claude\\claude-code\\<version>\\claude.exe`. The highest version
+    wins; a symlinked tree, a workspace path and an unreadable root are all
+    refused, because a repository must never choose what Studi'OS launches."""
+    if not appdata:
+        return None
+    root = Path(appdata).joinpath(*_EMBEDDED_DIRS)
+    try:
+        directories = [
+            child for child in root.iterdir() if child.is_dir() and not child.is_symlink()
+        ]
+    except OSError:
+        return None
+    excluded = [directory.resolve() for directory in excluded_dirs if directory.exists()]
+    ranked: list[tuple[tuple[int, int, int], Path]] = []
+    for directory in directories:
+        match = _EMBEDDED_VERSION.match(directory.name)
+        if match is None:
+            continue
+        for name in _EMBEDDED_NAMES:
+            candidate = directory / name
+            try:
+                if not candidate.is_file() or candidate.is_symlink():
+                    continue
+                resolved = candidate.resolve()
+            except OSError:
+                continue
+            if any(_is_within(resolved, block) for block in excluded):
+                continue
+            ranked.append(((int(match[1]), int(match[2]), int(match[3])), resolved))
+            break
+    if not ranked:
+        return None
+    return max(ranked, key=lambda item: item[0])[1]
+
+
+def launch_environment(source: Mapping[str, str]) -> dict[str, str]:
+    """Allowlisted environment for a remotely launched harness: only what it
+    needs to start and find its own login, never the daemon's other secrets
+    (machine token, cloud keys, unrelated API tokens)."""
+    return {key: source[key] for key in _LAUNCH_ENV if key in source}
 
 
 def _sanitised_env(source: Mapping[str, str]) -> dict[str, str]:

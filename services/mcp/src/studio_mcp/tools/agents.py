@@ -21,6 +21,7 @@ async def studio_register_agent(
     harness: str | None = None,
     provider: str | None = None,
     model: str | None = None,
+    stable_key: str | None = None,
     idempotency_key: str | None = None,
 ) -> dict[str, Any]:
     """Register an agent provenance identity for the caller's own machine."""
@@ -39,6 +40,7 @@ async def studio_register_agent(
                     harness=harness,
                     provider=provider,
                     model=model,
+                    stable_key=stable_key,
                 ),
             )
             return Agent.model_validate(created).model_dump(mode="json")
@@ -52,6 +54,7 @@ async def studio_register_agent(
                     "harness": harness,
                     "provider": provider,
                     "model": model,
+                    "stable_key": stable_key,
                 },
                 sort_keys=True,
             ).encode()

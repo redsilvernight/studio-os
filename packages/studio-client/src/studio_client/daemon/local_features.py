@@ -47,7 +47,7 @@ from studio_contracts.local.knowledge import (
 from studio_contracts.local.workspace import LocalWorkspaceConfig, WorkspaceScope
 
 from studio_client.harness.backup import BackupStore
-from studio_client.harness.base import system_env
+from studio_client.harness.base import MCP_PATH, system_env
 from studio_client.harness.credentials import (
     ApiCredentialProvisioner,
     CredentialProvisioner,
@@ -84,7 +84,6 @@ FEATURE_CAPABILITIES: tuple[str, ...] = (
     "harness.apply",
     "harness.verify",
 )
-MCP_PATH = "/mcp"
 
 WorkspaceConfigSource = Callable[[ProfileRef], Sequence[LocalWorkspaceConfig]]
 KnowledgeServiceFactory = Callable[[LocalWorkspaceConfig, Path], KnowledgeService | None]
@@ -403,6 +402,10 @@ class LocalFeatureRegistry:
         profile = self._profile
         if profile is not None:
             self.refresh(profile)
+
+    def workspace_roots(self) -> tuple[Path, ...]:
+        """Roots of the registered workspaces (daemon-side only, never on the wire)."""
+        return tuple(Path(config.roots.workspace_root) for config in self._configs.values())
 
     def _knowledge(self, workspace_id: UUID) -> KnowledgeService | None:
         return self._services.get(workspace_id)

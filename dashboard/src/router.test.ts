@@ -30,6 +30,11 @@ describe("parseRoute", () => {
     expect(parseRoute("#/projects/abc/activity")).toEqual({ name: "project", id: "abc", tab: "activity" });
     expect(parseRoute("#/projects/abc/decisions")).toEqual({ name: "project", id: "abc", tab: "decisions" });
     expect(parseRoute("#/projects/abc/members")).toEqual({ name: "project", id: "abc", tab: "members" });
+    expect(parseRoute("#/projects/abc/ai-integration")).toEqual({
+      name: "project",
+      id: "abc",
+      tab: "ai-integration",
+    });
     expect(parseRoute("#/projects/abc/unknown")).toEqual({ name: "project", id: "abc", tab: "overview" });
   });
 

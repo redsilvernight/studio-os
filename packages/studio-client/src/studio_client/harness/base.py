@@ -22,8 +22,33 @@ from studio_contracts.local.harness import ChangeKind
 
 from studio_client.config import client_channel
 from studio_client.harness.fsafe import Document, sha256_hex
+from studio_client.harness.probe import locate_executable
 
 STUDIO_MCP_SERVER_NAME = "studio-os-dev" if client_channel() == "dev" else "studio-os"
+
+MCP_PATH = "/mcp"
+"""Path of the MCP endpoint under the API origin. The harness MCP entry points
+at `<origin>/mcp`; a detection context must use the same URL, not the bare
+REST base, or a correctly wired harness looks `configuration_missing`."""
+
+
+def machine_token_env(credential: str) -> dict[str, str]:
+    """Environment that makes a launched harness's own session hook authenticate
+    with the launch's ephemeral credential: its `agents ensure` then registers
+    the agent under the launch's machine, the one its MCP entry uses. Never the
+    durable machine token."""
+    return {"STUDIO_CLIENT_MACHINE_TOKEN": credential}
+
+
+def entry_with_credential(entry: Mapping[str, object], credential: str) -> dict[str, object]:
+    """Copy of the user's MCP entry whose Bearer header carries the launch's
+    ephemeral credential instead of the durable token."""
+    replaced = dict(entry)
+    headers = replaced.get("headers")
+    updated = dict(headers) if isinstance(headers, Mapping) else {}
+    updated["Authorization"] = f"Bearer {credential}"
+    replaced["headers"] = updated
+    return replaced
 
 
 class DetectionState(StrEnum):
@@ -132,6 +157,7 @@ class HarnessAdapter(ABC):
     harness_id: str
     display_name: str
     capabilities: tuple[str, ...] = ("mcp.config",)
+    executable_names: tuple[str, ...] = ()
 
     @abstractmethod
     def detect(self, ctx: HarnessContext) -> Detection:
@@ -159,6 +185,47 @@ class HarnessAdapter(ABC):
     @abstractmethod
     def build_entry(self, mcp_url: str, token: str) -> dict[str, object]:
         """This harness's syntax for Studi'OS's MCP server with `token`."""
+
+    def resolve_executable(self, ctx: HarnessContext) -> Path:
+        """The harness's own executable, found only in an absolute PATH entry
+        outside the workspace (a repository never chooses what is launched).
+        Raises `AdapterRefusal('executable_not_found')` when absent."""
+        executable = locate_executable(
+            self.executable_names,
+            path_env=ctx.env_value("PATH"),
+            excluded_dirs=[ctx.workspace_root],
+        )
+        if executable is None:
+            raise AdapterRefusal("executable_not_found")
+        return executable
+
+    def headless_argv(self, prompt: str) -> tuple[str, ...]:
+        """The arguments (after the executable) that run `prompt` once and exit
+        without a human, bounded to the least autonomy the harness can still
+        work with. The default refuses: a harness with no non-interactive mode
+        is never launched blind (`AdapterRefusal('headless_unsupported')`)."""
+        raise AdapterRefusal("headless_unsupported")
+
+    def headless_extra_argv(
+        self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path
+    ) -> tuple[str, ...]:
+        """Extra arguments appended after `headless_argv` once the launch
+        isolation directory exists: typically a forced `--model` and the flags
+        pointing at the isolated MCP configuration written by
+        `headless_environment` into `isolation_dir`. Nothing by default, so a
+        harness that needs no extra flag is unaffected."""
+        return ()
+
+    def headless_environment(
+        self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path, credential: str
+    ) -> dict[str, str]:
+        """Environment overrides for a launched run: the model to use and a
+        configuration that does not inherit the operator's other MCP servers.
+        `credential` is the launch's ephemeral token; it replaces the durable
+        one in every entry and variable the harness receives. `isolation_dir`
+        is an empty private directory the caller removes after the run.
+        Nothing by default."""
+        return {}
 
 
 def system_env() -> Mapping[str, str]:

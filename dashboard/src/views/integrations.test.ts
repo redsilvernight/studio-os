@@ -15,7 +15,8 @@ import {
   rollbackHarness,
   verifyHarness,
 } from "../harnessApi";
-import { integrationsHtml, renderIntegrations } from "./integrations";
+import { launchSettingsErrorMessage } from "../launchSettingsApi";
+import { integrationsHtml, launchSettingsHtml, renderIntegrations } from "./integrations";
 
 const WS = "11111111-2222-4333-8444-555555555555";
 const flush = async (): Promise<void> => {
@@ -72,7 +73,7 @@ function rig(): { platform: ReturnType<typeof fakeDesktop>; state: Rig } {
   };
   const platform = fakeDesktop({
     request: (async (command: string, payload: Record<string, unknown> = {}) => {
-      state.calls.push({ command, payload });
+      if (command !== "skills.check" && command !== "launch.get_settings") state.calls.push({ command, payload });
       if (command === "harness.detect") {
         return ok({ harnesses: Object.entries(state.states).map(([id, s]) => status(id, s)) });
       }
@@ -286,7 +287,7 @@ describe("Settings › Intégrations IA (Desktop)", () => {
     const { platform, state } = rig();
     state.states = { "claude-code": "incompatible", opencode: "not_detected" };
     const root = await mount(platform);
-    expect(root.querySelector("[data-action]")).toBeNull();
+    expect(root.querySelector(".integrations-list [data-action]")).toBeNull();
     expect(card(root, "claude-code").textContent).toContain("Version non prise en charge");
     expect(card(root, "opencode").textContent).toContain("Non installé");
   });
@@ -479,6 +480,145 @@ describe("Settings › Intégrations IA (Desktop)", () => {
 
   it("escapes hostile text coming from the daemon", () => {
     const html = integrationsHtml([status("claude-code", "detected", { display_name: "<img src=x onerror=alert(1)>" }) as never]);
+    expect(html).not.toContain("<img src=x");
+  });
+});
+
+describe("skills.check section", () => {
+  const skillsResult = {
+    checked_at: "2026-09-30T10:00:00Z",
+    current: 1,
+    missing: 1,
+    outdated: 0,
+    locally_modified: 0,
+    in_sync: false,
+    skills: [
+      {
+        stable_key: "studio-git-flow",
+        version: 5,
+        targets: [
+          { harness: "agents", state: "current" },
+          { harness: "assistant", state: "missing" },
+        ],
+      },
+    ],
+  };
+
+  it("shows the read-only skills state next to the harnesses", async () => {
+    const { platform } = rig();
+    const base = platform.request;
+    (platform as { request: unknown }).request = async (command: string, payload: Record<string, unknown> = {}) =>
+      command === "skills.check" ? ok(skillsResult) : (base as (c: string, p: Record<string, unknown>) => Promise<BridgeAnswer>)(command, payload);
+    const root = await mount(platform);
+    const section = root.querySelector('[data-testid="skills"]');
+    expect(section?.getAttribute("data-in-sync")).toBe("false");
+    expect(section?.textContent).toContain("studio-git-flow");
+    expect(section?.textContent).toContain("Absent");
+    expect(root.querySelector("[data-harness]")).not.toBeNull();
+    expect(root.textContent).not.toMatch(/[A-Za-z]:[\/]|SKILL\.md/);
+  });
+
+  it("keeps the harness list when the skills check is unavailable", async () => {
+    const { platform } = rig();
+    const root = await mount(platform);
+    expect(root.querySelector('[data-testid="skills"]')).toBeNull();
+    expect(root.querySelector("[data-harness]")).not.toBeNull();
+  });
+});
+
+describe("launch settings section", () => {
+  const view = { opt_in: false, max_concurrent: 2, allowed_harnesses: [] as string[], detected_harnesses: ["harness-a", "harness-b"] };
+
+  function withLaunch(onSave?: (payload: Record<string, unknown>) => BridgeAnswer) {
+    const { platform, state } = rig();
+    const base = platform.request;
+    const saved: Record<string, unknown>[] = [];
+    (platform as { request: unknown }).request = async (command: string, payload: Record<string, unknown> = {}) => {
+      if (command === "launch.get_settings") return ok(view);
+      if (command === "launch.save_settings") {
+        saved.push(payload);
+        return onSave ? onSave(payload) : ok({ ...view, opt_in: payload["opt_in"], max_concurrent: payload["max_concurrent"], allowed_harnesses: payload["allowed_harnesses"] });
+      }
+      return (base as (c: string, p: Record<string, unknown>) => Promise<BridgeAnswer>)(command, payload);
+    };
+    return { platform, state, saved };
+  }
+  const setField = (root: HTMLElement, name: string, value: string | boolean): void => {
+    const input = root.querySelector<HTMLInputElement>(`[data-launch-field="${name}"]`) as HTMLInputElement;
+    if (typeof value === "boolean") input.checked = value;
+    else input.value = value;
+  };
+
+  it("builds payloads the bundled schemas accept", () => {
+    buildRequest("launch.get_settings", {});
+    buildRequest("launch.save_settings", { opt_in: true, max_concurrent: 3, allowed_harnesses: ["harness-a"], confirmed: true });
+  });
+
+  it("starts closed and offers only detected harnesses", async () => {
+    const { platform } = withLaunch();
+    const root = await mount(platform);
+    const section = root.querySelector('[data-testid="launch-settings"]');
+    expect(section?.getAttribute("data-opt-in")).toBe("false");
+    expect(root.querySelectorAll("[data-launch-harness]").length).toBe(2);
+    expect(root.querySelector<HTMLInputElement>("[data-launch-harness]")?.checked).toBe(false);
+  });
+
+  it("saves nothing before the explicit confirmation, then sends confirmed=true", async () => {
+    const { platform, saved } = withLaunch();
+    const root = await mount(platform);
+    setField(root, "opt_in", true);
+    setField(root, "max_concurrent", "4");
+    (root.querySelector('[data-launch-harness="harness-b"]') as HTMLInputElement).checked = true;
+    await click(root, "[data-action=save-launch]");
+    expect(saved).toHaveLength(0);
+    expect(root.querySelector('[data-testid="launch-confirm"]')).not.toBeNull();
+    await click(root, "[data-action=confirm-launch]");
+    expect(saved).toEqual([{ opt_in: true, max_concurrent: 4, allowed_harnesses: ["harness-b"], confirmed: true }]);
+    expect(root.querySelector('[data-testid="launch-notice"]')).not.toBeNull();
+  });
+
+  it("cancelling the confirmation saves nothing", async () => {
+    const { platform, saved } = withLaunch();
+    const root = await mount(platform);
+    setField(root, "opt_in", true);
+    await click(root, "[data-action=save-launch]");
+    await click(root, "[data-action=cancel-launch]");
+    expect(saved).toHaveLength(0);
+    expect(root.querySelector('[data-testid="launch-confirm"]')).toBeNull();
+  });
+
+  it("clamps the concurrency to 1-8", async () => {
+    const { platform, saved } = withLaunch();
+    const root = await mount(platform);
+    setField(root, "max_concurrent", "99");
+    await click(root, "[data-action=save-launch]");
+    await click(root, "[data-action=confirm-launch]");
+    expect(saved[0]?.["max_concurrent"]).toBe(8);
+  });
+
+  it("shows a fixed French message for invalid_request and internal_error, keeping the draft", async () => {
+    for (const code of ["invalid_request", "internal_error"]) {
+      document.body.innerHTML = "";
+      const { platform } = withLaunch(() => refused(code));
+      const root = await mount(platform);
+      setField(root, "opt_in", true);
+      await click(root, "[data-action=save-launch]");
+      await click(root, "[data-action=confirm-launch]");
+      const error = root.querySelector('[data-testid="launch-error"]')?.textContent ?? "";
+      expect(error).toBe(launchSettingsErrorMessage({ code } as never));
+      expect(error).not.toBe("");
+      expect(root.querySelector('[data-testid="launch-confirm"]')).not.toBeNull();
+    }
+  });
+
+  it("hides the section when the settings are unavailable", async () => {
+    const { platform } = rig();
+    const root = await mount(platform);
+    expect(root.querySelector('[data-testid="launch-settings"]')).toBeNull();
+  });
+
+  it("escapes harness ids", () => {
+    const html = launchSettingsHtml({ opt_in: true, max_concurrent: 1, detected_harnesses: ["<img src=x onerror=alert(1)>"] });
     expect(html).not.toContain("<img src=x");
   });
 });

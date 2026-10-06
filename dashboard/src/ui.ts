@@ -31,16 +31,6 @@ export function newUuid(): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-export function shortId(id: string | null | undefined): string {
-  if (!id) return "—";
-  return id.length > 8 ? `${id.slice(0, 8)}…` : id;
-}
-
-export function idCell(id: string | null | undefined): string {
-  if (!id) return "—";
-  return `<code class="mono" title="${esc(id)}">${esc(shortId(id))}</code>`;
-}
-
 export type SectionStatus = "loading" | "error" | "empty" | "ready";
 
 export function statusBlock(status: SectionStatus, message = ""): string {
@@ -109,6 +99,16 @@ function humanMessage(error: ApiError): string {
   if (STATUS_MESSAGES[error.status] !== undefined) return STATUS_MESSAGES[error.status] ?? "";
   if (error.status >= 500) return "Le serveur a rencontré une erreur. Réessayez dans un instant.";
   return "L'action n'a pas pu aboutir.";
+}
+
+/**
+ * Vrai quand l'échec vient du réseau coupé plutôt que du serveur : les
+ * surfaces outils affichent alors l'état « hors ligne » partagé (file
+ * locale, reprise à la reconnexion) au lieu d'une erreur générique.
+ */
+export function isOfflineError(error: unknown): boolean {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
+  return error instanceof TypeError && /fetch|network|load failed|offline/i.test(error.message);
 }
 
 /**

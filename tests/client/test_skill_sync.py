@@ -17,6 +17,7 @@ from studio_client.skill_sync import (
     fetch_skill_projections,
     plan_skill_sync,
     render_skill,
+    split_opencode_section,
 )
 
 
@@ -288,7 +289,8 @@ def test_cli_check_is_read_only_and_nonzero_when_projection_is_missing(
         cli.main(["skills", "check", "--home", str(tmp_path), "--json"])
 
     payload = json.loads(capsys.readouterr().out)
-    assert payload["failures"] == 2
+    assert payload["failures"] == 3
+    assert not (tmp_path / ".config").exists()
     assert not (tmp_path / ".agents").exists()
     assert not (tmp_path / ".claude").exists()
 
@@ -305,6 +307,107 @@ def test_cli_sync_overwrite_backs_up_existing_skill(
     cli.main(["skills", "sync", "--home", str(tmp_path), "--overwrite", "--json"])
 
     payload = json.loads(capsys.readouterr().out)
-    assert len(payload["written"]) == 2
+    assert len(payload["written"]) == 3
     assert len(payload["backups"]) == 1
     assert existing.read_text(encoding="utf-8") == render_skill(_projection())
+
+
+def _opencode(home: Path, key: str = "studio-git-flow") -> Path:
+    return home / ".config" / "opencode" / "skills" / key / "SKILL.md"
+
+
+_ADDENDUM = "## Spécificités OpenCode\n\nUtiliser l'outil `task` pour déléguer.\n"
+
+
+def test_opencode_target_is_opt_in_and_reports_missing(tmp_path: Path) -> None:
+    assert plan_skill_sync(tmp_path, [_projection()]).entries[0].opencode is None
+
+    plan = plan_skill_sync(tmp_path, [_projection()], include_opencode=True)
+
+    target = plan.entries[0].opencode
+    assert target is not None
+    assert target.harness == "opencode"
+    assert target.path == _opencode(tmp_path)
+    assert target.state == "missing"
+    assert len(plan.missing) == 3
+
+
+def test_opencode_stale_copy_is_updated_preserving_addendum(tmp_path: Path) -> None:
+    old = _projection(text="old body")
+    apply_skill_sync(plan_skill_sync(tmp_path, [old], include_opencode=True))
+    path = _opencode(tmp_path)
+    path.write_text(path.read_text(encoding="utf-8") + "\n" + _ADDENDUM, encoding="utf-8")
+
+    new = _projection(text="new body")
+    plan = plan_skill_sync(tmp_path, [new], include_opencode=True)
+    assert [t.harness for t in plan.outdated] == ["agents", "claude", "opencode"]
+    result = apply_skill_sync(plan)
+
+    text = path.read_text(encoding="utf-8")
+    assert not result.backups
+    assert "new body" in text
+    assert "old body" not in text
+    assert text.endswith("\n\n" + _ADDENDUM)
+    assert text == render_skill(new) + "\n" + _ADDENDUM
+    again = plan_skill_sync(tmp_path, [new], include_opencode=True)
+    assert not again.missing and not again.drifted
+
+
+def test_opencode_addendum_edit_alone_is_not_drift(tmp_path: Path) -> None:
+    projection = _projection()
+    apply_skill_sync(plan_skill_sync(tmp_path, [projection], include_opencode=True))
+    path = _opencode(tmp_path)
+    path.write_text(path.read_text(encoding="utf-8") + "\n" + _ADDENDUM, encoding="utf-8")
+
+    plan = plan_skill_sync(tmp_path, [projection], include_opencode=True)
+
+    assert plan.entries[0].opencode is not None
+    assert plan.entries[0].opencode.state == "current"
+
+
+def test_opencode_locally_modified_needs_overwrite_and_is_backed_up(tmp_path: Path) -> None:
+    path = _opencode(tmp_path)
+    path.parent.mkdir(parents=True)
+    path.write_text("hand written\n\n" + _ADDENDUM, encoding="utf-8")
+    plan = plan_skill_sync(tmp_path, [_projection()], include_opencode=True)
+    assert [t.harness for t in plan.locally_modified] == ["opencode"]
+
+    with pytest.raises(SkillSyncConflictError, match="overwrite=True"):
+        apply_skill_sync(plan)
+    assert path.read_text(encoding="utf-8").startswith("hand written")
+
+    result = apply_skill_sync(plan, overwrite=True)
+
+    assert len(result.backups) == 1
+    assert result.backups[0].parent.name == "opencode"
+    assert result.backups[0].read_text(encoding="utf-8").startswith("hand written")
+    assert path.read_text(encoding="utf-8") == render_skill(_projection()) + "\n" + _ADDENDUM
+
+
+def test_opencode_manifest_is_backward_compatible(tmp_path: Path) -> None:
+    plain = plan_skill_sync(tmp_path, [_projection()])
+    assert "target_sha256" not in plain.manifest_text
+
+    plan = plan_skill_sync(tmp_path, [_projection()], include_opencode=True)
+    row = json.loads(plan.manifest_text)["skills"][0]
+    assert row["sha256"] == plan.entries[0].sha256
+    assert row["target_sha256"] == {"opencode": plan.entries[0].sha256}
+
+
+def test_opencode_ignores_unlisted_folders_and_diff_names_target(tmp_path: Path) -> None:
+    stray = _opencode(tmp_path, "local-delegation")
+    stray.parent.mkdir(parents=True)
+    stray.write_text("no marker\n", encoding="utf-8")
+
+    plan = plan_skill_sync(tmp_path, [_projection()], include_opencode=True)
+    apply_skill_sync(plan)
+
+    assert stray.read_text(encoding="utf-8") == "no marker\n"
+    assert "+++ .config/opencode/skills/studio-git-flow/SKILL.md" in diff_skill_plan(plan)
+
+
+def test_split_opencode_section_roundtrip() -> None:
+    base, addendum = split_opencode_section("body\n\n" + _ADDENDUM)
+    assert base == "body\n"
+    assert addendum == _ADDENDUM
+    assert split_opencode_section("body\n") == ("body\n", None)

@@ -11,9 +11,11 @@ from studio_contracts.ai_work import AIWorkLog
 from studio_contracts.auth import (
     Agent,
     AgentCreate,
+    AgentEnsureResult,
     HeartbeatRequest,
     HeartbeatResponse,
     Machine,
+    MachineCapabilities,
     MachineCreate,
     MachineCreated,
 )
@@ -26,12 +28,20 @@ from studio_contracts.builds import (
 from studio_contracts.claims import ResourceClaim, ResourceClaimCreate
 from studio_contracts.decisions import Decision
 from studio_contracts.events import EventCreate, EventEnvelope
-from studio_contracts.library import LibraryProjectLock, LibraryResource, LibraryVersion
+from studio_contracts.library import (
+    LibraryActivate,
+    LibraryProjectLock,
+    LibraryResource,
+    LibraryResourceCreate,
+    LibraryVersion,
+    LibraryVersionCreate,
+)
 from studio_contracts.project_state import ProjectState
 from studio_contracts.projects import Project
 from studio_contracts.resolution import AgentResolutionRequest, ResolvedAgentDefinition
 from studio_contracts.review_queue import ReviewQueue
 from studio_contracts.sessions import WorkSession, WorkSessionCreate
+from studio_contracts.task_launch import TaskLaunch, TaskLaunchCredential, TaskLaunchPull
 from studio_contracts.tasks import Task, TaskCreate, TaskUpdate
 from studio_contracts.timeline import Timeline
 from studio_contracts.transfers import (
@@ -46,6 +56,7 @@ from studio_contracts.transfers import (
 )
 from studio_contracts.version import VersionInfo
 
+from studio_client.canonical import LibrarySnapshot
 from studio_client.config import ClientConfig
 from studio_client.errors import StudioApiError, TransportError, error_from_response
 from studio_client.retry import RetryPolicy, is_retryable, sleep
@@ -217,31 +228,35 @@ class StudioApiClient:
         )
         return Agent.model_validate(response.json())
 
-    async def ensure_agent(
-        self, agent_in: AgentCreate, *, idempotency_key: str
-    ) -> tuple[Agent, bool]:
-        """Return `(agent, created)`: the caller's own machine's agent matching
-        `(harness, display_name)`, or register it when absent (CC-1/DEC-0045 —
-        public registration, no authority conferred; DEC-0053 metadata echoed
-        verbatim). Matching stays on this machine's agents only: `GET /agents`
-        lists every machine's identities, and two machines may legitimately
-        share a `display_name`."""
-        machine = await self.get_own_machine()
-        wanted_harness = agent_in.harness or ""
-        for agent in await self.list_agents():
-            if (
-                agent.machine_id == machine.id
-                and (agent.harness or "") == wanted_harness
-                and agent.display_name == agent_in.display_name
-            ):
-                return agent, False
-        return await self.register_agent(agent_in, idempotency_key=idempotency_key), True
+    async def ensure_agent(self, agent_in: AgentCreate) -> tuple[Agent, bool]:
+        """Return `(agent, created)` through `POST /agents/ensure` (AIB-I):
+        the server finds this machine's agent for `stable_key` or registers
+        it (CC-1/DEC-0045 — public registration, no authority conferred;
+        DEC-0053 metadata echoed verbatim). Server-side and race-safe, unlike
+        the former list-and-match on `(harness, display_name)`: a retried
+        session-start hook never registers a duplicate, and same key +
+        different metadata fails explicitly with
+        `idempotency_key_payload_mismatch`."""
+        response = await self._request(
+            "POST",
+            "/api/v1/agents/ensure",
+            json=agent_in.model_dump(mode="json"),
+            idempotent=agent_in.stable_key is not None,
+        )
+        result = AgentEnsureResult.model_validate(response.json())
+        return result.agent, result.created
 
     async def send_heartbeat(
-        self, machine_id: UUID, agent_id: UUID | None = None
+        self,
+        machine_id: UUID,
+        agent_id: UUID | None = None,
+        capabilities: MachineCapabilities | None = None,
     ) -> HeartbeatResponse:
         payload = HeartbeatRequest(
-            machine_id=machine_id, agent_id=agent_id, client_timestamp=datetime.now(UTC)
+            machine_id=machine_id,
+            agent_id=agent_id,
+            client_timestamp=datetime.now(UTC),
+            capabilities=capabilities,
         )
         response = await self._request(
             "POST",
@@ -250,6 +265,28 @@ class StudioApiClient:
             idempotent=True,
         )
         return HeartbeatResponse.model_validate(response.json())
+
+    async def pull_pending_launches(self, machine_id: UUID) -> list[TaskLaunch]:
+        """Non-terminal launches targeting `machine_id`, oldest first. Read
+        only: a pull never changes a launch."""
+        response = await self._request(
+            "GET", f"/api/v1/machines/{machine_id}/task-launches/pending"
+        )
+        return TaskLaunchPull.model_validate(response.json()).items
+
+    async def get_task_launch(self, launch_id: UUID) -> TaskLaunch:
+        """One launch by id, whatever its status. The pending pull only returns
+        non-terminal launches, so this is how a running machine observes a
+        requester cancellation or a server expiry and stops the work."""
+        response = await self._request("GET", f"/api/v1/task-launches/{launch_id}")
+        return TaskLaunch.model_validate(response.json())
+
+    async def issue_launch_credential(self, launch_id: UUID) -> TaskLaunchCredential:
+        """Ephemeral credential for the harness a launch starts: bound to the
+        launch's project and task, void when the launch ends. Needs this
+        client's durable machine credential."""
+        response = await self._request("POST", f"/api/v1/task-launches/{launch_id}/credential")
+        return TaskLaunchCredential.model_validate(response.json())
 
     async def post_event(self, event: EventCreate) -> EventEnvelope:
         """Idempotent by construction: `event.event_id` is the replay key
@@ -274,11 +311,21 @@ class StudioApiClient:
         return Task.model_validate(response.json())
 
     async def list_tasks(
-        self, *, project_id: UUID | None = None, limit: int = 100, offset: int = 0
+        self,
+        *,
+        project_id: UUID | None = None,
+        limit: int = 100,
+        offset: int = 0,
+        status: list[str] | None = None,
+        mine: bool = False,
     ) -> list[Task]:
         params: dict[str, Any] = {"limit": limit, "offset": offset}
         if project_id is not None:
             params["project_id"] = str(project_id)
+        if status:
+            params["status"] = [str(s) for s in status]
+        if mine:
+            params["mine"] = "true"
         response = await self._request("GET", "/api/v1/tasks", params=params)
         return [Task.model_validate(item) for item in response.json()]
 
@@ -299,12 +346,29 @@ class StudioApiClient:
         )
         return Task.model_validate(response.json())
 
-    async def claim_task(self, task_id: UUID) -> Task:
-        response = await self._request("POST", f"/api/v1/tasks/{task_id}/claim")
+    async def claim_task(self, task_id: UUID, *, idempotency_key: str | None = None) -> Task:
+        """Claim a task. Safe to retry: claiming a task this machine already
+        holds is a server-side no-op, so a transport retry never produces a
+        second claim. Pass `idempotency_key` to also replay the exact
+        original response across processes."""
+        extra_headers = (
+            {"Idempotency-Key": idempotency_key} if idempotency_key is not None else None
+        )
+        response = await self._request(
+            "POST",
+            f"/api/v1/tasks/{task_id}/claim",
+            extra_headers=extra_headers,
+            idempotent=True,
+        )
         return Task.model_validate(response.json())
 
-    async def release_task(self, task_id: UUID) -> Task:
-        response = await self._request("POST", f"/api/v1/tasks/{task_id}/release")
+    async def release_task(self, task_id: UUID, *, if_match_version: int | None = None) -> Task:
+        extra_headers = (
+            {"If-Match-Version": str(if_match_version)} if if_match_version is not None else None
+        )
+        response = await self._request(
+            "POST", f"/api/v1/tasks/{task_id}/release", extra_headers=extra_headers
+        )
         return Task.model_validate(response.json())
 
     async def list_sessions(self, *, task_id: UUID | None = None) -> list[WorkSession]:
@@ -588,6 +652,42 @@ class StudioApiClient:
         response = await self._request("GET", f"/api/v1/library/{resource_id}/versions")
         return [LibraryVersion.model_validate(item) for item in response.json()]
 
+    async def create_library_resource(
+        self, resource_in: LibraryResourceCreate, *, idempotency_key: str
+    ) -> LibraryResource:
+        response = await self._request(
+            "POST",
+            "/api/v1/library",
+            json=resource_in.model_dump(mode="json"),
+            extra_headers={"Idempotency-Key": idempotency_key},
+            idempotent=True,
+        )
+        return LibraryResource.model_validate(response.json())
+
+    async def create_library_version(
+        self, resource_id: UUID, version_in: LibraryVersionCreate, *, idempotency_key: str
+    ) -> LibraryVersion:
+        response = await self._request(
+            "POST",
+            f"/api/v1/library/{resource_id}/versions",
+            json=version_in.model_dump(mode="json"),
+            extra_headers={"Idempotency-Key": idempotency_key},
+            idempotent=True,
+        )
+        return LibraryVersion.model_validate(response.json())
+
+    async def activate_library_version(
+        self, resource_id: UUID, activate_in: LibraryActivate, *, idempotency_key: str
+    ) -> LibraryResource:
+        response = await self._request(
+            "POST",
+            f"/api/v1/library/{resource_id}/activate",
+            json=activate_in.model_dump(mode="json"),
+            extra_headers={"Idempotency-Key": idempotency_key},
+            idempotent=True,
+        )
+        return LibraryResource.model_validate(response.json())
+
     async def list_library_locks(
         self, *, project_id: UUID | None = None
     ) -> list[LibraryProjectLock]:
@@ -613,6 +713,17 @@ class StudioApiClient:
             idempotent=True,
         )
         return ResolvedAgentDefinition.model_validate(response.json())
+
+    async def fetch_library_snapshot(
+        self, stable_key: str, *, project_id: UUID | None = None
+    ) -> LibrarySnapshot:
+        """Pre-fetch the Library side of a P4 runtime fusion (AIB-D,
+        DEC-0168): `resolve_full` over HTTP, reduced to the merge surface.
+        Pure read, same retry terms as `resolve_agent`. Carries the
+        project context so locks and User > Project > Studio precedence
+        apply server-side; the merge itself never re-decides versions."""
+        resolved = await self.resolve_agent(stable_key, project_id=project_id)
+        return LibrarySnapshot.from_resolved(resolved)
 
     async def send_mutation(
         self, method: str, path: str, payload: dict[str, Any], *, idempotency_key: str

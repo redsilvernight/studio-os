@@ -10,7 +10,7 @@ import { acceptTokens, persistentSessionAvailable, type TokenBody } from "./pers
 import { joinUrl } from "./config";
 import { getPlatform } from "./platform";
 import { esc } from "./ui";
-import { originRefusalMessage } from "./views/application";
+import { originRefusalMessage } from "./originRefusal";
 
 export type LoginResult = { ok: true } | { ok: false; error: string };
 

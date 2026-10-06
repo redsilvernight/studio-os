@@ -10,10 +10,11 @@ import socketserver
 import sys
 import threading
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TextIO
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 from pydantic import ValidationError
@@ -62,6 +63,9 @@ from studio_contracts.local.identity import (
     IdentityEnrollOutcome,
     IdentityEnrollRequest,
     IdentityEnrollResult,
+    IdentityForgetOutcome,
+    IdentityForgetRequest,
+    IdentityForgetResult,
     IdentityView,
     ProfileRef,
     SecretKind,
@@ -76,6 +80,30 @@ from studio_contracts.local.knowledge import (
     KnowledgeReindexRequest,
     KnowledgeSearchRequest,
 )
+from studio_contracts.local.launch import (
+    LaunchSettingsRequest,
+    LaunchSettingsSaveRequest,
+    LaunchSettingsView,
+)
+from studio_contracts.local.machine_setup import (
+    SetupApplyRequest,
+    SetupApplyResult,
+    SetupHooksCheckRequest,
+    SetupHooksCheckResult,
+    SetupPlan,
+    SetupPlanRequest,
+)
+from studio_contracts.local.outbox import OutboxLegacyStatus
+from studio_contracts.local.skills import (
+    SkillsApplyRequest,
+    SkillsApplyResult,
+    SkillsCheckRequest,
+    SkillsCheckResult,
+    SkillsConfigureRequest,
+    SkillsPreviewRequest,
+    SkillsPreviewResult,
+    SkillsSyncStatus,
+)
 from studio_contracts.local.workspace import (
     WorkspaceConfirmRootsRequest,
     WorkspaceGetConfigRequest,
@@ -89,6 +117,8 @@ from studio_workspaces.workspace_bridge import WorkspaceBridge
 from studio_client.config import ClientConfig, default_config_path, reload_git_watches
 from studio_client.daemon.desktop_origin import DesktopOriginError, desktop_client_config
 from studio_client.daemon.enrollment import EnrollmentError, enroll_machine
+from studio_client.daemon.hooks_check import check_hooks
+from studio_client.daemon.launch_settings_bridge import get_launch_settings, save_launch_settings
 from studio_client.daemon.local_features import (
     FEATURE_CAPABILITIES,
     LocalFeatureError,
@@ -103,11 +133,20 @@ from studio_client.daemon.runtime import (
     InstanceLock,
     WorkspaceSource,
 )
+from studio_client.daemon.setup_bridge import SetupBridge
+from studio_client.daemon.skills_bridge import (
+    apply_skills,
+    check_skills,
+    configure_skills,
+    preview_skills,
+    skills_status,
+)
 from studio_client.data_format import DataFormatError, ensure_data_format
+from studio_client.harness.credentials import workstation_name
 from studio_client.outbox import OutboxIdentityError
 from studio_client.tokens import KeyringTokenStore, TokenStore
 
-DAEMON_VERSION = "0.1.0"
+DAEMON_VERSION = "0.5.0"
 WORKSPACE_CAPABILITIES: tuple[str, ...] = ("workspace.config",)
 _WORKSPACE_COMMANDS = frozenset(
     {
@@ -170,6 +209,16 @@ SERVED = frozenset(
         BridgeCommand.HARNESS_APPLY,
         BridgeCommand.HARNESS_ROLLBACK,
         BridgeCommand.HARNESS_VERIFY,
+        BridgeCommand.SKILLS_CHECK,
+        BridgeCommand.SKILLS_PREVIEW,
+        BridgeCommand.SKILLS_APPLY,
+        BridgeCommand.SKILLS_STATUS,
+        BridgeCommand.SETUP_PLAN,
+        BridgeCommand.SETUP_APPLY,
+        BridgeCommand.SETUP_HOOKS_CHECK,
+        BridgeCommand.LAUNCH_GET_SETTINGS,
+        BridgeCommand.LAUNCH_SAVE_SETTINGS,
+        BridgeCommand.OUTBOX_LEGACY_STATUS,
     }
 )
 _LOCAL_FEATURE_COMMANDS = frozenset(
@@ -233,8 +282,10 @@ class DaemonController:
         token_store: TokenStore | None = None,
         enroll_transport: httpx.BaseTransport | None = None,
         git_watch_source: GitWatchSource | None = None,
+        skills_home: Callable[[], Path] = Path.home,
     ) -> None:
         self.config = config
+        self._skills_home = skills_home
         self._token_store: TokenStore = token_store or KeyringTokenStore("studio-os")
         self._enroll_transport = enroll_transport
         self.data_root = data_root or default_config_path().parent
@@ -243,6 +294,12 @@ class DaemonController:
         self._git_watch_source = git_watch_source
         self.local_features = local_features
         self.workspace_bridge = workspace_bridge
+        self._setup = SetupBridge(
+            config,
+            self._token_store,
+            home=skills_home,
+            roots=self._workspace_roots,
+        )
         self._runtime: DaemonRuntime | None = None
         self._thread: threading.Thread | None = None
         self._failure: BaseException | None = None
@@ -282,7 +339,7 @@ class DaemonController:
                         code=LocalErrorCode.IDENTITY_MISMATCH,
                         message=(
                             "A legacy outbox holds queued work without an identity. "
-                            "Review it with `studio-client outbox legacy status`."
+                            "Review it in the Dashboard (Settings › Application › Legacy outbox)."
                         ),
                         component=ComponentId.DAEMON,
                         retryable=False,
@@ -379,6 +436,69 @@ class DaemonController:
             raise ValueError("instance mismatch")
         return health
 
+    def skills_check(self) -> SkillsCheckResult:
+        return check_skills(self.config, self._token_store, home=self._skills_home())
+
+    def hooks_check(self) -> SetupHooksCheckResult:
+        return check_hooks(self.config, self._token_store, home=self._skills_home())
+
+    def skills_preview(self) -> SkillsPreviewResult:
+        return preview_skills(self.config, self._token_store, home=self._skills_home())
+
+    def skills_apply(self, request: SkillsApplyRequest) -> SkillsApplyResult:
+        return apply_skills(
+            self.config,
+            self._token_store,
+            request,
+            home=self._skills_home(),
+            data_root=self.data_root,
+        )
+
+    def skills_configure(self, request: SkillsConfigureRequest) -> SkillsSyncStatus:
+        return configure_skills(
+            self.config,
+            self._token_store,
+            request,
+            home=self._skills_home(),
+            data_root=self.data_root,
+        )
+
+    def skills_status(self) -> SkillsSyncStatus:
+        return skills_status(
+            self.config,
+            self._token_store,
+            home=self._skills_home(),
+            data_root=self.data_root,
+        )
+
+    def _workspace_roots(self) -> tuple[Path, ...]:
+        features = self.local_features
+        return () if features is None else features.workspace_roots()
+
+    def setup_plan(self) -> SetupPlan:
+        return self._setup.plan()
+
+    def setup_apply(self, request: SetupApplyRequest) -> SetupApplyResult:
+        return self._setup.apply(request)
+
+    def launch_settings(self) -> LaunchSettingsView:
+        return get_launch_settings(self.config, self.data_root)
+
+    def save_launch_settings(self, request: LaunchSettingsSaveRequest) -> LaunchSettingsView:
+        return save_launch_settings(self.config, self.data_root, request)
+
+    def outbox_legacy_status(self) -> OutboxLegacyStatus:
+        from studio_contracts.local.outbox import LegacyOutboxTable
+
+        from studio_client.outbox.legacy import inspect_legacy_outbox
+
+        report = inspect_legacy_outbox()
+        return OutboxLegacyStatus(
+            exists=report.exists,
+            has_queued_work=report.has_queued_work,
+            counts={LegacyOutboxTable(k): v for k, v in report.counts.items()},
+        )
+
     def identity_view(self) -> IdentityView:
         profile = self._profile()
         reference = SecretReference(
@@ -417,6 +537,7 @@ class DaemonController:
                     error=error,
                 )
             ],
+            workstation_name=workstation_name(),
         )
 
     def enroll(self, request: IdentityEnrollRequest) -> IdentityEnrollResult:
@@ -428,6 +549,8 @@ class DaemonController:
             self._token_store,
             transport=self._enroll_transport,
         )
+        if outcome.machine_id is not None:
+            self._adopt_enrolled_identity(outcome.machine_id)
         return IdentityEnrollResult(
             outcome=IdentityEnrollOutcome.ENROLLED
             if outcome.machine_id is not None
@@ -435,6 +558,74 @@ class DaemonController:
             machine_id=outcome.machine_id,
             view=self.identity_view(),
         )
+
+    def forget_identity(self, request: IdentityForgetRequest) -> IdentityForgetResult:
+        profile = self._profile()
+        if request.profile != profile:
+            raise EnrollmentError(
+                LocalError(
+                    code=LocalErrorCode.WRONG_PROFILE,
+                    message="The profile belongs to another server than this daemon's.",
+                    component=ComponentId.DAEMON,
+                    retryable=False,
+                )
+            )
+        with self._lock:
+            had_identity = self.config.machine_id is not None
+            running = self._thread is not None and self._thread.is_alive()
+        if running:
+            self._stop(DaemonControlRequest(action=DaemonAction.STOP, profile=profile))
+        try:
+            had_token = self._token_store.get_token(profile.server_origin) is not None
+            self._token_store.clear_token(profile.server_origin)
+        except Exception:  # noqa: BLE001
+            _LOGGER.warning("machine credential not cleared", exc_info=True)
+            had_token = False
+        try:
+            from studio_client.daemon.machine_identity import _cache_path
+
+            _cache_path(self.config, self.data_root).unlink(missing_ok=True)
+        except OSError:
+            _LOGGER.warning("machine identity cache not removable", exc_info=True)
+        with self._lock:
+            self.config = self.config.model_copy(update={"machine_id": None})
+        forgotten = had_identity or had_token
+        return IdentityForgetResult(
+            outcome=IdentityForgetOutcome.FORGOTTEN
+            if forgotten
+            else IdentityForgetOutcome.NOTHING_TO_FORGET,
+            view=self.identity_view(),
+        )
+
+    def _adopt_enrolled_identity(self, machine_id: UUID) -> None:
+        with self._lock:
+            previous = self.config.machine_id
+            running = self._thread is not None and self._thread.is_alive()
+            if previous == machine_id and running:
+                return
+            self.config = self.config.model_copy(update={"machine_id": machine_id})
+            should_start = running or previous is None
+        try:
+            from studio_client.daemon.machine_identity import _cache_path, _fingerprint
+
+            token = self._token_store.get_token(self._profile().server_origin)
+            if token:
+                from studio_client.daemon.machine_identity import _write_cache
+
+                _write_cache(
+                    _cache_path(self.config, self.data_root), _fingerprint(token), machine_id
+                )
+        except Exception:  # noqa: BLE001
+            _LOGGER.warning("enrolled identity cache not writable", exc_info=True)
+        if not should_start:
+            return
+        if running:
+            self._stop(DaemonControlRequest(action=DaemonAction.STOP, profile=self._profile()))
+        result = self._start_or_attach(
+            DaemonControlRequest(action=DaemonAction.START, profile=self._profile())
+        )
+        if result.outcome not in {DaemonControlOutcome.OK, DaemonControlOutcome.ALREADY_RUNNING}:
+            _LOGGER.warning("daemon did not start after enrollment: %s", result.outcome)
 
     def close(self, *, persist: bool = False) -> None:
         if persist:
@@ -501,6 +692,8 @@ class DaemonController:
                 workspace_refresh_listener=(
                     None if self.local_features is None else self._refresh_local_features
                 ),
+                token_store=self._token_store,
+                skills_home=self._skills_home,
             )
             self._runtime = runtime
             self._failure = None
@@ -688,6 +881,11 @@ class BridgeService:
                             "daemon.health",
                             "identity.view",
                             "identity.enroll",
+                            "skills.read",
+                            "skills.apply",
+                            "setup.plan",
+                            "setup.apply",
+                            "launch.settings",
                             *(
                                 WORKSPACE_CAPABILITIES
                                 if self.controller.workspace_bridge is not None
@@ -709,6 +907,48 @@ class BridgeService:
             return self.controller.identity_view()
         if request.command is BridgeCommand.IDENTITY_ENROLL:
             return self.controller.enroll(IdentityEnrollRequest.model_validate(request.payload))
+        if request.command is BridgeCommand.IDENTITY_FORGET:
+            return self.controller.forget_identity(
+                IdentityForgetRequest.model_validate(request.payload)
+            )
+        if request.command is BridgeCommand.SKILLS_CHECK:
+            SkillsCheckRequest.model_validate(request.payload)
+            return self.controller.skills_check()
+        if request.command is BridgeCommand.SETUP_HOOKS_CHECK:
+            SetupHooksCheckRequest.model_validate(request.payload)
+            return self.controller.hooks_check()
+        if request.command is BridgeCommand.SKILLS_PREVIEW:
+            SkillsPreviewRequest.model_validate(request.payload)
+            return self.controller.skills_preview()
+        if request.command is BridgeCommand.SKILLS_APPLY:
+            apply_request = SkillsApplyRequest.model_validate(request.payload)
+            return self.controller.skills_apply(apply_request)
+        if request.command is BridgeCommand.SKILLS_CONFIGURE:
+            return self.controller.skills_configure(
+                SkillsConfigureRequest.model_validate(request.payload)
+            )
+        if request.command is BridgeCommand.SKILLS_STATUS:
+            from studio_contracts.local.bridge import EmptyPayload
+
+            EmptyPayload.model_validate(request.payload)
+            return self.controller.skills_status()
+        if request.command is BridgeCommand.SETUP_PLAN:
+            SetupPlanRequest.model_validate(request.payload)
+            return self.controller.setup_plan()
+        if request.command is BridgeCommand.SETUP_APPLY:
+            return self.controller.setup_apply(SetupApplyRequest.model_validate(request.payload))
+        if request.command is BridgeCommand.LAUNCH_GET_SETTINGS:
+            LaunchSettingsRequest.model_validate(request.payload)
+            return self.controller.launch_settings()
+        if request.command is BridgeCommand.LAUNCH_SAVE_SETTINGS:
+            return self.controller.save_launch_settings(
+                LaunchSettingsSaveRequest.model_validate(request.payload)
+            )
+        if request.command is BridgeCommand.OUTBOX_LEGACY_STATUS:
+            from studio_contracts.local.bridge import EmptyPayload
+
+            EmptyPayload.model_validate(request.payload)
+            return self.controller.outbox_legacy_status()
         if request.command in _WORKSPACE_COMMANDS:
             return self._workspace(request)
         if request.command in _LOCAL_FEATURE_COMMANDS:
@@ -933,11 +1173,22 @@ class SharedBridgeService:
                 time.sleep(0.05)
 
 
+def ensure_utf8_stdio(source: TextIO, destination: TextIO) -> None:
+    for stream in (source, destination):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            try:
+                reconfigure(encoding="utf-8", errors="strict")
+            except Exception:
+                pass
+
+
 def serve_streams(
     service: BridgeService | SharedBridgeService,
     source: TextIO,
     destination: TextIO,
 ) -> None:
+    ensure_utf8_stdio(source, destination)
     for line in source:
         if not line.strip():
             continue

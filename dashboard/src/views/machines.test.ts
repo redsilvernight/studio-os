@@ -47,6 +47,7 @@ const row = (overrides: Partial<MachineRow> = {}): MachineRow => ({
   statusSource: "derived",
   agentCount: 1,
   activeSessionCount: 1,
+  version: null,
   ...overrides,
 });
 
@@ -133,7 +134,8 @@ describe("filterMachineRows", () => {
 describe("machinesLoadingHtml", () => {
   it("affiche un squelette accessible sans changement brutal", () => {
     const html = machinesLoadingHtml();
-    expect(html).toContain("Machines");
+    expect(html).toContain("Postes");
+    expect(html).toContain("Administration / Postes");
     expect(html).toContain("Chargement");
     expect(html).toContain('role="status"');
   });
@@ -143,7 +145,9 @@ describe("machinesPageHtml nominal", () => {
   const html = machinesPageHtml(pageData());
 
   it("titre et description humains, liste de cartes sans table SQL", () => {
-    expect(html).toContain("<h1>Machines</h1>");
+    expect(html).toContain("<h1>Postes</h1>");
+    expect(html).toContain("Administration / Postes");
+    expect(html).toContain("Revoir le poste sans activité");
     expect(html).toContain("Poste de Flo");
     expect(html).toContain("<ul");
     expect(html).not.toContain("<table>");
@@ -158,7 +162,7 @@ describe("machinesPageHtml nominal", () => {
       expect(title).not.toContain(M1);
       expect(title).not.toContain(M2);
     }
-    expect(html).toContain(`title="${M1}"`);
+    expect(html).not.toContain(`title="${M1}"`);
   });
 
   it("activité déduite honnête, source visible, jamais couleur seule", () => {
@@ -188,7 +192,7 @@ describe("machinesPageHtml nominal", () => {
 
   it("recherche locale sur nom et identifiant uniquement", () => {
     const toolbar = machinesToolbarHtml(initialMachinesState(), 2, 2);
-    expect(toolbar).toContain('placeholder="Filtrer par nom ou identifiant…"');
+    expect(toolbar).toContain('placeholder="Filtrer par nom…"');
     expect(toolbar).toContain("Toutes les activités");
     expect(toolbar).not.toMatch(/serveur|server/i);
   });
@@ -258,20 +262,26 @@ describe("machineDrawerBodyHtml", () => {
     expect(bare).toContain("Aucun runtime rattaché");
     expect(bare).toContain("Non renseigné");
   });
+
+  it("inclut un bouton Renommer dans les informations techniques", () => {
+    expect(html).toContain('data-machine-rename="');
+    expect(html).toContain("Renommer");
+    expect(html).toContain('data-machine-version="');
+  });
 });
 
 describe("empty / erreur partielle", () => {
   it("l'état vide explique la machine sans CTA fictif", () => {
     const html = machinesEmptyHtml();
-    expect(html).toContain("Aucune machine observée");
+    expect(html).toContain("Aucun poste observé");
     expect(html).toMatch(/environnement enregistré/);
-    expect(html).toMatch(/enregistre ses propres machines/);
+    expect(html).toMatch(/enregistre ses propres postes/);
     expect(html).not.toContain("<a");
     expect(html).not.toContain("<button");
   });
 
   it("aucun résultat de filtre invite à ajuster, sans tout perdre", () => {
-    expect(machinesNoMatchHtml()).toContain("Aucune machine ne correspond");
+    expect(machinesNoMatchHtml()).toContain("Aucun poste ne correspond");
   });
 
   it("une source secondaire en panne dégrade sans masquer la liste", () => {

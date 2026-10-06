@@ -32,7 +32,7 @@ ressource rattachee a un projet.
 - Dates ISO 8601 UTC.
 - Ecriture mutable sur un objet existant (`PATCH`) : header `If-Match-Version` avec la `version` lue par le client ; 409 + version serveur courante en cas de conflit (`TECH/04_AUTH_SYNC_CONTRACT.md`).
 - Authentification : header `Authorization: Bearer <machine-token>` sur tout endpoint sous `/api/v1` (sauf `/healthz`, `/metrics`, `GET /version`, `POST /auth/token`, `POST /auth/refresh`, `POST /auth/logout`, les routes publiques d'inscription et de recuperation A4 et `POST /github/webhook` — ce dernier est signe HMAC `X-Hub-Signature-256`, jamais Bearer) — voir `TECH/04_AUTH_SYNC_CONTRACT.md`. Le dashboard humain obtient un JWT court-terme via `POST /auth/token` (DASH-4, DEC-0056) et le presente ensuite comme `Authorization: Bearer <jwt>`.
-- Enveloppe reelle d'une erreur machine-readable (`error_code` present dans ce document, ex. `413`/`507`/`409 idempotency_key_payload_mismatch`) : `{"detail": {"error_code": "...", ...}}` — FastAPI enveloppe systematiquement `HTTPException.detail`, jamais `{"error_code": "..."}` a plat. Une erreur sans `error_code` (401/403/404 génériques) renvoie `{"detail": "<message>"}`, une simple chaine. `studio_contracts.common.ErrorResponse`/`VersionConflictError` ne sont utilises par aucun code serveur actuel — clarification documentaire (DEC-0024), pas un changement de comportement.
+- Enveloppe reelle d'une erreur machine-readable (`error_code` present dans ce document, ex. `413`/`507`/`409 idempotency_key_payload_mismatch`) : `{"detail": {"error_code": "...", ...}}` — FastAPI enveloppe systematiquement `HTTPException.detail`, jamais `{"error_code": "..."}` a plat. Une erreur sans `error_code` (401/403/404 génériques) renvoie `{"detail": "<message>"}`, une simple chaine. Aucun modele plat `{"error_code": ...}` n'existe cote contrats partages : `{"detail": {...}}`/`{"detail": "<message>"}` est l'unique forme reelle, inchangee (DEC-0024).
 
 ## Endpoints principaux
 ### Version et compatibilite (C1, additif)
@@ -175,6 +175,17 @@ que l'adresse existe ou non ; les e-mails partent apres la reponse.
   a laquelle appartient le credential presente, `status` derive comme dans la
   liste. Toute machine authentifiee peut lire. Sert au daemon local a
   connaitre son propre `id` a partir du seul credential.
+- GET|PUT|DELETE /machines/{machine_id}/launch-grants[/{user_id}] (AIB-J, additif) —
+  droit de lancer du travail sur une machine, accorde par son proprietaire (ou `admin`) a
+  un autre User (`MachineLaunchGrant`, `studio_contracts.launch_grants`). `PUT` : corps
+  optionnel `{project_id?, expires_at?}` (`expires_at` futur, sinon `422`) ; `201` a la
+  creation, `200` + droit inchange si deja accorde (revoquer puis re-accorder pour le
+  modifier) ; naturellement idempotent, sans `Idempotency-Key`. `DELETE` : `204` idempotent.
+  Proprietaire ou `admin` seulement ; un autre appelant recoit le meme `403` que la machine
+  existe ou non (un `admin` recoit `404` pour une machine inconnue). S'accorder ou se
+  retirer le droit a soi-meme : `403 self_modification_forbidden`, avant toute lecture.
+  `404` si l'utilisateur ou le projet vise n'existe pas ; `project_id` exige l'acces a ce
+  projet.
 - POST /machines (A5, additif : libre-service, DU-0/A) — tout principal
   authentifie (machine ou JWT) dont le role n'est pas `agent` cree une
   machine dont son propre User est proprietaire. Pour un non-admin, le
@@ -193,6 +204,22 @@ que l'adresse existe ou non ; les e-mails partent apres la reponse.
   un non-admin, la machine d'un autre User repond `404`, a l'identique d'une
   machine inexistante (comme `GET /machines`, qui ne la liste jamais).
   Revoquer la machine appelante elle-meme est permis ; effet immediat.
+- POST /machines/{machine_id}/adopt (additif) — reprise d'une machine existante
+  (meme controle d'acces que `revoke`) : le credential est tourne, la machine
+  garde son `id` et son historique ; reponse = `Machine` + `credential` en clair,
+  une seule fois (`200`). L'ancien credential est invalide immediatement ;
+  machine revoquee = `409` ; pas de `Idempotency-Key`. Cote client,
+  `IdentityEnrollRequest.adopt_machine_id` (optionnel) l'emploie a la place de
+  `POST /machines`.
+- PATCH /machines/{machine_id} (additif) — renomme la machine (`display_name`).
+  Proprietaire ou `admin` ; `agent` recoit `403`. Pour un non-admin, la machine
+  d'un autre User repond `404`. Concurrence optimiste obligatoire via header
+  `If-Match-Version` (entier) : version lue au dernier `GET` ; version etalee
+  repond `409 {"detail": {"error_code": "version_conflict",
+  "server_version": <current>}}`. Header manquant : `422`. `display_name`
+  valide = non vide, 1–100 caracteres, espaces lateraux supprimes (meme
+  validation que `MachineCreate.display_name`). Reponse = `Machine` (version
+  incrementee).
 - Etat du compte (DU-0/A, introduit par A2/DEC-0110) : ces deux operations
   exigent un User actif et verifie. Un User `pending` (`email_verified_at`
   nul) ou `disabled` (`disabled_at` pose) n'obtient aucun principal : toutes
@@ -238,17 +265,154 @@ hors-bande par la CLI serveur `studio-admin` (DEC-0011) — aucun endpoint
 public de bootstrap, pas de secret d'environnement dedie.
 
 ### Tasks
-- GET /tasks
+- GET /tasks — filtres optionnels additifs (P04-work, DEC-0185) : `status`
+  (repetable, valeurs `TaskStatus`, OU logique ; absent = tous) et `mine`
+  (booleen, defaut `false` ; `true` = taches reclamees par une machine dont
+  le proprietaire est l'utilisateur authentifie). Combinables avec
+  `project_id`, `limit`, `offset` ; tri et visibilite inchanges.
 - POST /tasks
 - GET /tasks/{id}
 - PATCH /tasks/{id}
-- POST /tasks/{id}/claim
-- POST /tasks/{id}/release
+- POST /tasks/{id}/claim — claim idempotent (L2, additif/clarification,
+  DEC-0160) : reclamer une tache encore `in_progress`, deja tenue par la
+  meme machine avec le meme agent, est un no-op (aucun bump de `version`,
+  aucun evenement `task.started` duplique) — un appel rejoue reste donc sans
+  effet nouveau, sans cle. Une machine differente garde `409 already_claimed` ;
+  reclamer une tache liberee, bloquee ou terminee, ou avec un `agent_id`
+  different, est une (re)prise reelle (version + `task.started`). Accepte
+  `Idempotency-Key` (meme cle + meme corps = claim d'origine, corps
+  different = `409 idempotency_key_payload_mismatch`). Aucun changement de
+  champ, de code HTTP ni d'enveloppe d'evenement : pas de bump de version
+  contractuelle.
+- POST /tasks/{id}/release — `If-Match-Version` facultatif (additif) : absent,
+  comportement inchange ; present et perime, `409 {"detail": {"error_code":
+  "version_conflict", "server_version": N}}` sans liberer. Controle d'acces
+  (detenteur ou admin, `403 forbidden`) evalue avant la version. MCP
+  `studio_release_task` : `expected_version` facultatif, meme semantique.
 
 ### Sessions
 - POST /sessions
 - PATCH /sessions/{id}/end
-- GET /sessions
+- GET /sessions — filtres optionnels `agent_id` (UUID) et `open=true`
+  (seulement les sessions jamais terminees, les vivantes), additif
+  (L2/AIB-H, DEC-0161).
+- Presence derivee a la lecture (C1, DEC-0157, additif) : chaque session
+  expose `last_activity_at` (derniere activite authentifiee rattachee a la
+  session — debut/fin aujourd'hui ; `start_work`, `sync`, emission
+  d'evenements, `ai_work` et `handoff` dans leurs etapes L2/L3/C2/C4),
+  `status` (`active|idle|expired|ended`, seuils configurables
+  `session_idle_after_seconds` / `session_expire_after_seconds`) et
+  `expires_at` (echeance lue `expired`, `null` si terminee). Jamais stockes,
+  jamais un heartbeat (meme patron que `status` machine depuis
+  `last_seen_at`).
+- Reprise et cloture des expirees (L2/AIB-H, DEC-0161) : la reprise d'une
+  session (`studio_start_work`) reprend la session ouverte de la meme
+  machine/agent sur la tache, ou la **clot** si sa presence derivee est
+  `expired` puis en cree une neuve ; une session `ended` n'est jamais
+  reutilisee. Aucune cloture sur un chemin de lecture (`GET` reste pur,
+  DEC-0080). Un client qui ignore ces regles n'observe aucun changement.
+- Repli L3 (DEC-0163) : `PATCH /sessions/{id}/end` libere desormais les
+  claims actifs de la tache detenus par la machine appelante, avec un
+  `resource.released` par claim (meme chemin que `release_claim`), avant de
+  marquer la session terminee — et aussi sur une session deja terminee, pour
+  converger apres un echec partiel.
+
+### Start work (L2, additif, DEC-0159)
+- POST /start-work (body `StartWorkRequest`, reponse `StartWorkResult`) +
+  outil MCP `studio_start_work` (meme contrat, `idempotency_key` optionnel,
+  DEC-0027/DEC-0046/DEC-0048 : pas de version dans le payload).
+  Composite en un appel (les services composes gardent leurs propres
+  commits : ce n'est pas une transaction unique, un echec en cours converge
+  au rejeu), sans nouvelle table ni nouvel evenement :
+  avec `task_id`, claim idempotent pour la meme machine (`409
+  already_claimed` si une autre machine tient la tache) + reprise de la
+  session ouverte du meme agent sur la tache ou creation (AIB-H ; les
+  expirees sont closes par L2) + `touch_session` + `prepare_context`
+  borne et cadre (`task_id`, `files`, `agent_stable_key`) ; sans `task_id`,
+  contexte projet + `candidates` (AIB-G) : d'abord les taches liees a
+  l'etape courante de la roadmap, dans l'ordre deterministe du service (pas
+  l'ordre de la base) (`why` `active_roadmap`), puis les autres taches non
+  reclamees et non terminees du projet, plus recemment modifiees d'abord
+  (`why` `project_scope`), bornees par `limit` ; chaque candidat est compact
+  (`task_id`/`title`/`status`/`why`), jamais la description. Aucun claim ni
+  session sur ce chemin (`prepare_context` ne gagne aucun effet de bord,
+  DEC-0080).
+  `agent_id` doit appartenir a la machine appelante (`409 actor_not_owned`,
+  meme regle que `POST /ai-work`). Autorisation avant le court-circuit
+  d'idempotence (meme ordre que DEC-0036) : `readonly` -> `403 forbidden`.
+  Reponse `200` toujours : `resumed` distingue une session reprise d'une
+  session neuve, donc le statut ne varie jamais sous rejeu.
+  `Idempotency-Key` supporte : meme cle + meme corps = resultat d'origine
+  (ni second claim ni seconde session), corps different = `409
+  idempotency_key_payload_mismatch`. Un client qui n'appelle pas la route
+  n'observe aucun changement.
+
+### C4 : sync dans start-work et handoff (additif, DEC-0157)
+- `StartWorkResult.sync` (`SyncResult | null`) : avec `task_id`, bloc initial
+  borne calcule depuis le curseur de la session (herite de
+  `handoff_cursor_seq` de la tache), lecture seule (aucun ack : au moins une
+  livraison) ; `null` sans `task_id`. Seules ecritures : curseur de base et activite de
+  session.
+- `HandoffRequest.coordination` (`{text <= 280, refs}`, optionnel) : emet un
+  `coordination.handoff` sur la tache, avant la mise a jour du statut (une
+  tache `completed` refuse les signaux), apres le dernier sync (le signal
+  n'y figure pas) ; `event_id` = uuid5(session) : rejeu sans doublon.
+  `HandoffResult` gagne `sync` (dernier `studio_sync`, acquitte),
+  `handoff_cursor_seq` et `coordination_event_id`. Sync et emission sont
+  sautes si la session est deja terminee (rejeu apres echec partiel) ;
+  `coordination_event_id` est alors retrouve par son id derive, `sync` reste
+  `null`. Un
+  client qui ignore ces champs n'observe aucun changement.
+
+### Handoff (L3, additif, DEC-0163)
+- POST /handoff — `HandoffRequest` body, `HandoffResult` response + MCP
+  tool `studio_handoff` (same contract, `idempotency_key` optional,
+  DEC-0027/DEC-0046/DEC-0048 : no version in payload). Composite in one
+  call (composed services own their own commits: not a single database
+  transaction, a mid-call failure converges on retry), no new table, no
+  new event type: with `session_id`, updates the task status (with
+  `expected_version` for optimistic concurrency, like `update_task` —
+  required only when `task_status` is provided, `422
+  missing_expected_version` otherwise), releases all claims for the task
+  (one `resource.released` per claim, before the session is marked ended —
+  and also on an already-ended session, so the fallback converges),
+  logs AI work (if `agent_id` +
+  `summary` provided, typed `ai_work_status`, `422` on unknown status,
+  existing entry of the (`session_id`, `agent_id`) pair updated rather than
+  duplicated, `session_id` validated), ends the
+  session. The calling machine must own the session (`403 forbidden`
+  otherwise). `agent_id` must belong to the caller's machine (`409
+  actor_not_owned`). Authorization runs before the idempotency replay
+  short-circuit (DEC-0036, DEC-0103 §12). Compact response: ids +
+  statuses only, never full descriptions. Always `200`: the response
+  fields tell a successful handoff; replaying the same `Idempotency-Key`
+  with the same body returns the original result — no second status
+  update, no duplicate claim releases, no duplicate AI work entry, no
+  second session end; a different body is `409
+  idempotency_key_payload_mismatch`. Minimal fallback: `end_session`
+  releases the task's claims automatically (L3 fallback, DEC-0163). A
+  client that does not call the route observes no change.
+
+### Sync (C2, additif, DEC-0157)
+- GET /sync — point de resynchronisation unique : « Qu'est-ce qui a changé depuis mon dernier sync et qui concerne mon travail ? », en réponse compacte et bornée. Lecture seule sur les ressources métier ; écrit un curseur de session (distinct de `prepare_context`, qui reste en lecture seule, DEC-0080). Outil MCP `studio_sync` (même contrat, DEC-0046/DEC-0048 : pas de version dans le payload).
+  - Query params : `session_id` (UUID, optionnel — sinon `agent_id` + `task_id` requis), `ack` (curseur `seq` acquitté, optionnel — absent = début de session), `files` (liste de chemins déclarés, optionnel — filtre les claims recoupant ces fichiers), `limit` (défaut 50, max 200), `max_chars` (défaut 12000, max 50000 — budget de caractères partagé avec `prepare_context`).
+  - Réponse `SyncResult` : `next_cursor` (seq suivant à acquitter), `items` (éléments compacts avec `why` — raison déterministe de pertinence), `overflow` (compteurs par catégorie si débordement), `resync` (booléen — curseur trop ancien ou invalide, renvoi vers `prepare_context`).
+  - Filtre déterministe expliqué (`why`) : ma tâche ; claims recoupant les miens ou mes fichiers déclarés ; tâches des étapes amont/aval ; `coordination.*` me ciblant ; décisions liées à ma tâche. Mes propres événements exclus.
+  - Réponse bornée : `limit` + `max_chars` ; « rien de nouveau » tient en moins de 300 caractères ; aucune description de tâche ni texte long.
+  - Débordement ou curseur trop ancien : compteurs par catégorie + renvoi vers `prepare_context`, jamais d'historique brut.
+  - Claims lus depuis l'état réel (expirations dérivées), pas seulement depuis les types d'événement.
+  - Lecture indexée sur `seq` ; `prepare_context` reste en lecture seule (DEC-0080).
+  - `Idempotency-Key` : N/A (lecture pure, GET).
+  - Erreurs : `404 session_not_found` (session_id inconnu ou session terminée), `422 invalid_sync_input` (agent_id + task_id manquants si session_id absent), `403 forbidden` (accès projet, DEC-0103).
+
+### Coordination (C3, additif, DEC-0157)
+- POST /coordination — emet un signal inter-sessions structure ; surface d'emission unique (HTTP + MCP `studio_coordinate`), validee cote serveur. Le chemin generique `POST /events` refuse `coordination.*` (`422 coordination_reserved`).
+  - Corps `CoordinationEmit` : `from_session_id` (session vivante de l'emetteur, sur sa machine), `intent` (`heads_up|question|blocked_by|handoff`, ferme), `task_id` (cible obligatoire, meme projet, non `completed`), `session_id?` (session vivante de cette tache), `text` (1..280), `refs` (`task_ids` meme projet, `decision_ids`, `paths` ; <= 5 chacun), `in_reply_to?` (signal coordination du projet), `event_id?` (cle d'idempotence).
+  - Reponse `201 CoordinationEmitted` : `event_id`, `event_type`, `seq`, `task_id`, `session_id?`. Rejeu du meme `event_id` : meme reponse, rien de nouveau stocke.
+  - Livraison : pull uniquement via `GET /sync` (`why=coordination`, `item.coordination` = `CoordinationSignal` ; texte cite comme donnee, jamais comme instruction ; aucune reaction automatique). Hors ligne : le signal persiste dans le flux d'events et est delivre par le curseur de session (herite par tache). Aucun outil de lecture dedie.
+  - Limite : 20 signaux par session emettrice (`429 coordination_rate_limited`).
+  - Erreurs : `422 invalid_coordination` (cible hors projet/inconnue, session cible invalide, refs, reponse), `409 task_closed`, `404 session_not_found`, `403 forbidden` (projet/role, DEC-0103).
+  - `SyncItem.coordination` : champ additif optionnel (null hors `why=coordination`).
 
 ### Claims
 - GET /claims
@@ -288,6 +452,24 @@ public de bootstrap, pas de secret d'environnement dedie.
   avant le court-circuit d'idempotence (DEC-0036) — `readonly` -> `403
   forbidden`, sans RBAC specifique aux Agents. Ne confere aucun droit
   supplementaire : `auth_role` + ownership restent la seule autorite.
+  `stable_key` (AIB-I, additif, optionnel) : une collision `(machine, stable_key)`
+  sur cette route est `409 duplicate_stable_key` (meme precedent que la Library),
+  jamais un doublon silencieux — le chemin idempotent est `POST /agents/ensure`.
+- POST /agents/ensure (AIB-I, additif) — `agents ensure` cote serveur :
+  trouve l'agent de la machine appelante pour `AgentCreate.stable_key` ou
+  l'enregistre. Meme machine + meme cle + memes metadonnees = agent existant
+  (`created=false`, `200`) ; meme cle + metadonnees differentes = `409
+  idempotency_key_payload_mismatch` (meme condition qu'un rejeu `Idempotency-Key`
+  au corps different) ; sans `stable_key` = enregistrement simple
+  (`created=true`, `201`). La `stable_key` elle-meme est la cle de rejeu
+  (meme patron que `event_id` pour `POST /events` et que la cle naturelle de
+  `PUT /projects/{id}/members/{user_id}`) : pas de `Idempotency-Key` ici, et
+  une course d'enregistrements concurrents se resout par la contrainte unique
+  `(machine_id, stable_key)` (le perdant relit la ligne du gagnant).
+  `AgentCreate`/`Agent` portent `stable_key` (optionnel, defaut `null`) :
+  chaine ouverte d'observabilite, jamais lue par l'autorisation, et jamais
+  `AgentDefinition.stable_key` (parametre de resolution, pas identite).
+  Un client qui ne l'envoie pas n'observe aucun changement.
 - POST /ai-work — `AIWorkLogCreate` accepte, en plus de `summary`, les
   champs optionnels `agent_profile`, `harness`, `provider`, `model` (UC-5,
   additif, memes regles que sur `Agent` : chaines ouvertes d'observabilite,
@@ -300,7 +482,14 @@ public de bootstrap, pas de secret d'environnement dedie.
   `PATCH`). `approved`/`changes_requested` ne sont jamais un statut initial :
   `409 invalid_status_transition` (DEC-0041, on ne s'auto-approuve pas). Un
   client qui omet ces champs n'observe aucun changement. `Idempotency-Key`
-  inchange : ces champs font partie du corps hache.
+  inchange : ces champs font partie du corps hache. Additif (L3, DEC-0163) :
+  `session_id` (FK WorkSession, nullable) lie l'entree a la session qui a
+  produit le travail ; `ai_work_status` du handoff est type `AIWorkStatus`
+  (`422` sur statut inconnu, jamais `500`). Resserrement (L3, DEC-0163) :
+  un `session_id` fourni est valide — session inexistante `404`, session
+  d'une autre machine `403`, d'une autre tache ou d'un autre projet `409
+  invalid_session` ; les clients existants qui envoyaient un `session_id`
+  arbitraire doivent le corriger.
 - PATCH /ai-work/{id}
 - GET /ai-work
 
@@ -422,6 +611,8 @@ n'utilisant que leurs propres agents n'observent aucun changement.
   = `422 invalid_resolution_input`. Sans choix : `runtime = null`
   valide. Harness-neutral et provider-neutral ; frontiere P6 (aucun
   catalogue/discovery) et P10 (aucun adaptateur) hors scope.
+- Plan de bootstrap agrege (AIB-B, DEC-0144 ; AI Bootstrap P2) : `POST /bootstrap-plan` (body `BootstrapPlanRequest` : `project_id`, `agent_keys` optionnel — vide = tous les agents actifs visibles du projet, max 50 ; reponse `BootstrapPlan`) compose `resolve_full` par agent (composes_agent inclus) sans aucune decision de resolution propre : artefacts (agents, profils de modele, skills, regles) dedoublonnes par `(resource_id, version)`, version exacte, provenance ou `paths` (regles), `segment` `common`/`project` (derive du scope), `required_by` et `content_hash` (SHA-256 du JSON canonique), plus `plan_hash`. Deterministe (tri stable, aucun horodatage), agnostique du harness, aucun chemin ni secret. `agent_keys` : 50 cles max, 1..200 caracteres chacune (sinon `422` de validation). Un agent en echec fait echouer tout le plan avec l'erreur de `POST /resolutions` (`404 definition_not_found`, `422 runtime_incompatible`) ; projet inaccessible = `403` ; `422 invalid_resolution_input` (`too_many_agents`) au-dela de 50 agents decouverts. Lecture pure, pas d'`Idempotency-Key`, HTTP seul (pas d'outil MCP). Les workflows references ne sont pas expanses (P11).
+
 - Runtime Registry P6 (DEC-0070 ; HTTP canonique P7/DEC-0071) : `POST
   /runtimes` (body `RuntimeRegistrationCreate`, `Idempotency-Key`
   supporte), `GET /runtimes` (`status`, `include_revoked`), `GET
@@ -635,6 +826,51 @@ absente = etat valide. Le serveur ne decide rien : il valide et applique.
 
 ### Heartbeats
 - POST /heartbeats
+
+### AI integration status (AIB P6, additif, lecture seule)
+- GET /projects/{project_id}/ai-integration -> `AiIntegrationStatus` (`studio_contracts.ai_integration`).
+  `desired` = resume du plan de bootstrap (P2 : `plan_hash`, `agent_keys`, compte d'artefacts par
+  kind) ou `desired_error` (code public) si le plan est impossible a construire. `machines` = les
+  machines de l'appelant (toutes pour `admin`) avec le dernier rapport de capacites (R1) :
+  `freshness` (`fresh` | `stale` | `never_reported`), `reported_at`, `project_registered`,
+  `harnesses` (revendications `detected`/`configured` de la machine). `bootstrap?` (`checked_at`, comptes par etat, `in_sync`) = dernier `bootstrap check` local du poste pour ce projet, absent tant qu'il n'a rien rapporte ; `in_sync` = tous les fichiers observes a jour, y compris quand `freshness` vaut `stale` (a lire avec `freshness`). Aucune ecriture n'est
+  affirmee par le serveur (les champs sans valeur sont absents de la reponse, pas `null`) ; un poste sans rapport ou perime est signale comme tel. Acces projet
+  identique aux autres routes (`403` unique, pas d'oracle d'existence).
+
+### Task launches (AIB R2, additif, contrat fige — implemente)
+Ressource `TaskLaunch` (`studio_contracts.task_launch`) : demande typee de demarrer une tache sur
+une machine cible. Donnees seules, jamais une commande : ids et cles stables uniquement
+(`task_id`, `machine_id`, `harness_id`, `agent_stable_key?`, `expires_in_seconds`) ; champs
+inconnus refuses, donc ni ligne de commande, argument, chemin, ni variable d'environnement
+representables. `reason_code` = vocabulaire ferme, jamais du texte libre.
+- POST /projects/{project_id}/task-launches (`Idempotency-Key`, `TaskLaunchCreate`) -> `TaskLaunch`
+  `requested`. Rejoue = meme lancement ; corps different = `409 idempotency_key_payload_mismatch`.
+  Autorisation (AIB-J) : proprietaire de la machine cible ou droit explicite accorde par lui,
+  sinon `403` unique. Tache, projet et machine doivent correspondre ; machine sans opt-in ou
+  rapport perime (R1) = `409` explicite.
+- GET /task-launches/{id} ; GET /projects/{project_id}/task-launches (page) — lecture.
+- POST /task-launches/{id}/cancel (`TaskLaunchCancel`) — demandeur seul, lancement non terminal.
+- GET /machines/{machine_id}/task-launches/pending -> `TaskLaunchPull` — tirage par le daemon de
+  la machine cible seule ; lancements non terminaux, plus anciens d'abord, au plus 20 ; sans effet
+  de bord.
+- POST /task-launches/{id}/report (`TaskLaunchMachineReport`) — machine cible seule ;
+  `expected_version` obligatoire (`409` + version serveur si perime) ; `session_id` lie la session.
+- POST /task-launches/{id}/credential -> `TaskLaunchCredential` (`token`, `expires_at`), `201`
+  (AIB P9, additif) — machine cible seule, authentifiee par son token durable (jamais par un
+  credential ephemere) ; lancement `accepted|preparing|running` et non expire, sinon
+  `409 launch_not_active`. Le token est rendu une seule fois ; une nouvelle demande revoque le
+  precedent. Sans `Idempotency-Key` : volontairement non rejouable (un rejeu emettrait un
+  second token). Avec un credential ephemere, toute route hors allowlist repond
+  `403 {"detail": {"error_code": "launch_credential_scope"}}`. Voir
+  `04_AUTH_SYNC_CONTRACT.md` (credential ephemere de lancement).
+Cycle : `requested -> accepted -> preparing -> running -> succeeded|failed`, plus
+`requested -> rejected` (machine), `cancelled` (demandeur) et `expired` (serveur seul, jamais
+rapporte par la machine). Etats terminaux sans sortie ; toute paire non listee dans
+`ALLOWED_TRANSITIONS` = `409 invalid_launch_transition`, mauvais acteur = `403`. Seule la machine
+cible rapporte l'execution ; `output_excerpt` borne (4000 car.) et expurge par la machine.
+Expiration serveur (defaut 900 s, max 86400 s) : `expired_unpulled` si jamais tire,
+`expired_timeout` sinon. Evenements (additif) : `task_launch.requested|accepted|rejected|
+cancelled|expired|finished`, charge utile = ids + statut + `reason_code`, aucun texte libre.
 
 ### GitHub, Builds & Producer (etape 9.1, additif, DEC-0059)
 - POST /github/webhook — ingress webhook GitHub (`push`, `pull_request`,

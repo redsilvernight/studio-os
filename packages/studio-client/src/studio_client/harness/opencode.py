@@ -8,11 +8,18 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from pathlib import Path, PurePosixPath
 from typing import Any
 
 from studio_client.harness import jsonc
-from studio_client.harness.base import AdapterRefusal, HarnessContext
+from studio_client.harness.base import (
+    STUDIO_MCP_SERVER_NAME,
+    AdapterRefusal,
+    HarnessContext,
+    entry_with_credential,
+    machine_token_env,
+)
 from studio_client.harness.fsafe import (
     Document,
     FsError,
@@ -25,6 +32,7 @@ from studio_client.harness.fsafe import (
 from studio_client.harness.json_mcp import JsonMcpAdapter
 
 _CONFIG_NAMES = ("opencode.json", "opencode.jsonc")
+_PLUGIN_NAME = "studio-os.js"
 
 
 class OpenCodeAdapter(JsonMcpAdapter):
@@ -151,4 +159,33 @@ class OpenCodeAdapter(JsonMcpAdapter):
             "enabled": True,
             "oauth": False,
             "headers": {"Authorization": f"Bearer {token}"},
+        }
+
+    def headless_argv(self, prompt: str) -> tuple[str, ...]:
+        return ("run", "--auto", prompt)
+
+    def headless_environment(
+        self, ctx: HarnessContext, *, model: str | None, isolation_dir: Path, credential: str
+    ) -> dict[str, str]:
+        entry = self.read_user_entry(ctx)
+        if entry is None:
+            raise AdapterRefusal("mcp_entry_missing")
+        inline: dict[str, Any] = {
+            "mcp": {STUDIO_MCP_SERVER_NAME: entry_with_credential(entry, credential)}
+        }
+        if model:
+            inline["model"] = model
+        config_dir = isolation_dir / "opencode"
+        plugin = ctx.home / self._config_dir(ctx) / "plugins" / _PLUGIN_NAME
+        try:
+            if plugin.is_file():
+                (config_dir / "plugins").mkdir(parents=True)
+                shutil.copyfile(plugin, config_dir / "plugins" / _PLUGIN_NAME)
+        except OSError:
+            raise AdapterRefusal("isolation_failed") from None
+        return {
+            "XDG_CONFIG_HOME": str(isolation_dir),
+            "OPENCODE_CONFIG_CONTENT": json.dumps(inline),
+            "OPENCODE_DISABLE_PROJECT_CONFIG": "1",
+            **machine_token_env(credential),
         }

@@ -1,0 +1,36 @@
+{
+  "$defs": {
+    "SetupItemOutcome": {
+      "enum": [
+        "written",
+        "unchanged",
+        "skipped",
+        "failed"
+      ],
+      "title": "SetupItemOutcome",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "backed_up": {
+      "default": false,
+      "title": "Backed Up",
+      "type": "boolean"
+    },
+    "item_id": {
+      "pattern": "^[A-Za-z0-9_.:-]{1,200}$",
+      "title": "Item Id",
+      "type": "string"
+    },
+    "outcome": {
+      "$ref": "#/$defs/SetupItemOutcome"
+    }
+  },
+  "required": [
+    "item_id",
+    "outcome"
+  ],
+  "title": "SetupItemResult",
+  "type": "object"
+}

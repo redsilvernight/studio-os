@@ -241,7 +241,11 @@ async function activeId(page: Page): Promise<string> {
   return page.evaluate(() => {
     const active = document.activeElement;
     if (active === null) return "(null)";
-    return active.id !== "" ? `#${active.id}` : (active.textContent ?? "").trim().slice(0, 40);
+    if (active.id !== "") return `#${active.id}`;
+    // Texte lu (les libellés courts du rail sont aria-hidden).
+    const copy = active.cloneNode(true) as Element;
+    for (const hidden of copy.querySelectorAll("[aria-hidden=true]")) hidden.remove();
+    return (copy.textContent ?? "").trim().slice(0, 40);
   });
 }
 
@@ -268,14 +272,14 @@ test.describe("UI-14 landmarks et titres", () => {
       ["#/", "Accueil"],
       ["#/projects", "Projets"],
       [`#/projects/${P1}`, "Jeu Phare"],
-      ["#/tasks", "Tâches"],
-      [`#/tasks/${T1}`, "Tâche"],
+      ["#/tasks", "Travail"],
+      [`#/tasks/${T1}`, "Caméra Android bloquée"],
       ["#/agents", "Agents IA"],
-      ["#/machines", "Machines"],
+      ["#/machines", "Postes"],
       ["#/transfers", "Transferts"],
-      ["#/decisions", "Décisions"],
+      ["#/decisions", "À valider"],
       ["#/library", "Bibliothèque"],
-      ["#/configuration/runtimes", "Paramètres"],
+      ["#/configuration/runtimes", "Configuration"],
       ["#/inspector", "Inspecteur de résolution"],
       ["#/route-inexistante-xyz", "Page introuvable"],
     ];
@@ -347,7 +351,7 @@ test.describe("UI-14 noms accessibles et formulaires", () => {
     await expect(view.locator("#tasks-search")).toHaveAccessibleName(/filtrer/i);
     await view.locator("#tasks-search").fill("caméra");
     await expect(view.locator(".task-row")).toHaveCount(1);
-    await expect(view.locator("[role=status]", { hasText: "affichée" })).toContainText("affichée");
+    await expect(view.locator("[role=status]", { hasText: "sur" })).toContainText("1 sur");
     await view.locator("[data-reset]").click();
     await expect(view.locator(".task-row")).toHaveCount(1);
     expect(csp).toEqual([]);
@@ -419,11 +423,12 @@ test.describe("UI-14 clavier et focus", () => {
     await login(page, "#/tasks");
     await page.locator(".ds-skip-link").focus();
     const stops: string[] = [];
-    for (let i = 0; i < 4; i += 1) {
+    for (let i = 0; i < 6; i += 1) {
       await page.keyboard.press("Tab");
       stops.push(await activeId(page));
     }
-    expect(stops).toEqual(["Accueil", "Projets", "Tâches", "Agents IA"]);
+    // P03-shell : la palette « Aller à… » est en tête de la barre latérale.
+    expect(stops).toEqual(["#palette-open", "Accueil", "Projets", "Travail", "À valider", "Agents"]);
     expect(csp).toEqual([]);
     expect(fatal).toEqual([]);
   });
@@ -504,7 +509,7 @@ test.describe("UI-14 modales, drawers, onglets", () => {
     const { csp, fatal } = watchErrors(page);
     await login(page, "#/machines");
     const view = page.locator("#view");
-    await expect(view.locator("h1")).toContainText("Machines");
+    await expect(view.locator("h1")).toContainText("Postes");
     const details = view.locator("[data-machine-details]").first();
     await details.click();
     const drawer = view.locator("#machine-drawer");
@@ -524,11 +529,11 @@ test.describe("UI-14 modales, drawers, onglets", () => {
     await login(page, `#/projects/${P1}`);
     const view = page.locator("#view");
     const tabs = view.locator('[role="tab"]');
-    await expect(tabs).toHaveCount(7);
+    await expect(tabs).toHaveCount(8);
     const panel = view.locator("#workspace-panel");
     await expect(panel).toHaveAttribute("role", "tabpanel");
     await expect(panel).toHaveAttribute("aria-labelledby", "ws-tab-overview");
-    for (const [index, id] of ["overview", "roadmap", "tasks", "claims", "activity", "decisions", "members"].entries()) {
+    for (const [index, id] of ["overview", "roadmap", "tasks", "claims", "activity", "decisions", "members", "ai-integration"].entries()) {
       await expect(tabs.nth(index)).toHaveAttribute("id", `ws-tab-${id}`);
       await expect(tabs.nth(index)).toHaveAttribute("aria-controls", "workspace-panel");
     }
@@ -537,7 +542,7 @@ test.describe("UI-14 modales, drawers, onglets", () => {
     await page.keyboard.press("ArrowRight");
     await expect(tabs.nth(1)).toBeFocused();
     await page.keyboard.press("End");
-    await expect(tabs.nth(6)).toBeFocused();
+    await expect(tabs.nth(5)).toBeFocused();
     await page.keyboard.press("Home");
     await expect(tabs.nth(0)).toBeFocused();
     await page.keyboard.press("ArrowRight");
@@ -556,7 +561,7 @@ test.describe("UI-14 modales, drawers, onglets", () => {
     const { csp, fatal } = watchErrors(page);
     await login(page, "#/decisions");
     const view = page.locator("#view");
-    const list = view.locator('[role="tablist"][aria-label="Décisions"]');
+    const list = view.locator('[role="tablist"][aria-label="À valider"]');
     await expect(list).toBeVisible();
     const review = view.locator("#decisions-main-tab-review");
     const decisions = view.locator("#decisions-main-tab-decisions");
@@ -646,7 +651,7 @@ test.describe("UI-14 erreurs, annonces, mouvement, zoom", () => {
     await page.setViewportSize({ width: 640, height: 900 });
     await login(page, "#/tasks");
     const view = page.locator("#view");
-    await expect(view.locator("h1")).toContainText("Tâches");
+    await expect(view.locator("h1")).toContainText("Travail");
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(1);
     await expect(view.locator("#task-new")).toBeVisible();
@@ -693,15 +698,15 @@ test.describe("UI-14 balayage automatisé axe", () => {
     const surfaces: [string, string][] = [
       ["#/", "Accueil"],
       ["#/projects", "Projets"],
-      ["#/tasks", "Tâches"],
-      [`#/tasks/${T1}`, "Tâche"],
+      ["#/tasks", "Travail"],
+      [`#/tasks/${T1}`, "Caméra Android bloquée"],
       ["#/agents", "Agents IA"],
       ["#/library", "Bibliothèque"],
-      ["#/decisions", "Décisions"],
-      ["#/machines", "Machines"],
+      ["#/decisions", "À valider"],
+      ["#/machines", "Postes"],
       ["#/transfers", "Transferts"],
       ["#/inspector", "Inspecteur"],
-      ["#/configuration/runtimes", "Paramètres"],
+      ["#/configuration/runtimes", "Configuration"],
       ["#/route-inexistante-xyz", "Page introuvable"],
     ];
     for (const [route, title] of surfaces) {

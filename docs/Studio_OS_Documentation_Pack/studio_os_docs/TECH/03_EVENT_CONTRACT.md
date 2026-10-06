@@ -63,6 +63,8 @@ roadmap.created, roadmap.updated, roadmap.proposed, roadmap.approved, roadmap.ch
 
 marketing.candidate.created, marketing.post.published
 
+coordination.heads_up, coordination.question, coordination.blocked_by, coordination.handoff (C3, additif, DEC-0157) — signaux inter-sessions ; emis uniquement par `POST /api/v1/coordination` / `studio_coordinate` (le chemin generique `POST /events` les refuse : `422 coordination_reserved`). Cible `task_id` (colonne de l'event), payload : `intent`, `task_id`, `from_session_id`, `text` (<= 280), `refs{task_ids,decision_ids,paths}`, `session_id?`, `in_reply_to?`. Lecture uniquement via `studio_sync`.
+
 ## Emission serveur GitHub/Producer (etape 9.1, DEC-0059)
 
 `git.branch.changed`, `git.commit`, `git.pr.opened`, `git.pr.merged` et
@@ -110,8 +112,37 @@ SSE du projet : `task.created` (creation unitaire ; l'hydratation de Roadmap
 n'emet que `roadmap.hydrated`), `task.started` (claim), `task.updated`
 (release, ou update sans changement de statut), `task.started`/`task.blocked`/
 `task.completed` (update qui change le statut vers `in_progress`/`blocked`/
-`completed`). Un re-claim par la meme machine reemet `task.started`
-(`previous_status=in_progress`). Un refus (409, 403) n'emet rien. `actor_type="agent"` si
+`completed`). Un re-claim par la meme machine sur une tache encore
+`in_progress` avec le meme `agent_id` est un no-op : aucun evenement n'est
+reemis et la `version` ne bouge pas (idempotence de rejeu, DEC-0160 ; le
+re-claim d'une tache liberee, bloquee ou terminee reemet `task.started`).
+Un refus (409, 403) n'emet rien. `actor_type="agent"` si
 l'`agent_id` du claim (ou de la Task) est rattache a la machine appelante,
 sinon `user`. Cles `payload` documentees (ignorables) : `status`, `version`,
 `transition` (`created|claimed|released|updated`), `previous_status`.
+
+## Emission serveur Claims (additif)
+Les ecritures de ResourceClaim (HTTP et MCP, meme service) emettent leur
+evenement dans la meme transaction que l'etat (`stage_event`), diffuse apres
+commit : `resource.claimed` (creation ; un rejeu `Idempotency-Key` n'emet
+rien), `resource.renewed` (renouvellement ; renouveler une reservation deja
+liberee la laisse liberee, sans ecriture ni evenement), `resource.released` (liberation ;
+une seconde liberation d'une reservation deja liberee n'ecrit ni n'emet rien).
+`resource.conflict` reste emis en plus de `resource.claimed` lors d'un
+chevauchement. Un refus (403, 404) n'emet rien. `task_id` = celui de la
+reservation. `actor_type="agent"` si l'agent de la reservation est rattache a
+la machine appelante, sinon `user`. Cles `payload` documentees (ignorables) :
+`claim_id`, `resource_path`, `resource_type`, `status`,
+`claimed_by_machine_id`, `expires_at`, `previous_status` (sur `released`).
+
+## Emission serveur TaskLaunch (AIB R2, additif, contrat fige)
+Les transitions d'un `TaskLaunch` (02_API_CONTRACT « Task launches ») emettent leur
+evenement dans la meme transaction que l'etat (`stage_event`) : `task_launch.requested`
+(creation ; un rejeu `Idempotency-Key` n'emet rien), `task_launch.accepted`,
+`task_launch.rejected`, `task_launch.cancelled`, `task_launch.expired`, et
+`task_launch.finished` (`succeeded` ou `failed`). `preparing` et `running` sont lisibles
+par l'etat, sans evenement dedie. `schema_version` inchange (types nouveaux, ignorables par un
+ancien client). Un refus (403, 409) n'emet rien ; un tirage n'emet rien. `task_id` = celui du
+lancement ; `actor_type="user"` pour `requested`/`cancelled`, `agent` pour les rapports de la
+machine, `system` pour `expired`. `payload` (ignorables) : `launch_id`, `machine_id`,
+`harness_id`, `status`, `previous_status`, `reason_code` ; jamais de texte libre ni de sortie.

@@ -100,16 +100,67 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
     ),
     ("POST", "/api/v1/tasks"): (Probe("/api/v1/tasks", {"project_id": "{pid}", "title": "x"}),),
     ("GET", "/api/v1/tasks/{task_id}"): (Probe("/api/v1/tasks/{task}"),),
+    ("GET", "/api/v1/tasks/{task_id}/eligible-machines"): (
+        Probe("/api/v1/tasks/{task}/eligible-machines"),
+    ),
+    ("GET", "/api/v1/projects/{project_id}/ai-integration"): (
+        Probe("/api/v1/projects/{pid}/ai-integration"),
+    ),
     ("PATCH", "/api/v1/tasks/{task_id}"): (
         Probe("/api/v1/tasks/{task}", {"title": "x"}, headers=_V1),
     ),
     ("POST", "/api/v1/tasks/{task_id}/claim"): (Probe("/api/v1/tasks/{task}/claim"),),
+    ("POST", "/api/v1/projects/{project_id}/task-launches"): (
+        Probe(
+            "/api/v1/projects/{pid}/task-launches",
+            {"task_id": "{task}", "machine_id": "{outsider_machine}", "harness_id": "claude-code"},
+        ),
+    ),
+    ("GET", "/api/v1/projects/{project_id}/task-launches"): (
+        Probe("/api/v1/projects/{pid}/task-launches"),
+    ),
+    ("GET", "/api/v1/task-launches/{launch_id}"): (Probe("/api/v1/task-launches/{launch}"),),
+    ("POST", "/api/v1/task-launches/{launch_id}/cancel"): (
+        Probe("/api/v1/task-launches/{launch}/cancel", {"expected_version": 1}),
+    ),
+    ("POST", "/api/v1/task-launches/{launch_id}/report"): (
+        Probe(
+            "/api/v1/task-launches/{launch}/report",
+            {"expected_version": 1, "status": "accepted"},
+        ),
+    ),
+    ("POST", "/api/v1/task-launches/{launch_id}/credential"): (
+        Probe("/api/v1/task-launches/{launch}/credential"),
+    ),
     ("POST", "/api/v1/tasks/{task_id}/release"): (Probe("/api/v1/tasks/{task}/release"),),
     ("GET", "/api/v1/sessions"): (Probe("/api/v1/sessions?task_id={task}"),),
     ("POST", "/api/v1/sessions"): (
         Probe("/api/v1/sessions", {"task_id": "{task}", "machine_id": "{outsider_machine}"}),
     ),
     ("PATCH", "/api/v1/sessions/{session_id}/end"): (Probe("/api/v1/sessions/{session}/end"),),
+    ("POST", "/api/v1/start-work"): (
+        Probe("/api/v1/start-work", {"project_id": "{pid}", "agent_id": "{outsider_agent}"}),
+    ),
+    ("POST", "/api/v1/handoff"): (
+        Probe(
+            "/api/v1/handoff",
+            {"project_id": "{pid}", "session_id": "{session}", "expected_version": 1},
+            expect="role",
+        ),
+    ),
+    ("GET", "/api/v1/sync"): (Probe("/api/v1/sync?session_id={session}"),),
+    ("POST", "/api/v1/coordination"): (
+        Probe(
+            "/api/v1/coordination",
+            {
+                "from_session_id": "{session}",
+                "intent": "heads_up",
+                "task_id": "{task}",
+                "text": "x",
+            },
+            expect="role",
+        ),
+    ),
     ("GET", "/api/v1/claims"): (
         Probe("/api/v1/claims?project_id={pid}"),
         Probe("/api/v1/claims", expect="filtered"),
@@ -212,6 +263,7 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
     ("POST", "/api/v1/resolutions"): (
         Probe("/api/v1/resolutions", {"stable_key": "some-agent", "project_id": "{pid}"}),
     ),
+    ("POST", "/api/v1/bootstrap-plan"): (Probe("/api/v1/bootstrap-plan", {"project_id": "{pid}"}),),
     ("GET", "/api/v1/ai-work"): (
         Probe("/api/v1/ai-work?project_id={pid}"),
         Probe("/api/v1/ai-work", expect="filtered"),
@@ -424,6 +476,28 @@ async def _build_world(
     )
     me = (await client.get("/api/v1/machines/me", headers=member)).json()
     task = (await _post(client, member, "/api/v1/tasks", {"project_id": pid, "title": "t"}))["id"]
+    beat = await client.post(
+        "/api/v1/heartbeats",
+        json={
+            "machine_id": me["id"],
+            "client_timestamp": datetime.now(UTC).isoformat(),
+            "capabilities": {
+                "harnesses": [{"harness_id": "claude-code", "version": "2.1.0"}],
+                "project_ids": [pid],
+                "accepts_launches": True,
+                "running_launches": 0,
+                "max_launches": 2,
+            },
+        },
+        headers=member,
+    )
+    assert beat.status_code == 200, beat.text
+    launch = await _post(
+        client,
+        member,
+        f"/api/v1/projects/{pid}/task-launches",
+        {"task_id": task, "machine_id": me["id"], "harness_id": "claude-code"},
+    )
     session = await _post(
         client, member, "/api/v1/sessions", {"task_id": task, "machine_id": me["id"]}
     )
@@ -536,6 +610,7 @@ async def _build_world(
         "pid": pid,
         "slug": slug,
         "task": task,
+        "launch": launch["id"],
         "session": session["id"],
         "claim": claim["id"],
         "decision": decision["id"],

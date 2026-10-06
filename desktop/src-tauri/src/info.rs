@@ -5,13 +5,22 @@ use crate::sidecar::SidecarState;
 use serde::Serialize;
 use serde_json::{json, Value};
 
-pub const PRODUCT: &str = "Studi'OS Desktop";
+pub const PRODUCT_PROD: &str = "Studi'OS Desktop";
+pub const PRODUCT_DEV: &str = "Studi'OS Desktop Dev";
 pub const DESKTOP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// `dev` builds install side by side with the stable one: own identifier,
 /// install folder and daemon data (`STUDIO_DESKTOP_CHANNEL` at build time).
 pub fn dev_channel() -> bool {
     option_env!("STUDIO_DESKTOP_CHANNEL") == Some("dev")
+}
+
+pub fn product() -> &'static str {
+    if dev_channel() {
+        PRODUCT_DEV
+    } else {
+        PRODUCT_PROD
+    }
 }
 
 /// What the Desktop really speaks in P2: daemon status and identity view.
@@ -24,7 +33,7 @@ pub const P2_CAPABILITIES: &[&str] = &["daemon.control", "identity.view"];
 /// is simply absent instead of failing the handshake.
 pub const OPTIONAL_CAPABILITIES: &[&str] = &["daemon.health"];
 
-/// Additive Wave 2 capabilities (P6 Knowledge, P7 Code Graph, P9 Harness). Offered but
+/// Additive Wave 2 capabilities (P6 Knowledge, P7 Code Graph, P9 Harness, skills.check, launch settings). Offered but
 /// never required: a daemon without local features answers `compatible_degraded`
 /// and the graph views simply report the source as unavailable.
 pub const LOCAL_FEATURE_CAPABILITIES: &[&str] = &[
@@ -39,6 +48,11 @@ pub const LOCAL_FEATURE_CAPABILITIES: &[&str] = &[
     "harness.plan",
     "harness.apply",
     "harness.verify",
+    "skills.read",
+    "skills.apply",
+    "setup.plan",
+    "setup.apply",
+    "launch.settings",
 ];
 
 /// Additive P11 capability (workspace configuration, served by the daemon
@@ -103,7 +117,7 @@ pub fn peer_info() -> Value {
 
 pub fn desktop_info(sidecar: SidecarState) -> DesktopInfo {
     DesktopInfo {
-        product: PRODUCT,
+        product: product(),
         desktop_version: DESKTOP_VERSION,
         mode: "desktop",
         protocol: PROTOCOL,
@@ -146,6 +160,10 @@ mod tests {
             );
         }
         assert!(offered.contains(&json!("harness.verify")));
+        assert!(offered.contains(&json!("skills.read")));
+        assert!(offered.contains(&json!("setup.plan")));
+        assert!(offered.contains(&json!("setup.apply")));
+        assert!(offered.contains(&json!("launch.settings")));
         assert!(offered.contains(&json!("workspace.config")));
     }
 

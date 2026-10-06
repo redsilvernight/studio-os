@@ -8,12 +8,14 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 import httpx
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, text
+from sqlalchemy.engine import CursorResult
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.auth import Role
 
@@ -244,6 +246,111 @@ async def _reconcile_builds() -> None:
     print(f"{len(builds)} build(s) reconciled")
 
 
+_MACHINE_FK_COLUMNS = text(
+    """
+    SELECT c.relname AS table_name, a.attname AS column_name
+    FROM pg_constraint con
+    JOIN pg_class c ON c.oid = con.conrelid
+    JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = ANY (con.conkey)
+    WHERE con.contype = 'f' AND con.confrelid = 'machines'::regclass
+    ORDER BY c.relname, a.attname
+    """
+)
+
+
+async def _machine_fk_columns(session: AsyncSession) -> list[tuple[str, str]]:
+    """Every `(table, column)` holding a foreign key to `machines.id`, read from
+    the live PostgreSQL catalog so a new referencing table is merged without
+    touching this CLI."""
+    result = await session.execute(_MACHINE_FK_COLUMNS)
+    return [(str(row[0]), str(row[1])) for row in result.all()]
+
+
+async def _count_machine_references(
+    session: AsyncSession, table: str, column: str, machine_id: UUID
+) -> int:
+    result = await session.execute(
+        text(f'SELECT count(*) FROM "{table}" WHERE "{column}" = :machine'),
+        {"machine": machine_id},
+    )
+    return int(result.scalar_one())
+
+
+def _parse_machine_uuid(value: str, flag: str) -> UUID:
+    try:
+        return UUID(value)
+    except ValueError:
+        print(f"error: {flag} is not a valid machine id: {value}", file=sys.stderr)
+        raise SystemExit(2) from None
+
+
+async def _merge_machines(source_ref: str, target_ref: str, apply: bool) -> None:
+    """Reassign every reference of one machine to another, in a single
+    transaction, then delete the source. Dry run unless `apply`: the operator
+    sees what would move before committing (DEC-0011 admin CLI)."""
+    source_id = _parse_machine_uuid(source_ref, "--from")
+    target_id = _parse_machine_uuid(target_ref, "--into")
+    if source_id == target_id:
+        print("error: --from and --into must be different machines", file=sys.stderr)
+        raise SystemExit(2)
+
+    async with get_session_factory()() as session:
+        source = await provisioning_service.get_machine(session, source_id)
+        if source is None:
+            print(f"no machine {source_ref}", file=sys.stderr)
+            raise SystemExit(1)
+        target = await provisioning_service.get_machine(session, target_id)
+        if target is None:
+            print(f"no machine {target_ref}", file=sys.stderr)
+            raise SystemExit(1)
+        if source.owner_user_id != target.owner_user_id:
+            print(
+                "error: machines belong to different owners; refusing to merge",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+
+        columns = await _machine_fk_columns(session)
+        mode = "apply" if apply else "dry-run"
+        print(f"merge-machines ({mode}): {source.id} -> {target.id}")
+        total = 0
+        try:
+            for table, column in columns:
+                if apply:
+                    result = await session.execute(
+                        text(
+                            f'UPDATE "{table}" SET "{column}" = :target WHERE "{column}" = :source'
+                        ),
+                        {"target": target_id, "source": source_id},
+                    )
+                    count = cast("CursorResult[Any]", result).rowcount
+                else:
+                    count = await _count_machine_references(session, table, column, source_id)
+                total += count
+                print(f"  {table}.{column}: {count}")
+
+            if not apply:
+                print(f"{total} reference(s) would be reassigned")
+                print("dry-run: no change written (pass --apply to execute)")
+                return
+
+            target.credential_hash = source.credential_hash
+            target.version += 1
+            await session.delete(source)
+            await session.commit()
+        except IntegrityError as exc:
+            await session.rollback()
+            print(
+                "error: merge would violate a unique constraint; no change written",
+                file=sys.stderr,
+            )
+            raise SystemExit(1) from exc
+
+        print(f"{total} reference(s) reassigned")
+        print(f"credential_hash moved from {source_id} to {target_id}")
+        print(f"source machine deleted: {source_id}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="studio-admin")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -324,6 +431,20 @@ def main() -> None:
         help="Replay recent GitHub workflow runs into builds + events (idempotent)",
     )
 
+    merge_parser = sub.add_parser(
+        "merge-machines",
+        help="Reassign every reference from one machine to another, then delete the source",
+    )
+    merge_parser.add_argument("--from", dest="source", required=True, help="Source machine UUID")
+    merge_parser.add_argument("--into", dest="target", required=True, help="Target machine UUID")
+    merge_mode = merge_parser.add_mutually_exclusive_group()
+    merge_mode.add_argument(
+        "--apply", action="store_true", help="Write the merge (default is a dry run)"
+    )
+    merge_mode.add_argument(
+        "--dry-run", action="store_true", help="Report only, write nothing (default)"
+    )
+
     args = parser.parse_args()
 
     try:
@@ -365,6 +486,8 @@ def main() -> None:
             asyncio.run(_abort_stale_multipart_uploads(args.older_than_days, args.dry_run))
         elif args.command == "builds" and args.builds_command == "reconcile":
             asyncio.run(_reconcile_builds())
+        elif args.command == "merge-machines":
+            asyncio.run(_merge_machines(args.source, args.target, args.apply))
     except HTTPException as exc:
         print(f"error: {exc.detail}", file=sys.stderr)
         exit_code = 2 if exc.status_code == status.HTTP_409_CONFLICT else 1

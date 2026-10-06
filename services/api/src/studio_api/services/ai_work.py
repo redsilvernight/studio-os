@@ -12,11 +12,13 @@ from studio_contracts.events import ActorType, EventCreate, EventType
 
 from studio_api.db.models.agent import AgentModel
 from studio_api.db.models.ai_work import AIWorkLogModel
+from studio_api.db.models.work_session import WorkSessionModel
 from studio_api.services import events as events_service
 from studio_api.services import tasks as tasks_service
 from studio_api.services.authz import (
     Principal,
     ensure_can_write,
+    ensure_machine_owned,
     ensure_project_access,
     forbidden,
     project_visibility_clause,
@@ -94,6 +96,42 @@ def authorize_create(principal: Principal, project_id: uuid.UUID) -> None:
     ensure_can_write(principal, "ai_work")
 
 
+async def _ensure_session_link(
+    session: AsyncSession,
+    principal: Principal,
+    session_id: uuid.UUID,
+    project_id: uuid.UUID,
+    task_id: uuid.UUID | None,
+) -> None:
+    """A linked session must exist, belong to the caller's machine and to
+    the same task/project as the work entry (DEC-0163): a `session_id`
+    pointing at another task, project or machine is rejected instead of
+    silently recorded."""
+    work_session = await session.get(WorkSessionModel, session_id)
+    if work_session is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "session not found")
+    ensure_machine_owned(principal, work_session.machine_id, "session", "link")
+    if task_id is not None and work_session.task_id is not None and work_session.task_id != task_id:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={
+                "error_code": "invalid_session",
+                "message": "session belongs to another task",
+            },
+        )
+    linked_task_id = work_session.task_id if work_session.task_id is not None else task_id
+    if linked_task_id is not None:
+        linked_task = await tasks_service.get_task(session, linked_task_id)
+        if linked_task is not None and linked_task.project_id != project_id:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail={
+                    "error_code": "invalid_session",
+                    "message": "session belongs to another project",
+                },
+            )
+
+
 async def create_ai_work(
     session: AsyncSession, principal: Principal, work_in: AIWorkLogCreate
 ) -> AIWorkLogModel:
@@ -106,6 +144,10 @@ async def create_ai_work(
                 "error_code": "actor_not_owned",
                 "message": "agent_id must be an agent attached to the authenticated machine",
             },
+        )
+    if work_in.session_id is not None:
+        await _ensure_session_link(
+            session, principal, work_in.session_id, work_in.project_id, work_in.task_id
         )
     if work_in.status in _REVIEW_RESOLUTIONS:
         # A review resolution only exits `review_requested` (DEC-0041): a
@@ -123,6 +165,7 @@ async def create_ai_work(
         project_id=work_in.project_id,
         agent_id=work_in.agent_id,
         machine_id=work_in.machine_id,
+        session_id=work_in.session_id,
         summary=work_in.summary,
         status=work_in.status.value,
         changed_files=work_in.changed_files,
@@ -211,6 +254,11 @@ async def update_ai_work(
         work.changed_files = work_in.changed_files
     if work_in.tests_run is not None:
         work.tests_run = work_in.tests_run
+    if work_in.session_id is not None:
+        await _ensure_session_link(
+            session, principal, work_in.session_id, work.project_id, work.task_id
+        )
+        work.session_id = work_in.session_id
     await session.commit()
     await session.refresh(work)
 
