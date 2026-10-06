@@ -319,7 +319,5 @@ async def test_adopting_hides_foreign_machines_and_refuses_revoked_and_agents(
     revoked = await client.post(f"/api/v1/machines/{created['id']}/adopt", headers=auth_headers)
     assert revoked.status_code == 409
 
-    agent = await client.post(
-        f"/api/v1/machines/{created['id']}/adopt", headers=agent_auth_headers
-    )
+    agent = await client.post(f"/api/v1/machines/{created['id']}/adopt", headers=agent_auth_headers)
     assert agent.status_code == 403
