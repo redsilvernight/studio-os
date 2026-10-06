@@ -7,7 +7,7 @@
  * Vocabulaire utilisateur, aucune saisie d'UUID, aucun secret affiché ou
  * stocké, aucun chemin complet conservé.
  */
-import { ApiError, apiBaseUrl, createApiClient } from "../api";
+import { ApiError, apiBaseUrl, createApiClient, type StudioClient } from "../api";
 import { getToken, hasToken } from "../auth";
 import { joinUrl } from "../config";
 import { getDesktopShell, refreshDaemon } from "../desktopShell";
@@ -664,6 +664,56 @@ function machineNameRefusal(name: string): string | null {
   return null;
 }
 
+interface AdoptableMachine {
+  id: string;
+  name: string;
+}
+
+/**
+ * Machines non révoquées de l'utilisateur (`GET /api/v1/machines`, déjà filtré
+ * côté serveur) proposées à la reprise. Toute panne (endpoint absent, réseau,
+ * réponse inattendue) retombe sur une liste vide : l'enrôlement reste possible
+ * en créant une nouvelle machine, jamais bloqué par cette lecture d'agrément.
+ */
+async function readAdoptableMachines(client: StudioClient): Promise<AdoptableMachine[]> {
+  try {
+    const result = await client.GET("/api/v1/machines");
+    if (result?.response?.ok !== true || !Array.isArray(result.data)) return [];
+    return result.data
+      .filter((machine) => typeof machine.id === "string" && machine.id !== "")
+      .map((machine) => ({
+        id: machine.id,
+        name: machine.display_name.trim() === "" ? "Machine sans nom" : machine.display_name,
+      }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Choix « reprendre une machine » / « nouvelle machine ». Absent quand aucune
+ * machine connue : le formulaire d'enrôlement garde alors son geste unique.
+ */
+function machineChoiceHtml(machines: AdoptableMachine[]): string {
+  if (machines.length === 0) return "";
+  const options = machines
+    .map(
+      (machine) =>
+        `<label class="ds-radio"><input type="radio" name="enroll-mode" value="${esc(machine.id)}" />` +
+        `<span>Reprendre la machine « ${esc(machine.name)} »</span></label>`,
+    )
+    .join("");
+  return (
+    `<fieldset class="ds-fieldset" data-testid="enroll-machine-choice">` +
+    `<legend>Ce poste est-il déjà enregistré ?</legend>` +
+    `<p class="settings-intro">Une machine non révoquée de votre compte existe déjà : reprenez-la pour conserver son identifiant, ou créez une nouvelle machine.</p>` +
+    `<label class="ds-radio"><input type="radio" name="enroll-mode" value="new" checked />` +
+    `<span>Créer une nouvelle machine</span></label>` +
+    options +
+    `</fieldset>`
+  );
+}
+
 async function paintVerification(
   root: HTMLElement,
   platform: Platform,
@@ -683,13 +733,16 @@ async function paintVerification(
   // session de l'étape « Connexion » ; aucun admin, aucun jeton affiché.
   const canEnroll =
     view !== null && (secretStatus === "absent" || secretStatus === "revoked") && (await daemonGrantsEnroll(platform));
+  const authed = hasToken();
+  const machines = canEnroll && authed ? await readAdoptableMachines(createApiClient(apiBaseUrl())) : [];
   const enrollHtml = !canEnroll
     ? view !== null && (secretStatus === "absent" || secretStatus === "revoked")
       ? `<p class="settings-intro" data-testid="enroll-unavailable">${esc(ENROLL_UPDATE_MESSAGE)}</p>`
       : ""
-    : hasToken()
+    : authed
       ? `<label class="settings-field">Nom de ce poste` +
         `<input id="enroll-machine-name" name="machine_name" type="text" autocomplete="off" maxlength="${MAX_MACHINE_NAME}" value="${esc(defaultMachineName(view))}" /></label>` +
+        machineChoiceHtml(machines) +
         `<div class="settings-actions" data-testid="enroll-machine"><button class="ds-btn ds-btn--primary" type="button" data-action="enroll">Enregistrer ce poste</button></div>`
       : `<p class="settings-intro" data-testid="enroll-needs-login">Connectez-vous à l'étape « Connexion » pour enregistrer ce poste.</p>`;
   const body =
@@ -721,6 +774,8 @@ async function paintVerification(
       void again();
       return;
     }
+    const chosen = root.querySelector<HTMLInputElement>("input[name=enroll-mode]:checked")?.value ?? "new";
+    const adoptMachineId = chosen !== "new" ? chosen : undefined;
     if (!lockButton(event.currentTarget as HTMLButtonElement, "Enregistrement…")) return;
     void daemonGrantsEnroll(platform)
       .then((granted) => {
@@ -730,6 +785,7 @@ async function paintVerification(
           human_session: token,
           machine_name: machineName,
           replace_existing: secretStatus === "revoked",
+          ...(adoptMachineId !== undefined ? { adopt_machine_id: adoptMachineId } : {}),
         });
       })
       .then((answer) => {
