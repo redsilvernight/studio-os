@@ -138,6 +138,10 @@ describe("timelineEventActor", () => {
 });
 
 describe("timelineHtml nominal", () => {
+  const olderTimeline = timeline(
+    { date: "2026-09-12", events: [event({ event_type: "task.created" })] },
+    { date: "2026-09-11", events: [event({ event_type: "build.failed" })] },
+  );
   const html = timelineHtml({
     timeline: timeline(
       {
@@ -152,12 +156,15 @@ describe("timelineHtml nominal", () => {
     limit: TIMELINE_LIMIT_DEFAULT,
   });
 
-  it("groupe par jour du plus récent au plus ancien avec total", () => {
-    expect(html).toContain("3 événement(s) affiché(s)");
-    expect(html.indexOf("2026-09-12")).toBeLessThan(html.indexOf("2026-09-11"));
+  it("calendrier : focus sur le jour le plus récent, les autres jours restent à un clic", () => {
+    expect(html).toContain("2 événement(s)");
+    expect(html).toContain('data-cal-day="2026-09-12"');
+    expect(html).toContain('data-cal-day="2026-09-11"');
     expect(html).toContain("Tâche créée");
     expect(html).toContain("Chevauchement de réservation");
-    expect(html).toContain("Build échoué");
+    expect(html).not.toContain("Build échoué");
+    const older = timelineHtml({ timeline: olderTimeline, limit: TIMELINE_LIMIT_DEFAULT, view: { month: "2026-09", selected: "2026-09-11" } });
+    expect(older).toContain("Build échoué");
   });
 
   it("montre acteur, moment, contexte utile et lien tâche", () => {
@@ -212,7 +219,7 @@ describe("timelineHtml limites et états", () => {
     const events = Array.from({ length: TIMELINE_LIMIT_DEFAULT }, () => event({ event_type: "task.updated" }));
     const html = timelineHtml({ timeline: timeline({ date: "2026-09-12", events }), limit: TIMELINE_LIMIT_DEFAULT });
     expect(html).toContain("data-timeline-more");
-    expect(html).toContain("Afficher plus");
+    expect(html).toContain("historique plus ancien");
   });
 
   it("plafond serveur : message honnête, plus de bouton", () => {

@@ -266,7 +266,7 @@ test.describe("UI-5 liste des tâches", () => {
     await expect(view.locator(".task-row")).toHaveCount(3);
     await view.locator("#tasks-search").fill("éclairages");
     await expect(view.locator(".task-row")).toHaveCount(1);
-    await expect(view).toContainText("1 tâche(s) affichée(s) sur 3 chargée(s)");
+    await expect(view).toContainText("1 sur 3");
     // Réinitialiser restaure tout, au clavier aussi (Tab + Entrée).
     await view.locator("[data-reset]").first().click();
     await expect(view.locator(".task-row")).toHaveCount(3);
@@ -488,7 +488,6 @@ test.describe("UI-5 workspace projet / tâches", () => {
     await expect(view.locator("h1")).toHaveCount(1);
     await expect(view.locator("h1")).toContainText("Jeu Phare");
     await expect(view.locator('[data-ws-tab="tasks"]')).toHaveAttribute("aria-selected", "true");
-    await expect(view.locator(".tasks > .ds-section-header h2")).toContainText("Travail");
     await expect(view.locator(".tasks-list").first()).toBeVisible();
     await expect(view.locator(".task-row")).toHaveCount(3);
     // Retour à la liste globale : deep link stable.

@@ -148,15 +148,59 @@ function dayHtml(day: TimelineDay): string {
   const date = new Date(`${day.date}T00:00:00Z`);
   const label = Number.isNaN(date.getTime())
     ? day.date
-    : date.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+    : date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
   return `<section class="tl-day" aria-labelledby="tl-day-${esc(day.date)}">` +
     `<h3 id="tl-day-${esc(day.date)}"><time datetime="${esc(day.date)}">${esc(label)}</time> · ${day.events.length} événement(s)</h3>` +
     `<ol class="tl-list">${day.events.map(eventHtml).join("")}</ol></section>`;
 }
 
+/** Vue calendrier : mois affiché (YYYY-MM) et jour sélectionné (YYYY-MM-DD). */
+export interface CalendarView {
+  month: string;
+  selected: string;
+}
+
+/** Vue par défaut : le jour le plus récent qui porte des événements. */
+export function defaultCalendarView(timeline: Timeline): CalendarView {
+  const dates = timeline.days.filter((day) => day.events.length > 0).map((day) => day.date).sort();
+  const latest = dates[dates.length - 1] ?? new Date().toISOString().slice(0, 10);
+  return { month: latest.slice(0, 7), selected: latest };
+}
+
+export function shiftMonth(month: string, delta: number): string {
+  const [year = 1970, mon = 1] = month.split("-").map(Number);
+  const d = new Date(Date.UTC(year, mon - 1 + delta, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function calendarHtml(timeline: Timeline, view: CalendarView): string {
+  const counts = new Map(timeline.days.map((day) => [day.date, day.events.length]));
+  const [year = 1970, mon = 1] = view.month.split("-").map(Number);
+  const first = new Date(Date.UTC(year, mon - 1, 1));
+  const daysInMonth = new Date(Date.UTC(year, mon, 0)).getUTCDate();
+  const offset = (first.getUTCDay() + 6) % 7; // semaine commençant le lundi
+  const title = first.toLocaleDateString("fr-FR", { month: "long", year: "numeric", timeZone: "UTC" });
+  const head = ["lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim."].map((d) => `<span class="cal-dow" aria-hidden="true">${d}</span>`).join("");
+  const blanks = Array.from({ length: offset }, () => `<span class="cal-blank" aria-hidden="true"></span>`).join("");
+  const cells = Array.from({ length: daysInMonth }, (_, i) => {
+    const date = `${view.month}-${String(i + 1).padStart(2, "0")}`;
+    const n = counts.get(date) ?? 0;
+    const selected = date === view.selected;
+    if (n === 0) return `<span class="cal-day cal-day--empty">${i + 1}</span>`;
+    return `<button type="button" class="cal-day cal-day--busy${selected ? " is-selected" : ""}" data-cal-day="${date}" aria-pressed="${selected ? "true" : "false"}" aria-label="${i + 1} : ${n} événement(s)">${i + 1}<span class="cal-count">${n}</span></button>`;
+  }).join("");
+  return `<div class="cal" aria-label="Calendrier de l'activité">` +
+    `<div class="cal-nav"><button type="button" class="ds-btn ds-btn--sm" data-cal-month="-1" aria-label="Mois précédent">‹</button>` +
+    `<strong class="cal-title">${esc(title)}</strong>` +
+    `<button type="button" class="ds-btn ds-btn--sm" data-cal-month="1" aria-label="Mois suivant">›</button>` +
+    `<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-cal-latest>Dernier événement</button></div>` +
+    `<div class="cal-grid">${head}${blanks}${cells}</div></div>`;
+}
+
 export interface TimelineViewData {
   timeline: Timeline;
   limit: number;
+  view?: CalendarView;
 }
 
 export function timelineHtml(data: TimelineViewData): string {
@@ -167,19 +211,18 @@ export function timelineHtml(data: TimelineViewData): string {
       "Aucun événement enregistré pour le moment. Certains types d'événements ne sont pas encore émis par le serveur.",
     );
   }
-  const days = data.timeline.days
-    .filter((day) => day.events.length > 0)
-    .map(dayHtml)
-    .join("");
+  const view = data.view ?? defaultCalendarView(data.timeline);
+  const day = data.timeline.days.find((d) => d.date === view.selected && d.events.length > 0);
+  const dayBody = day === undefined ? `<p class="ds-list-sub">Aucun événement ce jour-là.</p>` : dayHtml(day);
   const more =
     total >= data.limit && data.limit < TIMELINE_LIMIT_MAX
-      ? `<button class="ds-btn" type="button" data-timeline-more>Afficher plus d'événements</button>`
+      ? `<button class="ds-btn" type="button" data-timeline-more>Charger l'historique plus ancien</button>`
       : "";
   const capped =
     total >= data.limit && data.limit >= TIMELINE_LIMIT_MAX
       ? `<p class="ds-list-sub">L'historique affiché atteint la limite serveur (${TIMELINE_LIMIT_MAX} événements) : seuls les plus récents sont visibles ici.</p>`
       : "";
-  return `<p class="ds-list-sub" role="status">${total} événement(s) affiché(s) — historique complet, du plus récent au plus ancien.</p>${days}${more}${capped}`;
+  return `<div class="tl-layout">${calendarHtml(data.timeline, view)}<div class="tl-selected">${dayBody}</div></div>${more}${capped}`;
 }
 
 export function activityLoadingHtml(): string {
@@ -217,11 +260,32 @@ export async function renderActivityInto(root: HTMLElement, ctx: ActivityContext
     root.innerHTML = activityLoadingHtml();
     try {
       const timeline = await fetchTimeline(ctx.client, ctx.projectId, limit);
-      root.innerHTML = timelineHtml({ timeline, limit });
-      root.querySelector("[data-timeline-more]")?.addEventListener("click", () => {
-        limit = TIMELINE_LIMIT_MAX;
-        void reload();
-      });
+      let view = defaultCalendarView(timeline);
+      const paint = (): void => {
+        root.innerHTML = timelineHtml({ timeline, limit, view });
+        root.querySelectorAll<HTMLButtonElement>("[data-cal-day]").forEach((b) =>
+          b.addEventListener("click", () => {
+            view = { ...view, selected: b.dataset["calDay"] ?? view.selected };
+            paint();
+          }),
+        );
+        root.querySelectorAll<HTMLButtonElement>("[data-cal-month]").forEach((b) =>
+          b.addEventListener("click", () => {
+            view = { ...view, month: shiftMonth(view.month, Number(b.dataset["calMonth"])) };
+            paint();
+          }),
+        );
+        root.querySelector("[data-cal-latest]")?.addEventListener("click", () => {
+          view = defaultCalendarView(timeline);
+          paint();
+        });
+        root.querySelector("[data-timeline-more]")?.addEventListener("click", () => {
+          limit = TIMELINE_LIMIT_MAX;
+          void reload();
+        });
+      };
+      paint();
+      return;
     } catch (error) {
       root.innerHTML = `<div class="ds-notice ds-notice--danger" role="alert"><strong>Activité indisponible.</strong>${esc(describeError(error))}</div>`;
     }

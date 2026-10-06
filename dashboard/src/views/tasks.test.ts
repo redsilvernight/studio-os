@@ -182,7 +182,6 @@ describe("tasksToolbarHtml", () => {
     expect(html).toContain('type="search"');
     expect(html).toContain("déjà chargées");
     expect(html).toContain("Réinitialiser");
-    expect(html).toContain("3 tâche(s) affichée(s) sur 3 chargée(s)");
     expect(html).not.toContain("TODO");
     expect(html).not.toContain("IN PROGRESS");
   });
@@ -327,8 +326,7 @@ describe("tasksPageHtml nominal", () => {
 
   it("Toutes et Mon travail : pagination honnête", () => {
     const loaded = tasksPageHtml(pageData(everything));
-    expect(loaded).toContain("Toutes les tâches de cette vue sont chargées.");
-    expect(loaded).toContain("ordre du serveur");
+    expect(loaded).not.toContain("data-more");
     const more = tasksPageHtml({ ...pageData({ ...blank, scope: "mine" }), exhausted: false });
     expect(more).toContain("data-more");
     expect(more).not.toContain("tasks-scope-count");
@@ -384,7 +382,7 @@ describe("tasksPageHtml nominal", () => {
   it("embarqué workspace : titre en h2, un seul h1 par page", () => {
     const html = tasksPageHtml({ ...pageData(blank), projectId: P1, headingLevel: 2 });
     expect(html).not.toContain("<h1>");
-    expect(html).toContain("<h2>Travail</h2>");
+    expect(html).not.toContain("<h2>");
     expect(html).toContain("Nouvelle tâche");
   });
 

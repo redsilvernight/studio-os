@@ -168,7 +168,7 @@ export function tasksHeaderHtml(scopeLabel: string, authed: boolean, headingLeve
   const action = authed
     ? `<p><button class="ds-btn ds-btn--primary" type="button" id="task-new">+ Nouvelle tâche</button></p>`
     : "";
-  return `<div class="ds-section-header"><h2>Travail</h2></div><p class="ds-list-sub">${esc(scopeLabel)}</p>${action}`;
+  return action;
 }
 
 function viewToggleHtml(view: TasksView): string {
@@ -188,9 +188,7 @@ export function tasksScopeTabsHtml(scope: TasksScope, activeCount?: number): str
     const count = active && activeCount !== undefined ? ` <span class="tasks-scope-count">${activeCount}</span>` : "";
     return `<button class="${active ? "ds-btn ds-btn--primary" : "ds-btn"}" type="button" data-scope="${item.id}" aria-pressed="${active ? "true" : "false"}" title="${esc(item.hint)}">${esc(item.label)}${count}</button>`;
   }).join("");
-  const hint = TASK_SCOPES.find((item) => item.id === scope)?.hint ?? "";
-  return `<div class="tasks-scopes"><div class="tasks-scope-tabs" role="group" aria-label="Vues du travail">${buttons}</div>` +
-    `<p class="ds-list-sub tasks-scope-hint">${esc(hint)}</p></div>`;
+  return `<div class="tasks-scopes"><div class="tasks-scope-tabs" role="group" aria-label="Vues du travail">${buttons}</div></div>`;
 }
 
 export function tasksToolbarHtml(
@@ -204,7 +202,9 @@ export function tasksToolbarHtml(
     `<label class="ds-sr-only" for="tasks-search">Filtrer les tâches déjà chargées</label>` +
     `<input class="ds-input" type="search" id="tasks-search" value="${esc(state.query)}" placeholder="Filtrer par titre, description ou projet…" autocomplete="off" /></div>` +
     `<button class="ds-btn ds-btn--ghost" type="button" data-reset${isTasksDefaultState(state) ? " disabled" : ""}>Réinitialiser</button>` +
-    `<p class="ds-list-sub" role="status" aria-live="polite">${shown} tâche(s) affichée(s) sur ${total} chargée(s) — recherche appliquée aux tâches chargées.</p>` +
+    (state.query.trim() === ""
+      ? ""
+      : `<p class="ds-list-sub" role="status" aria-live="polite">${shown} sur ${total}</p>`) +
     `</div>`;
 }
 
@@ -392,12 +392,10 @@ export function tasksPageHtml(data: TasksPageData): string {
   const footer =
     data.state.scope === "now"
       ? `<div class="tasks-footer">${reloadButton}<button class="ds-btn" type="button" data-scope="all">Voir toutes les tâches</button>` +
-        `<p class="ds-list-sub">Maintenant montre au plus ${NOW_ACTIVE_LIMIT} tâches en cours ou bloquées et ${NOW_UPCOMING_LIMIT} à démarrer.</p></div>`
+        `</div>`
       : `<div class="tasks-footer">${reloadButton}` +
-        (data.exhausted
-          ? `<p class="ds-list-sub">Toutes les tâches de cette vue sont chargées.</p>`
-          : `<button class="ds-btn" type="button" data-more>Afficher plus de tâches</button>`) +
-        `<p class="ds-list-sub">Chargement par pages de ${TASK_PAGE_LIMIT} — la recherche s'applique aux tâches chargées, dans l'ordre du serveur.</p></div>`;
+        (data.exhausted ? "" : `<button class="ds-btn" type="button" data-more>Afficher plus de tâches</button>`) +
+        `</div>`;
   const msg =
     data.msg.human === ""
       ? `<div data-msg class="ds-list-sub" role="status" aria-live="polite"></div>`

@@ -196,7 +196,7 @@
   justify-self: start;
 }
 
-/* Onglet Intégration IA : un poste par ligne, commande locale à la demande. */
+/* Onglet Intégration IA : un poste par ligne, constat seul. */
 .ai-summary {
   margin: var(--ds-space-2) 0;
 }
@@ -221,15 +221,6 @@
   gap: var(--ds-space-3);
   flex-wrap: wrap;
 }
-.ai-machine-actions {
-  display: flex;
-  gap: var(--ds-space-2);
-}
-.ai-resync {
-  display: grid;
-  gap: var(--ds-space-2);
-  justify-items: start;
-}
 .ai-refresh {
   display: flex;
   align-items: center;
@@ -237,3 +228,78 @@
   margin-top: var(--ds-space-4);
 }
 
+
+/* Activité : calendrier du mois + événements du jour sélectionné. */
+.tl-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) 1fr;
+  gap: var(--ds-space-6);
+  align-items: start;
+  margin-bottom: var(--ds-space-6);
+}
+.cal {
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  padding: var(--ds-space-4);
+  display: grid;
+  gap: var(--ds-space-3);
+}
+.cal-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  flex-wrap: wrap;
+}
+.cal-title {
+  flex: 1;
+  text-align: center;
+  text-transform: capitalize;
+}
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--ds-space-1);
+}
+.cal-dow {
+  text-align: center;
+  font-size: var(--ds-text-sm);
+  color: var(--ds-text-muted);
+}
+.cal-day {
+  position: relative;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--ds-radius-md);
+  background: transparent;
+  font: inherit;
+  color: var(--ds-text-muted);
+}
+.cal-day--busy {
+  color: var(--ds-text);
+  font-weight: 600;
+  background: var(--ds-action-soft);
+  cursor: pointer;
+}
+.cal-day--busy.is-selected {
+  background: var(--ds-action);
+  color: #fff;
+}
+.cal-count {
+  position: absolute;
+  bottom: 1px;
+  right: 3px;
+  font-size: 10px;
+  font-weight: 400;
+  opacity: 0.8;
+}
+.tl-selected {
+  min-width: 0;
+}
+@media (max-width: 800px) {
+  .tl-layout {
+    grid-template-columns: 1fr;
+  }
+}

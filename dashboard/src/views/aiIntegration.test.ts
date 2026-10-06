@@ -6,12 +6,10 @@
 import { describe, expect, it } from "vitest";
 import type { AiIntegrationStatus, ReportedMachineIntegration } from "../aiIntegrationApi";
 import {
-  RESYNC_COMMAND,
   aiIntegrationHtml,
   desiredHtml,
   machineItemHtml,
   machineVerdict,
-  resyncInstructionHtml,
 } from "./aiIntegration";
 
 const MID = "11111111-2222-4333-8444-555555555555";
@@ -72,17 +70,6 @@ describe("desiredHtml", () => {
   });
 });
 
-describe("resyncInstructionHtml", () => {
-  it("donne la commande locale, masquée par défaut", () => {
-    const html = resyncInstructionHtml(machine({}));
-    expect(html).toContain(RESYNC_COMMAND);
-    expect(html).toContain("sur le poste flo-laptop");
-    expect(html).toContain("n'écrit rien sur le poste");
-    expect(html).toContain("hidden");
-    expect(html).not.toMatch(/\son[a-z]+\s*=/i);
-  });
-});
-
 describe("machineItemHtml", () => {
   it("poste à jour : verdict et outils détectés, pas de bouton", () => {
     const html = machineItemHtml(
@@ -101,12 +88,13 @@ describe("machineItemHtml", () => {
     expect(html).not.toContain("data-resync");
   });
 
-  it("poste hors ligne au rapport ancien : bouton « Mettre à jour »", () => {
+  it("poste hors ligne au rapport ancien : constat seul, aucune action manuelle", () => {
     const html = machineItemHtml(machine({ status: "offline", freshness: "stale" }));
     expect(html).toContain("Hors ligne");
     expect(html).toContain("Rapport ancien");
-    expect(html).toContain("data-resync");
-    expect(html).toContain("Mettre à jour");
+    expect(html).not.toContain("data-resync");
+    expect(html).not.toContain("studio-client");
+    expect(html).not.toContain("<button");
   });
 
   it("jamais rapporté : « Aucun rapport » et pas d'outil affiché", () => {
@@ -117,7 +105,7 @@ describe("machineItemHtml", () => {
   });
 
   it("n'expose plus le jargon technique", () => {
-    const html = machineItemHtml(machine({ bootstrap: inSync(false) })).replace(RESYNC_COMMAND, "");
+    const html = machineItemHtml(machine({ bootstrap: inSync(false) }));
     expect(html).not.toMatch(/bundle|bootstrap|harnais|Resynchroniser/i);
   });
 });

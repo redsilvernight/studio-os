@@ -3,8 +3,9 @@
  *
  * Lit GET /api/v1/projects/{id}/ai-integration et n'affiche, par poste, que ce
  * que le poste a lui-même rapporté (verdict, dernier rapport, outils détectés).
- * Le détail des agents vit dans la page Agents, pas ici. Le lancement à
- * distance n'existe pas : l'action reste une commande locale à copier.
+ * Le détail des agents vit dans la page Agents, pas ici. Le daemon local
+ * resynchronise le bundle IA du dépôt à chaque lancement de tâche : aucune
+ * action manuelle n'est proposée, la page ne fait que constater.
  */
 import type { StudioClient } from "../api";
 import {
@@ -22,9 +23,6 @@ export interface AiIntegrationContext {
   client: StudioClient;
   projectId: string;
 }
-
-/** Commande locale idempotente qui remet le bundle IA du dépôt au niveau attendu. */
-export const RESYNC_COMMAND = "studio-client bootstrap sync --repo-root .";
 
 export interface MachineVerdict {
   label: string;
@@ -106,19 +104,6 @@ function harnessChipHtml(harness: HarnessReport): string {
   return dsBadge(harness.harness_id, harness.configured ? "success" : "neutral");
 }
 
-/** Instruction locale de mise à jour pour un poste : rien n'est écrit depuis l'UI. */
-export function resyncInstructionHtml(machine: ReportedMachineIntegration): string {
-  return (
-    `<div class="ai-resync" data-resync-panel="${esc(machine.machine_id)}" hidden>` +
-    `<p class="ds-list-sub">À lancer <strong>sur le poste ${esc(machine.display_name)}</strong>, ` +
-    `dans le dossier du projet. Ce tableau de bord n'écrit rien sur le poste.</p>` +
-    `<pre class="code"><code>${esc(RESYNC_COMMAND)}</code></pre>` +
-    `<button type="button" class="ds-btn ds-btn--sm" data-copy aria-label="Copier la commande de mise à jour">Copier la commande</button>` +
-    `<span class="ds-list-sub" data-copy-msg role="status"></span>` +
-    `</div>`
-  );
-}
-
 /** Un poste : verdict, dernier rapport, outils détectés et, si besoin, la commande. */
 export function machineItemHtml(machine: ReportedMachineIntegration): string {
   const verdict = machineVerdict(machine);
@@ -128,10 +113,6 @@ export function machineItemHtml(machine: ReportedMachineIntegration): string {
       ? `Dernier rapport le ${fmtTime(machine.reported_at)}.`
       : "Aucun rapport.";
   const tools = (machine.harnesses ?? []).map(harnessChipHtml).join(" ");
-  const action = verdict.needsAction
-    ? `<div class="ai-machine-actions"><button type="button" class="ds-btn ds-btn--sm" data-resync="${esc(machine.machine_id)}">Mettre à jour…</button></div>` +
-      resyncInstructionHtml(machine)
-    : "";
   return (
     `<li class="ai-machine" data-machine="${esc(machine.machine_id)}">` +
     `<div class="ai-machine-head"><div class="grow">` +
@@ -140,7 +121,6 @@ export function machineItemHtml(machine: ReportedMachineIntegration): string {
     `${dsBadge(presence.label, presence.tone)} ${dsBadge(verdict.label, verdict.tone)}` +
     `</div>` +
     (tools === "" ? "" : `<div class="ai-machine-tools"><span class="ds-list-sub">Outils détectés</span> ${tools}</div>`) +
-    action +
     `</li>`
   );
 }
@@ -161,7 +141,6 @@ export function aiIntegrationHtml(status: AiIntegrationStatus): string {
         )
       : `<ul class="ds-list">${machines.map(machineItemHtml).join("")}</ul>`;
   return (
-    `<p class="ds-list-sub">Vérifiez que l'IA est bien installée sur chaque poste qui travaille sur ce projet.</p>` +
     summary +
     desiredHtml(status.desired, status.desired_error) +
     `<section class="workspace-section" aria-label="Postes">${body}</section>`
@@ -175,42 +154,11 @@ function panelHtml(body: string): string {
   );
 }
 
-function copyText(text: string, msg: HTMLElement | null): void {
-  const done = (ok: boolean): void => {
-    if (msg !== null) {
-      msg.textContent = ok
-        ? "Commande copiée."
-        : "Copie automatique impossible — sélectionnez la commande et copiez-la manuellement.";
-    }
-  };
-  const clipboard = navigator.clipboard;
-  if (clipboard === undefined) {
-    done(false);
-    return;
-  }
-  clipboard.writeText(text).then(() => done(true)).catch(() => done(false));
-}
-
 function bind(root: HTMLElement, ctx: AiIntegrationContext): void {
   root.querySelector<HTMLButtonElement>("[data-refresh]")?.addEventListener("click", (event) => {
     const button = event.currentTarget as HTMLButtonElement;
     button.disabled = true;
     void renderAiIntegrationInto(root, ctx);
-  });
-  root.querySelectorAll<HTMLButtonElement>("[data-resync]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const id = button.dataset["resync"] ?? "";
-      const panel = root.querySelector<HTMLElement>(`[data-resync-panel="${CSS.escape(id)}"]`);
-      if (panel !== null) panel.hidden = !panel.hidden;
-    });
-  });
-  root.querySelectorAll<HTMLButtonElement>("[data-copy]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const panel = button.closest("[data-resync-panel]");
-      const code = panel?.querySelector("code");
-      const msg = panel?.querySelector("[data-copy-msg]");
-      copyText(code?.textContent ?? RESYNC_COMMAND, msg instanceof HTMLElement ? msg : null);
-    });
   });
 }
 

@@ -351,7 +351,7 @@ test.describe("UI-14 noms accessibles et formulaires", () => {
     await expect(view.locator("#tasks-search")).toHaveAccessibleName(/filtrer/i);
     await view.locator("#tasks-search").fill("caméra");
     await expect(view.locator(".task-row")).toHaveCount(1);
-    await expect(view.locator("[role=status]", { hasText: "affichée" })).toContainText("affichée");
+    await expect(view.locator("[role=status]", { hasText: "sur" })).toContainText("1 sur");
     await view.locator("[data-reset]").click();
     await expect(view.locator(".task-row")).toHaveCount(1);
     expect(csp).toEqual([]);
