@@ -46,19 +46,19 @@ export function onboardingSectionHtml(): string {
   const state = loadOnboardingState();
   const status =
     state.status === "completed"
-      ? `Terminé${state.completedAt ? ` le ${esc(state.completedAt.slice(0, 10))}` : ""}.`
+      ? `Terminé${state.completedAt ? ` le ${esc(state.completedAt.slice(0, 10))}` : ""}`
       : state.status === "in_progress"
-        ? `En cours — étape « ${esc(stepById(state.current).title)} ».`
-        : "Jamais lancé.";
+        ? `En cours — étape « ${esc(stepById(state.current).title)} »`
+        : "Jamais lancé";
   return (
-    `<section class="settings-domain" data-testid="onboarding-section"><h2>Assistant de configuration</h2>` +
-    `<dl class="settings-refs">${row("État", esc(status))}</dl>` +
-    `<p class="settings-intro">Revoyez la configuration locale (dossier, mémoire, assistant IA) ou corrigez une étape devenue invalide.</p>` +
+    `<section class="app-card app-card--row" data-testid="onboarding-section">` +
+    `<div class="app-card-text"><h2>Assistant de configuration</h2>` +
+    `<p class="settings-intro">${status}. Revoyez le dossier, la mémoire et l'assistant IA, ou corrigez une étape devenue invalide.</p></div>` +
     `<div class="settings-actions">` +
     (state.status === "in_progress"
       ? `<a class="ds-btn ds-btn--primary" href="#/bienvenue">Reprendre l'assistant</a> `
       : "") +
-    `<button class="ds-btn${state.status === "in_progress" ? "" : " ds-btn--primary"}" type="button" data-action="relaunch-onboarding">Relancer l'assistant</button>` +
+    `<button class="ds-btn" type="button" data-action="relaunch-onboarding">Relancer l'assistant</button>` +
     `</div></section>`
   );
 }
@@ -122,33 +122,72 @@ function compatibilityLabel(state: CompatibilityState, daemonUpdateAdvised = fal
   return "Non vérifiée";
 }
 
-function serverSectionHtml(section: DesktopSection, form: ApplicationFormState): string {
-  const { origin, connection, status } = section;
-  const configured = origin?.configured ?? "";
-  const value = form.value ?? configured;
-  const shown = section.effectiveServer || "Aucune adresse configurée — renseignez-la ci-dessous";
+type Tone = "ok" | "warn" | "error";
+
+function tile(testid: string, label: string, tone: Tone, value: string, extra = "", attrs = ""): string {
+  return (
+    `<div class="app-tile app-tile--${tone}" data-testid="${testid}">` +
+    `<p class="app-tile-label">${esc(label)}</p>` +
+    `<p class="app-tile-value"><span class="app-dot" aria-hidden="true"></span><span ${attrs}>${value}</span></p>${extra}</div>`
+  );
+}
+
+function compatibilityTone(state: CompatibilityState, advised: boolean): Tone {
+  if (state === "incompatible") return "error";
+  return state === "ok" && !advised ? "ok" : "warn";
+}
+
+function statusTilesHtml(section: DesktopSection): string {
+  const { connection, status } = section;
   const problem = connection.state === "unreachable" || connection.state === "auth_expired";
+  const shown = section.effectiveServer || "Aucune adresse configurée";
+  const attention = daemonNeedsAttention(section.daemon);
+  const retry = problem ? `<button class="ds-btn" type="button" data-action="retry">Réessayer</button>` : "";
+  const server = tile(
+    "server-section",
+    "Serveur",
+    status.level as Tone,
+    esc(status.label),
+    `<p class="app-tile-hint"><code class="mono" data-testid="server-effective">${esc(shown)}</code></p>${retry}`,
+    'data-testid="server-summary"',
+  );
+  const daemon = tile(
+    "daemon-section",
+    "Assistant local",
+    attention ? "error" : "ok",
+    esc(daemonLabel(section.daemon)),
+    attention ? `<p class="app-tile-hint">Les fonctions locales sont suspendues ; le tableau de bord reste utilisable.</p>` : "",
+    `data-testid="daemon-state" data-attention="${attention}"`,
+  );
+  const compat = tile(
+    "compat-section",
+    "Compatibilité",
+    compatibilityTone(section.compatibility, section.daemonUpdateAdvised ?? false),
+    esc(compatibilityLabel(section.compatibility, section.daemonUpdateAdvised)),
+    "",
+    'data-testid="compatibility"',
+  );
+  return `<section class="app-tiles" aria-label="État de l'application">${server}${daemon}${compat}</section>`;
+}
+
+function serverFormHtml(section: DesktopSection, form: ApplicationFormState): string {
+  const { origin } = section;
+  const value = form.value ?? origin?.configured ?? "";
   const message = form.error
     ? `<p class="state error" id="server-origin-error" role="alert" data-testid="server-origin-error">${esc(form.error)}</p>`
     : form.notice
       ? `<p class="settings-intro" role="status" data-testid="server-origin-notice">${esc(form.notice)}</p>`
       : "";
   const restart = origin?.restart_required
-    ? `<div class="settings-restart" data-testid="restart-required">` +
+    ? `<div class="app-callout" data-testid="restart-required">` +
       `<p class="settings-intro">Le nouveau serveur ${origin.configured ? `<code class="mono">${esc(origin.configured)}</code> ` : "par défaut "}` +
       `sera utilisé après un redémarrage de l'application. L'ancienne adresse reste utilisée en attendant.</p>` +
       `<button class="ds-btn ds-btn--primary" type="button" data-action="restart">Redémarrer maintenant</button></div>`
     : "";
-  const retry = problem
-    ? `<button class="ds-btn" type="button" data-action="retry">Réessayer</button>`
-    : "";
+  const open = form.error || form.notice || form.value !== undefined;
   return (
-    `<section class="settings-domain" data-testid="server-section"><h2>Serveur</h2>` +
-    `<p class="app-status-line app-status-line--${status.level}" data-testid="server-summary">${esc(status.label)}</p>` +
-    `<dl class="settings-refs">` +
-    row("Adresse utilisée", `<code class="mono" data-testid="server-effective">${esc(shown)}</code>`) +
-    row("État", esc(serverStateLabel(connection))) +
-    `</dl>${retry}` +
+    restart +
+    `<details class="settings-technical" data-testid="server-settings"${open ? " open" : ""}><summary>Changer l'adresse du serveur</summary>` +
     `<form class="settings-server-form" data-testid="server-origin-form" novalidate>` +
     `<label class="settings-field">Adresse du serveur Studio OS` +
     `<input id="server-origin-input" name="server_origin" type="url" inputmode="url" autocomplete="off" spellcheck="false" ` +
@@ -156,75 +195,81 @@ function serverSectionHtml(section: DesktopSection, form: ApplicationFormState):
     `<div class="settings-actions">` +
     `<button class="ds-btn ds-btn--primary" type="submit">Enregistrer</button>` +
     `<button class="ds-btn ds-btn--ghost" type="button" data-action="reset-origin"${origin?.configured ? "" : " disabled"}>Rétablir la valeur par défaut</button>` +
-    `</div></form>${message}${restart}</section>`
+    `</div></form>${message}</details>`
   );
 }
 
-function assistantSectionHtml(section: DesktopSection, info: DesktopInfo | null): string {
-  const attention = daemonNeedsAttention(section.daemon);
+function healthRowsHtml(section: DesktopSection, info: DesktopInfo | null): string {
   const health = section.daemon.kind === "state" ? section.daemon.health : null;
-  const healthRows = health
-    ? row("Synchronisation (heartbeat)", `<span data-testid="health-heartbeat">${esc(conditionLabel(health.heartbeat))}</span>`) +
-      row("Rejeu de la file hors ligne", `<span data-testid="health-outbox">${esc(conditionLabel(health.outboxReplay))}</span>`) +
-      row(
-        "Surveillance Git",
-        `<span data-testid="health-watchers">${health.gitWatchers.total === 0 ? "Aucun dépôt surveillé" : `${health.gitWatchers.healthy} / ${health.gitWatchers.total} en bonne santé`}</span>`,
-      )
-    : "";
   return (
-    `<section class="settings-domain" data-testid="daemon-section"><h2>Assistant local</h2>` +
-    `<dl class="settings-refs">` +
-    row("État", `<span data-testid="daemon-state" data-attention="${attention}">${esc(daemonLabel(section.daemon))}</span>`) +
-    row("Compatibilité", `<span data-testid="compatibility">${esc(compatibilityLabel(section.compatibility, section.daemonUpdateAdvised))}</span>`) +
-    (info ? row("Processus", esc(sidecarLabel(info))) : "") +
-    healthRows +
-    `</dl>` +
-    (attention
-      ? `<p class="settings-intro">L'assistant local ne répond pas. Le tableau de bord reste utilisable ; les fonctions locales sont suspendues.</p>`
-      : "") +
-    `</section>`
+    (info ? row("Processus de l'assistant", esc(sidecarLabel(info))) : "") +
+    (health
+      ? row("Synchronisation (heartbeat)", `<span data-testid="health-heartbeat">${esc(conditionLabel(health.heartbeat))}</span>`) +
+        row("Rejeu de la file hors ligne", `<span data-testid="health-outbox">${esc(conditionLabel(health.outboxReplay))}</span>`) +
+        row(
+          "Surveillance Git",
+          `<span data-testid="health-watchers">${health.gitWatchers.total === 0 ? "Aucun dépôt surveillé" : `${health.gitWatchers.healthy} / ${health.gitWatchers.total} en bonne santé`}</span>`,
+        )
+      : "")
   );
 }
 
-function legacyOutboxSectionHtml(section: DesktopSection): string {
+function legacyOutboxHtml(section: DesktopSection): string {
   const outbox = section.legacyOutbox;
   if (!outbox) return "";
-  const exists = outbox.exists ? "Présente" : "Absente";
-  const hasWork = outbox.has_queued_work ? "Travail en attente" : "Vide";
   const counts = Object.entries(outbox.counts ?? {})
     .map(([table, count]) => `${table}: ${count}`)
     .join(", ") || "aucun";
   return (
-    `<section class="settings-domain" data-testid="legacy-outbox-section"><h2>File d'attente héritée</h2>` +
-    `<dl class="settings-refs">` +
-    row("État", esc(exists)) +
-    row("Contenu", esc(hasWork)) +
+    `<div data-testid="legacy-outbox-section"><h4>File d'attente héritée</h4><dl class="settings-refs">` +
+    row("État", esc(outbox.exists ? "Présente" : "Absente")) +
+    row("Contenu", esc(outbox.has_queued_work ? "Travail en attente" : "Vide")) +
     row("Détail par table", esc(counts)) +
-    `</dl>` +
-    `<p class="settings-intro">Cette file date d'avant l'identité de ce poste. Elle est en lecture seule ; aucune action n'est proposée ici.</p>` +
-    `</section>`
+    `</dl><p class="settings-intro">Cette file date d'avant l'identité de ce poste. Elle est en lecture seule.</p></div>`
   );
 }
 
-function updateMessage(form: ApplicationFormState): string {
-  const error = form.updateError ? `<p class="state error" role="alert" data-testid="update-error">${esc(form.updateError)}</p>` : "";
+/** Version courante + mise à jour : l'action principale de la page. */
+function heroHtml(info: DesktopInfo | null, failure: string | undefined, form: ApplicationFormState, canCheck: boolean): string {
+  if (!info) {
+    return (
+      `<div class="state error" role="alert" data-testid="application-error">` +
+      `Impossible de lire l'identité Desktop${failure ? ` : ${esc(failure)}` : ""}.</div>`
+    );
+  }
   const status = form.update;
-  // An interrupted download keeps the verified release pending: offer a retry.
-  if (error && status?.state === "available") {
-    return error + `<button class="ds-btn ds-btn--primary" type="button" data-action="install-update">Réessayer l'installation de la version ${esc(status.version)}</button>`;
+  const available = status?.state === "available";
+  const error = form.updateError ? `<p class="state error" role="alert" data-testid="update-error">${esc(form.updateError)}</p>` : "";
+  const check = (primary: boolean, label: string): string =>
+    canCheck
+      ? `<button class="ds-btn${primary ? " ds-btn--primary" : ""}" type="button" data-action="check-update" data-testid="check-update">${label}</button>`
+      : "";
+  let text: string;
+  let button: string;
+  if (status?.state === "available") {
+    text =
+      `La version ${esc(status.version)} est disponible. Vos données sont conservées ; ` +
+      `l'assistant local est arrêté puis l'application redémarre.`;
+    button =
+      `<button class="ds-btn ds-btn--primary ds-btn--lg" type="button" data-action="install-update">` +
+      `${form.updateError ? "Réessayer l'installation de la version" : "Installer la version"} ${esc(status.version)}</button>` +
+      (form.updateError ? check(false, "Vérifier à nouveau") : "");
+  } else if (status?.state === "up_to_date") {
+    text = "Vous utilisez la dernière version.";
+    button = check(false, "Vérifier à nouveau");
+  } else if (status?.state === "not_configured") {
+    text = "Les mises à jour automatiques ne sont pas activées dans cette version de l'application.";
+    button = check(false, "Vérifier à nouveau");
+  } else {
+    text = "Vérifiez si une nouvelle version est disponible.";
+    button = check(true, "Rechercher une mise à jour");
   }
-  if (error) return error;
-  if (!status) return "";
-  if (status.state === "not_configured") {
-    return `<p class="settings-intro" data-testid="update-status">Les mises à jour automatiques ne sont pas activées dans cette version de l'application.</p>`;
-  }
-  if (status.state === "up_to_date") {
-    return `<p class="settings-intro" data-testid="update-status">Vous utilisez la dernière version (${esc(status.current)}).</p>`;
-  }
+  const message = `${error}${form.updateError ? "" : `<p class="app-hero-text" data-testid="update-status">${text}</p>`}`;
   return (
-    `<p class="settings-intro" data-testid="update-status">La version ${esc(status.version)} est disponible (actuelle : ${esc(status.current)}). ` +
-    `Vos données sont conservées ; l'assistant local est arrêté puis l'application redémarre.</p>` +
-    `<button class="ds-btn ds-btn--primary" type="button" data-action="install-update">Installer la version ${esc(status.version)}</button>`
+    `<section class="app-hero${available ? " app-hero--update" : ""}" data-testid="application-identity">` +
+    `<div class="app-hero-main"><p class="app-hero-eyebrow">${esc(info.product)}</p>` +
+    `<h2 class="app-hero-version">Version <code class="mono">${esc(info.desktop_version)}</code></h2>${message}</div>` +
+    `<div class="app-hero-actions">${button}</div></section>`
   );
 }
 
@@ -283,15 +328,14 @@ function diagnosticsHtml(
   const exportError = form.exportError
     ? `<p class="state error" role="alert" data-testid="export-error">${esc(form.exportError)}</p>`
     : "";
-  const checkUpdate = diag
-    ? `<button class="ds-btn ds-btn--ghost" type="button" data-action="check-update" data-testid="check-update">Rechercher une mise à jour</button>`
-    : "";
   return (
     `<details class="settings-technical" data-testid="diagnostics"${form.diagnosticsOpen ? " open" : ""}><summary>Détails techniques</summary>` +
     `<dl class="settings-refs">` +
+    row("Mode", "Desktop") +
+    (info ? row("Version studio.local", `<code class="mono">${esc(info.protocol)}</code>`) : "") +
     row("Origine de l'application", `<code class="mono">http://tauri.localhost</code>`) +
     row("Détail réseau", esc(section.connection.detail ?? "aucun")) +
-    (info ? row("Processus local", esc(sidecarLabel(info))) : "") +
+    healthRowsHtml(section, info) +
     componentsHtml(diag) +
     row(
       "Journaux et diagnostic",
@@ -300,8 +344,7 @@ function diagnosticsHtml(
             `<button class="ds-btn ds-btn--ghost" type="button" data-action="export-diagnostics" data-testid="export-diagnostics">Exporter un diagnostic</button>`
         : `<span class="meta">Non disponible : le diagnostic n'a pas pu être lu.</span>`,
     ) +
-    `</dl>${exported}${exportError}` +
-    `<div class="settings-actions">${checkUpdate}</div>${updateMessage(form)}` +
+    `</dl>${exported}${exportError}${legacyOutboxHtml(section)}` +
     `</details>`
   );
 }
@@ -317,23 +360,13 @@ export function applicationPageHtml(
   const head = `<p class="ds-hero-eyebrow">Administration / Configuration</p>${dsPageHeader("Configuration", DESCRIPTION)}${configTabsHtml("application")}`;
   let body: string;
   if (mode === "desktop") {
-    const identity = info
-      ? `<dl class="settings-refs" data-testid="application-identity">` +
-        row("Application", esc(info.product)) +
-        row("Mode", "Desktop") +
-        row("Version Desktop", `<code class="mono">${esc(info.desktop_version)}</code>`) +
-        row("Version studio.local", `<code class="mono">${esc(info.protocol)}</code>`) +
-        `</dl>`
-      : `<div class="state error" role="alert" data-testid="application-error">` +
-        `Impossible de lire l'identité Desktop${failure ? ` : ${esc(failure)}` : ""}.</div>`;
     body =
-      `<section class="settings-domain"><h2>Application</h2>${identity}</section>` +
+      heroHtml(info, failure, form, diag !== null) +
       (section
-        ? serverSectionHtml(section, form) +
-          assistantSectionHtml(section, info) +
-          legacyOutboxSectionHtml(section) +
+        ? statusTilesHtml(section) +
+          serverFormHtml(section, form) +
           onboardingSectionHtml() +
-          whatsNewSectionHtml() +
+          `<details class="settings-technical" data-testid="whats-new-details"><summary>Historique des versions</summary>${whatsNewSectionHtml()}</details>` +
           diagnosticsHtml(section, info, diag, form)
         : "");
   } else {
@@ -464,7 +497,7 @@ function bindActions(root: HTMLElement, platform: Platform, shell: DesktopShell,
   });
   root.querySelector("[data-action=check-update]")?.addEventListener("click", () => {
     void platform.checkForUpdate().then((result) =>
-      keepOpen(result.ok ? { update: result.status } : { updateError: updateErrorMessage(result.code) }),
+      again(result.ok ? { update: result.status } : { updateError: updateErrorMessage(result.code) }),
     );
   });
   const install = root.querySelector<HTMLButtonElement>("[data-action=install-update]");
@@ -474,15 +507,15 @@ function bindActions(root: HTMLElement, platform: Platform, shell: DesktopShell,
     // restarts it, so only a failure comes back here.
     install.disabled = true;
     install.textContent = "Téléchargement et vérification…";
-    install.insertAdjacentHTML(
-      "afterend",
+    root.querySelector(".app-hero-actions")?.insertAdjacentHTML(
+      "beforeend",
       `<p class="settings-intro" role="status" data-testid="update-progress">La mise à jour est vérifiée avant d'être installée ; l'application redémarrera d'elle-même.</p>`,
     );
     void platform.installUpdate().then((result) => {
       if (!result.ok) {
         // Only an interrupted download leaves the release pending for a retry.
         const update = result.code === "network" ? form.update : undefined;
-        return keepOpen({ update, updateError: updateErrorMessage(result.code) });
+        return again({ update, updateError: updateErrorMessage(result.code) });
       }
       return undefined;
     });

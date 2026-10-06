@@ -39,9 +39,7 @@ describe("applicationPageHtml", () => {
     const html = applicationPageHtml("desktop", info);
     expect(html).toContain("Studi'OS Desktop");
     expect(html).toContain("0.1.0");
-    expect(html).toContain("Version Desktop");
-    expect(html).toContain("Version studio.local");
-    expect(html).toContain("studio.local/v1");
+    expect(html).toContain("Version <code");
     expect(html).toContain('aria-current="page"');
   });
 
@@ -121,6 +119,7 @@ describe("Settings › Application (Desktop)", () => {
     expect(root.querySelector("[data-testid=compatibility]")?.textContent).toBe("Compatible");
     expect(root.querySelector("[data-testid=daemon-state]")?.textContent).toBe("Non disponible dans cette version");
     expect(root.querySelector("[data-testid=diagnostics]")).not.toBeNull();
+    expect(root.querySelector("[data-testid=diagnostics]")?.textContent).toContain("studio.local/v1");
   });
 
   it("the logs entry opens the logs folder and the export reports the file, never a secret", async () => {
