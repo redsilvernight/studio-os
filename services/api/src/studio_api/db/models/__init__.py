@@ -34,6 +34,7 @@ from studio_api.db.models.task import TaskModel
 from studio_api.db.models.task_launch import TaskLaunchModel
 from studio_api.db.models.transfer import TransferModel
 from studio_api.db.models.user import UserModel
+from studio_api.db.models.vault import VaultNoteLinkModel, VaultNoteModel, VaultNoteVersionModel
 from studio_api.db.models.work_session import WorkSessionModel
 
 __all__ = [
@@ -50,6 +51,9 @@ __all__ = [
     "TaskModel",
     "TaskLaunchModel",
     "WorkSessionModel",
+    "VaultNoteModel",
+    "VaultNoteLinkModel",
+    "VaultNoteVersionModel",
     "ResourceClaimModel",
     "DecisionModel",
     "AIWorkLogModel",

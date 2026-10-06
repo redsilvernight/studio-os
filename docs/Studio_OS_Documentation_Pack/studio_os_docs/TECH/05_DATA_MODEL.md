@@ -206,6 +206,15 @@ creation incluse). `VaultNoteCreate` : statut initial `draft|proposed` ;
 `VaultNoteUpdate` : `expected_version` obligatoire, au moins un champ change,
 `tags`/`links` remplacent la liste entiere.
 
+Stockage PostgreSQL (migration 0028) : tables `vault_notes` (contraintes
+scope/projet, valeurs, `readable_id` reserve aux decisions et unique ; slug
+unique par portee hors archive via index partiels ; `search_vector` tsvector
+genere `french` titre A / resume B / corps C, index GIN ; `tags` ARRAY + GIN),
+`vault_note_links` (cle `(source, target, kind)`, pas d'auto-lien, cascade) et
+`vault_note_versions` (cle `(note_id, version)`, snapshot tags/liens JSONB).
+Le `readable_id` DEC reste fourni par la sequence `decisions_readable_id_seq`,
+commune aux tables `decisions` et `vault_notes` : aucune collision possible.
+
 ## AIWorkLog
 `id`, `task_id` (FK Task, nullable), `project_id` (FK Project), `agent_id`
 (FK Agent), `machine_id` (FK Machine, nullable), `session_id` (FK
