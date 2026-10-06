@@ -14,7 +14,7 @@
 
 /* Onglets principaux */
 [data-ds-tabs="decisions-main"] {
-  margin-bottom: var(--ds-space-4);
+  margin-bottom: var(--ds-space-6);
 }
 
 /* Sections */
@@ -23,9 +23,18 @@
   margin-bottom: var(--ds-space-6);
 }
 
-/* Résumé de file */
-.review-summary {
-  margin: 0 0 var(--ds-space-3);
+/* Barre d'outils : filtres à gauche, lien de sortie à droite */
+.review-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-3);
+  margin-bottom: var(--ds-space-6);
+}
+
+.review-see-all {
+  font-size: var(--ds-text-sm);
 }
 
 /* Filtres Tous / À décider / Signaux */
@@ -33,7 +42,6 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--ds-space-2);
-  margin-bottom: var(--ds-space-4);
 }
 
 .review-filter-count {
@@ -41,55 +49,23 @@
   opacity: 0.85;
 }
 
-/* Compteurs « À valider » par type réel */
-.review-counters {
-  display: grid;
-  gap: var(--ds-space-2);
-  margin-bottom: var(--ds-space-5);
-}
-
-.review-counters h3 {
-  margin: 0;
-  font-size: var(--ds-text-sm);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--ds-text-muted);
-}
-
-.review-counters > div {
-  display: flex;
-  align-items: baseline;
-  gap: var(--ds-space-2);
-  font-size: var(--ds-text-sm);
-  color: var(--ds-text-muted);
-}
-
-.review-counters b {
-  font-variant-numeric: tabular-nums;
-  font-size: var(--ds-text-base);
-  color: var(--ds-text);
-  min-width: 1.5ch;
-  text-align: right;
-}
-
 /* Héros : la prochaine action, une seule action primaire (C1) */
 .review-hero {
-  margin-bottom: var(--ds-space-5);
-  max-width: 76ch;
+  margin-bottom: var(--ds-space-6);
 }
 
 /* Carte d'inbox : structure unique pour les six types */
 .review-list {
   display: grid;
-  gap: var(--ds-space-3);
+  gap: var(--ds-space-5);
 }
 
 .review-card {
   display: grid;
-  gap: var(--ds-space-3);
+  gap: var(--ds-space-4);
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-radius-lg);
-  padding: var(--ds-space-4);
+  padding: var(--ds-space-5);
   background: var(--ds-surface);
 }
 
@@ -136,10 +112,9 @@
 
 .review-card-head {
   display: flex;
-  align-items: baseline;
-  gap: var(--ds-space-2);
+  align-items: center;
+  gap: var(--ds-space-3);
   flex-wrap: wrap;
-  margin-bottom: var(--ds-space-1);
 }
 
 .review-card-title {
@@ -154,8 +129,9 @@
 .review-card-context {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--ds-space-2);
-  margin: 0 0 var(--ds-space-1);
+  margin: var(--ds-space-2) 0 0;
   font-size: var(--ds-text-sm);
   color: var(--ds-text-muted);
   overflow-wrap: anywhere;
@@ -167,9 +143,9 @@
 
 /* Impact : ce que la décision change. */
 .review-card-impact {
-  margin: 0;
+  margin: var(--ds-space-2) 0 0;
   font-size: var(--ds-text-sm);
-  color: var(--ds-text);
+  color: var(--ds-text-muted);
   max-width: 78ch;
 }
 
@@ -180,25 +156,44 @@
 }
 
 .review-card-note {
-  margin: 0;
+  margin: calc(var(--ds-space-2) * -1) 0 0;
   font-size: var(--ds-text-sm);
   color: var(--ds-text-muted);
 }
 
-/* Liste decisions */
+/* Historique : barre d'outils, cartes aérées, dernière décision mise en avant */
 .decisions-toolbar {
-  margin-bottom: var(--ds-space-4);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-3);
+  margin-bottom: var(--ds-space-6);
+}
+
+.decisions-toolbar-end {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-4);
 }
 
 .decisions-list {
   display: grid;
-  gap: var(--ds-space-3);
+  gap: var(--ds-space-5);
+}
+
+.decisions-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ds-space-4);
+  margin-top: var(--ds-space-6);
 }
 
 .decision-item {
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-radius-lg);
-  padding: var(--ds-space-4);
+  padding: var(--ds-space-5);
   background: var(--ds-surface);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -208,44 +203,62 @@
   box-shadow: var(--ds-shadow-sm);
 }
 
-.decision-item-header {
-  display: grid;
-  gap: var(--ds-space-2);
-  margin-bottom: var(--ds-space-3);
+.decision-item--latest {
+  border-color: var(--ds-action);
+  box-shadow: var(--ds-shadow-sm);
+  padding: var(--ds-space-6);
+}
+
+.decision-item-eyebrow {
+  margin: 0 0 var(--ds-space-2);
+  font-size: var(--ds-text-sm);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ds-action);
 }
 
 .decision-item-title-row {
   display: flex;
-  align-items: flex-start;
-  gap: var(--ds-space-2);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-3);
   flex-wrap: wrap;
 }
 
 .decision-item-title {
+  margin: 0;
   font-weight: 600;
   font-size: var(--ds-text-base);
   flex: 1;
   min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.decision-item--latest .decision-item-title {
+  font-size: var(--ds-text-lg, 1.25rem);
 }
 
 .decision-item-meta {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--ds-space-2);
+  margin: var(--ds-space-2) 0 var(--ds-space-4);
   font-size: var(--ds-text-sm);
   color: var(--ds-text-muted);
-}
-
-.decision-item-meta span {
-  white-space: normal;
-  min-width: 0;
   overflow-wrap: anywhere;
 }
 
+.meta-sep {
+  color: var(--ds-text-faint);
+}
+
 .decision-item-body {
-  margin-bottom: var(--ds-space-3);
+  margin-bottom: var(--ds-space-4);
   line-height: 1.6;
   color: var(--ds-text);
+  max-width: 78ch;
 }
 
 /* Formulaire création décision */
@@ -374,15 +387,6 @@
 
 /* Responsive spécifique */
 @media (max-width: 900px) {
-  .decision-item-meta {
-    flex-direction: column;
-    gap: var(--ds-space-1);
-  }
-
-  .decision-item-meta .meta-sep {
-    display: none;
-  }
-
   .decision-form-actions {
     width: 100%;
   }

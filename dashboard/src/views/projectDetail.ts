@@ -352,10 +352,7 @@ export async function renderProjectDetail(
     await renderAiIntegrationInto(panel, { client: ctx.client, projectId: project.id });
     return;
   }
-  const intro = document.createElement("p");
-  intro.className = "ds-list-sub";
-  intro.textContent = "Seules les décisions liées à ce projet (project_id) apparaissent ici ; les décisions globales restent sur la page Décisions.";
   const slot = document.createElement("div");
-  panel.append(intro, slot);
+  panel.append(slot);
   await renderDecisions(slot, { client: ctx.client, authed: ctx.authed, projectId: project.id });
 }

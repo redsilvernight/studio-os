@@ -153,16 +153,6 @@ export const REVIEW_FILTERS: ReadonlyArray<{ id: ReviewFilter; label: string }> 
   { id: "signal", label: "À surveiller" },
 ];
 
-/** Compteurs « À valider » par type réel de la file. */
-export const REVIEW_KIND_COUNT_LABEL: Record<ReviewQueueItem["kind"], string> = {
-  ai_work_review: "travaux IA à relire",
-  decision_proposal: "décisions à trancher",
-  roadmap_proposal: "plans à examiner",
-  resource_conflict: "conflits de réservation",
-  build_failure: "compilations en échec",
-  pr_ready: "demandes de fusion à relire",
-};
-
 /** Ce que la décision change, en une ligne, pour chaque type de la file. */
 export const REVIEW_IMPACT: Record<ReviewQueueItem["kind"], string> = {
   ai_work_review: "Impact : approuver publie le travail dans la tâche liée ; demander des modifications le renvoie à l'agent.",
@@ -452,21 +442,12 @@ export function reviewHeroHtml(card: ReviewCard, authed: boolean, isAdmin: boole
     `</section>`;
 }
 
-/** Compteurs « À valider » par type réel, plus le total des signaux. */
-export function reviewCountersHtml(cards: readonly ReviewCard[]): string {
-  const counts = reviewCounts(cards);
-  const kinds = Object.keys(REVIEW_KIND_COUNT_LABEL) as ReviewQueueItem["kind"][];
-  const rows = kinds
-    .filter((kind) => (counts.byKind[kind] ?? 0) > 0)
-    .map((kind) => `<div><b>${counts.byKind[kind] ?? 0}</b><span>${esc(REVIEW_KIND_COUNT_LABEL[kind])}</span></div>`);
-  if (counts.signal > 0) rows.push(`<div><b>${counts.signal}</b><span>signaux informatifs</span></div>`);
-  if (rows.length === 0) return "";
-  return `<section class="review-counters" aria-labelledby="review-counters-title">` +
-    `<h3 id="review-counters-title">À valider par type</h3>${rows.join("")}</section>`;
-}
-
 /** Filtres Tous / À décider / Signaux, avec le compte réel de chaque vue. */
-export function reviewFiltersHtml(cards: readonly ReviewCard[], filter: ReviewFilter): string {
+export function reviewFiltersHtml(
+  cards: readonly ReviewCard[],
+  filter: ReviewFilter,
+  seeAll?: { label: string; href: string },
+): string {
   const counts = reviewCounts(cards);
   const count = (id: ReviewFilter): number => (id === "all" ? counts.total : id === "decide" ? counts.decide : counts.signal);
   const buttons = REVIEW_FILTERS
@@ -476,7 +457,8 @@ export function reviewFiltersHtml(cards: readonly ReviewCard[], filter: ReviewFi
       return `<button class="${cls}" type="button" data-review-filter="${esc(item.id)}" aria-pressed="${active ? "true" : "false"}">${esc(item.label)} <span class="review-filter-count">${count(item.id)}</span></button>`;
     })
     .join("");
-  return `<div class="review-filters" role="group" aria-label="Filtrer la file À valider">${buttons}</div>`;
+  const link = seeAll === undefined ? "" : `<a class="review-see-all" href="${esc(seeAll.href)}">${esc(seeAll.label)}</a>`;
+  return `<div class="review-toolbar"><div class="review-filters" role="group" aria-label="Filtrer la file À valider">${buttons}</div>${link}</div>`;
 }
 
 /** Charge la review queue (global ou project-scopé). */
@@ -594,66 +576,69 @@ export function reviewQueueHtml(queue: ReviewQueue | null, options: ReviewInboxO
   // Sur la page globale, un lien de sortie pointerait vers elle-même : il
   // n'existe que dans l'espace projet.
   const seeAll = projectId !== undefined ? { label: "Voir la file globale", href: "#/decisions" } : undefined;
-  const header = dsSectionHeader("À valider", seeAll);
+  const open = `<section class="review-section review-inbox" aria-label="À valider">`;
 
   if (error !== undefined) {
-    return `<section class="review-section review-inbox" aria-labelledby="review-heading">${header}` +
-      `<div class="ds-notice ds-notice--danger" role="alert"><strong>File « À valider » indisponible.</strong>${esc(error)}</div></section>`;
+    return `${open}<div class="ds-notice ds-notice--danger" role="alert"><strong>File « À valider » indisponible.</strong>${esc(error)}</div></section>`;
   }
 
   const cards = buildReviewCards(queue);
   if (cards.length === 0) {
-    return `<section class="review-section review-inbox" aria-labelledby="review-heading">${header}` +
-      dsEmptyState(
-        "Rien à valider",
-        "Aucun élément n'attend une décision humaine pour le moment.",
-        seeAll,
-      ) + `</section>`;
+    return `${open}${dsEmptyState(
+      "Rien à valider",
+      "Aucun élément n'attend une décision humaine pour le moment.",
+      seeAll,
+    )}</section>`;
   }
 
-  const counts = reviewCounts(cards);
   const visible = cards.filter((card) => filter === "all" || card.channel === filter);
   // Le héros promeut le premier objet à décider ; il est retiré de la file
   // pour qu'un objet n'apparaisse qu'une fois.
   const hero = visible.find((card) => card.channel === "decide") ?? null;
   const listed = hero === null ? visible : visible.filter((card) => card.key !== hero.key);
-
-  const subtitle = `${counts.total} à valider · ${counts.decide} à décider · ${counts.signal} incidents · du plus récent au plus ancien`;
-  const filters = reviewFiltersHtml(cards, filter);
-  const counters = reviewCountersHtml(cards);
+  const filters = reviewFiltersHtml(cards, filter, seeAll);
 
   if (visible.length === 0) {
     const empty = reviewFilterEmpty(filter);
-    return `<section class="review-section review-inbox" aria-labelledby="review-heading">${header}` +
-      `<p class="ds-list-sub review-summary">${esc(subtitle)}</p>${filters}${counters}` +
-      dsEmptyState(empty.title, empty.message, seeAll) +
-      `</section>`;
+    return `${open}${filters}${dsEmptyState(empty.title, empty.message)}</section>`;
   }
 
   const rows = listed.map((card) => reviewCardHtml(card, authed, isAdmin)).join("");
-  return `<section class="review-section review-inbox" aria-labelledby="review-heading">${header}` +
-    `<p class="ds-list-sub review-summary" role="status">${esc(subtitle)}</p>` +
-    `${filters}${counters}` +
+  return `${open}${filters}` +
     (hero === null ? "" : reviewHeroHtml(hero, authed, isAdmin)) +
     `<ul class="ds-list review-list" role="list">${rows}</ul></section>`;
 }
 
 /** ------------------- RENDU DECISIONS ------------------- */
 
-export function decisionHtml(decision: Decision, authed: boolean, isAdmin: boolean): string {
+export interface DecisionItemOptions {
+  /** Décision la plus récente, mise en avant en tête de liste. */
+  latest?: boolean;
+  /** Lien projet dans la méta ; inutile dans l'espace d'un projet. */
+  showProject?: boolean;
+}
+
+export function decisionHtml(decision: Decision, authed: boolean, isAdmin: boolean, options: DecisionItemOptions = {}): string {
+  const { latest = false, showProject = true } = options;
   const statusLabel = DECISION_STATUS_LABEL[decision.status] ?? decision.status;
   const statusTone = DECISION_STATUS_TONE[decision.status] ?? "neutral";
   const proposerLabel = PROPOSER_TYPE_LABEL[decision.proposed_by_type] ?? decision.proposed_by_type;
   const time = fmtTime(decision.created_at);
-  const projectLink = decision.project_id
-    ? `<a href="#/projects/${esc(decision.project_id)}">${esc(projectLabel(decision.project_id))}</a>`
-    : "—";
-  const taskLink = decision.task_id
-    ? `<a href="#/tasks/${esc(decision.task_id)}">${esc(ACTION_LABEL.openTask)}</a>`
-    : "—";
   const agentLink = decision.proposed_by_type === "agent"
     ? `<a href="#/agents/${esc(decision.proposed_by_id)}">${dsAgentBadge(agentLabel(decision.proposed_by_id))}</a>`
     : esc(decision.proposed_by_type === "user" ? FALLBACK_LABEL.user : proposerLabel);
+
+  const meta: string[] = [
+    `<span class="decision-item-id">${esc(decision.readable_id)}</span>`,
+    `<time datetime="${esc(decision.created_at)}">${esc(time)}</time>`,
+    `<span>${agentLink}</span>`,
+  ];
+  if (showProject && decision.project_id) {
+    meta.push(`<a href="#/projects/${esc(decision.project_id)}">${esc(projectLabel(decision.project_id))}</a>`);
+  }
+  if (decision.task_id) {
+    meta.push(`<a href="#/tasks/${esc(decision.task_id)}">${esc(ACTION_LABEL.openTask)}</a>`);
+  }
 
   const techDetails = `
     <details class="decision-tech"><summary>Informations techniques</summary><dl>
@@ -665,30 +650,73 @@ export function decisionHtml(decision: Decision, authed: boolean, isAdmin: boole
       <div><dt>Créée le</dt><dd>${esc(time)}</dd></div>
     </dl></details>`;
 
-  return `<li class="ds-list-item decision-item" data-id="${esc(decision.id)}">` +
+  return `<li class="ds-list-item decision-item${latest ? " decision-item--latest" : ""}" data-id="${esc(decision.id)}">` +
     `<div class="grow">` +
-    `<div class="decision-item-header">` +
+    (latest ? `<p class="decision-item-eyebrow">Dernière décision</p>` : "") +
     `<div class="decision-item-title-row">` +
-    `<span class="decision-item-title">${esc(decision.title)}</span>` +
+    `<h3 class="decision-item-title">${esc(decision.title)}</h3>` +
     `${dsBadge(statusLabel, statusTone)}` +
     `</div>` +
-    `<div class="decision-item-meta">` +
-    `<span>${decision.readable_id}</span>` +
-    `<span class="meta-sep" aria-hidden="true">·</span>` +
-    `<span>Projet: ${projectLink}</span>` +
-    `<span class="meta-sep" aria-hidden="true">·</span>` +
-    `<span>Tâche: ${taskLink}</span>` +
-    `<span class="meta-sep" aria-hidden="true">·</span>` +
-    `<span>Par: ${agentLink}</span>` +
-    `<span class="meta-sep" aria-hidden="true">·</span>` +
-    `<span>${esc(time)}</span>` +
-    `</div>` +
-    `</div>` +
+    `<p class="decision-item-meta">${meta.join(`<span class="meta-sep" aria-hidden="true">·</span>`)}</p>` +
     `<div class="decision-item-body">${esc(decision.body)}</div>` +
     (authed ? decisionActionsHtml(decision, isAdmin) : "") +
     `${techDetails}` +
     `</div>` +
     `</li>`;
+}
+
+/** Filtre d'état de l'historique : un statut, ou tout. */
+export type DecisionFilter = "all" | "proposed" | "accepted" | "superseded";
+
+export const DECISION_FILTERS: ReadonlyArray<{ id: DecisionFilter; label: string }> = [
+  { id: "all", label: "Toutes" },
+  { id: "proposed", label: "En attente" },
+  { id: "accepted", label: "Acceptées" },
+  { id: "superseded", label: "Remplacées" },
+];
+
+export const DECISIONS_PAGE_SIZE = 6;
+
+export interface DecisionsView {
+  filter: DecisionFilter;
+  page: number;
+}
+
+/** Plus récentes d'abord ; repli stable par identifiant si la date est illisible. */
+export function sortDecisions(decisions: readonly Decision[]): Decision[] {
+  return [...decisions].sort((a, b) => {
+    const left = Date.parse(a.created_at);
+    const right = Date.parse(b.created_at);
+    if (!Number.isNaN(left) && !Number.isNaN(right) && left !== right) return right - left;
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
+}
+
+/** Page demandée, bornée à [1, nombre de pages] ; `pages` vaut au moins 1. */
+export function paginateDecisions<T>(items: readonly T[], page: number, size = DECISIONS_PAGE_SIZE): { items: T[]; page: number; pages: number } {
+  const pages = Math.max(1, Math.ceil(items.length / size));
+  const current = Math.min(Math.max(1, Math.floor(page) || 1), pages);
+  return { items: items.slice((current - 1) * size, current * size), page: current, pages };
+}
+
+function decisionsFiltersHtml(decisions: readonly Decision[], filter: DecisionFilter): string {
+  const count = (id: DecisionFilter): number => (id === "all" ? decisions.length : decisions.filter((d) => d.status === id).length);
+  const buttons = DECISION_FILTERS
+    .filter((item) => item.id === "all" || count(item.id) > 0)
+    .map((item) => {
+      const active = item.id === filter;
+      return `<button class="${active ? "ds-btn ds-btn--primary" : "ds-btn"}" type="button" data-decisions-filter="${item.id}" aria-pressed="${active ? "true" : "false"}">${esc(item.label)} <span class="review-filter-count">${count(item.id)}</span></button>`;
+    })
+    .join("");
+  return `<div class="review-filters" role="group" aria-label="Filtrer l'historique des décisions">${buttons}</div>`;
+}
+
+function decisionsPagerHtml(page: number, pages: number): string {
+  if (pages <= 1) return "";
+  return `<nav class="decisions-pager" aria-label="Pagination des décisions">` +
+    `<button type="button" class="ds-btn ds-btn--sm" data-decisions-page="${page - 1}"${page <= 1 ? " disabled" : ""}>Précédent</button>` +
+    `<span class="ds-list-sub" aria-live="polite">Page ${page} sur ${pages}</span>` +
+    `<button type="button" class="ds-btn ds-btn--sm" data-decisions-page="${page + 1}"${page >= pages ? " disabled" : ""}>Suivant</button></nav>`;
 }
 
 export function decisionsHtml(
@@ -697,36 +725,44 @@ export function decisionsHtml(
   isAdmin: boolean,
   projectId?: string,
   decisionsError?: string,
+  view: DecisionsView = { filter: "all", page: 1 },
 ): string {
-  const header = dsSectionHeader("Décisions", projectId ? { label: "Voir les décisions globales", href: "#/decisions" } : undefined);
+  const seeGlobal = projectId
+    ? `<a class="review-see-all" href="#/decisions">Voir les décisions globales</a>`
+    : "";
 
   if (decisionsError !== undefined) {
-    return `<section class="decisions-section" aria-labelledby="decisions-heading">${header}` +
+    return `<section class="decisions-section" aria-label="Historique des décisions">` +
       `<div class="ds-notice ds-notice--danger" role="alert"><strong>Décisions indisponibles.</strong>${esc(decisionsError)}</div></section>`;
   }
 
+  const createBtn = authed
+    ? `<button class="ds-btn ds-btn--primary" type="button" id="create-decision-btn">Créer une décision</button>`
+    : "";
+
   if (decisions.length === 0) {
-    const createAction = authed
-      ? `<p><button class="ds-btn ds-btn--primary" type="button" id="create-decision-btn">Créer une décision</button></p>`
-      : "";
-    return `<section class="decisions-section" aria-labelledby="decisions-heading">${header}` +
+    return `<section class="decisions-section" aria-label="Historique des décisions">` +
       dsEmptyState(
         "Aucune décision",
         projectId
           ? "Aucune décision liée à ce projet pour le moment."
           : "Aucune décision globale pour le moment.",
       ) +
-      createAction +
+      (createBtn === "" && seeGlobal === "" ? "" : `<div class="decisions-toolbar">${createBtn}${seeGlobal}</div>`) +
       `</section>`;
   }
 
-  const rows = decisions.map((d) => decisionHtml(d, authed, isAdmin)).join("");
-  const createBtn = authed
-    ? `<button class="ds-btn ds-btn--primary" type="button" id="create-decision-btn">Créer une décision</button>`
-    : "";
-  return `<section class="decisions-section" aria-labelledby="decisions-heading">${header}` +
-    `<div class="decisions-toolbar">${createBtn}</div>` +
-    `<ul class="ds-list decisions-list" role="list">${rows}</ul></section>`;
+  const filtered = sortDecisions(decisions).filter((d) => view.filter === "all" || d.status === view.filter);
+  const paged = paginateDecisions(filtered, view.page);
+  const rows = paged.items
+    .map((d, index) => decisionHtml(d, authed, isAdmin, { latest: paged.page === 1 && index === 0 && view.filter === "all", showProject: projectId === undefined }))
+    .join("");
+  const list = filtered.length === 0
+    ? dsEmptyState("Aucune décision à afficher", "Aucune décision ne correspond à ce filtre.")
+    : `<ul class="ds-list decisions-list" role="list">${rows}</ul>`;
+  return `<section class="decisions-section" aria-label="Historique des décisions">` +
+    `<div class="decisions-toolbar">${decisionsFiltersHtml(decisions, view.filter)}<span class="decisions-toolbar-end">${seeGlobal}${createBtn}</span></div>` +
+    list + decisionsPagerHtml(paged.page, paged.pages) + `</section>`;
 }
 
 /** ------------------- MODALE CRÉATION DECISION ------------------- */
@@ -772,7 +808,7 @@ export function decisionsTabsHtml(activeTab: "review" | "decisions"): string {
  */
 function decisionsPageHeader(projectId: string | undefined): string {
   return projectId === undefined
-    ? dsPageHeader("À valider", "La boîte de réception de ce qui attend un humain, et l'historique des décisions.")
+    ? dsPageHeader("Décisions", "Ce qui attend votre validation, et l'historique des décisions.")
     : "";
 }
 
@@ -818,8 +854,8 @@ export async function renderDecisionsV2(root: HTMLElement, ctx: DecisionsContext
   // Rendu Decisions
   if (decisionsPanel !== null) {
     const proposer = decodeJwtSubject(getToken()) ?? "";
-    decisionsPanel.innerHTML = decisionsHtml(decisions, ctx.authed, isAdmin, projectId, decisionsError);
-    bindDecisionActions(root, decisionsPanel, ctx, proposer, isAdmin);
+    paintDecisions(root, decisionsPanel, ctx, decisions, isAdmin, decisionsError);
+    bindDecisionForm(root, ctx, proposer, isAdmin);
   }
 
   // Créer la modale de création décision (cachée, injectée dans decisionModalHost)
@@ -967,27 +1003,61 @@ async function refreshDecisionsAndReview(
   }
   const decisionsPanel = root.querySelector<HTMLElement>("#decisions-panel");
   if (decisionsPanel !== null) {
-    const proposer = decodeJwtSubject(getToken()) ?? "";
-    decisionsPanel.innerHTML = decisionsHtml(decisions, ctx.authed, isAdmin, ctx.projectId);
-    bindDecisionActions(root, decisionsPanel, ctx, proposer, isAdmin);
+    paintDecisions(root, decisionsPanel, ctx, decisions, isAdmin);
   }
 }
 
-function bindDecisionActions(
+/** Filtre et page courants de l'historique : survivent aux re-rendus. */
+const decisionViews = new WeakMap<HTMLElement, DecisionsView>();
+const decisionCache = new WeakMap<HTMLElement, { decisions: Decision[]; error?: string }>();
+
+/** Peint l'historique et recâble ses actions, filtres et pagination. */
+function paintDecisions(
   root: HTMLElement,
   panel: HTMLElement,
   ctx: DecisionsContext,
-  proposerId: string,
+  decisions: Decision[],
   isAdmin: boolean,
+  error?: string,
 ): void {
+  const view = decisionViews.get(panel) ?? { filter: "all" as DecisionFilter, page: 1 };
+  decisionViews.set(panel, view);
+  decisionCache.set(panel, { decisions, error });
+  panel.innerHTML = decisionsHtml(decisions, ctx.authed, isAdmin, ctx.projectId, error, view);
   bindDecisionTransitionButtons(root, panel, ctx, isAdmin);
 
-  // Bouton "Créer une décision" → ouvre la modale
   const createBtn = panel.querySelector<HTMLButtonElement>("#create-decision-btn");
   createBtn?.addEventListener("click", () => {
     openDsDialog(root, "create-decision-modal", createBtn);
   });
 
+  const repaint = (focus: string): void => {
+    const cached = decisionCache.get(panel);
+    if (cached === undefined) return;
+    paintDecisions(root, panel, ctx, cached.decisions, isAdmin, cached.error);
+    panel.querySelector<HTMLElement>(focus)?.focus();
+  };
+  panel.querySelectorAll<HTMLButtonElement>("[data-decisions-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      view.filter = (button.dataset["decisionsFilter"] as DecisionFilter | undefined) ?? "all";
+      view.page = 1;
+      repaint(`[data-decisions-filter="${CSS.escape(view.filter)}"]`);
+    });
+  });
+  panel.querySelectorAll<HTMLButtonElement>("[data-decisions-page]").forEach((button) => {
+    button.addEventListener("click", () => {
+      view.page = Number(button.dataset["decisionsPage"]) || 1;
+      repaint(`[data-decisions-page="${CSS.escape(String(view.page))}"]`);
+    });
+  });
+}
+
+function bindDecisionForm(
+  root: HTMLElement,
+  ctx: DecisionsContext,
+  proposerId: string,
+  isAdmin: boolean,
+): void {
   // Soumission du formulaire dans la modale
   const modalHost = root.querySelector<HTMLElement>("#decision-modal-host");
   const form = modalHost?.querySelector<HTMLFormElement>("[data-create-decision]");
@@ -1032,8 +1102,7 @@ function bindDecisionActions(
       const decisions = await fetchDecisions(ctx.client, ctx.projectId);
       const newPanel = root.querySelector<HTMLElement>("#decisions-panel");
       if (newPanel !== null) {
-        newPanel.innerHTML = decisionsHtml(decisions, ctx.authed, isAdmin, ctx.projectId);
-        bindDecisionActions(root, newPanel, ctx, proposerId, isAdmin);
+        paintDecisions(root, newPanel, ctx, decisions, isAdmin);
         // Le panneau est repeint : refocaliser l'action de création.
         newPanel.querySelector<HTMLElement>("#create-decision-btn")?.focus();
       }

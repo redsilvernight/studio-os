@@ -9,7 +9,6 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   REVIEW_KIND_LABEL,
-  REVIEW_KIND_COUNT_LABEL,
   REVIEW_IMPACT,
   REVIEW_CHANNEL,
   DECISION_STATUS_LABEL,
@@ -24,11 +23,12 @@ import {
   reviewCardHtml,
   reviewHeroTitle,
   reviewHeroHtml,
-  reviewCountersHtml,
   reviewFiltersHtml,
   reviewQueueHtml,
   decisionHtml,
   decisionsHtml,
+  sortDecisions,
+  DECISIONS_PAGE_SIZE,
   createDecisionFormHtml,
   decisionsTabsHtml,
   type ReviewCard,
@@ -227,11 +227,10 @@ describe("Labels FR (source unique)", () => {
     expect(REVIEW_KIND_LABEL.roadmap_proposal).toBe("Proposition de plan");
   });
 
-  it("les six types partagent libellé, compteur et impact", () => {
+  it("les six types partagent libellé et impact", () => {
     const kinds = Object.keys(REVIEW_KIND_LABEL) as Kind[];
     expect(kinds).toHaveLength(6);
     for (const kind of kinds) {
-      expect(REVIEW_KIND_COUNT_LABEL[kind]).not.toBe("");
       expect(REVIEW_IMPACT[kind]).toMatch(/^Impact : /);
       expect(["decide", "signal"]).toContain(REVIEW_CHANNEL[kind]);
     }
@@ -354,21 +353,6 @@ describe("reviewCounts — compteurs par type réel", () => {
     const counts = reviewCounts(buildReviewCards(queue));
     expect(counts.total).toBe(1);
     expect(counts.byKind.roadmap_proposal).toBe(1);
-  });
-
-  it("reviewCountersHtml : un compteur par type présent, aucun type fantôme", () => {
-    const html = reviewCountersHtml(buildReviewCards(inboxQueue()));
-    expect(html).toContain("À valider par type");
-    expect(html).toContain("2</b><span>travaux IA à relire");
-    expect(html).toContain("1</b><span>décisions à trancher");
-    expect(html).toContain("1</b><span>plans à examiner");
-    expect(html).toContain("1</b><span>demandes de fusion à relire");
-    expect(html).toContain("3</b><span>signaux informatifs");
-    const withoutRoadmap = reviewCountersHtml(buildReviewCards(prItem()));
-    expect(withoutRoadmap).not.toContain("plans à examiner");
-    expect(withoutRoadmap).not.toContain("travaux IA à relire");
-    expect(withoutRoadmap).toContain("1</b><span>demandes de fusion à relire");
-    expect(withoutRoadmap).toContain("1</b><span>signaux informatifs");
   });
 
   it("reviewFiltersHtml : Tous / À décider / Signaux avec le compte réel", () => {
@@ -510,13 +494,12 @@ describe("héros de la file", () => {
 });
 
 describe("reviewQueueHtml — boîte de réception", () => {
-  it("en-tête, résumé chiffré, filtres et compteurs par type", () => {
+  it("filtres avec compte réel, sans résumé ni compteurs redondants", () => {
     const html = reviewQueueHtml(inboxQueue(), { authed: true, isAdmin: true });
     expect(html).toContain("À valider");
-    expect(html).toContain("7 à valider · 4 à décider · 3 incidents · du plus récent au plus ancien");
     expect(html).toContain('data-review-filter="all"');
-    expect(html).toContain("À valider par type");
-    expect(html).toContain("travaux IA à relire");
+    expect(html).not.toContain("À valider par type");
+    expect(html).not.toContain("incidents");
     expect(html).not.toContain('href="#/decisions"');
   });
 
@@ -536,7 +519,7 @@ describe("reviewQueueHtml — boîte de réception", () => {
     // Le plan le plus récent est promu en héros, jamais dupliqué dans la liste.
     expect(html).toContain("Approuver la révision 2 du plan");
     expect(kinds).not.toContain("roadmap_proposal");
-    expect(html).toContain("4 à décider");
+    expect(html).toContain('data-review-filter="decide"');
   });
 
   it("filtre Signaux : aucun héros, navigation et mention « non résoluble ici »", () => {
@@ -631,11 +614,26 @@ describe("decisionHtml", () => {
     expect(html).toContain(`href="#/tasks/${T1}"`);
   });
 
-  it("sans projet ni tâche : tirets", () => {
+  it("sans projet ni tâche : aucun lien ni tiret de remplissage", () => {
     const d = decision("d1", "proposed", null, null);
     const html = decisionHtml(d, true, true);
-    expect(html).toContain("Projet: —");
-    expect(html).toContain("Tâche: —");
+    expect(html).not.toContain("Projet:");
+    expect(html).not.toContain("Tâche:");
+    expect(html).not.toContain('href="#/projects/');
+    expect(html).not.toContain('href="#/tasks/');
+  });
+
+  it("espace projet : pas de lien projet redondant", () => {
+    const html = decisionHtml(decision(), true, true, { showProject: false });
+    expect(html).not.toContain(`href="#/projects/${P1}"`);
+    expect(html).toContain(`href="#/tasks/${T1}"`);
+  });
+
+  it("dernière décision : mise en avant", () => {
+    const html = decisionHtml(decision(), true, true, { latest: true });
+    expect(html).toContain("decision-item--latest");
+    expect(html).toContain("Dernière décision");
+    expect(decisionHtml(decision(), true, true)).not.toContain("Dernière décision");
   });
 
   it("proposed, admin : Accepter et Remplacer disponibles (DEC-0098)", () => {
@@ -711,6 +709,46 @@ describe("decisionsHtml", () => {
   });
 });
 
+describe("historique : tri, filtre, pagination", () => {
+  const dated = (id: string, status: Decision["status"], day: number): Decision => ({
+    ...decision(id, status),
+    created_at: `2026-09-${String(day).padStart(2, "0")}T10:00:00Z`,
+    readable_id: `DEC-${String(day).padStart(4, "0")}`,
+  });
+
+  it("tri : la plus récente en premier", () => {
+    const sorted = sortDecisions([dated("a", "accepted", 3), dated("b", "accepted", 9), dated("c", "accepted", 5)]);
+    expect(sorted.map((d) => d.id)).toEqual(["b", "c", "a"]);
+  });
+
+  it("la plus récente ouvre la liste, en vedette ; les autres ne le sont pas", () => {
+    const html = decisionsHtml([dated("a", "accepted", 3), dated("b", "proposed", 9)], true, true);
+    expect(html.indexOf("DEC-0009")).toBeLessThan(html.indexOf("DEC-0003"));
+    expect(html.match(/decision-item--latest/g)).toHaveLength(1);
+  });
+
+  it("pagination : taille de page, bornes, navigation", () => {
+    const many = Array.from({ length: DECISIONS_PAGE_SIZE + 2 }, (_, i) => dated(`d${i}`, "accepted", i + 1));
+    const first = decisionsHtml(many, true, true);
+    expect((first.match(/<li /g) ?? []).length).toBe(DECISIONS_PAGE_SIZE);
+    expect(first).toContain("Page 1 sur 2");
+    const second = decisionsHtml(many, true, true, undefined, undefined, { filter: "all", page: 2 });
+    expect((second.match(/<li /g) ?? []).length).toBe(2);
+    expect(second).not.toContain("Dernière décision");
+    expect(decisionsHtml(many, true, true, undefined, undefined, { filter: "all", page: 99 })).toContain("Page 2 sur 2");
+    expect(decisionsHtml([dated("a", "accepted", 1)], true, true)).not.toContain("decisions-pager");
+  });
+
+  it("filtre par statut : compteurs, statuts absents masqués, état vide", () => {
+    const list = [dated("a", "accepted", 3), dated("b", "proposed", 9)];
+    const html = decisionsHtml(list, true, true, undefined, undefined, { filter: "proposed", page: 1 });
+    expect(html).toContain('data-decisions-filter="proposed"');
+    expect(html).not.toContain('data-decisions-filter="superseded"');
+    expect((html.match(/<li /g) ?? []).length).toBe(1);
+    expect(html).not.toContain("Dernière décision");
+  });
+});
+
 describe("createDecisionFormHtml", () => {
   it("champs FR obligatoires + projet optionnel en global", () => {
     const html = createDecisionFormHtml(true, undefined, "user-uuid");
@@ -760,9 +798,8 @@ describe("decisions.css responsive", () => {
     expect(css).not.toMatch(/repeat\s*\(\s*2/);
   });
 
-  it("900px : meta en colonne, actions pleine largeur", () => {
+  it("900px : actions pleine largeur", () => {
     expect(css).toMatch(/@media[^{]*max-width:\s*900px/);
-    expect(css).toContain("flex-direction: column");
     expect(css).toContain("flex: 1");
   });
 
@@ -781,7 +818,7 @@ describe("decisions.css responsive", () => {
     expect(css).toContain(".review-card-context");
     expect(css).toContain(".review-card-impact");
     expect(css).toContain(".review-filters {");
-    expect(css).toContain(".review-counters {");
+    expect(css).toContain(".review-toolbar {");
     expect(css).toContain(".review-hero {");
   });
 

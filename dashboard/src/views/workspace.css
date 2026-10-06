@@ -196,15 +196,15 @@
   justify-self: start;
 }
 
-/* Onglet Intégration IA : état désiré vs rapporté, action en mode instruction. */
-.ai-desired {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: var(--ds-space-4);
+/* Onglet Intégration IA : un poste par ligne, commande locale à la demande. */
+.ai-summary {
+  margin: var(--ds-space-2) 0;
 }
-.ai-desired h3 {
-  margin: 0 0 var(--ds-space-2);
-  font-size: var(--ds-text-sm);
+.ai-machine-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  flex-wrap: wrap;
 }
 .ai-machine {
   display: grid;
