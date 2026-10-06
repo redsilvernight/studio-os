@@ -307,6 +307,8 @@ test.describe("UI-4 projets et workspace", () => {
     await login(page, `#/projects/${P1}/claims`);
     const view = page.locator("#view");
     await expect(view).toContainText("sans jamais bloquer Git");
+    // Les réservations actives sont listées par défaut : « Toutes » inclut les expirées.
+    await view.locator("[data-filter]").selectOption("all");
     await expect(view).toContainText("godot/scenes/niveau.tscn");
     await expect(view.locator("[data-renew]")).toHaveCount(2);
     await expect(view.locator("[data-release]")).toHaveCount(2);

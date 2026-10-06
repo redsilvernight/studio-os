@@ -808,7 +808,7 @@ export function decisionsTabsHtml(activeTab: "review" | "decisions"): string {
  */
 function decisionsPageHeader(projectId: string | undefined): string {
   return projectId === undefined
-    ? dsPageHeader("Décisions", "Ce qui attend votre validation, et l'historique des décisions.")
+    ? dsPageHeader("À valider", "Ce qui attend votre validation, et l'historique des décisions.")
     : "";
 }
 
