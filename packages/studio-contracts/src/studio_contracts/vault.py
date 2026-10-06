@@ -216,8 +216,9 @@ class VaultNoteVersion(ContractModel):
 def effective_notes[N: VaultNote](notes: Iterable[N], project_id: UUID | None) -> list[N]:
     """The notes a reader working in `project_id` sees: the studio notes plus
     that project's notes, where a project note replaces the studio note with the
-    same slug, whatever their status (a draft project note masks a validated studio note). Archived notes are never effective. `project_id=None` is a reader
-    outside any project and sees the studio scope only.
+    same slug, whatever their status (a draft project note masks a validated
+    studio note). Archived notes are never effective. `project_id=None` is a
+    reader outside any project and sees the studio scope only.
 
     Order: by slug."""
 
