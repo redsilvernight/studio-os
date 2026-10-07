@@ -4,12 +4,19 @@ from uuid import UUID
 
 from fastapi import APIRouter, Header, Query, Request, status
 from studio_contracts.vault import (
+    VAULT_SEARCH_LIMIT_DEFAULT,
+    VAULT_SEARCH_LIMIT_MAX,
+    VAULT_SEARCH_MAX_CHARS_DEFAULT,
+    VAULT_SEARCH_MAX_CHARS_MAX,
+    VAULT_SEARCH_PATHS_MAX,
     VaultNote,
     VaultNoteCreate,
     VaultNoteStatus,
+    VaultNoteType,
     VaultNoteUpdate,
     VaultNoteVersion,
     VaultScope,
+    VaultSearchResult,
     VaultTreePage,
     VaultVersionPage,
 )
@@ -181,4 +188,55 @@ async def tree(
         include_archived,
         limit,
         cursor,
+    )
+
+
+@router.get(
+    "/search",
+    response_model=VaultSearchResult,
+    description=(
+        "Ranked search over the vault notes the caller may read. Criteria: `q` "
+        "(full text, French stemming, words OR-ed), `path` (repeatable, "
+        "repo-relative) and `task_id` (anchors); at least one is required (422 "
+        "`missing_search_criteria`). Order: notes anchored to a requested path "
+        "(or an enclosing directory) or task first, then notes one link away "
+        "from them, then full-text matches; inside a group by lexical rank, "
+        "status (validated first), recency. Filters: `scope`, `project_id` "
+        "(studio notes plus that project's), `note_type` and `status` "
+        "(repeatable, OR). Superseded notes are excluded unless "
+        "`include_superseded` or an explicit `status`; archived ones unless an "
+        "explicit `status`. Hits carry the summary and a short snippet, never "
+        "the body; `max_chars` caps the answer's text."
+    ),
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_422_VAULT},
+)
+async def search(
+    session: DbSession,
+    principal: CurrentPrincipal,
+    q: str | None = Query(default=None, max_length=1000),
+    scope: VaultScope | None = Query(default=None),
+    project_id: UUID | None = Query(default=None),
+    note_type: list[VaultNoteType] = Query(default_factory=list),
+    status_filter: list[VaultNoteStatus] = Query(default_factory=list, alias="status"),
+    include_superseded: bool = Query(default=False),
+    path: list[str] = Query(default_factory=list, max_length=VAULT_SEARCH_PATHS_MAX),
+    task_id: UUID | None = Query(default=None),
+    limit: int = Query(default=VAULT_SEARCH_LIMIT_DEFAULT, ge=1, le=VAULT_SEARCH_LIMIT_MAX),
+    max_chars: int = Query(
+        default=VAULT_SEARCH_MAX_CHARS_DEFAULT, ge=500, le=VAULT_SEARCH_MAX_CHARS_MAX
+    ),
+) -> VaultSearchResult:
+    return await vault_service.search_notes(
+        session,
+        principal,
+        q=q,
+        scope=scope,
+        project_id=project_id,
+        note_types=note_type,
+        statuses=status_filter,
+        include_superseded=include_superseded,
+        paths=path,
+        task_id=task_id,
+        limit=limit,
+        max_chars=max_chars,
     )

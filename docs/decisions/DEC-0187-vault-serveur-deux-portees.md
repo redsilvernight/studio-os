@@ -15,6 +15,8 @@ Le vault devient une ressource serveur à deux portées (studio, projet). Les DE
 
 D4 — droits de la portée studio (tranché par l'utilisateur le 2026-10-06, P03) : lecture pour tout compte actif ; création et modification en `draft`/`proposed` pour tout rôle autorisé à écrire ; `validated`, `superseded` et `archived` réservés au rôle admin. La portée projet suit les memberships (DEC-0103).
 
+D5 — recherche (P04, additif) : une note porte des ancres `task:<uuid>` / `path:<chemin>` versionnées avec elle ; `GET /vault/search` classe ancrées > liées à un saut > plein texte, exclut `superseded` par défaut et plafonne la réponse (`max_chars`). Ancres vides = `content_hash` inchangé. Contrat : `TECH/02_API_CONTRACT.md` § Vault.
+
 DEC-0047 (mémoire locale read-only) est à superseder après acceptation de D2.
 
 Baseline chiffrée : `docs/DEC_BASELINE_P00.md` et `docs/DEC_RELEVANCE_BASELINE_P00.md`.

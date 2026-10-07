@@ -12,6 +12,7 @@ from uuid import UUID, uuid4
 import pytest
 from pydantic import ValidationError
 from studio_contracts.vault import (
+    VAULT_ANCHORS_MAX,
     VAULT_BODY_MAX,
     VAULT_TAGS_MAX,
     VaultLinkKind,
@@ -157,6 +158,48 @@ def test_roundtrip_json() -> None:
         created_at=datetime.now(UTC),
     )
     assert VaultNoteVersion.model_validate_json(version.model_dump_json()) == version
+
+
+@pytest.mark.parametrize(
+    "anchor",
+    [
+        "task:1b4a9aa7-f8e3-454a-a20a-1f5da4de82aa",
+        "path:services/api/src/x.py",
+        "path:services/",
+        "path:a",
+    ],
+)
+def test_valid_anchors_accepted(anchor: str) -> None:
+    assert _note(anchors=[anchor]).anchors == [anchor]
+
+
+@pytest.mark.parametrize(
+    "anchor",
+    [
+        "task:not-a-uuid",
+        "task:7DDA69C2-191B-4F4F-998A-9F526090E045",
+        "task: ed10ca78-5bbf-4b98-8ef1-1b8a3c8f507c",
+        "path:",
+        "path:a b",
+        "path:a\\b",
+        "services/api/src/x.py",
+    ],
+)
+def test_invalid_anchors_rejected(anchor: str) -> None:
+    with pytest.raises(ValidationError):
+        _note(anchors=[anchor])
+
+
+def test_duplicate_anchors_rejected() -> None:
+    anchor = "path:services/"
+    with pytest.raises(ValidationError):
+        _note(anchors=[anchor, anchor])
+
+
+def test_anchors_are_bounded() -> None:
+    anchors = [f"path:dir{i}/" for i in range(VAULT_ANCHORS_MAX + 1)]
+    with pytest.raises(ValidationError):
+        _note(anchors=anchors)
 
 
 def test_project_note_prevails_over_studio_note() -> None:
