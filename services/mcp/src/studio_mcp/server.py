@@ -73,6 +73,7 @@ from studio_mcp.tools.transfers import (
     studio_get_transfers,
     studio_request_transfer_download,
 )
+from studio_mcp.tools.vault import studio_vault_read, studio_vault_search, studio_vault_write
 
 _Transport = Literal["stdio", "sse", "streamable-http"]
 
@@ -302,6 +303,48 @@ def create_server() -> MCPServer:
         description=(
             "Supersede a Decision (proposed or accepted -> superseded, terminal). Admin "
             "role only. Not a creation: no idempotency_key."
+        ),
+    )
+    server.add_tool(
+        studio_vault_search,
+        name="studio_vault_search",
+        description=(
+            "Search the shared knowledge vault — read-only. Criteria: q (full text, French "
+            "stemming), path (repo-relative, repeatable) and/or task_id (anchors); at least one "
+            "is required. Order: notes anchored to a requested path or task first, then notes one "
+            "link away from them, then full-text matches. Filters: scope (studio or project), "
+            "project_id, note_type and status (repeatable); superseded notes stay out unless "
+            "include_superseded. Each hit carries a summary and a short snippet, never the body. "
+            "limit (1..50, default 10) bounds the hits, max_chars (500..20000, default 6000) the "
+            "answer's text. A project the caller cannot read fails with forbidden."
+        ),
+        annotations=_READ_ONLY,
+    )
+    server.add_tool(
+        studio_vault_read,
+        name="studio_vault_read",
+        description=(
+            "Read one vault note in full by note_id (UUID string), links included — read-only. "
+            "The body is cut at max_chars (default 12000) characters and body_truncated then says "
+            "so: call again with a larger budget for the rest. A project note the caller cannot "
+            "read fails with forbidden."
+        ),
+        annotations=_READ_ONLY,
+    )
+    server.add_tool(
+        studio_vault_write,
+        name="studio_vault_write",
+        description=(
+            "Create or rewrite a vault note. Without note_id: a new note (scope studio or "
+            "project, project_id required for a project note, slug unique in its scope, optional "
+            "summary, note_type, tags, links, anchors). With note_id: a rewrite of title and body, "
+            "expected_version required — a stale one fails with version_conflict carrying the live "
+            "server version. The note is always written proposed: validating, superseding or "
+            "archiving one stays a human action. A slug already taken fails with "
+            "vault_slug_conflict, and a title/summary/body carrying a credential is refused with "
+            "secret_detected. Pass idempotency_key on a creation when this call might have already "
+            "succeeded — replaying the same key and arguments returns the original note instead of "
+            "a duplicate."
         ),
     )
     server.add_tool(
