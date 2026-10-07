@@ -44,6 +44,7 @@ from studio_api.services.authz import (
     ensure_project_access,
     forbidden,
 )
+from studio_api.services.vault_secrets import scan as _scan_secrets
 
 _TREE_LIMIT_DEFAULT = 50
 _TREE_LIMIT_MAX = 200
@@ -115,10 +116,53 @@ def _compute_hash(
     )
 
 
+def _secret_detected(findings: list[Any]) -> HTTPException:
+    return HTTPException(
+        status.HTTP_422_UNPROCESSABLE_CONTENT,
+        detail={
+            "error_code": "secret_detected",
+            "details": [
+                {"field": finding.field, "pattern": finding.pattern} for finding in findings
+            ],
+        },
+    )
+
+
+def _reject_secrets(fields: dict[str, str]) -> None:
+    findings = _scan_secrets(fields)
+    if findings:
+        raise _secret_detected(findings)
+
+
+def _create_secret_fields(note_in: VaultNoteCreate) -> dict[str, str]:
+    return {
+        "title": note_in.title,
+        "summary": note_in.summary,
+        "body": note_in.body,
+        "tags": "\n".join(note_in.tags),
+    }
+
+
+def _update_secret_fields(note_in: VaultNoteUpdate) -> dict[str, str]:
+    fields: dict[str, str] = {}
+    if note_in.title is not None:
+        fields["title"] = note_in.title
+    if note_in.summary is not None:
+        fields["summary"] = note_in.summary
+    if note_in.body is not None:
+        fields["body"] = note_in.body
+    if note_in.tags is not None:
+        fields["tags"] = "\n".join(note_in.tags)
+    if note_in.change_summary is not None:
+        fields["change_summary"] = note_in.change_summary
+    return fields
+
+
 def authorize_create(principal: Principal, note_in: VaultNoteCreate) -> None:
     """Scope then role check of a note creation, run ahead of the idempotency
     replay short-circuit (DEC-0036, DEC-0103 §12)."""
     _authorize_scope_write(principal, note_in.scope.value, note_in.project_id, note_in.status.value)
+    _reject_secrets(_create_secret_fields(note_in))
 
 
 def _authorize_scope_write(
@@ -289,6 +333,7 @@ async def _lock_note(session: AsyncSession, note_id: uuid.UUID) -> VaultNoteMode
 async def update_note(
     session: AsyncSession, principal: Principal, note_id: uuid.UUID, note_in: VaultNoteUpdate
 ) -> VaultNoteModel:
+    _reject_secrets(_update_secret_fields(note_in))
     note = await _lock_note(session, note_id)
     target_status = note_in.status.value if note_in.status is not None else note.status
     _authorize_scope_write(principal, note.scope, note.project_id, target_status, note.status)
