@@ -165,6 +165,19 @@ def authorize_create(principal: Principal, note_in: VaultNoteCreate) -> None:
     _reject_secrets(_create_secret_fields(note_in))
 
 
+async def authorize_update(
+    session: AsyncSession, principal: Principal, note_id: uuid.UUID, note_in: VaultNoteUpdate
+) -> None:
+    """Secret then scope/role check of a note update, run ahead of the
+    idempotency replay short-circuit (DEC-0036, DEC-0103 §12)."""
+    _reject_secrets(_update_secret_fields(note_in))
+    note = await session.get(VaultNoteModel, note_id)
+    if note is None:
+        raise note_not_found()
+    target_status = note_in.status.value if note_in.status is not None else note.status
+    _authorize_scope_write(principal, note.scope, note.project_id, target_status, note.status)
+
+
 def _authorize_scope_write(
     principal: Principal,
     scope: str,
