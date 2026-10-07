@@ -643,3 +643,50 @@ verrouillé par `tests/mcp/test_uc2b_tools_metadata.py`. En `mode=proposed`, l'a
 la roadmap `draft`, lie les Tasks, puis la soumet (P10, voir TECH/02).
 Convergence P3/P5 : les outils appellent `studio_api.services.roadmaps` via
 `RoadmapServicePort` (adaptateurs sans logique dupliquee ; voir DEC-0087).
+
+## Vault via MCP (P04, additif, DEC-0187) — 54 -> 57 outils
+studio_vault_search
+studio_vault_read
+studio_vault_write
+
+Surface par intention d'agent, sur les memes services que l'API vault
+(`TECH/02_API_CONTRACT.md` § Vault, DEC-0046) : la regle d'autorite reste
+entierement dans ces services (memberships projet, role pour les statuts
+reserves, scan de secrets) ; l'outil ne valide que ses propres bornes et ne
+compose aucune logique metier.
+- `studio_vault_search(q?, scope?, project_id?, note_type?, status?,
+  include_superseded, path?, task_id?, limit, max_chars)` — lecture : meme
+  contrat que `GET /vault/search`, bornes `VAULT_SEARCH_*` de
+  `studio_contracts.vault` (`limit` 1..50 defaut 10 ; `max_chars`
+  500..20000 defaut 6000 ; `path` <= 20 ; `q` <= 1000 caracteres), sinon
+  `{error_code: "invalid_argument"}`. Reponse = `VaultSearchResult`
+  (`items`, `total`, `truncated`) : chaque hit porte le resume + un extrait,
+  jamais le `body`.
+- `studio_vault_read(note_id, max_chars)` — lecture : la note complete,
+  liens inclus. Le `body` est coupe a `max_chars` (defaut 12000) caracteres et
+  `body_truncated` indique la coupe (relire avec un budget plus grand pour la
+  suite) ; le `content_hash` reste celui de la note entiere.
+- `studio_vault_write(scope, slug, title, body, project_id?, note_id?,
+  expected_version?, summary?, note_type?, tags?, links?, anchors?,
+  change_summary?, idempotency_key?)` — ecriture : sans `note_id` c'est une
+  creation (`VaultNoteCreate`), avec `note_id` une reecriture complete du
+  titre et du corps (`VaultNoteUpdate`, `expected_version` **requis**, sinon
+  `invalid_argument`). `note_type` ne s'applique qu'a la creation.
+  **Pas de parametre `status`** : une note ecrite par un agent est toujours
+  `proposed` et `author_type` vaut `agent` — valider, superseder ou archiver
+  reste une action humaine (frontiere lecture/ecriture des roles d'agent,
+  `.agents/rules/mcp-tools.md`). `idempotency_key` ne vaut que pour une
+  creation (DEC-0027) ; l'autorisation est evaluee avant le court-circuit de
+  rejeu (DEC-0036). Reponse compacte : `id`, `readable_id`, `slug`,
+  `version`, `status`, `author_type` — jamais le `body`.
+- Erreurs in-band, meme vocabulaire que les services : `forbidden` (403),
+  `missing_search_criteria`, `invalid_argument` (schema/bornes), `404`
+  `not_found`, `409 vault_slug_conflict` et `409 version_conflict` (avec
+  `server_version`), `422 secret_detected` (jamais la valeur du secret).
+  `invalid_argument` couvre les arguments *inconnus* (avant execution) comme
+  les valeurs hors contrat et hors bornes (schema, bornes, `expected_version`
+  manquant).
+Surface volontairement partielle : pas d'arbre (`tree`), pas d'historique de
+versions, pas de suppression (l'archivage est un `status`, et l'outil ne le
+propose pas) — ces lectures-la restent HTTP. Les trois outils sont exposes
+dans le profil `session` (avec `studio_get_decisions` / `studio_add_decision`).
