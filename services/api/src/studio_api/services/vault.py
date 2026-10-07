@@ -264,7 +264,10 @@ async def _replace_links(
 
 
 async def create_note(
-    session: AsyncSession, principal: Principal, note_in: VaultNoteCreate
+    session: AsyncSession,
+    principal: Principal,
+    note_in: VaultNoteCreate,
+    author_type: VaultActorType = VaultActorType.USER,
 ) -> VaultNoteModel:
     authorize_create(principal, note_in)
     await _ensure_slug_available(session, note_in)
@@ -293,7 +296,7 @@ async def create_note(
             note_in.links,
             note_in.anchors,
         ),
-        author_type=VaultActorType.USER.value,
+        author_type=author_type.value,
         author_id=principal.user.id,
     )
     session.add(note)
@@ -331,7 +334,11 @@ async def _lock_note(session: AsyncSession, note_id: uuid.UUID) -> VaultNoteMode
 
 
 async def update_note(
-    session: AsyncSession, principal: Principal, note_id: uuid.UUID, note_in: VaultNoteUpdate
+    session: AsyncSession,
+    principal: Principal,
+    note_id: uuid.UUID,
+    note_in: VaultNoteUpdate,
+    author_type: VaultActorType = VaultActorType.USER,
 ) -> VaultNoteModel:
     _reject_secrets(_update_secret_fields(note_in))
     note = await _lock_note(session, note_id)
@@ -359,7 +366,7 @@ async def update_note(
         note.anchors = list(note_in.anchors)
     note.version += 1
     # Audit (P05): each version records who wrote it, not who created the note.
-    note.author_type = VaultActorType.USER.value
+    note.author_type = author_type.value
     note.author_id = principal.user.id
     note.content_hash = _compute_hash(
         note.title, note.summary, note.body, note.status, list(note.tags), links, list(note.anchors)
