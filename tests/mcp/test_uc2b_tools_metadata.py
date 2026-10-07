@@ -37,6 +37,8 @@ READ_ONLY_TOOLS = {
     "studio_pull_pending_launches",
     "studio_get_resource_claims",
     "studio_get_decisions",
+    "studio_vault_search",
+    "studio_vault_read",
     "studio_get_recent_changes",
     "studio_get_sessions",
     "studio_get_teammate_activity",
@@ -66,6 +68,7 @@ WRITE_TOOLS = {
     "studio_add_decision",
     "studio_accept_decision",
     "studio_supersede_decision",
+    "studio_vault_write",
     "studio_start_session",
     "studio_end_session",
     "studio_start_work",
@@ -100,7 +103,7 @@ def _by_name(tools: list[Tool]) -> dict[str, Tool]:
 
 
 def test_all_tools_have_external_descriptions(tools: list[Tool]) -> None:
-    assert len(tools) == 54
+    assert len(tools) == 57
     for tool in tools:
         assert tool.description, f"{tool.name} has no description"
         assert len(tool.description) >= 40, f"{tool.name} description is stub-like"
@@ -142,6 +145,7 @@ def test_idempotency_and_event_id_discoverable(tools: list[Tool]) -> None:
         "studio_claim_resource",
         "studio_claim_resources",
         "studio_add_decision",
+        "studio_vault_write",
         "studio_start_session",
         "studio_register_agent",
         "studio_publish_definition",

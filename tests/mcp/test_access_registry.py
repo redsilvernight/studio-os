@@ -41,6 +41,7 @@ from studio_mcp.tools.roadmaps import studio_propose_roadmap
 from studio_mcp.tools.sessions import studio_start_session
 from studio_mcp.tools.tasks import studio_create_task
 from studio_mcp.tools.transfers import studio_create_transfer_metadata
+from studio_mcp.tools.vault import studio_vault_write
 
 from tests.e2e.test_roadmaps_p10_e2e import _plan
 from tests.mcp.conftest import FakeContext
@@ -114,6 +115,19 @@ PROBES: dict[str, tuple[Probe, ...]] = {
     "studio_supersede_decision": (
         Probe({"decision_id": "{decision}"}, "role"),
         Probe({"decision_id": _UNKNOWN}, "role"),
+    ),
+    "studio_vault_search": (Probe({"q": "vault", "project_id": "{pid}"}),),
+    "studio_vault_read": (Probe({"note_id": "{note}"}),),
+    "studio_vault_write": (
+        Probe(
+            {
+                "scope": "project",
+                "project_id": "{pid}",
+                "slug": "outsider-note",
+                "title": "x",
+                "body": "x",
+            },
+        ),
     ),
     "studio_get_recent_changes": (
         Probe({"project_id": "{pid}"}),
@@ -330,6 +344,9 @@ async def _build_world(
     session = _ok(await studio_start_session(task, member))["id"]
     claim = _ok(await studio_claim_resource(pid, "a.py", "file", 600, member))["id"]
     decision = _ok(await studio_add_decision("d", "d", member, project_id=pid))["id"]
+    note = _ok(
+        await studio_vault_write("project", f"note-{slug}", "n", "n", member, project_id=pid)
+    )["id"]
     lib = _dump(
         await studio_publish_definition(
             "create",
@@ -379,6 +396,7 @@ async def _build_world(
         "session": session,
         "claim": claim,
         "decision": decision,
+        "note": note,
         "lib": _ok(lib).get("id") or lib["resource"]["id"],
         "work": work,
         "build": str(build.id),
@@ -401,7 +419,7 @@ _LEAK_KEYS: tuple[str, ...] = (
     "build",
     "job",
 )
-_LEAK_KEYS += ("transfer", "roadmap")
+_LEAK_KEYS += ("transfer", "roadmap", "note")
 
 
 def _render(value: Any, world: dict[str, str]) -> Any:
