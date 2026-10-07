@@ -313,6 +313,9 @@ async def update_note(
     if note_in.anchors is not None:
         note.anchors = list(note_in.anchors)
     note.version += 1
+    # Audit (P05): each version records who wrote it, not who created the note.
+    note.author_type = VaultActorType.USER.value
+    note.author_id = principal.user.id
     note.content_hash = _compute_hash(
         note.title, note.summary, note.body, note.status, list(note.tags), links, list(note.anchors)
     )
