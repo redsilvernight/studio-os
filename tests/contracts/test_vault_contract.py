@@ -162,7 +162,12 @@ def test_roundtrip_json() -> None:
 
 @pytest.mark.parametrize(
     "anchor",
-    ["task:" + str(uuid4()), "path:services/api/src/x.py", "path:services/", "path:a"],
+    [
+        "task:1b4a9aa7-f8e3-454a-a20a-1f5da4de82aa",
+        "path:services/api/src/x.py",
+        "path:services/",
+        "path:a",
+    ],
 )
 def test_valid_anchors_accepted(anchor: str) -> None:
     assert _note(anchors=[anchor]).anchors == [anchor]
@@ -172,8 +177,8 @@ def test_valid_anchors_accepted(anchor: str) -> None:
     "anchor",
     [
         "task:not-a-uuid",
-        "task:" + str(uuid4()).upper(),
-        "task: " + str(uuid4()),
+        "task:7DDA69C2-191B-4F4F-998A-9F526090E045",
+        "task: ed10ca78-5bbf-4b98-8ef1-1b8a3c8f507c",
         "path:",
         "path:a b",
         "path:a\\b",
