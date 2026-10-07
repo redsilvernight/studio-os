@@ -103,24 +103,44 @@ async def get_note(note_id: UUID, session: DbSession, principal: CurrentPrincipa
     description=(
         "Mutate a vault note. `expected_version` is mandatory; a stale value is "
         "rejected with the live server version. Scope, project and slug never "
-        "change. No DELETE exists: archiving is a `status` write."
+        "change. No DELETE exists: archiving is a `status` write. Accepts "
+        "`Idempotency-Key` for safe retries: replaying the same key with the "
+        "identical body returns the first response instead of writing a new "
+        "version, even though `expected_version` is now stale."
     ),
     responses={
         **RESP_401_UNAUTHORIZED,
         **RESP_403_FORBIDDEN,
         **RESP_404_NOT_FOUND,
-        **RESP_409_VERSION_CONFLICT,
+        **merge_conflict(RESP_409_IDEMPOTENCY, RESP_409_VERSION_CONFLICT),
         **RESP_422_VAULT,
     },
 )
 async def update_note(
     note_id: UUID,
     note_in: VaultNoteUpdate,
+    request: Request,
     session: DbSession,
     principal: CurrentPrincipal,
+    idempotency_key: str | None = Header(
+        default=None, alias="Idempotency-Key", description=IDEMPOTENCY_KEY_DESCRIPTION
+    ),
 ) -> VaultNote:
-    note = await vault_service.update_note(session, principal, note_id, note_in)
-    return await vault_service.serialize_note(session, note)
+    await vault_service.authorize_update(session, principal, note_id, note_in)
+
+    async def _update() -> VaultNote:
+        note = await vault_service.update_note(session, principal, note_id, note_in)
+        return await vault_service.serialize_note(session, note)
+
+    return await idempotency_service.run_idempotent(
+        session,
+        request,
+        idempotency_key,
+        f"PATCH /vault/notes/{note_id}",
+        VaultNote,
+        _update,
+        status.HTTP_200_OK,
+    )
 
 
 @router.get(
