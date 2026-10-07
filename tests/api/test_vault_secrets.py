@@ -15,9 +15,9 @@ _AWS = "AKIA" + "0123456789ABCDEF"
 _GH = "ghp_" + "B" * 36
 _GH_PAT = "github_pat_" + "C" * 22
 _SLACK = "xox" + "b-" + "1" * 12
-_ANTHROPIC = "sk-ant-" + "a" * 20
-_OPENAI = "sk-" + "d" * 20
-_OPENAI_PROJ = "sk-proj-" + "e" * 20
+_SK_ANT = "sk-ant-" + "a" * 20
+_SK = "sk-" + "d" * 20
+_SK_PROJ = "sk-proj-" + "e" * 20
 _GOOGLE = "AIza" + "F" * 35
 _STRIPE_SK = "sk_live_" + "G" * 20
 _STRIPE_RK = "rk_live_" + "H" * 20
@@ -36,9 +36,9 @@ POSITIVES: list[tuple[str, str]] = [
     ("github_token", _GH),
     ("github_token", _GH_PAT),
     ("slack_token", _SLACK),
-    ("anthropic_key", _ANTHROPIC),
-    ("openai_key", _OPENAI),
-    ("openai_key", _OPENAI_PROJ),
+    ("sk_ant_key", _SK_ANT),
+    ("sk_key", _SK),
+    ("sk_key", _SK_PROJ),
     ("google_key", _GOOGLE),
     ("stripe_key", _STRIPE_SK),
     ("stripe_key", _STRIPE_RK),

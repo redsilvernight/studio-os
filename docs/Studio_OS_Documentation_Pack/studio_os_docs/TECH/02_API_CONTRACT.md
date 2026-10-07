@@ -459,7 +459,7 @@ Notes a deux portees (`studio`, `project`) ; schemas `studio_contracts.vault`.
 - Secrets (P05) : toute ecriture (`POST`, `PATCH`) dont `title`, `summary`,
   `body`, `tags` ou `change_summary` contient un secret apparent est refusee
   `422 {"detail": {"error_code": "secret_detected", "details": [{"field", "pattern"}]}}`
-  (motifs : cles AWS/GitHub/Slack/Anthropic/OpenAI/Google/Stripe, JWT, bloc PEM,
+  (motifs : cles AWS/GitHub/Slack/`sk-…`/Google/Stripe, JWT, bloc PEM,
   URL a identifiants, affectation `password|secret|token|... = valeur`), sans
   jamais renvoyer ni journaliser la valeur ; rien n'est persiste.
 - GET /vault/search?q&scope&project_id&note_type[]&status[]&include_superseded
