@@ -206,6 +206,54 @@ describe("onboarding view", () => {
       commands.indexOf("knowledge.reindex"),
     );
     expect(root.textContent).toContain("Mémoire activée et préparée");
+    const save = calls.find((call) => call.command === "workspace.save_config")?.payload as {
+      config: { knowledge: { content_root: string } };
+    };
+    expect(save.config.knowledge.content_root).toBe("vault");
+  });
+
+  it("asks for no memory path and keeps an existing project's memory folder", async () => {
+    const calls: Array<{ command: string; payload: Record<string, unknown> }> = [];
+    const platform = fakeDesktop({
+      request: (async (command: string, payload: Record<string, unknown>) => {
+        calls.push({ command, payload });
+        if (command === "knowledge.status") {
+          return ok({ workspace_id: WS, state: "unavailable", canonical_source: "markdown_files", integrations: [] });
+        }
+        if (command === "workspace.get_config") {
+          return ok({
+            schema_version: 1,
+            workspace_id: WS,
+            roots: { workspace_root: "C:\\Projects\\demo", repo_roots: [] },
+            features: {},
+            knowledge: { provider_id: "markdown-files", content_root: "notes/memoire" },
+            updated_at: "2026-09-22T00:00:00Z",
+          });
+        }
+        if (command === "workspace.save_config") return ok(payload.config);
+        if (command === "knowledge.init_vault") {
+          return ok({ workspace_id: WS, state_before: "ready", created: [], skipped: [] });
+        }
+        if (command === "knowledge.reindex") return ok({ accepted: true, operation_id: "op-2", state: "indexing" });
+        return refused("not_supported");
+      }) as never,
+    });
+    const root = document.createElement("main");
+    document.body.append(root);
+    await renderOnboarding(
+      root,
+      platform,
+      emptySession({ schema: 1, status: "in_progress", current: "memoire", workspaceId: WS }),
+    );
+    const form = root.querySelector<HTMLFormElement>("[data-testid=memory-folder-form]")!;
+    expect(form.querySelector("input")).toBeNull();
+    expect(root.textContent).not.toMatch(/MCP|démon|Graphify|Vault|UUID|sidecar|chemin/i);
+    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const save = calls.find((call) => call.command === "workspace.save_config")?.payload as {
+      config: { knowledge: { content_root: string } };
+    };
+    expect(save.config.knowledge.content_root).toBe("notes/memoire");
   });
 
   it("enables the code graph with the associated folder as its repository", async () => {
