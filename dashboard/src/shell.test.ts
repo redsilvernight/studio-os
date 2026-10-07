@@ -25,6 +25,7 @@ describe("shellNavGroups (UI-2)", () => {
       "#/machines",
       "#/accounts",
       "#/transfers",
+      "#/vault",
       "#/library",
       "#/configuration/runtimes",
       "#/workspaces",
@@ -47,6 +48,7 @@ describe("shellNavGroups (UI-2)", () => {
         "Postes",
         "Comptes",
         "Transferts",
+        "Vault",
         "Bibliothèque",
         "Configuration",
         "Espaces de travail",
@@ -69,6 +71,8 @@ describe("shellNavGroups (UI-2)", () => {
       { name: "agents" },
       { name: "agent", id: "a-1" },
       { name: "libraryDetail", kind: "rules", id: "x" },
+      { name: "vault" },
+      { name: "vaultDetail", id: "n-1" },
     ] as const) {
       const active = shellNavGroups(route).flatMap((group) => group.items).filter((item) => item.active);
       expect(active).toHaveLength(1);

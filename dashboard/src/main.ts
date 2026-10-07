@@ -50,6 +50,7 @@ import "./shell.css";
 import "./views/overview.css";
 import "./views/projects.css";
 import "./views/library.css";
+import "./views/vault.css";
 import "./views/admin.css";
 import "./views/workspace.css";
 import "./views/roadmap.css";
@@ -151,6 +152,12 @@ async function renderRoute(
       break;
     case "transfers":
       await (await load(() => import("./views/transfers"))).renderTransfers(staging, { client, authed });
+      break;
+    case "vault":
+      await (await load(() => import("./views/vault"))).renderVault(staging, { client, authed });
+      break;
+    case "vaultDetail":
+      await (await load(() => import("./views/vault"))).renderVaultDetail(staging, { client, authed }, route.id);
       break;
     case "library":
       await (await load(() => import("./views/library"))).renderLibrary(staging, { client, authed }, route.kind);

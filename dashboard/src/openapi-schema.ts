@@ -1640,6 +1640,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/machines/{machine_id}/adopt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Adopt Machine
+         * @description Take over an existing machine of the caller's own User (A5): its credential is rotated, the machine keeps its `id` and history, and the new credential is returned in clear text exactly once. The previous credential stops working immediately. Another User's machine answers 404 for a non-admin, exactly like a nonexistent one; `agent` gets 403; a revoked machine answers 409. Not replayable: no `Idempotency-Key`.
+         */
+        post: operations["adopt_machine_api_v1_machines__machine_id__adopt_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/machines/{machine_id}/revoke": {
         parameters: {
             query?: never;
@@ -2388,6 +2408,130 @@ export interface paths {
         put?: never;
         /** Apply Initialization */
         post: operations["apply_initialization_api_v1_projects_initialization_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/vault/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Note
+         * @description Create a vault note. The server assigns `id`, `version`, `content_hash` and the author (the caller's user); a `decision` note also gets a `readable_id` from the shared DEC sequence. A slug already taken by a non-archived note of the same scope is `409 vault_slug_conflict`. Accepts `Idempotency-Key` for safe retries.
+         */
+        post: operations["create_note_api_v1_vault_notes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/vault/notes/{note_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Note
+         * @description Get one vault note by id, links included. A project note the caller cannot access answers `403 forbidden` (resource `project`).
+         */
+        get: operations["get_note_api_v1_vault_notes__note_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Note
+         * @description Mutate a vault note. `expected_version` is mandatory; a stale value is rejected with the live server version. Scope, project and slug never change. No DELETE exists: archiving is a `status` write.
+         */
+        patch: operations["update_note_api_v1_vault_notes__note_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/vault/notes/{note_id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Versions
+         * @description List a note's immutable history, oldest version first. Every accepted write (creation included) appends one version. Paginated with an opaque cursor.
+         */
+        get: operations["list_versions_api_v1_vault_notes__note_id__versions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/vault/notes/{note_id}/versions/{version}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Version
+         * @description Get one immutable version of a note by its version number.
+         */
+        get: operations["get_version_api_v1_vault_notes__note_id__versions__version__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/vault/tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tree
+         * @description List vault notes as summaries (no `body`), ordered by slug, with an opaque keyset cursor. `scope` narrows to studio or project (project requires `project_id`); without a scope, a caller sees studio notes plus the notes of its accessible projects. Archived notes are excluded unless `include_archived`.
+         */
+        get: operations["tree_api_v1_vault_tree_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/vault/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search
+         * @description Ranked search over the vault notes the caller may read. Criteria: `q` (full text, French stemming, words OR-ed), `path` (repeatable, repo-relative) and `task_id` (anchors); at least one is required (422 `missing_search_criteria`). Order: notes anchored to a requested path (or an enclosing directory) or task first, then notes one link away from them, then full-text matches; inside a group by lexical rank, status (validated first), recency. Filters: `scope`, `project_id` (studio notes plus that project's), `note_type` and `status` (repeatable, OR). Superseded notes are excluded unless `include_superseded` or an explicit `status`; archived ones unless an explicit `status`. Hits carry the summary and a short snippet, never the body; `max_chars` caps the answer's text.
+         */
+        get: operations["search_api_v1_vault_search_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4301,7 +4445,9 @@ export interface components {
          * @description `owner_user_id` is optional (A5): absent, the machine belongs to the
          *     caller's own User. A non-admin may only name itself — the server never
          *     lets it choose another owner, and never looks that other User up. Only
-         *     `admin` provisions a machine for someone else.
+         *     `admin` provisions a machine for someone else. `display_name` is the
+         *     workstation name shown in « Postes » (default: the enrollment station's
+         *     own hostname, editable): stripped, never blank, at most 100 characters.
          */
         MachineCreate: {
             /** Owner User Id */
@@ -7093,6 +7239,340 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /**
+         * VaultActorType
+         * @enum {string}
+         */
+        VaultActorType: "user" | "agent" | "system";
+        /**
+         * VaultLinkKind
+         * @enum {string}
+         */
+        VaultLinkKind: "links_to" | "relates_to" | "derived_from" | "supersedes";
+        /**
+         * VaultNote
+         * @description A vault note, the unit of knowledge stored by the server.
+         *
+         *     Identity: `id` is stable; `(scope, project_id, slug)` is unique among notes
+         *     that are not archived. `readable_id` is assigned by the server, never by the
+         *     client, and only for numbered note types (a decision gets its readable identifier);
+         *     it is `None` for every other type.
+         *
+         *     Concurrency: `version` starts at 1 and grows by one on each accepted write;
+         *     a write carries `expected_version` and a stale one is a 409 carrying the
+         *     server version. Every accepted write appends a `VaultNoteVersion`.
+         *
+         *     Precedence: for the same `slug`, the project note prevails over the studio
+         *     note within that project (see `effective_notes`).
+         */
+        VaultNote: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            scope: components["schemas"]["VaultScope"];
+            /** Project Id */
+            project_id?: string | null;
+            /** Slug */
+            slug: string;
+            /** Readable Id */
+            readable_id?: string | null;
+            /** @default note */
+            note_type: components["schemas"]["VaultNoteType"];
+            /** Title */
+            title: string;
+            /**
+             * Summary
+             * @default
+             */
+            summary: string;
+            /** @default draft */
+            status: components["schemas"]["VaultNoteStatus"];
+            /** Tags */
+            tags?: string[];
+            /** Links */
+            links?: components["schemas"]["VaultNoteLink"][];
+            /** Anchors */
+            anchors?: string[];
+            /** Content Hash */
+            content_hash: string;
+            author_type: components["schemas"]["VaultActorType"];
+            /**
+             * Author Id
+             * Format: uuid
+             */
+            author_id: string;
+            /** Body */
+            body: string;
+        };
+        /**
+         * VaultNoteCreate
+         * @description Creation payload. The server assigns `id`, `readable_id`, `version`,
+         *     `content_hash` and the author (from the authenticated actor). A new note
+         *     starts as `draft`, or `proposed` when the client asks for validation.
+         */
+        VaultNoteCreate: {
+            scope: components["schemas"]["VaultScope"];
+            /** Project Id */
+            project_id?: string | null;
+            /** Slug */
+            slug: string;
+            /** @default note */
+            note_type: components["schemas"]["VaultNoteType"];
+            /** Title */
+            title: string;
+            /**
+             * Summary
+             * @default
+             */
+            summary: string;
+            /** Body */
+            body: string;
+            /** @default draft */
+            status: components["schemas"]["VaultNoteStatus"];
+            /** Tags */
+            tags?: string[];
+            /** Links */
+            links?: components["schemas"]["VaultNoteLink"][];
+            /** Anchors */
+            anchors?: string[];
+        };
+        /**
+         * VaultNoteLink
+         * @description A typed, directed link from a note to another note of the same studio.
+         *     The target may live in the other scope.
+         */
+        VaultNoteLink: {
+            /**
+             * Target Note Id
+             * Format: uuid
+             */
+            target_note_id: string;
+            /** @default links_to */
+            kind: components["schemas"]["VaultLinkKind"];
+        };
+        /**
+         * VaultNoteStatus
+         * @description Lifecycle of a note. A decision note maps one-to-one onto the existing
+         *     decision statuses: `proposed` -> `proposed`, `accepted` -> `validated`,
+         *     `superseded` -> `superseded`.
+         * @enum {string}
+         */
+        VaultNoteStatus: "draft" | "proposed" | "validated" | "superseded" | "archived";
+        /**
+         * VaultNoteSummary
+         * @description The tree view of a note: everything a `VaultNote` carries except `body`,
+         *     so a listing never ships the note's prose. See `VaultNote` for the shared
+         *     invariants.
+         */
+        VaultNoteSummary: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            scope: components["schemas"]["VaultScope"];
+            /** Project Id */
+            project_id?: string | null;
+            /** Slug */
+            slug: string;
+            /** Readable Id */
+            readable_id?: string | null;
+            /** @default note */
+            note_type: components["schemas"]["VaultNoteType"];
+            /** Title */
+            title: string;
+            /**
+             * Summary
+             * @default
+             */
+            summary: string;
+            /** @default draft */
+            status: components["schemas"]["VaultNoteStatus"];
+            /** Tags */
+            tags?: string[];
+            /** Links */
+            links?: components["schemas"]["VaultNoteLink"][];
+            /** Anchors */
+            anchors?: string[];
+            /** Content Hash */
+            content_hash: string;
+            author_type: components["schemas"]["VaultActorType"];
+            /**
+             * Author Id
+             * Format: uuid
+             */
+            author_id: string;
+        };
+        /**
+         * VaultNoteType
+         * @enum {string}
+         */
+        VaultNoteType: "decision" | "rule" | "convention" | "procedure" | "reference" | "lesson" | "note";
+        /**
+         * VaultNoteUpdate
+         * @description Partial write on an existing note. `expected_version` is mandatory.
+         *     Scope, project and slug never change; moving a note is a new note plus a
+         *     `supersedes` link. Absent fields are left untouched; `tags`, `links` and
+         *     `anchors` replace the whole list when present.
+         */
+        VaultNoteUpdate: {
+            /** Expected Version */
+            expected_version: number;
+            /** Title */
+            title?: string | null;
+            /** Summary */
+            summary?: string | null;
+            /** Body */
+            body?: string | null;
+            status?: components["schemas"]["VaultNoteStatus"] | null;
+            /** Tags */
+            tags?: string[] | null;
+            /** Links */
+            links?: components["schemas"]["VaultNoteLink"][] | null;
+            /** Anchors */
+            anchors?: string[] | null;
+            /** Change Summary */
+            change_summary?: string | null;
+        };
+        /**
+         * VaultNoteVersion
+         * @description One immutable entry of a note's history, appended on every accepted write
+         *     (creation included). Append-only; the latest entry equals the current note.
+         */
+        VaultNoteVersion: {
+            /**
+             * Note Id
+             * Format: uuid
+             */
+            note_id: string;
+            /** Version */
+            version: number;
+            /** Title */
+            title: string;
+            /** Summary */
+            summary: string;
+            /** Body */
+            body: string;
+            status: components["schemas"]["VaultNoteStatus"];
+            /** Tags */
+            tags?: string[];
+            /** Links */
+            links?: components["schemas"]["VaultNoteLink"][];
+            /** Anchors */
+            anchors?: string[];
+            /** Content Hash */
+            content_hash: string;
+            /** Change Summary */
+            change_summary?: string | null;
+            author_type: components["schemas"]["VaultActorType"];
+            /**
+             * Author Id
+             * Format: uuid
+             */
+            author_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * VaultScope
+         * @description Where a note lives. `studio` notes are transverse to every project of the
+         *     studio; `project` notes belong to exactly one project.
+         * @enum {string}
+         */
+        VaultScope: "studio" | "project";
+        /**
+         * VaultSearchHit
+         * @description A search result, bounded in size: no `body`, a `snippet` of at most
+         *     `VAULT_SEARCH_SNIPPET_MAX` characters around the matched words instead.
+         */
+        VaultSearchHit: {
+            note: components["schemas"]["VaultNoteSummary"];
+            reason: components["schemas"]["VaultSearchReason"];
+            /** Matched Anchors */
+            matched_anchors?: string[];
+            /** Rank */
+            rank: number;
+            /**
+             * Snippet
+             * @default
+             */
+            snippet: string;
+        };
+        /**
+         * VaultSearchReason
+         * @description Why a hit was returned, strongest first; hits are ordered by reason,
+         *     then by lexical rank.
+         * @enum {string}
+         */
+        VaultSearchReason: "anchor" | "linked" | "lexical";
+        /**
+         * VaultSearchResult
+         * @description Ranked hits. `total` counts every matching note the reader may see;
+         *     `truncated` is true when `limit` or the `max_chars` text budget left
+         *     matching notes out.
+         */
+        VaultSearchResult: {
+            /** Items */
+            items: components["schemas"]["VaultSearchHit"][];
+            /** Total */
+            total: number;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+        };
+        /**
+         * VaultTreePage
+         * @description A page of the vault tree: summaries (no `body`) ordered by slug, plus an
+         *     opaque cursor to fetch the next page (`null` when the last page was read).
+         */
+        VaultTreePage: {
+            /** Items */
+            items: components["schemas"]["VaultNoteSummary"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
+        /**
+         * VaultVersionPage
+         * @description A page of a note's immutable history, ordered by ascending `version`,
+         *     plus an opaque cursor to fetch the next page (`null` on the last one).
+         */
+        VaultVersionPage: {
+            /** Items */
+            items: components["schemas"]["VaultNoteVersion"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
         };
         /** VerifyEmailRequest */
         VerifyEmailRequest: {
@@ -14859,6 +15339,100 @@ export interface operations {
             };
         };
     };
+    adopt_machine_api_v1_machines__machine_id__adopt_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                machine_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MachineCreated"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version — re-read the object, merge, and retry with the new version. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     revoke_machine_api_v1_machines__machine_id__revoke_post: {
         parameters: {
             query?: never;
@@ -18806,6 +19380,588 @@ export interface operations {
                      * @example {
                      *       "detail": {
                      *         "error_code": "invalid_initialization"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    create_note_api_v1_vault_notes_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VaultNoteCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VaultNote"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). Vault slug conflict: a non-archived note of the same scope already owns this slug. Archive the previous note or pick another slug. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "idempotency_key_payload_mismatch"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Vault payload rejected, nothing stored: a link targets a note that is not a readable studio note nor in the same project (`invalid_vault_link`), a project listing lacks `project_id` (`missing_project_id`), or a pagination cursor is malformed (`invalid_cursor`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_vault_link",
+                     *         "target_note_id": "..."
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    get_note_api_v1_vault_notes__note_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                note_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VaultNote"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_note_api_v1_vault_notes__note_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                note_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VaultNoteUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VaultNote"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version — re-read the object, merge, and retry with the new version. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "version_conflict",
+                     *         "server_version": 3
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Vault payload rejected, nothing stored: a link targets a note that is not a readable studio note nor in the same project (`invalid_vault_link`), a project listing lacks `project_id` (`missing_project_id`), or a pagination cursor is malformed (`invalid_cursor`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_vault_link",
+                     *         "target_note_id": "..."
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    list_versions_api_v1_vault_notes__note_id__versions_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path: {
+                note_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VaultVersionPage"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_version_api_v1_vault_notes__note_id__versions__version__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                note_id: string;
+                version: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VaultNoteVersion"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    tree_api_v1_vault_tree_get: {
+        parameters: {
+            query?: {
+                scope?: components["schemas"]["VaultScope"] | null;
+                project_id?: string | null;
+                prefix?: string | null;
+                status?: components["schemas"]["VaultNoteStatus"] | null;
+                include_archived?: boolean;
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VaultTreePage"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_api_v1_vault_search_get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                scope?: components["schemas"]["VaultScope"] | null;
+                project_id?: string | null;
+                note_type?: components["schemas"]["VaultNoteType"][];
+                status?: components["schemas"]["VaultNoteStatus"][];
+                include_superseded?: boolean;
+                path?: string[];
+                task_id?: string | null;
+                limit?: number;
+                max_chars?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VaultSearchResult"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Vault payload rejected, nothing stored: a link targets a note that is not a readable studio note nor in the same project (`invalid_vault_link`), a project listing lacks `project_id` (`missing_project_id`), or a pagination cursor is malformed (`invalid_cursor`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_vault_link",
+                     *         "target_note_id": "..."
                      *       }
                      *     }
                      */
