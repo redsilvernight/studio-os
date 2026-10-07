@@ -7,7 +7,7 @@ import uuid
 from typing import Any
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, delete, exists, func, literal, or_, select, text
+from sqlalchemy import and_, case, delete, exists, func, literal, literal_column, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.auth import Role
@@ -620,6 +620,23 @@ def _tsquery(terms: list[str]) -> Any:
     return query
 
 
+def _coverage_rank(terms: list[str], tsquery: Any) -> Any:
+    """Distinct query words matched, a word in the title or readable id
+    (weight A) counting 3 and elsewhere 1, plus `ts_rank_cd` (normalised into
+    [0, 1)) as a tie-breaker: covering more of the query beats repeating one
+    word."""
+    title_vector = func.ts_filter(VaultNoteModel.search_vector, literal_column("'{a}'::\"char\"[]"))
+    coverage: Any = literal(0)
+    for term in terms:
+        part = func.plainto_tsquery(_SEARCH_CONFIG, term)
+        coverage = coverage + case(
+            (title_vector.op("@@")(part), 3),
+            (VaultNoteModel.search_vector.op("@@")(part), 1),
+            else_=0,
+        )
+    return coverage + func.ts_rank_cd(VaultNoteModel.search_vector, tsquery, 32)
+
+
 def _normalize_path(path: str) -> str:
     cleaned = path.strip().replace("\\", "/")
     while cleaned.startswith("./"):
@@ -719,7 +736,7 @@ async def search_notes(
 ) -> VaultSearchResult:
     """Ranked search. Order: notes anchored to a requested path or task first,
     then notes one link away from them, then full-text matches; inside a group,
-    by lexical rank (`ts_rank_cd`, title and readable id weigh most), then
+    by query coverage (title and readable id weigh most, `ts_rank_cd` breaks ties), then
     status (validated first), then most recently updated. Superseded and
     archived notes are left out unless asked for. Each hit is bounded: summary
     plus a short snippet, never the body; `max_chars` caps the whole answer."""
@@ -734,11 +751,9 @@ async def search_notes(
             status.HTTP_422_UNPROCESSABLE_CONTENT, detail={"error_code": "missing_search_criteria"}
         )
     tsquery = _tsquery(terms) if terms else None
-    rank_col = (
-        func.ts_rank_cd(VaultNoteModel.search_vector, tsquery, 32)
-        if tsquery is not None
-        else literal(0.0)
-    ).label("rank")
+    rank_col = (_coverage_rank(terms, tsquery) if tsquery is not None else literal(0.0)).label(
+        "rank"
+    )
 
     anchored: dict[uuid.UUID, tuple[VaultNoteModel, float]] = {}
     if exact or inside:
