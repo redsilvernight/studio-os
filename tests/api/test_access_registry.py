@@ -225,6 +225,7 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
         Probe("/api/v1/vault/notes/{note}/versions/1"),
     ),
     ("GET", "/api/v1/vault/tree"): (Probe("/api/v1/vault/tree?project_id={pid}"),),
+    ("GET", "/api/v1/vault/search"): (Probe("/api/v1/vault/search?q=vault&project_id={pid}"),),
     ("GET", "/api/v1/library"): (
         Probe("/api/v1/library?project_id={pid}"),
         Probe("/api/v1/library", expect="filtered"),

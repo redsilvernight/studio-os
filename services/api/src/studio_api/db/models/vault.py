@@ -22,6 +22,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from studio_api.db.models.base import Base, TimestampMixin, UUIDPKMixin, VersionMixin
 
 SEARCH_VECTOR_SQL = (
+    "setweight(to_tsvector('french', coalesce(readable_id, '')), 'A') || "
     "setweight(to_tsvector('french', coalesce(title, '')), 'A') || "
     "setweight(to_tsvector('french', coalesce(summary, '')), 'B') || "
     "setweight(to_tsvector('french', coalesce(body, '')), 'C')"
@@ -43,6 +44,9 @@ class VaultNoteModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
     body: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String, default="draft")
     tags: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)
+    anchors: Mapped[list[str]] = mapped_column(
+        ARRAY(String), default=list, server_default=text("'{}'::varchar[]")
+    )
     content_hash: Mapped[str] = mapped_column(String)
     author_type: Mapped[str] = mapped_column(String)
     author_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True))
@@ -95,6 +99,7 @@ class VaultNoteModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
         Index("ix_vault_notes_project", "project_id"),
         Index("ix_vault_notes_search", "search_vector", postgresql_using="gin"),
         Index("ix_vault_notes_tags", "tags", postgresql_using="gin"),
+        Index("ix_vault_notes_anchors", "anchors", postgresql_using="gin"),
     )
 
 
@@ -133,6 +138,9 @@ class VaultNoteVersionModel(Base):
     status: Mapped[str] = mapped_column(String)
     tags: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)
     links: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
+    anchors: Mapped[list[str]] = mapped_column(
+        ARRAY(String), default=list, server_default=text("'{}'::varchar[]")
+    )
     content_hash: Mapped[str] = mapped_column(String)
     change_summary: Mapped[str | None] = mapped_column(Text, default=None)
     author_type: Mapped[str] = mapped_column(String)

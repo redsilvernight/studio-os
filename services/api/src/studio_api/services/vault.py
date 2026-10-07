@@ -2,14 +2,16 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import uuid
 from typing import Any
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, delete, or_, select, text
+from sqlalchemy import and_, delete, exists, func, literal, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.auth import Role
+from studio_contracts.vault import VAULT_SEARCH_SNIPPET_MAX as _SNIPPET_MAX
 from studio_contracts.vault import (
     VaultActorType,
     VaultLinkKind,
@@ -22,6 +24,9 @@ from studio_contracts.vault import (
     VaultNoteUpdate,
     VaultNoteVersion,
     VaultScope,
+    VaultSearchHit,
+    VaultSearchReason,
+    VaultSearchResult,
     VaultTreePage,
     VaultVersionPage,
     content_hash,
@@ -97,6 +102,7 @@ def _compute_hash(
     status: str,
     tags: list[str],
     links: list[VaultNoteLink],
+    anchors: list[str],
 ) -> str:
     return content_hash(
         title=title,
@@ -105,6 +111,7 @@ def _compute_hash(
         status=VaultNoteStatus(status),
         tags=tags,
         links=links,
+        anchors=anchors,
     )
 
 
@@ -187,6 +194,7 @@ async def _append_version(
                 {"target_note_id": str(link.target_note_id), "kind": link.kind.value}
                 for link in links
             ],
+            anchors=list(note.anchors),
             content_hash=note.content_hash,
             change_summary=change_summary,
             author_type=note.author_type,
@@ -231,6 +239,7 @@ async def create_note(
         body=note_in.body,
         status=note_in.status.value,
         tags=list(note_in.tags),
+        anchors=list(note_in.anchors),
         content_hash=_compute_hash(
             note_in.title,
             note_in.summary,
@@ -238,6 +247,7 @@ async def create_note(
             note_in.status.value,
             note_in.tags,
             note_in.links,
+            note_in.anchors,
         ),
         author_type=VaultActorType.USER.value,
         author_id=principal.user.id,
@@ -300,9 +310,11 @@ async def update_note(
         note.status = note_in.status.value
     if note_in.tags is not None:
         note.tags = list(note_in.tags)
+    if note_in.anchors is not None:
+        note.anchors = list(note_in.anchors)
     note.version += 1
     note.content_hash = _compute_hash(
-        note.title, note.summary, note.body, note.status, list(note.tags), links
+        note.title, note.summary, note.body, note.status, list(note.tags), links, list(note.anchors)
     )
     await _append_version(session, note, links, note_in.change_summary)
     if note_in.links is not None:
@@ -368,6 +380,7 @@ def to_note(note: VaultNoteModel, links: list[VaultNoteLink]) -> VaultNote:
         status=VaultNoteStatus(note.status),
         tags=note.tags,
         links=links,
+        anchors=note.anchors,
         content_hash=note.content_hash,
         author_type=VaultActorType(note.author_type),
         author_id=note.author_id,
@@ -390,6 +403,7 @@ def to_summary(note: VaultNoteModel, links: list[VaultNoteLink]) -> VaultNoteSum
         status=VaultNoteStatus(note.status),
         tags=note.tags,
         links=links,
+        anchors=note.anchors,
         content_hash=note.content_hash,
         author_type=VaultActorType(note.author_type),
         author_id=note.author_id,
@@ -408,6 +422,7 @@ def to_version(row: VaultNoteVersionModel) -> VaultNoteVersion:
         body=row.body,
         status=VaultNoteStatus(row.status),
         tags=row.tags,
+        anchors=row.anchors,
         links=[
             VaultNoteLink(
                 target_note_id=uuid.UUID(entry["target_note_id"]),
@@ -558,3 +573,296 @@ async def get_version(
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "vault note version not found")
     return to_version(row)
+
+
+# --- Search (P04) -----------------------------------------------------------
+
+_SEARCH_CONFIG = text("'french'::regconfig")
+_SEARCH_TERMS_MAX = 16
+_SEARCH_ANCHORED_MAX = 200
+_TERM_RE = re.compile(r"[\w][\w.-]*", re.UNICODE)
+_HEADLINE_OPTIONS = (
+    "MaxWords=30, MinWords=8, MaxFragments=1, StartSel=, StopSel=, FragmentDelimiter= … "
+)
+_STATUS_ORDER = {
+    VaultNoteStatus.VALIDATED.value: 0,
+    VaultNoteStatus.PROPOSED.value: 1,
+    VaultNoteStatus.DRAFT.value: 2,
+    VaultNoteStatus.SUPERSEDED.value: 3,
+    VaultNoteStatus.ARCHIVED.value: 4,
+}
+_REASON_ORDER = {
+    VaultSearchReason.ANCHOR: 0,
+    VaultSearchReason.LINKED: 1,
+    VaultSearchReason.LEXICAL: 2,
+}
+
+
+def _search_terms(q: str | None) -> list[str]:
+    """Lower-cased words of the query, deduplicated in order. Each word becomes
+    its own `plainto_tsquery` (French stemming and stop words) and the words are
+    OR-ed: a note matching some of the words still ranks, the more the better."""
+    if not q:
+        return []
+    seen: dict[str, None] = {}
+    for match in _TERM_RE.findall(q.lower()):
+        term = match.strip(".-_")
+        if len(term) >= 2:
+            seen.setdefault(term, None)
+    return list(seen)[:_SEARCH_TERMS_MAX]
+
+
+def _tsquery(terms: list[str]) -> Any:
+    query: Any = None
+    for term in terms:
+        part = func.plainto_tsquery(_SEARCH_CONFIG, term)
+        query = part if query is None else query.op("||")(part)
+    return query
+
+
+def _normalize_path(path: str) -> str:
+    cleaned = path.strip().replace("\\", "/")
+    while cleaned.startswith("./"):
+        cleaned = cleaned[2:]
+    return cleaned.lstrip("/")
+
+
+def _requested_anchors(paths: list[str], task_id: uuid.UUID | None) -> tuple[set[str], list[str]]:
+    """Anchors that match the request: the exact `path:` anchors plus every
+    enclosing directory anchor (`path:services/` covers `services/api/x.py`),
+    the task anchor; and the directory prefixes whose content also matches
+    (a requested `docs/` matches a note anchored to `path:docs/a.md`)."""
+    exact: set[str] = set()
+    inside: list[str] = []
+    for raw in paths:
+        path = _normalize_path(raw)
+        if not path:
+            continue
+        exact.add(f"path:{path}")
+        parts = path.rstrip("/").split("/")
+        for depth in range(1, len(parts)):
+            exact.add("path:" + "/".join(parts[:depth]) + "/")
+        if path.endswith("/"):
+            inside.append(f"path:{path}")
+    if task_id is not None:
+        exact.add(f"task:{task_id}")
+    return exact, inside
+
+
+def _matched_anchors(note_anchors: list[str], exact: set[str], inside: list[str]) -> list[str]:
+    return sorted(
+        anchor
+        for anchor in note_anchors
+        if anchor in exact or any(anchor.startswith(prefix) for prefix in inside)
+    )
+
+
+def _search_filters(
+    principal: Principal,
+    scope: VaultScope | None,
+    project_id: uuid.UUID | None,
+    note_types: list[VaultNoteType],
+    statuses: list[VaultNoteStatus],
+    include_superseded: bool,
+) -> list[Any]:
+    """Visibility, scope, type and status clauses shared by every search branch.
+    With a `project_id` the reader sees the studio notes plus that project's
+    notes; without, every note their memberships allow."""
+    filters: list[Any] = []
+    if scope is VaultScope.PROJECT and project_id is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, detail={"error_code": "missing_project_id"}
+        )
+    if project_id is not None:
+        ensure_project_access(principal, project_id, "read")
+        project_clause = and_(
+            VaultNoteModel.scope == VaultScope.PROJECT.value,
+            VaultNoteModel.project_id == project_id,
+        )
+        if scope is VaultScope.PROJECT:
+            filters.append(project_clause)
+        elif scope is VaultScope.STUDIO:
+            filters.append(VaultNoteModel.scope == VaultScope.STUDIO.value)
+        else:
+            filters.append(or_(VaultNoteModel.scope == VaultScope.STUDIO.value, project_clause))
+    else:
+        if scope is VaultScope.STUDIO:
+            filters.append(VaultNoteModel.scope == VaultScope.STUDIO.value)
+        if (visible := _tree_visibility_clause(principal)) is not None:
+            filters.append(visible)
+    if note_types:
+        filters.append(VaultNoteModel.note_type.in_([value.value for value in note_types]))
+    if statuses:
+        filters.append(VaultNoteModel.status.in_([value.value for value in statuses]))
+    else:
+        hidden = [VaultNoteStatus.ARCHIVED.value]
+        if not include_superseded:
+            hidden.append(VaultNoteStatus.SUPERSEDED.value)
+        filters.append(VaultNoteModel.status.not_in(hidden))
+    return filters
+
+
+async def search_notes(
+    session: AsyncSession,
+    principal: Principal,
+    *,
+    q: str | None,
+    scope: VaultScope | None,
+    project_id: uuid.UUID | None,
+    note_types: list[VaultNoteType],
+    statuses: list[VaultNoteStatus],
+    include_superseded: bool,
+    paths: list[str],
+    task_id: uuid.UUID | None,
+    limit: int,
+    max_chars: int,
+) -> VaultSearchResult:
+    """Ranked search. Order: notes anchored to a requested path or task first,
+    then notes one link away from them, then full-text matches; inside a group,
+    by lexical rank (`ts_rank_cd`, title and readable id weigh most), then
+    status (validated first), then most recently updated. Superseded and
+    archived notes are left out unless asked for. Each hit is bounded: summary
+    plus a short snippet, never the body; `max_chars` caps the whole answer."""
+    # Access first: an outsider gets 403 whatever the criteria.
+    filters = _search_filters(
+        principal, scope, project_id, note_types, statuses, include_superseded
+    )
+    terms = _search_terms(q)
+    exact, inside = _requested_anchors(paths, task_id)
+    if not terms and not exact:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, detail={"error_code": "missing_search_criteria"}
+        )
+    tsquery = _tsquery(terms) if terms else None
+    rank_col = (
+        func.ts_rank_cd(VaultNoteModel.search_vector, tsquery, 32)
+        if tsquery is not None
+        else literal(0.0)
+    ).label("rank")
+
+    anchored: dict[uuid.UUID, tuple[VaultNoteModel, float]] = {}
+    if exact or inside:
+        anchor_clauses: list[Any] = []
+        if exact:
+            anchor_clauses.append(VaultNoteModel.anchors.overlap(sorted(exact)))
+        for prefix in inside:
+            element = func.unnest(VaultNoteModel.anchors).column_valued("anchor")
+            anchor_clauses.append(
+                exists(select(literal(1)).where(element.startswith(prefix, autoescape=True)))
+            )
+        rows = await session.execute(
+            select(VaultNoteModel, rank_col)
+            .where(*filters, or_(*anchor_clauses))
+            .limit(_SEARCH_ANCHORED_MAX)
+        )
+        anchored = {note.id: (note, float(rank)) for note, rank in rows.all()}
+
+    linked: dict[uuid.UUID, tuple[VaultNoteModel, float]] = {}
+    if anchored:
+        anchored_ids = list(anchored)
+        link_rows = await session.execute(
+            select(VaultNoteLinkModel.source_note_id, VaultNoteLinkModel.target_note_id).where(
+                or_(
+                    VaultNoteLinkModel.source_note_id.in_(anchored_ids),
+                    VaultNoteLinkModel.target_note_id.in_(anchored_ids),
+                )
+            )
+        )
+        neighbour_ids = {
+            other
+            for source, target in link_rows.all()
+            for other in (source, target)
+            if other not in anchored
+        }
+        if neighbour_ids:
+            rows = await session.execute(
+                select(VaultNoteModel, rank_col).where(
+                    *filters, VaultNoteModel.id.in_(neighbour_ids)
+                )
+            )
+            linked = {note.id: (note, float(rank)) for note, rank in rows.all()}
+
+    lexical: dict[uuid.UUID, tuple[VaultNoteModel, float]] = {}
+    lexical_total = 0
+    if tsquery is not None:
+        lexical_clause = VaultNoteModel.search_vector.op("@@")(tsquery)
+        known = set(anchored) | set(linked)
+        rows = await session.execute(
+            select(VaultNoteModel, rank_col)
+            .where(*filters, lexical_clause)
+            .order_by(rank_col.desc(), VaultNoteModel.updated_at.desc(), VaultNoteModel.id)
+            .limit(limit + len(known))
+        )
+        lexical = {
+            note.id: (note, float(rank)) for note, rank in rows.all() if note.id not in known
+        }
+        count_stmt = (
+            select(func.count()).select_from(VaultNoteModel).where(*filters, lexical_clause)
+        )
+        if known:
+            count_stmt = count_stmt.where(VaultNoteModel.id.not_in(known))
+        lexical_total = int((await session.execute(count_stmt)).scalar_one())
+
+    candidates: list[tuple[VaultSearchReason, VaultNoteModel, float]] = [
+        *((VaultSearchReason.ANCHOR, note, rank) for note, rank in anchored.values()),
+        *((VaultSearchReason.LINKED, note, rank) for note, rank in linked.values()),
+        *((VaultSearchReason.LEXICAL, note, rank) for note, rank in lexical.values()),
+    ]
+    candidates.sort(
+        key=lambda item: (
+            _REASON_ORDER[item[0]],
+            -item[2],
+            _STATUS_ORDER.get(item[1].status, 9),
+            -item[1].updated_at.timestamp(),
+            str(item[1].id),
+        )
+    )
+    total = len(anchored) + len(linked) + lexical_total
+
+    page = candidates[:limit]
+    snippets = await _snippets(session, [note for _, note, _ in page], tsquery)
+    links_by_note = await _load_links_for_notes(session, [note.id for _, note, _ in page])
+    items: list[VaultSearchHit] = []
+    used = 0
+    for reason, note, rank in page:
+        snippet = snippets.get(note.id, "")
+        cost = len(note.title) + len(note.summary) + len(snippet)
+        if items and used + cost > max_chars:
+            break
+        used += cost
+        items.append(
+            VaultSearchHit(
+                note=to_summary(note, links_by_note.get(note.id, [])),
+                reason=reason,
+                matched_anchors=_matched_anchors(list(note.anchors), exact, inside),
+                rank=round(max(rank, 0.0), 6),
+                snippet=snippet,
+            )
+        )
+    return VaultSearchResult(items=items, total=total, truncated=total > len(items))
+
+
+async def _snippets(
+    session: AsyncSession, notes: list[VaultNoteModel], tsquery: Any
+) -> dict[uuid.UUID, str]:
+    """A short excerpt of each body around the matched words (`ts_headline`,
+    computed only for the returned page); without a query, the body start when
+    the note has no summary."""
+    if not notes:
+        return {}
+    if tsquery is None:
+        return {note.id: _clip(note.body) for note in notes if not note.summary.strip()}
+    rows = await session.execute(
+        select(
+            VaultNoteModel.id,
+            func.ts_headline(_SEARCH_CONFIG, VaultNoteModel.body, tsquery, _HEADLINE_OPTIONS),
+        ).where(VaultNoteModel.id.in_([note.id for note in notes]))
+    )
+    return {note_id: _clip(headline or "") for note_id, headline in rows.all()}
+
+
+def _clip(value: str) -> str:
+    collapsed = " ".join(value.split())
+    if len(collapsed) <= _SNIPPET_MAX:
+        return collapsed
+    return collapsed[: _SNIPPET_MAX - 1].rstrip() + "…"

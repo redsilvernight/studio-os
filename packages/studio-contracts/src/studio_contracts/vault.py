@@ -21,6 +21,19 @@ VAULT_BODY_MAX = 262_144
 VAULT_TAGS_MAX = 20
 VAULT_TAG_MAX = 48
 VAULT_LINKS_MAX = 200
+VAULT_ANCHORS_MAX = 20
+VAULT_ANCHOR_MAX = 300
+VAULT_SEARCH_LIMIT_DEFAULT = 10
+VAULT_SEARCH_LIMIT_MAX = 50
+VAULT_SEARCH_SNIPPET_MAX = 280
+VAULT_SEARCH_MAX_CHARS_DEFAULT = 6000
+VAULT_SEARCH_MAX_CHARS_MAX = 20000
+VAULT_SEARCH_PATHS_MAX = 20
+
+VAULT_ANCHOR_PATTERN = (
+    r"^(?:task:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+    r"|path:[^\s\\:*?\"<>|]+)$"
+)
 
 VaultSlug = Annotated[
     str,
@@ -31,6 +44,13 @@ VaultTag = Annotated[
     StringConstraints(min_length=1, max_length=VAULT_TAG_MAX, pattern=r"^[a-z0-9][a-z0-9_.-]*$"),
 ]
 Sha256Hex = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+VaultAnchor = Annotated[
+    str,
+    StringConstraints(min_length=6, max_length=VAULT_ANCHOR_MAX, pattern=VAULT_ANCHOR_PATTERN),
+]
+"""What a note is about outside the vault: `path:<repo-relative path>` (forward
+slashes; a directory path ends with `/` and covers everything below it) or
+`task:<task uuid, lowercase>`. Search ranks anchored notes first."""
 
 _SLUG_RE = re.compile(VAULT_SLUG_PATTERN)
 
@@ -99,6 +119,11 @@ def _check_unique_links(links: Sequence[VaultNoteLink]) -> None:
         raise ValueError("a link (target, kind) appears at most once")
 
 
+def _check_unique_anchors(anchors: Sequence[str]) -> None:
+    if len(set(anchors)) != len(anchors):
+        raise ValueError("an anchor appears at most once")
+
+
 class VaultNoteSummary(VersionedModel):
     """The tree view of a note: everything a `VaultNote` carries except `body`,
     so a listing never ships the note's prose. See `VaultNote` for the shared
@@ -115,6 +140,7 @@ class VaultNoteSummary(VersionedModel):
     status: VaultNoteStatus = VaultNoteStatus.DRAFT
     tags: list[VaultTag] = Field(default_factory=list, max_length=VAULT_TAGS_MAX)
     links: list[VaultNoteLink] = Field(default_factory=list, max_length=VAULT_LINKS_MAX)
+    anchors: list[VaultAnchor] = Field(default_factory=list, max_length=VAULT_ANCHORS_MAX)
     content_hash: Sha256Hex
     author_type: VaultActorType
     author_id: UUID
@@ -123,6 +149,7 @@ class VaultNoteSummary(VersionedModel):
     def _consistent(self) -> Self:
         _check_scope(self.scope, self.project_id)
         _check_unique_links(self.links)
+        _check_unique_anchors(self.anchors)
         if self.readable_id is not None and self.note_type is not VaultNoteType.DECISION:
             raise ValueError("only a decision note carries a readable_id")
         return self
@@ -161,11 +188,13 @@ class VaultNoteCreate(IdempotentCreate):
     status: VaultNoteStatus = VaultNoteStatus.DRAFT
     tags: list[VaultTag] = Field(default_factory=list, max_length=VAULT_TAGS_MAX)
     links: list[VaultNoteLink] = Field(default_factory=list, max_length=VAULT_LINKS_MAX)
+    anchors: list[VaultAnchor] = Field(default_factory=list, max_length=VAULT_ANCHORS_MAX)
 
     @model_validator(mode="after")
     def _consistent(self) -> Self:
         _check_scope(self.scope, self.project_id)
         _check_unique_links(self.links)
+        _check_unique_anchors(self.anchors)
         if self.status not in (VaultNoteStatus.DRAFT, VaultNoteStatus.PROPOSED):
             raise ValueError("a note is created as draft or proposed")
         return self
@@ -174,8 +203,8 @@ class VaultNoteCreate(IdempotentCreate):
 class VaultNoteUpdate(ContractModel):
     """Partial write on an existing note. `expected_version` is mandatory.
     Scope, project and slug never change; moving a note is a new note plus a
-    `supersedes` link. Absent fields are left untouched; `tags` and `links`
-    replace the whole list when present."""
+    `supersedes` link. Absent fields are left untouched; `tags`, `links` and
+    `anchors` replace the whole list when present."""
 
     expected_version: int = Field(ge=1)
     title: str | None = Field(default=None, min_length=1, max_length=VAULT_TITLE_MAX)
@@ -184,6 +213,7 @@ class VaultNoteUpdate(ContractModel):
     status: VaultNoteStatus | None = None
     tags: list[VaultTag] | None = Field(default=None, max_length=VAULT_TAGS_MAX)
     links: list[VaultNoteLink] | None = Field(default=None, max_length=VAULT_LINKS_MAX)
+    anchors: list[VaultAnchor] | None = Field(default=None, max_length=VAULT_ANCHORS_MAX)
     change_summary: str | None = Field(default=None, max_length=VAULT_SUMMARY_MAX)
 
     @model_validator(mode="after")
@@ -195,11 +225,14 @@ class VaultNoteUpdate(ContractModel):
             self.status,
             self.tags,
             self.links,
+            self.anchors,
         )
         if all(value is None for value in changed):
             raise ValueError("an update changes at least one field")
         if self.links is not None:
             _check_unique_links(self.links)
+        if self.anchors is not None:
+            _check_unique_anchors(self.anchors)
         return self
 
 
@@ -215,6 +248,7 @@ class VaultNoteVersion(ContractModel):
     status: VaultNoteStatus
     tags: list[VaultTag] = Field(default_factory=list)
     links: list[VaultNoteLink] = Field(default_factory=list)
+    anchors: list[VaultAnchor] = Field(default_factory=list)
     content_hash: Sha256Hex
     change_summary: str | None = None
     author_type: VaultActorType
@@ -238,6 +272,36 @@ class VaultVersionPage(ContractModel):
     next_cursor: str | None = None
 
 
+class VaultSearchReason(StrEnum):
+    """Why a hit was returned, strongest first; hits are ordered by reason,
+    then by lexical rank."""
+
+    ANCHOR = "anchor"  # an anchor of the note matches a requested path or task
+    LINKED = "linked"  # the note is one link away from an anchored hit
+    LEXICAL = "lexical"  # full-text match only
+
+
+class VaultSearchHit(ContractModel):
+    """A search result, bounded in size: no `body`, a `snippet` of at most
+    `VAULT_SEARCH_SNIPPET_MAX` characters around the matched words instead."""
+
+    note: VaultNoteSummary
+    reason: VaultSearchReason
+    matched_anchors: list[str] = Field(default_factory=list)
+    rank: float = Field(ge=0)
+    snippet: str = Field(default="", max_length=VAULT_SEARCH_SNIPPET_MAX)
+
+
+class VaultSearchResult(ContractModel):
+    """Ranked hits. `total` counts every matching note the reader may see;
+    `truncated` is true when `limit` or the `max_chars` text budget left
+    matching notes out."""
+
+    items: list[VaultSearchHit]
+    total: int = Field(ge=0)
+    truncated: bool = False
+
+
 def content_hash(
     *,
     title: str,
@@ -246,27 +310,33 @@ def content_hash(
     status: VaultNoteStatus,
     tags: Sequence[str],
     links: Sequence[VaultNoteLink],
+    anchors: Sequence[str] = (),
 ) -> str:
     """SHA-256 of a note's canonical content: the mutable fields only (title,
-    summary, body, status, tags, links), sorted for determinism. Identity fields
-    (scope, slug, note_type, author) are deliberately excluded — the hash is a
-    content fingerprint, never an identity."""
+    summary, body, status, tags, links, anchors), sorted for determinism.
+    Identity fields (scope, slug, note_type, author) are deliberately excluded —
+    the hash is a content fingerprint, never an identity. `anchors` enters the
+    canonical form only when non-empty, so a note without anchors keeps the hash
+    it had before anchors existed."""
 
-    canonical = json.dumps(
-        {
-            "title": title,
-            "summary": summary,
-            "body": body,
-            "status": status.value,
-            "tags": sorted(tags),
-            "links": sorted(
-                (
-                    {"target_note_id": str(link.target_note_id), "kind": link.kind.value}
-                    for link in links
-                ),
-                key=lambda entry: (entry["target_note_id"], entry["kind"]),
+    content: dict[str, object] = {
+        "title": title,
+        "summary": summary,
+        "body": body,
+        "status": status.value,
+        "tags": sorted(tags),
+        "links": sorted(
+            (
+                {"target_note_id": str(link.target_note_id), "kind": link.kind.value}
+                for link in links
             ),
-        },
+            key=lambda entry: (entry["target_note_id"], entry["kind"]),
+        ),
+    }
+    if anchors:
+        content["anchors"] = sorted(anchors)
+    canonical = json.dumps(
+        content,
         sort_keys=True,
         separators=(",", ":"),
         ensure_ascii=False,
