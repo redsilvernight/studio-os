@@ -452,6 +452,21 @@ Notes a deux portees (`studio`, `project`) ; schemas `studio_contracts.vault`.
   `draft|proposed` pour tout role autorise a ecrire ; `validated`,
   `superseded`, `archived` reserves au role admin. Un lien cible une note
   lisible de la portee studio ou du meme projet (`422` sinon).
+- Ancres (P04, additif) : `anchors` (<= 20, uniques) sur `VaultNoteCreate`,
+  `VaultNoteUpdate` (remplace la liste), `VaultNote` et `VaultNoteVersion` ;
+  forme `task:<uuid>` ou `path:<chemin>` (`path:dir/` = repertoire). Liste
+  vide = `content_hash` inchange.
+- GET /vault/search?q&scope&project_id&note_type[]&status[]&include_superseded
+  &path[]&task_id&limit&max_chars -> `VaultSearchResult` (`items`, `total`,
+  `truncated`). Au moins un critere (`q`, `path`, `task_id`), sinon
+  `422 missing_search_criteria` (apres le controle d'acces). Ordre : notes
+  ancrees au chemin (ou un repertoire parent) / a la tache (`reason=anchor`),
+  puis notes liees a un saut (`linked`), puis correspondances plein texte
+  (`lexical`) ; a raison egale, rang, statut, recence. `archived` toujours
+  exclues ; `superseded` exclues sauf `include_superseded=true` ou `status`
+  explicite. `limit` 1..50 (defaut 10) ; `max_chars` 500..20000 (defaut 6000)
+  plafonne titre+resume+extrait cumules (`truncated=true` si coupe) ;
+  `snippet` <= 280.
 
 ### Agents and AI work
 - GET /agents — version 2 (RUPTURE, DEC-0103 §4/§11) : uniquement les agents
