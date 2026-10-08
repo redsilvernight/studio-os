@@ -389,7 +389,7 @@ async def _import_decisions(
                 result = await decision_import.apply_plan(session, plan, author.id)
     rendered = decision_import.render_report(plan, result)
     if report is not None:
-        report.write_text(rendered, encoding="utf-8")
+        report.write_text(rendered, encoding="utf-8", newline="\n")
         print(f"report written: {report}")
     else:
         print(rendered)
