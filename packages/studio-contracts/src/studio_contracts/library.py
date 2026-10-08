@@ -618,7 +618,7 @@ HOOK_SCRIPT_MAX_LENGTH = 65_536
 
 class HookEvent(StrEnum):
     """Closed, harness-neutral hook trigger vocabulary. Each local adapter
-    maps it to its harness event (Claude Code `PreToolUse`, OpenCode
+    maps it to its harness event (e.g. `PreToolUse`,
     `tool.execute.before`, ...); an event a harness cannot express is skipped
     for that harness and reported, never approximated."""
 
