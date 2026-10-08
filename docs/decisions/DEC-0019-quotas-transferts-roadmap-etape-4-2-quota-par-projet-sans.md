@@ -1,42 +1,11 @@
 ---
 id: DEC-0019
 title: 'Quotas transferts (roadmap etape 4.2) : quota par projet, sans fenetre temporelle'
-status: active
-date: '2026-09-13'
-superseded_by: null
-source: docs/DECISIONS.md
-sync_hash: sha256:40dacc2c0a838ecc7b4c60a1170b8801661d89c7fe805e1c584841ef443f404f
-graphify_entities:
-- kind: class
-  node_id: packages_studio_contracts_src_studio_contracts_transfers_transferconsumption
-  path: packages/studio-contracts/src/studio_contracts/transfers.py
-  project: studio-os
-  relation: implements
-  symbol: TransferConsumption
-- kind: function
-  node_id: services_api_src_studio_api_services_transfers_lock_quota_bucket
-  path: services/api/src/studio_api/services/transfers.py
-  project: studio-os
-  relation: implements
-  symbol: _lock_quota_bucket
-- kind: function
-  node_id: services_api_src_studio_api_services_transfers_compute_consumption
-  path: services/api/src/studio_api/services/transfers.py
-  project: studio-os
-  relation: implements
-  symbol: compute_consumption
-- kind: function
-  node_id: services_api_src_studio_api_services_transfers_enforce_transfer_limits
-  path: services/api/src/studio_api/services/transfers.py
-  project: studio-os
-  relation: implements
-  symbol: _enforce_transfer_limits
-- kind: function
-  node_id: services_api_src_studio_api_routers_transfers_get_consumption
-  path: services/api/src/studio_api/routers/transfers.py
-  project: studio-os
-  relation: implements
-  symbol: get_consumption
+status: accepted
+date: '2026-09-20'
+supersedes: []
+superseded_by: []
+source: server-export
 ---
 
 # DEC-0019 — Quotas transferts (roadmap etape 4.2) : quota par projet, sans fenetre temporelle

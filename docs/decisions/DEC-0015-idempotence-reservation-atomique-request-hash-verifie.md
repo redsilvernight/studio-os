@@ -1,8 +1,11 @@
 ---
 id: DEC-0015
 title: 'Idempotence : reservation atomique + `request_hash` verifie'
-source: docs/DECISIONS.md
-sync_hash: sha256:0202338c0c80ea179c207cf33265b0878ed4360a97e9c0e519bfada28067647b
+status: accepted
+date: '2026-09-20'
+supersedes: []
+superseded_by: []
+source: server-export
 ---
 
 # DEC-0015 — Idempotence : reservation atomique + `request_hash` verifie

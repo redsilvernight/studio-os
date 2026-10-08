@@ -2,7 +2,7 @@
 
 Base : `origin/desktop/integration` `4b8aad17f1b08840d68ea54d171231dc2f874d58` (P0→P8).
 Aucun contrat P1 modifié (pas de `contract-guardian`). Aucune dépendance à P9.
-Décision associée : [DEC-0095](decisions/DEC-0095-desktop-p10-packaging-graphify-non-redistribue.md) (`proposed`).
+Décision associée : [DEC-0095](decisions/DEC-0095-desktop-p10-installateur-nsis-par-utilisateur-sidecar.md) (`proposed`).
 
 ## 1. Audit initial (avant modification)
 

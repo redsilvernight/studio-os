@@ -1,11 +1,11 @@
 ---
 id: DEC-0008
 title: '`/api/v1/stream` : SSE (pas WebSocket)'
-status: active
-date: '2026-09-12'
-superseded_by: null
-source: docs/DECISIONS.md
-sync_hash: sha256:61086f3a70764b9becd05e7a2ce7cb15311152005acd807c584ec769870e6d1b
+status: accepted
+date: '2026-09-20'
+supersedes: []
+superseded_by: []
+source: server-export
 ---
 
 # DEC-0008 — `/api/v1/stream` : SSE (pas WebSocket)

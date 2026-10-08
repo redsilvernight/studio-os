@@ -1,18 +1,11 @@
 ---
 id: DEC-0012
 title: Identite utilisateur derivee de `Machine.owner_user_id`
-status: active
-date: '2026-09-13'
-superseded_by: null
-source: docs/DECISIONS.md
-sync_hash: sha256:5212ad183b9abe8aff5509881df659571c8ef53fd40f362cde0ac1304c072d0e
-graphify_entities:
-- kind: function
-  node_id: services_api_src_studio_api_deps_require_roles
-  path: services/api/src/studio_api/deps.py
-  project: studio-os
-  relation: concerns
-  symbol: require_roles
+status: accepted
+date: '2026-09-20'
+supersedes: []
+superseded_by: []
+source: server-export
 ---
 
 # DEC-0012 — Identite utilisateur derivee de `Machine.owner_user_id`

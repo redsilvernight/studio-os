@@ -303,8 +303,8 @@ types. Lanes consume frozen P1 fixtures rather than editing these concurrently.
 | File | Purpose |
 |---|---|
 | `docs/DESKTOP_P0_ARCHITECTURE_GATE.md` | Audit, recommendation, boundaries, threat model, compatibility, R1–R12 and parallelization plan |
-| `docs/decisions/DEC-0091-desktop-p0-tauri-shell-frontieres.md` | Accepted Tauri/thin-shell architecture decision (DEC-0091) |
-| `docs/decisions/DEC-0092-desktop-p0-codegraph-provider-graphify.md` | Accepted CodeGraphProvider and Graphify distribution decision (DEC-0092) |
+| `docs/decisions/DEC-0091-desktop-p0-tauri-2-comme-shell-mince-frontieres-desktop.md` | Accepted Tauri/thin-shell architecture decision (DEC-0091) |
+| `docs/decisions/DEC-0092-desktop-p0-codegraphprovider-neutre-graphify-optionnel.md` | Accepted CodeGraphProvider and Graphify distribution decision (DEC-0092) |
 | `docs/DECISIONS.md` | Deterministically regenerated decision index |
 
 No product, runtime contract, API schema, database model, Dashboard behavior,

@@ -2,24 +2,11 @@
 id: DEC-0021
 title: 'Sauvegarde Postgres/MinIO et restauration (roadmap etape 4.4) : scripts shell
   + pg_dump/pg_restore + mc mirror'
-status: active
-date: '2026-09-13'
-superseded_by: null
-source: docs/DECISIONS.md
-sync_hash: sha256:0f4a7179f212abaf7d659b061661b0eb1edf931c0dd49156cb9563266520aab5
-graphify_entities:
-- kind: file
-  node_id: docker_backup
-  path: docker/backup.sh
-  project: studio-os
-  relation: implements
-  symbol: backup.sh
-- kind: file
-  node_id: docker_restore
-  path: docker/restore.sh
-  project: studio-os
-  relation: implements
-  symbol: restore.sh
+status: accepted
+date: '2026-09-20'
+supersedes: []
+superseded_by: []
+source: server-export
 ---
 
 # DEC-0021 — Sauvegarde Postgres/MinIO et restauration (roadmap etape 4.4) : scripts shell + pg_dump/pg_restore + mc mirror

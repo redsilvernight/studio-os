@@ -2,36 +2,11 @@
 id: DEC-0025
 title: Integrite reelle d'upload via Content-MD5 natif S3 (correction d'un defaut
   confirme, pas le SHA256 declaratif)
-status: active
-date: '2026-09-13'
-superseded_by: null
-source: docs/DECISIONS.md
-sync_hash: sha256:cb1c6c289d35daae6fd76980b567a9c4aca4ba90510f0272bcdd72dc5c36d120
-graphify_entities:
-- kind: class
-  node_id: services_api_src_studio_api_storage_provider_storageprovider
-  path: services/api/src/studio_api/storage/provider.py
-  project: studio-os
-  relation: concerns
-  symbol: StorageProvider
-- kind: function
-  node_id: services_api_src_studio_api_services_transfers_complete_upload
-  path: services/api/src/studio_api/services/transfers.py
-  project: studio-os
-  relation: fixes
-  symbol: complete_upload
-- kind: function
-  node_id: services_api_src_studio_api_services_transfers_initiate_upload
-  path: services/api/src/studio_api/services/transfers.py
-  project: studio-os
-  relation: fixes
-  symbol: initiate_upload
-- kind: file
-  node_id: services_api_alembic_versions_0005_transfer_content_md5
-  path: services/api/alembic/versions/0005_transfer_content_md5.py
-  project: studio-os
-  relation: concerns
-  symbol: 0005_transfer_content_md5.py
+status: accepted
+date: '2026-09-20'
+supersedes: []
+superseded_by: []
+source: server-export
 ---
 
 # DEC-0025 — Integrite reelle d'upload via Content-MD5 natif S3 (correction d'un defaut confirme, pas le SHA256 declaratif)
