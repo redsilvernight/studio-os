@@ -9,6 +9,9 @@ export const NEAR = 1;
 export const MIN_DISTANCE = 8;
 export const MAX_DISTANCE = 4000;
 const PITCH_LIMIT = 1.45;
+/** Vue initiale presque de face : la disposition en disques reste lisible, le relief se devine. */
+const HOME_YAW = 0.1;
+const HOME_PITCH = 0.14;
 
 export function focalLength(height: number): number {
   return height / 2 / Math.tan(FOV / 2);
@@ -89,10 +92,10 @@ export function lerpCamera(a: AtlasCamera, b: AtlasCamera, t: number): AtlasCame
 
 /** Caméra qui cadre l'ensemble des points (vue initiale / « Recentrer »). */
 export function cameraFor(points: Vec3[]): AtlasCamera {
-  if (points.length === 0) return { yaw: 0.6, pitch: 0.35, distance: 120, target: { x: 0, y: 0, z: 0 } };
+  if (points.length === 0) return { yaw: HOME_YAW, pitch: HOME_PITCH, distance: 120, target: { x: 0, y: 0, z: 0 } };
   const c = points.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y, z: acc.z + p.z }), { x: 0, y: 0, z: 0 });
   const target = { x: c.x / points.length, y: c.y / points.length, z: c.z / points.length };
   const radius = Math.max(10, ...points.map((p) => Math.hypot(p.x - target.x, p.y - target.y, p.z - target.z)));
   const distance = Math.max(MIN_DISTANCE, Math.min(MAX_DISTANCE, radius / Math.sin(FOV / 2) * 1.05));
-  return { yaw: 0.6, pitch: 0.35, distance, target };
+  return { yaw: HOME_YAW, pitch: HOME_PITCH, distance, target };
 }
