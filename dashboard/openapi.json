@@ -3931,7 +3931,7 @@
      "decisions"
     ],
     "summary": "Supersede Decision",
-    "description": "Supersede a Decision (`proposed` or `accepted` -> `superseded`, terminal \u2014 no transition is ever allowed out of it). Admin role only. This is a state transition, not a creation: no `Idempotency-Key` \u2014 retrying after success answers `409 invalid_decision_transition`, never a duplicate transition.",
+    "description": "Supersede a Decision (`proposed` or `accepted` -> `superseded`, terminal \u2014 no transition is ever allowed out of it). Admin role only. This is a state transition, not a creation: no `Idempotency-Key` \u2014 retrying after success answers `409 invalid_decision_transition`, never a duplicate transition. Optional body `superseded_by` names the replacing Decision (internal UUID): the two are linked by a `supersedes` edge, so the replacement and what it replaced stay traceable in both directions. Omit it (or omit the body) to supersede without naming a replacement \u2014 the transition then records nothing but the status change.",
     "operationId": "supersede_decision_api_v1_decisions__decision_id__supersede_post",
     "security": [
      {
@@ -3950,6 +3950,23 @@
       }
      }
     ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/DecisionSupersede"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Body"
+       }
+      }
+     }
+    },
     "responses": {
      "200": {
       "description": "Successful Response",
@@ -4008,11 +4025,19 @@
       }
      },
      "422": {
-      "description": "Validation Error",
+      "description": "Supersede body rejected, nothing stored: `superseded_by` is optional, but when present it must be a UUID string \u2014 a malformed one is the framework's native 422 and no transition is attempted.",
       "content": {
        "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+        "example": {
+         "detail": [
+          {
+           "loc": [
+            "body",
+            "superseded_by"
+           ],
+           "msg": "Input should be a valid UUID"
+          }
+         ]
         }
        }
       }
@@ -9124,6 +9149,102 @@
     ]
    }
   },
+  "/api/v1/machines/{machine_id}/adopt": {
+   "post": {
+    "tags": [
+     "machines"
+    ],
+    "summary": "Adopt Machine",
+    "description": "Take over an existing machine of the caller's own User (A5): its credential is rotated, the machine keeps its `id` and history, and the new credential is returned in clear text exactly once. The previous credential stops working immediately. Another User's machine answers 404 for a non-admin, exactly like a nonexistent one; `agent` gets 403; a revoked machine answers 409. Not replayable: no `Idempotency-Key`.",
+    "operationId": "adopt_machine_api_v1_machines__machine_id__adopt_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "machine_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Machine Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MachineCreated"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version \u2014 re-read the object, merge, and retry with the new version.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "version_conflict",
+          "server_version": 3
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/v1/machines/{machine_id}/revoke": {
    "post": {
     "tags": [
@@ -13669,6 +13790,892 @@
      }
     }
    }
+  },
+  "/api/v1/vault/notes": {
+   "post": {
+    "tags": [
+     "vault"
+    ],
+    "summary": "Create Note",
+    "description": "Create a vault note. The server assigns `id`, `version`, `content_hash` and the author (the caller's user); a `decision` note also gets a `readable_id` from the shared DEC sequence. A slug already taken by a non-archived note of the same scope is `409 vault_slug_conflict`. Accepts `Idempotency-Key` for safe retries.",
+    "operationId": "create_note_api_v1_vault_notes_post",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/VaultNoteCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/VaultNote"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay). Vault slug conflict: a non-archived note of the same scope already owns this slug. Archive the previous note or pick another slug.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "idempotency_key_payload_mismatch"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Vault payload rejected, nothing stored: a link targets a note that is not a readable studio note nor in the same project (`invalid_vault_link`), a project listing lacks `project_id` (`missing_project_id`), or a pagination cursor is malformed (`invalid_cursor`).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_vault_link",
+          "target_note_id": "..."
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/vault/notes/{note_id}": {
+   "get": {
+    "tags": [
+     "vault"
+    ],
+    "summary": "Get Note",
+    "description": "Get one vault note by id, links included. A project note the caller cannot access answers `403 forbidden` (resource `project`).",
+    "operationId": "get_note_api_v1_vault_notes__note_id__get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "note_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Note Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/VaultNote"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "patch": {
+    "tags": [
+     "vault"
+    ],
+    "summary": "Update Note",
+    "description": "Mutate a vault note. `expected_version` is mandatory; a stale value is rejected with the live server version. Scope, project and slug never change. No DELETE exists: archiving is a `status` write. Accepts `Idempotency-Key` for safe retries: replaying the same key with the identical body returns the first response instead of writing a new version, even though `expected_version` is now stale.",
+    "operationId": "update_note_api_v1_vault_notes__note_id__patch",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "note_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Note Id"
+      }
+     },
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/VaultNoteUpdate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/VaultNote"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay). Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version \u2014 re-read the object, merge, and retry with the new version.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "idempotency_key_payload_mismatch"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Vault payload rejected, nothing stored: a link targets a note that is not a readable studio note nor in the same project (`invalid_vault_link`), a project listing lacks `project_id` (`missing_project_id`), or a pagination cursor is malformed (`invalid_cursor`).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_vault_link",
+          "target_note_id": "..."
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/vault/notes/{note_id}/versions": {
+   "get": {
+    "tags": [
+     "vault"
+    ],
+    "summary": "List Versions",
+    "description": "List a note's immutable history, oldest version first. Every accepted write (creation included) appends one version. Paginated with an opaque cursor.",
+    "operationId": "list_versions_api_v1_vault_notes__note_id__versions_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "note_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Note Id"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 200,
+       "minimum": 1,
+       "default": 50,
+       "title": "Limit"
+      }
+     },
+     {
+      "name": "cursor",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Cursor"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/VaultVersionPage"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/vault/notes/{note_id}/versions/{version}": {
+   "get": {
+    "tags": [
+     "vault"
+    ],
+    "summary": "Get Version",
+    "description": "Get one immutable version of a note by its version number.",
+    "operationId": "get_version_api_v1_vault_notes__note_id__versions__version__get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "note_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Note Id"
+      }
+     },
+     {
+      "name": "version",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Version"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/VaultNoteVersion"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "task not found"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/vault/tree": {
+   "get": {
+    "tags": [
+     "vault"
+    ],
+    "summary": "Tree",
+    "description": "List vault notes as summaries (no `body`), ordered by slug, with an opaque keyset cursor. `scope` narrows to studio or project (project requires `project_id`); without a scope, a caller sees studio notes plus the notes of its accessible projects. Archived notes are excluded unless `include_archived`.",
+    "operationId": "tree_api_v1_vault_tree_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "scope",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "$ref": "#/components/schemas/VaultScope"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Scope"
+      }
+     },
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Project Id"
+      }
+     },
+     {
+      "name": "prefix",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Prefix"
+      }
+     },
+     {
+      "name": "status",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "$ref": "#/components/schemas/VaultNoteStatus"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status"
+      }
+     },
+     {
+      "name": "include_archived",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "boolean",
+       "default": false,
+       "title": "Include Archived"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 200,
+       "minimum": 1,
+       "default": 50,
+       "title": "Limit"
+      }
+     },
+     {
+      "name": "cursor",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Cursor"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/VaultTreePage"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/vault/search": {
+   "get": {
+    "tags": [
+     "vault"
+    ],
+    "summary": "Search",
+    "description": "Ranked search over the vault notes the caller may read. Criteria: `q` (full text, French stemming, words OR-ed), `path` (repeatable, repo-relative) and `task_id` (anchors); at least one is required (422 `missing_search_criteria`). Order: notes anchored to a requested path (or an enclosing directory) or task first, then notes one link away from them, then full-text matches; inside a group by lexical rank, status (validated first), recency. Filters: `scope`, `project_id` (studio notes plus that project's), `note_type` and `status` (repeatable, OR). Superseded notes are excluded unless `include_superseded` or an explicit `status`; archived ones unless an explicit `status`. Hits carry the summary and a short snippet, never the body; `max_chars` caps the answer's text.",
+    "operationId": "search_api_v1_vault_search_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "q",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "maxLength": 1000
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Q"
+      }
+     },
+     {
+      "name": "scope",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "$ref": "#/components/schemas/VaultScope"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Scope"
+      }
+     },
+     {
+      "name": "project_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Project Id"
+      }
+     },
+     {
+      "name": "note_type",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "array",
+       "items": {
+        "$ref": "#/components/schemas/VaultNoteType"
+       },
+       "title": "Note Type"
+      }
+     },
+     {
+      "name": "status",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "array",
+       "items": {
+        "$ref": "#/components/schemas/VaultNoteStatus"
+       },
+       "title": "Status"
+      }
+     },
+     {
+      "name": "include_superseded",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "boolean",
+       "default": false,
+       "title": "Include Superseded"
+      }
+     },
+     {
+      "name": "path",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "maxItems": 20,
+       "title": "Path"
+      }
+     },
+     {
+      "name": "task_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "format": "uuid"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Task Id"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 50,
+       "minimum": 1,
+       "default": 10,
+       "title": "Limit"
+      }
+     },
+     {
+      "name": "max_chars",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 20000,
+       "minimum": 500,
+       "default": 6000,
+       "title": "Max Chars"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/VaultSearchResult"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Vault payload rejected, nothing stored: a link targets a note that is not a readable studio note nor in the same project (`invalid_vault_link`), a project listing lacks `project_id` (`missing_project_id`), or a pagination cursor is malformed (`invalid_cursor`).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_vault_link",
+          "target_note_id": "..."
+         }
+        }
+       }
+      }
+     }
+    }
+   }
   }
  },
  "components": {
@@ -15377,6 +16384,26 @@
      "superseded"
     ],
     "title": "DecisionStatus"
+   },
+   "DecisionSupersede": {
+    "properties": {
+     "superseded_by": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Superseded By"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "DecisionSupersede",
+    "description": "Body of the supersede transition. Every field is optional: an absent or\nempty body keeps the historical behavior (the Decision is simply\nsuperseded, no replacement recorded). `superseded_by` names the replacing\nDecision and is what the `supersedes` link is made of \u2014 a claim about\nintent, never a validity gate on the transition."
    },
    "DependencyChange": {
     "properties": {
@@ -17779,7 +18806,7 @@
      "display_name"
     ],
     "title": "MachineCreate",
-    "description": "`owner_user_id` is optional (A5): absent, the machine belongs to the\ncaller's own User. A non-admin may only name itself \u2014 the server never\nlets it choose another owner, and never looks that other User up. Only\n`admin` provisions a machine for someone else."
+    "description": "`owner_user_id` is optional (A5): absent, the machine belongs to the\ncaller's own User. A non-admin may only name itself \u2014 the server never\nlets it choose another owner, and never looks that other User up. Only\n`admin` provisions a machine for someone else. `display_name` is the\nworkstation name shown in \u00ab Postes \u00bb (default: the enrollment station's\nown hostname, editable): stripped, never blank, at most 100 characters."
    },
    "MachineCreated": {
     "properties": {
@@ -18021,6 +19048,10 @@
     ],
     "title": "MachineUpdate",
     "description": "Update a machine's display name. Only the owner or an admin."
+   },
+   "NoteItem": {
+    "additionalProperties": true,
+    "type": "object"
    },
    "Page_TaskLaunch_": {
     "properties": {
@@ -24092,6 +25123,807 @@
     ],
     "title": "ValidationError"
    },
+   "VaultActorType": {
+    "type": "string",
+    "enum": [
+     "user",
+     "agent",
+     "system"
+    ],
+    "title": "VaultActorType"
+   },
+   "VaultLinkKind": {
+    "type": "string",
+    "enum": [
+     "links_to",
+     "relates_to",
+     "derived_from",
+     "supersedes"
+    ],
+    "title": "VaultLinkKind"
+   },
+   "VaultNote": {
+    "properties": {
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "scope": {
+      "$ref": "#/components/schemas/VaultScope"
+     },
+     "project_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Project Id"
+     },
+     "slug": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "pattern": "^[a-z0-9]+(?:[-_/][a-z0-9]+)*$",
+      "title": "Slug"
+     },
+     "readable_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Readable Id"
+     },
+     "note_type": {
+      "$ref": "#/components/schemas/VaultNoteType",
+      "default": "note"
+     },
+     "title": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Title"
+     },
+     "summary": {
+      "type": "string",
+      "maxLength": 600,
+      "title": "Summary",
+      "default": ""
+     },
+     "status": {
+      "$ref": "#/components/schemas/VaultNoteStatus",
+      "default": "draft"
+     },
+     "tags": {
+      "items": {
+       "type": "string",
+       "maxLength": 48,
+       "minLength": 1,
+       "pattern": "^[a-z0-9][a-z0-9_.-]*$"
+      },
+      "type": "array",
+      "maxItems": 20,
+      "title": "Tags"
+     },
+     "links": {
+      "items": {
+       "$ref": "#/components/schemas/VaultNoteLink"
+      },
+      "type": "array",
+      "maxItems": 200,
+      "title": "Links"
+     },
+     "anchors": {
+      "items": {
+       "type": "string",
+       "maxLength": 300,
+       "minLength": 6,
+       "pattern": "^(?:task:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|path:[^\\s\\\\:*?\\\"<>|]+)$"
+      },
+      "type": "array",
+      "maxItems": 20,
+      "title": "Anchors"
+     },
+     "content_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Content Hash"
+     },
+     "author_type": {
+      "$ref": "#/components/schemas/VaultActorType"
+     },
+     "author_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Author Id"
+     },
+     "body": {
+      "type": "string",
+      "maxLength": 262144,
+      "title": "Body"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "created_at",
+     "updated_at",
+     "version",
+     "id",
+     "scope",
+     "slug",
+     "title",
+     "content_hash",
+     "author_type",
+     "author_id",
+     "body"
+    ],
+    "title": "VaultNote",
+    "description": "A vault note, the unit of knowledge stored by the server.\n\nIdentity: `id` is stable; `(scope, project_id, slug)` is unique among notes\nthat are not archived. `readable_id` is assigned by the server, never by the\nclient, and only for numbered note types (a decision gets its readable identifier);\nit is `None` for every other type.\n\nConcurrency: `version` starts at 1 and grows by one on each accepted write;\na write carries `expected_version` and a stale one is a 409 carrying the\nserver version. Every accepted write appends a `VaultNoteVersion`.\n\nPrecedence: for the same `slug`, the project note prevails over the studio\nnote within that project (see `effective_notes`)."
+   },
+   "VaultNoteCreate": {
+    "properties": {
+     "scope": {
+      "$ref": "#/components/schemas/VaultScope"
+     },
+     "project_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Project Id"
+     },
+     "slug": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "pattern": "^[a-z0-9]+(?:[-_/][a-z0-9]+)*$",
+      "title": "Slug"
+     },
+     "note_type": {
+      "$ref": "#/components/schemas/VaultNoteType",
+      "default": "note"
+     },
+     "title": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Title"
+     },
+     "summary": {
+      "type": "string",
+      "maxLength": 600,
+      "title": "Summary",
+      "default": ""
+     },
+     "body": {
+      "type": "string",
+      "maxLength": 262144,
+      "title": "Body"
+     },
+     "status": {
+      "$ref": "#/components/schemas/VaultNoteStatus",
+      "default": "draft"
+     },
+     "tags": {
+      "items": {
+       "type": "string",
+       "maxLength": 48,
+       "minLength": 1,
+       "pattern": "^[a-z0-9][a-z0-9_.-]*$"
+      },
+      "type": "array",
+      "maxItems": 20,
+      "title": "Tags"
+     },
+     "links": {
+      "items": {
+       "$ref": "#/components/schemas/VaultNoteLink"
+      },
+      "type": "array",
+      "maxItems": 200,
+      "title": "Links"
+     },
+     "anchors": {
+      "items": {
+       "type": "string",
+       "maxLength": 300,
+       "minLength": 6,
+       "pattern": "^(?:task:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|path:[^\\s\\\\:*?\\\"<>|]+)$"
+      },
+      "type": "array",
+      "maxItems": 20,
+      "title": "Anchors"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "scope",
+     "slug",
+     "title",
+     "body"
+    ],
+    "title": "VaultNoteCreate",
+    "description": "Creation payload. The server assigns `id`, `readable_id`, `version`,\n`content_hash` and the author (from the authenticated actor). A new note\nstarts as `draft`, or `proposed` when the client asks for validation."
+   },
+   "VaultNoteLink": {
+    "properties": {
+     "target_note_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Target Note Id"
+     },
+     "kind": {
+      "$ref": "#/components/schemas/VaultLinkKind",
+      "default": "links_to"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "target_note_id"
+    ],
+    "title": "VaultNoteLink",
+    "description": "A typed, directed link from a note to another note of the same studio.\nThe target may live in the other scope."
+   },
+   "VaultNoteStatus": {
+    "type": "string",
+    "enum": [
+     "draft",
+     "proposed",
+     "validated",
+     "superseded",
+     "archived"
+    ],
+    "title": "VaultNoteStatus",
+    "description": "Lifecycle of a note. A decision note maps one-to-one onto the existing\ndecision statuses: `proposed` -> `proposed`, `accepted` -> `validated`,\n`superseded` -> `superseded`."
+   },
+   "VaultNoteSummary": {
+    "properties": {
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "scope": {
+      "$ref": "#/components/schemas/VaultScope"
+     },
+     "project_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Project Id"
+     },
+     "slug": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "pattern": "^[a-z0-9]+(?:[-_/][a-z0-9]+)*$",
+      "title": "Slug"
+     },
+     "readable_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Readable Id"
+     },
+     "note_type": {
+      "$ref": "#/components/schemas/VaultNoteType",
+      "default": "note"
+     },
+     "title": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Title"
+     },
+     "summary": {
+      "type": "string",
+      "maxLength": 600,
+      "title": "Summary",
+      "default": ""
+     },
+     "status": {
+      "$ref": "#/components/schemas/VaultNoteStatus",
+      "default": "draft"
+     },
+     "tags": {
+      "items": {
+       "type": "string",
+       "maxLength": 48,
+       "minLength": 1,
+       "pattern": "^[a-z0-9][a-z0-9_.-]*$"
+      },
+      "type": "array",
+      "maxItems": 20,
+      "title": "Tags"
+     },
+     "links": {
+      "items": {
+       "$ref": "#/components/schemas/VaultNoteLink"
+      },
+      "type": "array",
+      "maxItems": 200,
+      "title": "Links"
+     },
+     "anchors": {
+      "items": {
+       "type": "string",
+       "maxLength": 300,
+       "minLength": 6,
+       "pattern": "^(?:task:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|path:[^\\s\\\\:*?\\\"<>|]+)$"
+      },
+      "type": "array",
+      "maxItems": 20,
+      "title": "Anchors"
+     },
+     "content_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Content Hash"
+     },
+     "author_type": {
+      "$ref": "#/components/schemas/VaultActorType"
+     },
+     "author_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Author Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "created_at",
+     "updated_at",
+     "version",
+     "id",
+     "scope",
+     "slug",
+     "title",
+     "content_hash",
+     "author_type",
+     "author_id"
+    ],
+    "title": "VaultNoteSummary",
+    "description": "The tree view of a note: everything a `VaultNote` carries except `body`,\nso a listing never ships the note's prose. See `VaultNote` for the shared\ninvariants."
+   },
+   "VaultNoteType": {
+    "type": "string",
+    "enum": [
+     "decision",
+     "rule",
+     "convention",
+     "procedure",
+     "reference",
+     "lesson",
+     "note"
+    ],
+    "title": "VaultNoteType"
+   },
+   "VaultNoteUpdate": {
+    "properties": {
+     "expected_version": {
+      "type": "integer",
+      "minimum": 1.0,
+      "title": "Expected Version"
+     },
+     "title": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 200,
+        "minLength": 1
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Title"
+     },
+     "summary": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 600
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Summary"
+     },
+     "body": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 262144
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Body"
+     },
+     "status": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/VaultNoteStatus"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "tags": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string",
+         "maxLength": 48,
+         "minLength": 1,
+         "pattern": "^[a-z0-9][a-z0-9_.-]*$"
+        },
+        "type": "array",
+        "maxItems": 20
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Tags"
+     },
+     "links": {
+      "anyOf": [
+       {
+        "items": {
+         "$ref": "#/components/schemas/VaultNoteLink"
+        },
+        "type": "array",
+        "maxItems": 200
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Links"
+     },
+     "anchors": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string",
+         "maxLength": 300,
+         "minLength": 6,
+         "pattern": "^(?:task:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|path:[^\\s\\\\:*?\\\"<>|]+)$"
+        },
+        "type": "array",
+        "maxItems": 20
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Anchors"
+     },
+     "change_summary": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 600
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Change Summary"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "expected_version"
+    ],
+    "title": "VaultNoteUpdate",
+    "description": "Partial write on an existing note. `expected_version` is mandatory.\nScope, project and slug never change; moving a note is a new note plus a\n`supersedes` link. Absent fields are left untouched; `tags`, `links` and\n`anchors` replace the whole list when present."
+   },
+   "VaultNoteVersion": {
+    "properties": {
+     "note_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Note Id"
+     },
+     "version": {
+      "type": "integer",
+      "minimum": 1.0,
+      "title": "Version"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "summary": {
+      "type": "string",
+      "title": "Summary"
+     },
+     "body": {
+      "type": "string",
+      "title": "Body"
+     },
+     "status": {
+      "$ref": "#/components/schemas/VaultNoteStatus"
+     },
+     "tags": {
+      "items": {
+       "type": "string",
+       "maxLength": 48,
+       "minLength": 1,
+       "pattern": "^[a-z0-9][a-z0-9_.-]*$"
+      },
+      "type": "array",
+      "title": "Tags"
+     },
+     "links": {
+      "items": {
+       "$ref": "#/components/schemas/VaultNoteLink"
+      },
+      "type": "array",
+      "title": "Links"
+     },
+     "anchors": {
+      "items": {
+       "type": "string",
+       "maxLength": 300,
+       "minLength": 6,
+       "pattern": "^(?:task:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|path:[^\\s\\\\:*?\\\"<>|]+)$"
+      },
+      "type": "array",
+      "title": "Anchors"
+     },
+     "content_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Content Hash"
+     },
+     "change_summary": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Change Summary"
+     },
+     "author_type": {
+      "$ref": "#/components/schemas/VaultActorType"
+     },
+     "author_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Author Id"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "note_id",
+     "version",
+     "title",
+     "summary",
+     "body",
+     "status",
+     "content_hash",
+     "author_type",
+     "author_id",
+     "created_at"
+    ],
+    "title": "VaultNoteVersion",
+    "description": "One immutable entry of a note's history, appended on every accepted write\n(creation included). Append-only; the latest entry equals the current note."
+   },
+   "VaultScope": {
+    "type": "string",
+    "enum": [
+     "studio",
+     "project"
+    ],
+    "title": "VaultScope",
+    "description": "Where a note lives. `studio` notes are transverse to every project of the\nstudio; `project` notes belong to exactly one project."
+   },
+   "VaultSearchHit": {
+    "properties": {
+     "note": {
+      "$ref": "#/components/schemas/VaultNoteSummary"
+     },
+     "reason": {
+      "$ref": "#/components/schemas/VaultSearchReason"
+     },
+     "matched_anchors": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Matched Anchors"
+     },
+     "rank": {
+      "type": "number",
+      "minimum": 0.0,
+      "title": "Rank"
+     },
+     "snippet": {
+      "type": "string",
+      "maxLength": 280,
+      "title": "Snippet",
+      "default": ""
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "note",
+     "reason",
+     "rank"
+    ],
+    "title": "VaultSearchHit",
+    "description": "A search result, bounded in size: no `body`, a `snippet` of at most\n`VAULT_SEARCH_SNIPPET_MAX` characters around the matched words instead."
+   },
+   "VaultSearchReason": {
+    "type": "string",
+    "enum": [
+     "anchor",
+     "linked",
+     "lexical"
+    ],
+    "title": "VaultSearchReason",
+    "description": "Why a hit was returned, strongest first; hits are ordered by reason,\nthen by lexical rank."
+   },
+   "VaultSearchResult": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/VaultSearchHit"
+      },
+      "type": "array",
+      "title": "Items"
+     },
+     "total": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Total"
+     },
+     "truncated": {
+      "type": "boolean",
+      "title": "Truncated",
+      "default": false
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "items",
+     "total"
+    ],
+    "title": "VaultSearchResult",
+    "description": "Ranked hits. `total` counts every matching note the reader may see;\n`truncated` is true when `limit` or the `max_chars` text budget left\nmatching notes out."
+   },
+   "VaultTreePage": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/VaultNoteSummary"
+      },
+      "type": "array",
+      "title": "Items"
+     },
+     "next_cursor": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Next Cursor"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "items"
+    ],
+    "title": "VaultTreePage",
+    "description": "A page of the vault tree: summaries (no `body`) ordered by slug, plus an\nopaque cursor to fetch the next page (`null` when the last page was read)."
+   },
+   "VaultVersionPage": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/VaultNoteVersion"
+      },
+      "type": "array",
+      "title": "Items"
+     },
+     "next_cursor": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Next Cursor"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "items"
+    ],
+    "title": "VaultVersionPage",
+    "description": "A page of a note's immutable history, ordered by ascending `version`,\nplus an opaque cursor to fetch the next page (`null` on the last one)."
+   },
    "VerifyEmailRequest": {
     "properties": {
      "token": {
@@ -24179,7 +26011,9 @@
        "path_conflict",
        "project_scope",
        "lexical",
-       "active_roadmap"
+       "active_roadmap",
+       "vault_anchor",
+       "vault_link"
       ],
       "title": "Reason"
      },
@@ -24552,6 +26386,10 @@
   {
    "name": "decisions",
    "description": "Recorded project decisions with stable human-readable ids."
+  },
+  {
+   "name": "vault",
+   "description": "Two-scope knowledge vault (`studio` and `project`). Studio notes are transverse to every project; project notes follow project memberships. Notes are versioned, linkable and never deleted \u2014 archiving is a `status` write. Decisions get a stable `readable_id` from the shared DEC sequence."
   },
   {
    "name": "library",

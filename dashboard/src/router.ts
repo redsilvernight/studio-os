@@ -17,6 +17,8 @@ export type Route =
   | { name: "admin" }
   | { name: "decisions" }
   | { name: "transfers" }
+  | { name: "vault" }
+  | { name: "vaultDetail"; id: string }
   | { name: "library"; kind: LibraryKindSlug | null }
   | { name: "libraryDetail"; kind: LibraryKindSlug; id: string }
   | { name: "configRuntimes" }
@@ -76,6 +78,11 @@ export function parseRoute(hash: string): Route {
   if ((parts[0] === "administration" || parts[0] === "admin") && parts.length === 1) return { name: "admin" };
   if (parts[0] === "decisions" && parts.length === 1) return { name: "decisions" };
   if (parts[0] === "transfers" && parts.length === 1) return { name: "transfers" };
+  if (parts[0] === "vault") {
+    if (parts.length === 1) return { name: "vault" };
+    if (parts.length === 2 && parts[1] !== undefined) return { name: "vaultDetail", id: decode(parts[1]) };
+    return notFound(hash);
+  }
   if (parts[0] === "library") {
     if (parts.length === 1) return { name: "library", kind: null };
     const kind = parts[1];

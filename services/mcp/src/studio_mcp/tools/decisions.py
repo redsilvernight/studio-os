@@ -123,16 +123,35 @@ async def studio_accept_decision(decision_id: str, ctx: Context) -> dict[str, An
     return await run_tool(ctx, _handler)
 
 
-async def studio_supersede_decision(decision_id: str, ctx: Context) -> dict[str, Any]:
+async def studio_supersede_decision(
+    decision_id: str, ctx: Context, superseded_by: str | None = None
+) -> dict[str, Any]:
     """Supersede a Decision (`proposed` or `accepted` -> `superseded`,
     terminal — no transition is ever allowed out of it). Admin role only.
-    Not a creation: no `idempotency_key`."""
+    Not a creation: no `idempotency_key`. Optional `superseded_by` (UUID
+    string of the replacing Decision) records what supersedes this one —
+    the two are linked by a `supersedes` edge. Omit it to supersede
+    without naming a replacement: the status change is identical, only the
+    link is missing."""
 
     async def _handler(session: AsyncSession, principal: Principal) -> dict[str, Any]:
         parsed = parse_uuid(decision_id, "decision_id")
         if isinstance(parsed, dict):
             return parsed
-        decision = await decisions_service.supersede_decision(session, principal, parsed)
+        parsed_superseded_by = None
+        if superseded_by is not None:
+            parsed_superseded = parse_uuid(superseded_by, "superseded_by")
+            if isinstance(parsed_superseded, dict):
+                return parsed_superseded
+            parsed_superseded_by = parsed_superseded
+        if parsed_superseded_by is None:
+            # Additive: without a replacement, the service is called exactly
+            # as before, so no existing call changes shape.
+            decision = await decisions_service.supersede_decision(session, principal, parsed)
+        else:
+            decision = await decisions_service.supersede_decision(
+                session, principal, parsed, superseded_by=parsed_superseded_by
+            )
         return _compact_decision(decision)
 
     return await run_tool(ctx, _handler)

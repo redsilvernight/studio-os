@@ -1097,6 +1097,8 @@ async function associateFolder(
   return again();
 }
 
+const DEFAULT_MEMORY_FOLDER = "vault";
+
 async function paintMemoire(
   root: HTMLElement,
   platform: Platform,
@@ -1129,9 +1131,8 @@ async function paintMemoire(
     errorHtml(session.error) +
     noticeHtml(session.notice) +
     `<dl class="settings-rows"><div class="settings-row"><dt>Mémoire du projet</dt><dd>${esc(text)}</dd></div></dl>` +
-    `<p class="settings-intro">Vous pourrez ouvrir ce dossier dans Obsidian ou tout autre éditeur Markdown : Obsidian n'est jamais requis.</p>` +
+    `<p class="settings-intro">La mémoire est rangée dans le dossier du projet, sans rien à choisir. Vous pourrez l'ouvrir dans Obsidian ou tout autre éditeur Markdown : Obsidian n'est jamais requis.</p>` +
     `<form class="settings-server-form" data-testid="memory-folder-form">` +
-    `<label class="settings-field">Dossier de la mémoire (dans le projet)<input id="memory-folder-input" name="memory_folder" type="text" autocomplete="off" spellcheck="false" maxlength="64" value="vault" /></label>` +
     `<div class="settings-actions"><button class="ds-btn ds-btn--primary" type="submit">Activer la mémoire</button></div></form>` +
     navButtons({
       prev: previousStep("memoire"),
@@ -1151,8 +1152,7 @@ async function paintMemoire(
       submit.textContent = "Activation en cours…";
     }
     form.setAttribute("aria-busy", "true");
-    const contentRoot = (root.querySelector<HTMLInputElement>("#memory-folder-input")?.value ?? "vault").trim() || "vault";
-    enableKnowledge(root, platform, session, contentRoot, again).catch(() => {
+    enableKnowledge(root, platform, session, again).catch(() => {
       session.error = "L'activation de la mémoire a échoué. Réessayez ou passez cette étape.";
       void again();
     });
@@ -1175,7 +1175,6 @@ async function enableKnowledge(
   root: HTMLElement,
   platform: Platform,
   session: SessionData,
-  contentRoot: string,
   again: () => Promise<void>,
 ): Promise<void> {
   const workspaceId = session.state.workspaceId;
@@ -1190,6 +1189,11 @@ async function enableKnowledge(
   }
   const stored = answer.response.payload as Record<string, unknown>;
   const storedRoots = stored.roots as Record<string, unknown>;
+  const storedKnowledge = (stored.knowledge as Record<string, unknown> | undefined) ?? {};
+  const contentRoot =
+    typeof storedKnowledge.content_root === "string" && storedKnowledge.content_root.trim()
+      ? storedKnowledge.content_root
+      : DEFAULT_MEMORY_FOLDER;
   const config = {
     ...(stored as object),
     features: { ...((stored.features as Record<string, unknown>) ?? {}), knowledge: true },

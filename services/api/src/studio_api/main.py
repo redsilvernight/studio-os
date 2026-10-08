@@ -46,6 +46,7 @@ from studio_api.routers import (
     timeline,
     transfers,
     users,
+    vault,
     version,
 )
 
@@ -85,6 +86,13 @@ OPENAPI_TAG_DESCRIPTIONS: dict[str, str] = {
         "write, a Git operation, or a transfer."
     ),
     "decisions": "Recorded project decisions with stable human-readable ids.",
+    "vault": (
+        "Two-scope knowledge vault (`studio` and `project`). Studio notes are "
+        "transverse to every project; project notes follow project memberships. "
+        "Notes are versioned, linkable and never deleted — archiving is a "
+        "`status` write. Decisions get a stable `readable_id` from the shared "
+        "DEC sequence."
+    ),
     "library": (
         "Reusable AI definitions (rules, skills, agent definitions, model "
         "profiles, workflows) with immutable versions, explicit activation "
@@ -281,6 +289,7 @@ def create_app() -> FastAPI:
     app.include_router(users.router)
     app.include_router(roadmaps.router)
     app.include_router(initialization.router)
+    app.include_router(vault.router)
 
     return app
 

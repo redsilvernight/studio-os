@@ -17,7 +17,7 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 `POST /decisions` disponible.
 
 
-148 decision(s). Detail complet dans chaque ADR lie.
+149 decision(s). Detail complet dans chaque ADR lie.
 
 
 | ID | Titre | Statut | ADR |
@@ -170,3 +170,4 @@ Git, conformement a `AI/01_AI_OPERATING_REFERENCE.md` (regle 3) et au skill
 | DEC-0181 | Compatibilité du manifest bootstrap : lecture v1 uniquement et refus explicite | proposed | [decisions/DEC-0181-compatibilite-manifest-bootstrap-v1.md](decisions/DEC-0181-compatibilite-manifest-bootstrap-v1.md) |
 | DEC-0185 | GET /tasks : filtres additifs status et mine pour les vues Travail | proposed | [decisions/DEC-0185-filtres-taches-status-mine.md](decisions/DEC-0185-filtres-taches-status-mine.md) |
 | DEC-0186 | MCP : déprécier les outils redondants de session et de claim, retrait après la fenêtre de transition | proposed | [decisions/DEC-0186-deprecation-outils-mcp-redondants.md](decisions/DEC-0186-deprecation-outils-mcp-redondants.md) |
+| DEC-0187 | Vault serveur à deux portées (studio / projet) et DEC unifiées | proposed | [decisions/DEC-0187-vault-serveur-deux-portees.md](decisions/DEC-0187-vault-serveur-deux-portees.md) |

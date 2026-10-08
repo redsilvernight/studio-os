@@ -202,6 +202,30 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
         Probe("/api/v1/decisions/{decision}/supersede", {}, expect="role"),
         Probe(f"/api/v1/decisions/{_UNKNOWN}/supersede", {}, expect="role"),
     ),
+    ("POST", "/api/v1/vault/notes"): (
+        Probe(
+            "/api/v1/vault/notes",
+            {
+                "scope": "project",
+                "project_id": "{pid}",
+                "slug": "outsider-note",
+                "title": "x",
+                "body": "x",
+            },
+        ),
+    ),
+    ("GET", "/api/v1/vault/notes/{note_id}"): (Probe("/api/v1/vault/notes/{note}"),),
+    ("PATCH", "/api/v1/vault/notes/{note_id}"): (
+        Probe("/api/v1/vault/notes/{note}", {"expected_version": 1, "title": "x"}),
+    ),
+    ("GET", "/api/v1/vault/notes/{note_id}/versions"): (
+        Probe("/api/v1/vault/notes/{note}/versions"),
+    ),
+    ("GET", "/api/v1/vault/notes/{note_id}/versions/{version}"): (
+        Probe("/api/v1/vault/notes/{note}/versions/1"),
+    ),
+    ("GET", "/api/v1/vault/tree"): (Probe("/api/v1/vault/tree?project_id={pid}"),),
+    ("GET", "/api/v1/vault/search"): (Probe("/api/v1/vault/search?q=vault&project_id={pid}"),),
     ("GET", "/api/v1/library"): (
         Probe("/api/v1/library?project_id={pid}"),
         Probe("/api/v1/library", expect="filtered"),
@@ -519,6 +543,12 @@ async def _build_world(
             "proposed_by_id": me["owner_user_id"],
         },
     )
+    note = await _post(
+        client,
+        member,
+        "/api/v1/vault/notes",
+        {"scope": "project", "project_id": pid, "slug": f"note-{slug}", "title": "n", "body": "n"},
+    )
     lib = await _post(
         client,
         member,
@@ -614,6 +644,7 @@ async def _build_world(
         "session": session["id"],
         "claim": claim["id"],
         "decision": decision["id"],
+        "note": note["id"],
         "lib": lib["id"],
         "lock": lock["id"],
         "binding": binding["id"],
@@ -639,7 +670,7 @@ _LEAK_KEYS: tuple[str, ...] = (
     "binding",
     "work",
 )
-_LEAK_KEYS += ("build", "job", "transfer", "roadmap")
+_LEAK_KEYS += ("build", "job", "transfer", "roadmap", "note")
 
 
 def _render(value: Any, world: dict[str, str]) -> Any:

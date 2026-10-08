@@ -430,6 +430,58 @@ public de bootstrap, pas de secret d'environnement dedie.
 - POST /decisions/{id}/supersede (additif, DEC-0098) — `proposed|accepted ->
   superseded` (terminal, aucune transition n'en sort). Role admin
   uniquement, memes regles de non-idempotence que `accept`.
+- `POST /decisions/{id}/supersede` accepte en plus un corps JSON **optionnel**
+  `DecisionSupersede` (`{"superseded_by": "<uuid>"}`) ; corps absent =
+  comportement actuel inchange. `superseded_by` est l'UUID de la decision
+  **remplacante** : les deux sont reliees par un lien `supersedes`, donc le
+  remplacement et ce qu'il remplace restent tracables dans les deux sens. Le
+  lien est une declaration d'intention, jamais une porte de validite de la
+  transition ; un `superseded_by` mal forme est le `422` natif du framework
+  et rien n'est ecrit. La decision et ses transitions sont refletees dans une
+  note vault `note_type=decision` de meme `readable_id` (DEC-0193).
+
+### Vault (roadmap vault serveur P03, additif, DEC-0187)
+Notes a deux portees (`studio`, `project`) ; schemas `studio_contracts.vault`.
+- POST /vault/notes (`Idempotency-Key`) — `VaultNoteCreate` -> `201 VaultNote`.
+  Le serveur fixe `id`, `version=1`, `content_hash`, l'auteur (principal) et,
+  pour `note_type=decision`, le `readable_id` (sequence commune aux DEC). Slug
+  deja pris par une note non archivee de la meme portee -> `409 vault_slug_conflict`.
+- GET /vault/notes/{id} -> `VaultNote` (liens inclus).
+- PATCH /vault/notes/{id} — `VaultNoteUpdate` (`expected_version` obligatoire) ->
+  `VaultNote`. Version perimee -> `409 version_conflict` + `server_version`.
+  Portee, projet et slug immuables ; pas de DELETE (archivage = `status`).
+- GET /vault/notes/{id}/versions?limit&cursor -> `VaultVersionPage` ;
+  GET /vault/notes/{id}/versions/{version} -> `VaultNoteVersion`. Chaque
+  ecriture acceptee (creation incluse) ajoute une version immuable.
+- GET /vault/tree?scope&project_id&prefix&status&include_archived&limit&cursor
+  -> `VaultTreePage` (resumes sans `body`, tri par slug, curseur opaque ;
+  `limit` 1..200, defaut 50 ; archivees exclues par defaut).
+- Droits : portee `project` = memberships (`403 forbidden` sinon). Portee
+  `studio` : lecture pour tout compte actif ; creation/modification en
+  `draft|proposed` pour tout role autorise a ecrire ; `validated`,
+  `superseded`, `archived` reserves au role admin. Un lien cible une note
+  lisible de la portee studio ou du meme projet (`422` sinon).
+- Ancres (P04, additif) : `anchors` (<= 20, uniques) sur `VaultNoteCreate`,
+  `VaultNoteUpdate` (remplace la liste), `VaultNote` et `VaultNoteVersion` ;
+  forme `task:<uuid>` ou `path:<chemin>` (`path:dir/` = repertoire). Liste
+  vide = `content_hash` inchange.
+- Secrets (P05) : toute ecriture (`POST`, `PATCH`) dont `title`, `summary`,
+  `body`, `tags` ou `change_summary` contient un secret apparent est refusee
+  `422 {"detail": {"error_code": "secret_detected", "details": [{"field", "pattern"}]}}`
+  (motifs : cles AWS/GitHub/Slack/`sk-…`/Google/Stripe, JWT, bloc PEM,
+  URL a identifiants, affectation `password|secret|token|... = valeur`), sans
+  jamais renvoyer ni journaliser la valeur ; rien n'est persiste.
+- GET /vault/search?q&scope&project_id&note_type[]&status[]&include_superseded
+  &path[]&task_id&limit&max_chars -> `VaultSearchResult` (`items`, `total`,
+  `truncated`). Au moins un critere (`q`, `path`, `task_id`), sinon
+  `422 missing_search_criteria` (apres le controle d'acces). Ordre : notes
+  ancrees au chemin (ou un repertoire parent) / a la tache (`reason=anchor`),
+  puis notes liees a un saut (`linked`), puis correspondances plein texte
+  (`lexical`) ; a raison egale, rang, statut, recence. `archived` toujours
+  exclues ; `superseded` exclues sauf `include_superseded=true` ou `status`
+  explicite. `limit` 1..50 (defaut 10) ; `max_chars` 500..20000 (defaut 6000)
+  plafonne titre+resume+extrait cumules (`truncated=true` si coupe) ;
+  `snippet` <= 280.
 
 ### Agents and AI work
 - GET /agents — version 2 (RUPTURE, DEC-0103 §4/§11) : uniquement les agents
