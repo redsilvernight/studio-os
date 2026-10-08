@@ -13959,7 +13959,7 @@
      "vault"
     ],
     "summary": "Update Note",
-    "description": "Mutate a vault note. `expected_version` is mandatory; a stale value is rejected with the live server version. Scope, project and slug never change. No DELETE exists: archiving is a `status` write.",
+    "description": "Mutate a vault note. `expected_version` is mandatory; a stale value is rejected with the live server version. Scope, project and slug never change. No DELETE exists: archiving is a `status` write. Accepts `Idempotency-Key` for safe retries: replaying the same key with the identical body returns the first response instead of writing a new version, even though `expected_version` is now stale.",
     "operationId": "update_note_api_v1_vault_notes__note_id__patch",
     "security": [
      {
@@ -13976,6 +13976,24 @@
        "format": "uuid",
        "title": "Note Id"
       }
+     },
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`.",
+       "title": "Idempotency-Key"
+      },
+      "description": "Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) \u2014 always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`."
      }
     ],
     "requestBody": {
@@ -14034,13 +14052,12 @@
       }
      },
      "409": {
-      "description": "Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version \u2014 re-read the object, merge, and retry with the new version.",
+      "description": "Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` \u2014 resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` \u2014 retry identically after a short delay). Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version \u2014 re-read the object, merge, and retry with the new version.",
       "content": {
        "application/json": {
         "example": {
          "detail": {
-          "error_code": "version_conflict",
-          "server_version": 3
+          "error_code": "idempotency_key_payload_mismatch"
          }
         }
        }
@@ -18986,6 +19003,10 @@
     ],
     "title": "MachineUpdate",
     "description": "Update a machine's display name. Only the owner or an admin."
+   },
+   "NoteItem": {
+    "additionalProperties": true,
+    "type": "object"
    },
    "Page_TaskLaunch_": {
     "properties": {
@@ -25945,7 +25966,9 @@
        "path_conflict",
        "project_scope",
        "lexical",
-       "active_roadmap"
+       "active_roadmap",
+       "vault_anchor",
+       "vault_link"
       ],
       "title": "Reason"
      },

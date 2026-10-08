@@ -2453,7 +2453,7 @@ export interface paths {
         head?: never;
         /**
          * Update Note
-         * @description Mutate a vault note. `expected_version` is mandatory; a stale value is rejected with the live server version. Scope, project and slug never change. No DELETE exists: archiving is a `status` write.
+         * @description Mutate a vault note. `expected_version` is mandatory; a stale value is rejected with the live server version. Scope, project and slug never change. No DELETE exists: archiving is a `status` write. Accepts `Idempotency-Key` for safe retries: replaying the same key with the identical body returns the first response instead of writing a new version, even though `expected_version` is now stale.
          */
         patch: operations["update_note_api_v1_vault_notes__note_id__patch"];
         trace?: never;
@@ -4573,6 +4573,9 @@ export interface components {
         MachineUpdate: {
             /** Display Name */
             display_name: string;
+        };
+        NoteItem: {
+            [key: string]: unknown;
         };
         /** Page[TaskLaunch] */
         Page_TaskLaunch_: {
@@ -7632,7 +7635,7 @@ export interface components {
              * Reason
              * @enum {string}
              */
-            reason: "requested" | "linked_to_task" | "task_claim" | "path_conflict" | "project_scope" | "lexical" | "active_roadmap";
+            reason: "requested" | "linked_to_task" | "task_claim" | "path_conflict" | "project_scope" | "lexical" | "active_roadmap" | "vault_anchor" | "vault_link";
             /**
              * Matched Terms
              * @default []
@@ -19560,7 +19563,10 @@ export interface operations {
     update_note_api_v1_vault_notes__note_id__patch: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 note_id: string;
             };
@@ -19627,7 +19633,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version — re-read the object, merge, and retry with the new version. */
+            /** @description Replay key problem, no duplicate was created: either the same `Idempotency-Key` was reused with a different body (`idempotency_key_payload_mismatch` — resend the exact original body) or a previous creation with this key is still completing (`idempotency_key_in_progress` — retry identically after a short delay). Stale `If-Match-Version`: another writer changed the object first. `server_version` is the current version — re-read the object, merge, and retry with the new version. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -19636,8 +19642,7 @@ export interface operations {
                     /**
                      * @example {
                      *       "detail": {
-                     *         "error_code": "version_conflict",
-                     *         "server_version": 3
+                     *         "error_code": "idempotency_key_payload_mismatch"
                      *       }
                      *     }
                      */
