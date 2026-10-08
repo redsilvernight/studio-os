@@ -74,6 +74,16 @@ class LibraryFetchResult:
     skipped: dict[str, int] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class LibraryEffectiveVersion:
+    """Effective resource row with its resolved version row (lock or active)."""
+
+    resource: Any
+    version_row: Any
+    version: int
+    version_origin: str
+
+
 class LibraryContextProvider:
     """AI Library as one more source of the local composer (P9/DEC-0073).
 
@@ -128,6 +138,38 @@ class LibraryContextProvider:
                 continue
             items.append(self._to_item(resource, version_row, version_number, origin))
         return LibraryFetchResult(items=items, skipped=skipped)
+
+    async def fetch_effective_versions(
+        self,
+        project_id: UUID | None,
+        *,
+        kind: str,
+        limit: int = 100,
+    ) -> list[LibraryEffectiveVersion]:
+        """Effective (shadowed, lock-aware) raw versions of one structured
+        kind, for local projections that need the full content rather than
+        injectable text (e.g. `hook`)."""
+        resources = await self._api.list_library_resources(limit=limit)
+        locks = (
+            await self._api.list_library_locks(project_id=project_id)
+            if project_id is not None
+            else []
+        )
+        locked_version = {lock.resource_id: lock.locked_version for lock in locks}
+        visible = [r for r in resources if self._is_applicable(r, project_id)]
+        rows: list[LibraryEffectiveVersion] = []
+        for resource in sorted(self._apply_shadowing(visible), key=lambda r: r.stable_key):
+            if str(resource.kind) != kind:
+                continue
+            version_number = locked_version.get(resource.id, resource.active_version)
+            if version_number <= 0:
+                continue
+            version_row = await self._find_version(resource.id, version_number)
+            if version_row is None:
+                continue
+            origin = "lock" if resource.id in locked_version else "active"
+            rows.append(LibraryEffectiveVersion(resource, version_row, version_number, origin))
+        return rows
 
     def _is_applicable(self, resource: Any, project_id: UUID | None) -> bool:
         """Keep rows from the layer stack valid for this composition.

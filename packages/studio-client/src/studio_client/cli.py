@@ -1250,6 +1250,93 @@ def _skills_command(args: argparse.Namespace, config: ClientConfig) -> None:
         raise SystemExit(1) from None
 
 
+def _hooks_library_command(args: argparse.Namespace, config: ClientConfig) -> None:
+    """Inspect or synchronize consented Studio Library hooks for local harnesses."""
+    from studio_client.hook_sync import (
+        HookSyncError,
+        apply_hook_sync,
+        diff_hook_plan,
+        fetch_hook_projections,
+        plan_hook_sync,
+    )
+
+    async def action(client: StudioApiClient) -> Any:
+        return await fetch_hook_projections(client, None, limit=args.library_limit)
+
+    try:
+        projections = _run(config, action)
+        plan = plan_hook_sync(
+            Path(args.home),
+            projections,
+            consent=args.consent or (),
+            disable=args.disable or (),
+        )
+        if args.hooks_command == "diff":
+            print(diff_hook_plan(plan), end="")
+            return
+        rows: list[dict[str, Any]] = [
+            {
+                "stable_key": entry.projection.stable_key,
+                "version": entry.projection.version,
+                "status": entry.status,
+                "claude_event": entry.claude_event,
+                "opencode_event": entry.opencode_event,
+                "reports": list(entry.reports),
+            }
+            for entry in plan.entries
+        ]
+        files = [
+            {"role": target.role, "path": str(target.path), "state": target.state}
+            for target in plan.files
+        ]
+        if args.hooks_command == "sync" and not args.dry_run:
+            result = apply_hook_sync(plan, overwrite=args.overwrite)
+            payload: dict[str, Any] = {
+                "hooks": rows,
+                "removed": list(plan.removed),
+                "written": [str(path) for path in result.written],
+                "deleted": [str(path) for path in result.deleted],
+                "backups": [str(path) for path in result.backups],
+                "manifest": str(result.manifest_path),
+            }
+            if args.json:
+                print(json.dumps(payload, indent=2))
+            else:
+                for row in rows:
+                    print(f"{row['stable_key']} v{row['version']}: {row['status']}")
+                print(
+                    f"wrote {len(result.written)} files; deleted {len(result.deleted)}; "
+                    f"created {len(result.backups)} backups"
+                )
+            return
+        failures = len(plan.pending) + len(plan.needs_consent)
+        if args.json:
+            print(
+                json.dumps(
+                    {
+                        "hooks": rows,
+                        "files": files,
+                        "removed": list(plan.removed),
+                        "failures": failures,
+                    },
+                    indent=2,
+                )
+            )
+        else:
+            for row in rows:
+                notes = f" ({', '.join(row['reports'])})" if row["reports"] else ""
+                print(f"{row['stable_key']} v{row['version']}: {row['status']}{notes}")
+            for item in files:
+                if item["state"] != "current":
+                    print(f"{item['state']}: {item['path']}")
+            print(f"checked {len(rows)} hooks, failures {failures}")
+        if args.hooks_command == "check" and failures:
+            raise SystemExit(1)
+    except HookSyncError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="studio-client")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -1640,6 +1727,49 @@ def _build_parser() -> argparse.ArgumentParser:
             )
         _add_json_flag(skills_command)
         skills_command.set_defaults(func=_skills_command)
+
+    hooks_library_parser = subparsers.add_parser(
+        "hooks-library",
+        help="Synchronize consented Studio Library hooks to local AI harnesses.",
+    )
+    hooks_library_sub = hooks_library_parser.add_subparsers(dest="hooks_command", required=True)
+    for command, help_text in (
+        ("check", "Report hooks needing consent and pending harness changes."),
+        ("diff", "Show the changes needed to synchronize local hooks."),
+        ("sync", "Install consented hooks, remove withdrawn ones, update the manifest."),
+    ):
+        hooks_command = hooks_library_sub.add_parser(command, help=help_text)
+        hooks_command.add_argument(
+            "--home",
+            default=str(Path.home()),
+            help="User home receiving .claude, .config/opencode and .studio.",
+        )
+        hooks_command.add_argument("--library-limit", type=int, default=100)
+        hooks_command.add_argument(
+            "--consent",
+            action="append",
+            metavar="STABLE_KEY",
+            help="Consent to the current fingerprint of this hook (repeatable).",
+        )
+        hooks_command.add_argument(
+            "--disable",
+            action="append",
+            metavar="STABLE_KEY",
+            help="Disable this hook locally and remove its installation (repeatable).",
+        )
+        hooks_command.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Plan only: never write consent, hooks, settings or manifest.",
+        )
+        if command == "sync":
+            hooks_command.add_argument(
+                "--overwrite",
+                action="store_true",
+                help="Back up and replace locally modified hook scripts or plugin.",
+            )
+        _add_json_flag(hooks_command)
+        hooks_command.set_defaults(func=_hooks_library_command)
 
     library_parser = subparsers.add_parser("library", help="Library publication (P4).")
     library_sub = library_parser.add_subparsers(dest="library_command", required=True)

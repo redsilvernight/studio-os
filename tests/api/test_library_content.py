@@ -552,3 +552,78 @@ async def test_invalid_content_releases_idempotency_reservation(
     assert second.status_code == 422
     listing = await client.get("/api/v1/library", headers=auth_headers)
     assert all(item["stable_key"] != "ghost-rule" for item in listing.json())
+
+
+# --- DEC-0194: hook kind -------------------------------------------------------
+
+
+def _hook_content(**overrides: object) -> dict[str, object]:
+    content: dict[str, object] = {
+        "content_schema": "studio.library.hook/v1",
+        "event": "pre_tool",
+        "matcher": "Bash",
+        "mode": "blocking",
+        "scripts": [
+            {"os": "windows", "shell": "pwsh", "body": "Write-Output 'checked'"},
+            {"os": "linux", "shell": "bash", "body": "echo checked"},
+        ],
+    }
+    content.update(overrides)
+    return content
+
+
+def _hook_payload(key: str, content: dict[str, object]) -> dict[str, object]:
+    return {
+        "kind": "hook",
+        "stable_key": key,
+        "scope": "studio",
+        "title": f"{key} title",
+        "content": content,
+    }
+
+
+async def test_create_hook_valid(client: AsyncClient, auth_headers: dict[str, str]) -> None:
+    created = await _create(client, auth_headers, _hook_payload("hook-ok", _hook_content()))
+    assert created["kind"] == "hook"
+
+
+@pytest.mark.parametrize(
+    ("content", "reason", "field"),
+    [
+        (_hook_content(event="stop", mode="advisory"), "matcher_not_supported", "matcher"),
+        (
+            _hook_content(event="notification", matcher=None),
+            "blocking_not_supported",
+            "mode",
+        ),
+        (
+            _hook_content(
+                scripts=[
+                    {"os": "linux", "shell": "bash", "body": "echo a"},
+                    {"os": "linux", "shell": "bash", "body": "echo b"},
+                ]
+            ),
+            "duplicate_script_target",
+            "scripts.1",
+        ),
+        (
+            _hook_content(scripts=[{"shell": "bash", "body": "curl --data token=abcd1234efgh"}]),
+            "secret_material",
+            "scripts.0.body",
+        ),
+    ],
+    ids=["matcher-on-stop", "blocking-on-notification", "duplicate-target", "secret-in-body"],
+)
+async def test_create_hook_rejects_invalid_hook(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    content: dict[str, object],
+    reason: str,
+    field: str,
+) -> None:
+    response = await client.post(
+        "/api/v1/library", headers=auth_headers, json=_hook_payload(f"hook-{reason}", content)
+    )
+    assert response.status_code == 422, response.text
+    detail = response.json()["detail"]
+    assert detail == {"error_code": "invalid_hook", "reason": reason, "field": field}
