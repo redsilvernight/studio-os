@@ -1,0 +1,51 @@
+[
+  {
+    "id": "8a1f0c52-1d3e-4b6a-9c11-2f5e7a3b9d01",
+    "scope": "studio",
+    "project_id": null,
+    "slug": "conventions/git-flow",
+    "readable_id": null,
+    "note_type": "convention",
+    "title": "Git flow",
+    "summary": "Branches et fusions",
+    "body": "Une branche par tache.",
+    "status": "validated",
+    "tags": [
+      "git"
+    ],
+    "links": [],
+    "content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "author_type": "agent",
+    "author_id": "0cb0a432-dff8-4f51-b4ba-8937aae30b63",
+    "version": 1,
+    "created_at": "2026-10-06T09:00:00Z",
+    "updated_at": "2026-10-06T09:00:00Z"
+  },
+  {
+    "id": "9b2e1d63-2e4f-4c7b-8d22-3a6f8b4c0e12",
+    "scope": "project",
+    "project_id": "c014c7c8-383b-47b5-b745-f2f0be87e3f5",
+    "slug": "conventions/git-flow",
+    "readable_id": null,
+    "note_type": "convention",
+    "title": "Git flow du projet",
+    "summary": "Surcharge projet",
+    "body": "Branches task/ depuis dev.",
+    "status": "validated",
+    "tags": [
+      "git"
+    ],
+    "links": [
+      {
+        "target_note_id": "8a1f0c52-1d3e-4b6a-9c11-2f5e7a3b9d01",
+        "kind": "derived_from"
+      }
+    ],
+    "content_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "author_type": "user",
+    "author_id": "0cb0a432-dff8-4f51-b4ba-8937aae30b63",
+    "version": 1,
+    "created_at": "2026-10-06T09:00:00Z",
+    "updated_at": "2026-10-06T09:00:00Z"
+  }
+]

@@ -73,6 +73,7 @@ from studio_mcp.tools.transfers import (
     studio_get_transfers,
     studio_request_transfer_download,
 )
+from studio_mcp.tools.vault import studio_vault_read, studio_vault_search, studio_vault_write
 
 _Transport = Literal["stdio", "sse", "streamable-http"]
 
@@ -107,7 +108,8 @@ def create_server() -> MCPServer:
         description=(
             "Recommended first call to prime an agent on a project: returns, in ONE bounded "
             "read-only response, the project, the requested task (optional task_id), related "
-            "active tasks, decisions, rules, skills and the active claims that matter for the "
+            "active tasks, decisions, vault notes (summaries), rules, skills and the active "
+            "claims that matter for the "
             "stated objective. Required: project_id (UUID string) and objective (free text, "
             "1..1000 characters). Optional: task_id (UUID string, must belong to the project, "
             "otherwise not_found), files (up to 20 paths; claims held by other machines that "
@@ -301,7 +303,51 @@ def create_server() -> MCPServer:
         name="studio_supersede_decision",
         description=(
             "Supersede a Decision (proposed or accepted -> superseded, terminal). Admin "
-            "role only. Not a creation: no idempotency_key."
+            "role only. Not a creation: no idempotency_key. Pass superseded_by (the "
+            "replacement Decision's UUID) to record what supersedes this one — linked by "
+            "a supersedes edge; omit it to supersede without naming a replacement."
+        ),
+    )
+    server.add_tool(
+        studio_vault_search,
+        name="studio_vault_search",
+        description=(
+            "Search the shared knowledge vault — read-only. Criteria: q (full text, French "
+            "stemming), path (repo-relative, repeatable) and/or task_id (anchors); at least one "
+            "is required. Order: notes anchored to a requested path or task first, then notes one "
+            "link away from them, then full-text matches. Filters: scope (studio or project), "
+            "project_id, note_type and status (repeatable); superseded notes stay out unless "
+            "include_superseded. Each hit carries a summary and a short snippet, never the body. "
+            "limit (1..50, default 10) bounds the hits, max_chars (500..20000, default 6000) the "
+            "answer's text. A project the caller cannot read fails with forbidden."
+        ),
+        annotations=_READ_ONLY,
+    )
+    server.add_tool(
+        studio_vault_read,
+        name="studio_vault_read",
+        description=(
+            "Read one vault note in full by note_id (UUID string), links included — read-only. "
+            "The body is cut at max_chars (default 12000) characters and body_truncated then says "
+            "so: call again with a larger budget for the rest. A project note the caller cannot "
+            "read fails with forbidden."
+        ),
+        annotations=_READ_ONLY,
+    )
+    server.add_tool(
+        studio_vault_write,
+        name="studio_vault_write",
+        description=(
+            "Create or rewrite a vault note. Without note_id: a new note (scope studio or "
+            "project, project_id required for a project note, slug unique in its scope, optional "
+            "summary, note_type, tags, links, anchors). With note_id: a rewrite of title and body, "
+            "expected_version required — a stale one fails with version_conflict carrying the live "
+            "server version. The note is always written proposed: validating, superseding or "
+            "archiving one stays a human action. A slug already taken fails with "
+            "vault_slug_conflict, and a title/summary/body carrying a credential is refused with "
+            "secret_detected. Pass idempotency_key on a creation when this call might have already "
+            "succeeded — replaying the same key and arguments returns the original note instead of "
+            "a duplicate."
         ),
     )
     server.add_tool(

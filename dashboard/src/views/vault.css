@@ -1,0 +1,187 @@
+/**
+ * P14 — Vault : connaissances transverse (studio) et par projet.
+ * Surfaces calmes, lecture prioritaire ; aucun style inline.
+ */
+
+.vault-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--ds-space-3) var(--ds-space-4);
+  margin-bottom: var(--ds-space-6);
+}
+
+.vault-scopes {
+  display: inline-flex;
+  gap: var(--ds-space-2);
+}
+
+.vault-filter {
+  display: grid;
+  gap: var(--ds-space-1);
+  font-size: var(--ds-text-sm);
+  font-weight: 600;
+}
+
+.vault-toolbar .ds-search {
+  flex: 1;
+  min-width: 220px;
+}
+
+.vault-toolbar .ds-list-sub {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.vault-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--ds-space-3);
+}
+
+.vault-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  flex-wrap: wrap;
+  margin: 0;
+}
+
+/* Décision : deux actions franches, jamais de confirmation native. */
+.vault-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-3);
+}
+
+.vault-actions .ds-field-error:empty {
+  display: none;
+}
+
+.vault-prose {
+  margin: 0;
+  max-width: 75ch;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+
+.vault-prose h1,
+.vault-prose h2,
+.vault-prose h3 {
+  margin: var(--ds-space-4) 0 var(--ds-space-2);
+  font-size: var(--ds-text-lg);
+}
+
+.vault-prose ul {
+  margin: 0 0 0 var(--ds-space-5);
+}
+
+.vault-anchors {
+  margin: 0;
+  padding-left: var(--ds-space-5);
+  display: grid;
+  gap: var(--ds-space-1);
+  overflow-wrap: anywhere;
+}
+
+/* Versions : une ligne repliable par version, jamais tout déplié d'un coup. */
+.vault-versions {
+  display: grid;
+  gap: var(--ds-space-2);
+}
+
+.vault-version {
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  padding: var(--ds-space-2) var(--ds-space-4);
+  background: var(--ds-surface);
+}
+
+.vault-version-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-2) var(--ds-space-3);
+}
+
+.vault-version-toggle {
+  min-height: var(--ds-target-sm);
+  padding: var(--ds-space-1) var(--ds-space-3);
+  border: 1px solid var(--ds-border-strong);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-soft);
+  color: var(--ds-text);
+  font-size: var(--ds-text-sm);
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.vault-version-label {
+  flex: 1;
+  min-width: 200px;
+  font-weight: 600;
+  font-size: var(--ds-text-sm);
+  overflow-wrap: anywhere;
+}
+
+.vault-version-body {
+  display: grid;
+  gap: var(--ds-space-3);
+  padding-top: var(--ds-space-3);
+}
+
+.vault-version-body[hidden] {
+  display: none;
+}
+
+/* Détails techniques : repliés par défaut, secondaires. */
+.vault-tech {
+  border-top: 1px solid var(--ds-border);
+  padding-top: var(--ds-space-2);
+  font-size: var(--ds-text-sm);
+  color: var(--ds-text-muted);
+}
+
+.vault-tech summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: var(--ds-target-sm);
+  display: inline-flex;
+  align-items: center;
+}
+
+.vault-tech-list {
+  margin: var(--ds-space-2) 0 0;
+  display: grid;
+  gap: var(--ds-space-1);
+}
+
+.vault-tech-list > div {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: var(--ds-space-2);
+}
+
+.vault-tech-list dt {
+  font-weight: 600;
+}
+
+.vault-tech-list dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .vault-toolbar {
+    display: grid;
+  }
+  .vault-tech-list > div {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}

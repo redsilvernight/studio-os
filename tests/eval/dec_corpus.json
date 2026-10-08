@@ -1,0 +1,1439 @@
+{
+ "format": "studio.eval.dec-corpus/v1",
+ "source": "studio_get_decisions (MCP, lecture seule), project 2a836038-153c-41cf-879a-73bd794760b0",
+ "captured_at": "2026-10-06",
+ "note": "Snapshot of the server decision rows the selection sees (title/body/status/task_id); used to replay *_select_decisions deterministically without a database.",
+ "decisions": [
+  {
+   "id": "cf6badd9-0abc-4c7f-a6a0-b0c685ef96bb",
+   "readable_id": "DEC-0002",
+   "title": "DEC-0002 — Gestionnaire de dépendances Python : uv",
+   "body": "Statut dépôt : active (2026-09-12). Non tranché par la documentation ; uv retenu : workspace multi-packages, lockfile, builds Docker rapides. Source : docs/decisions/DEC-0002-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:46:54.020360+00:00"
+  },
+  {
+   "id": "b4560144-1ee3-42d2-97eb-6a49c4e8c7aa",
+   "readable_id": "DEC-0003",
+   "title": "DEC-0003 — Credential machine : token opaque, hash stocké côté serveur",
+   "body": "Statut dépôt : active (2026-09-12). Token opaque généré serveur (secrets.token_urlsafe), seul le hash SHA-256 est stocké (machines.credential_hash). Révoquer = renseigner credential_revoked_at ; aucune rotation de clé à gérer. Source : docs/decisions/DEC-0003-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:46:58.595242+00:00"
+  },
+  {
+   "id": "89d08d34-219a-4b6d-8e11-ced7741b61a2",
+   "readable_id": "DEC-0004",
+   "title": "DEC-0004 — Endpoint S3 public distinct de l'endpoint interne",
+   "body": "Statut dépôt : active (2026-09-12). Les URLs pré-signées sont signées avec l'endpoint MinIO joignable par les postes clients, jamais le nom de service Docker interne. Settings expose s3_endpoint_url (interne) et s3_public_endpoint_url (signature), à configurer séparément en prod. Source : docs/decisions/DEC-0004-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:47:02.745342+00:00"
+  },
+  {
+   "id": "4193ecf4-afa9-4794-8db1-ee63473e8e34",
+   "readable_id": "DEC-0005",
+   "title": "DEC-0005 — Le MCP importe la couche services/ directement (pas de HTTP interne)",
+   "body": "Statut dépôt : active (2026-09-12). services/mcp dépend du package studio-api et appelle studio_api.services.* directement (même image/monorepo), ce qui garantit qu'un outil MCP reste une couche fine sur la même fonction service que le router HTTP (règle mcp-tools). Source : docs/decisions/DEC-0005-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:47:06.945092+00:00"
+  },
+  {
+   "id": "fe676b55-067a-401a-906e-058083f8d45e",
+   "readable_id": "DEC-0006",
+   "title": "DEC-0006 — event_id est l'idempotency key des events (pas le header)",
+   "body": "Statut dépôt : active (2026-09-12). Pour POST /events, l'idempotence repose sur event_id généré côté client (stable à travers les retries de la file offline), pas sur le header Idempotency-Key utilisé par les autres créations (tasks, claims, decisions, transfers, sessions, ai-work). Source : docs/decisions/DEC-0006-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:47:10.947986+00:00"
+  },
+  {
+   "id": "ddd28e53-9874-4452-93f2-1dfbc9289a6e",
+   "readable_id": "DEC-0007",
+   "title": "DEC-0007 — Transfer.category : enum fermé à 4 valeurs",
+   "body": "Statut dépôt : active (2026-09-12). Le champ category n'était pas énuméré dans TECH/05 ; les 4 classes de rétention de la rule storage-transfers sont retenues telles quelles : temporary (7 j), build (30 j), asset (manuel/long), raw_recording (local uniquement). Source : docs/decisions/DEC-0007-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:47:14.986597+00:00"
+  },
+  {
+   "id": "de7b9b71-2886-4827-8620-e03fc17e3993",
+   "readable_id": "DEC-0008",
+   "title": "DEC-0008 — /api/v1/stream : SSE, pas WebSocket",
+   "body": "Statut dépôt : active (2026-09-12). TECH/01 laissait le choix ouvert ; SSE retenu : tous les flux temps réel (tâches, claims, présence, builds, AI work, notifications) sont unidirectionnels serveur→client, et SSE traverse Caddy/proxies plus simplement. Non implémenté dans le scaffold initial ; voir DEC-0018. Source : docs/decisions/DEC-0008-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:47:19.336157+00:00"
+  },
+  {
+   "id": "8a63bfa2-42f9-4ea3-8656-7076179fe87c",
+   "readable_id": "DEC-0009",
+   "title": "DEC-0009 — Tests : pytest + pytest-asyncio + httpx (ASGITransport)",
+   "body": "Statut dépôt : active (2026-09-12). Non tranché par la documentation ; stack par défaut cohérente avec FastAPI async. Source : docs/decisions/DEC-0009-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:47:23.350932+00:00"
+  },
+  {
+   "id": "cfa39acc-cc91-4dc9-9fd5-cb7ae21b0447",
+   "readable_id": "DEC-0010",
+   "title": "DEC-0010 — Tests d'intégration Bloc A : vrai PostgreSQL, jamais SQLite",
+   "body": "Statut dépôt : active (2026-09-12). La règle database interdit SQLite comme source de vérité partagée, et les modèles ORM utilisent des types Postgres-only (JSONB, UUID). tests/api/ tourne contre un vrai Postgres (STUDIO_TEST_DATABASE_URL), migré par Alembic. Source : docs/decisions/DEC-0010-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:47:27.364830+00:00"
+  },
+  {
+   "id": "34727c6d-2b8a-4ca3-ae4b-e92d7fbb7fdd",
+   "readable_id": "DEC-0011",
+   "title": "DEC-0011 — Provisioning initial hors-bande via la CLI serveur studio-admin",
+   "body": "Statut dépôt : active (2026-09-13). Problème de bootstrap : tout /api/v1 exige un Bearer machine-token mais aucun endpoint ne créait User/Machine/Project. Le premier compte est créé sur le serveur via la CLI studio-admin (jamais via l'API) ; ensuite un admin provisionne via l'API. Source : docs/decisions/DEC-0011-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:47:31.327649+00:00"
+  },
+  {
+   "id": "d0c15a6b-f3a6-40d5-bd09-8c656d30707d",
+   "readable_id": "DEC-0013",
+   "title": "DEC-0013 — Validation locale de StorageProvider/MinIO sans Docker",
+   "body": "Statut dépôt : active (2026-09-13). StorageProvider n'avait jamais tourné contre un vrai MinIO ; Docker indisponible sur le poste au moment du scaffold, l'installation directe du binaire MinIO a échoué. Décision de validation locale documentée dans le fichier source, levée ensuite par DEC-0014. Source : docs/decisions/DEC-0013-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:47:39.562640+00:00"
+  },
+  {
+   "id": "b5615a26-de69-44ad-8449-ff4616121d54",
+   "readable_id": "DEC-0014",
+   "title": "DEC-0014 — Docker Desktop installé : deux bugs réels corrigés dans la stack docker compose",
+   "body": "Statut dépôt : non renseigné (front matter absent). Suite à DEC-0013, Docker Desktop installé (WSL2) pour valider la vraie stack docker compose (définition de done du prompt Bloc A). Le premier docker compose up réel a révélé deux bugs, corrigés. Source : docs/decisions/DEC-0014-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:47:43.920590+00:00"
+  },
+  {
+   "id": "d7bb3e4a-4edd-491c-9574-ac38f4225508",
+   "readable_id": "DEC-0015",
+   "title": "DEC-0015 — Idempotence : réservation atomique, request_hash vérifié",
+   "body": "Statut dépôt : non renseigné (front matter absent). run_idempotent exécutait la création avant de réserver (Idempotency-Key, endpoint) : deux requêtes concurrentes pouvaient créer deux ressources. Corrigé par INSERT ... ON CONFLICT (idempotency_key, endpoint) DO NOTHING, réservation atomique Postgres (étape 1 de la roadmap de correction). Source : docs/decisions/DEC-0015-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:47:47.943040+00:00"
+  },
+  {
+   "id": "7978924d-5cab-453b-be8f-6ac36b9fa06c",
+   "readable_id": "DEC-0016",
+   "title": "DEC-0016 — DEC-XXXX : séquence Postgres au lieu de COUNT(*)+1",
+   "body": "Statut dépôt : active (2026-09-13). next_readable_id calculait count+1, source de doublons en concurrence. Remplacé par une séquence Postgres dédiée (decisions_readable_id_seq) : nextval() est atomique, indépendant des transactions applicatives. Source : docs/decisions/DEC-0016-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:47:52.122823+00:00"
+  },
+  {
+   "id": "8c0d6108-a3c3-458f-85cd-12e0c5647d81",
+   "readable_id": "DEC-0018",
+   "title": "DEC-0018 — Realtime (étape 4.1) : SSE + curseur seq, pas de WebSocket",
+   "body": "Statut dépôt : active (2026-09-13). GET /api/v1/events/stream en SSE avec curseur seq (Last-Event-ID / since_seq), rattrapage par polling. Canal unidirectionnel par nature ; les écritures Bloc B passent par les endpoints REST. Source : docs/decisions/DEC-0018-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:48:00.329135+00:00"
+  },
+  {
+   "id": "f177fee7-ce57-404a-b5ac-3ebd1317da06",
+   "readable_id": "DEC-0019",
+   "title": "DEC-0019 — Quotas transferts (étape 4.2) : quota par projet, sans fenêtre temporelle",
+   "body": "Statut dépôt : active (2026-09-13). La rule storage-transfers exigeait quotas et taille max côté serveur avant signature sans les chiffrer. Quota porté par projet (Transfer.project_id), sans fenêtre temporelle, vérifié avant toute signature ; vue de consommation exposée. Source : docs/decisions/DEC-0019-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:48:04.358835+00:00"
+  },
+  {
+   "id": "08e270c7-c5e2-4daa-a5e4-995200530a94",
+   "readable_id": "DEC-0020",
+   "title": "DEC-0020 — Worker d'expiration des transferts (étape 4.3) : job CLI explicite, suppression directe",
+   "body": "Statut dépôt : active (2026-09-13). Aucun mécanisme ne consommait expires_at. Job CLI explicite (déclenché par cron VPS), sans scheduler in-process, suppression directe des transferts expirés selon les durées de rétention de la rule storage-transfers. Source : docs/decisions/DEC-0020-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:48:08.722692+00:00"
+  },
+  {
+   "id": "068887b4-aea4-46e2-bf98-4edc898cc6b2",
+   "readable_id": "DEC-0021",
+   "title": "DEC-0021 — Sauvegarde Postgres/MinIO et restauration (étape 4.4) : scripts shell, pg_dump/pg_restore, mc mirror",
+   "body": "Statut dépôt : active (2026-09-13). docker/backup.sh et docker/restore.sh déclenchés par cron VPS documenté ; pg_dump --format=custom restaurable via pg_restore --clean --if-exists ; MinIO via mc mirror. Pas de scheduler in-process. Source : docs/decisions/DEC-0021-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:48:12.805728+00:00"
+  },
+  {
+   "id": "8fe035c2-e690-4aeb-86fa-db9da16a1d18",
+   "readable_id": "DEC-0022",
+   "title": "DEC-0022 — Étape 4.5 : validation docker-compose sur base vierge fermée",
+   "body": "Statut dépôt : active (2026-09-13). Séquence complète rejouée sans raccourci : docker compose down -v, suppression de docker/.data/, up -d --build, migrations, provisioning et parcours de bout en bout sur état 100 % vierge. Chaîne complète démontrée. Source : docs/decisions/DEC-0022-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:48:17.073815+00:00"
+  },
+  {
+   "id": "a3cc7a40-01d2-4183-ac34-3f012750b860",
+   "readable_id": "DEC-0023",
+   "title": "DEC-0023 — Étape 5 : auth MCP par requête et extension à 25 outils réels",
+   "body": "Statut dépôt : active (2026-09-13). Le service MCP est multi-client en prod (streamable-http derrière Caddy) : un token process-wide serait faux. Identité par requête issue du transport, 25 outils réels. Analysé par studio-architect avant implémentation. Source : docs/decisions/DEC-0023-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:48:21.297713+00:00"
+  },
+  {
+   "id": "62a039ea-cb9b-4624-a2d4-1c9d86ef0286",
+   "readable_id": "DEC-0024",
+   "title": "DEC-0024 — Étape 6.1 : socle du Bloc B, StudioApiClient",
+   "body": "Statut dépôt : active (2026-09-13). Nouveau paquet packages/studio-client/ (studio_client), membre du workspace uv, ni dans services/ (déployé sur le VPS) ni dans un répertoire apps/. Configuration et stockage du token machine côté client. Source : docs/decisions/DEC-0024-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:48:25.351636+00:00"
+  },
+  {
+   "id": "0183ad4c-fe5d-4ebb-8fb9-bf3d7b58b716",
+   "readable_id": "DEC-0025",
+   "title": "DEC-0025 — Intégrité réelle d'upload via Content-MD5 natif S3",
+   "body": "Statut dépôt : active (2026-09-13). Correction d'un défaut confirmé : Content-MD5 (RFC 1864) vérifié empiriquement contre un vrai MinIO, pas les checksums additionnels S3 (rejetés). StorageProvider force SigV4. Seul content_md5 est vérifié serveur (upload simple) ; le sha256 reste déclaratif. Source : docs/decisions/DEC-0025-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:48:29.374392+00:00"
+  },
+  {
+   "id": "69e8941d-acdf-4110-aa76-126232518828",
+   "readable_id": "DEC-0026",
+   "title": "DEC-0026 — Appels boto3 async via asyncio.to_thread, factory StorageProvider en cache",
+   "body": "Statut dépôt : active (2026-09-13). Les quatre méthodes réseau deviennent async def et délèguent boto3 à asyncio.to_thread (aioboto3 écarté : gain nul, coût de dépendance). Instance partagée via la factory get_storage() mise en cache. Source : docs/decisions/DEC-0026-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:48:33.308960+00:00"
+  },
+  {
+   "id": "853e80a7-eba1-447e-b342-3b3fc1d49cd0",
+   "readable_id": "DEC-0027",
+   "title": "DEC-0027 — Idempotence MCP : event_id accepté du client, idempotency_key pour un sous-ensemble d'outils écrivains",
+   "body": "Statut dépôt : active (2026-09-13). studio_emit_event accepte un event_id optionnel (UUID généré sinon, rétrocompatible) ; les outils écrivains concernés acceptent idempotency_key. Aucun changement de service nécessaire. Étudié par studio-architect. Source : docs/decisions/DEC-0027-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:48:37.434547+00:00"
+  },
+  {
+   "id": "3f8b449b-9101-4080-a503-823ef35fccd9",
+   "readable_id": "DEC-0028",
+   "title": "DEC-0028 — Sous-étape 6.2 (daemon local, heartbeat) : boucle en process, sleep injectable, signaux best-effort",
+   "body": "Statut dépôt : active (2026-09-13). HeartbeatDaemon : boucle while not stopped, request_stop() positionne un asyncio.Event vérifié entre deux itérations (jamais d'annulation d'un envoi en vol), sleep injectable pour les tests. Source : docs/decisions/DEC-0028-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:48:41.527210+00:00"
+  },
+  {
+   "id": "13f1a06f-2c1e-4c6a-b52a-5df4335bf4f5",
+   "readable_id": "DEC-0029",
+   "title": "DEC-0029 — Sous-étape 6.3 (outbox SQLite) : schéma minimal, transaction laissée à l'appelant, backoff sans abandon",
+   "body": "Statut dépôt : active (2026-09-13). Tables pending_events, pending_mutations, pending_markers, sync_state, dead_letter ; clé primaire sur la clé d'idempotence/event_id ; la transaction est laissée à l'appelant pour enfiler dans la même transaction que l'écriture locale. Source : docs/decisions/DEC-0029-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:48:45.597412+00:00"
+  },
+  {
+   "id": "d4b76793-dc76-456f-962a-71430a62eb39",
+   "readable_id": "DEC-0030",
+   "title": "DEC-0030 — Sous-étape 6.4 (replay ordonné) : fusion chronologique events+mutations, arrêt sur transitoire",
+   "body": "Statut dépôt : active (2026-09-13). OutboxReplayer fusionne pending_events et pending_mutations en une liste triée par created_at (jamais un tri par table) et rejoue strictement dans l'ordre ; arrêt sur erreur transitoire ; markers hors périmètre. Source : docs/decisions/DEC-0030-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:48:49.712759+00:00"
+  },
+  {
+   "id": "4465b343-32c9-4879-8212-03d47d62faed",
+   "readable_id": "DEC-0031",
+   "title": "DEC-0031 — Sous-étape 6.5 (CLI minimale) : sous-commandes argparse au-dessus de StudioApiClient, clé d'idempotence générée par la CLI",
+   "body": "Statut dépôt : active (2026-09-14). Méthodes miroir dans api_client (tasks, sessions, claims) ; Idempotency-Key uniquement sur les trois créations déclarées côté routeur (create_task, start_session, create_claim), générée par la CLI. Source : docs/decisions/DEC-0031-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:48:53.852073+00:00"
+  },
+  {
+   "id": "ecb08987-75de-4d03-b7cc-a768f516d658",
+   "readable_id": "DEC-0033",
+   "title": "DEC-0033 — Sous-étape 6.7 (TransferClient) : multipart local avec URLs en cache, reprise download par taille de fichier, étape 6 close",
+   "body": "Statut dépôt : active (2026-09-14). Nouvelles méthodes StudioApiClient pour les transferts (métadonnées et URLs pré-signées uniquement, jamais d'octets) ; état multipart local persisté ; reprise du téléchargement par taille de fichier. Clôt l'étape 6. Source : docs/decisions/DEC-0033-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:49:02.031935+00:00"
+  },
+  {
+   "id": "50b4a4e0-55eb-4288-aa80-8a551b62612b",
+   "readable_id": "DEC-0034",
+   "title": "DEC-0034 — Étape 7 (tests d'acceptance) : concurrence réelle de claims + URL signée expirée",
+   "body": "Statut dépôt : active (2026-09-14). tests/api/test_claims_concurrency.py : 10 POST /claims réellement concurrents sur le même resource_path (engine dédié pool_size=20, pool pré-chauffé) ; scénario d'URL pré-signée expirée. Source : docs/decisions/DEC-0034-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:49:06.091519+00:00"
+  },
+  {
+   "id": "4e26438a-3c23-4e8c-b8db-2a58bf18007a",
+   "readable_id": "DEC-0035",
+   "title": "DEC-0035 — Identité des events (HTTP/MCP) liée à la machine authentifiée",
+   "body": "Statut dépôt : active (2026-09-14). resolve_event_identity appliqué sur POST /events et studio_emit_event : machine_id omis → dérivé de la machine authentifiée ; fourni et différent → 409 machine_id_mismatch, jamais de remplacement silencieux. Source : docs/decisions/DEC-0035-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:49:10.055047+00:00"
+  },
+  {
+   "id": "30db4af9-3232-4995-8590-cfc61deac3f9",
+   "readable_id": "DEC-0036",
+   "title": "DEC-0036 — Autorisation transverse minimale : rôle et propriété par ressource, sans nouvelle table",
+   "body": "Statut dépôt : active (2026-09-14). Deux niveaux : rôle transverse (User.role du propriétaire de la machine, Principal chargé une fois par appel dans authz.py) et propriété par ressource (Task.claimed_by_machine_id, etc.). Aucune nouvelle table. Source : docs/decisions/DEC-0036-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:49:14.119479+00:00"
+  },
+  {
+   "id": "15a78cef-cbac-4719-b54d-68f0f3db3dab",
+   "readable_id": "DEC-0037",
+   "title": "DEC-0037 — Reprise multipart après expiration des URLs par-part : endpoint additif refresh-parts",
+   "body": "Statut dépôt : active (2026-09-15). POST /transfers/{id}/upload/refresh-parts ; ListParts S3/MinIO comme vérité serveur sur les parts durables ; aucune nouvelle table (le serveur ne persiste jamais l'état multipart) ; nettoyage des uploads orphelins (abort-stale-multipart). Source : docs/decisions/DEC-0037-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:49:18.216812+00:00"
+  },
+  {
+   "id": "326a3424-d36c-4eb3-8a88-47fe677a9fd7",
+   "readable_id": "DEC-0038",
+   "title": "DEC-0038 — Étape 7 : scénario « fichier multipart de 1 Go réel » fermé, test streamé sans mock",
+   "body": "Statut dépôt : active (2026-09-15). tests/client/test_transfers_1gb_acceptance.py : Postgres et MinIO réels, transport ASGI in-process, corpus de 1 GiB (16 parts de 64 MiB) généré en streaming sur disque ; interruption puis reprise sans renvoyer les parts terminées. Source : docs/decisions/DEC-0038-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:49:22.377317+00:00"
+  },
+  {
+   "id": "ec5666c7-97e2-440c-ba35-03cbf084077e",
+   "readable_id": "DEC-0039",
+   "title": "DEC-0039 — Étape 7 : scénario « replay offline complet » fermé, outbox générique sans ajout client",
+   "body": "Statut dépôt : active (2026-09-15). L'outbox/replay du client est déjà totalement générique (enqueue_mutation sans connaissance de domaine ; le replayer rejoue method/path/payload tels quels) : aucun ajout client nécessaire, scénario fermé par test réel. Source : docs/decisions/DEC-0039-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:49:26.506045+00:00"
+  },
+  {
+   "id": "e2521ade-946b-487a-9ea5-96c6a4b6686a",
+   "readable_id": "DEC-0040",
+   "title": "DEC-0040 — Étape 7 fermée : scénario « deux machines simulées sur réseaux distincts »",
+   "body": "Statut dépôt : active (2026-09-15). tests/client/test_two_machines_acceptance.py : deux machines/utilisateurs provisionnés indépendamment, chacun avec son ClientConfig, StudioApiClient, OutboxStore SQLite dédié et TransferClient ; Postgres+MinIO réels, aucun mock applicatif. Clôt l'étape 7. Source : docs/decisions/DEC-0040-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:49:30.543747+00:00"
+  },
+  {
+   "id": "f2aaaa6b-3d2f-4892-8f9e-a6ed43acd901",
+   "readable_id": "DEC-0041",
+   "title": "DEC-0041 — Étape 8.1 : traçabilité AIWorkLog → Event, revue admin-only",
+   "body": "Statut dépôt : active (2026-09-15). Événements émis depuis la couche service (jamais dans le routeur ni le handler MCP) : ai_work.started à la création ; completed/failed/review_requested/approved/changes_requested sur transition réelle de statut. Revue réservée au rôle admin. Source : docs/decisions/DEC-0041-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:49:34.753042+00:00"
+  },
+  {
+   "id": "fd9e2f5c-b42f-4e65-92e0-c41ec2237483",
+   "readable_id": "DEC-0042",
+   "title": "DEC-0042 — Étape 8.2 : adaptateurs locaux Obsidian/Graphify en lecture seule, portée fermée par défaut",
+   "body": "Statut dépôt : active (2026-09-15). Sous-paquet studio_client.knowledge (memory, graph, scope, errors), dépendances locales uniquement (pyyaml, jamais studio_api ni réseau). MemoryProvider en lecture seule (search/read) ; portée deny-all par défaut. Source : docs/decisions/DEC-0042-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:49:52.001620+00:00"
+  },
+  {
+   "id": "f45f420c-d378-4d9e-9204-c7e54bffca52",
+   "readable_id": "DEC-0043",
+   "title": "DEC-0043 — Identité d'agent model-agnostic : auth_role / harness / provider / model séparés, agent_profile optionnel",
+   "body": "Statut dépôt : active (2026-09-15). auth_role (admin|developer|agent|readonly) reste l'unique source d'enforcement via Principal/authz.py ; harness, provider et model sont des métadonnées ouvertes d'observabilité ; agent_profile est optionnel, jamais une whitelist ; aucun RBAC parallèle. Un consommateur sans profil obtient l'interface complète de son rôle. Source : docs/decisions/DEC-0043-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:49:55.994626+00:00"
+  },
+  {
+   "id": "11eba0d3-16c6-48f4-aa56-4514e74bc7e5",
+   "readable_id": "DEC-0044",
+   "title": "DEC-0044 — Profils d'agents spécialisés (SUPERSEDED par DEC-0043)",
+   "body": "Statut dépôt : superseded par DEC-0043 (2026-09-15). Hypothèse corrigée : studio-architect, studio-tester, contract-guardian et sync-debugger sont des outils internes de développement du dépôt (docs/archive/PRODUCT_VS_DEV_TOOLING.md), pas des agent_profiles du produit. Le corps historique est conservé dans le fichier source. Source : docs/decisions/DEC-0044-*.md",
+   "status": "superseded",
+   "task_id": null,
+   "created_at": "2026-09-20T08:49:59.955395+00:00"
+  },
+  {
+   "id": "063b2dda-2547-4c1a-8ffb-9450a1049386",
+   "readable_id": "DEC-0045",
+   "title": "DEC-0045 — CC-1 : enregistrement public d'Agent (POST /agents) comme identité de provenance, sans autorité",
+   "body": "Statut dépôt : active (2026-09-15). Endpoint additif POST /api/v1/agents (AgentCreate : display_name requis, agent_kind libre optionnel) ; aucun champ harness/provider/model/profil à l'origine, aucune capability flag, aucun enum fermé ; machine_id dérivé de la machine authentifiée. Source : docs/decisions/DEC-0045-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:50:04.019297+00:00"
+  },
+  {
+   "id": "ea6f55d9-2a2e-4e66-af94-99f25076c285",
+   "readable_id": "DEC-0047",
+   "title": "DEC-0047 — UC-3 : Memory/Knowledge local-only, exposition read-only via MCP local (stdio), 3 outils",
+   "body": "Statut dépôt : active (2026-09-15). Capacité MAY : un consommateur fonctionne sans. Configurée localement, elle est exposée en lecture seule par un MCP local par poste (stdio uniquement, aucun endpoint HTTP VPS) : studio_memory_search, studio_memory_read, studio_graph_query. Source : docs/decisions/DEC-0047-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:50:12.101429+00:00"
+  },
+  {
+   "id": "e642f9d8-11b3-4210-928b-fd820b2f6a33",
+   "readable_id": "DEC-0048",
+   "title": "DEC-0048 — CC-3 : évolution des contrats MCP par discovery + schémas, sans version par payload",
+   "body": "Statut dépôt : active (2026-09-15). Aucun champ version/schema_version dans les réponses MCP (succès comme erreurs in-band) ; l'évolution passe par la découverte (tools/list) et les schémas ; la version du protocole MCP est négociée à l'initialisation. Source : docs/decisions/DEC-0048-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:50:16.978351+00:00"
+  },
+  {
+   "id": "e4f641e9-b6d4-4b71-8828-ce5892b6fbcd",
+   "readable_id": "DEC-0049",
+   "title": "DEC-0049 — Étape 8.4 : Review Queue agrégée, aucune nouvelle table, revue limitée au travail IA",
+   "body": "Statut dépôt : active (2026-09-15). Contrat additif review_queue.py : liste plate ReviewQueue.items discriminée par kind (ai_work_review, decision_proposal, resource_conflict) ; calculée depuis l'état réel, sans nouvelle table. Source : docs/decisions/DEC-0049-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:50:21.034147+00:00"
+  },
+  {
+   "id": "11c68162-b8c3-40b9-a061-fc4425fb80c3",
+   "readable_id": "DEC-0050",
+   "title": "DEC-0050 — Question ouverte n°3 (étape 8) : auth dashboard V0 ratifiée (SUPERSEDED par DEC-0056)",
+   "body": "Statut dépôt : superseded par DEC-0056 (2026-09-15). Ratifiait l'existant : dashboard V0 local/admin, Bearer machine collé manuellement, en mémoire uniquement, fetch()+ReadableStream pour le flux SSE. Remplacé par l'authentification JWT humaine de DEC-0056. Source : docs/decisions/DEC-0050-*.md",
+   "status": "superseded",
+   "task_id": null,
+   "created_at": "2026-09-20T08:50:25.186594+00:00"
+  },
+  {
+   "id": "40414295-c83e-49b8-991a-1982c1ef28a2",
+   "readable_id": "DEC-0052",
+   "title": "DEC-0052 — UC-4 : documentation model-agnostic du consommateur (rôles fonctionnels, zéro couplage modèle)",
+   "body": "Statut dépôt : active (2026-09-15). Les sections de AI/02_AGENT_RULES.md nommées d'après un modèle deviennent des rôles fonctionnels (Orchestrateur, Agent d'exécution locale) ; harness/provider/modèle sont des choix d'exécution, jamais des rôles. Références historiques conservées. Source : docs/decisions/DEC-0052-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:50:33.198787+00:00"
+  },
+  {
+   "id": "7564202e-5c04-44dc-8deb-e5888c0b6bb5",
+   "readable_id": "DEC-0053",
+   "title": "DEC-0053 — UC-5 : métadonnées runtime additives agent_profile/harness/provider/model sur Agent et AIWorkLog",
+   "body": "Statut dépôt : active (2026-09-15). Agent/AgentCreate gagnent agent_profile, harness, provider, model (str|None, chaînes ouvertes, aucune valeur rejetée, aucun enum) ; agent_kind reste ; ces champs n'entrent jamais dans authz.py. Source : docs/decisions/DEC-0053-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:50:37.297243+00:00"
+  },
+  {
+   "id": "8c62c8c3-6e1a-4307-a78b-51c276ffdd84",
+   "readable_id": "DEC-0054",
+   "title": "DEC-0054 — UC-6 : guide d'intégration d'un consommateur externe, sans connaissance interne",
+   "body": "Statut dépôt : active (2026-09-15). Page d'entrée INTEGRATION/00_EXTERNAL_CONSUMER_GUIDE.md : parcours de zéro au premier transfert (transport, authentification, permissions, découverte, tâche→event→worklog, offline, transferts, erreurs). Source : docs/decisions/DEC-0054-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:50:41.608851+00:00"
+  },
+  {
+   "id": "4a955814-ddca-4464-837c-e4b2008f51de",
+   "readable_id": "DEC-0055",
+   "title": "DEC-0055 — UC-7 : tests de conformance d'un client inconnu (unknown-harness/provider/model, sans profil)",
+   "body": "Statut dépôt : active (2026-09-15). tests/api/test_uc7_unknown_consumer_conformance.py : client fictif n'utilisant que les interfaces publiques, sans agent_profile préalable ; échec si le cœur exige un savoir préalable. Source : docs/decisions/DEC-0055-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:50:45.579468+00:00"
+  },
+  {
+   "id": "a25ffd94-ef31-40ed-bd15-7ddbc113da37",
+   "readable_id": "DEC-0056",
+   "title": "DEC-0056 — Authentification humaine du dashboard par JWT (DASH-4)",
+   "body": "Statut dépôt : active (2026-09-15). Chemin d'auth humain réservé au dashboard : User.password_hash nullable ; POST /auth/token (email+password) renvoie un JWT signé de courte durée ; le modèle d'autorisation cœur reste basé machine. Remplace DEC-0050. Source : docs/decisions/DEC-0056-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:50:49.511630+00:00"
+  },
+  {
+   "id": "11894b65-a3d6-41b4-80e7-a26df8f0ad54",
+   "readable_id": "DEC-0057",
+   "title": "DEC-0057 — Étape 8.3b : Context Package composé localement par le Bloc B, part partagée lue par HTTP canonique",
+   "body": "Statut dépôt : active (2026-09-15). Option hybride : le paquet est composé par le Bloc B (daemon/CLI), seul détenteur du token machine et des sources locales ; part partagée via HTTP canonique (DEC-0046) ; manifeste versionné éphémère (schema_version 1) ; portée deny-all. Ni MCP VPS ni MCP local ne composent. Source : docs/decisions/DEC-0057-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:50:53.648980+00:00"
+  },
+  {
+   "id": "08aff07a-a6a9-4fe9-b9c5-54077d6b3478",
+   "readable_id": "DEC-0058",
+   "title": "DEC-0058 — Étape 9.2 (Bloc B) : RecordingProvider, markers vidéo et MarketingCandidate locaux",
+   "body": "Statut dépôt : active (2026-09-15). Un seul paquet local studio_client.recording ; RecordingProvider orchestre, Marker et MarketingCandidate sont des dataclasses gelées ; le paquet n'importe ni httpx ni studio_api, l'écriture passe par un protocole EventSink. Aucun endpoint/table/EventType nouveau. Source : docs/decisions/DEC-0058-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:50:57.613479+00:00"
+  },
+  {
+   "id": "2d211b9e-4dc3-473c-884c-e71e5e7f63ba",
+   "readable_id": "DEC-0059",
+   "title": "DEC-0059 — Étape 9.1 : Studio Producer, intégration GitHub/build, workers",
+   "body": "Statut dépôt : active (2026-09-15/16). Producer = service d'analyse serveur à propositions (services/producer.py, entité ProducerJob) ; webhook GitHub signé (HMAC), entités Build/GitHubIntegration, worker « builds reconcile », Review Queue étendue. 9.1a et 9.1b livrés ; 9.1c (dispatch workflow_dispatch) reste différé. Source : docs/decisions/DEC-0059-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:51:01.596693+00:00"
+  },
+  {
+   "id": "211f9543-460a-4507-8672-2d3e004f0204",
+   "readable_id": "DEC-0061",
+   "title": "DEC-0061 — CSP progressive du dashboard : tests statiques, e2e Playwright, Report-Only",
+   "body": "Statut dépôt : active (2026-09-16). 5 tests statiques vitest (csp-static.test.ts), politique templatée (dashboard/csp-policy.ts), test Playwright e2e/csp.spec.ts (0 violation), même politique en Content-Security-Policy-Report-Only dans docker/Caddyfile. Aucun enforcement avant validation staging ; 9.1c toujours différé. Source : docs/decisions/DEC-0061-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:51:09.750905+00:00"
+  },
+  {
+   "id": "8806d69b-656a-4be1-beed-30562b81d1cd",
+   "readable_id": "DEC-0062",
+   "title": "DEC-0062 — AI Library : AgentDefinition distinct de Agent (provenance opérationnelle)",
+   "body": "Statut dépôt : active (2026-09-16). Le concept de bibliothèque s'appelle AgentDefinition (library_resources, kind=agent_definition) ; il n'est jamais référençable comme acteur : POST /events (actor_type=agent) et POST /ai-work exigent toujours un vrai Agent enregistré. Source : docs/decisions/DEC-0062-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:51:13.817151+00:00"
+  },
+  {
+   "id": "0ec8dc07-2236-42ce-8f08-fb9d8afdc1c7",
+   "readable_id": "DEC-0063",
+   "title": "DEC-0063 — AI Library : scopes et autorisation Studio/Project/User sans ACL parallèle",
+   "body": "Statut dépôt : active (2026-09-16). Sémantique des scopes du gate P0 ; aucune ACL ni RBAC parallèle : uniquement Principal, ensure_can_write, ensure_can_provision, ensure_machine_owned et filtre silencieux de visibilité (les définitions privées d'autrui sont omises, jamais forbidden). Source : docs/decisions/DEC-0063-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:51:17.853107+00:00"
+  },
+  {
+   "id": "25a5a005-8474-4836-9c85-83633d8edf91",
+   "readable_id": "DEC-0064",
+   "title": "DEC-0064 — AI Library : versioning par pointeur actif, versions immuables, locks projet",
+   "body": "Statut dépôt : active (2026-09-16). library_resources porte le pointeur active_version et le statut draft|active|deprecated ; les versions sont immuables (journaux append-only) ; création et activation sont deux étapes distinctes ; concurrence optimiste via version + 409. Locks de version par projet. Source : docs/decisions/DEC-0064-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:51:21.963880+00:00"
+  },
+  {
+   "id": "5f29f558-fe97-412e-84f4-9fb5d326dac1",
+   "readable_id": "DEC-0065",
+   "title": "DEC-0065 — AI Library : résolution de scope, shadowing, version effective, erreurs unifiées",
+   "body": "Statut dépôt : active (2026-09-16). Couche scopes/héritage P2 : service pur et déterministe, résolution logique (principal, kind, stable_key, project_id?) après application des règles de visibilité, shadowing entre scopes, version effective ; sans endpoint/MCP/UI en P2. Source : docs/decisions/DEC-0065-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:51:26.080535+00:00"
+  },
+  {
+   "id": "1bb867d6-c215-41e3-9a1c-66e5cdcbf7b9",
+   "readable_id": "DEC-0066",
+   "title": "DEC-0066 — AI Library P3 : contenu sémantique par kind, ModelProfile en exigences pures, matcher figé",
+   "body": "Statut dépôt : active (2026-09-17). Schémas studio.library.<kind>/v1 (extra=forbid) : rule/skill = texte (≤ 65 536 car.), model_profile = requirements vendor-neutral uniquement, agent_definition = descriptif (summary, intended_use), workflow = déclaratif. Un seul propriétaire par information ; matcher de compatibilité conservateur. Source : docs/decisions/DEC-0066-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:51:30.203783+00:00"
+  },
+  {
+   "id": "2d385ca1-665c-49e3-abeb-e2b0c9cd9c0d",
+   "readable_id": "DEC-0067",
+   "title": "DEC-0067 — AI Library P5 : Library Bindings, relations typées, matrice de kinds, fail-closed",
+   "body": "Statut dépôt : active (2026-09-17). Arêtes typées entre définitions (library_resource_links) : requires_model_profile, uses_skill, applies_rule, composes_agent, references_workflow, refines_skill_rule ; chaque couple de kinds admet exactement une relation ; distinct des User/Runtime Bindings (DEC-0068). Source : docs/decisions/DEC-0067-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:51:34.237500+00:00"
+  },
+  {
+   "id": "08c1cefb-1441-4c00-80ef-47050d3cac04",
+   "readable_id": "DEC-0068",
+   "title": "DEC-0068 — AI Library P4 : User/Runtime Bindings, choix runtime par utilisateur, précédences",
+   "body": "Statut dépôt : active (2026-09-17). Choix runtime par utilisateur avec niveaux user, project_override, project_default, studio_default (session éphémère, jamais persisté) ; deux utilisateurs configurent différemment une définition commune sans la modifier ni se voir. Source : docs/decisions/DEC-0068-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:51:38.225488+00:00"
+  },
+  {
+   "id": "708310c8-890d-44b5-a5db-2db5fcf0d6df",
+   "readable_id": "DEC-0069",
+   "title": "DEC-0069 — AI Library P5 : Resolution Engine, cœur pur, provenance, erreur stricte",
+   "body": "Statut dépôt : active (2026-09-17). Assemble P1–P4 en une spécification logique résolue, déterministe, explicable et harness-neutral ; séparation acquisition/résolution pure ; une seule implémentation de la précédence ; pas de fallback silencieux sur runtime incompatible. Source : docs/decisions/DEC-0069-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:51:42.067252+00:00"
+  },
+  {
+   "id": "2719d487-d534-44e3-a97e-0933181064fc",
+   "readable_id": "DEC-0070",
+   "title": "DEC-0070 — AI Library P6 : Runtime Registry, runtimes déclarés, identité stable, neutre provider/harness",
+   "body": "Statut dépôt : active (2026-09-17). Studi'OS connaît les runtimes réellement déclarés et leurs capacités, de façon neutre ; P6 décrit, identifie et permet de vérifier la compatibilité, sans exécuter de modèle, sans choisir de « meilleur » runtime ni découvrir automatiquement. Source : docs/decisions/DEC-0070-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:51:46.018195+00:00"
+  },
+  {
+   "id": "7dd53939-39f1-4a15-ae92-71983fb26c50",
+   "readable_id": "DEC-0071",
+   "title": "DEC-0071 — AI Library P7 : HTTP canonique, surface de référence Library/P4/P5/P6 via services communs",
+   "body": "Statut dépôt : active (2026-09-17). Les briques P1–P6 sont exploitables par un consommateur externe via HTTP seul (20 opérations) ; chaque route est mince (HTTP → service → domain/core), aucune logique métier ajoutée. Source : docs/decisions/DEC-0071-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:51:50.175514+00:00"
+  },
+  {
+   "id": "f0ad5781-30e2-4b1b-b51d-20c3414a2c5c",
+   "readable_id": "DEC-0072",
+   "title": "DEC-0072 — AI Library P8 : MCP minimal, 5 outils use-cases sur services communs, output schemas explicites",
+   "body": "Statut dépôt : active (2026-09-17). Cinq outils orientés use-cases (studio_discover_definitions, studio_publish_definition, studio_configure_runtime, studio_register_runtime, studio_resolve_agent), pas une transposition des 20 opérations REST ; aucune logique métier ajoutée. Source : docs/decisions/DEC-0072-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:51:54.002221+00:00"
+  },
+  {
+   "id": "cb3f64c8-4da5-4df0-8d29-d8f0b0ec6ce9",
+   "readable_id": "DEC-0073",
+   "title": "DEC-0073 — P9 : Context Package local, AI Library comme source du composeur DEC-0057 via StudioApiClient",
+   "body": "Statut dépôt : active (2026-09-17). La Library distante devient une source supplémentaire du composeur local existant : pas de second pipeline, pas de composeur VPS/MCP, pas de second backend Bloc B, pas de persistance serveur du package ni du manifeste. Source : docs/decisions/DEC-0073-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:51:58.506409+00:00"
+  },
+  {
+   "id": "92f2e0ab-9603-4acb-832e-b6ac35c230fd",
+   "readable_id": "DEC-0001",
+   "title": "DEC-0001 — Layout du dépôt : monorepo uv, packages/ et services/",
+   "body": "Décision du dépôt (docs/decisions/DEC-0001-layout-du-depot-monorepo-uv-packages-services.md), statut : active. Le dépôt est un monorepo géré par uv, organisé en packages/ (bibliothèques partagées : contrats, client) et services/ (API, MCP, workers). Voir le fichier source pour le contexte et les conséquences complets.",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:46:33.491041+00:00"
+  },
+  {
+   "id": "6afd593b-eebd-46ec-97d0-a7960a05cb74",
+   "readable_id": "DEC-0012",
+   "title": "DEC-0012 — Identité utilisateur dérivée de Machine.owner_user_id",
+   "body": "Statut dépôt : active (2026-09-13). L'identité utilisateur d'une requête est celle du propriétaire de la machine authentifiée (machine.owner_user_id → users.role) : pas de second header, session, login ni OIDC en v1 (JWT dashboard ajouté plus tard, DEC-0056). Nouvelle dépendance require_roles(*roles). Source : docs/decisions/DEC-0012-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:47:35.539076+00:00"
+  },
+  {
+   "id": "2aca5daf-2719-4836-9980-717c2bdffee3",
+   "readable_id": "DEC-0017",
+   "title": "DEC-0017 — Étape 3 (dette qualité P2/P3) fermée",
+   "body": "Statut dépôt : active (2026-09-13). Deux erreurs mypy [type-arg] sur sa.Column dans la migration 0001 corrigées (sa.Column[Any]), constante HTTP_422_UNPROCESSABLE_ENTITY dépréciée par Starlette remplacée, dette qualité de l'étape 3 soldée. Source : docs/decisions/DEC-0017-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:47:56.332104+00:00"
+  },
+  {
+   "id": "07e1075b-a18e-42a6-9bbd-2baf4cc67b02",
+   "readable_id": "DEC-0032",
+   "title": "DEC-0032 — Sous-étape 6.6 (watchers Git/Godot) : poll local sans nouvelle dépendance, PR hors périmètre",
+   "body": "Statut dépôt : active (2026-09-14). PollingWatcher partagé (boucle poll/stop calquée sur HeartbeatDaemon) ; un poll_once qui lève est journalisé et sauté, jamais fatal. Aucune nouvelle dépendance ; les pull requests sont hors périmètre. Source : docs/decisions/DEC-0032-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:48:57.970269+00:00"
+  },
+  {
+   "id": "26e65cfc-93bf-4a5b-b8ef-440f3c991627",
+   "readable_id": "DEC-0046",
+   "title": "DEC-0046 — HTTP canonique complet, MCP sous-ensemble additif : parité de surface non requise, parité d'enforcement requise",
+   "body": "Statut dépôt : active (2026-09-15). HTTP (/api/v1) est l'interface publique canonique et complète ; MCP est une interface additive orientée agents exposant un sous-ensemble découvrable. La parité de surface n'est pas requise sauf contrat spécifique ; les autorisations sont identiques. Source : docs/decisions/DEC-0046-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:50:08.080062+00:00"
+  },
+  {
+   "id": "62782973-4c31-4422-9152-b4f2dc9fde61",
+   "readable_id": "DEC-0060",
+   "title": "DEC-0060 — Étape 9.3 : revue de sécurité, durcissement des headers au edge",
+   "body": "Statut dépôt : active (2026-09-16). HSTS (max-age=31536000, sans includeSubDomains) et baseline nosniff/X-Frame-Options dans docker/Caddyfile sur les 4 sites TLS ; headers dans docker/dashboard.nginx.conf. Constats conformes : HMAC timing-safe, CORS deny-by-default, JWT HS256, rate limiting in-memory V1. Source : docs/decisions/DEC-0060-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:51:05.629772+00:00"
+  },
+  {
+   "id": "b3291c59-4ac7-4986-a6c1-4a1aa17bd224",
+   "readable_id": "DEC-0075",
+   "title": "DEC-0075 — P11 : Workflows déclaratifs, définition canonique Library (participants, DAG, I/O), aucune orchestration serveur",
+   "body": "Statut dépôt : active (2026-09-17). kind=workflow : participants, dépendances (DAG validé statiquement), Rules/Skills via les links existants, inputs/outputs. Studi'OS décrit le graphe ; le harness le parcourt ; aucun état d'exécution, aucun champ runtime. Source : docs/decisions/DEC-0075-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:52:06.560707+00:00"
+  },
+  {
+   "id": "274ca171-4dc9-4442-accd-431b753dc7bf",
+   "readable_id": "DEC-0076",
+   "title": "DEC-0076 — P12 : dashboard UI et Resolution Inspector, interface humaine au-dessus du HTTP canonique, aucune résolution frontend",
+   "body": "Statut dépôt : active (2026-09-17). Rend visibles, configurables et débogables les capacités canoniques depuis P7 ; aucun endpoint, schéma, service, table, outil MCP ni migration ajouté ; le frontend consomme strictement l'API. Source : docs/decisions/DEC-0076-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:52:10.593249+00:00"
+  },
+  {
+   "id": "2e01df65-6885-4cc1-b435-f109316e03fd",
+   "readable_id": "DEC-0077",
+   "title": "DEC-0077 — P13 : validation E2E finale, sous-système Library/Runtime/Resolution accepté, un défaut P12 corrigé",
+   "body": "Statut dépôt : active (2026-09-17). Campagne d'acceptation de P1–P12, sous-système gelé au commit 0125616264d6522aa279403b172fdc430898f850 : scopes, héritage, locks, dépendances, précédence runtime, compatibilité, isolation. Un défaut P12 a été corrigé. Source : docs/decisions/DEC-0077-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:52:14.668604+00:00"
+  },
+  {
+   "id": "a95fc84e-09b1-4a97-9e5f-6f8b4facd3d2",
+   "readable_id": "DEC-0078",
+   "title": "DEC-0078 — Refonte UI-1 : Design System StudiOS, thème clair unique, interface en français, route interne #/design-system",
+   "body": "Statut dépôt : active (2026-09-18). Fondations visuelles de la refonte UI/UX (roadmap Refonte UI/UX, archivée) ; aucune page métier migrée ; le Design System devient la source de vérité visuelle pour UI-2 à UI-16 ; aucun contrat modifié. Source : docs/decisions/DEC-0078-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:52:18.815320+00:00"
+  },
+  {
+   "id": "0673944d-6f56-4c3b-8af7-6cffe9627338",
+   "readable_id": "DEC-0079",
+   "title": "DEC-0079 — Refonte UI-2 : AppShell (sidebar bleu nuit, topbar minimale) + garde anti-race du rendu",
+   "body": "Statut dépôt : active (2026-09-18). Contenant commun dashboard/src/shell.ts + shell.css : sidebar bleu nuit, topbar minimale, zone de contenu ; pages métier inchangées (migration UI-3+) ; aucun contrat ni endpoint modifié. Source : docs/decisions/DEC-0079-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:52:23.449898+00:00"
+  },
+  {
+   "id": "70c120df-e8ff-4997-81e7-38574fc6a392",
+   "readable_id": "DEC-0080",
+   "title": "DEC-0080 — MCP studio_prepare_context : façade de lecture bornée et déterministe sur les services existants",
+   "body": "Statut dépôt : active (2026-09-19). Un agent qui démarrait enchaînait une dizaine d'appels get/list/discover et recevait des listes non bornées ; un outil MCP additif répond en un appel compact et borné, sélection déterministe et expliquée. Aucun contrat partagé, aucune migration. Source : docs/decisions/DEC-0080-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:52:27.619694+00:00"
+  },
+  {
+   "id": "a2d19ade-255d-4fe2-acca-c6a9b31f5830",
+   "readable_id": "DEC-0081",
+   "title": "DEC-0081 — Refonte UI-16 : polish final et clôture de la refonte UI/UX (UI-1 → UI-16)",
+   "body": "Statut dépôt : active (2026-09-19). Clôt la refonte UI/UX du dashboard : aucune phase fonctionnelle, aucun endpoint, donnée ni contrat modifié ; vanilla TS, CSP stricte (aucun style/handler/script inline) et invariants UI-13. Source : docs/decisions/DEC-0081-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:52:31.676412+00:00"
+  },
+  {
+   "id": "0bd7e354-f992-4ea4-bfd4-c232e94cad4a",
+   "readable_id": "DEC-0082",
+   "title": "DEC-0082 — GET /machines : liste des machines actives, statut dérivé du heartbeat",
+   "body": "Statut dépôt : active (2026-09-20). Endpoint additif GET /api/v1/machines → list[Machine], contrat Machine inchangé (aucun champ ajouté, aucune migration, aucun schema_version bumpé) ; source : table machines ; statut dérivé du heartbeat. Source : docs/decisions/DEC-0082-get-machines-liste-alimentee-par-heartbeat.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:52:35.789040+00:00"
+  },
+  {
+   "id": "e8085564-cd8e-40cb-84fd-67e180dd5b92",
+   "readable_id": "DEC-0074",
+   "title": "DEC-0074 — P10 : adapters locaux, même définition canonique vers Claude Code et OpenCode, core neutre",
+   "body": "Statut dépôt : active (2026-09-17). studio_client/adapters/ projette une ResolvedAgentDefinition (avec éventuellement un Context Package P9) vers deux artefacts harness via deux adapters indépendants consommant exactement le même type canonique. Source : docs/decisions/DEC-0074-*.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T08:52:02.527869+00:00"
+  },
+  {
+   "id": "a7c9e913-1f6e-4aba-a733-dc67d31dc826",
+   "readable_id": "DEC-0083",
+   "title": "Priorité : roadmap Roadmaps & Project Initialization avant la roadmap Desktop",
+   "body": "Décision de l'utilisateur (2026-09-20) : le développement reprend par la roadmap « Roadmaps structurées, initialisation de projet et hydratation des tâches » (tâches [Roadmaps P0] à [Roadmaps P10]). La roadmap Desktop (tâches [Desktop P0] à [Desktop P12]) est mise en attente, sans être abandonnée. Point d'entrée : [Roadmaps P0] Architecture Gate & audit de l'existant, une seule session, aucun code produit avant validation de l'architecture. Les deux roadmaps recommandent le dogfood depuis Studio OS lui-même.",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T09:12:07.925854+00:00"
+  },
+  {
+   "id": "90f45631-b8a6-485e-9368-b69ce900c521",
+   "readable_id": "DEC-0084",
+   "title": "DEC-0084 — Roadmaps P0 : Roadmap = nouveau domaine, cycle de vie, versionnement, provenance, matrice",
+   "body": "Statut dépôt : proposed (gate P0, en attente de validation humaine). Roadmap = nouveau domaine additif (roadmaps, phases, steps, dépendances step→step, liens step↔task N:M, révisions append-only), sans task.roadmap_id ; une seule roadmap active par projet. Task reste source de vérité du statut de travail ; état d'étape et progression dérivés (seul state_override stocké). Cycle draft→proposed→active→completed→archived ; activation/approbation réservées à admin/developer (rôle agent exclu) ; provenance agent sur roadmap active ⇒ proposition (révision pending, base_revision_no, appariement par key). Provenance = actor_type/actor_id/agent_id/machine_id, aucun champ harness/provider/model. Événements roadmap.* additifs. Review Queue : extension minimale roadmap_proposal, sans table. Constat F1 : services Task/Project commitent en interne → variante sans commit additive requise pour l'hydratation transactionnelle. Source : docs/decisions/DEC-0084-roadmaps-p0-architecture-gate.md (contient matrice R1..R10 et points à valider §10).",
+   "status": "accepted",
+   "task_id": "861bd4af-64ea-4e5e-89bd-ea3e8bc4c268",
+   "created_at": "2026-09-20T10:02:03.281660+00:00"
+  },
+  {
+   "id": "d31c16ea-06f1-481c-a701-7c06845dd426",
+   "readable_id": "DEC-0097",
+   "title": "DEC-0100 — Isolation projet minimale : membership User→Project (rôle = quoi, membership = où)",
+   "body": "Statut dépôt : proposed (2026-09-24). Table project_memberships(project_id,user_id) binaire ; accès porté par le User, hérité par ses Machines, jamais par un Agent ; admin bypass ; compte actif+vérifié à 0 membership valide et ne voit aucune donnée partagée ; créateur membre à la création (même transaction) ; attribution V1 par admin uniquement (API/CLI/Dashboard) ; collections filtrées, 403 (pas de 404) sur UUID ou project_id inaccessible ; SSE 403 à l'ouverture + keep-alive et revalidation ; MCP/prepare_context mêmes gardes via services ; composition ET avec Transfer/Library/Runtime ; point canonique Principal.project_scope + registre fail-closed des routes/outils ; backfill tous users × tous projets ; API_CONTRACT_VERSION 2. Amende DEC-0036 et DEC-0063, aucune supersession. Source : docs/decisions/DEC-0100-isolation-projet-membership-user.md ; audit docs/DU0_AUTH_PROJECT_DATA_AUDIT.md.",
+   "status": "superseded",
+   "task_id": "d0e23fe3-7bc9-443d-b245-46dab4dcf497",
+   "created_at": "2026-09-24T15:59:21.555352+00:00"
+  },
+  {
+   "id": "a0b90da5-2f74-4821-8806-d27bef2c2ae1",
+   "readable_id": "DEC-0085",
+   "title": "DEC-0085 — Roadmaps P1 : contrats communs gelés, format neutre studio.roadmap/v1, règles pures partagées",
+   "body": "Statut dépôt : active (2026-09-20). Contrats P1 uniquement (aucune route/table/migration/outil MCP). Nouveau packages/studio-contracts/.../roadmaps.py : RoadmapDocument neutre studio.roadmap/v1 (plan seul, extra=forbid, ordre = ordre des listes, clés uniques par roadmap), read/write models, ROADMAP_TRANSITIONS + transition_requires_provision, règles pures partagées (find_dependency_cycle, roadmap_document_errors, derive_step_state, waiting_on, compute_progress, count_hydration), vocabulaire fermé RoadmapErrorCode, bornes MAX_*. EventType: 10 roadmap.* additifs. Précisions vs DEC-0084 : hydratation create/reuse/skip/conflict (linked_existing retiré, LinkTask explicite), StepUpdate (contenu→proposition si provenance agent sur roadmap active) vs StepProgressUpdate (direct), concurrence If-Match-Version + expected_roadmap_version pour la structure, champ de contexte upcoming_steps (garde P11). Différé : ReviewQueueKind roadmap_proposal (P8), déplacement d'étape inter-phases, PDF (P9). Amendements additifs TECH/02,03,05,07 ; fixtures partagées + tests/contracts/test_roadmaps_p1.py (98 passed contrats). Source : docs/decisions/DEC-0085-roadmaps-p1-contrats-communs.md",
+   "status": "accepted",
+   "task_id": "551ae612-03bd-4777-a485-74a6d2341405",
+   "created_at": "2026-09-20T10:17:17.706642+00:00"
+  },
+  {
+   "id": "642acc21-4335-409f-b44b-f1c558aea7de",
+   "readable_id": "DEC-0090",
+   "title": "Desktop P0 : Tauri 2 comme shell natif mince autour du Dashboard autonome",
+   "body": "Proposition P0 : retenir Tauri 2 pour le shell Windows, avec Dashboard Vite commun et autonome, bridge local strictement typé et allowlisté, lifecycle du daemon Python existant comme sidecar, et aucune logique métier serveur dupliquée. Le rapport et l’ADR seront consignés dans docs/DESKTOP_P0_ARCHITECTURE_GATE.md et docs/decisions/DEC-0091-desktop-p0-tauri-shell-frontieres.md. Statut proposé jusqu’à validation utilisateur.",
+   "status": "accepted",
+   "task_id": "811d142f-058f-4e7d-bbc5-e2f3de2dfb48",
+   "created_at": "2026-09-20T18:22:19.409542+00:00"
+  },
+  {
+   "id": "98e41032-4197-4213-b1eb-3980b43ba2b6",
+   "readable_id": "DEC-0091",
+   "title": "Desktop P0 : abstraction CodeGraphProvider et Graphify installé séparément",
+   "body": "Proposition P0 : le Desktop dépend d’un contrat local CodeGraphProvider, jamais directement de Graphify. Graphify 0.9.59 est installé via uv tool, Python >=3.10, Apache-2.0 avec NOTICE et reliquat MIT ; l’installation locale complète mesure environ 175,5 Mo. La redistribution du code paraît permise sous obligations de notice, mais le lot complet de dépendances et la stratégie de mise à jour ne sont pas encore audités : P0 recommande une installation gérée séparément, facultative, avant toute décision d’embarquement. ADR prévu : docs/decisions/DEC-0092-desktop-p0-codegraph-provider-graphify.md. Statut proposé jusqu’à validation utilisateur.",
+   "status": "accepted",
+   "task_id": "811d142f-058f-4e7d-bbc5-e2f3de2dfb48",
+   "created_at": "2026-09-20T18:22:39.720448+00:00"
+  },
+  {
+   "id": "799cc332-8431-4438-9dbc-1d2045e6974d",
+   "readable_id": "DEC-0093",
+   "title": "Desktop P1 : contrats locaux studio.local/v1, bridge à allowlist fermée, fixtures partagées",
+   "body": "PROPOSED (en attente de validation humaine). Résumé : P1 ajoute le package de contrats studio_contracts.local (protocole studio.local/v1), sans changement de contrat serveur ni code P2+. Handshake par plage de protocole + capabilities (fail-closed) ; Local Bridge à allowlist fermée (aucun shell/fs arbitraire/spawn/proxy HTTP) ; DaemonControl ; LocalWorkspaceConfig sans secret (SecretReference) ; HumanIdentity distinct de MachineIdentity ; contrats KnowledgeProvider/CodeGraphProvider/HarnessAdapter neutres ; schéma de graphe commun ; politique de publication LOCAL_ONLY ; fixtures JSON partagées sous contracts/local/. Fichier canonique : docs/decisions/DEC-0093-desktop-p1-contrats-locaux-studio-local-v1.md (branche desktop/contracts-core). Réconciliation par UUID ; ne jamais renuméroter.",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-20T19:30:06.086648+00:00"
+  },
+  {
+   "id": "ca1ad768-34f3-47c1-bc82-8d18963a23ab",
+   "readable_id": "DEC-0088",
+   "title": "Roadmaps : DEC P8 renumérotée DEC-0089 ; IDs serveur non synchronisés avec les fiches ADR",
+   "body": "P6 et P8 ont chacune créé une fiche DEC-0088 ; celle de P8 devient DEC-0089 (prochain numéro libre du dépôt). Les fiches docs/decisions/DEC-xxxx restent l'historique canonique ; Decision.readable_id serveur (P6=DEC-0086, P8=DEC-0087) est un compteur non synchronisé, pas renuméroté. Réconciliation architecturale = finding post-Roadmaps. Détail : docs/decisions/DEC-0089-roadmaps-p8-propositions-revisions-review.md (§Numérotation) et docs/ROADMAPS_POST_FINDINGS.md.",
+   "status": "accepted",
+   "task_id": "192c4523-4b7d-4b5a-adc6-d497bd5270da",
+   "created_at": "2026-09-20T16:51:55.992933+00:00"
+  },
+  {
+   "id": "29dd433c-135b-4f14-92c8-0fdc32098d5c",
+   "readable_id": "DEC-0086",
+   "title": "Roadmaps P6 : section Roadmap de studio_prepare_context (roadmap active + overview, budget dédié 25 %, additif)",
+   "body": "Proposed. Résumé : PreparedContext gagne 3 champs additifs et absents (non null) sans roadmap : `roadmap` (RoadmapItem = RoadmapContext du contrat P1 étendu : status, objective, truncated, why, current_step enrichi, task_step), `roadmap_overview` (autres roadmaps non archivées par référence : counts, draft_pending, others) et `unavailable` ([\"roadmap\"] si la source échoue, lecture en savepoint). Seule une roadmap `active` produit `roadmap` (DEC-0084 §8). Budget : tranche dédiée = 25 % de max_chars, prélevée après projet/tâche/tâches liées et avant décisions/rules/skills, priorité étape courante > blockers > Tasks liées > critères > étapes suivantes > objectif roadmap ; ancres (ids, titres, état, progression) non comptées ; omissions dans omitted_for_budget (clés roadmap_*), reliquat dans additional_available. Tâche déjà présente ailleurs = référence (in_context). Aucun contrat partagé modifié (sous-classes locales de RoadmapContext/ContextStep), aucune migration, aucun événement. Écart P6 « create_project commite » : NON traité, 5 services commitent en interne (projects, roadmap import/link via finish_result, library.set_lock, runtime_bindings) => chantier unit-of-work distinct, documenté. Fichier : docs/decisions/DEC-0088-roadmaps-p6-context.md (id à confirmer à la réconciliation si P8 alloue aussi 0088).",
+   "status": "accepted",
+   "task_id": "ee629384-5542-48b8-ae51-556546ed7787",
+   "created_at": "2026-09-20T14:35:38.491229+00:00"
+  },
+  {
+   "id": "5019e74a-7770-49ca-90e9-0d40c2a7155c",
+   "readable_id": "DEC-0094",
+   "title": "Desktop P4 : daemon unique supervisé, outbox liée à l’identité et health négocié",
+   "body": "PROPOSED — P4 conserve le verrou P1 par (server_origin, profile), lie physiquement et logiquement l’outbox à (origin, profile, machine) avec refus IDENTITY_MISMATCH, réutilise HeartbeatDaemon/GitWatcher/OutboxReplayer dans un runtime Python commun, et confie à Tauri la supervision bornée du processus. Le health détaillé est une évolution additive de studio.local/v1 derrière une capability négociée, jamais un champ silencieux. IPC privé, borné, sans primitive générique. Référence canonique à créer dans docs/decisions/DEC-0094-desktop-p4-daemon-lifecycle.md.",
+   "status": "accepted",
+   "task_id": "6b68b45d-bdec-442a-9841-9e4119c382fa",
+   "created_at": "2026-09-21T02:33:59.594632+00:00"
+  },
+  {
+   "id": "aeec66b2-1831-48aa-ab7e-77b655089e89",
+   "readable_id": "DEC-0089",
+   "title": "Roadmaps P10 : validation finale, review par le rôle, correction ordre d'initialisation proposed (DEC-0090)",
+   "body": "Résumé : P10 valide P1→P9 de bout en bout (11 tests E2E pytest + 5 Playwright), tranche que la frontière de review est le rôle (pas de séparation proposant/relecteur, cf. DEC-0085), confirme la conservation de la provenance après approbation, laisse le contexte P6 sans indicateur de proposition en attente, et corrige un défaut : initialisation mode=proposed échouait à lier les Tasks sur une roadmap déjà soumise (désormais draft→liens→submit). Fichier : docs/decisions/DEC-0090-roadmaps-p10-validation-finale-et-cloture.md. Statut : proposed jusqu'à accord.",
+   "status": "accepted",
+   "task_id": "f6de15f3-3765-4399-bf40-afde8fed96c8",
+   "created_at": "2026-09-20T17:28:27.980075+00:00"
+  },
+  {
+   "id": "d30db1da-06f1-4e3f-8609-b899cb1d960d",
+   "readable_id": "DEC-0087",
+   "title": "DEC-0088 Roadmaps P8 : propositions de revision, relecture humaine et file de review",
+   "body": "P8 implemente (commit 4de5302, feat/roadmaps-p8-review, baseline 218e942), additif: API_CONTRACT_VERSION/EVENT_SCHEMA_VERSION restent 1. Chemin canonique = POST /roadmaps/{id}/proposals (Idempotency-Key, 201) qui enregistre une revision proposal pending sans toucher la roadmap; approve (admin/developer) applique par key en preservant liens/dependances; base perimee -> 409 base_revision_stale; revue refusee hors active; numerotation de revision unique par roadmap (snapshot/submit/proposal); ReviewQueueKind.roadmap_proposal derive; MCP minimal (studio_propose_roadmap + roadmap_id/base_revision_no, studio_get_roadmap.pending_proposals), aucun outil MCP d approbation. Defauts contract-guardian corriges. Detail: docs/decisions/DEC-0088-*.md",
+   "status": "accepted",
+   "task_id": "669d34b9-a49d-480b-8c2e-b0133f315123",
+   "created_at": "2026-09-20T16:17:56.379958+00:00"
+  },
+  {
+   "id": "9f2ab7aa-fd5f-4fe4-9d81-e32306224f74",
+   "readable_id": "DEC-0095",
+   "title": "DEC-0095 — P10 : packaging Windows NSIS per-user ; Graphify non redistribué",
+   "body": "Statut : proposed (en attente d'accord). Résumé : installeur canonique NSIS per-user (Tauri 2, sans admin, WebView2 embarqué) ; sidecar PyInstaller onedir dans <install>\\sidecar ; données utilisateur séparées (%APPDATA%\\StudioOS, jamais supprimées par défaut) ; Graphify NON redistribué (licences transitives, marque et chemin de mise à jour non prouvés → fail-closed, Code Graph = not_installed) ; Git non embarqué (GIT_ABSENT géré) ; mises à jour via tauri-plugin-updater minisign, user-driven, fail-closed sans clé/endpoint ; installeur de dev non signé (Authenticode absent). Fichier : docs/decisions/DEC-0095-desktop-p10-packaging-graphify-non-redistribue.md",
+   "status": "accepted",
+   "task_id": "b0cb4b94-8ed6-4f67-bc6b-c2c9063831f9",
+   "created_at": "2026-09-22T00:50:46.142111+00:00"
+  },
+  {
+   "id": "a4c86edd-a071-40dd-9e76-92af9245c0c8",
+   "readable_id": "DEC-0098",
+   "title": "DU-0/A — Inscription publique fermée par défaut et activation vérifiée",
+   "body": "PROPOSED — validation humaine obligatoire.\n\nCURRENT: aucun endpoint public d'inscription; POST /users et POST /machines sont admin-only; le premier admin reste provisionné hors-bande (DEC-0011). User ne porte pas encore d'état actif/vérifié.\n\nOPTIONS:\n1. Inscription toujours ouverte — rejetée (surface d'abus et changement d'exploitation non borné).\n2. Invitation uniquement — sûre mais ne couvre pas l'objectif d'inscription publique.\n3. Feature flag d'instance, désactivé par défaut — recommandée.\n\nRECOMMANDATION:\n- PUBLIC_REGISTRATION_ENABLED=false par défaut. Quand false, POST /api/v2/auth/register répond 404 registration_unavailable; aucun bootstrap implicite.\n- Quand true, création d'un User readonly, pending_verification, sans membership projet. ROLE répond à « quoi »; membership répond à « où ».\n- Email unique normalisé; réponse identique pour adresse nouvelle/existante; aucun oracle de compte.\n- Vérification, renvoi, mot de passe oublié et reset utilisent des secrets aléatoires >=256 bits, stockés hashés, à usage unique, avec purpose, expires_at et consumed_at; toute consommation est transactionnelle.\n- L'activation requiert email_verified_at; disabled_at bloque JWT, machine, SSE et MCP hérités de cet utilisateur.\n- Le bootstrap hors-bande DEC-0011 reste la seule création initiale d'admin.\n\nCONTRATS:\n- Additif: nouvelles routes v2 de register/verify/resend/forgot/reset et nouveaux champs internes.\n- Rupture de comportement: état de compte désormais vérifié à l'authentification; API contract v2 avec DEC-0100.\n- Data model: User account_state/email_verified_at/disabled_at; table de jetons one-shot hashés.\n- Événements: nouveaux payloads/version seulement si émis, sans modifier l'enveloppe.\nAMEND: DEC-0012 et DEC-0056 pour états de compte; KEEP DEC-0011, DEC-0036, DEC-0098.\nHORS PÉRIMÈTRE DU GATE: aucune route, migration, UI ou expédition email n'est implémentée ici.",
+   "status": "superseded",
+   "task_id": "8704cfe2-5d93-4f19-85a0-2227830ecb6c",
+   "created_at": "2026-09-24T16:24:22.845674+00:00"
+  },
+  {
+   "id": "33a4b799-30e3-46ae-93e0-fc1e8a08cc19",
+   "readable_id": "DEC-0096",
+   "title": "DEC-0099 Desktop P9 : fourniture du jeton machine aux harnais par credential helper, état token_missing",
+   "body": "Statut : proposed. Fichier : docs/decisions/DEC-0099-desktop-p9-fourniture-jeton-mcp-aux-harnais.md.\nRésumé : aucun code Desktop ne fournit STUDIO_MCP_MACHINE_TOKEN aux harnais (Claude Code envoie le placeholder → unauthenticated). (1) Appliqué : VerifyState studio.local/v1 gagne token_missing (sans error), renvoyé par harness.verify à la place de configured ; Dashboard Intégrations IA ajoute « Vérifier la connexion » avec message français fixe. (2) Proposé, non implémenté : credential helper — Claude Code headersHelper \"studio-client mcp-headers\" lisant le trousseau (KeyringTokenStore, clé = origine), relais stdio studio-client mcp-relay pour OpenCode ; rejetés : variable HKCU (jeton en clair, propagation, rotation), proxy MCP local du daemon (usage par tout processus local, port, SPOF). Auth/Sync inchangé.",
+   "status": "superseded",
+   "task_id": null,
+   "created_at": "2026-09-24T14:39:50.051398+00:00"
+  },
+  {
+   "id": "0e19d373-f2d1-4050-b872-9426b17ce601",
+   "readable_id": "DEC-0102",
+   "title": "DU-0/E — Artéfact Windows signé, updater minisign et promotion sans rebuild",
+   "body": "PROPOSED — validation humaine obligatoire.\n\nCURRENT: NSIS per-user et updater Tauri/minisign existent; la CI release manuelle compile EXE+.sig sans publication. Pas de latest.json public, canaux, promotion, Authenticode ni hébergement définis.\n\nOPTIONS:\n1. Minisign updater seul — intégrité du feed mais confiance Windows insuffisante.\n2. Authenticode seul — confiance OS mais pas d'intégrité du feed.\n3. Double signature + artefact immuable promu sans rebuild — recommandée.\n\nRECOMMANDATION:\n- CI taggée construit une fois un bundle reproductible. SHA-256, SBOM/provenance, signature Tauri/minisign et Authenticode des exécutables/sidecars/installeur sont produits et vérifiés avant publication.\n- La clé updater et le certificat de code-signing sont séparés, uniquement dans un coffre CI; aucune clé privée dans Git ou un runner non protégé.\n- Canaux beta et stable ont des manifests HTTPS distincts. Le même artefact signé passe beta→stable par promotion du manifeste, jamais par rebuild.\n- latest.json référence version, URLs, tailles, SHA-256, signature updater, date, canal et bornes de compatibilité.\n- L'updater reste user-driven et fail-closed; il refuse signature, hash, canal ou compatibilité invalides.\n- Authenticode exige choix fournisseur/certificat et budget humains avant implémentation. Aucun achat au gate DU-0.\n- Rétention et rollback gardent au moins N et N-1; retrait d'urgence est explicite et audité.\n\nCONTRATS:\n- Manifest de distribution public additif; aucun changement de l'enveloppe événement.\nAMEND DEC-0095. KEEP DEC-0098; n'altère pas Graphify ni les données utilisateur.\nHORS PÉRIMÈTRE: aucune clé, certificat, workflow, publication ou updater n'est modifié ici.",
+   "status": "superseded",
+   "task_id": "fe94023c-7c29-476b-9e81-152b73acbee4",
+   "created_at": "2026-09-24T16:24:53.366071+00:00"
+  },
+  {
+   "id": "61b0a658-657d-41bc-9114-23c509d4464a",
+   "readable_id": "DEC-0104",
+   "title": "DU-0/A — Inscription publique fermée par défaut (rév. corrigée)",
+   "body": "Remplace la proposition a4c86edd-… (corps obsolète). Statut : proposée, non implémentée.\n\nRésumé : PUBLIC_REGISTRATION_ENABLED=false par défaut ; désactivé, POST /api/v1/auth/register → 404 registration_unavailable. Activé : User readonly, pending_verification, 0 membership. Réponses register/resend/forgot non discriminantes ; emails normalisés uniques. Secrets vérif/reset ≥256 bits, hashés, typés, expirants, usage unique transactionnel. register/resend/forgot exigent Idempotency-Key (rejeu = réponse d'origine, aucun User/secret en plus) ; verify/reset consommables une fois, rejeu identique = résultat terminal d'origine, payload différent refusé. Activation exige email_verified_at ; disabled_at bloque JWT, machines, SSE, MCP. Erreurs dans l'enveloppe TECH/02 {\"detail\":{\"error_code\":...}}. Bootstrap DEC-0011 inchangé ; enrôlement machine self-service en A5. Routes additives du contrat API 2 ; application obligatoire de l'état de compte = rupture API contrat 2. Migrations réversibles ; contrats, OpenAPI, clients, fixtures, mocks A/B dans le même lot. AMEND DEC-0012, DEC-0056 ; KEEP DEC-0011, DEC-0036, DEC-0098 (ADR du dépôt).\n\nSource : docs/decisions/DU0-A-public-registration.md",
+   "status": "superseded",
+   "task_id": "8704cfe2-5d93-4f19-85a0-2227830ecb6c",
+   "created_at": "2026-09-24T18:39:03.731841+00:00"
+  },
+  {
+   "id": "bcf92622-8b2a-48fa-bb16-bf345b867489",
+   "readable_id": "DEC-0109",
+   "title": "DU-0/A — Inscription publique fermée par défaut (rév. alignée ADR)",
+   "body": "Remplace les propositions a4c86edd-a071-40dd-9e76-92af9245c0c8 et 61b0a658-657d-41bc-9114-23c509d4464a (corps non alignés). Statut : proposée, non implémentée. L'ADR source fait foi.\n\nRésumé :\n- PUBLIC_REGISTRATION_ENABLED=false par défaut ; désactivé, le futur POST /api/v1/auth/register répond 404 registration_unavailable.\n- Activé : crée un User readonly, état pending, email_verified_at nul, sans membership (modèle d'état pending|active|disabled ; le rôle dit quoi, la membership dit où).\n- Réponses register/resend/forgot non discriminantes ; emails normalisés et uniques.\n- Secrets de vérification et reset ≥256 bits, hashés, typés, expirants, consommés une seule fois dans une transaction.\n- register, resend et forgot exigent Idempotency-Key et rejouent la réponse d'origine sans créer de User ou secret supplémentaire. verify et reset sont consommables une fois ; un rejeu identique retourne le résultat terminal d'origine ; un payload différent est refusé (409 idempotency_key_payload_mismatch). La réponse stockée pour le rejeu ne contient aucun secret.\n- L'activation exige email_verified_at. Tant que disabled_at est posé (état disabled), JWT, machines, SSE et MCP dérivés du User sont bloqués (réversible).\n- Les erreurs portant un error_code utilisent l'enveloppe TECH/02 {\"detail\":{\"error_code\":...}} ; les 401 génériques gardent {\"detail\":\"<message>\"} (TECH/02 l.15).\n- Bootstrap hors-bande DEC-0011 inchangé ; enrôlement machine self-service en A5, après session humaine vérifiée.\n\nContrats et décisions : nouvelles routes du contrat API 2 et modèle de jeton additifs ; l'application obligatoire de l'état de compte est une rupture rattachée à API_CONTRACT_VERSION=2 (transport /api/v1 conservé, aucune base /api/v2). TECH/02, TECH/04, TECH/05 à mettre à jour avec les deux Blocs et leurs mocks. AMEND DEC-0012, DEC-0056 ; KEEP les ADR du dépôt DEC-0011, DEC-0036, DEC-0098. Aucun code dans DU-0. Migrations futures réversibles avec test de l'ordre de rollback applicatif ; contrats, OpenAPI, clients, fixtures et mocks A/B dans le même lot.\n\nSource : docs/decisions/DU0-A-public-registration.md",
+   "status": "accepted",
+   "task_id": "8704cfe2-5d93-4f19-85a0-2227830ecb6c",
+   "created_at": "2026-09-24T18:57:57.993525+00:00"
+  },
+  {
+   "id": "df4d6d3b-5682-4ee1-8460-410ebaf4c102",
+   "readable_id": "DEC-0106",
+   "title": "DU-0/C — Proxy de confiance et anti-abus par étages (rév. corrigée)",
+   "body": "Remplace la proposition a4b001d3-… (corps obsolète). Statut : proposée, non implémentée.\n\nRésumé : Caddy écrase les headers entrants ; l'API ne lit Forwarded/XFF que si le peer immédiat appartient à une liste CIDR explicite. Pré-auth : bucket IP canonique × endpoint ; post-auth : bucket supplémentaire par identité validée, jamais par Bearer arbitraire. Login/register/verify/resend/forgot/reset : limites strictes, réponses non énumérantes, travail factice anti-timing. Toutes les limites doivent passer ; 429 + Retry-After stables et bornés ; cache mémoire borné. Store mémoire permis en mono-réplique seulement ; store atomique partagé requis avant réplication. Les nouveaux 429/Retry-After sont une RUPTURE API/Auth rattachée au contrat 2 (API_CONTRACT_VERSION=2, transport /api/v1), pas une simple documentation ; TECH/02 et clients/mocks A/B définissent l'enveloppe detail ; TECH/04 documente la chaîne de confiance ; Event inchangé. AMEND DEC-0060 ; KEEP DEC-0011, DEC-0012, DEC-0056, DEC-0098 (ADR du dépôt).\n\nSource : docs/decisions/DU0-C-trusted-proxy-rate-limiting.md",
+   "status": "accepted",
+   "task_id": "8704cfe2-5d93-4f19-85a0-2227830ecb6c",
+   "created_at": "2026-09-24T18:39:13.832471+00:00"
+  },
+  {
+   "id": "4f298c8f-5073-4745-9e1c-ede8835d758f",
+   "readable_id": "DEC-0108",
+   "title": "DU-0/E — Distribution Windows à double signature (rév. corrigée)",
+   "body": "Remplace la proposition 0e19d373-… (corps obsolète). Statut : proposée, non implémentée.\n\nRésumé : un tag construit une seule fois un bundle reproductible ; SHA-256, SBOM/provenance, Authenticode horodaté puis signature Tauri/minisign vérifiés avant publication. Exécutables, sidecars et installeur signés ; clé updater et certificat code-signing séparés, confinés en environnement CI protégé. GitHub Releases proposé ; manifests HTTPS beta et stable distincts ; même artefact promu beta→stable par manifeste, jamais par rebuild. latest.json : version, URLs, tailles, hashes, signature, date, canal, bornes de compatibilité ; updater user-driven, fail-closed. N et N-1 disponibles ; rotation, révocation, rollback audités. Fournisseur/certificat/budget Authenticode : décision humaine ultérieure, aucun achat ni secret ici. Manifeste additif et versionné : les champs nouveaux restent OPTIONNELS pour les clients N-1, ou déclenchent une incompatibilité explicite avant téléchargement ; Event inchangé. AMEND DEC-0095 ; KEEP DEC-0098 (ADR du dépôt).\n\nSource : docs/decisions/DU0-E-release-signature-distribution.md",
+   "status": "accepted",
+   "task_id": "fe94023c-7c29-476b-9e81-152b73acbee4",
+   "created_at": "2026-09-24T18:39:23.329676+00:00"
+  },
+  {
+   "id": "14905c34-04d6-4803-8723-ed4bb75ae555",
+   "readable_id": "DEC-0105",
+   "title": "DU-0/B — JWT court et version de révocation (rév. corrigée)",
+   "body": "Remplace la proposition b02d4215-… (corps obsolète). Statut : proposée, non implémentée.\n\nRésumé : JWT d'accès ≤15 min, mémoire uniquement, sans refresh token. Claims minimaux sub, machine_id, session_id, auth_version, iat, exp, type ; email et rôle non autoritaires. Chaque principal vérifie type=access, sub == machine.owner_user_id, User, Machine, état du compte, vérification, révocation et auth_version. Reset, disable, changement de rôle et « révoquer toutes les sessions » incrémentent auth_version ; désactiver un User invalide ses machines. SSE revalidé au keep-alive (≤30 s) et fermé ; fail-closed sans retry. Anciens JWT sans auth_version invalides au cutover : rupture rattachée à API_CONTRACT_VERSION=2 sous le transport /api/v1 conservé (pas de /api/v2). Erreurs en enveloppe TECH/02 {\"detail\":{...}}. Migration auth_version réversible, livrée avec contrats, OpenAPI, clients, fixtures, mocks A/B dans le même lot. AMEND DEC-0012, DEC-0036, DEC-0056 ; KEEP DEC-0011, DEC-0060, DEC-0098 (ADR du dépôt).\n\nSource : docs/decisions/DU0-B-session-revocation.md",
+   "status": "superseded",
+   "task_id": "a18967ec-e2f9-493b-b183-c4aa825a0371",
+   "created_at": "2026-09-24T18:39:08.687934+00:00"
+  },
+  {
+   "id": "4e509c7d-0a0c-4661-b97f-ffcbe916e5b9",
+   "readable_id": "DEC-0110",
+   "title": "DU-0/B — JWT court et version de révocation (rév. alignée ADR)",
+   "body": "Remplace la proposition 14905c34-04d6-4803-8723-ed4bb75ae555 (corps non aligné). Statut : proposée, non implémentée. L'ADR source fait foi.\n\nRésumé :\n- JWT d'accès de 15 minutes maximum, mémoire uniquement, sans refresh token (option access+refresh rotatif différée ; JWT long rejeté).\n- Claims minimaux : sub, machine_id, session_id, auth_version, iat, exp, type. Email et rôle ne font pas autorité.\n- Chaque principal vérifie type=access, sub == machine.owner_user_id, User, Machine, état du compte, vérification, révocation et auth_version.\n- Reset, disable, changement de rôle et « révoquer toutes les sessions » incrémentent auth_version. Désactiver un User bloque aussi ses machines tant que disabled_at est posé (pas de révocation définitive implicite).\n- SSE revalide au keep-alive au plus toutes les 30 secondes et ferme le flux uniquement en cas d'échec de la revalidation. Tout échec est fail-closed, sans retry automatique.\n\nContrats et décisions : les anciens JWT sans auth_version sont invalides au cutover : rupture planifiée API/Auth rattachée à API_CONTRACT_VERSION=2, sous le transport /api/v1 conservé (aucune base /api/v2). Les erreurs portant un error_code utilisent {\"detail\":{...}} ; les 401 génériques gardent {\"detail\":\"<message>\"} (TECH/02 l.15). TECH/02, TECH/04, TECH/05 à amender. AMEND DEC-0012, DEC-0036, DEC-0056 ; KEEP les ADR du dépôt DEC-0011, DEC-0060, DEC-0098. Aucun token, middleware, modèle, migration ou écran implémenté dans DU-0. Migration auth_version réversible, livrée avec contrats partagés, OpenAPI, clients, fixtures et mocks des deux Blocs dans le même lot.\n\nSource : docs/decisions/DU0-B-session-revocation.md",
+   "status": "accepted",
+   "task_id": "a18967ec-e2f9-493b-b183-c4aa825a0371",
+   "created_at": "2026-09-24T18:58:04.737374+00:00"
+  },
+  {
+   "id": "06d91e71-362b-4905-b0ef-74fd6145d56b",
+   "readable_id": "DEC-0107",
+   "title": "DU-0/D — Versions séparées et compatibilité N/N-1 (rév. corrigée)",
+   "body": "Remplace la proposition 0772dd83-… (corps obsolète, qui mentionnait /api/v2). Statut : proposée, non implémentée.\n\nRésumé : versions séparées desktop_version, server_version, api_contract_version, event_schema_version, local_protocol_version ; desktop/package.json reste la source du bundle, chaque contrat source de sa version. Futur GET /api/v1/meta/compatibility public, additif, sans information sensible. Serveur N accepte Desktop N et N-1 selon une matrice testée ; toute autre combinaison échoue avant mutation, sans fallback silencieux. L'isolation projet impose API_CONTRACT_VERSION=2 comme rupture explicite sous la base de transport /api/v1 conservée — aucune base /api/v2 n'est créée ; Event v1 inchangé. 403 projet terminal côté client : lecture non rejouée, mutation en dead-letter, SSE sans boucle de reconnexion. Matrice N/N-1 livrée avec contrats, clients, fixtures, mocks A/B dans le même lot. AMEND DEC-0036, DEC-0056 ; KEEP DEC-0048, DEC-0060, DEC-0095, DEC-0098 (ADR du dépôt).\n\nSource : docs/decisions/DU0-D-version-compatibility.md",
+   "status": "accepted",
+   "task_id": "fe94023c-7c29-476b-9e81-152b73acbee4",
+   "created_at": "2026-09-24T18:39:18.904512+00:00"
+  },
+  {
+   "id": "b02d4215-857b-4b0b-b2fc-a1426a07b57a",
+   "readable_id": "DEC-0099",
+   "title": "DU-0/B — JWT court avec version de révocation, sans refresh token en V1",
+   "body": "PROPOSED — validation humaine obligatoire.\n\nCURRENT: JWT HS256 480 minutes, stocké en mémoire dans le Dashboard; claims sub/email/role/machine_id/exp/iat/type; aucune révocation propre au JWT ni revalidation des claims rôle/email. Le token opaque MCP/machine est déjà hashé et révocable.\n\nOPTIONS:\n1. JWT long inchangé — rejeté.\n2. Access JWT court + refresh token rotatif — robuste mais ajoute stockage, rotation et compromission de famille.\n3. Access JWT court sans refresh + auth_version — recommandée pour V1.\n\nRECOMMANDATION:\n- Access JWT 15 minutes maximum, mémoire uniquement, sans refresh token V1; expiration => reconnexion.\n- Claims minimaux: sub, machine_id, session_id, auth_version, iat, exp, type; email/role ne font pas autorité.\n- Chaque requête HTTP, ouverture SSE et authentification MCP dérivée d'un user recharge User+Machine, vérifie account_state, credential_revoked_at et auth_version.\n- Password reset, disable, changement de rôle et action « révoquer toutes les sessions » incrémentent auth_version; les anciens JWT deviennent invalides.\n- SSE revalide au keep-alive, au plus toutes les 30 s, puis ferme le flux si l'autorité change.\n- Les credentials machine opaques restent distincts. Désactiver un user doit bloquer toutes ses machines sans attendre une révocation individuelle.\n- Échec fail-closed; 401 auth_invalid_or_expired; aucun retry automatique.\n\nCONTRATS:\n- API/Auth v2: anciens JWT sans auth_version invalides au cutover (rupture planifiée).\n- Data model: User.auth_version; session_id journalisable sans créer de refresh-token.\n- Event envelope inchangée.\nAMEND: DEC-0012, DEC-0056, DEC-0036. KEEP DEC-0011, DEC-0060, DEC-0098.\nHORS PÉRIMÈTRE: aucun token, middleware, modèle, migration ou UI n'est implémenté ici.",
+   "status": "superseded",
+   "task_id": "a18967ec-e2f9-493b-b183-c4aa825a0371",
+   "created_at": "2026-09-24T16:24:30.970856+00:00"
+  },
+  {
+   "id": "a4b001d3-217c-4e80-b72a-ed2f869f3259",
+   "readable_id": "DEC-0100",
+   "title": "DU-0/C — Chaîne proxy de confiance et anti-abus par étages",
+   "body": "PROPOSED — validation humaine obligatoire.\n\nCURRENT: RateLimitMiddleware est en mémoire par processus (120/min, burst 20). Sa clé utilise le Bearer hashé, sinon le premier X-Forwarded-For, sinon client.host. Aucun proxy de confiance n'est validé; X-Forwarded-For est donc falsifiable. Aucun bucket dédié auth/registration.\n\nOPTIONS:\n1. Faire confiance à tout X-Forwarded-For — rejeté.\n2. Ignorer toujours les headers proxy — incompatible avec le déploiement derrière Caddy.\n3. Confiance explicite du saut immédiat + défense en profondeur — recommandée.\n\nRECOMMANDATION:\n- Seuls les CIDR/adresses de proxies explicitement configurés sont fiables. Si le peer immédiat n'est pas fiable, ignorer Forwarded/X-Forwarded-For. Le proxy edge écrase les headers entrants.\n- Pré-auth: bucket par IP source vérifiée. Post-identité: bucket supplémentaire par user/machine. Register/login/verify/resend/forgot/reset ont des limites plus strictes et des réponses/timings non énumérants.\n- Les limites se composent (toutes doivent passer), avec Retry-After borné et codes d'erreur stables.\n- Le store mémoire n'est acceptable que pour une unique réplique API. Avant multi-réplique, store partagé atomique obligatoire.\n- Les métriques ne journalisent jamais Bearer, mots de passe ni secrets de vérification.\n\nCONTRATS:\n- Auth/Sync et exploitation; pas de changement d'enveloppe événement.\n- Les 429 et Retry-After des routes publiques doivent être spécifiés dans API v2.\nAMEND DEC-0060; KEEP DEC-0011, DEC-0012, DEC-0056, DEC-0098.\nHORS PÉRIMÈTRE: aucune config Caddy, rate limiter ou protection runtime n'est implémentée ici.",
+   "status": "superseded",
+   "task_id": "8704cfe2-5d93-4f19-85a0-2227830ecb6c",
+   "created_at": "2026-09-24T16:24:37.718842+00:00"
+  },
+  {
+   "id": "0772dd83-e0de-42ca-9fb3-6e99b4f47798",
+   "readable_id": "DEC-0101",
+   "title": "DU-0/D — Versions séparées et matrice de compatibilité N/N-1 fail-closed",
+   "body": "PROPOSED — validation humaine obligatoire.\n\nCURRENT: desktop/package.json est la version Desktop canonique et le build bloque le drift Cargo/daemon. Le protocole local studio.local/v1 est négocié fail-closed. L'API est contract v1; aucune politique N/N-1 publique n'est formalisée.\n\nOPTIONS:\n1. Une version produit unique pour tous les contrats — rejetée.\n2. Compatibilité implicite « latest only » — rejetée.\n3. Versions séparées + manifeste de compatibilité — recommandée.\n\nRECOMMANDATION:\n- Versions indépendantes: desktop_version, server_version, api_contract_version, event_schema_version, local_protocol_version.\n- desktop/package.json reste source de vérité du bundle Desktop; les versions de contrat vivent dans leurs spécifications.\n- Endpoint public additif GET /api/v2/meta/compatibility: versions serveur et bornes min/max supportées, sans données sensibles.\n- Politique de release: serveur N accepte Desktop N et N-1 pour les contrats annoncés; toute combinaison hors matrice échoue avant mutation avec upgrade_required/protocol_incompatible. Aucun fallback silencieux.\n- DEC-0100 entraîne API contract v2. Event envelope reste schema_version=1 sauf ajout réellement breaking.\n- 403 projet est terminal et visible: lecture non rejouée; mutation outbox en dead_letter; SSE ne boucle pas jusqu'à restauration d'accès.\n- La CI valide N/N-1, SSE resume, migrations et mocks des deux blocs avant promotion.\n\nCONTRATS:\n- Endpoint de métadonnées additif; passage API v2 breaking explicite; event v1 conservé.\nAMEND DEC-0036 et DEC-0056 pour API v2/N-1. KEEP DEC-0060, DEC-0095, DEC-0098.\nHORS PÉRIMÈTRE: aucun endpoint, fixture, client ou test n'est implémenté ici.",
+   "status": "superseded",
+   "task_id": "fe94023c-7c29-476b-9e81-152b73acbee4",
+   "created_at": "2026-09-24T16:24:45.967563+00:00"
+  },
+  {
+   "id": "0e44db99-ee9f-47d0-8d4c-f46b78777cc9",
+   "readable_id": "DEC-0114",
+   "title": "Tasks : emission serveur des evenements task.* a chaque ecriture",
+   "body": "Statut : proposed. Le service Tasks (HTTP + MCP) émet task.created (création unitaire), task.started (claim), task.updated (release / update sans changement de statut), task.started|blocked|completed (update changeant le statut), dans la même transaction que l'état puis diffusé en SSE après commit. add_task (hydratation) n'émet rien ; refus 409/403 n'émet rien ; actor agent si rattaché à la machine, sinon user. Additif. Fichier : docs/decisions/DEC-0101-emission-serveur-evenements-task.md (branche task/27eee16b-task-events).",
+   "status": "accepted",
+   "task_id": "27eee16b-773f-4bdc-bf7b-786db75ef165",
+   "created_at": "2026-09-24T21:16:08.304156+00:00"
+  },
+  {
+   "id": "09bc2c83-7c50-4b17-b3af-4badc3c75fde",
+   "readable_id": "DEC-0115",
+   "title": "Git partagé : stable → dev → task, roadmaps et phases hors de Git",
+   "body": "Décision proposée par l'utilisateur : simplifier le workflow Git partagé entre Codex, Claude et OpenCode. La branche par défaut master/main est stable et livrable ; dev est la branche d'intégration ; chaque tâche utilise task/<id8>-<slug> et exactement un worktree déterministe réutilisé lors des handoffs. Les roadmaps et phases restent des objets Studio OS mais ne créent plus de branches Git. Les hotfixes partent de la branche stable puis sont reportés dans dev. Première mise en œuvre : nouvelle version brouillon du skill de Bibliothèque, sans changement de code Studio OS, sans activation et sans migration/suppression de branches existantes.",
+   "status": "accepted",
+   "task_id": "27c3b02e-28b9-4e68-9b2e-da53bed9f1f4",
+   "created_at": "2026-09-25T08:27:03.568814+00:00"
+  },
+  {
+   "id": "47235d73-2a17-41df-9005-718213ad8b8f",
+   "readable_id": "DEC-0131",
+   "title": "B4 clôturée sans Authenticode ni test Smart App Control",
+   "body": "Décision humaine du 2026-09-26 : considérer B4 « Signature & confiance » terminée dès lors que tout le périmètre hors Authenticode est livré. Aucun certificat Authenticode ne sera acheté pour raison de coût. Les critères « signtool verify sur tous les exécutables » et « installation propre sous Smart App Control » sont donc explicitement exemptés/non applicables, et la tâche Smart App Control est close sans exécution. La confiance livrée repose sur minisign/Tauri updater, le refus des updates altérées ou non signées, SHA256SUMS/provenance, la plomberie Authenticode dormante et le runbook de rotation/révocation. Cette décision complète DEC-0129 et autorise l'override done de l'étape B4.",
+   "status": "accepted",
+   "task_id": "ec89ac34-eba5-4973-950b-c02063938dc2",
+   "created_at": "2026-09-26T20:15:48.305233+00:00"
+  },
+  {
+   "id": "ea10e679-193f-4108-ac02-8f1242ae3166",
+   "readable_id": "DEC-0136",
+   "title": "Git watching actif par défaut pour les espaces locaux (proposed)",
+   "body": "Statut : proposed. LocalFeatures.watchers vaut true par défaut ; un `watchers` absent reçoit WatcherConfig() (studio.local/v1, changement de valeur par défaut, forme inchangée). Le daemon recharge à chaud les [[git_watches]] de config.toml et le registre d'espaces (≤15 s). `studio-client workspaces register` (CLI seulement) lie un dossier avec watchers actifs ; appelé par studio-init-project.ps1. Détail : docs/DESKTOP_P5_WORKSPACES.md (section Interface P4) ; code : packages/studio-contracts/src/studio_contracts/local/workspace.py, packages/studio-workspaces/src/studio_workspaces/registration.py. Branche task/d567bbd6-autowatch.",
+   "status": "accepted",
+   "task_id": "d567bbd6-8cc1-40eb-a6b6-02d31fcda8bb",
+   "created_at": "2026-09-27T01:09:07.295864+00:00"
+  },
+  {
+   "id": "a59441d5-e223-4460-af8e-91001d2c3fd9",
+   "readable_id": "DEC-0116",
+   "title": "DEC-0104 Desktop P9 : fourniture du jeton machine aux harnais par credential helper, état token_missing",
+   "body": "Statut : proposed. Fichier : docs/decisions/DEC-0104-desktop-p9-fourniture-jeton-mcp-aux-harnais.md (renuméroté depuis DEC-0099, collision avec DEC-0099 W2 de master ; remplace l'entrée serveur DEC-0096).\nRésumé : aucun code Desktop ne fournit STUDIO_MCP_MACHINE_TOKEN aux harnais (Claude Code envoie le placeholder → unauthenticated). (1) Appliqué et fusionné dans master (01f077c) : VerifyState studio.local/v1 gagne token_missing (sans error), renvoyé par harness.verify à la place de configured ; Dashboard Intégrations IA ajoute « Vérifier la connexion » avec message français fixe. (2) Proposé, non implémenté : credential helper — Claude Code headersHelper \"studio-client mcp-headers\" lisant le trousseau (KeyringTokenStore, clé = origine), relais stdio studio-client mcp-relay pour OpenCode ; rejetés : variable HKCU (jeton en clair, propagation, rotation), proxy MCP local du daemon (usage par tout processus local, port, SPOF). Questions ouvertes : lancement Windows, approbation de confiance, coût du processus Python, SDK du relais. Auth/Sync inchangé.",
+   "status": "superseded",
+   "task_id": "e15cbf05-19bf-465c-864f-37512f5d700b",
+   "created_at": "2026-09-25T08:31:32.718442+00:00"
+  },
+  {
+   "id": "b7fff6c3-3b63-40cc-b485-c2b5716efca6",
+   "readable_id": "DEC-0117",
+   "title": "Desktop P9 : un identifiant Studi'OS dédié par couple poste + outil d'IA (DEC-0104 §2, remplace DEC-0116)",
+   "body": "Statut : proposed. Fichier : docs/decisions/DEC-0104-desktop-p9-fourniture-jeton-mcp-aux-harnais.md (branche task/7bfa3bff-harness-dedicated-credential, commit 0405897).\n\nRésumé : une machine Studi'OS « <POSTE> · <Outil> » créée par Desktop pour son propriétaire (droits V1 du propriétaire, isolation par projet), jamais le credential Desktop. Credential en clair uniquement dans la config utilisateur du harnais (Claude Code via `claude mcp add-json --scope user`, OpenCode par édition JSONC), masqué partout ailleurs. Renouvellement : nouvelle machine, puis config, puis révocation de l'ancienne ; restauration : retrait, puis révocation. Migration des entrées projet ${STUDIO_MCP_MACHINE_TOKEN}. Credential helper et relais abandonnés. Contrat local additif : HarnessChange.scope, HarnessPreviewRequest.renew. Amende DEC-0024 §3 (outils d'IA seulement) et DEC-0096.",
+   "status": "accepted",
+   "task_id": "7bfa3bff-f52e-4b8f-b05d-b248f5cba85f",
+   "created_at": "2026-09-25T12:51:44.659336+00:00"
+  },
+  {
+   "id": "510ab024-79f7-4bca-967a-3e9bad512117",
+   "readable_id": "DEC-0120",
+   "title": "Roadmaps : pas d'état « approved », approve reste proposed → active",
+   "body": "Tranché par l'utilisateur le 2026-09-25, en réponse à DEC-0119 (remplacée).\n\nDécision : on garde le modèle actuel. La transition `approve` fait passer la roadmap de proposed à active (ROADMAP_TRANSITIONS, packages/studio-contracts/src/studio_contracts/roadmaps.py), et il ne peut y avoir qu'une seule roadmap active par projet.\n\nConséquence : pour approuver une nouvelle roadmap, il faut d'abord clôturer ou archiver celle qui est active. Le dashboard le permet avec les actions de cycle de vie (tâche 1e2afb22) et affiche le 409 active_roadmap_exists avec un lien vers la roadmap bloquante (tâche b24357d2, dashboard/src/views/roadmap.ts).\n\nÉcarté : un état `approved` intermédiaire. Il aurait demandé de changer le contrat, une migration et le dashboard, pour un besoin non avéré.",
+   "status": "accepted",
+   "task_id": "b24357d2-77dc-42ca-a1b5-fc222019c077",
+   "created_at": "2026-09-25T19:10:02.014769+00:00"
+  },
+  {
+   "id": "52e447d4-6af3-456f-ab91-231ba1eae8c2",
+   "readable_id": "DEC-0118",
+   "title": "DEC-0101 — Oracle slug projet accepté (slugs non secrets, 409 conflict)",
+   "body": "Proposed. Oracle d'existence de slug accepté : slugs projet non secrets, 409 conflict structuré (jamais error générique, aucun id fuit). Alternative scopée (slugs par propriétaire/espace) reportée : migration disproportionnée pour un résiduel A0. Fichier : docs/decisions/DEC-0101-slug-oracle-accepte.md",
+   "status": "superseded",
+   "task_id": "81307c39-dc5e-46c4-89fb-f4d4ddc25855",
+   "created_at": "2026-09-25T19:00:01.648233+00:00"
+  },
+  {
+   "id": "c164fd2b-05e9-4572-9b75-dd4f33985d5f",
+   "readable_id": "DEC-0119",
+   "title": "[proposed] Roadmaps : état « approved » distinct de « active » ?",
+   "body": "Statut : proposed (en attente d'arbitrage produit).\n\nAujourd'hui, la transition `approve` d'une roadmap proposed la fait passer directement en `active` (ROADMAP_TRANSITIONS, packages/studio-contracts/src/studio_contracts/roadmaps.py). Elle renvoie 409 `active_roadmap_exists` dès qu'une autre roadmap est active. Approuver un plan oblige donc à clôturer ou archiver d'abord le plan en cours.\n\nCorrectif livré (b24357d2) : l'erreur est désormais affichée avec un lien vers la roadmap active (dashboard/src/views/roadmap.ts). Le modèle n'a pas changé.\n\nOption à arbitrer : introduire un état `approved`, validé mais pas encore actif, avec une transition `activate` ultérieure. Cela touche le contrat de données et d'API (nouvelle valeur d'enum et migration), les versions de contrat et le dashboard. Alternative : garder le modèle actuel et s'appuyer sur les actions de cycle de vie livrées en 1e2afb22.",
+   "status": "superseded",
+   "task_id": "b24357d2-77dc-42ca-a1b5-fc222019c077",
+   "created_at": "2026-09-25T19:01:53.612260+00:00"
+  },
+  {
+   "id": "d03f88a5-f68a-4244-b1bb-8d9b84e2df7e",
+   "readable_id": "DEC-0121",
+   "title": "Amendement A2 de DEC-0110 : GET /auth/me, expires_in, états de compte dès A2",
+   "body": "Statut : proposed. Ajoute GET /api/v1/auth/me (identité du principal, hors contrôle projet) en remplacement des claims email/role retirés du JWT (AMEND DEC-0098 sur decodeJwtRole), TokenResponse.expires_in, introduction de email_verified_at/disabled_at dès A2 (backfill created_at), CLI studio-admin user disable|enable|revoke-sessions (enable n'incrémente pas auth_version), durée JWT hors 1..15 min = refus de démarrage. Détail : docs/decisions/DU0-B-session-revocation.md, section « Amendement A2 ».",
+   "status": "accepted",
+   "task_id": "3d774b1e-a0e4-425f-8781-4dfe9e243ab5",
+   "created_at": "2026-09-25T20:54:24.469506+00:00"
+  },
+  {
+   "id": "668fc649-0c1f-43b4-b3fb-12dcbb4e3535",
+   "readable_id": "DEC-0122",
+   "title": "Amendement A3 de DU0-A : administration HTTP des comptes, anti-auto-modification, e-mails normalisés",
+   "body": "Statut : proposed. Endpoints admin POST /users/{id}/disable|enable|revoke-sessions et GET /users/{id}/memberships (additifs) ; aucun endpoint ne modifie son propre rôle/état/accès (403 self_modification_forbidden, y compris PUT/DELETE members — rupture API v2) ; User.status dérivé + email_verified_at/disabled_at ; e-mails normalisés et uniques sans casse, migration 0016 irréversible sur la casse (accord explicite requis avant exécution réelle). Détail : docs/decisions/DU0-A-public-registration.md, section « Amendement A3 ».",
+   "status": "accepted",
+   "task_id": "4cb7a6bd-9ceb-4d28-bbb0-1021efffad02",
+   "created_at": "2026-09-26T06:34:31.423808+00:00"
+  },
+  {
+   "id": "eb2670d0-2598-4b9c-80fb-892ecced3da4",
+   "readable_id": "DEC-0123",
+   "title": "DU-0/Isolation — membership User→Project : rôle = quoi, membership = où (fichier renuméroté DEC-0103)",
+   "body": "Remplace 19922554-bcd8-498f-9a14-7dab87916bf2 (DEC-0103 serveur) : contenu inchangé, seul le chemin du fichier change (ADR du dépôt renuméroté DEC-0100 → DEC-0103 à l'intégration de la phase PA-public-access dans dev, collision avec DEC-0100 W2b).\n\nRésumé : table project_memberships(project_id, user_id, granted_by_user_id, created_at), binaire, refus par défaut. Le User porte l'accès (Machine hérite de owner_user_id ; Agent sans autorité ; chemins serveur de confiance exemptés). Admin : portée globale + membership à la création. Compte actif vérifié à 0 membership valide (ses ressources propres seulement). create_project insère la membership du créateur dans la même transaction : commit interne remplacé par flush. Attribution V1 admin seulement (/projects/{id}/members, studio-admin grant/revoke). Collections filtrées ; ?project_id inaccessible ou inexistant → 403. Accès UUID → 403 {\"detail\":{\"error_code\":\"forbidden\",\"resource\":\"project\",\"action\":\"read|write\"}} (enveloppe TECH/02, pas de 404 de confidentialité). SSE : 403 avant ouverture, keep-alive, revalidation ≤30 s, fermeture. MCP : gardes dans les services partagés avant lecture. Composition en ET ; co-membership NON transitive (session via task→project uniquement ; ni /machines ni /agents d'un co-membre). Principal.project_scope, primitives canoniques, contrôle avant idempotence/déduplication, inventaire fail-closed routes+outils MCP en CI. Migration : préflight bloquant (owners valides, orphelins interdits), couples archivés, backfill tous Users×projets avec granted_by NULL, réversible. API_CONTRACT_VERSION=2 sous le transport /api/v1 (pas de /api/v2) ; Event inchangé. Contrats : TECH/04, 02, 07 rupture ; 05 additif ; 03 neutre. AMEND DEC-0036, DEC-0063 (+ ponctuels) ; aucune supersession.\n\nSource : docs/decisions/DEC-0103-isolation-projet-membership-user.md (audit : docs/DU0_AUTH_PROJECT_DATA_AUDIT.md).",
+   "status": "accepted",
+   "task_id": "6eb59266-0e79-4053-aec6-25f75888a30c",
+   "created_at": "2026-09-26T14:40:56.110505+00:00"
+  },
+  {
+   "id": "3ebb0849-91ac-427e-9f78-7b7a6dd1c4d1",
+   "readable_id": "DEC-0124",
+   "title": "DEC-0105 — Oracle slug projet accepté (slugs non secrets, 409 conflict)",
+   "body": "Remplace 52e447d4-6af3-456f-ab91-231ba1eae8c2 (DEC-0118 serveur) : contenu inchangé, ADR du dépôt renuméroté DEC-0101 → DEC-0105 à l'intégration de la phase PA-public-access dans dev (collision avec DEC-0101 enregistrement agent via MCP).\n\nOracle d'existence de slug accepté : slugs projet non secrets, 409 conflict structuré (jamais error générique, aucun id fuit). Alternative scopée (slugs par propriétaire/espace) reportée : migration disproportionnée pour un résiduel A0. Fichier : docs/decisions/DEC-0105-slug-oracle-accepte.md",
+   "status": "accepted",
+   "task_id": "6eb59266-0e79-4053-aec6-25f75888a30c",
+   "created_at": "2026-09-26T14:40:59.164749+00:00"
+  },
+  {
+   "id": "ee15301f-fc19-449f-a942-ed813f7cf9b4",
+   "readable_id": "DEC-0127",
+   "title": "C1 — Négociation de version client/serveur additive (/version, headers, 426)",
+   "body": "Statut : proposed. Fichier : docs/decisions/DEC-XXXX-c1-version-negotiation.md (branche task/desktop-distribution-public-registration/C1-2ed35d41-version-compat).\n\nRésumé : négociation de version client/serveur additive (C1, tâche 1/3) — GET /version sans Bearer (VersionInfo : api_version, server_version, minimum_supported/latest par famille desktop/daemon/dashboard) ; headers optionnels X-Studio-Client/X-Studio-Client-Version lus par ClientVersionGuardMiddleware sur /api/v1 (426 client_upgrade_required + invitation à mettre à jour si build déclaré < minimum familial, auth incluse) ; absence/famille inconnue/version illisible = pass-through (clients pré-C1 intacts). Client Python envoie daemon + version studio-client ; 426 mappé à ClientUpgradeRequiredError non-retryable. Contrat TECH/02_API_CONTRACT.md mis à jour dans le même changement. Tâches 2 (UX incompatible) et 3 (matrice N-1/N) suivent.",
+   "status": "accepted",
+   "task_id": "2ed35d41-881d-4b75-8bc7-9898f03964ec",
+   "created_at": "2026-09-26T17:49:16.148111+00:00"
+  },
+  {
+   "id": "2d8cdf66-b608-4280-90cd-26a61ff656e6",
+   "readable_id": "DEC-0135",
+   "title": "W3 — Studio claim_resources : outil MCP distinct pour la pose de claims par lot",
+   "body": "Résumé : nouvel outil MCP additif `studio_claim_resources` (poses de claims par lot) plutôt qu'un paramètre `paths` sur `studio_claim_resource`, dont le contrat reste inchangé. `paths` (liste non vide, plafond 50) + `resource_type`/`ttl_seconds` communs + `task_id`/`agent_id`/`idempotency_key` optionnels ; réponse `{\"claims\": [...], \"conflicts\": [...]}` ; réutilise `claims.create_claim`/`has_conflict` (DEC-0005) ; idempotent sous `\"MCP studio_claim_resources\"` (DEC-0027) ; aucune parité HTTP requise (DEC-0046). Hors périmètre : libération par `task_id` (W1). Fichier : docs/decisions/DEC-0135-w3-claim-resources-par-lot.md (statut proposed, même statut serveur).",
+   "status": "accepted",
+   "task_id": "a25e28fd-88f7-45aa-84e2-c988fc8ff4a3",
+   "created_at": "2026-09-26T22:35:40.365872+00:00"
+  },
+  {
+   "id": "493d74be-a023-4e17-bce7-56f51cd1e2c6",
+   "readable_id": "DEC-0137",
+   "title": "C3 — Promotion beta→stable par manifeste, sans rebuild (canaux + inscriptions)",
+   "body": "Résumé : la voie stable n'est plus reconstruite ; elle est une promotion par manifeste de l'artefact beta (même SHA-256, même signature minisign), via desktop/scripts/promote-channel.mjs (refus hash_mismatch/size_mismatch et api_origin_mismatch) et le workflow desktop-promote.yml (push deploy/flo-laptop ou workflow_dispatch, source_tag pour un retour vers stable). desktop-channels.yml ne construit plus que dev→desktop-dev (beta). Champ additif api_origin ajouté à latest.json. Fermeture/réouverture des inscriptions prouvée sans impact sur les comptes existants (STUDIO_PUBLIC_REGISTRATION_ENABLED). Statut : proposé (fichier et serveur au même statut). Fichier : docs/decisions/DEC-0136-c3-promotion-beta-stable-par-manifeste.md",
+   "status": "superseded",
+   "task_id": "d83d1a39-7c93-49cc-add3-e59d4e119cae",
+   "created_at": "2026-09-27T09:32:56.842536+00:00"
+  },
+  {
+   "id": "19922554-bcd8-498f-9a14-7dab87916bf2",
+   "readable_id": "DEC-0103",
+   "title": "DU-0/Isolation — membership User→Project : rôle = quoi, membership = où (rév. corrigée)",
+   "body": "Remplace la proposition d31c16ea-… (corps obsolète). Statut : proposée, non implémentée.\n\nRésumé : table project_memberships(project_id, user_id, granted_by_user_id, created_at), binaire, refus par défaut. Le User porte l'accès (Machine hérite de owner_user_id ; Agent sans autorité ; chemins serveur de confiance exemptés). Admin : portée globale + membership à la création. Compte actif vérifié à 0 membership valide (ses ressources propres seulement). create_project insère la membership du créateur dans la même transaction : commit interne remplacé par flush. Attribution V1 admin seulement (/projects/{id}/members, studio-admin grant/revoke). Collections filtrées ; ?project_id inaccessible ou inexistant → 403. Accès UUID → 403 {\"detail\":{\"error_code\":\"forbidden\",\"resource\":\"project\",\"action\":\"read|write\"}} (enveloppe TECH/02, pas de 404 de confidentialité). SSE : 403 avant ouverture, keep-alive, revalidation ≤30 s, fermeture. MCP : gardes dans les services partagés avant lecture. Composition en ET ; co-membership NON transitive (session via task→project uniquement ; ni /machines ni /agents d'un co-membre). Principal.project_scope, primitives canoniques, contrôle avant idempotence/déduplication, inventaire fail-closed routes+outils MCP en CI. Migration : préflight bloquant (owners valides, orphelins interdits), couples archivés, backfill tous Users×projets avec granted_by NULL, réversible. API_CONTRACT_VERSION=2 sous le transport /api/v1 (pas de /api/v2) ; Event inchangé. Contrats : TECH/04, 02, 07 rupture ; 05 additif ; 03 neutre. AMEND DEC-0036, DEC-0063 (+ ponctuels) ; aucune supersession.\n\nSource : docs/decisions/DEC-0100-isolation-projet-membership-user.md (audit : docs/DU0_AUTH_PROJECT_DATA_AUDIT.md).",
+   "status": "superseded",
+   "task_id": "d0e23fe3-7bc9-443d-b245-46dab4dcf497",
+   "created_at": "2026-09-24T18:38:58.601763+00:00"
+  },
+  {
+   "id": "944db334-6196-420d-aead-922d462321a1",
+   "readable_id": "DEC-0125",
+   "title": "Promotion dev → master uniquement à la fin d'une roadmap terminée et fonctionnelle",
+   "body": "Décision utilisateur (2026-09-26). La branche stable (master) ne reçoit dev que lorsqu'une roadmap Studio OS est terminée (toutes ses étapes faites ou explicitement sautées) et fonctionnelle (validée de bout en bout). Entre deux roadmaps, seuls les correctifs urgents atteignent master (hotfix/<id8>-<slug> depuis master, reporté aussitôt dans dev). Conséquences : deploy/flo-laptop et la release Desktop Prod (desktop-prod) ne changent qu'à ces promotions ; la release Dev (desktop-dev) suit dev en continu. Consigné dans le skill studio-git-flow v5, section « Promotion en stable ».",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-26T15:07:48.667988+00:00"
+  },
+  {
+   "id": "65ddfa48-bf06-497f-a97b-03712e5eb6a7",
+   "readable_id": "DEC-0128",
+   "title": "A4 — Amendement DEC-0109 : mot de passe choisi à la vérification, récupération indépendante du flag",
+   "body": "Statut : proposed (accord utilisateur requis). Amende DEC-0109.\nRésumé : register ne prend que l'adresse ; mot de passe et display_name sont posés à verify-email par le détenteur de la boîte (supprime la pré-prise de compte et le texte tiers dans l'e-mail, relevés par contract-guardian). forgot/reset disponibles dès qu'un backend e-mail est configuré, indépendamment de STUDIO_PUBLIC_REGISTRATION_ENABLED ; un reset active un compte pending. Ajout de POST /auth/change-password (additif). Fournisseur e-mail disabled|file|smtp, secrets en env, démarrage refusé si configuration incohérente. Limites acceptées : écart de latence DB connu/inconnu (corps identique, e-mail après réponse) ; second e-mail possible après crash entre commit et complétion d'idempotence.\nFichier : docs/decisions/DU0-A-public-registration.md (section « Amendement A4 »).",
+   "status": "accepted",
+   "task_id": "7e9b8172-1f38-4a42-b246-38c81c9e31fa",
+   "created_at": "2026-09-26T17:50:11.361013+00:00"
+  },
+  {
+   "id": "ffbf9e31-0582-4694-9081-e9797e82f213",
+   "readable_id": "DEC-0129",
+   "title": "DEC-0129 — Distribution Windows non signee : pas de certificat Authenticode (cout)",
+   "body": "Pas de certificat Authenticode (cout refuse, aucune alternative gratuite). Installateur NSIS distribue non signe (SmartScreen avertit, assume) ; confiance = minisign + SHA256SUMS/provenance. Plomberie B4 dormante. Criteres B4 signtool/Smart App Control inatteignables : roadmap a amender par un humain. Taches B1 closes « refuse : cout ». Source : docs/decisions/DEC-0129-distribution-windows-non-signee.md",
+   "status": "accepted",
+   "task_id": "70f863d9-0d74-4660-9215-b3c23cea45af",
+   "created_at": "2026-09-26T17:54:55.779633+00:00"
+  },
+  {
+   "id": "e391db0b-faeb-4b14-b493-7ca8d64a3609",
+   "readable_id": "DEC-0130",
+   "title": "DEC-0130 — Enrôlement du poste Desktop : une seule entrée secrète sur le pont local (amende DEC-0093)",
+   "body": "Statut : proposed (option choisie par l'humain le 2026-09-26, en attente d'accord explicite). Nouvelle commande studio.local/v1 `identity.enroll` (capacité offerte, jamais requise, additive). `IdentityEnrollRequest.human_session` (SecretStr, écriture seule) est la seule entrée secrète autorisée sur le pont (SECRET_INPUT_FIELDS) ; hide_input_in_errors sur la requête, BridgeRequest et l'adaptateur. Le démon vérifie l'origine du profil avant tout réseau, fait un seul POST /api/v1/machines (en-tête explicite, sans retry), range le credential dans KeyringTokenStore(\"studio-os\") (un seul écrivain), refus à messages fixes (details.reason). Réponse : issue + machine_id + vue d'identité, jamais de secret. Source : docs/decisions/DEC-0130-enrolement-poste-desktop-session-unique.md",
+   "status": "accepted",
+   "task_id": "d31078dc-abdc-4e57-b421-3d860453a072",
+   "created_at": "2026-09-26T19:57:37.661112+00:00"
+  },
+  {
+   "id": "0f1982c1-500a-4283-9cbd-0574f5073100",
+   "readable_id": "DEC-0134",
+   "title": "B6 — Auto-update réel sur les canaux : version de build, feed par canal, preuve après publication (proposed)",
+   "body": "Statut : proposed. Builds de canal versionnés <canonique>-<canal>.<run_number> (version.mjs --channel-build) ; updater compilé seulement si l'environnement GitHub du canal porte la clé minisign, feed releases/download/desktop-<canal>/latest.json ; après publication, la release N précédente est installée et mise à jour vers N+1 depuis l'app (install-test.mjs --upgrade-from) ; cas d'échec E2E via proxy (réseau coupé, tunnel coupé), sans surcharge d'endpoint ; corruption/signature couverts par les tests Rust. Fichier : docs/decisions/DEC-0134-b6-auto-update-canaux.md",
+   "status": "accepted",
+   "task_id": "3e63ba44-e5f6-400a-95f5-2a692f9377f0",
+   "created_at": "2026-09-26T22:09:42.289309+00:00"
+  },
+  {
+   "id": "0e8c8e97-8263-42da-bd6b-dd1dbad945f6",
+   "readable_id": "DEC-0141",
+   "title": "C4 clôturée sur preuve du cycle complet ; exercices incident restants reportés à l'ouverture publique",
+   "body": "Décision humaine (2026-09-27). Le besoin immédiat est l'usage de Studi'OS par les deux développeurs, qui ont déjà des comptes admin ; l'inscription publique n'est pas ouverte. C4 est donc close (override done) sur ces preuves consignées (AI work, tâche 2828a362) : préflight production-gate 5/5 sur l'instance exposée Flo-laptop ; cycle complet démontré — découverte, fenêtre d'inscription contrôlée (~7 min, compte readonly sans projet), premier usage Desktop, mise à jour N-1→N (0.1.0-dev.24→dev.25, identité/workspace/outbox inchangés, pas de réenrôlement), reprise hors ligne (API coupée, commit en file, redémarrage, un seul rejeu). Runbook publié (docs/DESKTOP_C4_PRODUCTION_GATE.md) et partiellement exercé : fermeture/réouverture des inscriptions, révocation de sessions, désactivation/réactivation de compte, révocation irréversible d'une machine jetable (401 à la requête suivante). Reportés, non exercés, et REQUIS avant toute ouverture générale de l'inscription (sur VPS) : suspension/restauration du manifeste desktop-prod, rollback depuis une release immuable desktop-vX.Y.Z (aucune n'existe encore), scénario sur table de compromission de la clé updater. STUDIO_PUBLIC_REGISTRATION_ENABLED reste false. Suivis ouverts : 1dd87479, 280eca43, 4b16eb02, 8ea32a93. Autorise la promotion dev → master → deploy/flo-laptop (DEC-0125).",
+   "status": "accepted",
+   "task_id": "2828a362-81e4-4b4c-bf70-59d205f90164",
+   "created_at": "2026-09-27T16:22:44.976025+00:00"
+  },
+  {
+   "id": "2f654121-eb10-40c5-b834-cefa8ec1b5c2",
+   "readable_id": "DEC-0142",
+   "title": "Refresh token rotatif et session desktop persistante (complète DEC-0110)",
+   "body": "Résumé : on lève le report de DEC-0110 sur le refresh token. Le JWT d'accès reste à 15 min maximum, en mémoire, avec auth_version, sans changement. On ajoute un refresh token opaque, hashé côté serveur, à rotation à usage unique. Sa réutilisation révoque toute la famille. Expiration glissante de 30 jours, absolue de 90 jours. Il est révoqué par logout, « révoquer toutes les sessions », disable, reset et changement de rôle. Côté desktop, il est stocké dans le coffre OS (Credential Manager/DPAPI), jamais dans localStorage. Renouvellement silencieux avant exp ou après un 401 (un seul retry), restauration de la session au démarrage, et en cas d'échec retour à l'écran de login. Hors desktop (navigateur), pas de persistance. Changement du contrat Auth/Sync, via le skill contract-change. Détail : docs/decisions/DEC-XXXX-refresh-token-rotatif-desktop.md",
+   "status": "accepted",
+   "task_id": "76ba7e87-b807-46d7-9cb1-b11c19564541",
+   "created_at": "2026-09-27T20:25:30.623714+00:00"
+  },
+  {
+   "id": "223e5482-95df-4f88-988d-5b3b695669b1",
+   "readable_id": "DEC-0157",
+   "title": "Coordination inter-sessions en pull : curseur par session, studio_sync et coordination.* (remplace DEC-0051)",
+   "body": "Statut : proposed (roadmap AIB rév. 4, étapes L1/C2/C3). Remplace DEC-0051 à l'acceptation (supersede explicite : c'est la « Décision dédiée » que DEC-0051 §6 demandait le jour où une identité adressable existe). Fichier à créer à l'acceptation : docs/decisions/DEC-XXXX-coordination-inter-sessions-pull.md.\n\nMaintenu de DEC-0051 (côté humain, inchangé) : notifications humaines = Review Queue ; timeline dérivée des events ; alias CLI `notifications list` ; aucune entité `Notification` ni état lu/non-lu par utilisateur.\n\nRemplacé (côté sessions d'agent) :\n- Unité adressable = la session de travail vivante (L1) ; cible préférée = la tâche (persistante, survit aux sessions et aux machines).\n- Présence de session dérivée (conforme DEC-0078) : `last_activity` mis à jour par l'activité authentifiée existante, statut/expiration calculés, aucun heartbeat agent dédié.\n- État par session = un curseur `seq` stocké serveur, avancé uniquement par acquittement (au moins une fois, rejeu sans effet) ; une nouvelle session d'une tâche hérite du curseur du dernier handoff de cette tâche.\n- `studio_sync` (HTTP canonique + MCP, DEC-0046) : seul point de resynchronisation ; filtre déterministe et expliqué (why) ; réponse bornée ; en débordement, compteurs + renvoi vers prepare_context, jamais d'historique brut ; s'appuie sur l'état réel pour les claims (leçon DEC-0051 : ne pas dépendre d'un type jamais émis). Lecture-écriture (curseur) : distinct de prepare_context, qui reste en lecture seule (DEC-0080).\n- Nouvelle famille EventType additive `coordination.*`, intentions fermées : heads_up, question, blocked_by, handoff. Cible task_id obligatoire, session_id optionnel ; texte ≤ 280 caractères, références structurées, in_reply_to optionnel ; lecture uniquement via studio_sync (aucun outil de lecture dédié). Ce ne sont pas des notifications : aucun `notification.*`.\n- Garde-fous : aucun canal agent↔agent, aucun push supposé vers les LLM (SSE = humains/daemon), contenu rendu comme donnée citée et jamais comme instruction, aucune réaction automatique chaînée, limite d'émission par session.\n\nHors périmètre (différé au dogfooding, C5) : GitWatcher enrichi, impact Graphify, relais temps réel du daemon.",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-27T21:13:21.061934+00:00"
+  },
+  {
+   "id": "7e30b381-f8b8-413d-b0a1-a6cbbc1e83c9",
+   "readable_id": "DEC-0156",
+   "title": "Fan-out temps réel multi-process : NOTIFY PostgreSQL post-commit (étend DEC-0018)",
+   "body": "Statut : proposed (roadmap AIB rév. 4, étape C0). Fichier à créer à l'acceptation : docs/decisions/DEC-XXXX-fanout-multi-process-listen-notify.md.\n\nConstat (lecture statique, à confirmer par test live en C0) : le conteneur `mcp` (docker-compose, process séparé) appelle `events_service.create_event` en direct ; `event_stream.publish` alimente donc le hub en mémoire du process MCP. Un événement émis via MCP n'atteint pas en direct les abonnés SSE de l'API ; il n'est visible qu'au rattrapage par `seq`.\n\nOptions évaluées :\n1. LISTEN/NOTIFY PostgreSQL — `pg_notify('studio_events', seq)` dans la transaction de `create_event` (livré au commit seulement, jamais sur rejeu idempotent) ; l'API tient une connexion d'écoute dédiée, relit l'événement par `seq` et alimente son hub local ; à la reconnexion du listener, rattrapage `seq > dernier vu`. Aucune infrastructure nouvelle, charge utile = `seq` (limite 8 Ko sans objet), compatible multi-workers futurs.\n2. MCP via l'API HTTP — réécrire toutes les écritures MCP en appels HTTP : gros refactor, double saut, propagation d'identité, contraire au partage de la couche service (python-conventions) ; ne règle que MCP, pas les futurs workers.\n3. Polling DB par chaque handler SSE — simple mais latence et charge proportionnelles aux abonnés.\n\nDécision proposée : option 1 ; le rattrapage par `seq` (déjà en place) sert de filet de sécurité.\n\nRapport à DEC-0018 : complément, pas remplacement. DEC-0018 désignait explicitement LISTEN/NOTIFY comme voie « si un besoin réel apparaît » ; transport SSE, curseur `seq`, `Last-Event-ID`, file bornée et autorisation restent inchangés. Seule l'hypothèse « hub alimenté dans le même process » est levée. Enveloppe Event inchangée.",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-09-27T21:13:12.265993+00:00"
+  },
+  {
+   "id": "b84cd535-f7a4-43c9-a04e-741085a89efb",
+   "readable_id": "DEC-0051",
+   "title": "DEC-0051 — Question ouverte n°4 (étape 8) : notifications dérivées de la Review Queue, timeline sur les events, aucune entité Notification persistée",
+   "body": "Statut dépôt : active (2026-09-15). « Ce qui demande une action humaine maintenant » = ce que calcule déjà la Review Queue (GET /api/v1/review-queue) sur l'état réel ; la timeline quotidienne est dérivée des events ; aucune entité Notification persistée. Source : docs/decisions/DEC-0051-*.md",
+   "status": "superseded",
+   "task_id": null,
+   "created_at": "2026-09-20T08:50:29.173781+00:00"
+  },
+  {
+   "id": "b48ed0bc-3acd-407e-9af7-39be45ef8426",
+   "readable_id": "DEC-0158",
+   "title": "AIB-I : ensure agent serveur par stable_key, distinct d'AgentDefinition",
+   "body": "AIB-I : l'identité agent porte une clé stable locale via `POST /agents/ensure` (find-or-create serveur sur `(machine_id, stable_key)`, contrainte unique, mismatch → 409 `idempotency_key_payload_mismatch` réutilisé). `AgentCreate`/`Agent` gagnent `stable_key` optionnel ; `POST /agents` reste création pure (collision → 409 `duplicate_stable_key`). `AgentDefinition.stable_key` reste un paramètre de résolution, jamais une identité. Fichier : branche task/project-ai-bootstrap/L1-5376f5a0-agent-identity (migration 0019, service ensure_agent, route /ensure, client + CLI + MCP pass-through, docs 02/05).",
+   "status": "superseded",
+   "task_id": "5376f5a0-7e3f-467d-a21d-28f14a3c7166",
+   "created_at": "2026-09-28T17:04:57.801039+00:00"
+  },
+  {
+   "id": "2a951dff-a833-4283-b848-fb7115a4eacd",
+   "readable_id": "DEC-0159",
+   "title": "L2 : contrat studio_start_work composite (claim + reprise + contexte, AIB-G)",
+   "body": "L2 : studio_start_work composite en un appel (POST /api/v1/start-work + outil MCP, Idempotency-Key). Avec task_id : claim idempotent même machine + reprise/création session + contexte borné ; sans task_id : contexte + candidates, jamais de claim ni session (AIB-G). Pas de nouvelle table ni event ; prepare_context sans effet de bord (DEC-0080). Fichier : branche task/project-ai-bootstrap/L2-15dc6fe4-start-work-contrat (studio_contracts/start_work.py, § 02_API_CONTRACT, tests contrat).",
+   "status": "accepted",
+   "task_id": "15dc6fe4-9b65-4175-a505-00970caf9d83",
+   "created_at": "2026-09-28T17:51:13.360239+00:00"
+  },
+  {
+   "id": "6c284083-5360-40c4-8f92-e77d67583507",
+   "readable_id": "DEC-0160",
+   "title": "L2 : claim_task idempotent (no-op même machine) + Idempotency-Key, sans bump de contrat",
+   "body": "Décision (L2) : POST /tasks/{id}/claim est idempotent par construction. Re-réclamer une tâche encore in_progress, tenue par la même machine avec le même agent, est un no-op (aucun bump de version, aucun task.started réémis) — TECH/03 §Emission serveur Tasks est corrigé en conséquence et l'ancienne phrase « Un re-claim par la même machine reemet task.started (previous_status=in_progress) » est remplacée. Une autre machine garde 409 already_claimed ; réclamer une tâche libérée/bloquée/terminée, ou avec un agent_id différent, est une (re)prise réelle (version + task.started). Ajout du support Idempotency-Key (HTTP : endpoint « POST /tasks/{id}/claim » ; MCP : « MCP studio_claim_task:{task_id} », hash = agent_id). Aucun changement de champ, de code HTTP ni d'enveloppe d'événement → pas de bump de API_CONTRACT_VERSION ni d'EVENT_SCHEMA_VERSION (clarification + en-tête additif). Fichier : docs/decisions/DEC-0160-l2-claim-idempotent.md (branche task/project-ai-bootstrap/L2-27bd4b15-claim-idempotent).",
+   "status": "accepted",
+   "task_id": "27bd4b15-2618-48d6-9f63-07c8ee287022",
+   "created_at": "2026-09-28T18:17:36.154296+00:00"
+  },
+  {
+   "id": "4d2034c5-e99d-4751-a57b-5156d29ef0d7",
+   "readable_id": "DEC-0161",
+   "title": "L2/AIB-H : reprise de session (filtres agent/open, clôture des périmées, jamais sur lecture)",
+   "body": "Décision (L2/AIB-H) : sémantique de reprise de session. `list_sessions` gagne des filtres optionnels `agent_id` et `open_only` (exposés HTTP `GET /sessions?agent_id=&open=true` et MCP studio_get_sessions). Règle de reprise `resume_or_start_session` (services/sessions.py, consommée par studio_start_work) : reprend la session ouverte de la même machine + même agent sur la tâche (touch, resumed=true) ; si sa présence dérivée est `expired`, la clôt d'abord (ended_at=now, événement session.ended) puis en crée une neuve (resumed=false) ; une session `ended` n'est jamais réutilisée. C'est la clôture effective que C1 (DEC-0157) avait différée à L2. Aucune clôture sur un chemin de lecture (GET reste pur, DEC-0080) ; pas de balayage global inventé. Fichier : docs/decisions/DEC-0161-l2-session-resume-cloture.md (branche task/project-ai-bootstrap/L2-44f4fe5f-session-resume).",
+   "status": "accepted",
+   "task_id": "44f4fe5f-51d4-4d8e-8cf1-60b092c059ca",
+   "created_at": "2026-09-28T18:27:25.496963+00:00"
+  },
+  {
+   "id": "efbb7198-3439-4f1d-8fc4-25de14cc33f9",
+   "readable_id": "DEC-0162",
+   "title": "Desktop Prod et Dev deviennent deux builds distincts, sans promotion croisée d’artefact",
+   "body": "Décision utilisateur du 2026-09-28. desktop-dev est construit depuis dev avec l’identité Studi'OS Desktop Dev et une origine locale loopback ; desktop-prod est construit depuis deploy/flo-laptop avec l’identité Studi'OS Desktop et l’origine HTTPS Flo-laptop. Les deux tags/releases restent vivants et publiés sans suppression préalable. La promotion beta→stable d’octets identiques (DEC-0137) est remplacée pour les canaux vivants, car elle ne peut pas porter deux identités et deux origines distinctes. Les rollbacks réutilisent uniquement un artefact antérieur du même canal. Le serveur Dev réutilise la stack Docker existante, isolée et liée au loopback. ADR dépôt prévu : docs/decisions/DEC-XXXX-desktop-two-real-channels-local-dev.md.",
+   "status": "accepted",
+   "task_id": "5fbb7ded-62f6-4b91-a492-dc87c0270eef",
+   "created_at": "2026-09-28T19:16:12.713803+00:00"
+  },
+  {
+   "id": "b7a807ef-bf8d-4c96-9341-f1c531fc802e",
+   "readable_id": "DEC-0163",
+   "title": "DEC-0163 — L3 handoff composite + repli end_session",
+   "body": "Proposed. L3 handoff composite en un appel (POST /handoff + studio_handoff, Idempotency-Key, réponse compacte) + repli end_session qui libère les claims avec events resource.released. Autorisation avant court-circuit idempotence, convergence au rejeu, expected_version conditionnel, ai_work_status typé, session_id validé. Remplace les citations erronées de DEC-0162. Fichier : docs/decisions/DEC-0163-l3-handoff-cloture.md. Tâche : [AIB L3] Remédiation studio_handoff (4580c4b6).",
+   "status": "accepted",
+   "task_id": "4580c4b6-2c9a-4706-96bf-2636388f1335",
+   "created_at": "2026-09-29T04:15:32.728229+00:00"
+  },
+  {
+   "id": "8a61688c-a5a8-40a4-a31b-4794134c7dd5",
+   "readable_id": "DEC-0165",
+   "title": "AIB C5 — remèdes préalables : budget sync de start_work et bruit ai_work",
+   "body": "Dogfooding C5 (tâche 0fab1892). Deux remèdes préalables à toute extension de la coordination :\n\n- D4 — Mesurer le budget en caractères/tokens du bloc sync de studio_start_work (tâche avec claims + coordination) et rendre studio_handoff disponible sur le serveur MCP connecté (relevé C4 : outil absent). Sans ces mesures, D1–D3 (DEC-0164) ne peuvent être tranchées sur des données réelles.\n- D5 — Dédupliquer la paire ai_work.started / ai_work.completed : 117 événements pour 59 ai_work_id uniques sur la fenêtre (≈ 2× le volume utile). Premier poste de bruit mesuré, indépendant de la coordination.\n\nOrigine : rapport docs/AI_BOOTSTRAP_C5_DOGFOODING.md, DEC-0157.",
+   "status": "accepted",
+   "task_id": "0fab1892-4aec-4ef8-9f53-7acc3a089051",
+   "created_at": "2026-09-29T17:55:54.469881+00:00"
+  },
+  {
+   "id": "7faf99e3-a35b-499b-8926-ff34e6f36b1c",
+   "readable_id": "DEC-0164",
+   "title": "AIB C5 — les trois extensions différées de la coordination restent reportées (no-go)",
+   "body": "Dogfooding C5 (tâche 0fab1892), rapport docs/AI_BOOTSTRAP_C5_DOGFOODING.md, fenêtre 2026-09-27→2026-09-29 (500 events). Mesures : 0 événement coordination.* émis ; 1 seul poste actif ; 6 resource.conflict sur 2 tâches, aucun blocage ; paire ai_work.started/completed ≈ 2× (117 events / 59 entrées).\n\nDécisions proposées (go/no-go par décision, conformément à DEC-0157 §Hors périmètre) :\n- D1 GitWatcher enrichi : NO-GO (report). Le flux Git est déjà émis par l'ingress serveur (85 events système sur la fenêtre) ; enrichir avant tout usage du canal de coordination ajouterait du bruit non justifié.\n- D2 Impact Graphify : NO-GO (report). Aucune collision mesurée imputable à son absence ; Graphify hors périmètre sémantique du dépôt.\n- D3 Relais temps réel du daemon : NO-GO (report). Le pull via studio_sync n'est pas sous tension (0 signal) ; DEC-0156 couvre déjà le fan-out NOTIFY/SSE humains+daemon.\n\nRéexamen de D1–D3 quand : ≥ 2 postes actifs sur une même fenêtre, coordination.* réellement émis (> 0, dont un handoff inter-session), et budget sync/start_work mesuré en caractères. Origine : DEC-0156/DEC-0157.",
+   "status": "accepted",
+   "task_id": "0fab1892-4aec-4ef8-9f53-7acc3a089051",
+   "created_at": "2026-09-29T17:55:48.657439+00:00"
+  },
+  {
+   "id": "9e251e0e-6e88-4897-83c5-beecd5106c59",
+   "readable_id": "DEC-0167",
+   "title": "AIB P3 : générateur local du bundle, offline d'abord (DEC-0165)",
+   "body": "Décision structurante P3 (tâche c691ac49). Interface P2↔P3 tranchée : le studio-client génère le bundle projet HORS LIGNE depuis les sources canoniques `.agents/` (`build_offline_resolved`), projetées par les adapters locaux ; jamais de second moteur de résolution (conforme DEC-0144). Le plan serveur P2 (`POST /api/v1/bootstrap-plan`, hash seul) servira d'oracle en ligne en incrément additif.\n\nLivré : groupe CLI `studio-client bootstrap init|check|diff|sync`, manifeste minimal `.agents/bootstrap.json` (`studio.bootstrap/v1`), rapport `BootstrapDryRunReport` (contrat P1), sync idempotent (2e exécution = 0 écriture), backup sous `.studio-os/backups/bootstrap/<ts>/`, refus des conflits (`refuse`) / confirmation (`ask`), écritures atomiques confinées au dépôt, CRLF normalisé.\n\nFichier : docs/decisions/DEC-0165-aib-p3-generateur-local-bundle-offline.md",
+   "status": "accepted",
+   "task_id": "c691ac49-ad87-4871-b6b1-c7e05ad9b770",
+   "created_at": "2026-09-29T21:36:20.215720+00:00"
+  },
+  {
+   "id": "1c46e9e6-c46a-41fc-a355-99ea8fc0aff8",
+   "readable_id": "DEC-0168",
+   "title": "AIB-D : loader runtime fusion .agents/ projet + Library, source injectée",
+   "body": "Fusion décidée (proposed, en attente d'accord) : build_offline_resolved inchangé ; nouveau build_merged_resolved(repo_root, stable_key, *, library: LibrarySnapshot | None) — fichier projet .agents/ prioritaire, Library en comblement, échec fermé sinon ; provenance réelle côté Library, uuid5 fichier sinon ; clés fichier-only depuis le fichier ou défauts. Snapshot via POST /api/v1/resolutions existant (aucun changement de contrat) ; canonical.py reste pur ; CLI --with-library (+ --project-id passthrough) sur adapters export --from-canonical et check. Fichier : docs/decisions/DEC-0168-aib-d-loader-runtime-fusion.md. Frontière : to_publish_payload / commande de publication = tâche sœur 2c794311.",
+   "status": "accepted",
+   "task_id": "13da8354-6f0f-42cc-8f17-d0929a108161",
+   "created_at": "2026-09-30T16:56:49.950924+00:00"
+  },
+  {
+   "id": "08a0ee8c-a626-42ca-84aa-d001cc71e53e",
+   "readable_id": "DEC-0175",
+   "title": "AIB-J : droits de lancement sur une machine (table dediee, owner ou droit explicite)",
+   "body": "Resume : lancer du travail sur une machine = proprietaire, admin, ou User avec un droit explicite accorde par le proprietaire (table machine_launch_grants, cle (machine_id,user_id), project_id et expires_at optionnels). Un droit n'elargit jamais l'acces projet, exclut readonly, ne vaut que pour la machine visee. Tout refus = 403 unique sans oracle. Gestion des droits : proprietaire ou admin. Routes GET|PUT|DELETE /machines/{id}/launch-grants[/{user_id}]. L'opt-in local et la liste de harnesses (R3) restent des conditions supplementaires. Fichier : docs/decisions/DEC-0174-aib-j-droits-de-lancement-machine.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-10-01T10:00:21.780214+00:00"
+  },
+  {
+   "id": "2a542cf0-2248-407f-b01c-a65342a634c5",
+   "readable_id": "DEC-0176",
+   "title": "AIB R3 : lancement non interactif des harness (permissions bornees, timeout dur)",
+   "body": "Tache 50ef918a (R3). Invocation non interactive par adapte (headless_argv), executable resolu hors workspace ; permissions bornees explicites (Claude acceptEdits + allowedTools, OpenCode --auto, Codex -a never --sandbox workspace-write) ; identite L1 via hook/plugin existant (consigne = ids + cle stable seulement) ; timeout dur launch_timeout_seconds (defaut 3600 s) avec kill de l'arbre, sortie bornee. Fiche : docs/decisions/DEC-0176-aib-r3-lancement-harness-non-interactif.md",
+   "status": "accepted",
+   "task_id": "50ef918a-107f-4180-805e-a644c8b51cec",
+   "created_at": "2026-10-01T12:37:23.845811+00:00"
+  },
+  {
+   "id": "64588ddc-8e97-4e21-8eef-eeadab657eed",
+   "readable_id": "DEC-0179",
+   "title": "AIB R3 : réglages de lancement locaux persistés dans launch_settings.json (précédence sur config.toml, échec fermé)",
+   "body": "Statut proposed. Les réglages de lancement (opt-in, concurrence 1-8, harnesses autorisés) édités via launch.get_settings/save_settings sont persistés dans launch_settings.json (data_root, écriture atomique), jamais dans config.toml. Précédence : fichier valide > défauts config.toml ; fichier illisible ou invalide = opt-in faux et aucun harness (échec fermé). Enregistrement confirmé (confirmed=true) et harnesses validés contre le registre. Appliqué à chaud par le runtime (politique + capacités). Détail : docs/decisions/DEC-pending-aib-r3-reglages-lancement-locaux.md (renommé avec l'id serveur à la fusion).",
+   "status": "accepted",
+   "task_id": "60fc6c30-4b97-4787-9a35-9f9b9d439377",
+   "created_at": "2026-10-01T14:24:01.947515+00:00"
+  },
+  {
+   "id": "3bc0add6-01cc-45fe-afbd-545d2e5cd347",
+   "readable_id": "DEC-0182",
+   "title": "AIB P9 — Credential éphémère de lancement (projet+tâche+session) à la place du token machine durable",
+   "body": "Le harnais lancé par le daemon reçoit un token éphémère (POST /task-launches/{id}/credential, table launch_credentials, hash SHA-256), valide tant que le lancement n'est pas terminal/expiré, restreint au projet du lancement et à une allowlist REST/MCP (403 launch_credential_scope). Additif. Limites : portée tâche/session non vérifiée par appel ; pas de DELETE hors réémission ; Codex non vérifié. Détail : docs/decisions/AIB-P9-launch-credential.md",
+   "status": "accepted",
+   "task_id": null,
+   "created_at": "2026-10-03T10:05:00.447010+00:00"
+  },
+  {
+   "id": "9e03ac3c-063b-4eb2-864c-b015bb2a1c65",
+   "readable_id": "DEC-0172",
+   "title": "AIB P7 : définition du bootstrap permanent et cibles d'actions manuelles",
+   "body": "Décision structurante pour le gate P7 (tâche adb63761, contrat 9 de la roadmap Project AI Bootstrap).\n\n1. « Bootstrap permanent » = ce qui reste dans le dépôt et le rend exploitable : sources canoniques `.agents/` (hors manifeste) + manifeste `.agents/bootstrap.json` + blocs gérés `AGENTS.md`/`CLAUDE.md`. Les projections `.claude/`, `.opencode/`, `.codex/` sont générées (régénérables), et le contexte Bibliothèque/Résolution n'est jamais laissé dans le dépôt (chargé à la demande par `studio_prepare_context`).\n\n2. Cibles d'actions manuelles : onboarding d'un projet neuf ≤ 3 gestes (init, sync, ouvrir le harness) ; ajout d'un harness = 0 source recréée (les projections sont régénérées depuis la même source canonique).\n\n3. Mesure déterministe et publiée : `scripts/p7_onboarding_metrics.py` produit `docs/AI_BOOTSTRAP_P7_METRICS.json` (`studio.p7.onboarding-metrics/v1`, `--check` exit 1 si périmé) ; le scénario E2E est rejoué par `tests/protocol/test_p7_onboarding_e2e.py`.\n\n4. La reprise de tâche par un second agent reste propriété de l'E2E L4 `tests/mcp/test_agent_loop_sync_e2e.py` ; P7 ajoute la garantie de continuité côté dépôt (bootstrap neutre au harness).\n\nStatut : proposed — en attente d'accord.\nFichier : docs/decisions/DEC-XXXX-aib-p7-onboarding-metriques.md (numéro attribué par le serveur).",
+   "status": "accepted",
+   "task_id": "adb63761-ec8b-4915-9ec2-4d6952d4c0a3",
+   "created_at": "2026-09-30T20:07:35.165364+00:00"
+  },
+  {
+   "id": "85b3d89c-c12f-4c3a-a12b-5c560595fccb",
+   "readable_id": "DEC-0173",
+   "title": "AIB R2 : contrat TaskLaunch (demande de lancement typée, jamais une commande)",
+   "body": "Ressource TaskLaunch additive (studio_contracts.task_launch) : ids et clés stables seulement, aucune commande libre représentable, motif = vocabulaire fermé. Cycle requested→accepted→preparing→running→succeeded|failed, plus rejected (machine), cancelled (demandeur), expired (serveur seul) ; table ALLOWED_TRANSITIONS, paire inconnue=409, mauvais acteur=403. Seule la machine cible rapporte l'exécution. Autorisation AIB-J propriétaire ou droit explicite. Tirage par endpoint de poll dédié, idempotence + expiration bornée. Statut proposed jusqu'à accord. Fichier : docs/decisions/DEC-0173-aib-r2-contrat-task-launch.md (branche task/cb5acf29-tasklaunch-contract).",
+   "status": "accepted",
+   "task_id": "cb5acf29-a9eb-4674-80bc-3e83efe1fac8",
+   "created_at": "2026-10-01T08:50:12.267176+00:00"
+  },
+  {
+   "id": "1fb95c16-1bf9-4c3d-aae6-a733f7617632",
+   "readable_id": "DEC-0177",
+   "title": "AIB R3 : annulation d'un lancement en cours livree par GET polling",
+   "body": "Tache 0c5ace15 (R3). Le pull ne renvoie pas les statuts terminaux : cancelled/expired sont livres a une machine en cours par polling GET /api/v1/task-launches/{id} (intervalle launch_status_poll_seconds), borne par max_concurrent_launches ; sur terminal, kill de l'arbre, journaux bornes/expurges, plus de rapport. Aucun changement de contrat/serveur. Fiche : docs/decisions/DEC-0177-aib-r3-annulation-par-polling-get.md",
+   "status": "accepted",
+   "task_id": "0c5ace15-0d85-48d5-a8bf-10b3c5ede054",
+   "created_at": "2026-10-01T13:13:21.856288+00:00"
+  },
+  {
+   "id": "8873fd83-a259-4cc4-ab63-982434a3537c",
+   "readable_id": "DEC-0180",
+   "title": "Compatibilité du manifest bootstrap : lecture v1 uniquement et refus explicite",
+   "body": "Proposition P9 : le lecteur accepte uniquement studio.bootstrap/v1. Aucune v0 n’a été publiée, donc aucune migration N-1 n’est fournie. Format absent, non textuel, ancien, inconnu ou futur : refus fail-closed avant validation Pydantic, diagnostic stable unsupported_bootstrap_manifest_version et action de régénération après revue locale. Les champs inconnus restent refusés par extra=forbid. Fichier dépôt à créer dans docs/decisions/ puis référencer depuis DEC-0143 et docs/AI_BOOTSTRAP_ROADMAP.md.",
+   "status": "superseded",
+   "task_id": "9183540c-bef1-4a35-9124-4e3cc99e0267",
+   "created_at": "2026-10-02T22:04:36.863891+00:00"
+  },
+  {
+   "id": "a1f7aeef-ff5a-4e34-9ee8-4451afa2bd6f",
+   "readable_id": "DEC-0181",
+   "title": "Compatibilité du manifest bootstrap : lecture v1 uniquement et refus explicite",
+   "body": "Proposition P9 renumérotée après collision Git avec la DEC-0180 intégrée par origin/dev. Le lecteur accepte studio.bootstrap/v1 ; absence de format = legacy v1 implicite ; racine non objet, format non textuel, ancien, inconnu ou futur refusés avant Pydantic avec unsupported_bootstrap_manifest_version ; aucune migration v0/N-1 ; extra=forbid et aucune écriture sur échec. Fichier dépôt : docs/decisions/DEC-0181-compatibilite-manifest-bootstrap-v1.md.",
+   "status": "accepted",
+   "task_id": "9183540c-bef1-4a35-9124-4e3cc99e0267",
+   "created_at": "2026-10-03T09:04:15.445530+00:00"
+  },
+  {
+   "id": "d8bd6974-4b33-433e-b928-c9435a6e0f9f",
+   "readable_id": "DEC-0186",
+   "title": "MCP : déprécier les outils redondants de session et de claim (DEC-0186)",
+   "body": "Dépréciés jusqu'au 2026-11-04 (sans changement de comportement, signalés par description DEPRECATED + objet `deprecation`) : studio_start_session, studio_end_session, studio_claim_task, studio_release_task, studio_claim_resource. Surface conservée : studio_start_work, studio_handoff, studio_claim_resources, studio_release_resource. Retrait = changement cassant, tâche distincte via contract-change. Détail : docs/decisions/DEC-0186-deprecation-outils-mcp-redondants.md (branche task/f7e7b5e4-dedup-outils-mcp). Statut proposed jusqu'à accord.",
+   "status": "accepted",
+   "task_id": "f7e7b5e4-f748-4253-84d1-f00682953efc",
+   "created_at": "2026-10-04T21:35:07.625496+00:00"
+  },
+  {
+   "id": "40f92cf1-f195-45c3-97db-7bd79f22acfd",
+   "readable_id": "DEC-0183",
+   "title": "Profils d'outils MCP : session par defaut, admin par connexion",
+   "body": "Le serveur MCP studio-os expose desormais des outils par profil, selectionne par connexion (tache abb9c019). Defaut = profil `session` (~21 outils : prepare_context, start_work, sync, coordinate, log_ai_work, handoff, create_task, update_task, claim_resources, release_resource, add/accept/supersede_decision, discover_definitions, resolve_agent, + lectures get_task/get_active_tasks/get_decisions/get_resource_claims, plus get_projects/get_project_state pour le bootstrap de session). Profil `admin` = tous les outils enregistres (MCP_ACCESS, 54). Selection : en-tete HTTP X-Studio-Tool-Profile (session|admin) ou variable stdio STUDIO_MCP_TOOL_PROFILE ; valeur absente/inconnue -> session. tools/call hors profil -> {error_code: tool_not_in_profile} in-band, sans executer l'outil. Un profil est un controle de bruit/jetons, pas une frontiere d'autorisation (role/acces projet restent dans les services). Mecanisme : ToolProfileMiddleware (mcp.server.context.ServerMiddleware) enregistre dans create_server, donc commun aux transports stdio et HTTP ; tests unitaires de la resolution et du filtrage. Consequence de contrat : le profil par defaut retire des outils de tools/list pour un client sans selecteur ; le profil admin les restaure (additif via en-tete/variable). Doc : TECH/07_MCP_CONTRACT.md, section « Profils d'outils MCP ». Code : services/mcp/src/studio_mcp/tool_profiles.py, server.py.",
+   "status": "accepted",
+   "task_id": "abb9c019-c63c-49bb-8d9b-2611b5090f2d",
+   "created_at": "2026-10-04T09:16:30.283449+00:00"
+  },
+  {
+   "id": "405f8071-6e2d-4990-8544-3b76f10badbe",
+   "readable_id": "DEC-0190",
+   "title": "Reprise d'une machine existante à l'enrôlement (adopt) par rotation de credential",
+   "body": "Statut : proposed. Quand le poste a déjà une machine, l'enrôlement ne crée plus de doublon : POST /api/v1/machines/{machine_id}/adopt (additif, scope own) fait tourner le credential (credential_hash) en gardant l'id et l'historique ; l'ancien credential est invalidé immédiatement ; machine révoquée → 409 ; machine d'un autre utilisateur/inexistante → 404 identique ; agent → 403. Côté client local : champ optionnel IdentityEnrollRequest.adopt_machine_id. Commande admin merge-machines --from --into (dry-run par défaut) pour fusionner les doublons existants. Source : docs/Studio_OS_Documentation_Pack/studio_os_docs/TECH/02_API_CONTRACT.md (entrée POST /machines/{machine_id}/adopt). Revue contract-guardian : additif, aucun bump de version. Reste à faire : écran dashboard « reprendre la machine X ».",
+   "status": "proposed",
+   "task_id": "753d96cc-67c9-4e6b-aaa2-910d2e841ec8",
+   "created_at": "2026-10-06T04:11:07.048205+00:00"
+  },
+  {
+   "id": "fa230c55-2c36-40f1-b4d2-62bf33e66932",
+   "readable_id": "DEC-0185",
+   "title": "DEC-0182 — GET /tasks : filtres additifs status et mine pour les vues Travail",
+   "body": "Statut : proposed. Ajout additif à GET /tasks de `status` (répétable, OU) et `mine` (bool, tâches réclamées par une machine de l'utilisateur authentifié) ; tri, pagination, visibilité inchangés. Sert les vues Maintenant (défaut : in_progress+blocked, court groupe created), Mon travail (mine=true, non terminées), Toutes (liste paginée). Fichier : docs/decisions/DEC-0182-filtres-taches-status-mine.md ; contrat : TECH/02_API_CONTRACT.md section Tasks.",
+   "status": "accepted",
+   "task_id": "f544fa63-e18f-4e48-bf3f-587bcba73449",
+   "created_at": "2026-10-04T13:44:38.801753+00:00"
+  },
+  {
+   "id": "b170f64f-b06c-4af3-8935-95f9491b59bf",
+   "readable_id": "DEC-0184",
+   "title": "Correctif DEC-0183 : les profils MCP scopent la decouverte (tools/list), pas les appels",
+   "body": "Correction de DEC-0183 (tache abb9c019), meme mecanisme de profils mais portee reduite a la decouverte. Constat : la garde d'appel (tools/call hors profil -> tool_not_in_profile) s'executait dans le middleware AVANT l'authentification, donc un appelant non authentifie ou un credential ephemere de lancement recevait tool_not_in_profile au lieu de unauthenticated / launch_credential_scope documentes dans TECH/04 AUTH -> deviation de contrat. Decision : le profil ne filtre que tools/list ; tools/call passe inchange, l'authentification et l'allowlist gardent leur ordre et leurs error_code. Aucun nouvel error_code n'est introduit. Conformite : DEC-0046 regle 5 (l'absence d'un outil dans tools/list signifie « non expose via ce transport/connexion », jamais « indisponible » ; les consommateurs decouvrent par tools/list) et DEC-0048 (additif/coexistence ; le profil admin est la surface nommee qui restaure l'ensemble). Le defaut reste session (choix utilisateur), admin via en-tete X-Studio-Tool-Profile ou env STUDIO_MCP_TOOL_PROFILE. Code : tool_profiles.py (ToolProfileMiddleware = tools/list seulement), doc TECH/07 section « Profils d'outils MCP » et regle mcp-tools. DEC-0183 reste proposed ; ce correctif en precise la portee.",
+   "status": "accepted",
+   "task_id": "abb9c019-c63c-49bb-8d9b-2611b5090f2d",
+   "created_at": "2026-10-04T09:48:28.491008+00:00"
+  },
+  {
+   "id": "16666517-c161-4b43-b30d-1e8d48828b6f",
+   "readable_id": "DEC-0191",
+   "title": "Vault serveur à deux portées (studio / projet) et DEC unifiées — source canonique côté serveur",
+   "body": "Proposed. Le vault devient une ressource serveur à deux portées (studio, projet) ; les DEC serveur deviennent la source unique, les fiches ADR fichiers un export Markdown. Remplace à terme la numérotation non synchronisée (cf. DEC-0088) ; DEC-0047 (mémoire locale read-only) à superseder après acceptation de D2. Statut proposed jusqu'à accord. Détail : docs/decisions/DEC-0187-vault-serveur-deux-portees.md",
+   "status": "proposed",
+   "task_id": "27383900-4551-486c-9089-693aac7e25c7",
+   "created_at": "2026-10-06T17:51:37.404319+00:00"
+  }
+ ]
+}

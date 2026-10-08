@@ -83,6 +83,19 @@ Aucun outil de lecture : le destinataire lit via `studio_sync`
 Erreurs : `invalid_coordination`, `task_closed`, `session_not_found`,
 `coordination_rate_limited` (20 signaux par session emettrice).
 
+### studio_supersede_decision (additif, DEC-0193)
+`studio_supersede_decision(decision_id, superseded_by?)` : transition
+`proposed|accepted -> superseded` (terminal, role admin, pas
+d'`idempotency_key` — cf. `TECH/02_API_CONTRACT.md` § Decisions).
+`superseded_by` (UUID string de la decision **remplacante**) est optionnel et
+passe par le meme service que l'API HTTP : il pose le lien `supersedes` entre
+les deux decisions, de facon a ce que le remplacement et ce qu'il remplace
+restent tracables dans les deux sens. Omit, l'appel est strictement identique
+a l'ancien (`decision_id` seul) : le changement de statut ne change pas, seule
+la trace du lien manque. La decision et ses transitions sont refletees dans une
+note vault `note_type=decision` de meme `readable_id`, lisible par
+`studio_vault_search`/`studio_vault_read`.
+
 ## AI Library via MCP — inventaire (P8, DEC-0072)
 studio_resolve_agent
 studio_discover_definitions
@@ -505,7 +518,8 @@ Sortie `PreparedContext | McpError` (enveloppée sous `result`) :
 DEC-0088, section ci-dessous) — `roadmap`, `roadmap_overview`, `unavailable`
 (`limits.roadmap_scan_capped` n'apparaît que si vrai). Chaque élément porte
 `why` (`requested`, `linked_to_task`, `task_claim`, `path_conflict`,
-`project_scope`, `lexical` ou `active_roadmap` + `matched_terms`).
+`project_scope`, `lexical`, `active_roadmap`, `vault_anchor` ou `vault_link`
++ `matched_terms`).
 
 Garanties : au plus `limit` éléments par catégorie ; texte libre coupé à
 1500 caractères par élément puis au budget `max_chars` (`truncated`,
@@ -532,6 +546,18 @@ lexical du résumé (`lexical`). Chaque entrée : `id`, `status`, `summary`
 (`ai_work`), coupures dans `omitted_for_budget`. `studio_get_ai_work` reste
 disponible pour approfondir. Le résumé structuré P1 (DONE/STATE/CHANGED/TESTS/
 NEXT/BLOCKERS) suffit : aucun champ NEXT/BLOCKERS dédié, aucune nouvelle table.
+
+Section Vault (P07, DEC-0187 D6) — `notes`, additif, **absent** (jamais `[]`)
+sans note retenue ; clés `notes` de `returned` / `additional_available` /
+`omitted_for_budget` présentes seulement si le vault expose au moins une note
+lisible. Source : recherche vault (`GET /vault/search`, D5) sur les portées
+projet et studio, statuts `validated` et `proposed` (jamais `draft`,
+`superseded`, `archived`), bornée à `limit`. Ordre : ancres `task:`/`path:`
+(`vault_anchor`), voisins à un lien (`vault_link`), plein texte (`lexical`).
+Chaque note : `id`, `scope`, `readable_id`, `slug`, `note_type`, `title`,
+`status`, `summary` (≤ 600), `snippet`, `content_hash`, `truncated`, `why` ;
+jamais le corps. `known_ids` avec le même `content_hash` → `unchanged`, sans
+texte. Tranche dédiée de 20 % de `max_chars`, imputée à `limits.chars_used`.
 
 Non couvert : sessions, événements, builds, transferts, mémoire/graphe/Git
 locaux. Ce n'est pas le Context Package (DEC-0057, composé localement par le
@@ -643,3 +669,50 @@ verrouillé par `tests/mcp/test_uc2b_tools_metadata.py`. En `mode=proposed`, l'a
 la roadmap `draft`, lie les Tasks, puis la soumet (P10, voir TECH/02).
 Convergence P3/P5 : les outils appellent `studio_api.services.roadmaps` via
 `RoadmapServicePort` (adaptateurs sans logique dupliquee ; voir DEC-0087).
+
+## Vault via MCP (P04, additif, DEC-0187) — 54 -> 57 outils
+studio_vault_search
+studio_vault_read
+studio_vault_write
+
+Surface par intention d'agent, sur les memes services que l'API vault
+(`TECH/02_API_CONTRACT.md` § Vault, DEC-0046) : la regle d'autorite reste
+entierement dans ces services (memberships projet, role pour les statuts
+reserves, scan de secrets) ; l'outil ne valide que ses propres bornes et ne
+compose aucune logique metier.
+- `studio_vault_search(q?, scope?, project_id?, note_type?, status?,
+  include_superseded, path?, task_id?, limit, max_chars)` — lecture : meme
+  contrat que `GET /vault/search`, bornes `VAULT_SEARCH_*` de
+  `studio_contracts.vault` (`limit` 1..50 defaut 10 ; `max_chars`
+  500..20000 defaut 6000 ; `path` <= 20 ; `q` <= 1000 caracteres), sinon
+  `{error_code: "invalid_argument"}`. Reponse = `VaultSearchResult`
+  (`items`, `total`, `truncated`) : chaque hit porte le resume + un extrait,
+  jamais le `body`.
+- `studio_vault_read(note_id, max_chars)` — lecture : la note complete,
+  liens inclus. Le `body` est coupe a `max_chars` (defaut 12000) caracteres et
+  `body_truncated` indique la coupe (relire avec un budget plus grand pour la
+  suite) ; le `content_hash` reste celui de la note entiere.
+- `studio_vault_write(scope, slug, title, body, project_id?, note_id?,
+  expected_version?, summary?, note_type?, tags?, links?, anchors?,
+  change_summary?, idempotency_key?)` — ecriture : sans `note_id` c'est une
+  creation (`VaultNoteCreate`), avec `note_id` une reecriture complete du
+  titre et du corps (`VaultNoteUpdate`, `expected_version` **requis**, sinon
+  `invalid_argument`). `note_type` ne s'applique qu'a la creation.
+  **Pas de parametre `status`** : une note ecrite par un agent est toujours
+  `proposed` et `author_type` vaut `agent` — valider, superseder ou archiver
+  reste une action humaine (frontiere lecture/ecriture des roles d'agent,
+  `.agents/rules/mcp-tools.md`). `idempotency_key` ne vaut que pour une
+  creation (DEC-0027) ; l'autorisation est evaluee avant le court-circuit de
+  rejeu (DEC-0036). Reponse compacte : `id`, `readable_id`, `slug`,
+  `version`, `status`, `author_type` — jamais le `body`.
+- Erreurs in-band, meme vocabulaire que les services : `forbidden` (403),
+  `missing_search_criteria`, `invalid_argument` (schema/bornes), `404`
+  `not_found`, `409 vault_slug_conflict` et `409 version_conflict` (avec
+  `server_version`), `422 secret_detected` (jamais la valeur du secret).
+  `invalid_argument` couvre les arguments *inconnus* (avant execution) comme
+  les valeurs hors contrat et hors bornes (schema, bornes, `expected_version`
+  manquant).
+Surface volontairement partielle : pas d'arbre (`tree`), pas d'historique de
+versions, pas de suppression (l'archivage est un `status`, et l'outil ne le
+propose pas) — ces lectures-la restent HTTP. Les trois outils sont exposes
+dans le profil `session` (avec `studio_get_decisions` / `studio_add_decision`).

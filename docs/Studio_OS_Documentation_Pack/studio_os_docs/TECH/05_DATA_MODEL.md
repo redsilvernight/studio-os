@@ -182,6 +182,39 @@ nullable — une decision peut etre globale), `task_id` (FK Task, nullable),
 `proposed_by_type` (`user|agent|system`), `proposed_by_id`, `created_at`.
 Append-only.
 
+## VaultNote
+Vault serveur a deux portees (contrat `studio_contracts.vault`, additif : le
+contrat `Decision` reste inchange et valide). `id`, `scope` (`studio|project`),
+`project_id` (requis ssi `project`, null ssi `studio`), `slug` (minuscules,
+chiffres, `-`, `_`, `/` ; <=200 ; unique par `(scope, project_id)` hors notes
+archivees), `readable_id` (attribue par le serveur, uniquement pour
+`note_type=decision`, sinon null), `note_type`
+(`decision|rule|convention|procedure|reference|lesson|note`), `title` (<=200),
+`summary` (<=600), `body` (<=262144), `status`
+(`draft|proposed|validated|superseded|archived` ; decision `accepted` =
+`validated`), `tags` (<=20), `links` (<=200, `{target_note_id,
+kind: links_to|relates_to|derived_from|supersedes}`, unique par couple),
+`content_hash` (SHA-256 hex du contenu), `author_type|author_id`, `version`
+(+1 par ecriture acceptee ; ecriture avec `expected_version`, 409 + version
+serveur si perimee), `created_at`, `updated_at`. Portee et slug ne changent
+jamais : deplacer une note = nouvelle note + lien `supersedes`.
+Precedence : pour un meme `slug`, la note projet l'emporte sur la note studio
+dans ce projet (`effective_notes`), quel que soit son statut hors archive ; une note archivee n'est jamais effective ;
+hors projet, seule la portee studio est visible.
+`VaultNoteVersion` : historique append-only (une entree par ecriture,
+creation incluse). `VaultNoteCreate` : statut initial `draft|proposed` ;
+`VaultNoteUpdate` : `expected_version` obligatoire, au moins un champ change,
+`tags`/`links` remplacent la liste entiere.
+
+Stockage PostgreSQL (migration 0028) : tables `vault_notes` (contraintes
+scope/projet, valeurs, `readable_id` reserve aux decisions et unique ; slug
+unique par portee hors archive via index partiels ; `search_vector` tsvector
+genere `french` titre A / resume B / corps C, index GIN ; `tags` ARRAY + GIN),
+`vault_note_links` (cle `(source, target, kind)`, pas d'auto-lien, cascade) et
+`vault_note_versions` (cle `(note_id, version)`, snapshot tags/liens JSONB).
+Le `readable_id` DEC reste fourni par la sequence `decisions_readable_id_seq`,
+commune aux tables `decisions` et `vault_notes` : aucune collision possible.
+
 ## AIWorkLog
 `id`, `task_id` (FK Task, nullable), `project_id` (FK Project), `agent_id`
 (FK Agent), `machine_id` (FK Machine, nullable), `session_id` (FK

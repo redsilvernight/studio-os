@@ -1,0 +1,236 @@
+{
+  "format": "studio.eval.dec-queries/v1",
+  "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+  "corpus": "tests/eval/dec_corpus.json",
+  "selection": {
+    "limit": 5,
+    "max_chars": 12000
+  },
+  "queries": [
+    {
+      "id": "q01",
+      "objective": "Corriger l'intégrité d'upload d'un transfert simple via Content-MD5",
+      "expected": ["DEC-0025"]
+    },
+    {
+      "id": "q02",
+      "objective": "Reprendre un upload multipart après expiration des URLs pré-signées",
+      "expected": ["DEC-0037", "DEC-0033"]
+    },
+    {
+      "id": "q03",
+      "objective": "Ajouter un worker d'expiration des transferts et son job CLI",
+      "expected": ["DEC-0020", "DEC-0019"]
+    },
+    {
+      "id": "q04",
+      "objective": "Rendre les appels réseau boto3 asynchrones via asyncio.to_thread",
+      "expected": ["DEC-0026"]
+    },
+    {
+      "id": "q05",
+      "objective": "Modifier le Git watcher pour supporter plusieurs repositories",
+      "expected": ["DEC-0032"]
+    },
+    {
+      "id": "q06",
+      "objective": "Trancher entre SSE et WebSocket pour les flux temps réel",
+      "expected": ["DEC-0008", "DEC-0018"]
+    },
+    {
+      "id": "q07",
+      "objective": "Mettre en place un fan-out temps réel multi-process via NOTIFY PostgreSQL",
+      "expected": ["DEC-0156", "DEC-0018"]
+    },
+    {
+      "id": "q08",
+      "objective": "Ajouter une file de review pour les propositions de roadmap",
+      "expected": ["DEC-0087", "DEC-0049"]
+    },
+    {
+      "id": "q09",
+      "objective": "Créer et versionner le domaine Roadmap (cycle de vie, provenance)",
+      "expected": ["DEC-0084", "DEC-0085"]
+    },
+    {
+      "id": "q10",
+      "objective": "Ajouter la section roadmap au contexte borné studio_prepare_context",
+      "expected": ["DEC-0086", "DEC-0080"]
+    },
+    {
+      "id": "q11",
+      "objective": "Ajouter les filtres status et mine à la liste des tâches",
+      "expected": ["DEC-0185"]
+    },
+    {
+      "id": "q12",
+      "objective": "Déprécier les outils MCP redondants de session et de claim",
+      "expected": ["DEC-0186"]
+    },
+    {
+      "id": "q13",
+      "objective": "Versionner les définitions de l'AI Library par pointeur actif",
+      "expected": ["DEC-0064", "DEC-0065"]
+    },
+    {
+      "id": "q14",
+      "objective": "Configurer les choix de runtime par utilisateur (bindings User/Runtime)",
+      "expected": ["DEC-0068", "DEC-0070"]
+    },
+    {
+      "id": "q15",
+      "objective": "Exposer la Library via une surface HTTP canonique",
+      "expected": ["DEC-0071", "DEC-0072"]
+    },
+    {
+      "id": "q16",
+      "objective": "Résoudre le scope et le shadowing d'une définition Library",
+      "expected": ["DEC-0065", "DEC-0069"]
+    },
+    {
+      "id": "q17",
+      "objective": "Définir les relations typées entre définitions (Library Bindings)",
+      "expected": ["DEC-0067"]
+    },
+    {
+      "id": "q18",
+      "objective": "Authentifier l'humain sur le dashboard par un JWT court",
+      "expected": ["DEC-0056", "DEC-0142"]
+    },
+    {
+      "id": "q19",
+      "objective": "Mettre en place un refresh token rotatif pour la session desktop",
+      "expected": ["DEC-0142", "DEC-0056"]
+    },
+    {
+      "id": "q20",
+      "objective": "Ajouter le shell desktop Tauri 2 autour du dashboard",
+      "expected": ["DEC-0090", "DEC-0095"]
+    },
+    {
+      "id": "q21",
+      "objective": "Mettre en place un daemon unique supervisé côté desktop",
+      "expected": ["DEC-0094", "DEC-0028"]
+    },
+    {
+      "id": "q22",
+      "objective": "Générer les projections Claude Code et OpenCode depuis .agents",
+      "expected": ["DEC-0074", "DEC-0093"]
+    },
+    {
+      "id": "q23",
+      "objective": "Robustifier le bootstrap permanent et ses cibles d'actions manuelles",
+      "expected": ["DEC-0172", "DEC-0181"]
+    },
+    {
+      "id": "q24",
+      "objective": "Lancer un harness de façon non interactive avec un timeout dur",
+      "expected": ["DEC-0176", "DEC-0173", "DEC-0177"]
+    },
+    {
+      "id": "q25",
+      "objective": "Fournir un credential éphémère de lancement lié à la tâche",
+      "expected": ["DEC-0175", "DEC-0173"]
+    },
+    {
+      "id": "q26",
+      "objective": "Charger un bundle offline fusionnant .agents et la Library",
+      "expected": ["DEC-0168"]
+    },
+    {
+      "id": "q27",
+      "objective": "Ajouter le catalogue des machines actives avec statut heartbeat",
+      "expected": ["DEC-0082"]
+    },
+    {
+      "id": "q28",
+      "objective": "Rendre l'autorisation transverse minimale par rôle et propriété",
+      "expected": ["DEC-0036", "DEC-0063"]
+    },
+    {
+      "id": "q29",
+      "objective": "Documenter le parcours d'intégration d'un consommateur externe",
+      "expected": ["DEC-0054", "DEC-0055"]
+    },
+    {
+      "id": "q30",
+      "objective": "Définir l'identité d'agent indépendante du modèle et du harnais",
+      "expected": ["DEC-0043", "DEC-0053"]
+    },
+    {
+      "id": "q31",
+      "objective": "Exposer la mémoire et le graphe locaux en lecture seule via MCP local",
+      "expected": ["DEC-0047", "DEC-0042"]
+    },
+    {
+      "id": "q32",
+      "objective": "Ajouter la coordination inter-sessions en pull avec studio_sync",
+      "expected": ["DEC-0157", "DEC-0161"]
+    },
+    {
+      "id": "q33",
+      "objective": "Rendre le claim de tâche idempotent au rejeu",
+      "expected": ["DEC-0160", "DEC-0159"]
+    },
+    {
+      "id": "q34",
+      "objective": "Clôturer un travail par une séquence de handoff composite",
+      "expected": ["DEC-0163", "DEC-0159"]
+    },
+    {
+      "id": "q35",
+      "objective": "Corriger la numérotation des décisions avec une séquence Postgres",
+      "expected": ["DEC-0016", "DEC-0088"]
+    },
+    {
+      "id": "q36",
+      "objective": "Synchroniser les IDs serveur avec les fiches ADR",
+      "expected": ["DEC-0088"]
+    },
+    {
+      "id": "q37",
+      "objective": "Refondre le design system du dashboard avec un thème clair",
+      "expected": ["DEC-0078", "DEC-0079"]
+    },
+    {
+      "id": "q38",
+      "objective": "Durcir les en-têtes de sécurité au edge (HSTS, nosniff)",
+      "expected": ["DEC-0060"]
+    },
+    {
+      "id": "q39",
+      "objective": "Mettre en place une politique CSP progressive sur le dashboard",
+      "expected": ["DEC-0061"]
+    },
+    {
+      "id": "q40",
+      "objective": "Forcer l'endpoint S3 public pour les URLs pré-signées",
+      "expected": ["DEC-0004"]
+    },
+    {
+      "id": "q41",
+      "objective": "Enregistrer publiquement un Agent comme identité de provenance",
+      "expected": ["DEC-0045", "DEC-0062"]
+    },
+    {
+      "id": "q42",
+      "objective": "Ajouter les métadonnées runtime agent_profile, harness, provider, model",
+      "expected": ["DEC-0053", "DEC-0043"]
+    },
+    {
+      "id": "q43",
+      "objective": "Enrôler le poste desktop avec une seule entrée secrète sur le pont local",
+      "expected": ["DEC-0130"]
+    },
+    {
+      "id": "q44",
+      "objective": "Négocier la version client/serveur de façon additive",
+      "expected": ["DEC-0127"]
+    },
+    {
+      "id": "q45",
+      "objective": "Provisionner le premier compte via la CLI serveur studio-admin",
+      "expected": ["DEC-0011"]
+    }
+  ]
+}

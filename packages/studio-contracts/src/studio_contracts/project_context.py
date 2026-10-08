@@ -64,6 +64,9 @@ MAX_MATCHED_TERMS_SHOWN = 5
 ROADMAP_BUDGET_SHARE = 0.25
 AIWORK_BUDGET_SHARE = 0.15
 AIWORK_LIST_CAP = 10
+# Vault notes (P07, DEC-0187 D6): own budget ceiling, summaries only, never bodies.
+NOTES_BUDGET_SHARE = 0.20
+NOTE_SUMMARY_CAP = 600
 
 Reason = Literal[
     "requested",
@@ -73,6 +76,8 @@ Reason = Literal[
     "project_scope",
     "lexical",
     "active_roadmap",
+    "vault_anchor",
+    "vault_link",
 ]
 
 TaskLocation = Literal["task", "related_tasks"]
@@ -163,6 +168,37 @@ class ClaimItem(BaseModel):
     claimed_by_self: bool
     expires_at: datetime
     why: Why
+
+
+class NoteItem(BaseModel):
+    """A vault note (P07) — summary and search snippet, never
+    the body: the full note is one `GET /vault/notes/{id}` away. `why.reason`
+    is `vault_anchor` (an anchor matches the task or a declared path),
+    `vault_link` (one link away from an anchored note) or `lexical`."""
+
+    id: uuid.UUID
+    scope: str
+    readable_id: str | None = None
+    slug: str
+    note_type: str
+    title: str
+    status: str
+    summary: str = ""
+    snippet: str = ""
+    content_hash: str | None = None
+    truncated: bool = False
+    unchanged: bool = False
+    why: Why
+
+    @model_serializer(mode="wrap")
+    def _drop_known_text(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        data: dict[str, Any] = handler(self)
+        if self.unchanged:
+            for name in ("summary", "snippet", "truncated"):
+                data.pop(name, None)
+        else:
+            data.pop("unchanged", None)
+        return data
 
 
 class ActiveWork(BaseModel):
@@ -272,6 +308,7 @@ class PreparedContext(BaseModel):
     task: TaskItem | None = None
     related_tasks: list[TaskItem] = []
     decisions: list[DecisionItem] = []
+    notes: list[NoteItem] = []
     rules: list[LibraryItem] = []
     skills: list[LibraryItem] = []
     ai_work: list[AIWorkItem] = []
@@ -294,4 +331,7 @@ class PreparedContext(BaseModel):
                 data.pop(name, None)
         if not data.get("unavailable"):
             data.pop("unavailable", None)
+        # Additive (P07): absent, not `[]`, when no vault note was selected.
+        if not data.get("notes"):
+            data.pop("notes", None)
         return data

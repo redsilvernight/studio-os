@@ -1,0 +1,1135 @@
+{
+  "format": "studio.dec-baseline.server-snapshot/v1",
+  "source": "studio_get_decisions (Studio OS MCP, read-only)",
+  "project_scope_id": "2a836038-153c-41cf-879a-73bd794760b0",
+  "decisions": [
+    {
+      "readable_id": "DEC-0001",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0001 — Layout du dépôt : monorepo uv, packages/ et services/",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0002",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0002 — Gestionnaire de dépendances Python : uv",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0003",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0003 — Credential machine : token opaque, hash stocké côté serveur",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0004",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0004 — Endpoint S3 public distinct de l'endpoint interne",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0005",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0005 — Le MCP importe la couche services/ directement (pas de HTTP interne)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0006",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0006 — event_id est l'idempotency key des events (pas le header)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0007",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0007 — Transfer.category : enum fermé à 4 valeurs",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0008",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0008 — /api/v1/stream : SSE, pas WebSocket",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0009",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0009 — Tests : pytest + pytest-asyncio + httpx (ASGITransport)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0010",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0010 — Tests d'intégration Bloc A : vrai PostgreSQL, jamais SQLite",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0011",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0011 — Provisioning initial hors-bande via la CLI serveur studio-admin",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0012",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0012 — Identité utilisateur dérivée de Machine.owner_user_id",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0013",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0013 — Validation locale de StorageProvider/MinIO sans Docker",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0014",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0014 — Docker Desktop installé : deux bugs réels corrigés dans la stack docker compose",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0015",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0015 — Idempotence : réservation atomique, request_hash vérifié",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0016",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0016 — DEC-XXXX : séquence Postgres au lieu de COUNT(*)+1",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0017",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0017 — Étape 3 (dette qualité P2/P3) fermée",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0018",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0018 — Realtime (étape 4.1) : SSE + curseur seq, pas de WebSocket",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0019",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0019 — Quotas transferts (étape 4.2) : quota par projet, sans fenêtre temporelle",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0020",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0020 — Worker d'expiration des transferts (étape 4.3) : job CLI explicite, suppression directe",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0021",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0021 — Sauvegarde Postgres/MinIO et restauration (étape 4.4) : scripts shell, pg_dump/pg_restore, mc mirror",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0022",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0022 — Étape 4.5 : validation docker-compose sur base vierge fermée",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0023",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0023 — Étape 5 : auth MCP par requête et extension à 25 outils réels",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0024",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0024 — Étape 6.1 : socle du Bloc B, StudioApiClient",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0025",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0025 — Intégrité réelle d'upload via Content-MD5 natif S3",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0026",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0026 — Appels boto3 async via asyncio.to_thread, factory StorageProvider en cache",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0027",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0027 — Idempotence MCP : event_id accepté du client, idempotency_key pour un sous-ensemble d'outils écrivains",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0028",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0028 — Sous-étape 6.2 (daemon local, heartbeat) : boucle en process, sleep injectable, signaux best-effort",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0029",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0029 — Sous-étape 6.3 (outbox SQLite) : schéma minimal, transaction laissée à l'appelant, backoff sans abandon",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0030",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0030 — Sous-étape 6.4 (replay ordonné) : fusion chronologique events+mutations, arrêt sur transitoire",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0031",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0031 — Sous-étape 6.5 (CLI minimale) : sous-commandes argparse au-dessus de StudioApiClient, clé d'idempotence générée par la CLI",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0032",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0032 — Sous-étape 6.6 (watchers Git/Godot) : poll local sans nouvelle dépendance, PR hors périmètre",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0033",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0033 — Sous-étape 6.7 (TransferClient) : multipart local avec URLs en cache, reprise download par taille de fichier, étape 6 close",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0034",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0034 — Étape 7 (tests d'acceptance) : concurrence réelle de claims + URL signée expirée",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0035",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0035 — Identité des events (HTTP/MCP) liée à la machine authentifiée",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0036",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0036 — Autorisation transverse minimale : rôle et propriété par ressource, sans nouvelle table",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0037",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0037 — Reprise multipart après expiration des URLs par-part : endpoint additif refresh-parts",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0038",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0038 — Étape 7 : scénario « fichier multipart de 1 Go réel » fermé, test streamé sans mock",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0039",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0039 — Étape 7 : scénario « replay offline complet » fermé, outbox générique sans ajout client",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0040",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0040 — Étape 7 fermée : scénario « deux machines simulées sur réseaux distincts »",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0041",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0041 — Étape 8.1 : traçabilité AIWorkLog → Event, revue admin-only",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0042",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0042 — Étape 8.2 : adaptateurs locaux Obsidian/Graphify en lecture seule, portée fermée par défaut",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0043",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0043 — Identité d'agent model-agnostic : auth_role / harness / provider / model séparés, agent_profile optionnel",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0044",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0044 — Profils d'agents spécialisés (SUPERSEDED par DEC-0043)",
+      "status": "superseded"
+    },
+    {
+      "readable_id": "DEC-0045",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0045 — CC-1 : enregistrement public d'Agent (POST /agents) comme identité de provenance, sans autorité",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0046",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0046 — HTTP canonique complet, MCP sous-ensemble additif : parité de surface non requise, parité d'enforcement requise",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0047",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0047 — UC-3 : Memory/Knowledge local-only, exposition read-only via MCP local (stdio), 3 outils",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0048",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0048 — CC-3 : évolution des contrats MCP par discovery + schémas, sans version par payload",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0049",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0049 — Étape 8.4 : Review Queue agrégée, aucune nouvelle table, revue limitée au travail IA",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0050",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0050 — Question ouverte n°3 (étape 8) : auth dashboard V0 ratifiée (SUPERSEDED par DEC-0056)",
+      "status": "superseded"
+    },
+    {
+      "readable_id": "DEC-0051",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0051 — Question ouverte n°4 (étape 8) : notifications dérivées de la Review Queue, timeline sur les events, aucune entité Notification persistée",
+      "status": "superseded"
+    },
+    {
+      "readable_id": "DEC-0052",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0052 — UC-4 : documentation model-agnostic du consommateur (rôles fonctionnels, zéro couplage modèle)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0053",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0053 — UC-5 : métadonnées runtime additives agent_profile/harness/provider/model sur Agent et AIWorkLog",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0054",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0054 — UC-6 : guide d'intégration d'un consommateur externe, sans connaissance interne",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0055",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0055 — UC-7 : tests de conformance d'un client inconnu (unknown-harness/provider/model, sans profil)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0056",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0056 — Authentification humaine du dashboard par JWT (DASH-4)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0057",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0057 — Étape 8.3b : Context Package composé localement par le Bloc B, part partagée lue par HTTP canonique",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0058",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0058 — Étape 9.2 (Bloc B) : RecordingProvider, markers vidéo et MarketingCandidate locaux",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0059",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0059 — Étape 9.1 : Studio Producer, intégration GitHub/build, workers",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0060",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0060 — Étape 9.3 : revue de sécurité, durcissement des headers au edge",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0061",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0061 — CSP progressive du dashboard : tests statiques, e2e Playwright, Report-Only",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0062",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0062 — AI Library : AgentDefinition distinct de Agent (provenance opérationnelle)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0063",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0063 — AI Library : scopes et autorisation Studio/Project/User sans ACL parallèle",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0064",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0064 — AI Library : versioning par pointeur actif, versions immuables, locks projet",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0065",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0065 — AI Library : résolution de scope, shadowing, version effective, erreurs unifiées",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0066",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0066 — AI Library P3 : contenu sémantique par kind, ModelProfile en exigences pures, matcher figé",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0067",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0067 — AI Library P5 : Library Bindings, relations typées, matrice de kinds, fail-closed",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0068",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0068 — AI Library P4 : User/Runtime Bindings, choix runtime par utilisateur, précédences",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0069",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0069 — AI Library P5 : Resolution Engine, cœur pur, provenance, erreur stricte",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0070",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0070 — AI Library P6 : Runtime Registry, runtimes déclarés, identité stable, neutre provider/harness",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0071",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0071 — AI Library P7 : HTTP canonique, surface de référence Library/P4/P5/P6 via services communs",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0072",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0072 — AI Library P8 : MCP minimal, 5 outils use-cases sur services communs, output schemas explicites",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0073",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0073 — P9 : Context Package local, AI Library comme source du composeur DEC-0057 via StudioApiClient",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0074",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0074 — P10 : adapters locaux, même définition canonique vers Claude Code et OpenCode, core neutre",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0075",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0075 — P11 : Workflows déclaratifs, définition canonique Library (participants, DAG, I/O), aucune orchestration serveur",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0076",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0076 — P12 : dashboard UI et Resolution Inspector, interface humaine au-dessus du HTTP canonique, aucune résolution frontend",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0077",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0077 — P13 : validation E2E finale, sous-système Library/Runtime/Resolution accepté, un défaut P12 corrigé",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0078",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0078 — Refonte UI-1 : Design System StudiOS, thème clair unique, interface en français, route interne #/design-system",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0079",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0079 — Refonte UI-2 : AppShell (sidebar bleu nuit, topbar minimale) + garde anti-race du rendu",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0080",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0080 — MCP studio_prepare_context : façade de lecture bornée et déterministe sur les services existants",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0081",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0081 — Refonte UI-16 : polish final et clôture de la refonte UI/UX (UI-1 → UI-16)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0082",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0082 — GET /machines : liste des machines actives, statut dérivé du heartbeat",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0083",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "Priorité : roadmap Roadmaps & Project Initialization avant la roadmap Desktop",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0084",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0084 — Roadmaps P0 : Roadmap = nouveau domaine, cycle de vie, versionnement, provenance, matrice",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0085",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0085 — Roadmaps P1 : contrats communs gelés, format neutre studio.roadmap/v1, règles pures partagées",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0086",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "Roadmaps P6 : section Roadmap de studio_prepare_context (roadmap active + overview, budget dédié 25 %, additif)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0087",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0088 Roadmaps P8 : propositions de revision, relecture humaine et file de review",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0088",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "Roadmaps : DEC P8 renumérotée DEC-0089 ; IDs serveur non synchronisés avec les fiches ADR",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0089",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "Roadmaps P10 : validation finale, review par le rôle, correction ordre d'initialisation proposed (DEC-0090)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0090",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "Desktop P0 : Tauri 2 comme shell natif mince autour du Dashboard autonome",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0091",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "Desktop P0 : abstraction CodeGraphProvider et Graphify installé séparément",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0093",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "Desktop P1 : contrats locaux studio.local/v1, bridge à allowlist fermée, fixtures partagées",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0094",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "Desktop P4 : daemon unique supervisé, outbox liée à l’identité et health négocié",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0095",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0095 — P10 : packaging Windows NSIS per-user ; Graphify non redistribué",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0096",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0099 Desktop P9 : fourniture du jeton machine aux harnais par credential helper, état token_missing",
+      "status": "superseded"
+    },
+    {
+      "readable_id": "DEC-0097",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0100 — Isolation projet minimale : membership User→Project (rôle = quoi, membership = où)",
+      "status": "superseded"
+    },
+    {
+      "readable_id": "DEC-0098",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DU-0/A — Inscription publique fermée par défaut et activation vérifiée",
+      "status": "superseded"
+    },
+    {
+      "readable_id": "DEC-0099",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DU-0/B — JWT court avec version de révocation, sans refresh token en V1",
+      "status": "superseded"
+    },
+    {
+      "readable_id": "DEC-0100",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DU-0/C — Chaîne proxy de confiance et anti-abus par étages",
+      "status": "superseded"
+    },
+    {
+      "readable_id": "DEC-0101",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DU-0/D — Versions séparées et matrice de compatibilité N/N-1 fail-closed",
+      "status": "superseded"
+    },
+    {
+      "readable_id": "DEC-0102",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DU-0/E — Artéfact Windows signé, updater minisign et promotion sans rebuild",
+      "status": "superseded"
+    },
+    {
+      "readable_id": "DEC-0103",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DU-0/Isolation — membership User→Project : rôle = quoi, membership = où (rév. corrigée)",
+      "status": "superseded"
+    },
+    {
+      "readable_id": "DEC-0104",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DU-0/A — Inscription publique fermée par défaut (rév. corrigée)",
+      "status": "superseded"
+    },
+    {
+      "readable_id": "DEC-0105",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DU-0/B — JWT court et version de révocation (rév. corrigée)",
+      "status": "superseded"
+    },
+    {
+      "readable_id": "DEC-0106",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DU-0/C — Proxy de confiance et anti-abus par étages (rév. corrigée)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0107",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DU-0/D — Versions séparées et compatibilité N/N-1 (rév. corrigée)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0108",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DU-0/E — Distribution Windows à double signature (rév. corrigée)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0109",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DU-0/A — Inscription publique fermée par défaut (rév. alignée ADR)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0110",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DU-0/B — JWT court et version de révocation (rév. alignée ADR)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0111",
+      "project_id": null,
+      "title": "Workflow W2 : le hook SessionStart assure l'Agent du harnais (ensure, sans autorité)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0112",
+      "project_id": null,
+      "title": "Workflow W2b : setup-hooks distribue les hooks ensure sur fresh machine",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0113",
+      "project_id": null,
+      "title": "DEC-0101 : enregistrement Agent exposé via MCP",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0114",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "Tasks : emission serveur des evenements task.* a chaque ecriture",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0115",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "Git partagé : stable → dev → task, roadmaps et phases hors de Git",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0116",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0104 Desktop P9 : fourniture du jeton machine aux harnais par credential helper, état token_missing",
+      "status": "superseded"
+    },
+    {
+      "readable_id": "DEC-0117",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "Desktop P9 : un identifiant Studi'OS dédié par couple poste + outil d'IA (DEC-0104 §2, remplace DEC-0116)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0118",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0101 — Oracle slug projet accepté (slugs non secrets, 409 conflict)",
+      "status": "superseded"
+    },
+    {
+      "readable_id": "DEC-0119",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "[proposed] Roadmaps : état « approved » distinct de « active » ?",
+      "status": "superseded"
+    },
+    {
+      "readable_id": "DEC-0120",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "Roadmaps : pas d'état « approved », approve reste proposed → active",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0121",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "Amendement A2 de DEC-0110 : GET /auth/me, expires_in, états de compte dès A2",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0122",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "Amendement A3 de DU0-A : administration HTTP des comptes, anti-auto-modification, e-mails normalisés",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0123",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DU-0/Isolation — membership User→Project : rôle = quoi, membership = où (fichier renuméroté DEC-0103)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0124",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0105 — Oracle slug projet accepté (slugs non secrets, 409 conflict)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0125",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "Promotion dev → master uniquement à la fin d'une roadmap terminée et fonctionnelle",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0126",
+      "project_id": null,
+      "title": "Licence du dépôt : Apache-2.0 + inventaire tiers embarqué",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0127",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "C1 — Négociation de version client/serveur additive (/version, headers, 426)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0128",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "A4 — Amendement DEC-0109 : mot de passe choisi à la vérification, récupération indépendante du flag",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0129",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0129 — Distribution Windows non signee : pas de certificat Authenticode (cout)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0130",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0130 — Enrôlement du poste Desktop : une seule entrée secrète sur le pont local (amende DEC-0093)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0131",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "B4 clôturée sans Authenticode ni test Smart App Control",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0132",
+      "project_id": null,
+      "title": "B5/T1 — Release candidate publiée par tag desktop-vX.Y.Z",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0133",
+      "project_id": null,
+      "title": "B5/T2 — Manifeste latest.json : génération, schéma versionné, hébergement GitHub Releases",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0134",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "B6 — Auto-update réel sur les canaux : version de build, feed par canal, preuve après publication (proposed)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0135",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "W3 — Studio claim_resources : outil MCP distinct pour la pose de claims par lot",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0136",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "Git watching actif par défaut pour les espaces locaux (proposed)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0137",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "C3 — Promotion beta→stable par manifeste, sans rebuild (canaux + inscriptions)",
+      "status": "superseded"
+    },
+    {
+      "readable_id": "DEC-0138",
+      "project_id": "0d190fe4-9650-4a22-a858-381e1a2cdbbd",
+      "title": "P04 : bge-m3 (fenêtre 2048) + hybride α 0,1 sur requête nettoyée, repli search_text",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0139",
+      "project_id": "0d190fe4-9650-4a22-a858-381e1a2cdbbd",
+      "title": "P05 : bge-m3 limité à 256 tokens (variante bge-m3-256) et recette agents top 4",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0140",
+      "project_id": "0d190fe4-9650-4a22-a858-381e1a2cdbbd",
+      "title": "P07 : curateur unique Brainstormer, exception CURRENT.md bornée, journal dans le vault",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0141",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "C4 clôturée sur preuve du cycle complet ; exercices incident restants reportés à l'ouverture publique",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0142",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "Refresh token rotatif et session desktop persistante (complète DEC-0110)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0143",
+      "project_id": null,
+      "title": "AIB-A — Bootstrap = composition + manifest studio.bootstrap/v1",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0144",
+      "project_id": null,
+      "title": "AIB-I — Agent : harness + clé stable locale, stable_key = résolution",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0145",
+      "project_id": null,
+      "title": "AIB-G — Aucune réclamation automatique sans task_id explicite",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0146",
+      "project_id": null,
+      "title": "AIB-J — Seul le propriétaire peut lancer sur sa machine",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0147",
+      "project_id": null,
+      "title": "AIB-B — Plan de bootstrap calculé côté serveur, en lecture seule",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0148",
+      "project_id": null,
+      "title": "AIB-C — Blocs délimités + anti-drift par adapters check",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0149",
+      "project_id": null,
+      "title": "AIB-H — Session reprenable (même agent, même tâche)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0150",
+      "project_id": null,
+      "title": "AIB-D — Ressources servies à la demande, protocole seul matérialisé",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0151",
+      "project_id": null,
+      "title": "AIB-F — Lancement distant en modèle pull tiré par le daemon",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0152",
+      "project_id": null,
+      "title": "AIB-E — Câblage MCP/harness machine-local, jamais dans le dépôt",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0153",
+      "project_id": null,
+      "title": "AIB-C — Blocs délimités + anti-drift par adapters check",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0154",
+      "project_id": null,
+      "title": "P0 — Vocabulaire harness canonique kebab-case",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0155",
+      "project_id": null,
+      "title": "P0 — Réconciliation Desktop, ordre tranché, matrice validée",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0156",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "Fan-out temps réel multi-process : NOTIFY PostgreSQL post-commit (étend DEC-0018)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0157",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "Coordination inter-sessions en pull : curseur par session, studio_sync et coordination.* (remplace DEC-0051)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0158",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "AIB-I : ensure agent serveur par stable_key, distinct d'AgentDefinition",
+      "status": "superseded"
+    },
+    {
+      "readable_id": "DEC-0159",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "L2 : contrat studio_start_work composite (claim + reprise + contexte, AIB-G)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0160",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "L2 : claim_task idempotent (no-op même machine) + Idempotency-Key, sans bump de contrat",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0161",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "L2/AIB-H : reprise de session (filtres agent/open, clôture des périmées, jamais sur lecture)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0162",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "Desktop Prod et Dev deviennent deux builds distincts, sans promotion croisée d’artefact",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0163",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0163 — L3 handoff composite + repli end_session",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0164",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "AIB C5 — les trois extensions différées de la coordination restent reportées (no-go)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0165",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "AIB C5 — remèdes préalables : budget sync de start_work et bruit ai_work",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0167",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "AIB P3 : générateur local du bundle, offline d'abord (DEC-0165)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0168",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "AIB-D : loader runtime fusion .agents/ projet + Library, source injectée",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0169",
+      "project_id": "fc05e6bd-f646-421c-bb90-37b18330ee1a",
+      "title": "v0.2.0 livrée en HTTP direct seul ; magnet/torrent différé",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0170",
+      "project_id": "fc05e6bd-f646-421c-bb90-37b18330ee1a",
+      "title": "Convention « jamais de téléchargement de ROMs » remplacée par « RomVault n'agrège/ne scrape aucune source »",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0171",
+      "project_id": null,
+      "title": "AIB R1 : rapport de capacités machine additif au heartbeat (IDs seuls)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0172",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "AIB P7 : définition du bootstrap permanent et cibles d'actions manuelles",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0173",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "AIB R2 : contrat TaskLaunch (demande de lancement typée, jamais une commande)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0175",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "AIB-J : droits de lancement sur une machine (table dediee, owner ou droit explicite)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0176",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "AIB R3 : lancement non interactif des harness (permissions bornees, timeout dur)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0177",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "AIB R3 : annulation d'un lancement en cours livree par GET polling",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0178",
+      "project_id": "fc05e6bd-f646-421c-bb90-37b18330ee1a",
+      "title": "v0.2.0 publiée — roadmap « Sources de téléchargement » terminée",
+      "status": "proposed"
+    },
+    {
+      "readable_id": "DEC-0179",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "AIB R3 : réglages de lancement locaux persistés dans launch_settings.json (précédence sur config.toml, échec fermé)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0180",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "Compatibilité du manifest bootstrap : lecture v1 uniquement et refus explicite",
+      "status": "superseded"
+    },
+    {
+      "readable_id": "DEC-0181",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "Compatibilité du manifest bootstrap : lecture v1 uniquement et refus explicite",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0182",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "AIB P9 — Credential éphémère de lancement (projet+tâche+session) à la place du token machine durable",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0183",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "Profils d'outils MCP : session par defaut, admin par connexion",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0184",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "Correctif DEC-0183 : les profils MCP scopent la decouverte (tools/list), pas les appels",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0185",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "DEC-0182 — GET /tasks : filtres additifs status et mine pour les vues Travail",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0186",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "MCP : déprécier les outils redondants de session et de claim (DEC-0186)",
+      "status": "accepted"
+    },
+    {
+      "readable_id": "DEC-0187",
+      "project_id": "fc05e6bd-f646-421c-bb90-37b18330ee1a",
+      "title": "0.3.0 : cadrage (nom Kartouche, périmètre, choix)",
+      "status": "proposed"
+    },
+    {
+      "readable_id": "DEC-0188",
+      "project_id": "fc05e6bd-f646-421c-bb90-37b18330ee1a",
+      "title": "Surcouche utilisateur : title = identité, shownTitle = affichage",
+      "status": "proposed"
+    },
+    {
+      "readable_id": "DEC-0189",
+      "project_id": "fc05e6bd-f646-421c-bb90-37b18330ee1a",
+      "title": "Entrées non-ROM : console « pc », kind, fichiers jamais supprimés",
+      "status": "proposed"
+    },
+    {
+      "readable_id": "DEC-0190",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "Reprise d'une machine existante à l'enrôlement (adopt) par rotation de credential",
+      "status": "proposed"
+    },
+    {
+      "readable_id": "DEC-0191",
+      "project_id": "2a836038-153c-41cf-879a-73bd794760b0",
+      "title": "Vault serveur à deux portées (studio / projet) et DEC unifiées — source canonique côté serveur",
+      "status": "proposed"
+    }
+  ]
+}

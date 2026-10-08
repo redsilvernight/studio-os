@@ -3,9 +3,9 @@
 A read-only *selection* over shared state the existing services already
 expose — never a second source of truth. Every row is obtained through the
 same service function the normal surfaces use (`projects`, `tasks`,
-`decisions`, `library`, `ai_work`, `claims`), so visibility, shadowing and
-scope rules are those services' rules, not re-implemented here. No SQL of
-its own, no write, no LLM, no embedding.
+`decisions`, `library`, `ai_work`, `claims`, `vault`), so visibility,
+shadowing and scope rules are those services' rules, not re-implemented
+here. No SQL of its own, no write, no LLM, no embedding.
 
 Wire models and budget constants live in `studio_contracts.project_context`
 (P2 canonical contract) and are re-exported here unchanged, so the MCP
@@ -15,9 +15,12 @@ Relevance is only what Studi'OS can establish and explain:
 
 * structural links — the requested task, decisions and recent AI work
   attached to it, claims on it or overlapping the given `files`,
-  project-scope Library definitions;
+  project-scope Library definitions, vault notes anchored to the task or to
+  a declared path and the notes one link away from them;
 * lexical overlap — exact token match between the objective and an item's
-  title/body (stop words and short tokens dropped, no stemming).
+  title/body (stop words and short tokens dropped, no stemming); for decisions
+  each term counts for its rarity in the vault, so a term every decision shares
+  stops being evidence (P07).
 
 Every returned item says which of the two selected it (`why`).
 """
@@ -26,11 +29,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import uuid
 from collections.abc import Mapping
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.library import LibraryKind, RuleContent, SkillContent
 from studio_contracts.project_context import (
@@ -51,6 +56,8 @@ from studio_contracts.project_context import (
     MIN_MAX_CHARS,
     MIN_TERM_LENGTH,
     MIN_TEXT_CHARS,
+    NOTE_SUMMARY_CAP,
+    NOTES_BUDGET_SHARE,
     OBJECTIVE_MAX_CHARS,
     PROJECT_DESCRIPTION_CAP,
     ROADMAP_BUDGET_SHARE,
@@ -60,9 +67,17 @@ from studio_contracts.project_context import (
     ContextLimits,
     DecisionItem,
     LibraryItem,
+    NoteItem,
     PreparedContext,
     ProjectRef,
     TaskItem,
+)
+from studio_contracts.vault import (
+    VAULT_SEARCH_SNIPPET_MAX,
+    VaultNoteStatus,
+    VaultNoteType,
+    VaultSearchHit,
+    VaultSearchReason,
 )
 
 from studio_api.db.models.ai_work import AIWorkLogModel
@@ -75,6 +90,7 @@ from studio_api.services import decisions as decisions_service
 from studio_api.services import library as library_service
 from studio_api.services import projects as projects_service
 from studio_api.services import tasks as tasks_service
+from studio_api.services import vault as vault_service
 from studio_api.services.authz import Principal
 from studio_api.services.context_why import Reason, Why
 from studio_api.services.project_context_roadmap import (
@@ -103,6 +119,8 @@ __all__ = [
     "MIN_MAX_CHARS",
     "MIN_TERM_LENGTH",
     "MIN_TEXT_CHARS",
+    "NOTES_BUDGET_SHARE",
+    "NOTE_SUMMARY_CAP",
     "OBJECTIVE_MAX_CHARS",
     "PROJECT_DESCRIPTION_CAP",
     "ROADMAP_BUDGET_SHARE",
@@ -112,6 +130,7 @@ __all__ = [
     "ContextLimits",
     "DecisionItem",
     "LibraryItem",
+    "NoteItem",
     "PreparedContext",
     "ProjectRef",
     "RoadmapItem",
@@ -385,6 +404,55 @@ async def _select_tasks(
     return requested, related, len(candidates)
 
 
+# Decision relevance (P07, `docs/DEC_RELEVANCE_P07.md`): the corpus an objective
+# is matched against is the decision vault itself, so a term most decisions carry
+# ("statut", "serveur", "studio") tells nothing about any one of them. Terms are
+# therefore weighted by their inverse document frequency over the *candidate*
+# decisions, and a candidate only ships if it is a real match — two distinct
+# objective terms, or one of them in its title, which is its topic — and reaches
+# `DECISION_MIN_RELATIVE_SCORE` of the best candidate's score. Both knobs are
+# dimensionless: the weights scale with the vault, the ratio with the query.
+DECISION_TITLE_WEIGHT = 3.0
+DECISION_MIN_MATCHED_TERMS = 2
+DECISION_MIN_RELATIVE_SCORE = 0.25
+
+
+def _decision_term_weights(rows: list[DecisionModel]) -> dict[str, float]:
+    """Inverse document frequency of every token over the candidate decisions:
+    `log((N + 1) / (df + 0.5))`, positive even for a term every decision shares.
+    Deterministic and computed from the rows already in hand — no extra query."""
+    occurrences: dict[str, int] = {}
+    for row in rows:
+        for token in set(tokens(row.title)) | set(tokens(row.body)):
+            occurrences[token] = occurrences.get(token, 0) + 1
+    return {
+        token: math.log((len(rows) + 1) / (count + 0.5)) for token, count in occurrences.items()
+    }
+
+
+def _decision_score(
+    terms: list[str], weights: Mapping[str, float], title: str, body: str
+) -> tuple[float, list[str], int]:
+    """Weighted lexical score of one decision: a term found in the title is worth
+    `DECISION_TITLE_WEIGHT` times its weight, in the body one (never both).
+    Returns `(score, matched terms in query order, matched terms in the title)`."""
+    title_tokens = set(tokens(title))
+    body_tokens = set(tokens(body))
+    total = 0.0
+    matched: list[str] = []
+    in_title = 0
+    for term in terms:
+        weight = weights.get(term, 0.0)
+        if term in title_tokens:
+            total += weight * DECISION_TITLE_WEIGHT
+            matched.append(term)
+            in_title += 1
+        elif term in body_tokens:
+            total += weight
+            matched.append(term)
+    return total, matched, in_title
+
+
 async def _select_decisions(
     session: AsyncSession,
     principal: Principal,
@@ -396,16 +464,33 @@ async def _select_decisions(
     omitted: dict[str, int],
     known_ids: Mapping[uuid.UUID, str],
 ) -> tuple[list[DecisionItem], int]:
+    """Decisions relevant to `objective`: those linked to the requested task
+    first, then the lexical ones whose weighted overlap reaches a fraction of
+    the best candidate's. Superseded decisions are never context. Nothing is
+    silently dropped: the ones left out stay counted in `additional_available`."""
     rows = [
         d
         for d in await decisions_service.list_decisions(session, principal, project_id=project_id)
         if d.status != "superseded"
     ]
-    ranked: list[tuple[int, int, int, float, str, DecisionModel, Why]] = []
+    weights = _decision_term_weights(rows)
+    scored: list[tuple[DecisionModel, float, list[str], bool]] = []
+    best = 0.0
     for row in rows:
-        value, matched = score(terms, row.title, row.body)
+        value, matched, in_title = _decision_score(terms, weights, row.title, row.body)
         linked = task_id is not None and row.task_id == task_id
-        if not linked and value == 0:
+        if not linked:
+            # A link outranks any lexical score, so it never pays the bar.
+            if value <= 0.0:
+                continue
+            if in_title == 0 and len(matched) < DECISION_MIN_MATCHED_TERMS:
+                continue
+            best = max(best, value)
+        scored.append((row, value, matched, linked))
+
+    ranked: list[tuple[int, float, int, float, str, DecisionModel, Why]] = []
+    for row, value, matched, linked in scored:
+        if not linked and value < DECISION_MIN_RELATIVE_SCORE * best:
             continue
         why = _why("linked_to_task" if linked else "lexical", matched)
         ranked.append(
@@ -704,6 +789,145 @@ async def _select_ai_work(
     return picked, len(rows)
 
 
+_VAULT_REASONS: dict[VaultSearchReason, Reason] = {
+    VaultSearchReason.ANCHOR: "vault_anchor",
+    VaultSearchReason.LINKED: "vault_link",
+    VaultSearchReason.LEXICAL: "lexical",
+}
+_VAULT_STATUSES = [VaultNoteStatus.VALIDATED, VaultNoteStatus.PROPOSED]
+# The read is bounded by `limit` hits and by these caps; the budget slice then
+# decides what ships and what is counted as cut.
+_VAULT_ITEM_MAX_CHARS = NOTE_SUMMARY_CAP + VAULT_SEARCH_SNIPPET_MAX
+
+
+def _note_item(
+    hit: VaultSearchHit,
+    terms: list[str],
+    budget: _Budget,
+    known_ids: Mapping[uuid.UUID, str],
+) -> NoteItem | None:
+    """One vault hit as context: the summary and the search snippet spend free
+    text budget, the body never ships — the full note is one
+    `GET /vault/notes/{id}` away. `None` means the section ran out of budget and
+    the note is counted, not silently dropped."""
+    note = hit.note
+    content_hash = note.content_hash
+    why = _why(_VAULT_REASONS[hit.reason], score(terms, note.title, note.summary)[1])
+    if known_ids.get(note.id) == content_hash:
+        return NoteItem(
+            id=note.id,
+            scope=note.scope.value,
+            readable_id=note.readable_id,
+            slug=note.slug,
+            note_type=note.note_type.value,
+            title=note.title,
+            status=note.status.value,
+            summary="",
+            snippet="",
+            content_hash=content_hash,
+            unchanged=True,
+            why=why,
+        )
+    mark = budget.mark()
+    summary = budget.take(note.summary, NOTE_SUMMARY_CAP)
+    if summary is None:
+        return None
+    snippet = budget.take(hit.snippet)
+    if snippet is None:
+        budget.rollback(mark)
+        return None
+    return NoteItem(
+        id=note.id,
+        scope=note.scope.value,
+        readable_id=note.readable_id,
+        slug=note.slug,
+        note_type=note.note_type.value,
+        title=note.title,
+        status=note.status.value,
+        summary=summary[0],
+        snippet=snippet[0],
+        content_hash=content_hash,
+        truncated=summary[1] or snippet[1],
+        why=why,
+    )
+
+
+async def _decision_mirrors(session: AsyncSession, hits: list[VaultSearchHit]) -> set[str]:
+    """Readable ids of the decision notes that mirror a server Decision
+    (DEC-0193): the `decisions` section already carries them."""
+    ids = [
+        hit.note.readable_id
+        for hit in hits
+        if hit.note.note_type is VaultNoteType.DECISION and hit.note.readable_id
+    ]
+    if not ids:
+        return set()
+    result = await session.execute(
+        select(DecisionModel.readable_id).where(DecisionModel.readable_id.in_(ids))
+    )
+    return set(result.scalars().all())
+
+
+async def _select_notes(
+    session: AsyncSession,
+    principal: Principal,
+    project_id: uuid.UUID,
+    task_id: uuid.UUID | None,
+    paths: list[str],
+    terms: list[str],
+    limit: int,
+    budget: _Budget,
+    omitted: dict[str, int],
+    known_ids: Mapping[uuid.UUID, str],
+) -> tuple[list[NoteItem], int, bool]:
+    """Vault notes readable from this project (P07, DEC-0187 D6): its own notes
+    plus the studio ones, `validated` and `proposed` only — never a draft, a
+    superseded or an archived note. Anchors, then one link away, then full text,
+    in the ranking `vault.search_notes` already applies to `GET /vault/search`.
+
+    The read runs in a savepoint and never fails the context: an unreadable
+    vault leaves the rest of the answer intact and is flagged `unavailable`."""
+    if not terms and not paths and task_id is None:
+        return [], 0, False
+    mark = budget.mark()
+    picked: list[NoteItem] = []
+    refused = 0
+    try:
+        async with session.begin_nested():
+            found = await vault_service.search_notes(
+                session,
+                principal,
+                q=" ".join(terms) or None,
+                scope=None,
+                project_id=project_id,
+                note_types=[],
+                statuses=_VAULT_STATUSES,
+                include_superseded=False,
+                paths=paths,
+                task_id=task_id,
+                limit=limit,
+                max_chars=limit * _VAULT_ITEM_MAX_CHARS,
+            )
+            mirrored = await _decision_mirrors(session, found.items)
+            for hit in found.items:
+                if hit.note.readable_id in mirrored:
+                    continue
+                if len(picked) == limit:
+                    break
+                item = _note_item(hit, terms, budget, known_ids)
+                if item is None:
+                    refused += 1
+                    continue
+                picked.append(item)
+    except Exception:  # noqa: BLE001 - the vault is optional: whatever fails, the rest answers
+        budget.rollback(mark)
+        return [], 0, True
+
+    if refused:
+        omitted["notes"] = omitted.get("notes", 0) + refused
+    return picked, found.total - len(mirrored), False
+
+
 def _clean_files(files: list[str] | None) -> list[str]:
     if files is None:
         return []
@@ -841,6 +1065,18 @@ async def prepare_project_context(
     decisions, decisions_total = await _select_decisions(
         session, principal, project_id, task_id, terms, limit, budget, omitted, known_ids
     )
+    notes, notes_total, notes_unavailable = await _select_notes(
+        session,
+        principal,
+        project_id,
+        task_id,
+        paths,
+        terms,
+        limit,
+        budget.slice(int(max_chars * NOTES_BUDGET_SHARE)),
+        omitted,
+        known_ids,
+    )
     rules, rules_total, rules_capped = await _select_library(
         session,
         principal,
@@ -885,19 +1121,28 @@ async def prepare_project_context(
         returned["roadmap"] = 1
     for name, count in roadmap.additional.items():
         additional[name] = count
+    # The vault counters appear only when it exposes at least one readable note:
+    # a project with nothing in its vault answers exactly as before P07.
+    if notes_total or notes:
+        returned["notes"] = len(notes)
+        additional["notes"] = notes_total - len(notes)
+    unavailable_sections = ["roadmap"] if roadmap.unavailable else []
+    if notes_unavailable:
+        unavailable_sections.append("vault")
     return PreparedContext(
         project=project_ref,
         query_terms=terms,
         task=task,
         related_tasks=related,
         decisions=decisions,
+        notes=notes,
         rules=rules,
         skills=skills,
         ai_work=ai_work,
         active_work=ActiveWork(claims=claims),
         roadmap=roadmap.item,
         roadmap_overview=roadmap.overview,
-        unavailable=["roadmap"] if roadmap.unavailable else [],
+        unavailable=unavailable_sections,
         returned=returned,
         additional_available=additional,
         omitted_for_budget=dict(sorted(omitted.items())),
