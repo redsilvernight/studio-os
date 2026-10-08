@@ -1,7 +1,7 @@
 ---
 id: DEC-0182
 title: AIB P9 — Credential éphémère de lancement
-status: proposed
+status: accepted
 date: '2026-10-03'
 supersedes: []
 superseded_by: []

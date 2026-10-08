@@ -511,11 +511,13 @@
     {
       "readable_id": "DEC-0047",
       "title": "UC-3 : Memory/Knowledge local-only, exposition read-only via MCP local (stdio), 3 outils",
-      "status": "accepted",
+      "status": "superseded",
       "date": "2026-09-20",
       "task_id": null,
       "supersedes": [],
-      "superseded_by": [],
+      "superseded_by": [
+        "DEC-0191"
+      ],
       "body": "Memory/Knowledge reste une capacite MAY du Universal Consumer Contract :\nun consommateur fonctionne normalement sans elle. Lorsqu'elle est configuree\nlocalement, elle est exposee en lecture seule via un serveur MCP local par\nposte (transport stdio uniquement), sans endpoint HTTP VPS correspondant.\n`studio_generate_context_package` reste DEFERRED avec condition de\nreouverture explicite. Aucun changement a TECH/02/03/04/05, aucun endpoint,\naucun event, aucune table, aucun auth_role.\n\n## Deux categories de capacites\n\n### Instance capabilities\n\nEtat partage de l'instance Studi'OS (tasks, events, worklogs, transfers,\ndecisions, ...). HTTP est l'interface publique canonique complete\n(`TECH/02_API_CONTRACT.md`) ; le MCP du VPS est un subset additif\n(DEC-0046, inchange pour cette categorie).\n\n### Local-only capabilities\n\nDonnees volontairement confinees au poste (vault memoire, graphe de\nconnaissance et leurs fichiers sources). Elles peuvent etre exposees via\nune interface locale standard sans endpoint HTTP VPS correspondant.\nL'absence d'un endpoint HTTP pour une capacite explicitement local-only\nne constitue pas une violation du modele Universal Consumer (amendement\nadditif DEC-0046, qui precise sans contredire).\n\n## Architecture UC-3\n\n```\nAI harness compatible MCP\n  → stdio\n  → Studi'OS Local MCP (un processus par poste, lance par le harness)\n    → handlers minces (validation I/O + enveloppe d'erreur, sans logique metier)\n      → MemoryProvider / GraphProvider (abstractions, DEC-0042)\n        → backend local configure (VaultMemoryProvider / GraphifyGraphProvider,\n            backends optionnels parmi d'autres futurs possibles)\n```\n\nLes contrats publics parlent uniquement de Memory et Knowledge Graph.\nObsidian et Graphify ne sont pas des capacites Studi'OS : ce sont des\nbackends/adapters optionnels, jamais requis, jamais condition d'acces.\n\n## Confidentialite\n\nLes operations UC-3 (`search`, `read`, `query`) s'executent localement.\nLe vault, le graphe et leurs fichiers sources ne sont ni copies ni\nsynchronises vers le VPS pour permettre ces operations. Le MCP du VPS ne\nproxyfie aucune requete vers les postes. Aucun mecanisme de replication\nde memoire privee n'est introduit par UC-3. La confidentialite filesystem\nrepose sur `ScopePolicy` (deny-all par defaut, DEC-0042), suffisante dans\nce contexte sans etat partage.\n\n## Read-only\n\nUC-3 n'introduit aucune ecriture Memory/Knowledge : `propose`,\n`write_if_authorized`, `append_task_log`, `create_decision_note` restent\n`write_unsupported`, `refresh_graph` reste `refresh_unsupported` et hors\nsurface publique UC-3. Les futures operations (`write`, `update`,\n`propose`, `approval`, shared mutation) restent hors scope, renvoyees aux\netapes 8.4/8.5 sans prejuger de leur architecture.\n\n## Transport\n\nUC-3 local utilise stdio uniquement : pas de TCP, pas de localhost HTTP,\npas d'auth Bearer, pas de `Principal` serveur, pas de Postgres. Le\nprocessus enfant lance par le client MCP constitue la frontiere de\nconfiance pour cette etape (pas d'attaquant reseau). Toute future\nexposition reseau locale exige une nouvelle revue securite. Aucun code\nne depend d'un harness, provider, modele ou `agent_profile`.\n\n## Discovery\n\nEnregistrement conditionnel au demarrage, par processus :\n\n- vault configure → `studio_memory_search`, `studio_memory_read` ;\n- graphe configure → `studio_graph_query` ;\n- backend non configure → outils absents ;\n- backend configure mais temporairement indisponible → outil annonce,\n  degrade machine-readable existant (`vault_missing`, `stale`, ...).\n\nAinsi `tools/list` decrit exactement les capacites configurees du\nprocessus local, conformement a UC-2. Le consommateur n'a besoin de\nconnaitre ni Obsidian ni Graphify.\n\n## Outils UC-3 (spec en TECH/07)\n\n`studio_memory_search`, `studio_memory_read`, `studio_graph_query`\n(read-only, bornes, scopes). Ajouts additifs : aucun outil existant\nmodifie. Aucune primitive de versionnement introduite ici : le\nmecanisme global de versionnement des payloads MCP reste du ressort\nde CC-3, qui pourra s'appliquer ensuite aux nouveaux outils comme aux\nanciens.\n\n## Context Package\n\n`studio_generate_context_package` = DEFERRED. Reouverture uniquement par\nDecision couvrant au minimum : selection des sources, confidentialite,\nmanifest/provenance, schema, persistance ou caractere ephemere,\nfrontiere local→partage, interaction avec CC-3. Roadmap : 8.3a = local\nMemory/Knowledge read-only (UC-3), 8.3b = Context Package (deferred).\n\n## Consequences\n\n- Aucune modification runtime dans cette decision (contrats d'abord).\n- Implementation a venir : entrypoint MCP local separe dans le paquet\n  `studio-mcp` (handlers minces, sans import `studio_api`/DB), tests\n  `tests/mcp/test_local_knowledge.py` sur fixtures `tmp_path`.\n- Compatible DEC-0042 (providers/backends inchanges), DEC-0043 (aucun\n  savoir harness/modele), DEC-0046 (amendement additif joint).\n\n## Compatibilite avec les DEC existantes\n\nPrecise DEC-0046 sans la contredire (categorie ajoutee, regles\ninstance inchangees) ; operationalise DEC-0042 pour l'exposition ;\ncompatible DEC-0023 (les 3 outils sortent du lot differe, le 4eme\nreste deferred avec condition) et DEC-0043/UCC (MAY, agnosticisme).",
       "body_source": "vault"
     },
@@ -1039,7 +1041,7 @@
     {
       "readable_id": "DEC-0095",
       "title": "Desktop P10 : installateur NSIS par utilisateur, sidecar onedir, Graphify détecté et non redistribué",
-      "status": "proposed",
+      "status": "accepted",
       "date": "2026-09-22",
       "task_id": "b0cb4b94-8ed6-4f67-bc6b-c2c9063831f9",
       "supersedes": [],
@@ -1050,7 +1052,7 @@
     {
       "readable_id": "DEC-0096",
       "title": "Desktop P9 : adaptateurs de harnais au scope projet, jeton par référence, fail-closed",
-      "status": "proposed",
+      "status": "accepted",
       "date": "2026-10-08",
       "task_id": null,
       "supersedes": [],
@@ -1061,7 +1063,7 @@
     {
       "readable_id": "DEC-0097",
       "title": "Desktop P11 : premier lancement guidé, workspace servi, deux commandes additives",
-      "status": "proposed",
+      "status": "accepted",
       "date": "2026-10-08",
       "task_id": null,
       "supersedes": [],
@@ -1138,7 +1140,7 @@
     {
       "readable_id": "DEC-0104",
       "title": "Desktop P9 : un identifiant Studi'OS dédié par couple poste + outil d'IA, état token_missing",
-      "status": "proposed",
+      "status": "accepted",
       "date": "2026-10-08",
       "task_id": null,
       "supersedes": [],
@@ -1358,7 +1360,7 @@
     {
       "readable_id": "DEC-0127",
       "title": "C1 — Négociation de version client/serveur additive (/version, headers, 426)",
-      "status": "proposed",
+      "status": "accepted",
       "date": "2026-09-26",
       "task_id": "2ed35d41-881d-4b75-8bc7-9898f03964ec",
       "supersedes": [],
@@ -1666,7 +1668,7 @@
     {
       "readable_id": "DEC-0159",
       "title": "L2 : contrat studio_start_work composite (claim + reprise + contexte, AIB-G)",
-      "status": "proposed",
+      "status": "accepted",
       "date": "2026-09-28",
       "task_id": "15dc6fe4-9b65-4175-a505-00970caf9d83",
       "supersedes": [],
@@ -1677,7 +1679,7 @@
     {
       "readable_id": "DEC-0160",
       "title": "L2 : claim_task idempotent (no-op même machine) + Idempotency-Key, sans bump de contrat",
-      "status": "proposed",
+      "status": "accepted",
       "date": "2026-09-28",
       "task_id": "27bd4b15-2618-48d6-9f63-07c8ee287022",
       "supersedes": [],
@@ -1688,7 +1690,7 @@
     {
       "readable_id": "DEC-0161",
       "title": "L2/AIB-H : reprise de session (filtres agent/open, clôture des périmées, jamais sur lecture)",
-      "status": "proposed",
+      "status": "accepted",
       "date": "2026-09-28",
       "task_id": "44f4fe5f-51d4-4d8e-8cf1-60b092c059ca",
       "supersedes": [],
@@ -1776,7 +1778,7 @@
     {
       "readable_id": "DEC-0172",
       "title": "AIB P7 : définition du bootstrap permanent et cibles d'actions manuelles",
-      "status": "proposed",
+      "status": "accepted",
       "date": "2026-09-30",
       "task_id": "adb63761-ec8b-4915-9ec2-4d6952d4c0a3",
       "supersedes": [],
@@ -1853,7 +1855,7 @@
     {
       "readable_id": "DEC-0181",
       "title": "Compatibilité du manifest bootstrap : lecture v1 uniquement et refus explicite",
-      "status": "proposed",
+      "status": "accepted",
       "date": "2026-10-03",
       "task_id": "9183540c-bef1-4a35-9124-4e3cc99e0267",
       "supersedes": [],
@@ -1864,7 +1866,7 @@
     {
       "readable_id": "DEC-0182",
       "title": "AIB P9 — Credential éphémère de lancement",
-      "status": "proposed",
+      "status": "accepted",
       "date": "2026-10-03",
       "task_id": null,
       "supersedes": [],
@@ -1897,7 +1899,7 @@
     {
       "readable_id": "DEC-0185",
       "title": "GET /tasks : filtres additifs status et mine pour les vues Travail",
-      "status": "proposed",
+      "status": "accepted",
       "date": "2026-10-04",
       "task_id": "f544fa63-e18f-4e48-bf3f-587bcba73449",
       "supersedes": [],
@@ -1908,7 +1910,7 @@
     {
       "readable_id": "DEC-0186",
       "title": "MCP : déprécier les outils redondants de session et de claim, retrait après la fenêtre de transition",
-      "status": "proposed",
+      "status": "accepted",
       "date": "2026-10-04",
       "task_id": "f7e7b5e4-f748-4253-84d1-f00682953efc",
       "supersedes": [],
@@ -1919,7 +1921,7 @@
     {
       "readable_id": "DEC-0187",
       "title": "Vault serveur à deux portées (studio / projet) et DEC unifiées",
-      "status": "proposed",
+      "status": "accepted",
       "date": "2026-10-08",
       "task_id": null,
       "supersedes": [],
@@ -1944,7 +1946,9 @@
       "status": "accepted",
       "date": "2026-10-06",
       "task_id": "27383900-4551-486c-9089-693aac7e25c7",
-      "supersedes": [],
+      "supersedes": [
+        "DEC-0047"
+      ],
       "superseded_by": [],
       "body": "Proposed. Le vault devient une ressource serveur à deux portées (studio, projet) ; les DEC serveur deviennent la source unique, les fiches ADR fichiers un export Markdown. Remplace à terme la numérotation non synchronisée (cf. DEC-0088) ; DEC-0047 (mémoire locale read-only) à superseder après acceptation de D2. Statut proposed jusqu'à accord. Détail : docs/decisions/DEC-0187-vault-serveur-deux-portees.md",
       "body_source": "vault"

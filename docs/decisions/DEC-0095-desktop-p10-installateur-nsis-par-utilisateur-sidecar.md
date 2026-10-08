@@ -2,7 +2,7 @@
 id: DEC-0095
 title: 'Desktop P10 : installateur NSIS par utilisateur, sidecar onedir, Graphify
   détecté et non redistribué'
-status: proposed
+status: accepted
 date: '2026-09-22'
 supersedes: []
 superseded_by: []

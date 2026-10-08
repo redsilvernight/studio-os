@@ -2,7 +2,7 @@
 id: DEC-0104
 title: 'Desktop P9 : un identifiant Studi''OS dédié par couple poste + outil d''IA,
   état token_missing'
-status: proposed
+status: accepted
 date: '2026-10-08'
 supersedes: []
 superseded_by: []

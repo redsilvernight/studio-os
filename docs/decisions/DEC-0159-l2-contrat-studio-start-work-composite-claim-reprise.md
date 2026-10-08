@@ -1,7 +1,7 @@
 ---
 id: DEC-0159
 title: 'L2 : contrat studio_start_work composite (claim + reprise + contexte, AIB-G)'
-status: proposed
+status: accepted
 date: '2026-09-28'
 supersedes: []
 superseded_by: []

@@ -4,7 +4,8 @@ title: Vault serveur à deux portées (studio / projet) et DEC unifiées — sou
   côté serveur
 status: accepted
 date: '2026-10-06'
-supersedes: []
+supersedes:
+- DEC-0047
 superseded_by: []
 source: server-export
 ---

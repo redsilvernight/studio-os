@@ -1,7 +1,7 @@
 ---
 id: DEC-0185
 title: 'GET /tasks : filtres additifs status et mine pour les vues Travail'
-status: proposed
+status: accepted
 date: '2026-10-04'
 supersedes: []
 superseded_by: []

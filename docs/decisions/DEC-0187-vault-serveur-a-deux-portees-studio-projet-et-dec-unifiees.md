@@ -1,7 +1,7 @@
 ---
 id: DEC-0187
 title: Vault serveur à deux portées (studio / projet) et DEC unifiées
-status: proposed
+status: accepted
 date: '2026-10-08'
 supersedes: []
 superseded_by: []

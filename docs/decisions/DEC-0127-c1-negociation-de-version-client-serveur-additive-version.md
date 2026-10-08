@@ -1,7 +1,7 @@
 ---
 id: DEC-0127
 title: C1 — Négociation de version client/serveur additive (/version, headers, 426)
-status: proposed
+status: accepted
 date: '2026-09-26'
 supersedes: []
 superseded_by: []
