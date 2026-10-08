@@ -26,6 +26,7 @@ from studio_contracts.library import (
     binding_relation_for,
     binding_scope_allows,
     content_validation_errors,
+    hook_validation_errors,
     workflow_validation_errors,
 )
 
@@ -256,6 +257,13 @@ async def _create_version_row(
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail={"error_code": "invalid_workflow", **workflow_errors[0]},
+            )
+    if LibraryKind(resource.kind) == LibraryKind.HOOK:
+        hook_errors = hook_validation_errors(dict(content))
+        if hook_errors:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={"error_code": "invalid_hook", **hook_errors[0]},
             )
     version_row = LibraryResourceVersionModel(
         resource_id=resource.id,

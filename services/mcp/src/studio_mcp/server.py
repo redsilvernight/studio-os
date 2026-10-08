@@ -747,7 +747,7 @@ def create_server() -> MCPServer:
         name="studio_discover_definitions",
         description=(
             "Discover and read AI library definitions (rules, skills, agent definitions, "
-            "model profiles, workflows) without knowing UUIDs — read-only. Filter the list "
+            "model profiles, workflows, hooks) without knowing UUIDs — read-only. Filter the list "
             "by kind/scope/project_id, or fetch one definition by resource_id (UUID string) "
             "or by kind plus stable_key, with optional include_versions. Another user's "
             "private definitions are silently omitted and fail with definition_not_found, "
