@@ -24,7 +24,7 @@ jobs:
       - name: DEC export check
         run: uv run python -m scripts.dec_export render --snapshot docs/DEC_EXPORT.json --root . --check
       - name: DEC export lint
-        run: uv run python -m scripts.vault_lint --snapshot docs/DEC_EXPORT.json --root .
+        run: uv run python -m scripts.vault_lint --snapshot docs/DEC_EXPORT.json --root . --no-preflight
       - name: ruff check
         run: uv run ruff check .
       - name: ruff format --check
