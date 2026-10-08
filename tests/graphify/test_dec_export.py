@@ -222,3 +222,9 @@ def test_fetch_waits_out_rate_limit():
     snap = dec_export.fetch_snapshot(client, PROJECT, sleep=waits.append)
     assert waits == [3.0]
     assert [d["readable_id"] for d in snap["decisions"]] == ["DEC-0001"]
+
+
+def test_slug_folds_accents():
+    from scripts.adr_common import slugify
+
+    assert slugify("Credential éphémère de lancement") == "credential-ephemere-de-lancement"
