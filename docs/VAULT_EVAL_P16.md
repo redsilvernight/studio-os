@@ -37,7 +37,7 @@ des décisions de `studio_prepare_context` ; « — » signale une métrique abs
 |---|---|---|
 | 1 | mêmes requêtes que P00 (égalité des ids) | atteint |
 | 2 | taux de decisions: [] et rappel meilleurs que P00, ou écart expliqué | atteint, écart expliqué |
-| 3 | latence de prepare_context mesurée et acceptable | non atteint |
+| 3 | latence de prepare_context mesurée et acceptable | atteint |
 
 1. Les 45 ids de requête de `tests/eval/dec_queries.json` sont comparés, dans l'ordre, à ceux des blocs
    P00, P04, P07 et du rejeu P16.
@@ -70,8 +70,9 @@ atteindre, le rappel micro maximal est donc 94.7 %.
 
 ## Latence de `prepare_context`
 
-Latence non mesurée : `docs/CONTEXT_LATENCY_P16.md` est absent ou sans bloc
-machine. Le critère 3 n'est pas atteint.
+| p50 | p95 | max | seuil p95 | verdict |
+|---|---|---|---|---|
+| 90.99 ms | 122.27 ms | 183.9 ms | 250.0 ms | acceptable |
 
 ## Métriques machine (vérifiées par `--check`)
 
@@ -101,16 +102,23 @@ machine. Le critère 3 n'est pas atteint.
     },
     {
       "evidence": {
-        "latency_verdict": null,
-        "measured": false
+        "latency_verdict": "acceptable",
+        "measured": true
       },
       "id": 3,
       "label": "latence de prepare_context mesurée et acceptable",
-      "verdict": "not_met"
+      "verdict": "met"
     }
   ],
   "format": "studio.eval.vault-p16/v1",
-  "latency": null,
+  "latency": {
+    "max_ms": 183.9,
+    "p50_ms": 90.99,
+    "p95_ms": 122.27,
+    "source": "docs/CONTEXT_LATENCY_P16.md",
+    "threshold_p95_ms": 250.0,
+    "verdict": "acceptable"
+  },
   "lexical_ceiling": {
     "attainable_recall": 0.9474,
     "expected_total": 76,
