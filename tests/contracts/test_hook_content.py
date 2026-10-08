@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from studio_contracts.library import (
     BindingRelation,
     HookValidationReason,
@@ -60,7 +59,11 @@ def test_schema_rejects_invalid_shapes(overrides: dict[str, object]) -> None:
             HookValidationReason.SECRET_MATERIAL,
             "scripts.0.body",
         ),
-        ({"event": "stop", "mode": "advisory"}, HookValidationReason.MATCHER_NOT_SUPPORTED, "matcher"),
+        (
+            {"event": "stop", "mode": "advisory"},
+            HookValidationReason.MATCHER_NOT_SUPPORTED,
+            "matcher",
+        ),
         (
             {"event": "notification", "matcher": None},
             HookValidationReason.BLOCKING_NOT_SUPPORTED,
@@ -75,12 +78,18 @@ def test_static_validation_reasons(
 
 
 def test_same_shell_on_distinct_os_is_allowed() -> None:
-    scripts = [{"os": "windows", "shell": "pwsh", "body": "a"}, {"os": "linux", "shell": "pwsh", "body": "b"}]
+    scripts = [
+        {"os": "windows", "shell": "pwsh", "body": "a"},
+        {"os": "linux", "shell": "pwsh", "body": "b"},
+    ]
     assert hook_validation_errors(_hook(scripts=scripts)) == []
 
 
 def test_binding_matrix_for_hook() -> None:
-    assert binding_relation_for(LibraryKind.AGENT_DEFINITION, LibraryKind.HOOK) is BindingRelation.USES_HOOK
+    assert (
+        binding_relation_for(LibraryKind.AGENT_DEFINITION, LibraryKind.HOOK)
+        is BindingRelation.USES_HOOK
+    )
     assert binding_relation_for(LibraryKind.WORKFLOW, LibraryKind.HOOK) is BindingRelation.USES_HOOK
     for target in LibraryKind:
         assert binding_relation_for(LibraryKind.HOOK, target) is None
