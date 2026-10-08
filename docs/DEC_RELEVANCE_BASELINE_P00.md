@@ -1,5 +1,11 @@
 # Baseline de pertinence des décisions — P00 (roadmap vault serveur)
 
+> **Baseline figée.** La sélection des décisions a evolved en P07 (pondération IDF,
+> seuil relatif) : ce rapport n'est plus reproductible par
+> `uv run python -m scripts.dec_relevance_eval`, qui écrit désormais
+> `docs/DEC_RELEVANCE_P07.md`. Le bloc machine ci-dessous reste lu comme référence
+> de comparaison.
+
 - Projet : Studio OS (`2a836038-153c-41cf-879a-73bd794760b0`)
 - Corpus : `tests/eval/dec_corpus.json` (159 décisions serveur, snapshot lecture seule)
 - Requêtes : `tests/eval/dec_queries.json` (45 objectifs)

@@ -18,7 +18,9 @@ Relevance is only what Studi'OS can establish and explain:
   project-scope Library definitions, vault notes anchored to the task or to
   a declared path and the notes one link away from them;
 * lexical overlap — exact token match between the objective and an item's
-  title/body (stop words and short tokens dropped, no stemming).
+  title/body (stop words and short tokens dropped, no stemming); for decisions
+  each term counts for its rarity in the vault, so a term every decision shares
+  stops being evidence (P07).
 
 Every returned item says which of the two selected it (`why`).
 """
@@ -27,6 +29,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import uuid
 from collections.abc import Mapping
@@ -399,6 +402,55 @@ async def _select_tasks(
     return requested, related, len(candidates)
 
 
+# Decision relevance (P07, `docs/DEC_RELEVANCE_P07.md`): the corpus an objective
+# is matched against is the decision vault itself, so a term most decisions carry
+# ("statut", "serveur", "studio") tells nothing about any one of them. Terms are
+# therefore weighted by their inverse document frequency over the *candidate*
+# decisions, and a candidate only ships if it is a real match — two distinct
+# objective terms, or one of them in its title, which is its topic — and reaches
+# `DECISION_MIN_RELATIVE_SCORE` of the best candidate's score. Both knobs are
+# dimensionless: the weights scale with the vault, the ratio with the query.
+DECISION_TITLE_WEIGHT = 3.0
+DECISION_MIN_MATCHED_TERMS = 2
+DECISION_MIN_RELATIVE_SCORE = 0.25
+
+
+def _decision_term_weights(rows: list[DecisionModel]) -> dict[str, float]:
+    """Inverse document frequency of every token over the candidate decisions:
+    `log((N + 1) / (df + 0.5))`, positive even for a term every decision shares.
+    Deterministic and computed from the rows already in hand — no extra query."""
+    occurrences: dict[str, int] = {}
+    for row in rows:
+        for token in set(tokens(row.title)) | set(tokens(row.body)):
+            occurrences[token] = occurrences.get(token, 0) + 1
+    return {
+        token: math.log((len(rows) + 1) / (count + 0.5)) for token, count in occurrences.items()
+    }
+
+
+def _decision_score(
+    terms: list[str], weights: Mapping[str, float], title: str, body: str
+) -> tuple[float, list[str], int]:
+    """Weighted lexical score of one decision: a term found in the title is worth
+    `DECISION_TITLE_WEIGHT` times its weight, in the body one (never both).
+    Returns `(score, matched terms in query order, matched terms in the title)`."""
+    title_tokens = set(tokens(title))
+    body_tokens = set(tokens(body))
+    total = 0.0
+    matched: list[str] = []
+    in_title = 0
+    for term in terms:
+        weight = weights.get(term, 0.0)
+        if term in title_tokens:
+            total += weight * DECISION_TITLE_WEIGHT
+            matched.append(term)
+            in_title += 1
+        elif term in body_tokens:
+            total += weight
+            matched.append(term)
+    return total, matched, in_title
+
+
 async def _select_decisions(
     session: AsyncSession,
     principal: Principal,
@@ -410,16 +462,33 @@ async def _select_decisions(
     omitted: dict[str, int],
     known_ids: Mapping[uuid.UUID, str],
 ) -> tuple[list[DecisionItem], int]:
+    """Decisions relevant to `objective`: those linked to the requested task
+    first, then the lexical ones whose weighted overlap reaches a fraction of
+    the best candidate's. Superseded decisions are never context. Nothing is
+    silently dropped: the ones left out stay counted in `additional_available`."""
     rows = [
         d
         for d in await decisions_service.list_decisions(session, principal, project_id=project_id)
         if d.status != "superseded"
     ]
-    ranked: list[tuple[int, int, int, float, str, DecisionModel, Why]] = []
+    weights = _decision_term_weights(rows)
+    scored: list[tuple[DecisionModel, float, list[str], bool]] = []
+    best = 0.0
     for row in rows:
-        value, matched = score(terms, row.title, row.body)
+        value, matched, in_title = _decision_score(terms, weights, row.title, row.body)
         linked = task_id is not None and row.task_id == task_id
-        if not linked and value == 0:
+        if not linked:
+            # A link outranks any lexical score, so it never pays the bar.
+            if value <= 0.0:
+                continue
+            if in_title == 0 and len(matched) < DECISION_MIN_MATCHED_TERMS:
+                continue
+            best = max(best, value)
+        scored.append((row, value, matched, linked))
+
+    ranked: list[tuple[int, float, int, float, str, DecisionModel, Why]] = []
+    for row, value, matched, linked in scored:
+        if not linked and value < DECISION_MIN_RELATIVE_SCORE * best:
             continue
         why = _why("linked_to_task" if linked else "lexical", matched)
         ranked.append(
