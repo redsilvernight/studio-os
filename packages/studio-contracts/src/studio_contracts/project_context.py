@@ -171,7 +171,7 @@ class ClaimItem(BaseModel):
 
 
 class NoteItem(BaseModel):
-    """A vault note (P07, DEC-0187 D6) — summary and search snippet, never
+    """A vault note (serveur vault) — summary and search snippet, never
     the body: the full note is one `GET /vault/notes/{id}` away. `why.reason`
     is `vault_anchor` (an anchor matches the task or a declared path),
     `vault_link` (one link away from an anchored note) or `lexical`."""
