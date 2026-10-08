@@ -446,9 +446,7 @@ def render_markdown(metrics: dict[str, Any]) -> str:
 
     missed = [row for row in metrics["per_query"] if set(row["expected"]) - set(row["retrieved"])]
     unreachable = [
-        readable_id
-        for row in metrics["per_query"]
-        for readable_id in row["lexically_unreachable"]
+        readable_id for row in metrics["per_query"] for readable_id in row["lexically_unreachable"]
     ]
     lines += [
         "",
