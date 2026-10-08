@@ -273,7 +273,9 @@ RESP_422_LIBRARY_CONTENT: ErrorResponses = {
         "forbidden, `rule`/`skill` prose bounded to 65_536 characters, "
         "`model_profile` carrying vendor-neutral `requirements` only, "
         "`agent_definition` descriptive only, `workflow` declarative only "
-        "with `participants`, `inputs`/`outputs` and no runtime field). "
+        "with `participants`, `inputs`/`outputs` and no runtime field, `hook` "
+        "an abstract `event` plus inline `scripts`, never a harness event "
+        "name). "
         "Per-field `details` describe the caller's own payload only.",
         {
             "detail": {
@@ -305,6 +307,27 @@ RESP_422_LIBRARY_WORKFLOW: ErrorResponses = {
                 "error_code": "invalid_workflow",
                 "reason": "dependency_cycle",
                 "field": "participants",
+            }
+        },
+    )
+}
+
+RESP_422_LIBRARY_HOOK: ErrorResponses = {
+    422: _json_response(
+        "Hook definition rejected, nothing stored (`hook` kind): "
+        "the version `content` is schema-valid (`studio.library.hook/v1`) "
+        "but statically incoherent — two scripts for the same `(os, shell)` "
+        "(`duplicate_script_target`), a `matcher` on an event other than "
+        "`pre_tool`/`post_tool` (`matcher_not_supported`), `blocking` mode "
+        "on an event no harness can veto (`blocking_not_supported`), or "
+        "secret material in a script body (`secret_material`). Static "
+        "validation only: the server stores and distributes hooks, it never "
+        "executes them.",
+        {
+            "detail": {
+                "error_code": "invalid_hook",
+                "reason": "secret_material",
+                "field": "scripts.0.body",
             }
         },
     )
