@@ -11,6 +11,7 @@ from studio_contracts.decisions import DecisionCreate, DecisionStatus
 from studio_contracts.events import EventCreate, EventType
 
 from studio_api.db.models.decision import DecisionModel
+from studio_api.services import decision_vault
 from studio_api.services import events as events_service
 from studio_api.services.authz import (
     Principal,
@@ -89,6 +90,7 @@ async def create_decision(
     session: AsyncSession, principal: Principal, decision_in: DecisionCreate
 ) -> DecisionModel:
     authorize_create(principal, decision_in.project_id)
+    decision_vault.reject_secrets(decision_in.title, decision_in.body)
     decision = DecisionModel(
         readable_id=await _next_readable_id(session),
         project_id=decision_in.project_id,
@@ -99,6 +101,8 @@ async def create_decision(
         proposed_by_id=decision_in.proposed_by_id,
     )
     session.add(decision)
+    await session.flush()
+    await decision_vault.stage_note(session, decision, principal.user.id)
     await session.commit()
     await session.refresh(decision)
     return decision
@@ -157,8 +161,24 @@ async def _commit_decision_transition(
     events_service.publish_event(event)
 
 
+async def _replacement(
+    session: AsyncSession, principal: Principal, decision_id: uuid.UUID, superseded_by: uuid.UUID
+) -> DecisionModel:
+    if superseded_by == decision_id:
+        raise decision_vault.invalid_supersede_link("a decision cannot supersede itself")
+    replacement = await session.get(DecisionModel, superseded_by)
+    if replacement is None:
+        raise decision_not_found()
+    _ensure_decision_scope(principal, replacement.project_id, "write")
+    return replacement
+
+
 async def _transition_decision(
-    session: AsyncSession, principal: Principal, decision_id: uuid.UUID, target: DecisionStatus
+    session: AsyncSession,
+    principal: Principal,
+    decision_id: uuid.UUID,
+    target: DecisionStatus,
+    superseded_by: uuid.UUID | None = None,
 ) -> DecisionModel:
     """Admin-only status transition: `proposed -> accepted`,
     `proposed|accepted -> superseded`. `superseded` is terminal — no
@@ -173,7 +193,15 @@ async def _transition_decision(
     current = DecisionStatus(decision.status)
     if current not in _ALLOWED_TRANSITIONS[target]:
         raise invalid_decision_transition(decision.status, target.value)
+    replacement = (
+        await _replacement(session, principal, decision_id, superseded_by)
+        if superseded_by is not None
+        else None
+    )
     decision.status = target.value
+    note = await decision_vault.sync_status(session, decision, principal.user.id)
+    if replacement is not None:
+        await decision_vault.link_supersedes(session, note, replacement, principal.user.id)
     await _commit_decision_transition(session, decision, principal, _TRANSITION_EVENT_TYPES[target])
     return decision
 
@@ -185,6 +213,11 @@ async def accept_decision(
 
 
 async def supersede_decision(
-    session: AsyncSession, principal: Principal, decision_id: uuid.UUID
+    session: AsyncSession,
+    principal: Principal,
+    decision_id: uuid.UUID,
+    superseded_by: uuid.UUID | None = None,
 ) -> DecisionModel:
-    return await _transition_decision(session, principal, decision_id, DecisionStatus.SUPERSEDED)
+    return await _transition_decision(
+        session, principal, decision_id, DecisionStatus.SUPERSEDED, superseded_by
+    )

@@ -42,7 +42,7 @@ async def _versions(db_session: AsyncSession, note_id: str) -> list[int]:
         .scalars()
         .all()
     )
-    return [row.version for row in rows]
+    return sorted(row.version for row in rows)
 
 
 async def test_patch_replays_without_a_new_version(

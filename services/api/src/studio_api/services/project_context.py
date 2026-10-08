@@ -35,6 +35,7 @@ import uuid
 from collections.abc import Mapping
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from studio_contracts.library import LibraryKind, RuleContent, SkillContent
 from studio_contracts.project_context import (
@@ -74,6 +75,7 @@ from studio_contracts.project_context import (
 from studio_contracts.vault import (
     VAULT_SEARCH_SNIPPET_MAX,
     VaultNoteStatus,
+    VaultNoteType,
     VaultSearchHit,
     VaultSearchReason,
 )
@@ -850,6 +852,22 @@ def _note_item(
     )
 
 
+async def _decision_mirrors(session: AsyncSession, hits: list[VaultSearchHit]) -> set[str]:
+    """Readable ids of the decision notes that mirror a server Decision
+    (DEC-0193): the `decisions` section already carries them."""
+    ids = [
+        hit.note.readable_id
+        for hit in hits
+        if hit.note.note_type is VaultNoteType.DECISION and hit.note.readable_id
+    ]
+    if not ids:
+        return set()
+    result = await session.execute(
+        select(DecisionModel.readable_id).where(DecisionModel.readable_id.in_(ids))
+    )
+    return set(result.scalars().all())
+
+
 async def _select_notes(
     session: AsyncSession,
     principal: Principal,
@@ -890,7 +908,10 @@ async def _select_notes(
                 limit=limit,
                 max_chars=limit * _VAULT_ITEM_MAX_CHARS,
             )
+            mirrored = await _decision_mirrors(session, found.items)
             for hit in found.items:
+                if hit.note.readable_id in mirrored:
+                    continue
                 if len(picked) == limit:
                     break
                 item = _note_item(hit, terms, budget, known_ids)
@@ -904,7 +925,7 @@ async def _select_notes(
 
     if refused:
         omitted["notes"] = omitted.get("notes", 0) + refused
-    return picked, found.total, False
+    return picked, found.total - len(mirrored), False
 
 
 def _clean_files(files: list[str] | None) -> list[str]:

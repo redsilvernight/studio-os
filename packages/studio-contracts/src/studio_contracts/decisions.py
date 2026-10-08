@@ -36,3 +36,13 @@ class DecisionCreate(IdempotentCreate):
     body: str
     proposed_by_type: str
     proposed_by_id: UUID
+
+
+class DecisionSupersede(ContractModel):
+    """Body of the supersede transition. Every field is optional: an absent or
+    empty body keeps the historical behavior (the Decision is simply
+    superseded, no replacement recorded). `superseded_by` names the replacing
+    Decision and is what the `supersedes` link is made of — a claim about
+    intent, never a validity gate on the transition."""
+
+    superseded_by: UUID | None = None

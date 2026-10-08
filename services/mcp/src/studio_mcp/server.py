@@ -303,7 +303,9 @@ def create_server() -> MCPServer:
         name="studio_supersede_decision",
         description=(
             "Supersede a Decision (proposed or accepted -> superseded, terminal). Admin "
-            "role only. Not a creation: no idempotency_key."
+            "role only. Not a creation: no idempotency_key. Pass superseded_by (the "
+            "replacement Decision's UUID) to record what supersedes this one — linked by "
+            "a supersedes edge; omit it to supersede without naming a replacement."
         ),
     )
     server.add_tool(
