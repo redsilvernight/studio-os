@@ -21,8 +21,10 @@ jobs:
         run: uv python install 3.12
       - name: Sync workspace
         run: uv sync --all-packages
-      - name: ADR index check
-        run: uv run python -m scripts.adr_index --root . --check
+      - name: DEC export check
+        run: uv run python -m scripts.dec_export render --snapshot docs/DEC_EXPORT.json --root . --check
+      - name: DEC export lint
+        run: uv run python -m scripts.vault_lint --snapshot docs/DEC_EXPORT.json --root .
       - name: ruff check
         run: uv run ruff check .
       - name: ruff format --check

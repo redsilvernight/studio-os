@@ -13,8 +13,10 @@ decision. It becomes visible in `studio_get_review_queue` and in later
 
 The number is the server's: `studio_add_decision` allocates `DEC-XXXX` (never by
 hand — two concurrent sessions get two distinct numbers) and writes the matching
-vault `decision` note, project or studio scope. Never create a
-`docs/decisions/` file: the Markdown export comes from P10.
+vault `decision` note, project or studio scope. Never create or edit a
+`docs/decisions/` file: they and `docs/DECISIONS.md` are generated —
+`uv run python -m scripts.dec_export fetch` refreshes `docs/DEC_EXPORT.json`,
+then `render --apply` rewrites the export.
 
 ## Resolve (admin role only, DEC-0094)
 
