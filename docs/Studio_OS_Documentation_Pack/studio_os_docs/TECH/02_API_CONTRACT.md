@@ -572,7 +572,8 @@ n'utilisant que leurs propres agents n'observent aucun changement.
   ambigue (meme cle dans plusieurs scopes visibles) = `409 pin_ambiguous`.
 - Bindings types (P5, DEC-0067) : chaque dependance porte une `relation`
   (`requires_model_profile`/`uses_skill`/`applies_rule`/`composes_agent`/
-  `references_workflow`/`refines_skill_rule`, omise = inferee sans
+  `references_workflow`/`refines_skill_rule`/`uses_hook` (DEC-0194 :
+  `agent_definition → hook` et `workflow → hook`), omise = inferee sans
   ambiguite depuis le couple kind, explicite fausse ou couple interdit =
   `422 {"error_code": "invalid_binding", "reason": ...}` apres les gates
   404/409 — jamais un oracle sur des ressources invisibles ;
@@ -593,7 +594,7 @@ n'utilisant que leurs propres agents n'observent aucun changement.
   {"error_code": "invalid_content", "details": [...]}` apres les gates
   d'autorisation — jamais un oracle sur des ressources invisibles.
   Note : `content` reste optionnel au transport (defaut `{}`), mais le
-  contenu valide est exige pour les cinq kinds ; `Idempotency-Key` reste
+  contenu valide est exige pour les six kinds ; `Idempotency-Key` reste
   supporte sur ces ecritures et un rejet 422 libere la reservation
   (rejeu identique = nouveau 422, jamais de doublon).
 - Workflow declaratif (P11, DEC-0075) : un `content` de kind `workflow`
@@ -608,6 +609,18 @@ n'utilisant que leurs propres agents n'observent aucun changement.
   de definition : aucun endpoint dedie, aucun `WorkflowRun`, aucune
   orchestration serveur — l'execution appartient au harness, et toute
   orchestration serveur future exigerait une nouvelle DEC.
+- Hook (DEC-0194, kind additif `hook`, `studio.library.hook/v1`) : script
+  local declenche par un `event` abstrait (`session_start`, `session_end`,
+  `user_prompt`, `pre_tool`, `post_tool`, `stop`, `subagent_stop`,
+  `notification`, `pre_compact`), `matcher?`, `mode`
+  (`blocking`/`advisory`), `timeout_seconds`, `scripts` (1 a 8 variantes
+  `os`/`shell`/`body` inline). Un contenu schema-valide mais incoherent est
+  rejete `422 {"error_code": "invalid_hook", "reason": "...", "field":
+  "..."}` (reasons fermes : `duplicate_script_target`,
+  `matcher_not_supported`, `blocking_not_supported`, `secret_material`).
+  Un hook ne source jamais de binding (`invalid_binding`
+  `forbidden_kind_pair`) et n'est pas bindable runtime. Le serveur stocke
+  et distribue, il n'execute jamais un hook.
 - POST /library/{id}/activate — body `LibraryActivate`
   (`version`, `expected_resource_version`) : deplace explicitement
   `active_version` (passe `status` a `active`), `409 version_conflict` sur

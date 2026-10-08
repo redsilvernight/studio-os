@@ -483,6 +483,14 @@ seconde taxonomie ; aucun `version`/`schema_version` en payload
 (DEC-0048) ; overrides session valides comme des choix stockes,
 gagnants selon P4, jamais persists.
 
+Kind `hook` (DEC-0194, additif, schemas d'outils inchanges) :
+`studio_discover_definitions` et `studio_publish_definition` acceptent
+`kind="hook"` (`studio.library.hook/v1`) ; un contenu de hook incoherent
+remonte `invalid_hook` (avec `reason`/`field`, meme vocabulaire que
+HTTP). `studio_configure_runtime` le refuse (`invalid_runtime_binding`,
+seuls `agent_definition`/`model_profile` sont bindables runtime). Le
+serveur stocke et distribue les hooks, il ne les execute jamais.
+
 Acces projet (DEC-0103, rupture semantique, schemas inchanges) : tout
 outil MCP applique les memes gardes que HTTP, dans les services partages
 (DEC-0046 §4) — `run_tool` injecte le `Principal` avec son

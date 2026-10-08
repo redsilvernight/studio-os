@@ -118,6 +118,8 @@ def _pin(kind: str, key: str, version: int = 1, relation: str | None = None) -> 
         ("workflow", "rule", BindingRelation.APPLIES_RULE),
         ("workflow", "skill", BindingRelation.USES_SKILL),
         ("workflow", "agent_definition", BindingRelation.COMPOSES_AGENT),
+        ("agent_definition", "hook", BindingRelation.USES_HOOK),
+        ("workflow", "hook", BindingRelation.USES_HOOK),
     ],
 )
 def test_matrix_allowed_couples(source: str, target: str, expected: BindingRelation) -> None:
@@ -141,6 +143,10 @@ def test_matrix_allowed_couples(source: str, target: str, expected: BindingRelat
         ("skill", "model_profile"),
         ("skill", "agent_definition"),
         ("skill", "workflow"),
+        ("skill", "hook"),
+        ("rule", "hook"),
+        ("hook", "rule"),
+        ("hook", "hook"),
         ("agent_definition", "agent_definition_missing"),
     ],
 )
@@ -623,3 +629,50 @@ async def test_resolve_user_graph_fails_closed_for_stranger(
         await library_service.resolve_definition(db_session, other, LibraryKind.SKILL, "p5-f-skill")
     assert exc_info.value.status_code == 404
     assert exc_info.value.detail == {"error_code": "definition_not_found"}
+
+
+# --- DEC-0194: hook kind -------------------------------------------------------
+
+
+def _hook_content() -> dict[str, object]:
+    return {
+        "content_schema": "studio.library.hook/v1",
+        "event": "session_start",
+        "scripts": [{"shell": "sh", "body": "echo ready"}],
+    }
+
+
+async def test_agent_definition_binds_hook_inferred_uses_hook(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    await _create(client, auth_headers, _payload("hook", "p5-hook", content=_hook_content()))
+    agent = await _create(
+        client,
+        auth_headers,
+        _payload("agent_definition", "p5-hook-agent", dependencies=[_pin("hook", "p5-hook")]),
+    )
+    versions = (
+        await client.get(f"/api/v1/library/{agent['id']}/versions", headers=auth_headers)
+    ).json()
+    assert versions[0]["dependencies"][0]["relation"] == "uses_hook"
+
+
+async def test_hook_cannot_source_binding(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    await _create(client, auth_headers, _payload("rule", "p5-h-target"))
+    response = await client.post(
+        "/api/v1/library",
+        headers=auth_headers,
+        json=_payload(
+            "hook",
+            "p5-h-source",
+            content=_hook_content(),
+            dependencies=[_pin("rule", "p5-h-target")],
+        ),
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == {
+        "error_code": "invalid_binding",
+        "reason": "forbidden_kind_pair",
+    }
