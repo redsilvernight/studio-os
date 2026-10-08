@@ -2,24 +2,11 @@
 id: DEC-0026
 title: Appels boto3 async via `asyncio.to_thread`, factory `StorageProvider` mise
   en cache
-status: active
-date: '2026-09-13'
-superseded_by: null
-source: docs/DECISIONS.md
-sync_hash: sha256:d13f1ea1e1e2fbcdc1ed0199d186e27dfa053b4a9fb51e82ab1984b1c9c048fe
-graphify_entities:
-- kind: class
-  node_id: services_api_src_studio_api_storage_provider_storageprovider
-  path: services/api/src/studio_api/storage/provider.py
-  project: studio-os
-  relation: fixes
-  symbol: StorageProvider
-- kind: function
-  node_id: services_api_src_studio_api_storage_provider_get_storage
-  path: services/api/src/studio_api/storage/provider.py
-  project: studio-os
-  relation: concerns
-  symbol: get_storage
+status: accepted
+date: '2026-09-20'
+supersedes: []
+superseded_by: []
+source: server-export
 ---
 
 # DEC-0026 — Appels boto3 async via `asyncio.to_thread`, factory `StorageProvider` mise en cache

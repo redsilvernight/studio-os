@@ -21,7 +21,7 @@ const LEGACY_DESTINATIONS = [
   { was: "Agents IA", href: "#/agents" },
   { was: "Bibliothèque", href: "#/library" },
   { was: "Décisions / À examiner", href: "#/decisions" },
-  { was: "Graphes", href: "#/graphs/knowledge" },
+  { was: "Graphes", href: "#/vault" },
   { was: "Transferts", href: "#/transfers" },
   { was: "Machines", href: "#/machines" },
   { was: "Comptes", href: "#/accounts" },
@@ -102,6 +102,8 @@ const DEEP_LINKS = [
   "#/configuration/project/locks",
   "#/workspaces",
   "#/inspector",
+  // Atlas avant les anciennes URL : `#/graphs/*` est réécrit en `#/vault/atlas`.
+  "#/vault/atlas",
   "#/graphs/knowledge",
   "#/graphs/code",
   "#/graphs/project",

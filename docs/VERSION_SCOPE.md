@@ -1,7 +1,7 @@
 # Perimetre de synchronisation des versions (B2)
 
 Tache `[B2] Perimetre de synchronisation des versions` (7f630efb).
-Politique et matrice : DEC-0107 (`docs/decisions/DU0-D-version-compatibility.md`).
+Politique et matrice : DEC-0107 (`docs/decisions/DEC-0107-du-0-d-versions-separees-et-compatibilite-n-n-1.md`).
 
 ## Principe
 

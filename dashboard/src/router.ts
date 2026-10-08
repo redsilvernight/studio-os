@@ -19,6 +19,7 @@ export type Route =
   | { name: "transfers" }
   | { name: "vault" }
   | { name: "vaultDetail"; id: string }
+  | { name: "vaultAtlas" }
   | { name: "library"; kind: LibraryKindSlug | null }
   | { name: "libraryDetail"; kind: LibraryKindSlug; id: string }
   | { name: "configRuntimes" }
@@ -29,7 +30,6 @@ export type Route =
   | { name: "configIntegrations"; workspaceId?: string }
   | { name: "workspaces" }
   | { name: "onboarding" }
-  | { name: "graphs"; kind: "knowledge" | "code" | "project"; workspaceId?: string }
   | { name: "inspector"; stableKey: string | null }
   | { name: "designSystem" }
   | { name: "notFound"; hash: string };
@@ -80,6 +80,7 @@ export function parseRoute(hash: string): Route {
   if (parts[0] === "transfers" && parts.length === 1) return { name: "transfers" };
   if (parts[0] === "vault") {
     if (parts.length === 1) return { name: "vault" };
+    if (parts.length === 2 && parts[1] === "atlas") return { name: "vaultAtlas" };
     if (parts.length === 2 && parts[1] !== undefined) return { name: "vaultDetail", id: decode(parts[1]) };
     return notFound(hash);
   }
@@ -122,15 +123,8 @@ export function parseRoute(hash: string): Route {
   }
   if (parts[0] === "workspaces" && parts.length === 1) return { name: "workspaces" };
   if (parts[0] === "bienvenue" && parts.length === 1) return { name: "onboarding" };
-  if (parts[0] === "graphs" && parts.length >= 2 && parts.length <= 3) {
-    const kind = parts[1];
-    const workspaceId = parts[2];
-    if ((kind === "knowledge" || kind === "code" || kind === "project") &&
-      (workspaceId === undefined || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(workspaceId))) {
-      return { name: "graphs", kind, ...(workspaceId ? { workspaceId } : {}) };
-    }
-    return notFound(hash);
-  }
+  // L'ancien onglet Graph est fusionné dans le Vault : `#/graphs/*` mène à l'atlas.
+  if (parts[0] === "graphs") return { name: "vaultAtlas" };
   if (parts[0] === "design-system" && parts.length === 1) return { name: "designSystem" };
   return notFound(hash);
 }

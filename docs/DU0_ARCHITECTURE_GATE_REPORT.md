@@ -33,7 +33,7 @@ supersession.
 `19922554-bcd8-498f-9a14-7dab87916bf2` (`readable_id=DEC-0103`), **proposed**,
 corps resynchronisé. Elle remplace `d31c16ea-06f1-481c-a701-7c06845dd426`
 (`DEC-0097` serveur, désormais **superseded**). ADR :
-`docs/decisions/DEC-0103-isolation-projet-membership-user.md`.
+`docs/decisions/DEC-0123-isolation-projet-minimale-membership-userproject-role-quoi.md`.
 
 ## B. Inscription publique
 
@@ -57,7 +57,7 @@ KEEP. Proposition serveur UUID `bcf92622-8b2a-48fa-bb16-bf345b867489`,
 `readable_id=DEC-0109`, **proposed**, alignée sur l'ADR ; remplace
 `61b0a658-…` (DEC-0104) et `a4c86edd-…` (`DEC-0098` serveur), tous deux
 superseded. ADR :
-`docs/decisions/DU0-A-public-registration.md`.
+`docs/decisions/DEC-0109-du-0-a-inscription-publique-fermee-par-defaut.md`.
 
 ## C. Session, tokens et révocation
 
@@ -77,7 +77,7 @@ token V1.
 0056 AMEND. Proposition UUID `4e509c7d-0a0c-4661-b97f-ffcbe916e5b9`,
 `readable_id=DEC-0110`, **proposed**, alignée sur l'ADR ; remplace
 `14905c34-…` (DEC-0105) et `b02d4215-…`, tous deux superseded. ADR :
-`docs/decisions/DU0-B-session-revocation.md`.
+`docs/decisions/DEC-0110-du-0-b-jwt-court-et-version-de-revocation.md`.
 
 ## D. Proxy, rate limiting et anti-abus
 
@@ -97,7 +97,7 @@ ces nouveaux statuts sont breaking et rattachés à API contract 2. Event
 inchangé. DEC-0060 AMEND. Proposition UUID
 `df4d6d3b-5682-4ee1-8460-410ebaf4c102`, `readable_id=DEC-0106`, **proposed** ;
 remplace `a4b001d3-…` (`DEC-0103` serveur, superseded).
-ADR : `docs/decisions/DU0-C-trusted-proxy-rate-limiting.md`.
+ADR : `docs/decisions/DEC-0106-du-0-c-proxy-de-confiance-et-anti-abus-par-etages.md`.
 
 ## E. Version et compatibilité
 
@@ -116,7 +116,7 @@ terminal pour lectures, outbox et SSE.
 base `/api/v2`), Event neutre. DEC-0036/0056 AMEND ; DEC-0048/0060/0095/0098
 KEEP. Proposition UUID `06d91e71-362b-4905-b0ef-74fd6145d56b`,
 `readable_id=DEC-0107`, **proposed** ; remplace `0772dd83-…` (superseded).
-ADR : `docs/decisions/DU0-D-version-compatibility.md`.
+ADR : `docs/decisions/DEC-0107-du-0-d-versions-separees-et-compatibilite-n-n-1.md`.
 
 ## F. Release, signature et distribution
 
@@ -136,7 +136,7 @@ budget certificat restent un choix humain ultérieur.
 KEEP. Champs nouveaux optionnels pour N-1. Proposition UUID
 `4f298c8f-5073-4745-9e1c-ede8835d758f`, `readable_id=DEC-0108`, **proposed** ;
 remplace `0e19d373-…` (superseded). ADR :
-`docs/decisions/DU0-E-release-signature-distribution.md`.
+`docs/decisions/DEC-0108-du-0-e-distribution-windows-a-double-signature.md`.
 
 ## G. Contract Guardian
 

@@ -1,36 +1,11 @@
 ---
 id: DEC-0024
 title: 'Etape 6.1 (roadmap) : socle du Bloc B, `StudioApiClient`'
-status: active
-date: '2026-09-13'
-superseded_by: null
-source: docs/DECISIONS.md
-sync_hash: sha256:693894081f4dbeed01729aeec397b3182b483142633bc884d56d31a8972a9fb0
-graphify_entities:
-- kind: class
-  node_id: packages_studio_client_src_studio_client_api_client_studioapiclient
-  path: packages/studio-client/src/studio_client/api_client.py
-  project: studio-os
-  relation: implements
-  symbol: StudioApiClient
-- kind: class
-  node_id: packages_studio_client_src_studio_client_errors_quotaerror
-  path: packages/studio-client/src/studio_client/errors.py
-  project: studio-os
-  relation: implements
-  symbol: QuotaError
-- kind: class
-  node_id: packages_studio_client_src_studio_client_retry_retrypolicy
-  path: packages/studio-client/src/studio_client/retry.py
-  project: studio-os
-  relation: implements
-  symbol: RetryPolicy
-- kind: class
-  node_id: packages_studio_client_src_studio_client_config_clientconfig
-  path: packages/studio-client/src/studio_client/config.py
-  project: studio-os
-  relation: implements
-  symbol: ClientConfig
+status: accepted
+date: '2026-09-20'
+supersedes: []
+superseded_by: []
+source: server-export
 ---
 
 # DEC-0024 — Etape 6.1 (roadmap) : socle du Bloc B, `StudioApiClient`

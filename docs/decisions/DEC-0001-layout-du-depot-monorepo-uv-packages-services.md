@@ -1,24 +1,11 @@
 ---
 id: DEC-0001
 title: 'Layout du depot : monorepo uv (`packages/` + `services/`)'
-status: active
-date: '2026-09-12'
-superseded_by: null
-source: docs/DECISIONS.md
-sync_hash: sha256:cbad0f258008e1482b01ac0133f2bc415d596101c7a80fcf617b0ce2f34bdca8
-graphify_entities:
-- kind: package
-  node_id: pkg_studio_contracts
-  path: packages/studio-contracts/pyproject.toml
-  project: studio-os
-  relation: concerns
-  symbol: studio-contracts
-- kind: package
-  node_id: pkg_studio_api
-  path: services/api/pyproject.toml
-  project: studio-os
-  relation: concerns
-  symbol: studio-api
+status: accepted
+date: '2026-09-20'
+supersedes: []
+superseded_by: []
+source: server-export
 ---
 
 # DEC-0001 — Layout du depot : monorepo uv (`packages/` + `services/`)

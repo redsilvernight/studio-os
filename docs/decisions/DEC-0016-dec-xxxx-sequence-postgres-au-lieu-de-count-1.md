@@ -1,36 +1,11 @@
 ---
 id: DEC-0016
 title: '`DEC-XXXX` : sequence Postgres au lieu de `COUNT(*) + 1`'
-status: active
-date: '2026-09-13'
-superseded_by: null
-source: docs/DECISIONS.md
-sync_hash: sha256:ad8876e6969731da87d357fb95d5596aca39ef9e91791a222502f32009ed40af
-graphify_entities:
-- kind: function
-  node_id: services_api_src_studio_api_services_decisions_next_readable_id
-  path: services/api/src/studio_api/services/decisions.py
-  project: studio-os
-  relation: fixes
-  symbol: _next_readable_id
-- kind: function
-  node_id: services_api_src_studio_api_services_decisions_create_decision
-  path: services/api/src/studio_api/services/decisions.py
-  project: studio-os
-  relation: concerns
-  symbol: create_decision
-- kind: file
-  node_id: services_api_alembic_versions_0003_decisions_readable_id_sequence
-  path: services/api/alembic/versions/0003_decisions_readable_id_sequence.py
-  project: studio-os
-  relation: concerns
-  symbol: 0003_decisions_readable_id_sequence.py
-- kind: file
-  node_id: tests_api_test_decisions_concurrency
-  path: tests/api/test_decisions_concurrency.py
-  project: studio-os
-  relation: verifies
-  symbol: test_decisions_concurrency.py
+status: accepted
+date: '2026-09-20'
+supersedes: []
+superseded_by: []
+source: server-export
 ---
 
 # DEC-0016 — `DEC-XXXX` : sequence Postgres au lieu de `COUNT(*) + 1`

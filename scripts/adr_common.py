@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -62,8 +63,10 @@ _SLUG_STRIP_RE = re.compile(r"[^a-z0-9]+")
 def slugify(title: str, *, max_len: int = 60) -> str:
     """Deterministic, readable slug for an ADR filename. Drops anything in
     backticks/parens content markers, lowercases, collapses runs of
-    non-alphanumerics to one hyphen, trims to max_len at a hyphen boundary."""
+    non-alphanumerics to one hyphen (accents folded to ASCII), trims to
+    max_len at a hyphen boundary."""
     cleaned = title.replace("`", "").replace(":", " ")
+    cleaned = unicodedata.normalize("NFKD", cleaned).encode("ascii", "ignore").decode()
     slug = _SLUG_STRIP_RE.sub("-", cleaned.lower()).strip("-")
     slug = re.sub(r"-{2,}", "-", slug)
     if len(slug) <= max_len:

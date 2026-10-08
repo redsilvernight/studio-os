@@ -1,75 +1,11 @@
 ---
 id: DEC-0010
 title: 'Tests d''integration Bloc A : vrai PostgreSQL, jamais SQLite'
-status: active
-date: '2026-09-12'
-superseded_by: null
-source: docs/DECISIONS.md
-sync_hash: sha256:8a0b00a2d2088bf30d7463a32843d00913cc32088a9864805cda7b7761bb958c
-graphify_entities:
-- kind: method
-  node_id: services_api_src_studio_api_db_models_event_eventmodel_event_id
-  path: services/api/src/studio_api/db/models/event.py
-  project: studio-os
-  relation: fixes
-  symbol: EventModel.event_id
-  unresolved: false
-- kind: class
-  node_id: services_api_src_studio_api_db_models_transfer_transfermodel
-  path: services/api/src/studio_api/db/models/transfer.py
-  project: studio-os
-  relation: fixes
-  symbol: TransferModel
-  unresolved: false
-- kind: class
-  node_id: services_api_src_studio_api_db_models_machine_machinemodel
-  path: services/api/src/studio_api/db/models/machine.py
-  project: studio-os
-  relation: fixes
-  symbol: MachineModel
-  unresolved: false
-- kind: class
-  node_id: services_api_src_studio_api_db_models_ai_work_aiworklogmodel
-  path: services/api/src/studio_api/db/models/ai_work.py
-  project: studio-os
-  relation: fixes
-  symbol: AiWorkLogModel
-  unresolved: false
-- kind: class
-  node_id: services_api_src_studio_api_db_models_claim_resourceclaimmodel
-  path: services/api/src/studio_api/db/models/claim.py
-  project: studio-os
-  relation: fixes
-  symbol: ResourceClaimModel
-  unresolved: false
-- kind: class
-  node_id: services_api_src_studio_api_db_models_idempotency_idempotencykeymodel
-  path: services/api/src/studio_api/db/models/idempotency.py
-  project: studio-os
-  relation: fixes
-  symbol: IdempotencyKeyModel
-  unresolved: false
-- kind: class
-  node_id: services_api_src_studio_api_db_models_work_session_worksessionmodel
-  path: services/api/src/studio_api/db/models/work_session.py
-  project: studio-os
-  relation: fixes
-  symbol: WorkSessionModel
-  unresolved: false
-- kind: fixture
-  node_id: tests_api_conftest_db_session
-  path: tests/api/conftest.py
-  project: studio-os
-  relation: concerns
-  symbol: db_session
-  unresolved: false
-- kind: fixture
-  node_id: tests_api_conftest_engine
-  path: tests/api/conftest.py
-  project: studio-os
-  relation: concerns
-  symbol: engine
-  unresolved: false
+status: accepted
+date: '2026-09-20'
+supersedes: []
+superseded_by: []
+source: server-export
 ---
 
 # DEC-0010 — Tests d'integration Bloc A : vrai PostgreSQL, jamais SQLite
@@ -79,7 +15,7 @@ partagee ; ca s'etend aux tests. Les modeles ORM utilisent des types
 Postgres-only (`postgresql.JSONB`, `postgresql.UUID`) qu'un moteur SQLite ne
 peut pas executer sans emulation. Retenu : `tests/api/` tourne contre un vrai
 Postgres (`STUDIO_TEST_DATABASE_URL`, defaut
-`postgresql+asyncpg://studio:studio@localhost:5432/studio_os_test`), migre au
+`postgresql+asyncpg://studio@localhost:5432/studio_os_test`), migre au
 prealable via `alembic upgrade head`. Isolation par test : une connexion
 `engine.connect()` + `connection.begin()` par test (fixture `db_session`),
 session ORM liee avec `join_transaction_mode="create_savepoint"` — les

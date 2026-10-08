@@ -1,0 +1,82 @@
+---
+id: DEC-0094
+title: 'Desktop P4 : daemon unique supervisé, outbox liée à l’identité et health négocié'
+status: accepted
+date: '2026-09-21'
+supersedes: []
+superseded_by: []
+source: server-export
+---
+
+# DEC-0094 — Desktop P4 : daemon unique supervisé, outbox liée à l’identité et health négocié
+
+Status: **accepted** (human validation 2026-09-21)
+Date: 2026-09-21
+Task: `[Desktop P4] Daemon lifecycle & services locaux (lane B)`
+Server decision UUID: `5019e74a-7770-49ca-90e9-0d40c2a7155c` (accepted server-side with the existing UUID, no renumbering)
+
+## Context
+
+P2 prouve seulement qu’un shell Tauri peut lancer un sidecar fixe et échanger
+des messages `studio.local/v1`. P4 doit rendre le daemon existant exploitable
+par Desktop sans dupliquer `HeartbeatDaemon`, `GitWatcher`, l’outbox ni le
+protocole P1.
+
+## Decision
+
+- Le runtime Python commun possède heartbeat, watchers, rejeu, SQLite et
+  credential machine. Tauri possède le processus, sa surveillance et la
+  politique de reprise bornée.
+- Le verrou P1 reste dérivé de `(server_origin, profile)` ; un second lancement
+  s’attache ou retourne `already_running`. L’outbox est physiquement et
+  logiquement liée à `(server_origin, profile, machine)` et tout mismatch est
+  refusé avant réseau avec `IDENTITY_MISMATCH`.
+- `daemon.health` est une commande additive de `studio.local/v1`, protégée par
+  la capability `daemon.health`. Elle n’ajoute aucun champ aux réponses P1
+  existantes et n’est émise qu’après négociation.
+- Le transport local reste privé, borné et typé. Il n’expose ni shell, ni spawn,
+  ni filesystem arbitraire, ni proxy HTTP.
+- Le démarrage automatique passe par `STUDIO_DAEMON_AUTOSTART=1`. Desktop le
+  pose au lancement du sidecar dès qu’une origine serveur est configurée (voir
+  Amendement 2026-09-24) ; sans origine, le runtime reste arrêté.
+  Par défaut, fermer Desktop demande l’arrêt gracieux ;
+  `STUDIO_DESKTOP_KEEP_DAEMON=1` conserve le processus, qui reste joignable par
+  l’endpoint privé lors de la réouverture de Desktop.
+- Les logs et diagnostics sont bornés, rotatifs et redactés ; ils n’exportent ni
+  secret, ni payload d’outbox, ni code/vault, ni URL signée.
+- P4 ne définit aucune UX P3, configuration workspace P5, signature, updater ou
+  installer final P10.
+
+## Consequences
+
+Les anciens pairs continuent d’utiliser `daemon.status`; seuls les pairs qui
+négocient `daemon.health` voient heartbeat, Git watchers, replay et providers.
+La CLI et Desktop doivent passer par le même assemblage runtime afin qu’aucun
+second heartbeat ou replayer ne contourne le verrou.
+
+## Amendement 2026-09-24 — démarrage automatique par Desktop
+
+Validé par l’humain le 2026-09-24. Avec l’autostart en opt-in, rien dans Desktop
+ne démarrait le runtime : le sidecar répondait au bridge mais heartbeat, rejeu
+de l’outbox et watchers ne tournaient jamais (`daemon.status` = `stopped`).
+Desktop (`desktop/src-tauri/src/sidecar.rs`) pose donc `STUDIO_DAEMON_AUTOSTART=1`
+dès qu’une origine serveur est configurée. Le daemon ne démarre le runtime que
+s’il possède le verrou ; un daemon déjà présent reste attaché, et
+`daemon.start` répond alors `already_running`.
+
+## Amendement 2026-09-24 — identité machine résolue depuis le credential
+
+Statut : proposé. Desktop n’écrit pas de `config.toml` : le daemon n’avait donc
+pas de `machine_id`, refusait de démarrer le runtime et la machine restait
+« Hors ligne ». Au `daemon.start`, si `machine_id` est absent, le daemon lit le
+credential du keyring et appelle `GET /api/v1/machines/me` (endpoint additif).
+Il met l’`id` en cache dans `<data_root>/identity/<clé d’instance>.json`, lié à
+l’empreinte SHA-256 du credential, ce qui permet un démarrage hors ligne. Un
+nouveau credential invalide le cache. Sans credential, ou si le serveur est
+injoignable sans cache, `daemon.start` répond `unavailable`.
+
+## Validation attendue
+
+Démarrage, attach, stop, restart, double lancement, mismatch d’identité,
+credential révoqué, offline, crash/recovery bornée, logs redactés/rotatifs,
+orphan process et shutdown propre.

@@ -185,3 +185,8 @@
     gap: 0;
   }
 }
+.vault-modes {
+  display: inline-flex;
+  gap: var(--ds-space-2);
+  margin-bottom: var(--ds-space-4);
+}

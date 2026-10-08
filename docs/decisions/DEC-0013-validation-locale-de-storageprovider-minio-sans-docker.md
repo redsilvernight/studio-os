@@ -1,30 +1,11 @@
 ---
 id: DEC-0013
 title: Validation locale de `StorageProvider`/MinIO sans Docker
-status: active
-date: '2026-09-13'
-superseded_by: null
-source: docs/DECISIONS.md
-sync_hash: sha256:d3d7cbf88fe7dc50aedee563ef0a9439c1213f65e5f0cf99e6689641945e5961
-graphify_entities:
-- kind: class
-  node_id: services_api_src_studio_api_storage_provider_storageprovider
-  path: services/api/src/studio_api/storage/provider.py
-  project: studio-os
-  relation: concerns
-  symbol: StorageProvider
-- kind: class
-  node_id: services_api_src_studio_api_settings_settings
-  path: services/api/src/studio_api/settings.py
-  project: studio-os
-  relation: concerns
-  symbol: Settings
-- kind: file
-  node_id: tests_api_test_transfers_storage
-  path: tests/api/test_transfers_storage.py
-  project: studio-os
-  relation: concerns
-  symbol: test_transfers_storage.py
+status: accepted
+date: '2026-09-20'
+supersedes: []
+superseded_by: []
+source: server-export
 ---
 
 # DEC-0013 — Validation locale de `StorageProvider`/MinIO sans Docker

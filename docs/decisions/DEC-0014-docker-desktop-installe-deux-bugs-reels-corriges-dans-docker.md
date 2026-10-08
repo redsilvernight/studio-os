@@ -1,8 +1,11 @@
 ---
 id: DEC-0014
 title: Docker Desktop installe ; deux bugs reels corriges dans `docker/`
-source: docs/DECISIONS.md
-sync_hash: sha256:8f8552026c7ae52b32878435dc9e069a3d853def5145b657b8718a94fe994113
+status: accepted
+date: '2026-09-20'
+supersedes: []
+superseded_by: []
+source: server-export
 ---
 
 # DEC-0014 — Docker Desktop installe ; deux bugs reels corriges dans `docker/`

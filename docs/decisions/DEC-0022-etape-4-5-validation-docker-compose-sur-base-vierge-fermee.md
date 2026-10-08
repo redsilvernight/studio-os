@@ -2,11 +2,11 @@
 id: DEC-0022
 title: 'Etape 4.5 (validation docker-compose sur base vierge) fermee : chaine complete
   demontree'
-status: active
-date: '2026-09-13'
-superseded_by: null
-source: docs/DECISIONS.md
-sync_hash: sha256:bf9322637138246518e70cf2240579a6c29112e384bc0451a3857854287873a6
+status: accepted
+date: '2026-09-20'
+supersedes: []
+superseded_by: []
+source: server-export
 ---
 
 # DEC-0022 — Etape 4.5 (validation docker-compose sur base vierge) fermee : chaine complete demontree

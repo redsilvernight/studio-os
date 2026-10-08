@@ -2,36 +2,11 @@
 id: DEC-0031
 title: 'Sous-etape 6.5 (CLI minimale) : sous-commandes argparse au-dessus de `StudioApiClient`,
   cle d''idempotence generee par la CLI'
-status: active
-date: '2026-09-14'
-superseded_by: null
-source: docs/DECISIONS.md
-sync_hash: sha256:f165c772ceb4813e2611be2ffac225d4830dbe78adad5bb9402b27dcd2478397
-graphify_entities:
-- kind: method
-  node_id: packages_studio_client_src_studio_client_api_client_studioapiclient_claim_task
-  path: packages/studio-client/src/studio_client/api_client.py
-  project: studio-os
-  relation: implements
-  symbol: StudioApiClient.claim_task
-- kind: method
-  node_id: packages_studio_client_src_studio_client_api_client_studioapiclient_release_task
-  path: packages/studio-client/src/studio_client/api_client.py
-  project: studio-os
-  relation: implements
-  symbol: StudioApiClient.release_task
-- kind: function
-  node_id: packages_studio_client_src_studio_client_cli_build_parser
-  path: packages/studio-client/src/studio_client/cli.py
-  project: studio-os
-  relation: implements
-  symbol: build_parser
-- kind: function
-  node_id: packages_studio_client_src_studio_client_cli_main
-  path: packages/studio-client/src/studio_client/cli.py
-  project: studio-os
-  relation: implements
-  symbol: main
+status: accepted
+date: '2026-09-20'
+supersedes: []
+superseded_by: []
+source: server-export
 ---
 
 # DEC-0031 — Sous-etape 6.5 (CLI minimale) : sous-commandes argparse au-dessus de `StudioApiClient`, cle d'idempotence generee par la CLI

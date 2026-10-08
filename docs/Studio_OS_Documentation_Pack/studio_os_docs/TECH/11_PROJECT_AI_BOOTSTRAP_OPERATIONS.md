@@ -34,7 +34,7 @@ toute écriture :
 - aucune migration v0 ou tolérance N-1 n'est promise.
 
 La politique est définie par
-[DEC-0181](../../../decisions/DEC-0181-compatibilite-manifest-bootstrap-v1.md),
+[DEC-0181](../../../decisions/DEC-0181-compatibilite-du-manifest-bootstrap-lecture-v1-uniquement.md),
 encore proposée tant qu'elle n'est pas acceptée.
 
 ## Drift, conflit et rollback
@@ -71,9 +71,9 @@ locale :
 - rapports idempotents avec `expected_version` et session associée.
 
 Les réglages locaux sont décrits par
-[DEC-0179](../../../decisions/DEC-0179-aib-r3-reglages-lancement-locaux.md). Le
+[DEC-0179](../../../decisions/DEC-0179-aib-r3-reglages-de-lancement-locaux-persistes-dans-launch.md). Le
 lancement non interactif et ses permissions bornées sont définis par
-[DEC-0176](../../../decisions/DEC-0176-aib-r3-lancement-harness-non-interactif.md).
+[DEC-0176](../../../decisions/DEC-0176-aib-r3-lancement-non-interactif-des-harness-permissions.md).
 
 ## Matrice de validation
 

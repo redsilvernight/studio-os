@@ -2,30 +2,11 @@
 id: DEC-0029
 title: 'Sous-etape 6.3 (outbox SQLite) : schema minimal, transaction laissee a l''appelant,
   backoff sans abandon'
-status: active
-date: '2026-09-13'
-superseded_by: null
-source: docs/DECISIONS.md
-sync_hash: sha256:6819c990e33eb7d64304344b439f8755d807bd7c579a8ca59f0622962f61815e
-graphify_entities:
-- kind: class
-  node_id: packages_studio_client_src_studio_client_outbox_store_outboxstore
-  path: packages/studio-client/src/studio_client/outbox/store.py
-  project: studio-os
-  relation: implements
-  symbol: OutboxStore
-- kind: class
-  node_id: packages_studio_client_src_studio_client_outbox_models_pendingrow
-  path: packages/studio-client/src/studio_client/outbox/models.py
-  project: studio-os
-  relation: implements
-  symbol: PendingRow
-- kind: class
-  node_id: packages_studio_client_src_studio_client_outbox_models_outboxtable
-  path: packages/studio-client/src/studio_client/outbox/models.py
-  project: studio-os
-  relation: implements
-  symbol: OutboxTable
+status: accepted
+date: '2026-09-20'
+supersedes: []
+superseded_by: []
+source: server-export
 ---
 
 # DEC-0029 — Sous-etape 6.3 (outbox SQLite) : schema minimal, transaction laissee a l'appelant, backoff sans abandon
