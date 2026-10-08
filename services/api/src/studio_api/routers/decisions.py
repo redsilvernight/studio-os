@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Header, Query, Request, status
-from studio_contracts.decisions import Decision, DecisionCreate
+from fastapi import APIRouter, Body, Header, Query, Request, status
+from studio_contracts.decisions import Decision, DecisionCreate, DecisionSupersede
 
 from studio_api.deps import CurrentPrincipal, DbSession
 from studio_api.openapi_meta import (
@@ -13,11 +13,32 @@ from studio_api.openapi_meta import (
     RESP_404_NOT_FOUND,
     RESP_409_DECISION_TRANSITION,
     RESP_409_IDEMPOTENCY,
+    ErrorResponses,
 )
 from studio_api.services import decisions as decisions_service
 from studio_api.services import idempotency as idempotency_service
 
 router = APIRouter(prefix="/api/v1/decisions", tags=["decisions"])
+
+RESP_422_DECISION_SUPERSEDE: ErrorResponses = {
+    422: {
+        "description": (
+            "Supersede body rejected, nothing stored: `superseded_by` is "
+            "optional, but when present it must be a UUID string — a "
+            "malformed one is the framework's native 422 and no transition "
+            "is attempted."
+        ),
+        "content": {
+            "application/json": {
+                "example": {
+                    "detail": [
+                        {"loc": ["body", "superseded_by"], "msg": "Input should be a valid UUID"}
+                    ]
+                }
+            }
+        },
+    }
+}
 
 
 @router.get(
@@ -108,17 +129,35 @@ async def accept_decision(
         "terminal — no transition is ever allowed out of it). Admin role "
         "only. This is a state transition, not a creation: no "
         "`Idempotency-Key` — retrying after success answers "
-        "`409 invalid_decision_transition`, never a duplicate transition."
+        "`409 invalid_decision_transition`, never a duplicate transition. "
+        "Optional body `superseded_by` names the replacing Decision "
+        "(internal UUID): the two are linked by a `supersedes` edge, so the "
+        "replacement and what it replaced stay traceable in both "
+        "directions. Omit it (or omit the body) to supersede without "
+        "naming a replacement — the transition then records nothing but the "
+        "status change."
     ),
     responses={
         **RESP_401_UNAUTHORIZED,
         **RESP_403_FORBIDDEN,
         **RESP_404_NOT_FOUND,
         **RESP_409_DECISION_TRANSITION,
+        **RESP_422_DECISION_SUPERSEDE,
     },
 )
 async def supersede_decision(
-    decision_id: UUID, session: DbSession, principal: CurrentPrincipal
+    decision_id: UUID,
+    session: DbSession,
+    principal: CurrentPrincipal,
+    body: DecisionSupersede | None = Body(default=None),
 ) -> Decision:
-    decision = await decisions_service.supersede_decision(session, principal, decision_id)
+    superseded_by = body.superseded_by if body else None
+    if superseded_by is None:
+        # Additive: a body-less supersede keeps calling the service exactly
+        # as before, so no existing call changes shape.
+        decision = await decisions_service.supersede_decision(session, principal, decision_id)
+    else:
+        decision = await decisions_service.supersede_decision(
+            session, principal, decision_id, superseded_by=superseded_by
+        )
     return Decision.model_validate(decision)

@@ -430,6 +430,15 @@ public de bootstrap, pas de secret d'environnement dedie.
 - POST /decisions/{id}/supersede (additif, DEC-0098) — `proposed|accepted ->
   superseded` (terminal, aucune transition n'en sort). Role admin
   uniquement, memes regles de non-idempotence que `accept`.
+- `POST /decisions/{id}/supersede` accepte en plus un corps JSON **optionnel**
+  `DecisionSupersede` (`{"superseded_by": "<uuid>"}`) ; corps absent =
+  comportement actuel inchange. `superseded_by` est l'UUID de la decision
+  **remplacante** : les deux sont reliees par un lien `supersedes`, donc le
+  remplacement et ce qu'il remplace restent tracables dans les deux sens. Le
+  lien est une declaration d'intention, jamais une porte de validite de la
+  transition ; un `superseded_by` mal forme est le `422` natif du framework
+  et rien n'est ecrit. La decision et ses transitions sont refletees dans une
+  note vault `note_type=decision` de meme `readable_id` (DEC-0193).
 
 ### Vault (roadmap vault serveur P03, additif, DEC-0187)
 Notes a deux portees (`studio`, `project`) ; schemas `studio_contracts.vault`.

@@ -83,6 +83,19 @@ Aucun outil de lecture : le destinataire lit via `studio_sync`
 Erreurs : `invalid_coordination`, `task_closed`, `session_not_found`,
 `coordination_rate_limited` (20 signaux par session emettrice).
 
+### studio_supersede_decision (additif, DEC-0193)
+`studio_supersede_decision(decision_id, superseded_by?)` : transition
+`proposed|accepted -> superseded` (terminal, role admin, pas
+d'`idempotency_key` — cf. `TECH/02_API_CONTRACT.md` § Decisions).
+`superseded_by` (UUID string de la decision **remplacante**) est optionnel et
+passe par le meme service que l'API HTTP : il pose le lien `supersedes` entre
+les deux decisions, de facon a ce que le remplacement et ce qu'il remplace
+restent tracables dans les deux sens. Omit, l'appel est strictement identique
+a l'ancien (`decision_id` seul) : le changement de statut ne change pas, seule
+la trace du lien manque. La decision et ses transitions sont refletees dans une
+note vault `note_type=decision` de meme `readable_id`, lisible par
+`studio_vault_search`/`studio_vault_read`.
+
 ## AI Library via MCP — inventaire (P8, DEC-0072)
 studio_resolve_agent
 studio_discover_definitions

@@ -3931,7 +3931,7 @@
      "decisions"
     ],
     "summary": "Supersede Decision",
-    "description": "Supersede a Decision (`proposed` or `accepted` -> `superseded`, terminal \u2014 no transition is ever allowed out of it). Admin role only. This is a state transition, not a creation: no `Idempotency-Key` \u2014 retrying after success answers `409 invalid_decision_transition`, never a duplicate transition.",
+    "description": "Supersede a Decision (`proposed` or `accepted` -> `superseded`, terminal \u2014 no transition is ever allowed out of it). Admin role only. This is a state transition, not a creation: no `Idempotency-Key` \u2014 retrying after success answers `409 invalid_decision_transition`, never a duplicate transition. Optional body `superseded_by` names the replacing Decision (internal UUID): the two are linked by a `supersedes` edge, so the replacement and what it replaced stay traceable in both directions. Omit it (or omit the body) to supersede without naming a replacement \u2014 the transition then records nothing but the status change.",
     "operationId": "supersede_decision_api_v1_decisions__decision_id__supersede_post",
     "security": [
      {
@@ -3950,6 +3950,23 @@
       }
      }
     ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/DecisionSupersede"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Body"
+       }
+      }
+     }
+    },
     "responses": {
      "200": {
       "description": "Successful Response",
@@ -4008,11 +4025,19 @@
       }
      },
      "422": {
-      "description": "Validation Error",
+      "description": "Supersede body rejected, nothing stored: `superseded_by` is optional, but when present it must be a UUID string \u2014 a malformed one is the framework's native 422 and no transition is attempted.",
       "content": {
        "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+        "example": {
+         "detail": [
+          {
+           "loc": [
+            "body",
+            "superseded_by"
+           ],
+           "msg": "Input should be a valid UUID"
+          }
+         ]
         }
        }
       }
@@ -16359,6 +16384,26 @@
      "superseded"
     ],
     "title": "DecisionStatus"
+   },
+   "DecisionSupersede": {
+    "properties": {
+     "superseded_by": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Superseded By"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "DecisionSupersede",
+    "description": "Body of the supersede transition. Every field is optional: an absent or\nempty body keeps the historical behavior (the Decision is simply\nsuperseded, no replacement recorded). `superseded_by` names the replacing\nDecision and is what the `supersedes` link is made of \u2014 a claim about\nintent, never a validity gate on the transition."
    },
    "DependencyChange": {
     "properties": {
