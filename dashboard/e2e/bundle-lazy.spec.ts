@@ -31,11 +31,11 @@ test("home loads no heavy view chunk, a heavy view loads on navigation", async (
   const seen = jsRequests(page);
   await login(page, "#/");
   await expect(page.locator("#view h1").first()).toBeVisible();
-  for (const heavy of ["projectDetail", "configuration", "library", "graphs", "taskDetail", "transfers", "decisionsV2", "view"]) {
+  for (const heavy of ["projectDetail", "configuration", "library", "vaultAtlas", "taskDetail", "transfers", "decisionsV2", "view"]) {
     expect(seen, `chunk ${heavy} must not load on the home page`).not.toContain(heavy);
   }
-  await page.goto("/#/graphs/knowledge");
-  await expect.poll(() => seen.includes("graphs")).toBe(true);
+  await page.goto("/#/vault/atlas");
+  await expect.poll(() => seen.includes("vaultAtlas")).toBe(true);
 });
 
 test("a chunk that fails to load shows an alert with a reload action", async ({ page }) => {
