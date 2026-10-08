@@ -321,8 +321,8 @@ def _keep(target: SkillTargetPlan) -> SkillTargetPlan:
 
 
 def skills_pending(plan: SkillSyncPlan) -> int:
-    """Targets a conflict-free apply would write (missing or outdated)."""
-    return len(plan.missing) + len(plan.outdated)
+    """Targets a conflict-free apply would change (missing, outdated or retired)."""
+    return len(plan.missing) + len(plan.outdated) + len(plan.retired)
 
 
 def apply_skills(plan: SkillSyncPlan) -> SkillSyncResult | None:

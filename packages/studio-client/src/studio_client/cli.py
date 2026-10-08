@@ -1199,6 +1199,7 @@ def _skills_command(args: argparse.Namespace, config: ClientConfig) -> None:
                 "skills": len(plan.entries),
                 "written": [str(path) for path in result.written],
                 "backups": [str(path) for path in result.backups],
+                "removed": [str(path) for path in result.removed],
                 "manifest": str(result.manifest_path),
             }
             if args.json:
@@ -1207,7 +1208,8 @@ def _skills_command(args: argparse.Namespace, config: ClientConfig) -> None:
                 print(
                     f"synchronized {payload['skills']} skills; "
                     f"wrote {len(result.written)} files; "
-                    f"created {len(result.backups)} backups"
+                    f"created {len(result.backups)} backups; "
+                    f"removed {len(result.removed)} deprecated copies"
                 )
                 print(f"manifest: {result.manifest_path}")
             return
@@ -1227,7 +1229,7 @@ def _skills_command(args: argparse.Namespace, config: ClientConfig) -> None:
             }
             for entry in plan.entries
         ]
-        failures = len(plan.missing) + len(plan.drifted)
+        failures = len(plan.missing) + len(plan.drifted) + len(plan.retired)
         if args.json:
             print(json.dumps({"skills": rows, "failures": failures}, indent=2))
         else:
@@ -1238,6 +1240,8 @@ def _skills_command(args: argparse.Namespace, config: ClientConfig) -> None:
                     for target in row["targets"]
                 )
                 print(f"{row['stable_key']} v{row['version']}: {states}")
+            for target in plan.retired:
+                print(f"deprecated copy to remove: {target.path}")
             print(f"checked {len(rows)} skills, failures {failures}")
         if failures:
             raise SystemExit(1)

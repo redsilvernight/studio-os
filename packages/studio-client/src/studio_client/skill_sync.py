@@ -79,6 +79,8 @@ class SkillSyncPlan:
     entries: tuple[SkillPlanEntry, ...]
     manifest_path: Path
     manifest_text: str
+    retired: tuple[SkillTargetPlan, ...] = ()
+    """Unmodified managed copies of deprecated skills, removed on apply."""
 
     @property
     def current(self) -> tuple[SkillTargetPlan, ...]:
@@ -121,6 +123,7 @@ class SkillSyncResult:
     written: tuple[Path, ...]
     backups: tuple[Path, ...]
     manifest_path: Path
+    removed: tuple[Path, ...] = ()
 
 
 async def fetch_skill_projections(
@@ -128,7 +131,9 @@ async def fetch_skill_projections(
     project_id: UUID | None,
     limit: int = 100,
 ) -> tuple[LibraryContextItem, ...]:
-    """Fetch effective skills and keep only globally safe Studio-scope rows."""
+    """Fetch effective skills and keep only globally safe Studio-scope rows.
+
+    Deprecated rows are kept so ``plan_skill_sync`` can retire their managed copies."""
 
     result = await LibraryContextProvider(api).fetch(
         project_id,
@@ -172,13 +177,17 @@ def plan_skill_sync(
     *,
     include_opencode: bool = False,
 ) -> SkillSyncPlan:
-    """Inspect global skill targets without changing the filesystem."""
+    """Inspect global skill targets without changing the filesystem.
+
+    Deprecated projections are never projected; their unmodified managed copies
+    are listed in ``retired`` and removed on apply."""
 
     root = Path(home).expanduser().resolve()
     manifest_path = root / ".studio-os" / "library-skills-manifest.json"
     managed_hashes = _load_managed_hashes(manifest_path)
     opencode_hashes = _load_managed_hashes(manifest_path, target="opencode")
     entries: list[SkillPlanEntry] = []
+    retired: list[SkillTargetPlan] = []
     seen: set[str] = set()
     for projection in sorted(projections, key=lambda item: item.stable_key):
         _validate_projection(projection)
@@ -186,6 +195,18 @@ def plan_skill_sync(
             raise SkillSyncError(f"duplicate skill stable_key: {projection.stable_key!r}")
         seen.add(projection.stable_key)
         rendered = render_skill(projection)
+        if projection.deprecated:
+            retired.extend(
+                _plan_retired_targets(
+                    root,
+                    projection.stable_key,
+                    rendered,
+                    managed_hashes.get(projection.stable_key),
+                    opencode_hashes.get(projection.stable_key) if include_opencode else None,
+                    include_opencode=include_opencode,
+                )
+            )
+            continue
         desired_hash = _sha256(rendered)
         targets = (
             _plan_target(
@@ -251,6 +272,7 @@ def plan_skill_sync(
         entries=tuple(entries),
         manifest_path=manifest_path,
         manifest_text=manifest_text,
+        retired=tuple(retired),
     )
 
 
@@ -318,11 +340,20 @@ def apply_skill_sync(
                 continue
             _atomic_write(target.path, _desired_text(entry, target))
             written.append(target.path)
+    removed: list[Path] = []
+    for target in plan.retired:
+        target.path.unlink()
+        removed.append(target.path)
+        try:
+            target.path.parent.rmdir()
+        except OSError:
+            pass
     _atomic_write(plan.manifest_path, plan.manifest_text)
     return SkillSyncResult(
         written=tuple(written),
         backups=tuple(backups),
         manifest_path=plan.manifest_path,
+        removed=tuple(removed),
     )
 
 
@@ -415,6 +446,45 @@ def _plan_target(
     return SkillTargetPlan(harness, path, state, current, current_hash)
 
 
+def _plan_retired_targets(
+    home: Path,
+    stable_key: str,
+    rendered: str,
+    managed_hash: str | None,
+    opencode_hash: str | None,
+    *,
+    include_opencode: bool,
+) -> list[SkillTargetPlan]:
+    """Managed, unmodified copies of a deprecated skill; anything else is left alone."""
+
+    paths: list[tuple[Literal["agents", "claude", "opencode"], Path, str | None]] = [
+        ("agents", home / ".agents" / "skills" / stable_key / "SKILL.md", managed_hash),
+        ("claude", home / ".claude" / "skills" / stable_key / "SKILL.md", managed_hash),
+    ]
+    if include_opencode:
+        paths.append(
+            (
+                "opencode",
+                home.joinpath(*_OPENCODE_SKILLS_DIR, stable_key, "SKILL.md"),
+                opencode_hash,
+            )
+        )
+    retired: list[SkillTargetPlan] = []
+    for harness, path, digest in paths:
+        if not path.is_file():
+            continue
+        try:
+            current = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        if harness == "opencode" and split_opencode_section(current)[1] is not None:
+            continue
+        current_hash = _sha256(current)
+        if current == rendered or (digest is not None and current_hash == digest):
+            retired.append(SkillTargetPlan(harness, path, "outdated", current, current_hash))
+    return retired
+
+
 def _load_managed_hashes(manifest_path: Path, target: str | None = None) -> dict[str, str]:
     if not manifest_path.is_file():
         return {}
@@ -442,18 +512,16 @@ def _load_managed_hashes(manifest_path: Path, target: str | None = None) -> dict
 
 
 def _verify_plan_is_fresh(plan: SkillSyncPlan) -> None:
-    for entry in plan.entries:
-        for target in entry.all_targets:
-            if target.path.exists():
-                if not target.path.is_file():
-                    raise SkillSyncConflictError(
-                        f"skill target changed since planning: {target.path}"
-                    )
-                current_hash = _sha256(target.path.read_text(encoding="utf-8"))
-            else:
-                current_hash = None
-            if current_hash != target.current_sha256:
+    targets = [target for entry in plan.entries for target in entry.all_targets]
+    for target in [*targets, *plan.retired]:
+        if target.path.exists():
+            if not target.path.is_file():
                 raise SkillSyncConflictError(f"skill target changed since planning: {target.path}")
+            current_hash = _sha256(target.path.read_text(encoding="utf-8"))
+        else:
+            current_hash = None
+        if current_hash != target.current_sha256:
+            raise SkillSyncConflictError(f"skill target changed since planning: {target.path}")
 
 
 def _backup_path(
