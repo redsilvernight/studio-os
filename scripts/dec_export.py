@@ -25,7 +25,8 @@ import json
 import os
 import re
 import sys
-from collections.abc import Iterable
+import time
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any
 
@@ -43,6 +44,7 @@ _DECISION_STATUSES = {"proposed", "accepted", "superseded"}
 _NOTE_STATUS = {"validated": "accepted", "superseded": "superseded"}
 _LEADING_HEADING_RE = re.compile(r"\A\s*#\s+DEC-\d+[^\n]*\n+")
 _VAULT_PAGE_LIMIT = 200
+_MAX_RETRIES = 8
 
 
 def _dec_num(readable_id: str) -> int:
@@ -163,8 +165,27 @@ def _resolve_token(api_url: str) -> str:
     return resolve_token(origin_of(api_url))
 
 
-def fetch_snapshot(client: httpx.Client, project_id: str) -> dict[str, Any]:
-    resp = client.get("/api/v1/decisions", params={"project_id": project_id})
+def _get(
+    client: httpx.Client,
+    url: str,
+    *,
+    params: dict[str, Any] | None = None,
+    sleep: Callable[[float], None] = time.sleep,
+) -> httpx.Response:
+    """GET that waits out the server rate limit (429, `Retry-After`)."""
+    for attempt in range(_MAX_RETRIES):
+        resp = client.get(url, params=params)
+        if resp.status_code != 429:
+            return resp
+        retry_after = resp.headers.get("retry-after", "")
+        sleep(float(retry_after) if retry_after.isdigit() else min(2.0**attempt, 30.0))
+    return resp
+
+
+def fetch_snapshot(
+    client: httpx.Client, project_id: str, *, sleep: Callable[[float], None] = time.sleep
+) -> dict[str, Any]:
+    resp = _get(client, "/api/v1/decisions", params={"project_id": project_id}, sleep=sleep)
     resp.raise_for_status()
     decisions = resp.json()
     if isinstance(decisions, dict):
@@ -180,7 +201,7 @@ def fetch_snapshot(client: httpx.Client, project_id: str) -> dict[str, Any]:
         }
         if cursor:
             params["cursor"] = cursor
-        page = client.get("/api/v1/vault/tree", params=params)
+        page = _get(client, "/api/v1/vault/tree", params=params, sleep=sleep)
         if page.status_code == 404 and cursor is None:
             break  # server without the vault API: decisions alone
         page.raise_for_status()
@@ -194,7 +215,7 @@ def fetch_snapshot(client: httpx.Client, project_id: str) -> dict[str, Any]:
     for s in summaries:
         if s.get("note_type") != "decision" or not DEC_ID_RE.fullmatch(s.get("readable_id") or ""):
             continue
-        full = client.get(f"/api/v1/vault/notes/{s['id']}")
+        full = _get(client, f"/api/v1/vault/notes/{s['id']}", sleep=sleep)
         full.raise_for_status()
         notes.append({**s, **full.json()})
     return build_snapshot(project_id, decisions, notes)
@@ -254,23 +275,32 @@ def plan_render(root: Path, snapshot: dict[str, Any]) -> tuple[dict[str, str], l
 
 
 def corpus_titles(root: Path) -> dict[str, str]:
-    """Every DEC id the current Markdown corpus knows about -> its title."""
+    """Every DEC id the current Markdown corpus knows about -> its title. A
+    file's `server_readable_id` is its real number: the local `id` it
+    replaces is dropped, from the files and from the index alike."""
+    files: dict[str, str] = {}
+    remapped: set[str] = set()
+    decisions_dir = root / DECISIONS_DIR_RELPATH
+    for path in sorted(decisions_dir.glob("*.md")) if decisions_dir.exists() else []:
+        if path.name.startswith("_"):
+            continue
+        fields, _ = parse_adr_markdown(path.read_text(encoding="utf-8"))
+        local, server = fields.get("id"), fields.get("server_readable_id")
+        ids = [v for v in (local, server) if isinstance(v, str) and DEC_ID_RE.fullmatch(v)]
+        if server in ids and local in ids and local != server:
+            remapped.add(local)
+            ids = [server]
+        for value in ids:
+            files[value] = str(fields.get("title") or "")
     titles: dict[str, str] = {}
     index = root / INDEX_RELPATH
     if index.exists():
         for line in index.read_text(encoding="utf-8").splitlines():
             if line.startswith("| DEC-"):
                 cells = [c.strip() for c in line.split("|")]
-                titles[cells[1]] = cells[2].replace(r"\|", "|")
-    decisions_dir = root / DECISIONS_DIR_RELPATH
-    for path in sorted(decisions_dir.glob("*.md")) if decisions_dir.exists() else []:
-        if path.name.startswith("_"):
-            continue
-        fields, _ = parse_adr_markdown(path.read_text(encoding="utf-8"))
-        for key in ("id", "server_readable_id"):
-            value = fields.get(key)
-            if isinstance(value, str) and DEC_ID_RE.fullmatch(value):
-                titles[value] = str(fields.get("title") or "")
+                if cells[1] not in remapped or cells[1] in files:
+                    titles[cells[1]] = cells[2].replace(r"\|", "|")
+    titles.update(files)
     return titles
 
 

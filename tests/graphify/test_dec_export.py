@@ -159,6 +159,22 @@ def test_compare_flags_lost_decisions(tmp_path):
     assert dec_export.main(["compare", "--root", str(tmp_path)]) == 1
 
 
+def test_compare_ignores_local_id_replaced_by_server_id(tmp_path):
+    """A file renumbered by the server keeps its old local id: not a loss."""
+    _write_snapshot(tmp_path, _snapshot())
+    (tmp_path / "docs" / "decisions" / "DEC-0001-locale.md").write_text(
+        "---\nid: DEC-0001\ntitle: Vault seule\nserver_readable_id: DEC-0010\n---\n\n"
+        "# DEC-0001 — Vault seule\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "docs" / "DECISIONS.md").write_text(
+        "| ID | Titre | Statut | ADR |\n|---|---|---|---|\n"
+        "| DEC-0001 | Vault seule | accepted | x |\n",
+        encoding="utf-8",
+    )
+    assert dec_export.compare(tmp_path, _snapshot()) == ([], ["DEC-0001", "DEC-0002"])
+
+
 def test_fetch_snapshot_pages_vault_and_reads_bodies():
     notes = {n["id"]: n for n in (_note("DEC-0001", "Ancienne"), _note("DEC-0002", "Remplace"))}
     seen_auth = []
@@ -188,3 +204,21 @@ def test_fetch_snapshot_pages_vault_and_reads_bodies():
     assert snap["decisions"][1]["status"] == "accepted"
     assert set(seen_auth) == {"Bearer t"}
     assert json.loads(dec_export.dump_snapshot(snap)) == snap
+
+
+def test_fetch_waits_out_rate_limit():
+    calls = {"n": 0}
+    waits: list[float] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/v1/decisions":
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return httpx.Response(429, headers={"Retry-After": "3"})
+            return httpx.Response(200, json=[_decision("DEC-0001", "Ancienne")])
+        return httpx.Response(404)
+
+    client = httpx.Client(base_url="https://studio.test", transport=httpx.MockTransport(handler))
+    snap = dec_export.fetch_snapshot(client, PROJECT, sleep=waits.append)
+    assert waits == [3.0]
+    assert [d["readable_id"] for d in snap["decisions"]] == ["DEC-0001"]
