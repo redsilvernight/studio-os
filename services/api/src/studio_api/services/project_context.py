@@ -3,9 +3,9 @@
 A read-only *selection* over shared state the existing services already
 expose — never a second source of truth. Every row is obtained through the
 same service function the normal surfaces use (`projects`, `tasks`,
-`decisions`, `library`, `ai_work`, `claims`), so visibility, shadowing and
-scope rules are those services' rules, not re-implemented here. No SQL of
-its own, no write, no LLM, no embedding.
+`decisions`, `library`, `ai_work`, `claims`, `vault`), so visibility,
+shadowing and scope rules are those services' rules, not re-implemented
+here. No SQL of its own, no write, no LLM, no embedding.
 
 Wire models and budget constants live in `studio_contracts.project_context`
 (P2 canonical contract) and are re-exported here unchanged, so the MCP
@@ -15,7 +15,8 @@ Relevance is only what Studi'OS can establish and explain:
 
 * structural links — the requested task, decisions and recent AI work
   attached to it, claims on it or overlapping the given `files`,
-  project-scope Library definitions;
+  project-scope Library definitions, vault notes anchored to the task or to
+  a declared path and the notes one link away from them;
 * lexical overlap — exact token match between the objective and an item's
   title/body (stop words and short tokens dropped, no stemming).
 
@@ -51,6 +52,8 @@ from studio_contracts.project_context import (
     MIN_MAX_CHARS,
     MIN_TERM_LENGTH,
     MIN_TEXT_CHARS,
+    NOTE_SUMMARY_CAP,
+    NOTES_BUDGET_SHARE,
     OBJECTIVE_MAX_CHARS,
     PROJECT_DESCRIPTION_CAP,
     ROADMAP_BUDGET_SHARE,
@@ -60,9 +63,16 @@ from studio_contracts.project_context import (
     ContextLimits,
     DecisionItem,
     LibraryItem,
+    NoteItem,
     PreparedContext,
     ProjectRef,
     TaskItem,
+)
+from studio_contracts.vault import (
+    VAULT_SEARCH_SNIPPET_MAX,
+    VaultNoteStatus,
+    VaultSearchHit,
+    VaultSearchReason,
 )
 
 from studio_api.db.models.ai_work import AIWorkLogModel
@@ -75,6 +85,7 @@ from studio_api.services import decisions as decisions_service
 from studio_api.services import library as library_service
 from studio_api.services import projects as projects_service
 from studio_api.services import tasks as tasks_service
+from studio_api.services import vault as vault_service
 from studio_api.services.authz import Principal
 from studio_api.services.context_why import Reason, Why
 from studio_api.services.project_context_roadmap import (
@@ -103,6 +114,8 @@ __all__ = [
     "MIN_MAX_CHARS",
     "MIN_TERM_LENGTH",
     "MIN_TEXT_CHARS",
+    "NOTES_BUDGET_SHARE",
+    "NOTE_SUMMARY_CAP",
     "OBJECTIVE_MAX_CHARS",
     "PROJECT_DESCRIPTION_CAP",
     "ROADMAP_BUDGET_SHARE",
@@ -112,6 +125,7 @@ __all__ = [
     "ContextLimits",
     "DecisionItem",
     "LibraryItem",
+    "NoteItem",
     "PreparedContext",
     "ProjectRef",
     "RoadmapItem",
@@ -704,6 +718,126 @@ async def _select_ai_work(
     return picked, len(rows)
 
 
+_VAULT_REASONS: dict[VaultSearchReason, Reason] = {
+    VaultSearchReason.ANCHOR: "vault_anchor",
+    VaultSearchReason.LINKED: "vault_link",
+    VaultSearchReason.LEXICAL: "lexical",
+}
+_VAULT_STATUSES = [VaultNoteStatus.VALIDATED, VaultNoteStatus.PROPOSED]
+# The read is bounded by `limit` hits and by these caps; the budget slice then
+# decides what ships and what is counted as cut.
+_VAULT_ITEM_MAX_CHARS = NOTE_SUMMARY_CAP + VAULT_SEARCH_SNIPPET_MAX
+
+
+def _note_item(
+    hit: VaultSearchHit,
+    terms: list[str],
+    budget: _Budget,
+    known_ids: Mapping[uuid.UUID, str],
+) -> NoteItem | None:
+    """One vault hit as context: the summary and the search snippet spend free
+    text budget, the body never ships — the full note is one
+    `GET /vault/notes/{id}` away. `None` means the section ran out of budget and
+    the note is counted, not silently dropped."""
+    note = hit.note
+    content_hash = note.content_hash
+    why = _why(_VAULT_REASONS[hit.reason], score(terms, note.title, note.summary)[1])
+    if known_ids.get(note.id) == content_hash:
+        return NoteItem(
+            id=note.id,
+            scope=note.scope.value,
+            readable_id=note.readable_id,
+            slug=note.slug,
+            note_type=note.note_type.value,
+            title=note.title,
+            status=note.status.value,
+            summary="",
+            snippet="",
+            content_hash=content_hash,
+            unchanged=True,
+            why=why,
+        )
+    mark = budget.mark()
+    summary = budget.take(note.summary, NOTE_SUMMARY_CAP)
+    if summary is None:
+        return None
+    snippet = budget.take(hit.snippet)
+    if snippet is None:
+        budget.rollback(mark)
+        return None
+    return NoteItem(
+        id=note.id,
+        scope=note.scope.value,
+        readable_id=note.readable_id,
+        slug=note.slug,
+        note_type=note.note_type.value,
+        title=note.title,
+        status=note.status.value,
+        summary=summary[0],
+        snippet=snippet[0],
+        content_hash=content_hash,
+        truncated=summary[1] or snippet[1],
+        why=why,
+    )
+
+
+async def _select_notes(
+    session: AsyncSession,
+    principal: Principal,
+    project_id: uuid.UUID,
+    task_id: uuid.UUID | None,
+    paths: list[str],
+    terms: list[str],
+    limit: int,
+    budget: _Budget,
+    omitted: dict[str, int],
+    known_ids: Mapping[uuid.UUID, str],
+) -> tuple[list[NoteItem], int, bool]:
+    """Vault notes readable from this project (P07, DEC-0187 D6): its own notes
+    plus the studio ones, `validated` and `proposed` only — never a draft, a
+    superseded or an archived note. Anchors, then one link away, then full text,
+    in the ranking `vault.search_notes` already applies to `GET /vault/search`.
+
+    The read runs in a savepoint and never fails the context: an unreadable
+    vault leaves the rest of the answer intact and is flagged `unavailable`."""
+    if not terms and not paths and task_id is None:
+        return [], 0, False
+    mark = budget.mark()
+    picked: list[NoteItem] = []
+    refused = 0
+    try:
+        async with session.begin_nested():
+            found = await vault_service.search_notes(
+                session,
+                principal,
+                q=" ".join(terms) or None,
+                scope=None,
+                project_id=project_id,
+                note_types=[],
+                statuses=_VAULT_STATUSES,
+                include_superseded=False,
+                paths=paths,
+                task_id=task_id,
+                limit=limit,
+                max_chars=limit * _VAULT_ITEM_MAX_CHARS,
+            )
+            for hit in found.items:
+                if len(picked) == limit:
+                    break
+                item = _note_item(hit, terms, budget, known_ids)
+                if item is None:
+                    refused += 1
+                    continue
+                picked.append(item)
+    except Exception:  # noqa: BLE001 - the vault is optional: whatever fails, the rest answers
+        budget.rollback(mark)
+        return [], 0, True
+
+    if refused:
+        omitted["notes"] = omitted.get("notes", 0) + refused
+    return picked, found.total, False
+
+
 def _clean_files(files: list[str] | None) -> list[str]:
     if files is None:
         return []
@@ -841,6 +975,18 @@ async def prepare_project_context(
     decisions, decisions_total = await _select_decisions(
         session, principal, project_id, task_id, terms, limit, budget, omitted, known_ids
     )
+    notes, notes_total, notes_unavailable = await _select_notes(
+        session,
+        principal,
+        project_id,
+        task_id,
+        paths,
+        terms,
+        limit,
+        budget.slice(int(max_chars * NOTES_BUDGET_SHARE)),
+        omitted,
+        known_ids,
+    )
     rules, rules_total, rules_capped = await _select_library(
         session,
         principal,
@@ -885,19 +1031,28 @@ async def prepare_project_context(
         returned["roadmap"] = 1
     for name, count in roadmap.additional.items():
         additional[name] = count
+    # The vault counters appear only when it exposes at least one readable note:
+    # a project with nothing in its vault answers exactly as before P07.
+    if notes_total or notes:
+        returned["notes"] = len(notes)
+        additional["notes"] = notes_total - len(notes)
+    unavailable_sections = ["roadmap"] if roadmap.unavailable else []
+    if notes_unavailable:
+        unavailable_sections.append("vault")
     return PreparedContext(
         project=project_ref,
         query_terms=terms,
         task=task,
         related_tasks=related,
         decisions=decisions,
+        notes=notes,
         rules=rules,
         skills=skills,
         ai_work=ai_work,
         active_work=ActiveWork(claims=claims),
         roadmap=roadmap.item,
         roadmap_overview=roadmap.overview,
-        unavailable=["roadmap"] if roadmap.unavailable else [],
+        unavailable=unavailable_sections,
         returned=returned,
         additional_available=additional,
         omitted_for_budget=dict(sorted(omitted.items())),
