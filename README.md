@@ -9,7 +9,13 @@ close (DEC-0024 à DEC-0033) — `StudioApiClient`, daemon/heartbeat, outbox SQL
 replay ordonné, CLI minimale, watchers Git/Godot (6.6) et `TransferClient` (6.7).
 Étape 8 en cours : dashboard DASH-0/1/2/4 livrés (login JWT humain, CORS prod,
 Docker/Caddy), DASH-3/5 restants ; adaptateurs mémoire/Graphify locaux et outils
-MCP read-only livrés (DEC-0042/DEC-0047).
+MCP read-only livrés (DEC-0042/DEC-0047, ce dernier superseded par DEC-0191).
+
+Mémoire et décisions (flux courant) : vault serveur à deux portées studio/projet
+(DEC-0191), le client ne garde qu'un miroir local en lecture seule ;
+`studio_add_decision` alloue le numéro `DEC-XXXX` côté serveur et crée la note
+vault miroir (DEC-0193). `docs/decisions/` et `docs/DECISIONS.md` sont un export
+généré par `scripts/dec_export.py`, jamais édité à la main.
 
 ## Architecture
 

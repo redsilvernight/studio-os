@@ -196,13 +196,23 @@ function vaultToolbarHtml(
     `</div>`;
 }
 
+/** Bascule Liste / Atlas : deux routes (`#/vault`, `#/vault/atlas`), un seul onglet Vault. */
+export function vaultModeNavHtml(mode: "list" | "atlas"): string {
+  const link = (href: string, label: string, current: boolean): string =>
+    `<a class="${current ? "ds-btn ds-btn--primary" : "ds-btn"}" href="${href}"${current ? ' aria-current="page"' : ""}>${label}</a>`;
+  return `<nav class="vault-modes" aria-label="Affichage du vault">` +
+    link("#/vault", "Liste", mode === "list") +
+    link("#/vault/atlas", "Atlas", mode === "atlas") +
+    `</nav>`;
+}
+
 export function vaultPageHtml(
   state: VaultListState,
   projects: Project[],
   notes: VaultNoteSummary[],
   opts: { searching: boolean; truncated?: boolean; total?: number; error?: string },
 ): string {
-  const header = dsPageHeader("Vault", "Connaissances validées du studio et des projets.");
+  const header = dsPageHeader("Vault", "Connaissances validées du studio et des projets.") + vaultModeNavHtml("list");
   if (opts.error !== undefined) {
     return `${header}<div class="ds-notice ds-notice--danger" role="alert"><strong>Vault indisponible.</strong>${esc(opts.error)}</div>`;
   }

@@ -20,7 +20,7 @@ Cette situation est explicite dans le contrat actuel : DEC-0036 définit rôle t
 et propriété par ressource sans table d'ACL
 (`docs/decisions/DEC-0036-autorisation-transverse-minimale-role-et-propriete-par.md:37-55`),
 DEC-0063 ouvre la lecture des scopes Studio/Project à toute machine authentifiée
-(`docs/decisions/DEC-0063-ai-library-scopes-authorization.md:18-26`) et
+(`docs/decisions/DEC-0063-ai-library-scopes-authorization-studio-project-user-sans.md:18-26`) et
 `TECH/04_AUTH_SYNC_CONTRACT.md:147-184` dit qu'il n'existe jamais d'ACL projet séparée.
 
 ## Flux d'identité et d'autorisation

@@ -30,7 +30,7 @@ describe("shellNavGroups (UI-2)", () => {
       "#/configuration/runtimes",
       "#/workspaces",
     ]);
-    expect(groups[2]?.items.map((item) => item.href)).toEqual(["#/graphs/knowledge", "#/inspector"]);
+    expect(groups[2]?.items.map((item) => item.href)).toEqual(["#/inspector"]);
   });
 
   it("keeps Administration collapsed unless the active page belongs to it", () => {
@@ -58,7 +58,7 @@ describe("shellNavGroups (UI-2)", () => {
 
   it("keeps expert tools out of the Administration entry", () => {
     const groups = shellNavGroups({ name: "dashboard" });
-    expect(groups[1]?.items.map((item) => item.href)).not.toContain("#/graphs/knowledge");
+    expect(groups[1]?.items.map((item) => item.href)).not.toContain("#/vault/atlas");
     expect(groups[1]?.items.map((item) => item.href)).not.toContain("#/inspector");
     expect(groups[2]?.title).toBe("Outils experts");
   });

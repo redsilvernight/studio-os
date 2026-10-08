@@ -1,36 +1,11 @@
 ---
 id: DEC-0023
 title: 'Etape 5 (roadmap) : auth MCP par requete + extension a 25 outils reels'
-status: active
-date: '2026-09-13'
-superseded_by: null
-source: docs/DECISIONS.md
-sync_hash: sha256:79eec271bc665c8bb77ad07b6c9a4907922f33836a12847953a8e890c5f5ef6f
-graphify_entities:
-- kind: function
-  node_id: services_mcp_src_studio_mcp_auth_authenticate
-  path: services/mcp/src/studio_mcp/auth.py
-  project: studio-os
-  relation: implements
-  symbol: authenticate
-- kind: class
-  node_id: services_mcp_src_studio_mcp_auth_mcpautherror
-  path: services/mcp/src/studio_mcp/auth.py
-  project: studio-os
-  relation: implements
-  symbol: McpAuthError
-- kind: function
-  node_id: services_mcp_src_studio_mcp_errors_run_tool
-  path: services/mcp/src/studio_mcp/errors.py
-  project: studio-os
-  relation: implements
-  symbol: run_tool
-- kind: function
-  node_id: services_api_src_studio_api_deps_resolve_machine
-  path: services/api/src/studio_api/deps.py
-  project: studio-os
-  relation: implements
-  symbol: resolve_machine
+status: accepted
+date: '2026-09-20'
+supersedes: []
+superseded_by: []
+source: server-export
 ---
 
 # DEC-0023 — Etape 5 (roadmap) : auth MCP par requete + extension a 25 outils reels

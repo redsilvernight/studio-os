@@ -3,6 +3,12 @@
 ## Memoire
 Trois niveaux: private, project, studio. Private n'est jamais synchronise automatiquement. Project/Studio peuvent etre proposes puis approuves.
 
+Flux courant (DEC-0191) : la memoire partagee est le **vault serveur** a deux
+portees `studio`/`projet` (`studio_vault_search`/`studio_vault_read`/
+`studio_vault_write`, `TECH/07`) ; le client ne garde qu'un miroir local en
+lecture seule. Les paragraphes UC-3 ci-dessous (DEC-0047, superseded par
+DEC-0191) decrivent l'exposition historique d'un vault local.
+
 ### MemoryProvider
 search, read, propose, write_if_authorized, append_task_log, create_decision_note.
 
@@ -12,7 +18,7 @@ seuls sont effectifs (`VaultMemoryProvider`), les écritures sont déclarées
 mais refusées (`write_unsupported`, boucle d'approbation serveur en 8.4/8.5),
 portée fermée par défaut via `ClientConfig` (`STUDIO_CLIENT_KNOWLEDGE_*`).
 
-Exposition UC-3 (DEC-0047) : `search`/`read` via MCP local par poste
+Exposition UC-3 historique (DEC-0047, superseded par DEC-0191) : `search`/`read` via MCP local par poste
 (`studio_memory_search`, `studio_memory_read`, `TECH/07`), stdio, read-only.
 Vocabulaire public : Memory. Le backend (dossier de notes Markdown,
 dit « vault ») est optionnel et interchangeable ; aucune dependance a
@@ -34,7 +40,7 @@ directement `graph.json`/`manifest.json` du `graphify-out` centralisé —
 signalement de fraîcheur (`stale`), `refresh_graph` explicitement non
 supporté (reconstruction pilotée par la conversation principale).
 
-Exposition UC-3 (DEC-0047) : ces quatre lectures via UN outil MCP local
+Exposition UC-3 (DEC-0047, superseded par DEC-0191 pour la memoire) : ces quatre lectures via UN outil MCP local
 (`studio_graph_query` avec `mode`, `TECH/07`), stdio, read-only, formes
 generiques. Vocabulaire public : Knowledge Graph. Le backend d'index
 est optionnel et interchangeable ; Graphify n'est ni requis ni suppose
@@ -59,7 +65,7 @@ et n'expose aucun nouvel endpoint dans 8.3b.
 - Interaction avec les 3 outils UC-3 : le composer appelle les **memes
   methodes** `MemoryProvider`/`GraphProvider` que les handlers MCP locaux ;
   il n'appelle pas les outils MCP et ne duplique aucune logique.
-- Le MCP local stdio reste sans credential ni reseau (DEC-0047) : il
+- Le MCP local stdio reste sans credential ni reseau (DEC-0047 historique, superseded par DEC-0191) : il
   n'heberge pas le composer. `studio_generate_context_package` est
   reclassé en capacite Bloc B locale (CLI `studio context generate`) ;
   son exposition MCP est differee (DEC-0057, variante c2).
@@ -73,37 +79,35 @@ Cette section decrit ce qui existe reellement dans ce depot (outillage sous
 
 ### Source de verite
 
-1. `docs/decisions/DEC-XXXX-slug.md` — un ADR par decision, versionne Git.
-   C'est la source canonique : titre, statut, dates, `supersedes`/
-   `superseded_by`, entites Graphify deja validees.
-2. `docs/DECISIONS.md` — index compact **genere**, ne jamais l'editer a la
-   main (regenere a partir des ADR, ecrase toute edition manuelle).
-3. Le vault AI-Memory (`projects/studio-os/decisions/`) est une projection
-   enrichie et idempotente des ADR : contexte humain, prose curatee,
-   annotations — jamais la source canonique.
-4. PostgreSQL (table `decisions`) reste un miroir operationnel, pas la
-   source canonique.
+1. Le serveur Studio OS (decisions `DEC-XXXX` et leurs notes vault de type
+   `decision`) est la source canonique : titre, statut, dates, corps,
+   liens `supersedes`. En cas de collision de numero, la note vault fait
+   foi (DEC-0192).
+2. `docs/DEC_EXPORT.json` — instantane deterministe du serveur
+   (`scripts/dec_export.py fetch`), versionne Git.
+3. `docs/decisions/DEC-XXXX-slug.md` et `docs/DECISIONS.md` — export
+   Markdown **genere** depuis l'instantane (`render --apply`) ; ne jamais
+   les editer a la main.
 
 ### Ajouter une decision
 
-Creer directement `docs/decisions/DEC-XXXX-slug.md` (copier un ADR existant
-comme modele : `id`, `title`, `status`, `source`, `sync_hash` au minimum).
-Puis :
+`studio_add_decision` (le serveur attribue le numero), puis :
 
 ```
-uv run python -m scripts.adr_index --root . --apply
-uv run python -m scripts.vault_sync --root . --apply
+uv run python -m scripts.dec_export fetch --project-id <projet>
+uv run python -m scripts.dec_export compare            # aucune DEC perdue ?
+uv run python -m scripts.dec_export render --apply
 ```
 
-Ne plus editer `docs/DECISIONS.md` a la main — c'est desormais un artefact
-genere (`scripts/adr_index.py`).
+`fetch` lit `STUDIO_API_URL` et le jeton machine (`STUDIO_TOKEN` ou le
+magasin de jetons).
 
 ### Regenerer l'index / controler l'integrite
 
 ```
-uv run python -m scripts.adr_index --root . --check      # index a jour ?
+uv run python -m scripts.dec_export render --check      # export a jour ?
 uv run python -m scripts.vault_sync --root . --check      # vault synchronise ?
-uv run python -m scripts.vault_lint --root .               # references valides ?
+uv run python -m scripts.vault_lint --root .               # export coherent ?
 uv run python -m scripts.graphify_control --root .         # sequence complete (1-7)
 ```
 
@@ -160,15 +164,18 @@ uv run python -m scripts.graphify_ledger --cost-json <graphify-out>\cost.json --
 
 ### Resoudre une divergence depot/vault/base
 
-- **Index perime** (`adr_index --check` echoue) : `adr_index --apply`.
+- **Index perime** (`adr_index --check` echoue) : regenerer l'export
+  (`dec_export render --apply`), jamais d'edition manuelle.
 - **Vault en retard** (`vault_sync --check` echoue) : `vault_sync --apply`.
   Un conflit signale (`status`/`supersedes`/`superseded_by` divergent entre
-  l'ADR et le vault) n'est **jamais ecrase automatiquement** — resoudre a
-  la main dans l'ADR ou le vault, puis relancer.
+  l'ADR et le vault) n'est **jamais ecrase automatiquement** — resoudre
+  cote serveur (decision ou note vault), puis regenerer l'export
+  (`dec_export fetch` + `render --apply`) ; jamais d'edition de l'ADR a la main.
 - **Reference Graphify cassee** (`vault_lint` en erreur) : alias `DEC-XXXX`
   duplique, entite `node_id: null` sans `unresolved: true`, ou
   `supersedes`/`superseded_by` pointant vers un `DEC-XXXX` inexistant —
-  corriger la note ou l'ADR source, jamais l'ecraser silencieusement.
+  corriger la decision ou la note cote serveur puis regenerer l'export,
+  jamais l'ecraser silencieusement.
 - **Table `decisions` Postgres en retard** : miroir operationnel seulement,
   pas bloquant pour un controle local ; a resynchroniser separement quand
   la base est disponible.

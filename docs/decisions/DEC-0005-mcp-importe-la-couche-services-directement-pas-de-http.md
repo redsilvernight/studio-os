@@ -1,18 +1,11 @@
 ---
 id: DEC-0005
 title: MCP importe la couche `services/` directement (pas de HTTP interne)
-status: active
-date: '2026-09-12'
-superseded_by: null
-source: docs/DECISIONS.md
-sync_hash: sha256:611ca6326e851ae9b81faf953db71ee2e423a49df2ffb278f17e3b95efa4b059
-graphify_entities:
-- kind: package
-  node_id: pkg_studio_mcp
-  path: services/mcp/pyproject.toml
-  project: studio-os
-  relation: concerns
-  symbol: studio-mcp
+status: accepted
+date: '2026-09-20'
+supersedes: []
+superseded_by: []
+source: server-export
 ---
 
 # DEC-0005 — MCP importe la couche `services/` directement (pas de HTTP interne)

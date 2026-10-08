@@ -1,25 +1,30 @@
-"""Vault/repo integrity linter (Phase 5).
+"""DEC integrity linter -- default mode: repo DEC-*.md vs the server snapshot.
 
-Deterministic, no LLM, no required external service. Checks:
+Deterministic, no LLM, no network, no required external service.
 
-  - 1:1 coverage: every ADR in docs/decisions/ has exactly one vault note
-    aliased to it, and vice versa (a vault note carrying a DEC-XXXX alias
-    with no matching ADR is reported, not silently ignored).
-  - alias uniqueness: no two vault notes claim the same DEC-XXXX alias.
-  - no unjustified null in graphify.entities: a null node_id is only valid
-    when the entity is explicitly marked `unresolved: true` (the vault's own
-    convention for "we know the file but not the exact symbol yet" -- see
-    dec-20260913-docker-compose-validated-e2e.md).
-  - supersedes / superseded_by validity: when set, must name a real DEC-XXXX
-    that has an ADR (dangling references are reported).
-  - graphify.entities resolution: what fraction of non-null node_ids
-    actually exist in the current Graphify graph (graph.json). This mirrors
-    the "91% resolved" baseline metric from the original audit.
+Default mode (`--snapshot docs/DEC_EXPORT.json --root .`) compares the
+canonical ADR files of `docs/decisions/` against the read-only export of the
+server (`studio-dec-export/1`), which is the source of truth for the DECs:
 
-A best-effort Postgres consistency check is available (`--check-db`) but is
-never required: per the mandate ("sans rendre cette base obligatoire pour un
-controle local"), the default run skips it and says so explicitly rather
-than pretending a database was checked when it wasn't.
+  1. `coverage_*`: strict 1:1 between the frontmatter `id` of every
+     docs/decisions/DEC-*.md and the snapshot `readable_id` list.
+  2. `unexpected_decisions_file`: docs/decisions/ holds DEC-*.md (ADR) and
+     _*.md (support files) only -- nothing else.
+  3. `snapshot_format` / `snapshot_schema` / `duplicate_readable_id`: the
+     export declares format == "studio-dec-export/1", the required fields are
+     present and `readable_id` is unique.
+  4. `supersedes_*` / `superseded_by_*`: every reference names an id present
+     in the snapshot, and the two sides are symmetric (A supersedes B iff B is
+     superseded_by A).
+  5. `title_mismatch` / `status_mismatch`: the ADR frontmatter `title` and
+     `status` equal their snapshot counterparts.
+
+Legacy vault mode stays reachable only through an explicit `--vault <dir>`
+(the local Obsidian vault, previously defaulted to an E:\\ path): it checks
+DEC-XXXX alias coverage both ways, alias uniqueness, supersedes /
+superseded_by validity, unjustified null in graphify.entities and the entity
+resolution rate against graph.json. A best-effort Postgres probe stays
+optional (`--check-db`) and is never required.
 """
 
 from __future__ import annotations
@@ -36,8 +41,28 @@ from .dev_preflight import record as preflight_record
 from .dev_preflight import run_preflight
 
 DECISIONS_DIR_RELPATH = "docs/decisions"
-DEFAULT_VAULT_DIR = Path(r"E:\LocalAI\AI-Memory\projects\studio-os\decisions")
+SNAPSHOT_RELPATH = "docs/DEC_EXPORT.json"
+DEC_EXPORT_FORMAT = "studio-dec-export/1"
+SNAPSHOT_REQUIRED_KEYS = (
+    "date",
+    "task_id",
+    "supersedes",
+    "superseded_by",
+    "body",
+    "body_source",
+)
+SNAPSHOT_MODE = "snapshot"
+VAULT_MODE = "vault"
 DEFAULT_GRAPH_PATH = Path(r"E:\Graphify\Studio-OS\graphify-out\graph.json")
+
+
+@dataclass(frozen=True)
+class SnapshotDecision:
+    readable_id: str
+    title: str
+    status: str
+    supersedes: tuple[str, ...]
+    superseded_by: tuple[str, ...]
 
 
 @dataclass
@@ -51,11 +76,14 @@ class LintIssue:
 @dataclass
 class LintReport:
     issues: list[LintIssue] = field(default_factory=list)
+    mode: str = SNAPSHOT_MODE
     adr_count: int = 0
+    snapshot_count: int = 0
+    snapshot_format: str | None = None
     vault_note_count: int = 0
     entities_total: int = 0
     entities_resolved: int = 0
-    db_check: str = "skipped (not requested)"
+    db_check: str | None = None
 
     @property
     def errors(self) -> list[LintIssue]:
@@ -65,21 +93,342 @@ class LintReport:
     def resolution_rate(self) -> float | None:
         return (self.entities_resolved / self.entities_total) if self.entities_total else None
 
+    def summary(self) -> str:
+        if self.mode == SNAPSHOT_MODE:
+            fmt = self.snapshot_format or "format inconnu"
+            return (
+                f"DEC: {self.adr_count} ADR(s) dans {DECISIONS_DIR_RELPATH}/, "
+                f"{self.snapshot_count} decision(s) dans le snapshot ({fmt}) -- conforme"
+            )
+        return (
+            f"ADRs: {self.adr_count}, vault notes: {self.vault_note_count}, "
+            f"entites resolues: {self.entities_resolved}/{self.entities_total}"
+        )
+
+
+def _read_frontmatter(path: Path) -> tuple[dict[str, Any] | None, str | None]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return None, f"lecture impossible: {exc}"
+    try:
+        fields, _body = parse_adr_markdown(text)
+    except ValueError as exc:
+        return None, str(exc)
+    if not isinstance(fields, dict):
+        return None, "frontmatter absent ou vide"
+    return fields, None
+
 
 def _load_adrs(decisions_dir: Path) -> dict[str, dict[str, Any]]:
     adrs = {}
     for path in sorted(decisions_dir.glob("DEC-*.md")):
-        fields, _body = parse_adr_markdown(path.read_text(encoding="utf-8"))
-        adrs[fields["id"]] = fields
+        fields = _read_frontmatter(path)[0]
+        if fields is None:
+            continue
+        adrs[str(fields.get("id"))] = fields
     return adrs
 
 
-def run_lint(
+def resolve_snapshot_path(root: Path, snapshot_path: Path) -> Path:
+    return snapshot_path if snapshot_path.is_absolute() else root / snapshot_path
+
+
+# --- default mode: repo DEC-*.md <-> server snapshot -------------------------
+
+
+def _load_snapshot(path: Path) -> tuple[dict[str, Any] | None, str | None]:
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return None, f"lecture impossible: {exc}"
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        return None, f"JSON invalide: {exc}"
+    if not isinstance(data, dict):
+        return None, f"racine JSON attendue (objet), obtenu {type(data).__name__}"
+    return data, None
+
+
+def _parse_snapshot_decisions(raw: Any, report: LintReport) -> dict[str, SnapshotDecision]:
+    if not isinstance(raw, list):
+        report.issues.append(
+            LintIssue(
+                "snapshot_schema",
+                "error",
+                None,
+                f"decisions doit etre une liste, obtenu {type(raw).__name__}",
+            )
+        )
+        return {}
+
+    decisions: dict[str, SnapshotDecision] = {}
+    for index, entry in enumerate(raw):
+        if not isinstance(entry, dict):
+            report.issues.append(
+                LintIssue(
+                    "snapshot_schema",
+                    "error",
+                    None,
+                    f"decisions[{index}] doit etre un objet, obtenu {type(entry).__name__}",
+                )
+            )
+            continue
+        dec_id, title, status = entry.get("readable_id"), entry.get("title"), entry.get("status")
+        missing = [
+            name
+            for name, value in (("readable_id", dec_id), ("title", title), ("status", status))
+            if not isinstance(value, str) or not value.strip()
+        ]
+        missing += [key for key in SNAPSHOT_REQUIRED_KEYS if key not in entry]
+        if missing:
+            report.issues.append(
+                LintIssue(
+                    "snapshot_schema",
+                    "error",
+                    dec_id if isinstance(dec_id, str) else None,
+                    f"decisions[{index}] champ(s) absent(s) ou non texte: {', '.join(missing)}",
+                )
+            )
+            continue
+        refs: dict[str, tuple[str, ...]] = {}
+        malformed_ref = False
+        for key in ("supersedes", "superseded_by"):
+            value = entry.get(key)
+            if value is None:
+                refs[key] = ()
+                continue
+            if not isinstance(value, list) or any(not isinstance(v, str) for v in value):
+                report.issues.append(
+                    LintIssue(
+                        "snapshot_schema",
+                        "error",
+                        dec_id,
+                        f"decisions[{index}].{key} doit etre une liste d'ids, obtenu {value!r}",
+                    )
+                )
+                malformed_ref = True
+                break
+            refs[key] = tuple(value)
+        if malformed_ref:
+            continue
+        dec_id, title, status = str(dec_id), str(title), str(status)
+        if dec_id in decisions:
+            report.issues.append(
+                LintIssue(
+                    "duplicate_readable_id",
+                    "error",
+                    dec_id,
+                    f"readable_id {dec_id} repete dans le snapshot",
+                )
+            )
+            continue
+        decisions[dec_id] = SnapshotDecision(
+            readable_id=dec_id,
+            title=title,
+            status=status,
+            supersedes=refs["supersedes"],
+            superseded_by=refs["superseded_by"],
+        )
+    return decisions
+
+
+def run_snapshot_lint(root: Path, snapshot_path: Path = Path(SNAPSHOT_RELPATH)) -> LintReport:
+    report = LintReport(mode=SNAPSHOT_MODE)
+    decisions_dir = root / DECISIONS_DIR_RELPATH
+
+    docs: dict[str, dict[str, Any]] = {}
+    doc_paths: dict[str, Path] = {}
+    if not decisions_dir.is_dir():
+        report.issues.append(
+            LintIssue(
+                "missing_decisions_dir",
+                "error",
+                None,
+                f"{DECISIONS_DIR_RELPATH}/ absent de {root}",
+            )
+        )
+    else:
+        for path in sorted(decisions_dir.glob("DEC-*.md")):
+            fields, error = _read_frontmatter(path)
+            if fields is None:
+                report.issues.append(
+                    LintIssue("malformed_adr", "error", None, f"{path.name}: {error}")
+                )
+                continue
+            dec_id = fields.get("id")
+            if not isinstance(dec_id, str) or not dec_id.strip():
+                report.issues.append(
+                    LintIssue(
+                        "malformed_adr",
+                        "error",
+                        None,
+                        f"{path.name}: frontmatter id absent ou invalide",
+                    )
+                )
+                continue
+            if dec_id in docs:
+                report.issues.append(
+                    LintIssue(
+                        "duplicate_dec_id",
+                        "error",
+                        dec_id,
+                        f"{dec_id} declare dans {doc_paths[dec_id].name} et {path.name}",
+                    )
+                )
+                continue
+            docs[dec_id] = fields
+            doc_paths[dec_id] = path
+        for path in sorted(decisions_dir.glob("*.md")):
+            if path.name.startswith("DEC-") or path.name.startswith("_"):
+                continue
+            report.issues.append(
+                LintIssue(
+                    "unexpected_decisions_file",
+                    "error",
+                    None,
+                    f"{path.name}: seul DEC-*.md (ADR) ou _*.md (support) est autorise "
+                    f"dans {DECISIONS_DIR_RELPATH}/",
+                )
+            )
+    report.adr_count = len(docs)
+
+    data, error = _load_snapshot(resolve_snapshot_path(root, snapshot_path))
+    if data is None:
+        report.issues.append(
+            LintIssue("snapshot_unreadable", "error", None, f"{snapshot_path.as_posix()}: {error}")
+        )
+        return report
+
+    declared_format = data.get("format")
+    if declared_format != DEC_EXPORT_FORMAT:
+        report.issues.append(
+            LintIssue(
+                "snapshot_format",
+                "error",
+                None,
+                f"format={declared_format!r}, attendu {DEC_EXPORT_FORMAT!r}",
+            )
+        )
+    report.snapshot_format = declared_format if isinstance(declared_format, str) else None
+
+    decisions = _parse_snapshot_decisions(data.get("decisions"), report)
+    report.snapshot_count = len(decisions)
+
+    for dec_id in sorted(docs):
+        if dec_id not in decisions:
+            report.issues.append(
+                LintIssue(
+                    "coverage_docs_to_snapshot",
+                    "error",
+                    dec_id,
+                    f"{dec_id} present dans {DECISIONS_DIR_RELPATH}/ mais absent du snapshot",
+                )
+            )
+    for dec_id in sorted(decisions):
+        if dec_id not in docs:
+            report.issues.append(
+                LintIssue(
+                    "coverage_snapshot_to_docs",
+                    "error",
+                    dec_id,
+                    f"{dec_id} present dans le snapshot mais sans ADR "
+                    f"dans {DECISIONS_DIR_RELPATH}/",
+                )
+            )
+
+    for dec_id in sorted(decisions):
+        decision = decisions[dec_id]
+        for target in decision.supersedes:
+            other = decisions.get(target)
+            if other is None:
+                report.issues.append(
+                    LintIssue(
+                        "supersedes_dangling",
+                        "error",
+                        dec_id,
+                        f"supersedes={target!r} absent du snapshot",
+                    )
+                )
+            elif dec_id not in other.superseded_by:
+                report.issues.append(
+                    LintIssue(
+                        "supersedes_asymmetric",
+                        "error",
+                        dec_id,
+                        f"supersedes={target!r} mais {target}.superseded_by "
+                        f"ne contient pas {dec_id}",
+                    )
+                )
+        for target in decision.superseded_by:
+            other = decisions.get(target)
+            if other is None:
+                report.issues.append(
+                    LintIssue(
+                        "superseded_by_dangling",
+                        "error",
+                        dec_id,
+                        f"superseded_by={target!r} absent du snapshot",
+                    )
+                )
+            elif dec_id not in other.supersedes:
+                report.issues.append(
+                    LintIssue(
+                        "superseded_by_asymmetric",
+                        "error",
+                        dec_id,
+                        f"superseded_by={target!r} mais {target}.supersedes "
+                        f"ne contient pas {dec_id}",
+                    )
+                )
+
+    for dec_id in sorted(docs):
+        snapshot_decision = decisions.get(dec_id)
+        if snapshot_decision is None:
+            continue
+        path = doc_paths[dec_id]
+        frontmatter_title = docs[dec_id].get("title")
+        if (
+            not isinstance(frontmatter_title, str)
+            or frontmatter_title.strip() != snapshot_decision.title
+        ):
+            report.issues.append(
+                LintIssue(
+                    "title_mismatch",
+                    "error",
+                    dec_id,
+                    f"{path.name}: title={frontmatter_title!r} != "
+                    f"snapshot {snapshot_decision.title!r}",
+                )
+            )
+        frontmatter_status = docs[dec_id].get("status")
+        if (
+            not isinstance(frontmatter_status, str)
+            or frontmatter_status.strip() != snapshot_decision.status
+        ):
+            report.issues.append(
+                LintIssue(
+                    "status_mismatch",
+                    "error",
+                    dec_id,
+                    f"{path.name}: status={frontmatter_status!r} != "
+                    f"snapshot {snapshot_decision.status!r}",
+                )
+            )
+
+    return report
+
+
+# --- legacy mode: local Obsidian vault --------------------------------------
+
+
+def run_vault_lint(
     root: Path,
-    vault_dir: Path = DEFAULT_VAULT_DIR,
+    vault_dir: Path,
     graph_path: Path = DEFAULT_GRAPH_PATH,
 ) -> LintReport:
-    report = LintReport()
+    report = LintReport(mode=VAULT_MODE)
     decisions_dir = root / DECISIONS_DIR_RELPATH
     adrs = _load_adrs(decisions_dir)
     report.adr_count = len(adrs)
@@ -203,6 +552,19 @@ def run_lint(
     return report
 
 
+def run_lint(
+    root: Path,
+    vault_dir: Path | None = None,
+    graph_path: Path = DEFAULT_GRAPH_PATH,
+    snapshot_path: Path = Path(SNAPSHOT_RELPATH),
+) -> LintReport:
+    """Default: repo DEC-*.md vs the server snapshot. The local Obsidian vault
+    is only linted when its directory is given explicitly."""
+    if vault_dir is None:
+        return run_snapshot_lint(root, snapshot_path)
+    return run_vault_lint(root, vault_dir, graph_path)
+
+
 def check_db(dsn: str | None) -> str:
     """Best-effort: try a real, direct TCP connection only -- never assert a
     schema-level check that wasn't actually run. No dependency on the
@@ -224,8 +586,23 @@ def check_db(dsn: str | None) -> str:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--root", required=True, type=Path)
-    ap.add_argument("--vault-dir", type=Path, default=DEFAULT_VAULT_DIR)
+    ap.add_argument(
+        "--root", type=Path, default=Path("."), help="project root (default: the current dir)"
+    )
+    ap.add_argument(
+        "--snapshot",
+        type=Path,
+        default=Path(SNAPSHOT_RELPATH),
+        help=f"server DEC export (default: {SNAPSHOT_RELPATH}, resolved against --root)",
+    )
+    ap.add_argument(
+        "--vault",
+        "--vault-dir",
+        dest="vault_dir",
+        type=Path,
+        default=None,
+        help="legacy mode: linter le vault Obsidian local (jamais de chemin par defaut)",
+    )
     ap.add_argument("--graph-path", type=Path, default=DEFAULT_GRAPH_PATH)
     ap.add_argument(
         "--check-db", type=str, default=None, help="DSN to best-effort probe (optional)"
@@ -246,20 +623,25 @@ def main() -> int:
         print(f"dev-preflight record: {json.dumps(preflight_record(pre))}")
         preflight_exit = pre.exit_code
 
-    report = run_lint(args.root, args.vault_dir, args.graph_path)
+    if args.vault_dir is not None:
+        report = run_vault_lint(args.root, args.vault_dir, args.graph_path)
+    else:
+        report = run_snapshot_lint(args.root, args.snapshot)
     if args.check_db is not None:
         report.db_check = check_db(args.check_db)
 
-    print(f"ADRs: {report.adr_count}, vault notes: {report.vault_note_count}")
-    print(
-        f"entites resolues: {report.entities_resolved}/{report.entities_total} "
-        f"({report.resolution_rate:.1%})"
-        if report.entities_total
-        else "aucune entite"
-    )
-    print(f"db_check: {report.db_check}")
     for issue in report.issues:
         print(f"  [{issue.severity.upper()}] {issue.check} ({issue.dec_id}): {issue.message}")
+    print(report.summary())
+    if report.mode == VAULT_MODE:
+        if report.entities_total:
+            print(
+                f"entites resolues: {report.entities_resolved}/{report.entities_total} "
+                f"({report.resolution_rate:.1%})"
+            )
+        else:
+            print("aucune entite")
+        print(f"db_check: {report.db_check}")
     warnings = len(report.issues) - len(report.errors)
     print(f"{len(report.errors)} erreur(s), {warnings} avertissement(s)")
     return 1 if report.errors else preflight_exit

@@ -1,10 +1,12 @@
 {
   "name": "studio-desktop",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "description": "Studi'OS Desktop - Tauri 2 shell with the supervised Studio OS daemon.",
   "type": "module",
-  "engines": { "node": ">=22.18" },
+  "engines": {
+    "node": ">=22.18"
+  },
   "scripts": {
     "prereqs": "node scripts/check-prereqs.mjs",
     "config": "node scripts/make-config.mjs",

@@ -1,0 +1,181 @@
+/* Vault › Atlas : couleurs par type dérivées des tokens ds (thème clair). */
+.vault-atlas {
+  --atlas-type-decision: var(--ds-action);
+  --atlas-type-rule: var(--ds-danger);
+  --atlas-type-convention: var(--ds-ai);
+  --atlas-type-procedure: var(--ds-success);
+  --atlas-type-reference: #0f7c86;
+  --atlas-type-lesson: var(--ds-warning);
+  --atlas-type-note: var(--ds-text-faint);
+  --atlas-satellite: var(--ds-border-strong);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20rem;
+  gap: var(--ds-space-4);
+  align-items: start;
+}
+
+.vault-atlas-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--ds-space-3);
+  margin-bottom: var(--ds-space-4);
+}
+
+.vault-atlas-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+  margin: 0;
+  padding: var(--ds-space-1) var(--ds-space-2);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+}
+
+.vault-atlas-group legend {
+  padding: 0 var(--ds-space-1);
+  font-size: var(--ds-text-xs);
+  color: var(--ds-text-muted);
+}
+
+.vault-atlas-check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-1);
+  min-height: var(--ds-target-sm);
+  font-size: var(--ds-text-sm);
+}
+
+.vault-atlas-stage {
+  position: relative;
+  min-width: 0;
+}
+
+.vault-atlas-canvas {
+  display: block;
+  width: 100%;
+  height: min(70vh, 44rem);
+  min-height: 24rem;
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  cursor: grab;
+  touch-action: none;
+}
+
+.vault-atlas-canvas:active {
+  cursor: grabbing;
+}
+
+.vault-atlas-canvas:focus-visible {
+  outline: 2px solid var(--ds-action);
+  outline-offset: 2px;
+}
+
+.vault-atlas-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-3);
+  margin: var(--ds-space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--ds-text-xs);
+  color: var(--ds-text-muted);
+}
+
+.vault-atlas-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-1);
+}
+
+.vault-atlas-swatch {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: var(--atlas-type-note);
+}
+
+.vault-atlas-swatch[data-type="decision"] { background: var(--atlas-type-decision); }
+.vault-atlas-swatch[data-type="rule"] { background: var(--atlas-type-rule); }
+.vault-atlas-swatch[data-type="convention"] { background: var(--atlas-type-convention); }
+.vault-atlas-swatch[data-type="procedure"] { background: var(--atlas-type-procedure); }
+.vault-atlas-swatch[data-type="reference"] { background: var(--atlas-type-reference); }
+.vault-atlas-swatch[data-type="lesson"] { background: var(--atlas-type-lesson); }
+
+.vault-atlas-ring {
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 2px solid var(--ds-text-muted);
+  border-radius: 50%;
+}
+
+.vault-atlas-ring--dashed {
+  border-style: dashed;
+}
+
+.vault-atlas-status {
+  margin-top: var(--ds-space-1);
+}
+
+.vault-atlas-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-4);
+  max-height: min(78vh, 52rem);
+  overflow-y: auto;
+  padding: var(--ds-space-3);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+}
+
+.vault-atlas-detail-title {
+  margin: 0 0 var(--ds-space-2);
+  font-size: var(--ds-text-md);
+}
+
+.vault-atlas-subtitle {
+  margin: var(--ds-space-3) 0 var(--ds-space-2);
+  font-size: var(--ds-text-sm);
+  color: var(--ds-text-muted);
+}
+
+.vault-atlas-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vault-atlas-item {
+  min-height: var(--ds-target-sm);
+  padding: var(--ds-space-1) var(--ds-space-2);
+  font: inherit;
+  font-size: var(--ds-text-sm);
+  text-align: left;
+  color: var(--ds-text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--ds-radius-sm);
+  cursor: pointer;
+}
+
+.vault-atlas-item:hover,
+.vault-atlas-item.is-selected {
+  background: var(--ds-action-soft);
+  border-color: var(--ds-action);
+}
+
+.vault-atlas-item:focus-visible {
+  outline: 2px solid var(--ds-action);
+  outline-offset: 1px;
+}
+
+@media (max-width: 60rem) {
+  .vault-atlas {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

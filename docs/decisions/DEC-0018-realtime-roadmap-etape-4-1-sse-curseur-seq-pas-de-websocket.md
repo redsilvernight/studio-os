@@ -1,48 +1,11 @@
 ---
 id: DEC-0018
 title: 'Realtime (roadmap etape 4.1) : SSE + curseur `seq`, pas de WebSocket'
-status: active
-date: '2026-09-13'
-superseded_by: null
-source: docs/DECISIONS.md
-sync_hash: sha256:46e9d4810ac44e511e1a3bf0dbd8b97fe6e20879b6362bf815e5fdd2c6e35207
-graphify_entities:
-- kind: class
-  node_id: services_api_src_studio_api_services_event_stream_streamevent
-  path: services/api/src/studio_api/services/event_stream.py
-  project: studio-os
-  relation: implements
-  symbol: StreamEvent
-- kind: function
-  node_id: services_api_src_studio_api_services_event_stream_publish
-  path: services/api/src/studio_api/services/event_stream.py
-  project: studio-os
-  relation: implements
-  symbol: publish
-- kind: function
-  node_id: services_api_src_studio_api_services_event_stream_subscribe
-  path: services/api/src/studio_api/services/event_stream.py
-  project: studio-os
-  relation: implements
-  symbol: subscribe
-- kind: function
-  node_id: services_api_src_studio_api_routers_events_stream_events
-  path: services/api/src/studio_api/routers/events.py
-  project: studio-os
-  relation: implements
-  symbol: stream_events
-- kind: file
-  node_id: services_api_alembic_versions_0004_events_seq_identity
-  path: services/api/alembic/versions/0004_events_seq_identity.py
-  project: studio-os
-  relation: concerns
-  symbol: 0004_events_seq_identity.py
-- kind: class
-  node_id: services_api_src_studio_api_db_models_event_eventmodel
-  path: services/api/src/studio_api/db/models/event.py
-  project: studio-os
-  relation: concerns
-  symbol: EventModel
+status: accepted
+date: '2026-09-20'
+supersedes: []
+superseded_by: []
+source: server-export
 ---
 
 # DEC-0018 — Realtime (roadmap etape 4.1) : SSE + curseur `seq`, pas de WebSocket

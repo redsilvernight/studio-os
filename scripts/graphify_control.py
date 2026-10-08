@@ -113,7 +113,7 @@ def main() -> int:
     )
     if new_index != current_index:
         ok = False
-        print("  ERROR docs/DECISIONS.md est perime (relancer scripts.adr_index --apply)")
+        print("  ERROR docs/DECISIONS.md est perime (relancer scripts.dec_export render --apply)")
     else:
         print("  OK")
 
