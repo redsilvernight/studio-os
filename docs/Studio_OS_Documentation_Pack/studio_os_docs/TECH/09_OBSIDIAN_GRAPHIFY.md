@@ -73,37 +73,35 @@ Cette section decrit ce qui existe reellement dans ce depot (outillage sous
 
 ### Source de verite
 
-1. `docs/decisions/DEC-XXXX-slug.md` — un ADR par decision, versionne Git.
-   C'est la source canonique : titre, statut, dates, `supersedes`/
-   `superseded_by`, entites Graphify deja validees.
-2. `docs/DECISIONS.md` — index compact **genere**, ne jamais l'editer a la
-   main (regenere a partir des ADR, ecrase toute edition manuelle).
-3. Le vault AI-Memory (`projects/studio-os/decisions/`) est une projection
-   enrichie et idempotente des ADR : contexte humain, prose curatee,
-   annotations — jamais la source canonique.
-4. PostgreSQL (table `decisions`) reste un miroir operationnel, pas la
-   source canonique.
+1. Le serveur Studio OS (decisions `DEC-XXXX` et leurs notes vault de type
+   `decision`) est la source canonique : titre, statut, dates, corps,
+   liens `supersedes`. En cas de collision de numero, la note vault fait
+   foi (DEC-0192).
+2. `docs/DEC_EXPORT.json` — instantane deterministe du serveur
+   (`scripts/dec_export.py fetch`), versionne Git.
+3. `docs/decisions/DEC-XXXX-slug.md` et `docs/DECISIONS.md` — export
+   Markdown **genere** depuis l'instantane (`render --apply`) ; ne jamais
+   les editer a la main.
 
 ### Ajouter une decision
 
-Creer directement `docs/decisions/DEC-XXXX-slug.md` (copier un ADR existant
-comme modele : `id`, `title`, `status`, `source`, `sync_hash` au minimum).
-Puis :
+`studio_add_decision` (le serveur attribue le numero), puis :
 
 ```
-uv run python -m scripts.adr_index --root . --apply
-uv run python -m scripts.vault_sync --root . --apply
+uv run python -m scripts.dec_export fetch --project-id <projet>
+uv run python -m scripts.dec_export compare            # aucune DEC perdue ?
+uv run python -m scripts.dec_export render --apply
 ```
 
-Ne plus editer `docs/DECISIONS.md` a la main — c'est desormais un artefact
-genere (`scripts/adr_index.py`).
+`fetch` lit `STUDIO_API_URL` et le jeton machine (`STUDIO_TOKEN` ou le
+magasin de jetons).
 
 ### Regenerer l'index / controler l'integrite
 
 ```
-uv run python -m scripts.adr_index --root . --check      # index a jour ?
+uv run python -m scripts.dec_export render --check      # export a jour ?
 uv run python -m scripts.vault_sync --root . --check      # vault synchronise ?
-uv run python -m scripts.vault_lint --root .               # references valides ?
+uv run python -m scripts.vault_lint --root .               # export coherent ?
 uv run python -m scripts.graphify_control --root .         # sequence complete (1-7)
 ```
 

@@ -2,24 +2,11 @@
 id: DEC-0020
 title: 'Worker d''expiration des transferts (roadmap etape 4.3) : job CLI explicite,
   suppression directe'
-status: active
-date: '2026-09-13'
-superseded_by: null
-source: docs/DECISIONS.md
-sync_hash: sha256:98e5fdf3cad05b7cb61378db8d1e190b71ada370cd2703f27a0ed982d38fd34c
-graphify_entities:
-- kind: function
-  node_id: services_api_src_studio_api_services_transfers_expire_transfers
-  path: services/api/src/studio_api/services/transfers.py
-  project: studio-os
-  relation: implements
-  symbol: expire_transfers
-- kind: function
-  node_id: services_api_src_studio_api_admin_cli_expire_transfers
-  path: services/api/src/studio_api/admin_cli.py
-  project: studio-os
-  relation: implements
-  symbol: _expire_transfers
+status: accepted
+date: '2026-09-20'
+supersedes: []
+superseded_by: []
+source: server-export
 ---
 
 # DEC-0020 — Worker d'expiration des transferts (roadmap etape 4.3) : job CLI explicite, suppression directe

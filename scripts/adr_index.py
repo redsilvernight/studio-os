@@ -26,11 +26,11 @@ PREAMBLE_FILENAME = "_preamble.md"
 
 HEADER = """# Decisions log (index genere)
 
-Ce fichier est genere par `uv run python -m scripts.adr_index` depuis les
-ADR unitaires de `docs/decisions/`. Ne pas l'editer a la main -- une
-modification directe sera ecrasee au prochain regenerat. Pour ajouter une
-decision, creer un nouveau fichier `docs/decisions/DEC-XXXX-slug.md` (voir
-un ADR existant comme modele), puis relancer la commande ci-dessus.
+Ce fichier et `docs/decisions/` sont generes depuis les decisions du serveur
+Studio OS (instantane `docs/DEC_EXPORT.json`) par
+`uv run python -m scripts.dec_export render --apply`. Ne pas les editer a la
+main. Pour ajouter une decision : `studio_add_decision` (le serveur attribue
+le numero), puis `uv run python -m scripts.dec_export fetch` et `render --apply`.
 """
 
 
@@ -48,11 +48,15 @@ def load_adrs(decisions_dir: Path) -> list[dict[str, Any]]:
 
 
 def render_index(decisions_dir: Path) -> str:
-    entries = load_adrs(decisions_dir)
     preamble_path = decisions_dir / PREAMBLE_FILENAME
+    preamble = preamble_path.read_text(encoding="utf-8") if preamble_path.exists() else None
+    return render_index_entries(load_adrs(decisions_dir), preamble)
+
+
+def render_index_entries(entries: list[dict[str, Any]], preamble: str | None) -> str:
     parts = [HEADER]
-    if preamble_path.exists():
-        parts.append(preamble_path.read_text(encoding="utf-8").strip())
+    if preamble is not None:
+        parts.append(preamble.strip())
     parts.append(f"\n{len(entries)} decision(s). Detail complet dans chaque ADR lie.\n")
     table = ["| ID | Titre | Statut | ADR |", "|---|---|---|---|"]
     for e in entries:

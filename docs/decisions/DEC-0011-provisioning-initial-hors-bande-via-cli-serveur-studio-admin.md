@@ -1,25 +1,11 @@
 ---
 id: DEC-0011
 title: Provisioning initial hors-bande via CLI serveur `studio-admin`
-status: active
-date: '2026-09-13'
-superseded_by: null
-source: docs/DECISIONS.md
-sync_hash: sha256:04024d8f86a3fdb8e2573f93b33104926b490c0abcf40791295062043a199df3
-graphify_entities:
-- kind: module
-  node_id: services_api_src_studio_api_admin_cli
-  path: services/api/src/studio_api/admin_cli.py
-  project: studio-os
-  relation: concerns
-  symbol: admin_cli
-- kind: module
-  node_id: null
-  path: services/api/src/studio_api/services/provisioning.py
-  project: studio-os
-  relation: concerns
-  symbol: provisioning
-  unresolved: true
+status: accepted
+date: '2026-09-20'
+supersedes: []
+superseded_by: []
+source: server-export
 ---
 
 # DEC-0011 — Provisioning initial hors-bande via CLI serveur `studio-admin`

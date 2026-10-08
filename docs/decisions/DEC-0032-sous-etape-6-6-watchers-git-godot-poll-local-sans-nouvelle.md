@@ -2,36 +2,11 @@
 id: DEC-0032
 title: 'Sous-etape 6.6 (watchers Git/Godot) : poll local sans nouvelle dependance,
   PR hors perimetre'
-status: active
-date: '2026-09-14'
-superseded_by: null
-source: docs/DECISIONS.md
-sync_hash: sha256:690d5ca7422f2ac67a93c0a93f1aa3f428aaf8ccbce0e3c934d018c383ecb43d
-graphify_entities:
-- kind: class
-  node_id: packages_studio_client_src_studio_client_watchers_base_pollingwatcher
-  path: packages/studio-client/src/studio_client/watchers/base.py
-  project: studio-os
-  relation: implements
-  symbol: PollingWatcher
-- kind: class
-  node_id: packages_studio_client_src_studio_client_watchers_git_watcher_gitwatcher
-  path: packages/studio-client/src/studio_client/watchers/git_watcher.py
-  project: studio-os
-  relation: implements
-  symbol: GitWatcher
-- kind: class
-  node_id: packages_studio_client_src_studio_client_watchers_godot_watcher_godotwatcher
-  path: packages/studio-client/src/studio_client/watchers/godot_watcher.py
-  project: studio-os
-  relation: implements
-  symbol: GodotWatcher
-- kind: function
-  node_id: packages_studio_client_src_studio_client_daemon_heartbeat_build_watchers
-  path: packages/studio-client/src/studio_client/daemon/heartbeat.py
-  project: studio-os
-  relation: implements
-  symbol: build_watchers
+status: accepted
+date: '2026-09-20'
+supersedes: []
+superseded_by: []
+source: server-export
 ---
 
 # DEC-0032 — Sous-etape 6.6 (watchers Git/Godot) : poll local sans nouvelle dependance, PR hors perimetre

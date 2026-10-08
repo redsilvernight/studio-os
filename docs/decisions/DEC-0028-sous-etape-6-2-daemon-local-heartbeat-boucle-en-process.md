@@ -2,24 +2,11 @@
 id: DEC-0028
 title: 'Sous-etape 6.2 (daemon local, heartbeat) : boucle en process, sleep injectable,
   signaux best-effort'
-status: active
-date: '2026-09-13'
-superseded_by: null
-source: docs/DECISIONS.md
-sync_hash: sha256:5795399b2921f1f49c7b2c62285b8560bfcca34d616468593d7c83d1fe9a5aeb
-graphify_entities:
-- kind: class
-  node_id: packages_studio_client_src_studio_client_daemon_heartbeat_heartbeatdaemon
-  path: packages/studio-client/src/studio_client/daemon/heartbeat.py
-  project: studio-os
-  relation: implements
-  symbol: HeartbeatDaemon
-- kind: class
-  node_id: packages_studio_client_src_studio_client_config_clientconfig
-  path: packages/studio-client/src/studio_client/config.py
-  project: studio-os
-  relation: extends
-  symbol: ClientConfig
+status: accepted
+date: '2026-09-20'
+supersedes: []
+superseded_by: []
+source: server-export
 ---
 
 # DEC-0028 — Sous-etape 6.2 (daemon local, heartbeat) : boucle en process, sleep injectable, signaux best-effort

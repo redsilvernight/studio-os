@@ -2,24 +2,11 @@
 id: DEC-0027
 title: 'Idempotence MCP : `event_id` accepte du client, `idempotency_key` pour un
   sous-ensemble d''outils ecrivains'
-status: active
-date: '2026-09-13'
-superseded_by: null
-source: docs/DECISIONS.md
-sync_hash: sha256:acb6441436b2fe3888f91fb4a1095436503383cecde48cdfd5abc48bd154c7d4
-graphify_entities:
-- kind: function
-  node_id: services_api_src_studio_api_services_idempotency_run_idempotent_dict
-  path: services/api/src/studio_api/services/idempotency.py
-  project: studio-os
-  relation: concerns
-  symbol: run_idempotent_dict
-- kind: function
-  node_id: services_mcp_src_studio_mcp_tools_events_studio_emit_event
-  path: services/mcp/src/studio_mcp/tools/events.py
-  project: studio-os
-  relation: fixes
-  symbol: studio_emit_event
+status: accepted
+date: '2026-09-20'
+supersedes: []
+superseded_by: []
+source: server-export
 ---
 
 # DEC-0027 — Idempotence MCP : `event_id` accepte du client, `idempotency_key` pour un sous-ensemble d'outils ecrivains

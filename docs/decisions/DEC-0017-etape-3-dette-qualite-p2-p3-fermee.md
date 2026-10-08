@@ -1,30 +1,11 @@
 ---
 id: DEC-0017
 title: Etape 3 (dette qualite P2/P3) fermee
-status: active
-date: '2026-09-13'
-superseded_by: null
-source: docs/DECISIONS.md
-sync_hash: sha256:11ca995d10ce22ac2de4bdac685dce4e9409c82f987d3554936ade3b6822b327
-graphify_entities:
-- kind: function
-  node_id: services_api_alembic_versions_0001_initial_uuid_pk
-  path: services/api/alembic/versions/0001_initial.py
-  project: studio-os
-  relation: fixes
-  symbol: _uuid_pk
-- kind: function
-  node_id: services_api_alembic_versions_0001_initial_timestamp_columns
-  path: services/api/alembic/versions/0001_initial.py
-  project: studio-os
-  relation: fixes
-  symbol: _timestamp_columns
-- kind: function
-  node_id: services_api_src_studio_api_services_transfers_complete_upload
-  path: services/api/src/studio_api/services/transfers.py
-  project: studio-os
-  relation: fixes
-  symbol: complete_upload
+status: accepted
+date: '2026-09-20'
+supersedes: []
+superseded_by: []
+source: server-export
 ---
 
 # DEC-0017 — Etape 3 (dette qualite P2/P3) fermee
