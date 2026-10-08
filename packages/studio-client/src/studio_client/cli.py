@@ -1274,7 +1274,7 @@ def _hooks_library_command(args: argparse.Namespace, config: ClientConfig) -> No
         if args.hooks_command == "diff":
             print(diff_hook_plan(plan), end="")
             return
-        rows = [
+        rows: list[dict[str, Any]] = [
             {
                 "stable_key": entry.projection.stable_key,
                 "version": entry.projection.version,
