@@ -31,7 +31,7 @@
 - [x] Middleware transverse deploye (CORS prod configurable, rate limiting in-memory, security headers, request ID) : `tests/api/test_middleware.py` 8 passed.
 - [x] Observabilite de base (`/metrics` Prometheus, logs JSON optionnels) : `tests/api/test_middleware.py::test_metrics_endpoint`.
 - [x] TLS et rotation/revocation token verifies : documentes dans `HUMAN/04_DEPLOIEMENT_OVH.md` ; revocation via `./docker/revoke-machine.sh`, rotation JWT via `STUDIO_JWT_SECRET`.
-- [x] Dashboard, MCP et CLI coherents : dashboard DASH-0 -> DASH-5 (95 tests passed, 2026-09-15), MCP 29 outils VPS (27 + `studio_get_builds`/`studio_request_producer_job` 9.1b, DEC-0059) + 3 outils locaux read-only conditionnels UC-3/DEC-0047 (`TECH/07`), CLI tasks/projects/sessions/claims/ai-work/review-queue/timeline/mark/builds/producer.
+- [x] Dashboard, MCP et CLI coherents : dashboard DASH-0 -> DASH-5 (95 tests passed, 2026-09-15), MCP 29 outils VPS (27 + `studio_get_builds`/`studio_request_producer_job` 9.1b, DEC-0059) + 3 outils locaux read-only conditionnels UC-3/DEC-0047 (`TECH/07` ; historique, DEC-0047 superseded par DEC-0191 : vault serveur studio/projet, miroir local en lecture seule), CLI tasks/projects/sessions/claims/ai-work/review-queue/timeline/mark/builds/producer.
 - [x] Tests de charge legers : `tests/api/test_load_basic.py` 3 passed.
 
 ## Livraisons posterieures au 2026-09-20 (verifiees par merge dans `dev` et suite du 2026-10-05)
