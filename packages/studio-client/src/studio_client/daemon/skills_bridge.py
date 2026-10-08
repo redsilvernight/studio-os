@@ -169,7 +169,7 @@ def summarize(plan: SkillSyncPlan, *, checked_at: datetime | None = None) -> Ski
         missing=len(plan.missing),
         outdated=len(plan.outdated),
         locally_modified=len(plan.locally_modified),
-        in_sync=not plan.missing and drifted == 0,
+        in_sync=not plan.missing and not plan.retired and drifted == 0,
         checked_at=checked_at or datetime.now(UTC),
     )
 
@@ -308,7 +308,7 @@ def skills_status(
     # Fallback: compute current state without persisting
     try:
         plan = _fetch_and_plan(config, token_store, home if home is not None else Path.home())
-        if plan.missing or plan.outdated:
+        if plan.missing or plan.outdated or plan.retired:
             state = SkillSyncStatusState.UPDATED
         elif plan.locally_modified:
             state = SkillSyncStatusState.CONFLICTS
@@ -444,7 +444,7 @@ class _AutoSyncRunner:
                 _save_status(self.data_root, status)
                 return
 
-            if not added and not updated:
+            if not added and not updated and not plan.retired:
                 _LOGGER.info("Auto-sync: skills already up to date")
                 status = SkillsSyncStatus(
                     state=SkillSyncStatusState.UP_TO_DATE,
