@@ -159,6 +159,11 @@ async function renderRoute(
     case "vaultDetail":
       await (await load(() => import("./views/vault"))).renderVaultDetail(staging, { client, authed }, route.id);
       break;
+    case "vaultAtlas":
+      // Ancien onglet Graph : l'URL `#/graphs/*` est réécrite vers l'atlas.
+      if (location.hash.startsWith("#/graphs")) history.replaceState(null, "", "#/vault/atlas");
+      await (await load(() => import("./views/vaultAtlas"))).renderVaultAtlas(staging, { client, authed });
+      break;
     case "library":
       await (await load(() => import("./views/library"))).renderLibrary(staging, { client, authed }, route.kind);
       break;
@@ -185,9 +190,6 @@ async function renderRoute(
       break;
     case "onboarding":
       await (await load(() => import("./onboarding/view"))).renderOnboarding(staging, getPlatform());
-      break;
-    case "graphs":
-      (await load(() => import("./views/graphs"))).renderGraphs(staging, route.kind, { workspaceId: route.workspaceId });
       break;
     case "configProject":
       await (await load(() => import("./views/configuration"))).renderProjectConfig(staging, { client, authed }, route.tab);

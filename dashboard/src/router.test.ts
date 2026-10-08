@@ -62,6 +62,9 @@ describe("parseRoute", () => {
     expect(parseRoute("#/vault/n1")).toEqual({ name: "vaultDetail", id: "n1" });
     expect(parseRoute("#/vault/n%201")).toEqual({ name: "vaultDetail", id: "n 1" });
     expect(parseRoute("#/vault/n1/extra")).toEqual({ name: "notFound", hash: "#/vault/n1/extra" });
+    expect(parseRoute("#/vault/atlas")).toEqual({ name: "vaultAtlas" });
+    expect(parseRoute("#/graphs")).toEqual({ name: "vaultAtlas" });
+    expect(parseRoute("#/graphs/abc")).toEqual({ name: "vaultAtlas" });
   });
 
   it("parses the P12 Library routes", () => {

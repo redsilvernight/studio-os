@@ -83,13 +83,12 @@ export function shellNavGroups(route: Route, desktop = false, mode: NavMode = "s
     { href: "#/machines", label: "Postes", icon: "machines", active: is("machines") },
     { href: "#/accounts", label: "Comptes", icon: "person", active: is("accounts") },
     { href: "#/transfers", label: "Transferts", icon: "transfers", active: is("transfers") },
-    { href: "#/vault", label: "Vault", icon: "vault", active: is("vault", "vaultDetail") },
+    { href: "#/vault", label: "Vault", icon: "vault", active: is("vault", "vaultDetail", "vaultAtlas") },
     { href: "#/library", label: "Bibliothèque", icon: "book", active: is("library", "libraryDetail") },
     { href: "#/configuration/runtimes", label: "Configuration", icon: "settings", active: is(...CONFIG_ROUTES) },
     { href: "#/workspaces", label: "Espaces de travail", short: "Espaces", icon: "folder", active: is("workspaces") },
   ];
   const experts: ShellNavItem[] = [
-    { href: "#/graphs/knowledge", label: "Graphes", icon: "graph", active: is("graphs") },
     { href: "#/inspector", label: "Inspecteur", icon: "inspector", active: is("inspector") },
   ];
   const collapsible = mode === "simple";
