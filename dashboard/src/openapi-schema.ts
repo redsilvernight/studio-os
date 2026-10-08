@@ -807,7 +807,7 @@ export interface paths {
         put?: never;
         /**
          * Supersede Decision
-         * @description Supersede a Decision (`proposed` or `accepted` -> `superseded`, terminal — no transition is ever allowed out of it). Admin role only. This is a state transition, not a creation: no `Idempotency-Key` — retrying after success answers `409 invalid_decision_transition`, never a duplicate transition.
+         * @description Supersede a Decision (`proposed` or `accepted` -> `superseded`, terminal — no transition is ever allowed out of it). Admin role only. This is a state transition, not a creation: no `Idempotency-Key` — retrying after success answers `409 invalid_decision_transition`, never a duplicate transition. Optional body `superseded_by` names the replacing Decision (internal UUID): the two are linked by a `supersedes` edge, so the replacement and what it replaced stay traceable in both directions. Omit it (or omit the body) to supersede without naming a replacement — the transition then records nothing but the status change.
          */
         post: operations["supersede_decision_api_v1_decisions__decision_id__supersede_post"];
         delete?: never;
@@ -3334,6 +3334,18 @@ export interface components {
          * @enum {string}
          */
         DecisionStatus: "proposed" | "accepted" | "superseded";
+        /**
+         * DecisionSupersede
+         * @description Body of the supersede transition. Every field is optional: an absent or
+         *     empty body keeps the historical behavior (the Decision is simply
+         *     superseded, no replacement recorded). `superseded_by` names the replacing
+         *     Decision and is what the `supersedes` link is made of — a claim about
+         *     intent, never a validity gate on the transition.
+         */
+        DecisionSupersede: {
+            /** Superseded By */
+            superseded_by?: string | null;
+        };
         /**
          * DependencyChange
          * @description Add or remove `step_key -> depends_on_key`. Adding an existing edge or
@@ -11069,7 +11081,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["DecisionSupersede"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -11142,13 +11158,26 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Validation Error */
+            /** @description Supersede body rejected, nothing stored: `superseded_by` is optional, but when present it must be a UUID string — a malformed one is the framework's native 422 and no transition is attempted. */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    /**
+                     * @example {
+                     *       "detail": [
+                     *         {
+                     *           "loc": [
+                     *             "body",
+                     *             "superseded_by"
+                     *           ],
+                     *           "msg": "Input should be a valid UUID"
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": unknown;
                 };
             };
         };
