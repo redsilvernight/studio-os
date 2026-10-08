@@ -5,7 +5,7 @@
  * - Données : `GET /vault/tree` paginé et borné (`loadAtlasNotes`), liens
  *   typés et ancres `task:` / `path:` des résumés ; jamais de fixture.
  * - Rendu : moteur Canvas 2D maison (`createAtlasRenderer`), sans dépendance
- *   ni worker ; couleurs lues dans les tokens CSS (thème clair).
+ *   ni worker ; canevas sombre, couleurs lues dans les variables `--atlas-*`.
  * - Détail : panneau non modal à côté du canevas (voisins cliquables) ;
  *   « Ouvrir » mène à la note dans la vue Liste (`#/vault/{id}`).
  * - Accessibilité : la liste « Notes visibles » est l'alternative clavier
@@ -93,8 +93,9 @@ export function atlasLegendHtml(): string {
     (type) => `<li><span class="vault-atlas-swatch" data-type="${esc(type)}" aria-hidden="true"></span>${esc(VAULT_TYPE_LABEL[type])}</li>`,
   ).join("");
   return `<ul class="vault-atlas-legend" aria-label="Légende">${items}` +
-    `<li><span class="vault-atlas-ring" aria-hidden="true"></span>Validée</li>` +
-    `<li><span class="vault-atlas-ring vault-atlas-ring--dashed" aria-hidden="true"></span>Proposée</li></ul>`;
+    `<li class="vault-atlas-legend-sep"><span class="vault-atlas-ring vault-atlas-ring--solid" aria-hidden="true"></span>Validée</li>` +
+    `<li><span class="vault-atlas-ring vault-atlas-ring--dashed" aria-hidden="true"></span>Proposée</li>` +
+    `<li><span class="vault-atlas-ring" aria-hidden="true"></span>Brouillon</li></ul>`;
 }
 
 export function atlasStatusLine(view: AtlasView, graph: AtlasGraph): string {
@@ -116,7 +117,7 @@ export function atlasVisibleListHtml(view: AtlasView, selected: string | null): 
     : notes;
   if (ordered.length === 0) return `<p class="ds-list-sub">Aucune note visible avec ces filtres.</p>`;
   const items = ordered.slice(0, VISIBLE_LIST_MAX).map((node) =>
-    `<li><button type="button" class="vault-atlas-item${node.id === selected ? " is-selected" : ""}" data-atlas-pick="${esc(node.id)}"${node.id === selected ? ' aria-current="true"' : ""}>${esc(nodeTitle(node))}</button></li>`,
+    `<li><button type="button" class="vault-atlas-item${node.id === selected ? " is-selected" : ""}" data-atlas-pick="${esc(node.id)}"${node.id === selected ? ' aria-current="true"' : ""}><span class="vault-atlas-dot" data-type="${esc(node.kind === "note" ? node.noteType : "anchor")}" aria-hidden="true"></span>${esc(nodeTitle(node))}</button></li>`,
   ).join("");
   const more = ordered.length > VISIBLE_LIST_MAX
     ? `<p class="ds-list-sub">${ordered.length - VISIBLE_LIST_MAX} autre(s) : affinez la recherche.</p>`
@@ -162,7 +163,10 @@ export function atlasPageHtml(filters: AtlasFilters, projects: Project[], projec
   return header() + atlasToolbarHtml(filters, projects, projectId) +
     `<div class="vault-atlas">` +
     `<div class="vault-atlas-stage">` +
+    `<div class="vault-atlas-frame">` +
     `<canvas id="atlas-canvas" class="vault-atlas-canvas" tabindex="0" role="img" aria-label="Atlas des notes du vault ; utilisez la liste « Notes visibles » pour naviguer au clavier."></canvas>` +
+    `<p class="vault-atlas-hint" aria-hidden="true">Glisser : pivoter · Maj + glisser : déplacer · Molette : zoom · Double-clic : centrer</p>` +
+    `</div>` +
     atlasLegendHtml() +
     `<p class="ds-list-sub vault-atlas-status" id="atlas-status" role="status" aria-live="polite"></p>` +
     `</div>` +
@@ -173,21 +177,38 @@ export function atlasPageHtml(filters: AtlasFilters, projects: Project[], projec
     `</div>`;
 }
 
-/** Couleurs résolues depuis les variables CSS de `.vault-atlas` (thème clair). */
+/**
+ * Palette par défaut, identique à `vaultAtlas.css`. Indispensable : la feuille
+ * du chunk peut ne pas être appliquée au premier rendu, et une lecture CSS
+ * vide retomberait sinon sur un gris uniforme.
+ */
+const ATLAS_TYPE_COLOR: Record<VaultNoteType, string> = {
+  decision: "#5b9dff",
+  rule: "#ff6b7a",
+  convention: "#b58cff",
+  procedure: "#3ddc97",
+  reference: "#2fd4e6",
+  lesson: "#ffc23d",
+  note: "#a3b1c6",
+};
+
+/** Couleurs des variables CSS `--atlas-*` de `.vault-atlas`, sinon la palette par défaut. */
 export function readAtlasPalette(el: Element): AtlasPalette {
   const css = getComputedStyle(el);
   const read = (name: string, fallback: string): string => css.getPropertyValue(name).trim() || fallback;
   const noteType = {} as Record<VaultNoteType, string>;
-  for (const type of ATLAS_TYPE_ORDER) noteType[type] = read(NOTE_TYPE_TOKEN[type], "#4d6076");
+  for (const type of ATLAS_TYPE_ORDER) noteType[type] = read(NOTE_TYPE_TOKEN[type], ATLAS_TYPE_COLOR[type]);
   return {
-    background: read("--ds-surface", "#ffffff"),
-    text: read("--ds-text", "#1a2733"),
-    textMuted: read("--ds-text-muted", "#4d6076"),
-    edge: read("--ds-border-strong", "#c4d2e2"),
-    edgeStrong: read("--ds-text-muted", "#4d6076"),
-    accent: read("--ds-action", "#1d64d8"),
+    background: read("--atlas-bg", "#1b2540"),
+    backgroundEdge: read("--atlas-bg-edge", "#0b1020"),
+    text: read("--atlas-text", "#e8edf7"),
+    textMuted: read("--atlas-text-muted", "#9aa8c1"),
+    edge: read("--atlas-edge", "#56637d"),
+    edgeStrong: read("--atlas-edge-strong", "#cbd5e1"),
+    accent: read("--atlas-accent", "#ffffff"),
     noteType,
-    satellite: read("--atlas-satellite", "#c4d2e2"),
+    satellite: read("--atlas-satellite", "#7c8aa5"),
+    labelBackground: read("--atlas-label-bg", "rgba(11, 16, 32, 0.82)"),
   };
 }
 
@@ -208,6 +229,7 @@ export async function renderVaultAtlas(root: HTMLElement, ctx: VaultAtlasContext
   }
   root.innerHTML = header() + dsSkeleton(4);
   const projects = await fetchProjects(ctx.client).catch(() => [] as Project[]);
+  const projectNames = new Map(projects.map((p) => [p.id, p.name]));
   const filters = defaultFilters();
   let projectId: string | null = null;
   let graph: AtlasGraph;
@@ -241,7 +263,7 @@ export async function renderVaultAtlas(root: HTMLElement, ctx: VaultAtlasContext
   };
 
   const refilter = (): void => {
-    view = applyFilters(graph, filters);
+    view = applyFilters(graph, filters, projectNames);
     if (selected !== null && !view.nodes.some((n) => n.id === selected)) selected = null;
     renderer?.setView(view);
     renderer?.setSelected(selected);
