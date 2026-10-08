@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+from pathlib import Path
 from typing import Any, cast
 from uuid import UUID
 
@@ -26,6 +27,7 @@ from studio_api.services import github as github_service
 from studio_api.services import projects as projects_service
 from studio_api.services import provisioning as provisioning_service
 from studio_api.services import transfers as transfers_service
+from studio_api.services import vault_decision_import as decision_import
 from studio_api.settings import get_settings
 from studio_api.storage.provider import get_storage
 
@@ -351,6 +353,54 @@ async def _merge_machines(source_ref: str, target_ref: str, apply: bool) -> None
         print(f"source machine deleted: {source_id}")
 
 
+async def _import_decisions(
+    decisions_dir: Path,
+    project_ref: str,
+    author_email: str | None,
+    snapshot: Path | None,
+    report: Path | None,
+    apply: bool,
+) -> None:
+    """P08 (DEC-0192): ADR files + server decisions -> vault decision notes.
+    Dry run by default. `--server-snapshot` plans from the P00 JSON without any
+    database access (`--project` must then be a UUID; report only)."""
+    result = None
+    if snapshot is not None:
+        try:
+            project_id = UUID(project_ref)
+        except ValueError:
+            print("error: --project must be a UUID with --server-snapshot", file=sys.stderr)
+            raise SystemExit(2) from None
+        files, findings = decision_import.load_file_decisions(decisions_dir, project_id)
+        plan = decision_import.plan_import(files, decision_import.load_server_snapshot(snapshot))
+        plan.findings[:0] = findings
+    else:
+        async with get_session_factory()() as session:
+            project = await _resolve_project(session, project_ref)
+            files, findings = decision_import.load_file_decisions(decisions_dir, project.id)
+            server = await decision_import.load_server_decisions(session)
+            plan = decision_import.plan_import(files, server)
+            plan.findings[:0] = findings
+            if apply:
+                if author_email is None:
+                    print("error: --apply requires --author-email", file=sys.stderr)
+                    raise SystemExit(2)
+                author = await _resolve_user(session, author_email)
+                result = await decision_import.apply_plan(session, plan, author.id)
+    rendered = decision_import.render_report(plan, result)
+    if report is not None:
+        report.write_text(rendered, encoding="utf-8", newline="\n")
+        print(f"report written: {report}")
+    else:
+        print(rendered)
+    if result is not None:
+        print(
+            f"created={len(result.created)} unchanged={len(result.unchanged)} "
+            f"drifted={len(result.drifted)} conflicts={len(result.conflicts)} "
+            f"next=DEC-{result.next_number:04d}"
+        )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="studio-admin")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -445,6 +495,27 @@ def main() -> None:
         "--dry-run", action="store_true", help="Report only, write nothing (default)"
     )
 
+    vault_parser = sub.add_parser("vault", help="Manage the server vault")
+    vault_sub = vault_parser.add_subparsers(dest="vault_command", required=True)
+    import_parser = vault_sub.add_parser(
+        "import-decisions",
+        help="Import ADR files and server decisions as vault decision notes (P08)",
+    )
+    import_parser.add_argument(
+        "--decisions-dir", type=Path, required=True, help="Path to docs/decisions"
+    )
+    import_parser.add_argument(
+        "--project", required=True, help="Project (UUID or slug) owning the ADR files"
+    )
+    import_parser.add_argument("--author-email", help="User recorded as author_id (with --apply)")
+    import_parser.add_argument(
+        "--server-snapshot", type=Path, help="Plan from DEC_BASELINE_P00.json (dry run only)"
+    )
+    import_parser.add_argument("--report", type=Path, help="Write the markdown report here")
+    import_parser.add_argument(
+        "--apply", action="store_true", help="Write the notes (default is a dry run)"
+    )
+
     args = parser.parse_args()
 
     try:
@@ -488,6 +559,20 @@ def main() -> None:
             asyncio.run(_reconcile_builds())
         elif args.command == "merge-machines":
             asyncio.run(_merge_machines(args.source, args.target, args.apply))
+        elif args.command == "vault" and args.vault_command == "import-decisions":
+            if args.apply and args.server_snapshot is not None:
+                print("error: --server-snapshot is dry-run only", file=sys.stderr)
+                raise SystemExit(2)
+            asyncio.run(
+                _import_decisions(
+                    args.decisions_dir,
+                    args.project,
+                    args.author_email,
+                    args.server_snapshot,
+                    args.report,
+                    args.apply,
+                )
+            )
     except HTTPException as exc:
         print(f"error: {exc.detail}", file=sys.stderr)
         exit_code = 2 if exc.status_code == status.HTTP_409_CONFLICT else 1

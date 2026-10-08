@@ -19,6 +19,8 @@ D5 — recherche (P04, additif) : une note porte des ancres `task:<uuid>` / `pat
 
 D6 — contexte (P07, additif) : `prepare_context` gagne `notes` (résumés de notes vault, jamais le corps), absent sans note, tranche de 20 % de `max_chars`, statuts `validated`/`proposed` des portées projet et studio ; raisons `vault_anchor` / `vault_link`. Détail : `TECH/07_MCP_CONTRACT.md`.
 
+D7 — import des DEC historiques (P08, serveur DEC-0192, choix utilisateur) : `studio-admin vault import-decisions` (dry run par défaut, `--apply`) crée une note `decision` par ADR fichier avec son numéro d'origine, contenu du fichier prioritaire ; une DEC serveur qui porte le même numéro qu'une décision différente est importée sans numéro (`decisions/legacy-server/…`, tag `legacy-server-dec-NNNN`) ; une DEC serveur sans fichier garde son numéro. Rejouable sans doublon ni écrasement (les dérives sont rapportées) ; la séquence est avancée au-delà du max connu. Rapport : `docs/DEC_IMPORT_P08.md`.
+
 DEC-0047 (mémoire locale read-only) est à superseder après acceptation de D2.
 
 Baseline chiffrée : `docs/DEC_BASELINE_P00.md` et `docs/DEC_RELEVANCE_BASELINE_P00.md`.
