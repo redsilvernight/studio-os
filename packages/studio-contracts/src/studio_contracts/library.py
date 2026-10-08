@@ -9,6 +9,7 @@ from uuid import UUID
 from pydantic import Field, ValidationError
 
 from studio_contracts.common import ContractModel, IdempotentCreate, VersionedModel
+from studio_contracts.local.common import contains_secret_material
 
 
 class LibraryKind(StrEnum):
@@ -20,6 +21,7 @@ class LibraryKind(StrEnum):
     AGENT_DEFINITION = "agent_definition"
     MODEL_PROFILE = "model_profile"
     WORKFLOW = "workflow"
+    HOOK = "hook"
 
 
 class LibraryScope(StrEnum):
@@ -48,6 +50,7 @@ class BindingRelation(StrEnum):
     COMPOSES_AGENT = "composes_agent"
     REFERENCES_WORKFLOW = "references_workflow"
     REFINES_SKILL_RULE = "refines_skill_rule"
+    USES_HOOK = "uses_hook"
 
 
 class DependencyPin(ContractModel):
@@ -76,10 +79,12 @@ _BINDING_MATRIX: dict[tuple[LibraryKind, LibraryKind], BindingRelation] = {
     (LibraryKind.WORKFLOW, LibraryKind.RULE): BindingRelation.APPLIES_RULE,
     (LibraryKind.WORKFLOW, LibraryKind.SKILL): BindingRelation.USES_SKILL,
     (LibraryKind.WORKFLOW, LibraryKind.AGENT_DEFINITION): BindingRelation.COMPOSES_AGENT,
+    (LibraryKind.AGENT_DEFINITION, LibraryKind.HOOK): BindingRelation.USES_HOOK,
+    (LibraryKind.WORKFLOW, LibraryKind.HOOK): BindingRelation.USES_HOOK,
 }
 """Single source of truth for allowed Library Binding couples (P5/DEC-0067).
 
-`rule` and `model_profile` never source a binding; every listed couple maps
+`rule`, `model_profile` and `hook` never source a binding; every listed couple maps
 to exactly one relation, so an omitted pin relation is inferred without
 ambiguity and the `(from_version_id, to_resource_id)` uniqueness stays
 sufficient (no relaxation needed)."""
@@ -607,12 +612,126 @@ def workflow_validation_errors(
     return []
 
 
+HOOK_SCRIPT_MAX_LENGTH = 65_536
+"""Max characters for one hook script body (same budget as rule/skill text)."""
+
+
+class HookEvent(StrEnum):
+    """Closed, harness-neutral hook trigger vocabulary. Each local adapter
+    maps it to its harness event (Claude Code `PreToolUse`, OpenCode
+    `tool.execute.before`, ...); an event a harness cannot express is skipped
+    for that harness and reported, never approximated."""
+
+    SESSION_START = "session_start"
+    SESSION_END = "session_end"
+    USER_PROMPT = "user_prompt"
+    PRE_TOOL = "pre_tool"
+    POST_TOOL = "post_tool"
+    STOP = "stop"
+    SUBAGENT_STOP = "subagent_stop"
+    NOTIFICATION = "notification"
+    PRE_COMPACT = "pre_compact"
+
+
+class HookMode(StrEnum):
+    """`blocking`: a non-zero exit may veto the action (only meaningful on
+    `pre_tool` / `user_prompt` / `stop`); `advisory`: output is informative,
+    failures never block."""
+
+    BLOCKING = "blocking"
+    ADVISORY = "advisory"
+
+
+class HookOs(StrEnum):
+    ANY = "any"
+    WINDOWS = "windows"
+    LINUX = "linux"
+    MACOS = "macos"
+
+
+class HookShell(StrEnum):
+    PWSH = "pwsh"
+    BASH = "bash"
+    SH = "sh"
+    PYTHON = "python"
+    NODE = "node"
+
+
+class HookScript(ContractModel):
+    """One platform variant of a hook: the script body is stored inline
+    (never a path, never a URL) so its fingerprint covers what runs."""
+
+    os: HookOs = HookOs.ANY
+    shell: HookShell
+    body: str = Field(min_length=1, max_length=HOOK_SCRIPT_MAX_LENGTH)
+
+
+class HookContent(ContractModel):
+    """Semantic shape of a `hook` version (`studio.library.hook/v1`): a
+    script run locally by a harness on an abstract event. Never a secret
+    (rejected by `hook_validation_errors`), never a harness-specific event
+    name, never a provider or model reference. Executing it locally always
+    requires an explicit per-machine consent on the content fingerprint
+    (client side); the server only stores and distributes it."""
+
+    content_schema: Literal["studio.library.hook/v1"]
+    event: HookEvent
+    matcher: str | None = Field(default=None, min_length=1, max_length=200)
+    mode: HookMode = HookMode.ADVISORY
+    timeout_seconds: int = Field(default=30, ge=1, le=600)
+    scripts: list[HookScript] = Field(min_length=1, max_length=8)
+    description: str | None = Field(default=None, max_length=1000)
+
+
+class HookValidationReason(StrEnum):
+    """Closed vocabulary of static hook-definition failures (`422 invalid_hook`)."""
+
+    DUPLICATE_SCRIPT_TARGET = "duplicate_script_target"
+    MATCHER_NOT_SUPPORTED = "matcher_not_supported"
+    BLOCKING_NOT_SUPPORTED = "blocking_not_supported"
+    SECRET_MATERIAL = "secret_material"
+
+
+_HOOK_MATCHER_EVENTS = frozenset({HookEvent.PRE_TOOL, HookEvent.POST_TOOL})
+_HOOK_BLOCKING_EVENTS = frozenset({HookEvent.PRE_TOOL, HookEvent.USER_PROMPT, HookEvent.STOP})
+
+
+def hook_validation_errors(content: dict[str, object]) -> list[dict[str, str]]:
+    """Static hook validation on top of the schema: unique `(os, shell)`
+    variants, matcher only on tool events, blocking only where a harness can
+    veto, and no secret material in any script body. Returns `[]` when valid
+    (or when the schema itself fails — reported by `content_validation_errors`)."""
+
+    try:
+        hook = HookContent.model_validate(dict(content))
+    except ValidationError:
+        return []
+    seen: set[tuple[HookOs, HookShell]] = set()
+    for index, script in enumerate(hook.scripts):
+        target = (script.os, script.shell)
+        if target in seen:
+            return [_hook_error(HookValidationReason.DUPLICATE_SCRIPT_TARGET, f"scripts.{index}")]
+        seen.add(target)
+        if contains_secret_material(script.body):
+            return [_hook_error(HookValidationReason.SECRET_MATERIAL, f"scripts.{index}.body")]
+    if hook.matcher is not None and hook.event not in _HOOK_MATCHER_EVENTS:
+        return [_hook_error(HookValidationReason.MATCHER_NOT_SUPPORTED, "matcher")]
+    if hook.mode is HookMode.BLOCKING and hook.event not in _HOOK_BLOCKING_EVENTS:
+        return [_hook_error(HookValidationReason.BLOCKING_NOT_SUPPORTED, "mode")]
+    return []
+
+
+def _hook_error(reason: HookValidationReason, field: str) -> dict[str, str]:
+    return {"field": field, "reason": reason.value}
+
+
 _CONTENT_SCHEMAS: dict[LibraryKind, type[ContractModel]] = {
     LibraryKind.RULE: RuleContent,
     LibraryKind.SKILL: SkillContent,
     LibraryKind.MODEL_PROFILE: ModelProfileContent,
     LibraryKind.AGENT_DEFINITION: AgentDefinitionContent,
     LibraryKind.WORKFLOW: WorkflowContent,
+    LibraryKind.HOOK: HookContent,
 }
 """Per-kind semantic validators (P3/DEC-0066, P11/DEC-0075). `workflow` now
 has a schema (`studio.library.workflow/v1`); its cross-field structure
