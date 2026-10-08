@@ -11,6 +11,7 @@ import {
   ATLAS_MAX_DRAWN_EDGES,
   type AtlasCamera,
   type AtlasCluster,
+  type AtlasEdge,
   type AtlasNode,
   type AtlasRenderer,
   type AtlasRendererOptions,
@@ -21,7 +22,20 @@ import {
 
 const FLY_MS = 650;
 const CLICK_SLOP = 4;
-const MAX_LABELS = 40;
+const MAX_LABELS = 70;
+/** Rayon écran (px) à partir duquel une note reçoit son étiquette. */
+const LABEL_MIN_PX = 7;
+/** Plafond du rayon écran (px) : de près, les notes restent des pastilles. */
+const MAX_NODE_PX = 16;
+const LABEL_FONT = "500 12px Inter, system-ui, sans-serif";
+const GROUP_FONT = "650 12.5px Inter, system-ui, sans-serif";
+
+interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 
 interface Drawn {
   id: string;
@@ -39,7 +53,7 @@ function truncate(text: string, max = 42): string {
 
 export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRendererOptions): AtlasRenderer {
   const ctx = canvas.getContext("2d");
-  let view: AtlasView = { nodes: [], edges: [], clusters: [], matches: new Set() };
+  let view: AtlasView = { nodes: [], edges: [], clusters: [], matches: new Set(), groups: [] };
   let byId = new Map<string, AtlasNode | AtlasCluster>();
   let selected: string | null = null;
   let hovered: string | null = null;
@@ -81,7 +95,7 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
     const angle = Math.atan2(to.y - from.y, to.x - from.x);
     const tipX = to.x - Math.cos(angle) * r;
     const tipY = to.y - Math.sin(angle) * r;
-    const len = 7;
+    const len = 8;
     ctx.beginPath();
     ctx.moveTo(tipX, tipY);
     ctx.lineTo(tipX - len * Math.cos(angle - 0.4), tipY - len * Math.sin(angle - 0.4));
@@ -90,32 +104,79 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
     ctx.fill();
   };
 
+  /** Pastille arrondie sous une étiquette. */
+  const pill = (x: number, y: number, w: number, h: number): void => {
+    if (ctx === null) return;
+    const r = h / 2;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.arc(x + w - r, y + r, r, -Math.PI / 2, Math.PI / 2);
+    ctx.lineTo(x + r, y + h);
+    ctx.arc(x + r, y + r, r, Math.PI / 2, (3 * Math.PI) / 2);
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  const colorOf = (node: AtlasNode | undefined): string =>
+    node === undefined ? opts.palette.edge : node.kind === "satellite" ? opts.palette.satellite : opts.palette.noteType[node.noteType] ?? opts.palette.textMuted;
+
   const draw = (): void => {
     if (ctx === null) return;
     const pal = opts.palette;
-    ctx.fillStyle = pal.background;
+    ctx.globalAlpha = 1;
+    const glow = ctx.createRadialGradient(width / 2, height * 0.42, 0, width / 2, height * 0.42, Math.hypot(width, height) * 0.62);
+    glow.addColorStop(0, pal.background);
+    glow.addColorStop(1, pal.backgroundEdge);
+    ctx.fillStyle = glow;
     ctx.fillRect(0, 0, width, height);
+
+    const focusId = selected ?? hovered;
     const focus = focusSet();
+    // Une note isolée sélectionnée n'éteint pas le reste de la carte.
+    const dimming = focus !== null && focus.size > 1;
     const searching = view.matches.size > 0;
+    const nodeById = new Map<string, AtlasNode>(view.nodes.map((n) => [n.id, n]));
     const projected = new Map<string, ProjectedPoint>();
     for (const node of view.nodes) projected.set(node.id, project(camera, node.position, width, height));
+    // Brume de profondeur : ce qui est loin derrière la cible s'estompe.
+    const fog = (p: ProjectedPoint): number => Math.max(0.3, Math.min(1, 1.55 - (p.depth / camera.distance) * 0.55));
+    const isDim = (id: string): boolean => (dimming && focus !== null && !focus.has(id)) || (searching && !view.matches.has(id));
 
-    // Arêtes : plafonnées, celles du focus d'abord.
+    // Îlots : un disque teinté sous chaque groupe.
+    for (const group of view.groups) {
+      const p = project(camera, group.center, width, height);
+      if (p.scale <= 0) continue;
+      const r = (group.radius + 6) * p.scale;
+      if (p.x + r < 0 || p.x - r > width || p.y + r < 0 || p.y - r > height) continue;
+      const tint = pal.noteType[group.noteType] ?? pal.textMuted;
+      ctx.globalAlpha = (dimming || searching ? 0.04 : 0.08) * fog(p);
+      ctx.fillStyle = tint;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = (dimming || searching ? 0.1 : 0.22) * fog(p);
+      ctx.strokeStyle = tint;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    // Arêtes : plafonnées, celles du focus d'abord, teintées par la note source.
+    const isLit = (e: AtlasEdge): boolean => focusId !== null && (e.source === focusId || e.target === focusId);
     const edges = focus === null
       ? view.edges.slice(0, ATLAS_MAX_DRAWN_EDGES)
-      : [...view.edges.filter((e) => focus.has(e.source) && focus.has(e.target)), ...view.edges.filter((e) => !(focus.has(e.source) && focus.has(e.target)))].slice(0, ATLAS_MAX_DRAWN_EDGES);
+      : [...view.edges.filter(isLit), ...view.edges.filter((e) => !isLit(e))].slice(0, ATLAS_MAX_DRAWN_EDGES);
     ctx.lineCap = "round";
     for (const edge of edges) {
       const a = projected.get(edge.source);
       const b = projected.get(edge.target);
       if (a === undefined || b === undefined || a.scale <= 0 || b.scale <= 0 || (!a.visible && !b.visible)) continue;
-      const lit = focus !== null && (edge.source === (selected ?? hovered) || edge.target === (selected ?? hovered));
-      const dim = (focus !== null && !lit) || (searching && !view.matches.has(edge.source) && !view.matches.has(edge.target));
-      ctx.globalAlpha = dim ? 0.15 : lit ? 0.95 : 0.55;
-      const strong = edge.kind === "supersedes" || edge.kind === "derived_from";
-      ctx.strokeStyle = lit ? pal.accent : strong ? pal.edgeStrong : pal.edge;
-      ctx.lineWidth = lit ? 1.8 : strong ? 1.4 : 1;
-      ctx.setLineDash(edge.kind === "anchor" ? [3, 3] : edge.kind === "relates_to" ? [6, 3] : []);
+      const lit = isLit(edge);
+      const dim = (dimming && !lit) || (searching && !view.matches.has(edge.source) && !view.matches.has(edge.target));
+      ctx.globalAlpha = dim ? 0.05 : lit ? 0.95 : 0.28 * Math.min(fog(a), fog(b));
+      ctx.strokeStyle = lit ? pal.accent : edge.kind === "supersedes" ? pal.edgeStrong : colorOf(nodeById.get(edge.source));
+      ctx.lineWidth = lit ? 2 : edge.kind === "supersedes" || edge.kind === "derived_from" ? 1.5 : 1;
+      ctx.setLineDash(edge.kind === "anchor" ? [2, 4] : edge.kind === "relates_to" ? [6, 4] : []);
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
@@ -123,8 +184,7 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
       if (edge.kind === "supersedes") {
         ctx.setLineDash([]);
         ctx.fillStyle = ctx.strokeStyle;
-        const target = view.nodes.find((n) => n.id === edge.target);
-        arrow(a, b, (target?.radius ?? 2) * b.scale + 2);
+        arrow(a, b, (nodeById.get(edge.target)?.radius ?? 2) * b.scale + 3);
       }
     }
     ctx.setLineDash([]);
@@ -135,11 +195,17 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
       .filter((entry) => entry.p.visible && entry.p.scale > 0)
       .sort((a, b) => b.p.depth - a.p.depth);
     const next: Drawn[] = [];
+    const glowAllowed = order.length <= 800;
     for (const { node, p } of order) {
-      const r = Math.max(2, node.radius * p.scale);
-      const dim = (focus !== null && !focus.has(node.id)) || (searching && !view.matches.has(node.id));
+      const r = Math.min(MAX_NODE_PX, Math.max(2.5, node.radius * p.scale));
       const superseded = node.kind === "note" && node.status === "superseded";
-      ctx.globalAlpha = (dim ? 0.22 : 1) * (superseded ? 0.45 : 1);
+      const color = colorOf(node);
+      const focused = node.id === selected || node.id === hovered || (searching && view.matches.has(node.id));
+      ctx.globalAlpha = (isDim(node.id) ? 0.13 : fog(p)) * (superseded ? 0.45 : 1);
+      if (focused && glowAllowed) {
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 22;
+      }
       ctx.beginPath();
       if (node.kind === "satellite") {
         ctx.moveTo(p.x, p.y - r);
@@ -147,29 +213,44 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
         ctx.lineTo(p.x, p.y + r);
         ctx.lineTo(p.x - r, p.y);
         ctx.closePath();
-        ctx.fillStyle = pal.satellite;
+        ctx.fillStyle = color;
         ctx.fill();
+        ctx.shadowBlur = 0;
       } else {
         ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-        ctx.fillStyle = pal.noteType[node.noteType] ?? pal.textMuted;
+        // Brouillon = anneau creux ; proposée / validée = disque plein.
+        ctx.fillStyle = node.status === "draft" ? pal.backgroundEdge : color;
         ctx.fill();
-        // Anneau de statut : plein = validée, tirets = proposée, pointillé = brouillon.
-        if (node.status === "validated" || node.status === "proposed" || node.status === "draft") {
-          ctx.setLineDash(node.status === "proposed" ? [4, 3] : node.status === "draft" ? [1.5, 2.5] : []);
-          ctx.lineWidth = node.noteType === "decision" ? 2 : 1.4;
-          ctx.strokeStyle = pal.text;
+        ctx.shadowBlur = 0;
+        ctx.lineWidth = node.status === "draft" ? 2 : 1.5;
+        ctx.strokeStyle = node.status === "draft" ? color : pal.backgroundEdge;
+        ctx.stroke();
+        if (node.status !== "draft" && r >= 4) {
+          // Reflet : un peu de volume sans éclairage 3D.
+          const base = ctx.globalAlpha;
+          ctx.globalAlpha = base * 0.35;
+          ctx.fillStyle = "#ffffff";
           ctx.beginPath();
-          ctx.arc(p.x, p.y, r + 2, 0, Math.PI * 2);
+          ctx.arc(p.x - r * 0.32, p.y - r * 0.32, r * 0.38, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = base;
+        }
+        if (node.status === "proposed") {
+          ctx.setLineDash([3, 3]);
+          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, r + 3.5, 0, Math.PI * 2);
           ctx.stroke();
           ctx.setLineDash([]);
         }
       }
-      if (node.id === selected || node.id === hovered || view.matches.has(node.id)) {
+      if (focused) {
         ctx.globalAlpha = 1;
-        ctx.lineWidth = node.id === selected ? 3 : 2;
+        ctx.lineWidth = node.id === selected ? 2.5 : 2;
         ctx.strokeStyle = pal.accent;
         ctx.beginPath();
-        ctx.arc(p.x, p.y, r + 5, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, r + 6, 0, Math.PI * 2);
         ctx.stroke();
       }
       next.push({ id: node.id, p, r });
@@ -179,44 +260,81 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
     for (const cluster of view.clusters) {
       const p = project(camera, cluster.position, width, height);
       if (!p.visible || p.scale <= 0) continue;
-      const r = Math.max(8, cluster.radius * p.scale);
-      ctx.globalAlpha = 0.35;
-      ctx.fillStyle = opts.palette.noteType[cluster.noteType] ?? pal.textMuted;
+      const r = Math.max(10, cluster.radius * p.scale);
+      const color = pal.noteType[cluster.noteType] ?? pal.textMuted;
+      ctx.globalAlpha = 0.28;
+      ctx.fillStyle = color;
       ctx.beginPath();
       ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
-      ctx.lineWidth = cluster.id === hovered ? 2.5 : 1.2;
-      ctx.strokeStyle = cluster.id === hovered ? pal.accent : pal.text;
+      ctx.lineWidth = cluster.id === hovered ? 2.5 : 1.5;
+      ctx.strokeStyle = cluster.id === hovered ? pal.accent : color;
       ctx.stroke();
       ctx.fillStyle = pal.text;
-      ctx.font = "600 12px system-ui, sans-serif";
+      ctx.font = GROUP_FONT;
       ctx.textAlign = "center";
       ctx.fillText(cluster.label, p.x, p.y + 4);
       next.push({ id: cluster.id, p, r });
     }
 
-    // Étiquettes : focus, correspondances, puis décisions proches.
-    ctx.globalAlpha = 1;
+    // Étiquettes sans chevauchement : groupes, puis sélection, survol,
+    // correspondances, voisins, puis les plus grosses notes à l'écran
+    // (le zoom en révèle davantage).
+    const taken: Box[] = [];
+    const free = (box: Box): boolean =>
+      taken.every((t) => box.x + box.w < t.x || t.x + t.w < box.x || box.y + box.h < t.y || t.y + t.h < box.y);
+    ctx.textBaseline = "middle";
     ctx.textAlign = "left";
-    ctx.font = "12px system-ui, sans-serif";
-    let labels = 0;
-    const labelled = order
-      .filter(({ node }) =>
-        node.id === selected || node.id === hovered || focus?.has(node.id) || view.matches.has(node.id) ||
-        (node.kind === "note" && node.noteType === "decision" && node.radius * (projected.get(node.id)?.scale ?? 0) > 7))
-      .reverse();
-    for (const { node, p } of labelled) {
-      if (labels >= MAX_LABELS) break;
-      labels += 1;
-      const text = node.kind === "note" ? truncate(node.readableId ? `${node.readableId} ${node.title}` : node.title) : truncate(node.label, 32);
-      const x = p.x + Math.max(2, node.radius * p.scale) + 6;
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = pal.background;
-      ctx.strokeText(text, x, p.y + 4);
-      ctx.fillStyle = node.id === selected ? pal.accent : node.kind === "satellite" ? pal.textMuted : pal.text;
-      ctx.fillText(text, x, p.y + 4);
+
+    ctx.font = GROUP_FONT;
+    for (const group of view.groups) {
+      const p = project(camera, { ...group.center, y: group.center.y + group.radius + 4 }, width, height);
+      if (!p.visible || p.scale <= 0) continue;
+      const w = ctx.measureText(group.label).width + 28;
+      const box = { x: p.x - w / 2, y: p.y - 26, w, h: 22 };
+      if (!free(box)) continue;
+      taken.push(box);
+      ctx.globalAlpha = dimming || searching ? 0.55 : 0.95;
+      ctx.fillStyle = pal.labelBackground;
+      pill(box.x, box.y, box.w, box.h);
+      ctx.fillStyle = pal.noteType[group.noteType] ?? pal.text;
+      ctx.beginPath();
+      ctx.arc(box.x + 11, box.y + 11, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = pal.text;
+      ctx.fillText(group.label, box.x + 20, box.y + 11.5);
     }
+
+    ctx.font = LABEL_FONT;
+    const rank = (id: string): number =>
+      id === selected ? 0 : id === hovered ? 1 : view.matches.has(id) ? 2 : dimming && focus !== null && focus.has(id) ? 3 : 4;
+    const candidates = order
+      .filter(({ node, p }) => rank(node.id) < 4 || (!dimming && !searching && node.kind === "note" && node.radius * p.scale >= LABEL_MIN_PX))
+      .sort((a, b) => rank(a.node.id) - rank(b.node.id) || b.node.radius * b.p.scale - a.node.radius * a.p.scale);
+    let labels = 0;
+    for (const { node, p } of candidates) {
+      if (labels >= MAX_LABELS) break;
+      const text = node.kind === "note" ? truncate(node.readableId ? `${node.readableId} · ${node.title}` : node.title) : truncate(node.label, 32);
+      const r = Math.min(MAX_NODE_PX, Math.max(2.5, node.radius * p.scale));
+      const box = { x: p.x + r + 6, y: p.y - 10, w: ctx.measureText(text).width + 14, h: 20 };
+      const important = rank(node.id) <= 1;
+      if (!important && !free(box)) continue;
+      taken.push(box);
+      labels += 1;
+      ctx.globalAlpha = important ? 1 : 0.92 * fog(p);
+      ctx.fillStyle = pal.labelBackground;
+      pill(box.x, box.y, box.w, box.h);
+      if (node.id === selected) {
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = colorOf(node);
+        ctx.stroke();
+      }
+      ctx.fillStyle = node.kind === "satellite" ? pal.textMuted : pal.text;
+      ctx.fillText(text, box.x + 7, box.y + 10.5);
+    }
+    ctx.globalAlpha = 1;
+    ctx.textBaseline = "alphabetic";
     drawn = next;
   };
 
@@ -384,7 +502,7 @@ export function createAtlasRenderer(canvas: HTMLCanvasElement, opts: AtlasRender
       const target = positionOf(id);
       if (target === null) return;
       const item = byId.get(id);
-      const span = item !== undefined && "count" in item ? item.radius * 6 : 70;
+      const span = item !== undefined && "count" in item ? item.radius * 6 : 190;
       goTo({ ...camera, target: { ...target }, distance: Math.min(camera.distance, Math.max(span, 30)) });
     },
     resetCamera() {

@@ -9,6 +9,7 @@ import {
   type AtlasEdge,
   type AtlasFilters,
   type AtlasGraph,
+  type AtlasGroup,
   type AtlasNode,
   type AtlasNoteNode,
   type AtlasSatelliteNode,
@@ -121,26 +122,36 @@ function hash01(value: string, salt = 0): number {
   return (h >>> 0) / 0x100000000;
 }
 
-/** Point `i` sur `n` d'une sphère de Fibonacci de rayon `r`. */
-function fibonacci(i: number, n: number, r: number): Vec3 {
-  if (n <= 1) return ORIGIN();
-  const y = 1 - (2 * (i + 0.5)) / n;
-  const ring = Math.sqrt(1 - y * y);
-  const theta = i * Math.PI * (3 - Math.sqrt(5));
-  return { x: Math.cos(theta) * ring * r, y: y * r, z: Math.sin(theta) * ring * r };
-}
-
 export function clusterKey(node: AtlasNoteNode): string {
   return node.scope === "project" ? `cluster:project:${node.projectId ?? "?"}:${node.noteType}` : `cluster:studio:${node.noteType}`;
 }
 
+/** Écart monde entre deux notes voisines d'un même disque. */
+const NODE_SPACING = 13;
+/** Marge monde entre deux disques de groupe. */
+const GROUP_GAP = 42;
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+
+/** Rayon monde du disque d'un groupe de `count` notes. */
+export function discRadius(count: number): number {
+  return NODE_SPACING * 0.62 * Math.sqrt(count) + 8;
+}
+
 /**
- * Disposition : un amas par (portée/projet, type) réparti sur une sphère,
- * notes en spirale autour du centre de leur amas, puis quelques passes de
- * ressorts le long des liens. Les satellites se placent près de leurs notes.
+ * Disposition « archipel » lisible : un disque plat par (portée/projet,
+ * type), notes en tournesol (les plus liées au centre), disques empaquetés
+ * sans chevauchement dans le plan XY avec un léger relief en Z. Les
+ * satellites se placent en couronne près de leurs notes.
  * Mute `position` et `radius` en place.
  */
 export function layoutAtlas(graph: AtlasGraph): void {
+  const degree = (id: string): number => graph.neighbors.get(id)?.size ?? 0;
+  for (const node of graph.nodes) {
+    node.radius = node.kind === "note"
+      ? (2.4 + Math.sqrt(degree(node.id)) * 0.8) * (node.noteType === "decision" ? 1.35 : 1)
+      : 1.6;
+  }
+
   const notes = graph.nodes.filter((n): n is AtlasNoteNode => n.kind === "note");
   const groups = new Map<string, AtlasNoteNode[]>();
   for (const node of notes) {
@@ -149,65 +160,76 @@ export function layoutAtlas(graph: AtlasGraph): void {
     if (list === undefined) groups.set(key, [node]);
     else list.push(node);
   }
-  const keys = [...groups.keys()].sort((a, b) => {
-    const ta = ATLAS_TYPE_ORDER.indexOf(groups.get(a)![0]!.noteType);
-    const tb = ATLAS_TYPE_ORDER.indexOf(groups.get(b)![0]!.noteType);
-    return a.split(":").slice(0, -1).join(":").localeCompare(b.split(":").slice(0, -1).join(":")) || ta - tb;
-  });
-  const shell = 40 + 28 * Math.cbrt(notes.length);
-  keys.forEach((key, index) => {
-    const members = groups.get(key)!.sort((a, b) => a.id.localeCompare(b.id));
-    const center = fibonacci(index, keys.length, shell);
-    const spread = 6 + 7 * Math.cbrt(members.length);
+  const discs = [...groups.entries()]
+    .map(([key, members]) => ({ key, members, radius: discRadius(members.length) }))
+    .sort((a, b) => b.radius - a.radius || a.key.localeCompare(b.key));
+
+  // Empaquetage glouton : le plus gros au centre, les autres sur des
+  // anneaux croissants, première place libre trouvée.
+  const placed: { x: number; y: number; r: number }[] = [];
+  const centers = new Map<string, Vec3 & { r: number }>();
+  for (const disc of discs) {
+    let spot = { x: 0, y: 0 };
+    if (placed.length > 0) {
+      const free = (x: number, y: number): boolean =>
+        placed.every((p) => Math.hypot(p.x - x, p.y - y) >= p.r + disc.radius + GROUP_GAP);
+      search: for (let ring = 1; ring < 4000; ring += 1) {
+        const dist = ring * 10;
+        const steps = Math.max(12, Math.ceil((2 * Math.PI * dist) / 10));
+        for (let s = 0; s < steps; s += 1) {
+          const angle = (s / steps) * Math.PI * 2 + hash01(disc.key, 7) * Math.PI * 2;
+          const x = Math.cos(angle) * dist;
+          const y = Math.sin(angle) * dist * 0.8;
+          if (free(x, y)) {
+            spot = { x, y };
+            break search;
+          }
+        }
+      }
+    }
+    placed.push({ ...spot, r: disc.radius });
+    const center = { x: spot.x, y: spot.y, z: (hash01(disc.key, 6) - 0.5) * 40 };
+    centers.set(disc.key, { ...center, r: disc.radius });
+    const members = [...disc.members].sort((a, b) => degree(b.id) - degree(a.id) || a.id.localeCompare(b.id));
+    const step = NODE_SPACING * 0.62;
     members.forEach((node, i) => {
-      const local = fibonacci(i, members.length, spread * Math.cbrt((i + 1) / members.length));
+      const r = members.length === 1 ? 0 : step * Math.sqrt(i + 0.5);
+      const angle = i * GOLDEN_ANGLE;
       node.position = {
-        x: center.x + local.x + (hash01(node.id, 1) - 0.5) * 4,
-        y: center.y + local.y + (hash01(node.id, 2) - 0.5) * 4,
-        z: center.z + local.z + (hash01(node.id, 3) - 0.5) * 4,
+        x: center.x + Math.cos(angle) * r,
+        y: center.y + Math.sin(angle) * r,
+        z: center.z + (hash01(node.id, 3) - 0.5) * 8,
       };
     });
-  });
-
-  // Ressorts : rapproche les notes liées sans écraser les amas (O(E) par passe).
-  const noteEdges = graph.edges.filter((e) => e.kind !== "anchor");
-  for (let pass = 0; pass < 12; pass += 1) {
-    for (const edge of noteEdges) {
-      const a = graph.byId.get(edge.source);
-      const b = graph.byId.get(edge.target);
-      if (a === undefined || b === undefined) continue;
-      const dx = b.position.x - a.position.x;
-      const dy = b.position.y - a.position.y;
-      const dz = b.position.z - a.position.z;
-      const dist = Math.hypot(dx, dy, dz) || 1;
-      const pull = Math.max(0, dist - 18) * 0.03 / dist;
-      a.position = { x: a.position.x + dx * pull, y: a.position.y + dy * pull, z: a.position.z + dz * pull };
-      b.position = { x: b.position.x - dx * pull, y: b.position.y - dy * pull, z: b.position.z - dz * pull };
-    }
   }
 
   for (const node of graph.nodes) {
-    const degree = graph.neighbors.get(node.id)?.size ?? 0;
-    if (node.kind === "note") {
-      node.radius = (2.4 + Math.sqrt(degree) * 0.8) * (node.noteType === "decision" ? 1.35 : 1);
-      continue;
-    }
-    node.radius = 1.6;
-    const linked = [...(graph.neighbors.get(node.id) ?? [])].map((id) => graph.byId.get(id)).filter((n) => n !== undefined);
+    if (node.kind !== "satellite") continue;
+    const linked = [...(graph.neighbors.get(node.id) ?? [])]
+      .map((id) => graph.byId.get(id))
+      .filter((n): n is AtlasNoteNode => n !== undefined && n.kind === "note")
+      .sort((a, b) => a.id.localeCompare(b.id));
     if (linked.length === 0) continue;
     const c = linked.reduce((acc, n) => ({ x: acc.x + n.position.x, y: acc.y + n.position.y, z: acc.z + n.position.z }), ORIGIN());
-    const len = Math.hypot(c.x, c.y, c.z) || 1;
-    const out = 10 + hash01(node.id, 4) * 6;
-    node.position = {
-      x: c.x / linked.length + (c.x / len) * out,
-      y: c.y / linked.length + (c.y / len) * out + (hash01(node.id, 5) - 0.5) * 6,
-      z: c.z / linked.length + (c.z / len) * out,
-    };
+    const mean = { x: c.x / linked.length, y: c.y / linked.length, z: c.z / linked.length };
+    const home = centers.get(clusterKey(linked[0]!)) ?? { ...ORIGIN(), r: 0 };
+    let dx = mean.x - home.x;
+    let dy = mean.y - home.y;
+    let len = Math.hypot(dx, dy);
+    if (len < 1) {
+      const a = hash01(node.id, 4) * Math.PI * 2;
+      dx = Math.cos(a);
+      dy = Math.sin(a);
+      len = 1;
+    }
+    // Couronne juste à l'extérieur du disque, dans la direction des notes liées.
+    const out = home.r + 10 + hash01(node.id, 5) * 14;
+    node.position = { x: home.x + (dx / len) * out, y: home.y + (dy / len) * out, z: mean.z + 4 };
   }
 }
 
 export function defaultFilters(): AtlasFilters {
-  return { noteTypes: [], statuses: [], scopes: [], showSuperseded: false, showSatellites: true, query: "" };
+  return { noteTypes: [], statuses: [], scopes: [], showSuperseded: false, showSatellites: false, query: "" };
 }
 
 function noteVisible(node: AtlasNoteNode, filters: AtlasFilters): boolean {
@@ -217,8 +239,27 @@ function noteVisible(node: AtlasNoteNode, filters: AtlasFilters): boolean {
   return filters.statuses.length === 0 || filters.statuses.includes(node.status);
 }
 
+/** Groupes (portée/projet × type) des notes visibles, pour les étiquettes flottantes. */
+export function atlasGroups(notes: AtlasNoteNode[], projectNames?: ReadonlyMap<string, string>): AtlasGroup[] {
+  const groups = new Map<string, AtlasNoteNode[]>();
+  for (const node of notes) {
+    const key = clusterKey(node);
+    const list = groups.get(key);
+    if (list === undefined) groups.set(key, [node]);
+    else list.push(node);
+  }
+  return [...groups.entries()].map(([id, members]) => {
+    const first = members[0]!;
+    const sum = members.reduce((acc, n) => ({ x: acc.x + n.position.x, y: acc.y + n.position.y, z: acc.z + n.position.z }), ORIGIN());
+    const center = { x: sum.x / members.length, y: sum.y / members.length, z: sum.z / members.length };
+    const radius = members.reduce((max, n) => Math.max(max, Math.hypot(n.position.x - center.x, n.position.y - center.y) + n.radius), 4);
+    const owner = first.scope === "studio" ? "Studio" : projectNames?.get(first.projectId ?? "") ?? "Projet";
+    return { id, noteType: first.noteType, label: `${owner} · ${TYPE_SHORT[first.noteType]} (${members.length})`, count: members.length, center, radius };
+  });
+}
+
 /** Pur : ce que le moteur doit dessiner pour ces filtres. */
-export function applyFilters(graph: AtlasGraph, filters: AtlasFilters): AtlasView {
+export function applyFilters(graph: AtlasGraph, filters: AtlasFilters, projectNames?: ReadonlyMap<string, string>): AtlasView {
   const tokens = normalizeText(filters.query).split(" ").filter((t) => t !== "");
   const visibleNotes = graph.nodes.filter((n): n is AtlasNoteNode => n.kind === "note" && noteVisible(n, filters));
   const matches = new Set<string>();
@@ -250,7 +291,7 @@ export function applyFilters(graph: AtlasGraph, filters: AtlasFilters): AtlasVie
     });
     // Repli : seules les correspondances restent dessinées individuellement.
     const nodes = visibleNotes.filter((n) => matches.has(n.id));
-    return { nodes, edges: [], clusters, matches };
+    return { nodes, edges: [], clusters, matches, groups: [] };
   }
 
   const visible = new Set<string>(visibleNotes.map((n) => n.id));
@@ -265,5 +306,5 @@ export function applyFilters(graph: AtlasGraph, filters: AtlasFilters): AtlasVie
     }
   }
   const edges = graph.edges.filter((e) => visible.has(e.source) && visible.has(e.target));
-  return { nodes, edges, clusters: [], matches };
+  return { nodes, edges, clusters: [], matches, groups: atlasGroups(visibleNotes, projectNames) };
 }

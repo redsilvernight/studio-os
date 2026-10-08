@@ -81,6 +81,32 @@ describe("atlas model", () => {
     expect(dec.radius).toBeGreaterThan(plain.radius);
   });
 
+  it("spaces notes and keeps group discs apart, with labelled groups", () => {
+    const many = Array.from({ length: 240 }, (_, i) =>
+      note(`n${i}`, { note_type: i % 3 === 0 ? "rule" : "decision", scope: i % 5 === 0 ? "project" : "studio", project_id: i % 5 === 0 ? "p1" : null }));
+    const graph = buildAtlasGraph(many, false);
+    layoutAtlas(graph);
+    const notes = graph.nodes.filter((n) => n.kind === "note");
+    let closest = Infinity;
+    for (let i = 0; i < notes.length; i += 1) {
+      for (let j = i + 1; j < notes.length; j += 1) {
+        const a = notes[i]!.position;
+        const b = notes[j]!.position;
+        closest = Math.min(closest, Math.hypot(a.x - b.x, a.y - b.y));
+      }
+    }
+    expect(closest).toBeGreaterThan(7);
+    const view = applyFilters(graph, defaultFilters(), new Map([["p1", "Kartouche"]]));
+    expect(view.groups).toHaveLength(4);
+    for (const g of view.groups) {
+      for (const h of view.groups) {
+        if (g.id >= h.id) continue;
+        expect(Math.hypot(g.center.x - h.center.x, g.center.y - h.center.y)).toBeGreaterThan(g.radius + h.radius);
+      }
+    }
+    expect(view.groups.map((g) => g.label)).toContain("Kartouche · Règles (16)");
+  });
+
   it("hides superseded by default and filters by type, scope and status", () => {
     const graph = buildAtlasGraph(NOTES, false);
     layoutAtlas(graph);
@@ -95,10 +121,10 @@ describe("atlas model", () => {
 
   it("keeps edges and satellites only between visible nodes", () => {
     const graph = buildAtlasGraph(NOTES, false);
-    const view = applyFilters(graph, defaultFilters());
+    const view = applyFilters(graph, { ...defaultFilters(), showSatellites: true });
     expect(view.edges.some((e) => e.kind === "supersedes")).toBe(false);
     expect(view.nodes.some((n) => n.id === "anchor:task:t-1")).toBe(true);
-    const bare = applyFilters(graph, { ...defaultFilters(), showSatellites: false });
+    const bare = applyFilters(graph, defaultFilters());
     expect(bare.nodes.some((n) => n.kind === "satellite")).toBe(false);
     expect(bare.edges.some((e) => e.kind === "anchor")).toBe(false);
   });

@@ -111,11 +111,26 @@ export interface AtlasView {
   clusters: AtlasCluster[];
   /** ids correspondant à la recherche (vide si pas de requête). */
   matches: Set<string>;
+  /** Étiquettes de groupe (portée × type) des notes visibles, mode déplié. */
+  groups: AtlasGroup[];
 }
 
-/** Couleurs résolues depuis les tokens CSS (thème clair), injectées au moteur. */
+/** Groupe (portée/projet × type) : étiquette flottante au-dessus de son disque. */
+export interface AtlasGroup {
+  id: string;
+  noteType: VaultNoteType;
+  label: string;
+  count: number;
+  center: Vec3;
+  /** Rayon monde du disque (pour placer l'étiquette au-dessus). */
+  radius: number;
+}
+
+/** Couleurs résolues depuis les variables CSS de `.vault-atlas`, injectées au moteur. */
 export interface AtlasPalette {
   background: string;
+  /** Second arrêt du dégradé radial du fond. */
+  backgroundEdge: string;
   text: string;
   textMuted: string;
   edge: string;
@@ -123,6 +138,8 @@ export interface AtlasPalette {
   accent: string;
   noteType: Record<VaultNoteType, string>;
   satellite: string;
+  /** Fond des pastilles d'étiquette. */
+  labelBackground: string;
 }
 
 export interface AtlasCamera {
