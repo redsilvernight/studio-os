@@ -26,12 +26,14 @@ async def studio_prepare_context(
 ) -> PreparedContext | McpError:
     """Prepare a compact, bounded project context for the stated objective:
     the task, related tasks, decisions, rules, skills, recent AI work and
-    claims that matter, and — when the project has an active roadmap — its
-    current step, blockers, linked tasks and acceptance criteria (never the
-    whole roadmap). When `task_id` is supplied, `objective` may be omitted and
-    is derived from that task. Pass `known_ids` as `{id: content_hash}` to
-    receive hash-matching items as `unchanged=true` references without their
-    long text. Pass `agent_stable_key`
+    claims that matter, the validated/proposed vault notes anchored to the
+    task or to `files`, one link away or matching the objective (summary and
+    search snippet, never the body), and — when the project has an active
+    roadmap — its current step, blockers, linked tasks and acceptance criteria
+    (never the whole roadmap). When `task_id` is supplied, `objective` may be
+    omitted and is derived from that task. Pass `known_ids` as
+    `{id: content_hash}` to receive hash-matching items as `unchanged=true`
+    references without their long text. Pass `agent_stable_key`
     so the agent's resolved rules/skills sort first (flagged `agent_applies`,
     still budgeted)."""
 

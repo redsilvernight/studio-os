@@ -108,7 +108,8 @@ def create_server() -> MCPServer:
         description=(
             "Recommended first call to prime an agent on a project: returns, in ONE bounded "
             "read-only response, the project, the requested task (optional task_id), related "
-            "active tasks, decisions, rules, skills and the active claims that matter for the "
+            "active tasks, decisions, vault notes (summaries), rules, skills and the active "
+            "claims that matter for the "
             "stated objective. Required: project_id (UUID string) and objective (free text, "
             "1..1000 characters). Optional: task_id (UUID string, must belong to the project, "
             "otherwise not_found), files (up to 20 paths; claims held by other machines that "

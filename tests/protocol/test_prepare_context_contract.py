@@ -65,6 +65,9 @@ def test_why_reasons_unchanged():
         "project_scope",
         "lexical",
         "active_roadmap",
+        # P07 (DEC-0187 D6), additive: vault notes.
+        "vault_anchor",
+        "vault_link",
     }
 
 

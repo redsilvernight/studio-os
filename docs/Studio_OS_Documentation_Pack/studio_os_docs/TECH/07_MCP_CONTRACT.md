@@ -505,7 +505,8 @@ Sortie `PreparedContext | McpError` (enveloppée sous `result`) :
 DEC-0088, section ci-dessous) — `roadmap`, `roadmap_overview`, `unavailable`
 (`limits.roadmap_scan_capped` n'apparaît que si vrai). Chaque élément porte
 `why` (`requested`, `linked_to_task`, `task_claim`, `path_conflict`,
-`project_scope`, `lexical` ou `active_roadmap` + `matched_terms`).
+`project_scope`, `lexical`, `active_roadmap`, `vault_anchor` ou `vault_link`
++ `matched_terms`).
 
 Garanties : au plus `limit` éléments par catégorie ; texte libre coupé à
 1500 caractères par élément puis au budget `max_chars` (`truncated`,
@@ -532,6 +533,18 @@ lexical du résumé (`lexical`). Chaque entrée : `id`, `status`, `summary`
 (`ai_work`), coupures dans `omitted_for_budget`. `studio_get_ai_work` reste
 disponible pour approfondir. Le résumé structuré P1 (DONE/STATE/CHANGED/TESTS/
 NEXT/BLOCKERS) suffit : aucun champ NEXT/BLOCKERS dédié, aucune nouvelle table.
+
+Section Vault (P07, DEC-0187 D6) — `notes`, additif, **absent** (jamais `[]`)
+sans note retenue ; clés `notes` de `returned` / `additional_available` /
+`omitted_for_budget` présentes seulement si le vault expose au moins une note
+lisible. Source : recherche vault (`GET /vault/search`, D5) sur les portées
+projet et studio, statuts `validated` et `proposed` (jamais `draft`,
+`superseded`, `archived`), bornée à `limit`. Ordre : ancres `task:`/`path:`
+(`vault_anchor`), voisins à un lien (`vault_link`), plein texte (`lexical`).
+Chaque note : `id`, `scope`, `readable_id`, `slug`, `note_type`, `title`,
+`status`, `summary` (≤ 600), `snippet`, `content_hash`, `truncated`, `why` ;
+jamais le corps. `known_ids` avec le même `content_hash` → `unchanged`, sans
+texte. Tranche dédiée de 20 % de `max_chars`, imputée à `limits.chars_used`.
 
 Non couvert : sessions, événements, builds, transferts, mémoire/graphe/Git
 locaux. Ce n'est pas le Context Package (DEC-0057, composé localement par le

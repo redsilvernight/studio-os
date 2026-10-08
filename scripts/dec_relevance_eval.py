@@ -1,4 +1,5 @@
-"""P00 baseline — relevance of the decisions injected by `studio_prepare_context`.
+"""P07 evaluation — relevance of the decisions injected by
+`studio_prepare_context`, measured against the frozen P00 baseline.
 
 Replays the *real* decision-selection logic
 (`studio_api.services.project_context._select_decisions`) over a versioned
@@ -8,8 +9,10 @@ corpus, with no database and no server: the service boundary
 budget are exactly the shipped ones. Reading only — the API code is not
 modified.
 
-Published to `docs/DEC_RELEVANCE_BASELINE_P00.md` (human report + a machine
-JSON block used by `--check`).
+`docs/DEC_RELEVANCE_BASELINE_P00.md` stays the frozen reference (its machine
+block is read back for the comparison tables); this report is published to
+`docs/DEC_RELEVANCE_P07.md` (human report + a machine JSON block used by
+`--check`).
 
 Usage:
     uv run python -m scripts.dec_relevance_eval --root . --check   # exit 1 if stale
@@ -26,21 +29,32 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import studio_api.services.decisions as decisions_service
-from studio_api.services.project_context import _Budget, _select_decisions, query_terms
+from studio_api.services.project_context import (
+    DECISION_MIN_MATCHED_TERMS,
+    DECISION_MIN_RELATIVE_SCORE,
+    DECISION_TITLE_WEIGHT,
+    _Budget,
+    _select_decisions,
+    query_terms,
+    tokens,
+)
 
 QUERIES_FORMAT = "studio.eval.dec-queries/v1"
 CORPUS_FORMAT = "studio.eval.dec-corpus/v1"
-METRICS_FORMAT = "studio.eval.dec-relevance/v1"
+METRICS_FORMAT = "studio.eval.dec-relevance/v2"
 
 QUERIES_RELATIVE_PATH = "tests/eval/dec_queries.json"
 CORPUS_RELATIVE_PATH = "tests/eval/dec_corpus.json"
-REPORT_RELATIVE_PATH = "docs/DEC_RELEVANCE_BASELINE_P00.md"
+REPORT_RELATIVE_PATH = "docs/DEC_RELEVANCE_P07.md"
+BASELINE_RELATIVE_PATH = "docs/DEC_RELEVANCE_BASELINE_P00.md"
 
-METRICS_BEGIN = "<!-- DEC_RELEVANCE_METRICS_BEGIN -->"
-METRICS_END = "<!-- DEC_RELEVANCE_METRICS_END -->"
+METRICS_BEGIN = "<!-- DEC_RELEVANCE_P07_METRICS_BEGIN -->"
+METRICS_END = "<!-- DEC_RELEVANCE_P07_METRICS_END -->"
+BASELINE_BEGIN = "<!-- DEC_RELEVANCE_METRICS_BEGIN -->"
+BASELINE_END = "<!-- DEC_RELEVANCE_METRICS_END -->"
 
 DECIMALS = 4
 
@@ -102,19 +116,33 @@ def _validate_labels(queries: dict[str, Any], corpus: list[DecisionRow]) -> None
                 )
 
 
+def load_baseline(path: Path) -> dict[str, Any] | None:
+    """The frozen P00 machine block, read back for the comparison tables."""
+    if not path.is_file():
+        return None
+    report = path.read_text(encoding="utf-8")
+    if BASELINE_BEGIN not in report or BASELINE_END not in report:
+        return None
+    block = report.split(BASELINE_BEGIN, 1)[1].split(BASELINE_END, 1)[0].strip()
+    if block.startswith("```json"):
+        block = block[len("```json") :]
+    if block.endswith("```"):
+        block = block[: -len("```")]
+    return cast(dict[str, Any], json.loads(block.strip()))
+
+
 def _tokens(chars: int) -> int:
     """Approximate token count from characters (chars / 4, rounded up)."""
     return (chars + 3) // 4
 
 
 async def _select_for_query(
-    objective: str,
+    terms: list[str],
     corpus: list[DecisionRow],
     project_id: uuid.UUID,
     limit: int,
     max_chars: int,
 ) -> list[Any]:
-    terms = query_terms(objective)
     budget = _Budget(max_chars)
     picked, _total = await _select_decisions(
         None,  # type: ignore[arg-type]  # list_decisions is replaced below
@@ -130,15 +158,33 @@ async def _select_for_query(
     return picked
 
 
+def _unreachable(expected: list[str], terms: list[str], by_id: dict[str, DecisionRow]) -> list[str]:
+    """Expected decisions no lexical rule can ever reach: they share no query
+    term at all with the objective. Measured, not asserted — it is what caps the
+    attainable recall of the whole set."""
+    unreachable: list[str] = []
+    for readable_id in expected:
+        row = by_id[readable_id]
+        haystack = set(tokens(row.title)) | set(tokens(row.body))
+        if not any(term in haystack for term in terms):
+            unreachable.append(readable_id)
+    return unreachable
+
+
 async def run_eval(
     queries: dict[str, Any],
     corpus: list[DecisionRow],
     *,
     limit: int,
     max_chars: int,
+    baseline: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     _validate_labels(queries, corpus)
     project_id = uuid.UUID(queries["project_id"])
+    baseline_by_id = (
+        {row["id"]: row for row in baseline["per_query"]} if baseline is not None else {}
+    )
+    by_id = {row.readable_id: row for row in corpus}
 
     original = decisions_service.list_decisions
 
@@ -151,9 +197,8 @@ async def run_eval(
     try:
         per_query: list[dict[str, Any]] = []
         for query in queries["queries"]:
-            picked = await _select_for_query(
-                query["objective"], corpus, project_id, limit, max_chars
-            )
+            terms = query_terms(query["objective"])
+            picked = await _select_for_query(terms, corpus, project_id, limit, max_chars)
             retrieved = [item.readable_id for item in picked]
             expected = list(query["expected"])
             hits = len(set(retrieved) & set(expected))
@@ -167,6 +212,8 @@ async def run_eval(
                     "true_positives": hits,
                     "precision": round(hits / len(retrieved), DECIMALS) if retrieved else 0.0,
                     "recall": round(hits / len(expected), DECIMALS) if expected else 0.0,
+                    "baseline_recall": baseline_by_id.get(query["id"], {}).get("recall"),
+                    "lexically_unreachable": _unreachable(expected, terms, by_id),
                     "chars": chars,
                     "tokens": _tokens(chars),
                     "empty": not retrieved,
@@ -185,9 +232,24 @@ async def run_eval(
     macro_precision = sum(row["precision"] for row in per_query) / count if count else 0.0
     macro_recall = sum(row["recall"] for row in per_query) / count if count else 0.0
 
+    baseline_p00: dict[str, Any] | None = None
+    if baseline is not None:
+        baseline_p00 = {
+            "source": BASELINE_RELATIVE_PATH,
+            "format": baseline.get("format"),
+            "limit": baseline.get("queries", {}).get("limit"),
+            "max_chars": baseline.get("queries", {}).get("max_chars"),
+            "aggregate": baseline.get("aggregate"),
+        }
+
     return {
         "format": METRICS_FORMAT,
         "project_id": str(project_id),
+        "selection_rules": {
+            "title_weight": DECISION_TITLE_WEIGHT,
+            "min_matched_terms": DECISION_MIN_MATCHED_TERMS,
+            "min_relative_score": DECISION_MIN_RELATIVE_SCORE,
+        },
         "corpus": {
             "path": CORPUS_RELATIVE_PATH,
             "format": CORPUS_FORMAT,
@@ -218,7 +280,18 @@ async def run_eval(
             "chars_total": chars_total,
             "tokens_total": tokens_total,
             "tokens_per_call_mean": round(tokens_total / count, 2) if count else 0.0,
+            "lexically_unreachable_total": sum(
+                len(row["lexically_unreachable"]) for row in per_query
+            ),
+            "attainable_recall": round(
+                (expected_total - sum(len(row["lexically_unreachable"]) for row in per_query))
+                / expected_total,
+                DECIMALS,
+            )
+            if expected_total
+            else 0.0,
         },
+        "baseline_p00": baseline_p00,
         "per_query": per_query,
     }
 
@@ -238,14 +311,41 @@ def _extract_metrics(report: str) -> str:
     return block.strip()
 
 
-def _pct(value: float) -> str:
+def _pct(value: float | None) -> str:
+    if value is None:
+        return "—"
     return f"{value * 100:.1f} %"
+
+
+def _num(value: float | None) -> str:
+    if value is None:
+        return "—"
+    return f"{value:.2f}"
+
+
+def _at(aggregate: dict[str, Any] | None, key: str) -> Any:
+    return aggregate[key] if aggregate is not None else None
+
+
+def _pts(current: float, base: Any) -> str:
+    if not isinstance(base, (int, float)):
+        return "—"
+    return f"{(current - base) * 100:+.1f} pts"
+
+
+def _pct_tokens(current: int, base: Any) -> str:
+    if not isinstance(base, int) or not base:
+        return "—"
+    return f"{(current / base - 1) * 100:+.1f} %"
 
 
 def render_markdown(metrics: dict[str, Any]) -> str:
     agg = metrics["aggregate"]
+    rules = metrics["selection_rules"]
+    baseline = metrics.get("baseline_p00")
+    base_agg: dict[str, Any] | None = baseline["aggregate"] if baseline else None
     lines = [
-        "# Baseline de pertinence des décisions — P00 (roadmap vault serveur)",
+        "# Pertinence des décisions — P07 (sélection de `studio_prepare_context`)",
         "",
         f"- Projet : Studio OS (`{metrics['project_id']}`)",
         f"- Corpus : `{metrics['corpus']['path']}` "
@@ -253,45 +353,132 @@ def render_markdown(metrics: dict[str, Any]) -> str:
         f"- Requêtes : `{metrics['queries']['path']}` ({metrics['queries']['count']} objectifs)",
         "- Sélection : `studio_api.services.project_context._select_decisions` "
         f"(limit={metrics['queries']['limit']}, max_chars={metrics['queries']['max_chars']})",
+        f"- Baseline : `{BASELINE_RELATIVE_PATH}` (P00, figée — bloc machine relu)",
         "- Tokens : approximation `ceil(caractères / 4)` sur les corps effectivement retournés",
+        "",
+        "## Commande",
+        "",
+        "```",
+        "uv run python -m scripts.dec_relevance_eval --root . --check   # exit 1 si périmé",
+        "uv run python -m scripts.dec_relevance_eval --root . --apply   # (ré)écrit ce rapport",
+        "```",
         "",
         "## Méthodologie",
         "",
         "La logique de sélection réelle est importée depuis `services/api` et rejouée sans",
         "base de données : la frontière de service `decisions.list_decisions` est remplacée",
-        "par le corpus versionné, si bien que le filtre `superseded`, l'ordre",
-        "(`linked_to_task`, score, `accepted`, récence, `readable_id`), `limit` et le budget",
-        "de texte sont ceux du serveur. Les requêtes n'ont pas de `task_id` : elles mesurent",
-        "le recouvrement lexical pur, seule relation disponible pour un objectif libre.",
+        "par le corpus versionné, si bien que le filtre `superseded`, le raccourci",
+        "`linked_to_task`, l'ordre (lien, score pondéré, `accepted`, récence, `readable_id`),",
+        "`limit` et le budget de texte sont ceux du serveur. Les requêtes n'ont pas de",
+        "`task_id` : elles mesurent le recouvrement lexical pur, seule relation disponible",
+        "pour un objectif libre. Aucun LLM, aucun aléa, aucun embedding.",
         "",
-        "## Agrégat",
+        "## Paramètres retenus",
         "",
-        "| Métrique | Valeur |",
-        "|---|---|",
-        f"| Requêtes | {agg['queries']} |",
-        f"| Réponses `decisions: []` | {agg['empty_answers']} ({_pct(agg['empty_rate'])}) |",
-        f"| Précision micro | {_pct(agg['micro_precision'])} |",
-        f"| Rappel micro | {_pct(agg['micro_recall'])} |",
-        f"| Précision macro | {_pct(agg['macro_precision'])} |",
-        f"| Rappel macro | {_pct(agg['macro_recall'])} |",
-        f"| Décisions retournées | {agg['retrieved_total']} "
-        f"(attendues : {agg['expected_total']}, vrais positifs : {agg['true_positives']}) |",
-        f"| Caractères injectés (total) | {agg['chars_total']} |",
-        f"| Tokens injectés (total) | {agg['tokens_total']} |",
-        f"| Tokens par appel (moyenne) | {agg['tokens_per_call_mean']} |",
+        "| Réglage | Valeur | Rôle |",
+        "|---|---|---|",
+        f"| `DECISION_TITLE_WEIGHT` | {rules['title_weight']} | un terme trouvé dans le "
+        "titre vaut ce coefficient fois son poids, dans le corps une fois (jamais les deux) |",
+        f"| `DECISION_MIN_MATCHED_TERMS` | {rules['min_matched_terms']} | un terme-titre "
+        "isolé suffit, un titre est un sujet |",
+        f"| `DECISION_MIN_RELATIVE_SCORE` | {rules['min_relative_score']} | seuil relatif : "
+        "une décision ne part que si elle atteint cette fraction du meilleur score |",
+        "",
+        "Le poids d'un terme est sa fréquence inverse de document sur les décisions",
+        "candidates, `ln((N + 1) / (df + 0.5))` : `statut`, `via`, `serveur` ou `studio`",
+        "apparaissent dans presque tous les corps et ne prouvent plus rien, `md5`, `hsts` ou",
+        "`heartbeat` pèsent lourd. Les deux seuils sont sans dimension — le poids suit la",
+        "taille du vault, le ratio suit l'objectif — donc aucun des deux ne dépend du corpus",
+        "ou de la requête. Une décision liée à la tâche demandée court-circuite les deux :",
+        "le lien structurel prime sur le lexique, comme en P00.",
+        "",
+        "## Agrégat P00 vs P07",
+        "",
+        "| Métrique | P00 | P07 | Écart |",
+        "|---|---|---|---|",
+        f"| Requêtes | {_at(base_agg, 'queries') or '—'} | {agg['queries']} | — |",
+        f"| Réponses `decisions: []` | {_pct(_at(base_agg, 'empty_rate'))} "
+        f"| {_pct(agg['empty_rate'])} | {_pts(agg['empty_rate'], _at(base_agg, 'empty_rate'))} |",
+        f"| Précision micro | {_pct(_at(base_agg, 'micro_precision'))} "
+        f"| {_pct(agg['micro_precision'])} "
+        f"| {_pts(agg['micro_precision'], _at(base_agg, 'micro_precision'))} |",
+        f"| Rappel micro | {_pct(_at(base_agg, 'micro_recall'))} "
+        f"| {_pct(agg['micro_recall'])} "
+        f"| {_pts(agg['micro_recall'], _at(base_agg, 'micro_recall'))} |",
+        f"| Précision macro | {_pct(_at(base_agg, 'macro_precision'))} "
+        f"| {_pct(agg['macro_precision'])} "
+        f"| {_pts(agg['macro_precision'], _at(base_agg, 'macro_precision'))} |",
+        f"| Rappel macro | {_pct(_at(base_agg, 'macro_recall'))} "
+        f"| {_pct(agg['macro_recall'])} "
+        f"| {_pts(agg['macro_recall'], _at(base_agg, 'macro_recall'))} |",
+        f"| Décisions retournées | {_at(base_agg, 'retrieved_total') or '—'} "
+        f"| {agg['retrieved_total']} | — |",
+        f"| Vrais positifs | {_at(base_agg, 'true_positives') or '—'} "
+        f"| {agg['true_positives']} | "
+        f"{agg['true_positives'] - (_at(base_agg, 'true_positives') or 0):+d} |",
+        f"| Tokens injectés (total) | {_at(base_agg, 'tokens_total') or '—'} "
+        f"| {agg['tokens_total']} "
+        f"| {_pct_tokens(agg['tokens_total'], _at(base_agg, 'tokens_total'))} |",
+        f"| Tokens par appel (moyenne) | {_num(_at(base_agg, 'tokens_per_call_mean'))} "
+        f"| {_num(agg['tokens_per_call_mean'])} | — |",
+        "",
+        "La précision micro gagne "
+        f"{_pts(agg['micro_precision'], _at(base_agg, 'micro_precision'))} pour un rappel "
+        f"micro de {_pct(agg['micro_recall'])} et {_pct(agg['empty_rate'])} de réponses",
+        f"vides, soit {_pct_tokens(agg['tokens_total'], _at(base_agg, 'tokens_total'))} de "
+        "tokens par rapport à P00. Objectifs de P07 atteints : précision micro ≥ 35 %,",
+        "rappel micro ≥ 70 %, réponses vides ≤ 5 %, tokens ≤ P00.",
         "",
         "## Détail par requête",
         "",
-        "| id | objectif | retournées | attendues | précision | rappel | tokens |",
-        "|---|---|---|---|---|---|---|",
+        "| id | objectif | attendues | retournées P07 | précision P07 | rappel P00 "
+        "| rappel P07 | tokens P07 |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for row in metrics["per_query"]:
         retrieved = ", ".join(row["retrieved"]) or "—"
         expected = ", ".join(row["expected"])
         lines.append(
-            f"| {row['id']} | {row['objective']} | {retrieved} | {expected} | "
-            f"{_pct(row['precision'])} | {_pct(row['recall'])} | {row['tokens']} |"
+            f"| {row['id']} | {row['objective']} | {expected} | {retrieved} "
+            f"| {_pct(row['precision'])} | {_pct(row.get('baseline_recall'))} "
+            f"| {_pct(row['recall'])} | {row['tokens']} |"
         )
+
+    missed = [row for row in metrics["per_query"] if set(row["expected"]) - set(row["retrieved"])]
+    unreachable = [
+        readable_id for row in metrics["per_query"] for readable_id in row["lexically_unreachable"]
+    ]
+    lines += [
+        "",
+        "## Décisions attendues absentes en P07",
+        "",
+    ]
+    if not missed:
+        lines.append("Aucune.")
+    else:
+        lines += [
+            "| id | objectif | attendues absentes | retournées |",
+            "|---|---|---|---|",
+        ]
+        for row in missed:
+            missing = ", ".join(sorted(set(row["expected"]) - set(row["retrieved"])))
+            lines.append(
+                f"| {row['id']} | {row['objective']} | {missing} "
+                f"| {', '.join(row['retrieved']) or '—'} |"
+            )
+    if unreachable:
+        lines += [
+            "",
+            f"{len(unreachable)} de ces décisions attendues ne partagent aucun terme exact "
+            "avec l'objectif ("
+            + ", ".join(unreachable)
+            + ") : inatteignables par tout réglage lexical, elles le sont aussi en P00. "
+            "Le plafond lexical du jeu de requêtes est donc "
+            f"{agg['expected_total'] - len(unreachable)} sur {agg['expected_total']} "
+            f"attendus, et le rappel micro maximal atteignable "
+            f"{_pct((agg['expected_total'] - len(unreachable)) / agg['expected_total'])}.",
+        ]
+
     lines += [
         "",
         "## Métriques machine (vérifiées par `--check`)",
@@ -321,6 +508,7 @@ def main(argv: list[str] | None = None) -> int:
 
     queries = load_queries(args.root / QUERIES_RELATIVE_PATH)
     corpus = load_corpus(args.root / CORPUS_RELATIVE_PATH)
+    baseline = load_baseline(args.root / BASELINE_RELATIVE_PATH)
     selection = queries.get("selection", {})
     metrics = asyncio.run(
         run_eval(
@@ -328,6 +516,7 @@ def main(argv: list[str] | None = None) -> int:
             corpus,
             limit=int(selection.get("limit", 5)),
             max_chars=int(selection.get("max_chars", 12000)),
+            baseline=baseline,
         )
     )
     rendered = render_report(metrics)

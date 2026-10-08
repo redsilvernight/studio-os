@@ -17,6 +17,8 @@ D4 — droits de la portée studio (tranché par l'utilisateur le 2026-10-06, P0
 
 D5 — recherche (P04, additif) : une note porte des ancres `task:<uuid>` / `path:<chemin>` versionnées avec elle ; `GET /vault/search` classe ancrées > liées à un saut > plein texte, exclut `superseded` par défaut et plafonne la réponse (`max_chars`). Ancres vides = `content_hash` inchangé. Contrat : `TECH/02_API_CONTRACT.md` § Vault.
 
+D6 — contexte (P07, additif) : `prepare_context` gagne `notes` (résumés de notes vault, jamais le corps), absent sans note, tranche de 20 % de `max_chars`, statuts `validated`/`proposed` des portées projet et studio ; raisons `vault_anchor` / `vault_link`. Détail : `TECH/07_MCP_CONTRACT.md`.
+
 DEC-0047 (mémoire locale read-only) est à superseder après acceptation de D2.
 
 Baseline chiffrée : `docs/DEC_BASELINE_P00.md` et `docs/DEC_RELEVANCE_BASELINE_P00.md`.
