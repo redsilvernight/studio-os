@@ -1,7 +1,7 @@
 ---
 id: DEC-0181
 title: 'Compatibilité du manifest bootstrap : lecture v1 uniquement et refus explicite'
-status: proposed
+status: accepted
 date: '2026-10-03'
 supersedes: []
 superseded_by: []

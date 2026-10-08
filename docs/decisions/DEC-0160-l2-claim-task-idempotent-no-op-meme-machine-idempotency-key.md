@@ -2,7 +2,7 @@
 id: DEC-0160
 title: 'L2 : claim_task idempotent (no-op même machine) + Idempotency-Key, sans bump
   de contrat'
-status: proposed
+status: accepted
 date: '2026-09-28'
 supersedes: []
 superseded_by: []

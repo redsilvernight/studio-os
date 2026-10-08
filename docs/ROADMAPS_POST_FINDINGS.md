@@ -2,7 +2,8 @@
 
 Constats hors périmètre du chantier Roadmaps, relevés pendant la convergence
 P6 + P8. Aucun n'est corrigé ici. Source de vérité des décisions :
-`docs/DECISIONS.md` ; ce fichier ne consigne que des points à traiter.
+le serveur Studio OS (export généré `docs/DECISIONS.md`, DEC-0191/DEC-0193) ;
+ce fichier ne consigne que des points à traiter.
 
 | # | Finding | Constat | Suite proposée |
 |---|---|---|---|
@@ -10,7 +11,7 @@ P6 + P8. Aucun n'est corrigé ici. Source de vérité des décisions :
 | 2 | Identité machine courante | Aucun outil MCP ne dit « quelle machine suis-je » ; `GET /machines` liste toutes les machines. | Exposer l'identité de la machine authentifiée. |
 | 3 | Heartbeat en écriture (MCP) | Le heartbeat n'est écrit que par le daemon (`POST /api/v1/heartbeats`) ; aucune surface MCP. | Décider si une session non-daemon doit pouvoir le signaler. |
 | 4 | Handoff | Aucune surface : clôture = ≈9 appels (statut, claims un à un, `log_ai_work`, fin de session, tâche restée claimée). | Tâche W1 `studio_handoff` ; `end_session` devrait libérer les claims de la tâche. |
-| 5 | Numérotation des DEC | Résolu par DEC-0088/DEC-0089 : `Decision.readable_id` serveur et numéro de fiche ADR sont deux identifiants distincts ; `docs/decisions/DEC-xxxx` reste canonique. La collision de branches DEC-0090…0094 est résolue et la correspondance est documentée dans `AI_BOOTSTRAP_P0_AUDIT.md` §10. | `scripts.adr_index --root . --check` est exécuté par la CI ; aucune renumérotation pour suivre le compteur serveur. |
+| 5 | Numérotation des DEC | **Remplacé par DEC-0191/DEC-0193** : le serveur alloue le numéro et la fiche `docs/decisions/` est un export généré. Historique — résolu par DEC-0088/DEC-0089 : `Decision.readable_id` serveur et numéro de fiche ADR sont deux identifiants distincts ; `docs/decisions/DEC-xxxx` reste canonique. La collision de branches DEC-0090…0094 est résolue et la correspondance est documentée dans `AI_BOOTSTRAP_P0_AUDIT.md` §10. | `scripts.adr_index --root . --check` est exécuté par la CI ; aucune renumérotation pour suivre le compteur serveur. |
 | 6 | Ergonomie AI work | Vocabulaire de statut non découvrable (`in_progress` refusé ; valeurs : `started`, `completed`, `failed`, `review_requested`, `approved`, `changes_requested`). | Message d'erreur listant les valeurs valides / doc de l'outil. |
 | 7 | Retard de déploiement VPS | Le serveur déployé n'expose pas encore les routes `/roadmaps` (404) ni la section Roadmap de `studio_prepare_context` ; le code intégré n'y est pas déployé (constaté encore pendant P10 : `studio_prepare_context` du MCP déployé ne renvoie pas la section Roadmap). | Déploiement sur accord explicite, après la baseline finale. |
 | 8 | Bootstrap workspace/tests | `ruff`/`pytest` ne sont pas sur le PATH ; seul `.venv\Scripts\python.exe -m …` fonctionne ; Postgres de test sur `localhost:5432` (`studio_os_test`), MinIO `:9000`. | Script de bootstrap/validation (voir W6). |

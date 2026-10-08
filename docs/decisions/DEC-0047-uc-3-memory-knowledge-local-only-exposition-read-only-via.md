@@ -2,10 +2,11 @@
 id: DEC-0047
 title: 'UC-3 : Memory/Knowledge local-only, exposition read-only via MCP local (stdio),
   3 outils'
-status: accepted
+status: superseded
 date: '2026-09-20'
 supersedes: []
-superseded_by: []
+superseded_by:
+- DEC-0191
 source: server-export
 ---
 

@@ -1,7 +1,7 @@
 ---
 id: DEC-0097
 title: 'Desktop P11 : premier lancement guidé, workspace servi, deux commandes additives'
-status: proposed
+status: accepted
 date: '2026-10-08'
 supersedes: []
 superseded_by: []

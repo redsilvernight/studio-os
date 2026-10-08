@@ -2,7 +2,7 @@
 id: DEC-0161
 title: 'L2/AIB-H : reprise de session (filtres agent/open, clôture des périmées, jamais
   sur lecture)'
-status: proposed
+status: accepted
 date: '2026-09-28'
 supersedes: []
 superseded_by: []

@@ -1,7 +1,7 @@
 ---
 id: DEC-0172
 title: 'AIB P7 : définition du bootstrap permanent et cibles d''actions manuelles'
-status: proposed
+status: accepted
 date: '2026-09-30'
 supersedes: []
 superseded_by: []

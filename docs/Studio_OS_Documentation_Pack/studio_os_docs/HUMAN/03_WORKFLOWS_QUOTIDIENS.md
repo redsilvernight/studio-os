@@ -20,7 +20,7 @@
 ## Prendre une decision d'architecture
 1. Un humain ou un agent cree une proposition.
 2. La proposition indique contexte, choix, raisons et consequences.
-3. Apres validation, Studio OS genere DEC-XXXX.
+3. `studio_add_decision` alloue DEC-XXXX cote serveur et cree la note vault miroir (DEC-0193) ; la validation la fait passer en `accepted`. Les fiches `docs/decisions/` sont un export genere (`scripts/dec_export.py`), jamais redigees a la main.
 4. La decision devient recherchable par les futurs agents.
 
 ## Eviter un conflit

@@ -2,7 +2,7 @@
 id: DEC-0186
 title: 'MCP : déprécier les outils redondants de session et de claim, retrait après
   la fenêtre de transition'
-status: proposed
+status: accepted
 date: '2026-10-04'
 supersedes: []
 superseded_by: []

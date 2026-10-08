@@ -2,7 +2,7 @@
 id: DEC-0096
 title: 'Desktop P9 : adaptateurs de harnais au scope projet, jeton par référence,
   fail-closed'
-status: proposed
+status: accepted
 date: '2026-10-08'
 supersedes: []
 superseded_by: []
