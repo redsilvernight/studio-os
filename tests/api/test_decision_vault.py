@@ -267,7 +267,7 @@ async def test_supersede_with_replacement_links_the_replacement_note(
     assert replaced_note is not None
     assert replacement_note is not None
     assert replaced_note.status == "superseded"
-    assert (replacement_note.id, "supersedes") in await _links_of(db_session, replacement_note.id)
+    assert (replaced_note.id, "supersedes") in await _links_of(db_session, replacement_note.id)
 
 
 async def test_supersede_with_unknown_replacement_is_404(
