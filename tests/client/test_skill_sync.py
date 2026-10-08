@@ -71,6 +71,7 @@ def _projection(
     *,
     text: str = "# Git flow\n\nUse task branches.",
     scope: str = "studio",
+    deprecated: bool = False,
 ) -> LibraryContextItem:
     return LibraryContextItem(
         library_kind="skill",
@@ -81,6 +82,7 @@ def _projection(
         title="Studio Git Flow",
         text=text,
         content_schema="studio.library.skill/v1",
+        deprecated=deprecated,
     )
 
 
@@ -277,6 +279,49 @@ def test_apply_never_deletes_unmanaged_skills(tmp_path: Path) -> None:
     apply_skill_sync(plan_skill_sync(tmp_path, [_projection()]))
 
     assert unmanaged.read_text(encoding="utf-8") == "keep\n"
+
+
+def test_deprecated_skill_is_never_projected(tmp_path: Path) -> None:
+    plan = plan_skill_sync(
+        tmp_path,
+        [_projection(), _projection("studio-old", deprecated=True)],
+        include_opencode=True,
+    )
+
+    assert [entry.projection.stable_key for entry in plan.entries] == ["studio-git-flow"]
+    assert plan.retired == ()
+    apply_skill_sync(plan)
+    assert not _target(tmp_path, "agents", "studio-old").exists()
+    assert not _target(tmp_path, "claude", "studio-old").exists()
+    assert not _opencode(tmp_path, "studio-old").exists()
+    assert "studio-old" not in plan.manifest_text
+
+
+def test_deprecated_managed_copies_are_removed_but_local_edits_kept(tmp_path: Path) -> None:
+    apply_skill_sync(plan_skill_sync(tmp_path, [_projection("studio-old")], include_opencode=True))
+    edited = _target(tmp_path, "claude", "studio-old")
+    edited.write_text("local notes\n", encoding="utf-8")
+
+    plan = plan_skill_sync(
+        tmp_path, [_projection("studio-old", deprecated=True)], include_opencode=True
+    )
+    assert sorted(target.harness for target in plan.retired) == ["agents", "opencode"]
+    result = apply_skill_sync(plan)
+
+    assert set(result.removed) == {
+        _target(tmp_path, "agents", "studio-old"),
+        _opencode(tmp_path, "studio-old"),
+    }
+    assert not _target(tmp_path, "agents", "studio-old").parent.exists()
+    assert not _opencode(tmp_path, "studio-old").exists()
+    assert edited.read_text(encoding="utf-8") == "local notes\n"
+    assert "studio-old" not in result.manifest_path.read_text(encoding="utf-8")
+    assert (
+        plan_skill_sync(
+            tmp_path, [_projection("studio-old", deprecated=True)], include_opencode=True
+        ).retired
+        == ()
+    )
 
 
 def test_cli_check_is_read_only_and_nonzero_when_projection_is_missing(
