@@ -26,6 +26,7 @@ from studio_api.openapi_meta import (
     RESP_409_VERSION_CONFLICT,
     RESP_422_LIBRARY_BINDING,
     RESP_422_LIBRARY_CONTENT,
+    RESP_422_LIBRARY_HOOK,
     RESP_422_LIBRARY_SCOPE,
     RESP_422_LIBRARY_WORKFLOW,
     merge_conflict,
@@ -91,6 +92,7 @@ async def list_library(
             RESP_422_LIBRARY_SCOPE,
             RESP_422_LIBRARY_CONTENT,
             RESP_422_LIBRARY_WORKFLOW,
+            RESP_422_LIBRARY_HOOK,
             RESP_422_LIBRARY_BINDING,
         ),
     },
@@ -171,7 +173,11 @@ async def list_library_versions(
         **RESP_404_LIBRARY_PIN,
         **merge_conflict(RESP_409_IDEMPOTENCY, RESP_409_LIBRARY),
         **merge_status(
-            422, RESP_422_LIBRARY_CONTENT, RESP_422_LIBRARY_WORKFLOW, RESP_422_LIBRARY_BINDING
+            422,
+            RESP_422_LIBRARY_CONTENT,
+            RESP_422_LIBRARY_WORKFLOW,
+            RESP_422_LIBRARY_HOOK,
+            RESP_422_LIBRARY_BINDING,
         ),
     },
 )

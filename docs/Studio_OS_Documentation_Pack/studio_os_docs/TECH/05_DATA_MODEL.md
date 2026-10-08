@@ -371,8 +371,9 @@ de contenu duplique. Contrainte unique `(from_version_id, to_resource_id)`.
 
 `library_resource_links` gagne `relation` (vocabulaire ferme :
 `requires_model_profile`/`uses_skill`/`applies_rule`/`composes_agent`/
-`references_workflow`/`refines_skill_rule`, un par couple autorise —
-`rule` et `model_profile` ne sourcent jamais) + index inverse
+`references_workflow`/`refines_skill_rule`/`uses_hook` (DEC-0194), un par
+couple autorise — `rule`, `model_profile` et `hook` ne sourcent jamais) +
+index inverse
 `(to_resource_id)`. Backfill deterministe depuis les kinds (couple
 autorise = relation unique) ; ligne legacy hors matrice = echec fort de
 migration, jamais d'invention. Unicite `(from_version_id,
@@ -544,6 +545,27 @@ avant les gates 404/409, echec = rollback complet. Aucun run, aucun etat
 d'execution, aucun scheduler, aucun appel LLM cote serveur : Studi'OS
 decrit le graphe, le harness le parcourt. Toute orchestration serveur
 future exige une nouvelle DEC.
+
+## AI Library — Hook (DEC-0194, sans DDL)
+
+Kind additif `hook` (colonne `kind` texte, aucune migration).
+`HookContent` (`studio.library.hook/v1`) : `event` (vocabulaire ferme et
+neutre vis-a-vis du harness : `session_start`, `session_end`,
+`user_prompt`, `pre_tool`, `post_tool`, `stop`, `subagent_stop`,
+`notification`, `pre_compact`), `matcher?` (1 a 200), `mode`
+(`blocking`/`advisory`, defaut `advisory`), `timeout_seconds` (1 a 600,
+defaut 30), `scripts` (1 a 8 `HookScript{os: any|windows|linux|macos,
+shell: pwsh|bash|sh|python|node, body}` ; corps inline 1 a 65_536
+caracteres, jamais un chemin ni une URL), `description?`. Validation
+statique `hook_validation_errors` au point unique `_create_version_row` :
+`duplicate_script_target` (`(os, shell)` duplique),
+`matcher_not_supported` (matcher hors `pre_tool`/`post_tool`),
+`blocking_not_supported` (blocking hors `pre_tool`/`user_prompt`/`stop`),
+`secret_material` (corps contenant un secret) → `422 invalid_hook`.
+Relation `uses_hook` depuis `agent_definition` et `workflow` ; un hook ne
+source jamais et n'est pas bindable runtime. Le serveur stocke et
+distribue ; l'execution locale exige un consentement explicite par poste
+sur l'empreinte du contenu (cote client).
 
 ## Roadmap (Roadmaps P1, DEC-0084/DEC-0085 ; persiste en P2/P3, DEC-0086, migration Alembic `0013` reversible)
 Nouveau domaine additif ; **aucune colonne `roadmap_id` sur `tasks`**. Tables :
