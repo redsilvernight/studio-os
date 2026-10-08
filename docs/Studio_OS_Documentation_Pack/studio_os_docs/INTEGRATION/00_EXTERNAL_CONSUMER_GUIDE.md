@@ -125,6 +125,12 @@ defaut. Catalogue courant : `forbidden`, `version_conflict`,
 
 ## 8. Memoire/knowledge (optionnel, local)
 
+Flux courant (DEC-0191) : la memoire partagee est le vault serveur a deux
+portees studio/projet, lue et ecrite via MCP (`studio_vault_search`,
+`studio_vault_read`, `studio_vault_write`, `TECH/07`) ; le client n'en garde
+qu'un miroir local en lecture seule. L'exposition locale ci-dessous
+(DEC-0047, superseded par DEC-0191) reste decrite a titre historique.
+
 Cette capacite est MAY : un consommateur fonctionne normalement sans elle. Quand
 elle est configuree localement, elle est exposee en lecture seule par un
 serveur MCP local (transport stdio, un processus par poste) qui n'a aucun
@@ -139,7 +145,8 @@ Configuration par variables d'environnement lues par le processus local :
 (liste JSON), `STUDIO_CLIENT_KNOWLEDGE_GRAPH_DIR`,
 `STUDIO_CLIENT_KNOWLEDGE_SOURCE_ROOT`. Portee vide = refus total (deny-all).
 Un backend configure mais indisponible degrade en reponse machine-readable
-(`vault_missing`, `stale`, ...), jamais en plantage (`DEC-0042`, `DEC-0047`).
+(`vault_missing`, `stale`, ...), jamais en plantage (`DEC-0042`, `DEC-0047`
+superseded par DEC-0191).
 
 ## 9. Versions et evolution
 

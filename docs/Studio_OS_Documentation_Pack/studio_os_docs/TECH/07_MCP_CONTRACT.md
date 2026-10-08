@@ -169,12 +169,12 @@ Credential ephemere de lancement (AIB P9, additif) : un token emis pour un lance
 distant est accepte comme un token machine, mais restreint a une allowlist d'outils et
 au projet du lancement ; tout autre outil repond l'erreur `launch_credential_scope`.
 Allowlist et limites : `TECH/04_AUTH_SYNC_CONTRACT.md`.
-Exception : les outils locaux UC-3 (section ci-dessous, DEC-0047) tournent
+Exception : les outils locaux UC-3 (section ci-dessous, DEC-0047 historique, superseded par DEC-0191) tournent
 dans un processus stdio lance par le consommateur lui-meme, sans DB ni
 `Principal` serveur — la frontiere de confiance est le processus, pas un
 token (pas d'attaquant reseau).
 
-## Etat reel (roadmap etape 5, DEC-0023, UC-3/DEC-0047, P8/DEC-0072)
+## Etat reel (roadmap etape 5, DEC-0023, UC-3/DEC-0047 superseded par DEC-0191, P8/DEC-0072)
 
 Le serveur VPS enregistre la surface complete des outils listes dans
 `MCP_ACCESS` (`services/mcp/src/studio_mcp/access_registry.py`, 54 entrees au
@@ -185,7 +185,7 @@ Le serveur VPS enregistre la surface complete des outils listes dans
 n'expose qu'un sous-ensemble de cette surface ; le profil `admin` expose
 l'ensemble (section « Profils d'outils MCP » ci-dessous, DEC-0183).
 Les 3 outils locaux read-only specifies ci-dessous (UC-3, exposition via
-MCP local par poste, DEC-0047) sont en place mais conditionnels au
+MCP local par poste, DEC-0047 superseded par DEC-0191) sont en place mais conditionnels au
 fichier de configuration du poste : `studio_memory_search`,
 `studio_memory_read`, `studio_graph_query`.
 `studio_generate_context_package` n'est **pas** un outil MCP : il est
@@ -224,7 +224,12 @@ d'un outil dans `tools/list` signifie seulement « non expose pour cette
 connexion », jamais « indisponible » (DEC-0046 regle 5) ; le profil `admin`
 est la surface nommee qui restaure l'ensemble (DEC-0048).
 
-## Outils locaux Memory/Knowledge UC-3 (DEC-0047)
+## Outils locaux Memory/Knowledge UC-3 (DEC-0047, superseded par DEC-0191)
+
+Historique : la memoire partagee courante est le vault serveur a deux portees
+studio/projet (DEC-0191, outils `studio_vault_*` ci-dessous) ; le client n'en
+garde qu'un miroir local en lecture seule. Les outils locaux restent decrits
+pour les postes qui les configurent encore.
 
 Vocabulaire public : Memory et Knowledge Graph uniquement. Obsidian et
 Graphify sont des backends/adapters optionnels, jamais des capacites et
