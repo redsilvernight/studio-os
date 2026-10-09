@@ -565,6 +565,12 @@ n'utilisant que leurs propres agents n'observent aucun changement.
 - GET /library/{id} — `404` si inexistante OU User-scope d'autrui (jamais
   `403`, pour ne pas reveler l'existence).
 - GET /library/{id}/versions — snapshots immuables, ordre croissant.
+  Chaque version expose `title` et `description` (optionnelle, `null` par
+  defaut). Le client conserve la description de la version effective
+  (verrou projet, sinon active) dans `LibraryContextItem.description`.
+  `studio-client skills sync` utilise cette description dans le frontmatter
+  `SKILL.md`, avec repli sur `title` si absente, vide ou composee uniquement
+  d'espaces ; les espaces et retours a la ligne sont normalises.
 - POST /library/{id}/versions — version draft N+1 (ne deplace jamais
   `active_version`). `Idempotency-Key` supporte. Dependances epinglees
   resolues a l'ecriture : pin inconnue = `404 pin_not_found`, version
