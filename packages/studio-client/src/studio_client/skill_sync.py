@@ -152,7 +152,9 @@ def render_skill(projection: LibraryContextItem) -> str:
     """Render a Library skill as a harness-compatible ``SKILL.md``."""
 
     _validate_projection(projection)
-    description = " ".join(projection.title.split())
+    description = " ".join((projection.description or "").split())
+    if not description:
+        description = " ".join(projection.title.split())
     body = projection.text.replace("\r\n", "\n").replace("\r", "\n").strip()
     provenance = (
         "<!-- studio-os-library: "
