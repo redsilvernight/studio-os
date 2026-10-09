@@ -95,12 +95,17 @@ def test_rule_covers_seven_reflexes_without_tool_catalog():
         "additional_available",
         "omitted_for_budget",
         "studio_add_decision",
-        "studio-handoff",
+        "studio_start_work",
+        "studio_handoff",
+        "studio-workflow",
+        "next",
         "studio_discover_definitions",
         "studio_resolve_agent",
         "subagent",
     ):
         assert marker in text, f"rule missing reflex marker: {marker}"
+    assert "studio-task" not in text
+    assert "studio-handoff" not in text
     assert "TECH/07" not in text
     assert len(re.findall(r"studio_[a-z_]+", text)) <= 10, "rule must not catalog tools"
 
