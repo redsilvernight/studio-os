@@ -20,6 +20,7 @@ from pydantic import Field, StringConstraints
 
 from studio_contracts.bootstrap import HarnessId
 from studio_contracts.common import ContractModel, IdempotentCreate, VersionedModel
+from studio_contracts.tasks import TaskStatus
 
 LAUNCH_DEFAULT_TTL_SECONDS = 900
 LAUNCH_MAX_TTL_SECONDS = 86400
@@ -137,6 +138,41 @@ class TaskLaunch(VersionedModel):
     output_excerpt: str | None = Field(default=None, max_length=LAUNCH_MAX_OUTPUT_CHARS)
     expires_at: datetime
     finished_at: datetime | None = None
+
+
+class TaskLaunchProtocolStatus(StrEnum):
+    """Whether the launched agent followed the Studio protocol, derived at
+    read time from the launch's linked work session, never stored and never
+    inferred from the exit code. `not_applicable`: the harness never ran
+    (rejected, cancelled or expired before `running`). `awaiting`: the launch
+    is live and its session is not closed yet. `unverified`: the launch is
+    terminal without a linked session or with a session never closed — an
+    exit code 0 alone lands here. `handed_off`: the linked session is closed,
+    whatever the launch status, so a deferred terminal report or a
+    `blocked`/`in_progress` handoff is never a failure. Never an approval:
+    `handed_off` does not complete or review the task."""
+
+    NOT_APPLICABLE = "not_applicable"
+    AWAITING = "awaiting"
+    UNVERIFIED = "unverified"
+    HANDED_OFF = "handed_off"
+
+
+class TaskLaunchProtocol(ContractModel):
+    """Protocol proof of one launch. `task_status` is the task's current
+    status, set only when `handed_off`."""
+
+    status: TaskLaunchProtocolStatus
+    session_id: UUID | None = None
+    task_status: TaskStatus | None = None
+
+
+class TaskLaunchView(TaskLaunch):
+    """Read model of the project launch list (dashboard, MCP). `TaskLaunch`
+    itself stays unchanged: daemons parse it strictly from the pending pull
+    and the by-id read, so an N-1 daemon never sees `protocol`."""
+
+    protocol: TaskLaunchProtocol
 
 
 class TaskLaunchMachineReport(ContractModel):

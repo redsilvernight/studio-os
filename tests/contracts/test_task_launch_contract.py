@@ -194,3 +194,35 @@ def test_no_numbered_decision_reference_in_schema_descriptions() -> None:
         TaskLaunchPull,
     ):
         assert not re.search(r"DEC-\d+", model.__doc__ or ""), model.__name__
+
+
+def test_launch_view_adds_protocol_without_touching_task_launch() -> None:
+    from studio_contracts.task_launch import (
+        TaskLaunchProtocol,
+        TaskLaunchProtocolStatus,
+        TaskLaunchView,
+    )
+
+    launch = _launch(status=TaskLaunchStatus.SUCCEEDED)
+    view = TaskLaunchView(
+        **launch.model_dump(),
+        protocol=TaskLaunchProtocol(status=TaskLaunchProtocolStatus.UNVERIFIED),
+    )
+    assert "protocol" not in TaskLaunch.model_fields
+    assert view.protocol.status == TaskLaunchProtocolStatus.UNVERIFIED
+    assert view.protocol.task_status is None
+    with pytest.raises(ValidationError):
+        TaskLaunch.model_validate(view.model_dump(mode="json"))
+    with pytest.raises(ValidationError):
+        TaskLaunchProtocol.model_validate({"status": "verified"})
+
+
+def test_protocol_vocabulary_is_closed() -> None:
+    from studio_contracts.task_launch import TaskLaunchProtocolStatus
+
+    assert {s.value for s in TaskLaunchProtocolStatus} == {
+        "not_applicable",
+        "awaiting",
+        "unverified",
+        "handed_off",
+    }
