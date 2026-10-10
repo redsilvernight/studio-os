@@ -91,5 +91,5 @@ le même verdict.
 test local, en processus) : `project_mission` p50 21,5 ms, p95 23,3 ms, max 23,8 ms,
 ≈ 225 tokens ; `start_work` avec tâche p95 199,5 ms sur la même passe (seuil P02 :
 ≤ 250 ms). Le scénario ne contient qu'un run : la tenue en charge repose sur le nombre
-de requêtes SQL constant (7) vérifié par `tests/api/test_mission.py`, pas sur cette
+de requêtes SQL indépendant du nombre de runs, vérifié par `tests/api/test_mission.py` (1 vs 10 runs), pas sur cette
 latence. `metrics.json` n'a pas été réécrit (baseline P01 conservée).
