@@ -8,8 +8,7 @@
  * injected by Tauri; no `@tauri-apps/*` package is imported, so the web bundle
  * has no Tauri dependency at all. Every shell answer is shape-checked here.
  */
-import { buildRequest, parseAnswer, type BridgeAnswer, type BridgeCommand, type BridgeRequest } from "./contracts";
-import { LOCAL_PROTOCOL } from "./generated/local-contracts.generated";
+import type { BridgeAnswer, BridgeCommand, BridgeRequest } from "./contracts";
 import type {
   DataFolder,
   DesktopDiagnostics,
@@ -170,12 +169,22 @@ export function createDesktopPlatform(invoke: TauriInvoke): Platform {
       const info = await invoke("desktop_info");
       if (!isDesktopInfo(info)) throw new Error("desktop_info answered an unexpected shape");
       // Incompatible protocol: fail closed, do not present a half-working Desktop.
+      const { LOCAL_PROTOCOL } = await import("./contracts");
       if (info.protocol !== LOCAL_PROTOCOL) {
         throw new Error(`Desktop speaks ${info.protocol}, the Dashboard expects ${LOCAL_PROTOCOL}`);
       }
       return info;
     },
     async request(command: BridgeCommand, payload: Record<string, unknown> = {}) {
+      // Schémas et table des commandes chargés à la demande : hors du chargement
+      // initial (budget bundle), et jamais utiles au Dashboard web.
+      let contracts: typeof import("./contracts");
+      try {
+        contracts = await import("./contracts");
+      } catch {
+        return failure("internal_error", "The local contract could not be loaded.");
+      }
+      const { buildRequest, parseAnswer } = contracts;
       let request: BridgeRequest;
       try {
         request = buildRequest(command, payload);

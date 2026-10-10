@@ -60,6 +60,8 @@ jobs:
         run: npm ci
       - name: Build
         run: npm run build
+      - name: Bundle budget
+        run: npm run check:bundle
       - name: Unit tests
         run: npm test
       - name: Install Playwright chromium

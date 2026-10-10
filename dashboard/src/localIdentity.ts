@@ -4,7 +4,7 @@
  * l'accorde pas (ancienne version) ou injoignable ne bloque jamais la
  * déconnexion.
  */
-import { daemonGrantsEnroll } from "./onboarding/view";
+import { daemonGrantsEnroll } from "./onboarding/enrollGrant";
 import type { Platform } from "./platform/types";
 
 export async function forgetLocalIdentity(platform: Platform): Promise<void> {
