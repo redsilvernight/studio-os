@@ -651,6 +651,50 @@ async def test_protocol_rejected_launch_is_not_applicable(
     }
 
 
+async def _cancel(
+    client: AsyncClient, headers: dict[str, str], launch: dict[str, Any]
+) -> dict[str, Any]:
+    response = await client.post(
+        f"/api/v1/task-launches/{launch['id']}/cancel",
+        json={"expected_version": launch["version"]},
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    result: dict[str, Any] = response.json()
+    return result
+
+
+async def test_protocol_cancelled_before_running_is_not_applicable(
+    client: AsyncClient, auth_headers: dict[str, str], machine: tuple[MachineModel, str]
+) -> None:
+    project_id, task_id, machine_id = await _ready_target(client, auth_headers, machine)
+    launch = (await _launch(client, auth_headers, project_id, task_id, machine_id)).json()
+    for reported in ("accepted", "preparing"):
+        launch = await _report(client, auth_headers, launch["id"], launch["version"], reported)
+    launch = await _cancel(client, auth_headers, launch)
+    assert (await _protocols(client, auth_headers, project_id))[launch["id"]] == {
+        "status": "not_applicable",
+        "session_id": None,
+        "task_status": None,
+    }
+
+
+async def test_protocol_cancelled_while_running_is_unverified(
+    client: AsyncClient, auth_headers: dict[str, str], machine: tuple[MachineModel, str]
+) -> None:
+    project_id, task_id, machine_id = await _ready_target(client, auth_headers, machine)
+    launch = (await _launch(client, auth_headers, project_id, task_id, machine_id)).json()
+    for reported in ("accepted", "preparing", "running"):
+        launch = await _report(client, auth_headers, launch["id"], launch["version"], reported)
+    launch = await _cancel(client, auth_headers, launch)
+    assert launch["status"] == "cancelled"
+    assert (await _protocols(client, auth_headers, project_id))[launch["id"]] == {
+        "status": "unverified",
+        "session_id": None,
+        "task_status": None,
+    }
+
+
 async def _blocked_handoff(
     client: AsyncClient,
     headers: dict[str, str],

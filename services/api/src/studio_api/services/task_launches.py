@@ -29,6 +29,7 @@ from studio_contracts.task_launch import (
 from studio_contracts.tasks import TaskStatus
 
 from studio_api.db.models.agent import AgentModel
+from studio_api.db.models.event import EventModel
 from studio_api.db.models.machine import MachineModel
 from studio_api.db.models.task import TaskModel
 from studio_api.db.models.task_launch import TaskLaunchModel
@@ -234,16 +235,25 @@ _NEVER_RAN_LAUNCH_STATUSES = frozenset(
 )
 
 
+_STOPPED_EVENT_TYPES = (
+    EventType.TASK_LAUNCH_CANCELLED.value,
+    EventType.TASK_LAUNCH_EXPIRED.value,
+)
+
+
 def _derive_protocol(
     launch: TaskLaunchModel,
     work_session: WorkSessionModel | None,
     task: TaskModel | None,
+    stopped_while_running: bool = False,
 ) -> TaskLaunchProtocol:
     """The protocol proof of one launch, read-time only: a closed linked
     session is the handoff whatever the launch became afterwards, a live
     launch awaits its session, a launch stopped before it ran has no proof
-    to give, and an exit code alone proves nothing. `task_status` is read,
-    never written: a handoff never completes the task."""
+    to give, and an exit code alone proves nothing. A launch cancelled or
+    expired while `running` did run its harness, so it is unverified, not
+    not-applicable. `task_status` is read, never written: a handoff never
+    completes the task."""
     if work_session is not None and work_session.ended_at is not None:
         return TaskLaunchProtocol(
             status=TaskLaunchProtocolStatus.HANDED_OFF,
@@ -254,7 +264,11 @@ def _derive_protocol(
         return TaskLaunchProtocol(
             status=TaskLaunchProtocolStatus.AWAITING, session_id=launch.session_id
         )
-    if launch.status in _NEVER_RAN_LAUNCH_STATUSES and work_session is None:
+    if (
+        launch.status in _NEVER_RAN_LAUNCH_STATUSES
+        and work_session is None
+        and not stopped_while_running
+    ):
         return TaskLaunchProtocol(status=TaskLaunchProtocolStatus.NOT_APPLICABLE)
     return TaskLaunchProtocol(
         status=TaskLaunchProtocolStatus.UNVERIFIED, session_id=launch.session_id
@@ -283,15 +297,37 @@ async def _launch_tasks(
     return {row.id: row for row in result.scalars()}
 
 
+async def _stopped_while_running(
+    session: AsyncSession, launches: Sequence[TaskLaunchModel]
+) -> set[str]:
+    launch_ids = [
+        str(launch.id)
+        for launch in launches
+        if launch.status in _NEVER_RAN_LAUNCH_STATUSES and launch.session_id is None
+    ]
+    if not launch_ids:
+        return set()
+    launch_id = EventModel.payload["launch_id"].astext
+    result = await session.execute(
+        select(launch_id).where(
+            EventModel.event_type.in_(_STOPPED_EVENT_TYPES),
+            launch_id.in_(launch_ids),
+            EventModel.payload["previous_status"].astext == TaskLaunchStatus.RUNNING.value,
+        )
+    )
+    return set(result.scalars())
+
+
 async def protocol_views(
     session: AsyncSession, launches: Sequence[TaskLaunchModel]
 ) -> list[TaskLaunchView]:
     """Read model of a launch list: `TaskLaunchView` adds to each launch the
-    protocol proof derived from its linked work session. Sessions and tasks
-    are loaded in two grouped queries, never one per launch. Writes nothing
-    and moves no task."""
+    protocol proof derived from its linked work session. Sessions, tasks and
+    stop events are loaded in three grouped queries, never one per launch.
+    Writes nothing and moves no task."""
     work_sessions = await _linked_sessions(session, launches)
     tasks = await _launch_tasks(session, launches)
+    stopped_while_running = await _stopped_while_running(session, launches)
     return [
         TaskLaunchView(
             **TaskLaunch.model_validate(launch).model_dump(),
@@ -299,6 +335,7 @@ async def protocol_views(
                 launch,
                 work_sessions.get(launch.session_id) if launch.session_id else None,
                 tasks.get(launch.task_id),
+                str(launch.id) in stopped_while_running,
             ),
         )
         for launch in launches
