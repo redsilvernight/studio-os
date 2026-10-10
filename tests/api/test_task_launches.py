@@ -570,3 +570,171 @@ async def test_report_session_must_be_live_and_on_the_launch_task(
         )
         assert response.status_code == 409, response.text
         assert response.json()["detail"]["error_code"] == "invalid_launch_session"
+
+
+async def _protocols(
+    client: AsyncClient, headers: dict[str, str], project_id: str
+) -> dict[str, dict[str, Any]]:
+    response = await client.get(f"/api/v1/projects/{project_id}/task-launches", headers=headers)
+    assert response.status_code == 200, response.text
+    return {item["id"]: item["protocol"] for item in response.json()["items"]}
+
+
+async def _task_status(client: AsyncClient, headers: dict[str, str], task_id: str) -> str:
+    response = await client.get(f"/api/v1/tasks/{task_id}", headers=headers)
+    assert response.status_code == 200, response.text
+    status: str = response.json()["status"]
+    return status
+
+
+async def test_protocol_exit_zero_without_session_is_unverified(
+    client: AsyncClient, auth_headers: dict[str, str], machine: tuple[MachineModel, str]
+) -> None:
+    project_id, task_id, machine_id = await _ready_target(client, auth_headers, machine)
+    launch = (await _launch(client, auth_headers, project_id, task_id, machine_id)).json()
+    for reported in ("accepted", "preparing", "running", "succeeded"):
+        launch = await _report(client, auth_headers, launch["id"], launch["version"], reported)
+    assert launch["status"] == "succeeded"
+    assert (await _protocols(client, auth_headers, project_id))[launch["id"]] == {
+        "status": "unverified",
+        "session_id": None,
+        "task_status": None,
+    }
+    assert await _task_status(client, auth_headers, task_id) == "created"
+
+
+async def test_protocol_open_session_on_succeeded_launch_is_unverified(
+    client: AsyncClient, auth_headers: dict[str, str], machine: tuple[MachineModel, str]
+) -> None:
+    project_id, task_id, machine_id = await _ready_target(client, auth_headers, machine)
+    launch = (await _launch(client, auth_headers, project_id, task_id, machine_id)).json()
+    launch = await _report(client, auth_headers, launch["id"], launch["version"], "accepted")
+    session_id = await _open_session(client, auth_headers, task_id, machine_id)
+    for reported in ("preparing", "running", "succeeded"):
+        launch = await _report(client, auth_headers, launch["id"], launch["version"], reported)
+    assert launch["status"] == "succeeded"
+    assert (await _protocols(client, auth_headers, project_id))[launch["id"]] == {
+        "status": "unverified",
+        "session_id": session_id,
+        "task_status": None,
+    }
+
+
+async def test_protocol_open_session_on_running_launch_is_awaiting(
+    client: AsyncClient, auth_headers: dict[str, str], machine: tuple[MachineModel, str]
+) -> None:
+    project_id, task_id, machine_id = await _ready_target(client, auth_headers, machine)
+    launch = (await _launch(client, auth_headers, project_id, task_id, machine_id)).json()
+    launch = await _report(client, auth_headers, launch["id"], launch["version"], "accepted")
+    session_id = await _open_session(client, auth_headers, task_id, machine_id)
+    for reported in ("preparing", "running"):
+        launch = await _report(client, auth_headers, launch["id"], launch["version"], reported)
+    assert launch["status"] == "running"
+    assert (await _protocols(client, auth_headers, project_id))[launch["id"]] == {
+        "status": "awaiting",
+        "session_id": session_id,
+        "task_status": None,
+    }
+
+
+async def test_protocol_rejected_launch_is_not_applicable(
+    client: AsyncClient, auth_headers: dict[str, str], machine: tuple[MachineModel, str]
+) -> None:
+    project_id, task_id, machine_id = await _ready_target(client, auth_headers, machine)
+    launch = (await _launch(client, auth_headers, project_id, task_id, machine_id)).json()
+    launch = await _report(client, auth_headers, launch["id"], launch["version"], "rejected")
+    assert launch["status"] == "rejected"
+    assert (await _protocols(client, auth_headers, project_id))[launch["id"]] == {
+        "status": "not_applicable",
+        "session_id": None,
+        "task_status": None,
+    }
+
+
+async def _blocked_handoff(
+    client: AsyncClient,
+    headers: dict[str, str],
+    project_id: str,
+    task_id: str,
+    session_id: str,
+) -> dict[str, Any]:
+    task = await client.get(f"/api/v1/tasks/{task_id}", headers=headers)
+    assert task.status_code == 200, task.text
+    response = await client.post(
+        "/api/v1/handoff",
+        headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
+        json={
+            "project_id": project_id,
+            "session_id": session_id,
+            "expected_version": task.json()["version"],
+            "task_status": {"status": "blocked"},
+        },
+    )
+    assert response.status_code == 200, response.text
+    result: dict[str, Any] = response.json()
+    return result
+
+
+async def test_protocol_handoff_survives_the_late_terminal_report(
+    client: AsyncClient, auth_headers: dict[str, str], machine: tuple[MachineModel, str]
+) -> None:
+    project_id, task_id, machine_id = await _ready_target(client, auth_headers, machine)
+    launch = (await _launch(client, auth_headers, project_id, task_id, machine_id)).json()
+    launch = await _report(client, auth_headers, launch["id"], launch["version"], "accepted")
+    session_id = await _open_session(client, auth_headers, task_id, machine_id)
+    for reported in ("preparing", "running"):
+        launch = await _report(client, auth_headers, launch["id"], launch["version"], reported)
+    handoff = await _blocked_handoff(client, auth_headers, project_id, task_id, session_id)
+    assert handoff["task_status"] == "blocked"
+    assert (await _protocols(client, auth_headers, project_id))[launch["id"]] == {
+        "status": "handed_off",
+        "session_id": session_id,
+        "task_status": "blocked",
+    }
+    finished = await _report(client, auth_headers, launch["id"], launch["version"], "succeeded")
+    assert finished["status"] == "succeeded"
+    assert (await _protocols(client, auth_headers, project_id))[launch["id"]] == {
+        "status": "handed_off",
+        "session_id": session_id,
+        "task_status": "blocked",
+    }
+    assert await _task_status(client, auth_headers, task_id) == "blocked"
+
+
+async def test_protocol_handoff_replay_keeps_the_same_proof(
+    client: AsyncClient, auth_headers: dict[str, str], machine: tuple[MachineModel, str]
+) -> None:
+    project_id, task_id, machine_id = await _ready_target(client, auth_headers, machine)
+    launch = (await _launch(client, auth_headers, project_id, task_id, machine_id)).json()
+    launch = await _report(client, auth_headers, launch["id"], launch["version"], "accepted")
+    session_id = await _open_session(client, auth_headers, task_id, machine_id)
+    launch = await _report(client, auth_headers, launch["id"], launch["version"], "preparing")
+    task = await client.get(f"/api/v1/tasks/{task_id}", headers=auth_headers)
+    assert task.status_code == 200, task.text
+    key = {"Idempotency-Key": str(uuid.uuid4())}
+    body = {
+        "project_id": project_id,
+        "session_id": session_id,
+        "expected_version": task.json()["version"],
+        "task_status": {"status": "blocked"},
+    }
+    first = await client.post("/api/v1/handoff", headers={**auth_headers, **key}, json=body)
+    second = await client.post("/api/v1/handoff", headers={**auth_headers, **key}, json=body)
+    assert first.status_code == 200, first.text
+    assert second.status_code == 200, second.text
+    assert first.json() == second.json()
+    assert (await _protocols(client, auth_headers, project_id))[launch["id"]] == {
+        "status": "handed_off",
+        "session_id": session_id,
+        "task_status": "blocked",
+    }
+
+
+async def test_by_id_read_has_no_protocol(
+    client: AsyncClient, auth_headers: dict[str, str], machine: tuple[MachineModel, str]
+) -> None:
+    project_id, task_id, machine_id = await _ready_target(client, auth_headers, machine)
+    launch = (await _launch(client, auth_headers, project_id, task_id, machine_id)).json()
+    response = await client.get(f"/api/v1/task-launches/{launch['id']}", headers=auth_headers)
+    assert response.status_code == 200, response.text
+    assert "protocol" not in response.json()
