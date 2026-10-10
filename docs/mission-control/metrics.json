@@ -1,0 +1,208 @@
+{
+  "calls": {
+    "prepare_project_context": {
+      "approx_tokens": {
+        "max": 2468.0,
+        "mean": 2468.0,
+        "min": 2468.0
+      },
+      "items": {
+        "context_ai_work": 5.0,
+        "context_chars_used": 3019.0,
+        "context_claims": 2.0,
+        "context_decisions": 0.0,
+        "context_related_tasks": 5.0,
+        "context_roadmap": 1.0,
+        "context_rules": 0.0,
+        "context_skills": 0.0,
+        "context_task": 1.0
+      },
+      "latency_ms": {
+        "max_ms": 75.07,
+        "p50_ms": 61.45,
+        "p95_ms": 72.74
+      },
+      "omitted_for_budget": {},
+      "overflow": {},
+      "response_chars": {
+        "max": 9872,
+        "mean": 9872.0,
+        "min": 9872
+      },
+      "samples": 10,
+      "service": "studio_api.services.project_context.prepare_project_context",
+      "warmup_passes": 2
+    },
+    "start_work_with_task": {
+      "approx_tokens": {
+        "max": 3020.75,
+        "mean": 3020.75,
+        "min": 3020.75
+      },
+      "items": {
+        "candidates": 0.0,
+        "context_ai_work": 5.0,
+        "context_chars_used": 3019.0,
+        "context_claims": 2.0,
+        "context_decisions": 0.0,
+        "context_related_tasks": 5.0,
+        "context_roadmap": 1.0,
+        "context_rules": 0.0,
+        "context_skills": 0.0,
+        "context_task": 1.0,
+        "sync_items": 5.0
+      },
+      "latency_ms": {
+        "max_ms": 211.07,
+        "p50_ms": 93.4,
+        "p95_ms": 165.21
+      },
+      "omitted_for_budget": {},
+      "overflow": {},
+      "response_chars": {
+        "max": 12083,
+        "mean": 12083.0,
+        "min": 12083
+      },
+      "samples": 10,
+      "service": "studio_api.services.start_work.start_work",
+      "warmup_passes": 2
+    },
+    "start_work_without_task": {
+      "approx_tokens": {
+        "max": 2405.25,
+        "mean": 2405.25,
+        "min": 2405.25
+      },
+      "items": {
+        "candidates": 5.0,
+        "context_ai_work": 5.0,
+        "context_chars_used": 2779.0,
+        "context_claims": 0.0,
+        "context_decisions": 0.0,
+        "context_related_tasks": 5.0,
+        "context_roadmap": 1.0,
+        "context_rules": 0.0,
+        "context_skills": 0.0,
+        "context_task": 0.0
+      },
+      "latency_ms": {
+        "max_ms": 85.16,
+        "p50_ms": 71.51,
+        "p95_ms": 80.37
+      },
+      "omitted_for_budget": {},
+      "overflow": {},
+      "response_chars": {
+        "max": 9621,
+        "mean": 9621.0,
+        "min": 9621
+      },
+      "samples": 10,
+      "service": "studio_api.services.start_work.start_work",
+      "warmup_passes": 2
+    },
+    "sync": {
+      "approx_tokens": {
+        "max": 209.0,
+        "mean": 209.0,
+        "min": 209.0
+      },
+      "items": {
+        "by_why_roadmap_dependency": 4.0,
+        "items": 4.0
+      },
+      "latency_ms": {
+        "max_ms": 41.27,
+        "p50_ms": 29.2,
+        "p95_ms": 37.09
+      },
+      "omitted_for_budget": {},
+      "overflow": {},
+      "response_chars": {
+        "max": 836,
+        "mean": 836.0,
+        "min": 836
+      },
+      "samples": 10,
+      "service": "studio_api.services.sync.sync",
+      "warmup_passes": 2
+    }
+  },
+  "command": "uv run python -m scripts.mission_metrics --root . --apply",
+  "environment": {
+    "alembic_head": "0029",
+    "git_sha": "56778a17821f23a82c63502fb0a72dac325cb820",
+    "os": "Windows-11-10.0.26200-SP0",
+    "postgresql": "16.15",
+    "python": "3.14.7"
+  },
+  "format": "studio.eval.mission-metrics/v1",
+  "generated_at": "2026-10-10T12:26:38+00:00",
+  "missing": [
+    {
+      "metric": "harness_tokens_per_ai_work",
+      "reason": "Aucun run de harness dans ce scenario : rien ne compte les tokens d'une execution reelle Claude Code, OpenCode ou Codex, la valeur reste inconnue et jamais 0.",
+      "status": "unknown"
+    },
+    {
+      "metric": "harness_cost_per_ai_work",
+      "reason": "Aucun tarif date n'est applique et aucune facture provider n'est lue : un cout absent reste inconnu, jamais 0.",
+      "status": "unknown"
+    },
+    {
+      "metric": "usage_collector_coverage",
+      "reason": "Les 30 entrees ont ete ecrites par ce script, pas par un collecteur versionne par harness : la part des runs reels qui serait ingeree n'est pas observable ici.",
+      "status": "unknown"
+    },
+    {
+      "metric": "pilot_thresholds",
+      "reason": "Une graine synthetique n'a ni fenetre pilote ni usage reel : aucun seuil d'acceptation ne peut en etre tire.",
+      "status": "unknown"
+    }
+  ],
+  "noise": {
+    "ai_work_events": 60,
+    "by_type": {
+      "ai_work.completed": 30,
+      "ai_work.started": 30,
+      "resource.claimed": 5,
+      "roadmap.activated": 1,
+      "roadmap.created": 1,
+      "roadmap.updated": 3,
+      "session.started": 1,
+      "task.created": 20,
+      "task.started": 1
+    },
+    "events_per_ai_work": 2.0,
+    "events_total": 92,
+    "sync_redundancy": {
+      "calls": 10,
+      "items": 40,
+      "redundant_items": 36,
+      "unique_entities": 4
+    },
+    "total_events_per_ai_work_id": 3.067,
+    "unique_ai_work_ids": 30
+  },
+  "sample": {
+    "call_kinds": 4,
+    "context_limit": 5,
+    "context_max_chars": 12000,
+    "measured_calls": 40,
+    "samples_per_call": 10,
+    "seed": 20261009,
+    "seeded": {
+      "agents": 2,
+      "ai_work_completions": 30,
+      "ai_work_entries": 30,
+      "claims": 5,
+      "machines": 2,
+      "projects": 1,
+      "roadmaps": 1,
+      "tasks": 20
+    },
+    "sync_limit": 50,
+    "warmup_passes": 2
+  }
+}
