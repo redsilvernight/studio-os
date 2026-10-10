@@ -144,7 +144,7 @@ export function launchProtocolStatus(launch: TaskLaunchWithProtocol): TaskLaunch
 }
 
 /**
- * Statut de la tâche au moment du handoff. `completed` reste « à relire » :
+ * Statut courant de la tâche après le handoff. `completed` reste « à relire » :
  * une tâche marquée terminée par l'agent n'est ni relue ni validée ici.
  */
 export function launchProtocolTaskLabel(taskStatus: string | null | undefined): string | null {
