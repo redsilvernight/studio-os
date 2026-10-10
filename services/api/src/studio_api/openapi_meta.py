@@ -479,6 +479,13 @@ RESP_507_QUOTA_EXCEEDED: ErrorResponses = {
     )
 }
 
+RESP_422_MISSION_CURSOR: ErrorResponses = {
+    422: _json_response(
+        "Mission `cursor` rejected: not a cursor returned by a previous page (`invalid_cursor`).",
+        {"detail": {"error_code": "invalid_cursor"}},
+    )
+}
+
 RESP_422_TRANSFER_INTEGRITY: ErrorResponses = {
     422: _json_response(
         "Upload integrity or shape rejected, nothing marked ready: small "

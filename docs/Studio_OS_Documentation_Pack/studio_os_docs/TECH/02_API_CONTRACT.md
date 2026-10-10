@@ -735,7 +735,7 @@ n'utilisant que leurs propres agents n'observent aucun changement.
   Herite directement l'honnetete "not claimed exhaustive" de `GET /events`
   (meme requete sous-jacente) : plusieurs types d'evenements n'ont aucune
   emission serveur a ce jour (question ouverte n°9,
-   `docs/ROADMAP_STEP8_BREAKDOWN.md`). Toute machine authentifiee peut lire.
+  `docs/ROADMAP_STEP8_BREAKDOWN.md`). Toute machine authentifiee peut lire.
 
 ### Mission Control (read model, additif, DEC-0196/DEC-0201)
 - GET /api/v1/projects/{project_id}/mission — projection de lecture
@@ -759,8 +759,9 @@ n'utilisant que leurs propres agents n'observent aucun changement.
   explicites (`data_gaps` : `machine_unknown`/`session_not_found`/
   `task_not_found`), jamais comblees. Sans Bearer : `401` ; projet
   inaccessible ou inexistant : `403` (pas d'oracle d'existence,
-  DEC-0103). Les clients doivent tolerer un `verdict` ou une `reason`
-  inconnus (vocabulaires additifs uniquement).
+  DEC-0103) ; `cursor` invalide : `422` (`invalid_cursor`). Les clients
+  doivent tolerer un `verdict`, une `reason`, un `protocol_state` ou un
+  `data_gaps` inconnus (vocabulaires additifs uniquement).
 
 ### Roadmaps (Roadmaps P1, additif, DEC-0084/DEC-0085 ; implemente P2/P3, DEC-0086)
 Contrat fige par P1 (`packages/studio-contracts/.../roadmaps.py`) ; routes

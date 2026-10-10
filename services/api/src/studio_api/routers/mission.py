@@ -10,7 +10,11 @@ from studio_contracts.mission import (
 )
 
 from studio_api.deps import CurrentPrincipal, DbSession
-from studio_api.openapi_meta import RESP_401_UNAUTHORIZED, RESP_403_FORBIDDEN
+from studio_api.openapi_meta import (
+    RESP_401_UNAUTHORIZED,
+    RESP_403_FORBIDDEN,
+    RESP_422_MISSION_CURSOR,
+)
 from studio_api.services import mission as mission_service
 
 router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
@@ -32,7 +36,7 @@ router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
         "Clients must tolerate an unknown `verdict`, `reason`, "
         "`protocol_state` or `data_gaps` value."
     ),
-    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
+    responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN, **RESP_422_MISSION_CURSOR},
 )
 async def get_project_mission(
     project_id: UUID,

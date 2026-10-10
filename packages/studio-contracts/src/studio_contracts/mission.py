@@ -93,7 +93,8 @@ class MissionProtocolState(StrEnum):
     """Protocol closure of the run, reported apart from the process result:
     `handed_off` (the session ended and a non-`started` AI work entry is
     linked to it), `ended_without_handoff` (the session ended with no such
-    entry), `open` (the session has not ended) and `missing` (no session)."""
+    entry), `open` (the session has not ended) and `missing` (no session).
+    Additive-only: a client must tolerate an unknown state."""
 
     OPEN = "open"
     HANDED_OFF = "handed_off"
@@ -102,7 +103,8 @@ class MissionProtocolState(StrEnum):
 
 
 class MissionDataGap(StrEnum):
-    """Explicitly incomplete data — never filled with a fabricated value."""
+    """Explicitly incomplete data — never filled with a fabricated value.
+    Additive-only: a client must tolerate an unknown gap."""
 
     MACHINE_UNKNOWN = "machine_unknown"
     SESSION_NOT_FOUND = "session_not_found"
