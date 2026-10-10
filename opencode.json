@@ -9,13 +9,5 @@
     }
   },
   "mcp": {
-    "studio-os": {
-      "type": "remote",
-      "url": "https://flo-laptop.tailf61f85.ts.net/mcp",
-      "enabled": true,
-      "headers": {
-        "Authorization": "Bearer {env:STUDIO_MCP_MACHINE_TOKEN}"
-      }
-    }
   }
 }

@@ -6,6 +6,7 @@ import {
   getEligibleMachines,
   getTaskLaunch,
   listTaskLaunches,
+  type TaskLaunch,
 } from "./taskLaunchesApi";
 
 type Fake = { GET: ReturnType<typeof vi.fn>; POST: ReturnType<typeof vi.fn> };
@@ -49,6 +50,28 @@ describe("listTaskLaunches", () => {
     });
     expect(launches).toEqual([{ id: "l1" }]);
   });
+
+  it("transmets la preuve de protocole portée par la vue projet", async () => {
+    const GET = vi.fn().mockResolvedValue(
+      ok({
+        items: [
+          { id: "l1", status: "succeeded", protocol: { status: "unverified", session_id: null, task_status: null } },
+          { id: "l2", status: "failed", protocol: { status: "handed_off", session_id: "s2", task_status: "blocked" } },
+        ],
+        limit: 100,
+        offset: 0,
+      }),
+    );
+    const launches = await listTaskLaunches(fakeClient({ GET }), "p1");
+    expect(launches[0]?.protocol?.status).toBe("unverified");
+    expect(launches[1]?.protocol?.task_status).toBe("blocked");
+  });
+
+  it("tolère un serveur qui n'envoie pas encore `protocol`", async () => {
+    const GET = vi.fn().mockResolvedValue(ok({ items: [{ id: "l1", status: "succeeded" }], limit: 100, offset: 0 }));
+    const launches = await listTaskLaunches(fakeClient({ GET }), "p1");
+    expect(launches[0]?.protocol).toBeUndefined();
+  });
 });
 
 describe("createTaskLaunch", () => {
@@ -86,6 +109,12 @@ describe("getTaskLaunch / cancelTaskLaunch", () => {
     const launch = await getTaskLaunch(fakeClient({ GET }), "l1");
     expect(GET).toHaveBeenCalledWith("/api/v1/task-launches/{launch_id}", { params: { path: { launch_id: "l1" } } });
     expect(launch.status).toBe("running");
+  });
+
+  it("la lecture par id reste sans `protocol`", async () => {
+    const GET = vi.fn().mockResolvedValue(ok({ id: "l1", status: "succeeded" }));
+    const launch = (await getTaskLaunch(fakeClient({ GET }), "l1")) as TaskLaunch & { protocol?: unknown };
+    expect(launch.protocol).toBeUndefined();
   });
 
   it("POST cancel with the current version", async () => {
