@@ -21,7 +21,7 @@
  *               + imports statiques transitifs de `dist/`), cible ≤ 60 kB
  *               (INITIAL_JS_GZIP_BUDGET de scripts/analyze-bundle.mjs).
  *
- * Sortie : `e2e/p01-metrics.json`, écrit une fois en `afterAll` — écran → valeur,
+ * Sortie : `e2e/p01-metrics.json`, écrit une fois en `afterAll` si `P01_METRICS_WRITE=1` — écran → valeur,
  * cible, `over_budget`, plus la date de mesure et le SHA du commit mesuré.
  *
  * Contrat de la baseline : un dépassement de cible ne fait PAS échouer le test.
@@ -439,6 +439,8 @@ const report = {
 };
 
 test.afterAll(async () => {
+  // La suite e2e complète (CI comprise) mesure sans réécrire la baseline commitée.
+  if (process.env.P01_METRICS_WRITE !== "1") return;
   report.generated_at = new Date().toISOString();
   report.git_sha = gitSha();
   await writeFile(
