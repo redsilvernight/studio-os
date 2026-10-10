@@ -23,6 +23,7 @@ import { renderAiIntegrationInto } from "./aiIntegration";
 import { renderClaimsInto } from "./claims";
 import { renderDecisionsV2 as renderDecisions } from "./decisionsV2";
 import { renderMembersInto } from "./members";
+import { renderMissionInto, renderMissionSummaryInto, type LiveState } from "./mission";
 import { renderTasksInto } from "./tasks";
 import { isRoadmapManagerRole, renderRoadmapInto } from "./roadmap";
 
@@ -34,6 +35,7 @@ type ResourceClaim = components["schemas"]["ResourceClaim"];
 export type ProjectTab =
   | "overview"
   | "roadmap"
+  | "mission"
   | "tasks"
   | "claims"
   | "activity"
@@ -45,10 +47,12 @@ export interface ProjectDetailContext {
   client: StudioClient;
   authed: boolean;
   roadmapDataSource?: RoadmapDataSource;
+  live?: () => LiveState;
 }
 
 export const PROJECT_TABS: ReadonlyArray<{ id: ProjectTab; label: string; suffix: string }> = [
   { id: "overview", label: "Vue d'ensemble", suffix: "" },
+  { id: "mission", label: "Exécutions", suffix: "/mission" },
   { id: "roadmap", label: "Roadmap", suffix: "/roadmap" },
   { id: "tasks", label: "Tâches", suffix: "/tasks" },
   { id: "claims", label: "Réservations", suffix: "/claims" },
@@ -292,6 +296,13 @@ export async function renderProjectDetail(
       }
     }
     panel.innerHTML = projectOverviewHtml(project, state, Date.now(), step);
+    const missionSlot = document.createElement("div");
+    panel.querySelector(".workspace-hero")?.after(missionSlot);
+    await renderMissionSummaryInto(missionSlot, { client: ctx.client, projectId: project.id, authed: ctx.authed, live: ctx.live });
+    return;
+  }
+  if (tab === "mission") {
+    await renderMissionInto(panel, { client: ctx.client, projectId: project.id, authed: ctx.authed, live: ctx.live });
     return;
   }
   if (tab === "tasks") {

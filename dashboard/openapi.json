@@ -4284,7 +4284,7 @@
       }
      },
      "422": {
-      "description": "Library scope context rejected, nothing stored: project scope requires `project_id`, studio and user scopes forbid it (`invalid_scope_context`). Library semantic content rejected, nothing stored (P3 semantic content): the version `content` must match its per-kind schema (`content_schema: studio.library.<kind>/v1`, unknown fields forbidden, `rule`/`skill` prose bounded to 65_536 characters, `model_profile` carrying vendor-neutral `requirements` only, `agent_definition` descriptive only, `workflow` declarative only with `participants`, `inputs`/`outputs` and no runtime field). Per-field `details` describe the caller's own payload only. Workflow definition rejected, nothing stored (P11 declarative workflow): the version `content` is schema-valid but structurally incoherent \u2014 duplicate `participant_id` (`duplicate_participant`), a `depends_on` naming no participant of this workflow (`unknown_dependency`), a dependency cycle (`dependency_cycle`), a participant `agent_stable_key` with no matching `composes_agent` pin (`unknown_participant_agent`), a `composes_agent` pin no participant uses (`unused_agent_dependency`), a duplicated I/O name (`duplicate_io_declaration`), or a dataflow `source` that does not resolve to a declared participant output / workflow input (`invalid_io_reference`). Static validation only \u2014 it decides no execution, schedules nothing and stores no run state; raised after the auth/scope gates and before the 404/409 pin gates, never an oracle on invisible resources. Library binding rejected, nothing stored (P5 typed bindings): the dependency pin names a forbidden kind couple (`forbidden_kind_pair`), an explicit relation that does not match the couple (`relation_mismatch`), a second model profile on one agent definition (`too_many_model_profiles`), twice the same target (`duplicate_binding`), or a private user target from a shared definition (`forbidden_scope`). Raised only after the 404/409 existence gates \u2014 never an oracle on invisible resources.",
+      "description": "Library scope context rejected, nothing stored: project scope requires `project_id`, studio and user scopes forbid it (`invalid_scope_context`). Library semantic content rejected, nothing stored (P3 semantic content): the version `content` must match its per-kind schema (`content_schema: studio.library.<kind>/v1`, unknown fields forbidden, `rule`/`skill` prose bounded to 65_536 characters, `model_profile` carrying vendor-neutral `requirements` only, `agent_definition` descriptive only, `workflow` declarative only with `participants`, `inputs`/`outputs` and no runtime field, `hook` an abstract `event` plus inline `scripts`, never a harness event name). Per-field `details` describe the caller's own payload only. Workflow definition rejected, nothing stored (P11 declarative workflow): the version `content` is schema-valid but structurally incoherent \u2014 duplicate `participant_id` (`duplicate_participant`), a `depends_on` naming no participant of this workflow (`unknown_dependency`), a dependency cycle (`dependency_cycle`), a participant `agent_stable_key` with no matching `composes_agent` pin (`unknown_participant_agent`), a `composes_agent` pin no participant uses (`unused_agent_dependency`), a duplicated I/O name (`duplicate_io_declaration`), or a dataflow `source` that does not resolve to a declared participant output / workflow input (`invalid_io_reference`). Static validation only \u2014 it decides no execution, schedules nothing and stores no run state; raised after the auth/scope gates and before the 404/409 pin gates, never an oracle on invisible resources. Hook definition rejected, nothing stored (`hook` kind): the version `content` is schema-valid (`studio.library.hook/v1`) but statically incoherent \u2014 two scripts for the same `(os, shell)` (`duplicate_script_target`), a `matcher` on an event other than `pre_tool`/`post_tool` (`matcher_not_supported`), `blocking` mode on an event no harness can veto (`blocking_not_supported`), or secret material in a script body (`secret_material`). Static validation only: the server stores and distributes hooks, it never executes them. Library binding rejected, nothing stored (P5 typed bindings): the dependency pin names a forbidden kind couple (`forbidden_kind_pair`), an explicit relation that does not match the couple (`relation_mismatch`), a second model profile on one agent definition (`too_many_model_profiles`), twice the same target (`duplicate_binding`), or a private user target from a shared definition (`forbidden_scope`). Raised only after the 404/409 existence gates \u2014 never an oracle on invisible resources.",
       "content": {
        "application/json": {
         "example": {
@@ -4552,7 +4552,7 @@
       }
      },
      "422": {
-      "description": "Library semantic content rejected, nothing stored (P3 semantic content): the version `content` must match its per-kind schema (`content_schema: studio.library.<kind>/v1`, unknown fields forbidden, `rule`/`skill` prose bounded to 65_536 characters, `model_profile` carrying vendor-neutral `requirements` only, `agent_definition` descriptive only, `workflow` declarative only with `participants`, `inputs`/`outputs` and no runtime field). Per-field `details` describe the caller's own payload only. Workflow definition rejected, nothing stored (P11 declarative workflow): the version `content` is schema-valid but structurally incoherent \u2014 duplicate `participant_id` (`duplicate_participant`), a `depends_on` naming no participant of this workflow (`unknown_dependency`), a dependency cycle (`dependency_cycle`), a participant `agent_stable_key` with no matching `composes_agent` pin (`unknown_participant_agent`), a `composes_agent` pin no participant uses (`unused_agent_dependency`), a duplicated I/O name (`duplicate_io_declaration`), or a dataflow `source` that does not resolve to a declared participant output / workflow input (`invalid_io_reference`). Static validation only \u2014 it decides no execution, schedules nothing and stores no run state; raised after the auth/scope gates and before the 404/409 pin gates, never an oracle on invisible resources. Library binding rejected, nothing stored (P5 typed bindings): the dependency pin names a forbidden kind couple (`forbidden_kind_pair`), an explicit relation that does not match the couple (`relation_mismatch`), a second model profile on one agent definition (`too_many_model_profiles`), twice the same target (`duplicate_binding`), or a private user target from a shared definition (`forbidden_scope`). Raised only after the 404/409 existence gates \u2014 never an oracle on invisible resources.",
+      "description": "Library semantic content rejected, nothing stored (P3 semantic content): the version `content` must match its per-kind schema (`content_schema: studio.library.<kind>/v1`, unknown fields forbidden, `rule`/`skill` prose bounded to 65_536 characters, `model_profile` carrying vendor-neutral `requirements` only, `agent_definition` descriptive only, `workflow` declarative only with `participants`, `inputs`/`outputs` and no runtime field, `hook` an abstract `event` plus inline `scripts`, never a harness event name). Per-field `details` describe the caller's own payload only. Workflow definition rejected, nothing stored (P11 declarative workflow): the version `content` is schema-valid but structurally incoherent \u2014 duplicate `participant_id` (`duplicate_participant`), a `depends_on` naming no participant of this workflow (`unknown_dependency`), a dependency cycle (`dependency_cycle`), a participant `agent_stable_key` with no matching `composes_agent` pin (`unknown_participant_agent`), a `composes_agent` pin no participant uses (`unused_agent_dependency`), a duplicated I/O name (`duplicate_io_declaration`), or a dataflow `source` that does not resolve to a declared participant output / workflow input (`invalid_io_reference`). Static validation only \u2014 it decides no execution, schedules nothing and stores no run state; raised after the auth/scope gates and before the 404/409 pin gates, never an oracle on invisible resources. Hook definition rejected, nothing stored (`hook` kind): the version `content` is schema-valid (`studio.library.hook/v1`) but statically incoherent \u2014 two scripts for the same `(os, shell)` (`duplicate_script_target`), a `matcher` on an event other than `pre_tool`/`post_tool` (`matcher_not_supported`), `blocking` mode on an event no harness can veto (`blocking_not_supported`), or secret material in a script body (`secret_material`). Static validation only: the server stores and distributes hooks, it never executes them. Library binding rejected, nothing stored (P5 typed bindings): the dependency pin names a forbidden kind couple (`forbidden_kind_pair`), an explicit relation that does not match the couple (`relation_mismatch`), a second model profile on one agent definition (`too_many_model_profiles`), twice the same target (`duplicate_binding`), or a private user target from a shared definition (`forbidden_scope`). Raised only after the 404/409 existence gates \u2014 never an oracle on invisible resources.",
       "content": {
        "application/json": {
         "example": {
@@ -6765,6 +6765,121 @@
        "application/json": {
         "schema": {
          "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/projects/{project_id}/mission": {
+   "get": {
+    "tags": [
+     "projects"
+    ],
+    "summary": "Get Project Mission",
+    "description": "Mission Control read model: a bounded, read-only projection of the project's executions, built at read time from task launches, work sessions, AI work, resource claims, machines and proposed decisions. One run per launch, plus one per session no launch references. Each run carries the server-derived verdict and every reason that produced it (the winning one first), so a discordant state stays visible; `counts` covers the whole window, not only the returned page. Clients display the verdict and never re-derive it. A `project_id` the caller cannot access answers `403 forbidden`. Clients must tolerate an unknown `verdict`, `reason`, `protocol_state` or `data_gaps` value.",
+    "operationId": "get_project_mission_api_v1_projects__project_id__mission_get",
+    "security": [
+     {
+      "MachineBearer": []
+     }
+    ],
+    "parameters": [
+     {
+      "name": "project_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid",
+       "title": "Project Id"
+      }
+     },
+     {
+      "name": "window_hours",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 720,
+       "minimum": 1,
+       "default": 168,
+       "title": "Window Hours"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 50,
+       "minimum": 1,
+       "default": 20,
+       "title": "Limit"
+      }
+     },
+     {
+      "name": "cursor",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Cursor"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProjectMission"
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": "missing bearer token"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error.",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "forbidden",
+          "resource": "task",
+          "action": "write"
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Mission `cursor` rejected: not a cursor returned by a previous page (`invalid_cursor`).",
+      "content": {
+       "application/json": {
+        "example": {
+         "detail": {
+          "error_code": "invalid_cursor"
+         }
         }
        }
       }
@@ -15450,7 +15565,8 @@
      "applies_rule",
      "composes_agent",
      "references_workflow",
-     "refines_skill_rule"
+     "refines_skill_rule",
+     "uses_hook"
     ],
     "title": "BindingRelation",
     "description": "Closed vocabulary of Library Binding types.\n\nEvery allowed `(source kind, target kind)` couple maps to exactly one\nrelation (see `_BINDING_MATRIX`) \u2014 the relation is a label on that\ncouple, never a free-form string. Unknown values are rejected by\nPydantic before any existence check runs."
@@ -18239,7 +18355,8 @@
      "skill",
      "agent_definition",
      "model_profile",
-     "workflow"
+     "workflow",
+     "hook"
     ],
     "title": "LibraryKind",
     "description": "Closed studio taxonomy (our own domain, not a vendor catalog):\nwhat kind of reusable definition a library resource is."
@@ -19049,6 +19166,366 @@
     "title": "MachineUpdate",
     "description": "Update a machine's display name. Only the owner or an admin."
    },
+   "MissionCounts": {
+    "properties": {
+     "by_verdict": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "propertyNames": {
+       "$ref": "#/components/schemas/MissionVerdict"
+      },
+      "type": "object",
+      "title": "By Verdict"
+     },
+     "total": {
+      "type": "integer",
+      "title": "Total"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "by_verdict",
+     "total"
+    ],
+    "title": "MissionCounts",
+    "description": "Counts over every run in the window, not only the returned page."
+   },
+   "MissionDataGap": {
+    "type": "string",
+    "enum": [
+     "machine_unknown",
+     "session_not_found",
+     "task_not_found"
+    ],
+    "title": "MissionDataGap",
+    "description": "Explicitly incomplete data \u2014 never filled with a fabricated value.\nAdditive-only: a client must tolerate an unknown gap."
+   },
+   "MissionHandoffRef": {
+    "properties": {
+     "ai_work_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Ai Work Id"
+     },
+     "status": {
+      "$ref": "#/components/schemas/AIWorkStatus"
+     },
+     "summary": {
+      "type": "string",
+      "maxLength": 280,
+      "title": "Summary"
+     },
+     "completed_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Completed At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "ai_work_id",
+     "status",
+     "summary"
+    ],
+    "title": "MissionHandoffRef"
+   },
+   "MissionLaunchRef": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "status": {
+      "$ref": "#/components/schemas/TaskLaunchStatus"
+     },
+     "reason_code": {
+      "$ref": "#/components/schemas/TaskLaunchReasonCode"
+     },
+     "harness_id": {
+      "type": "string",
+      "title": "Harness Id"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "finished_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Finished At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "status",
+     "reason_code",
+     "harness_id",
+     "created_at"
+    ],
+    "title": "MissionLaunchRef"
+   },
+   "MissionProtocolState": {
+    "type": "string",
+    "enum": [
+     "open",
+     "handed_off",
+     "ended_without_handoff",
+     "missing"
+    ],
+    "title": "MissionProtocolState",
+    "description": "Protocol closure of the run, reported apart from the process result:\n`handed_off` (the session ended and a non-`started` AI work entry is\nlinked to it), `ended_without_handoff` (the session ended with no such\nentry), `open` (the session has not ended) and `missing` (no session).\nAdditive-only: a client must tolerate an unknown state."
+   },
+   "MissionReason": {
+    "type": "string",
+    "enum": [
+     "launch_cancelled",
+     "launch_failed",
+     "launch_rejected",
+     "launch_expired",
+     "review_requested",
+     "decision_proposed",
+     "handed_off",
+     "process_exited_without_session",
+     "session_ended_without_handoff",
+     "process_exited_session_open",
+     "session_expired",
+     "machine_offline",
+     "launch_pending",
+     "process_running",
+     "session_idle"
+    ],
+    "title": "MissionReason",
+    "description": "Additive-only reason codes; one per truth-table row condition."
+   },
+   "MissionRun": {
+    "properties": {
+     "run_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Run Id"
+     },
+     "source": {
+      "type": "string",
+      "enum": [
+       "launch",
+       "session"
+      ],
+      "title": "Source"
+     },
+     "task_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Task Id"
+     },
+     "task_title": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Title"
+     },
+     "task_status": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Status"
+     },
+     "machine_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Machine Id"
+     },
+     "machine_status": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/MachineStatus"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "launch": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/MissionLaunchRef"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "session": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/MissionSessionRef"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "handoff": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/MissionHandoffRef"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "protocol_state": {
+      "$ref": "#/components/schemas/MissionProtocolState"
+     },
+     "verdict": {
+      "$ref": "#/components/schemas/MissionVerdict"
+     },
+     "reasons": {
+      "items": {
+       "$ref": "#/components/schemas/MissionReason"
+      },
+      "type": "array",
+      "title": "Reasons"
+     },
+     "active_claims": {
+      "type": "integer",
+      "title": "Active Claims",
+      "default": 0
+     },
+     "data_gaps": {
+      "items": {
+       "$ref": "#/components/schemas/MissionDataGap"
+      },
+      "type": "array",
+      "title": "Data Gaps"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "run_id",
+     "source",
+     "task_id",
+     "machine_id",
+     "protocol_state",
+     "verdict",
+     "reasons",
+     "updated_at"
+    ],
+    "title": "MissionRun"
+   },
+   "MissionSessionRef": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "status": {
+      "$ref": "#/components/schemas/SessionStatus"
+     },
+     "agent_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Agent Id"
+     },
+     "started_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Started At"
+     },
+     "ended_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ended At"
+     },
+     "last_activity_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Activity At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "status",
+     "started_at"
+    ],
+    "title": "MissionSessionRef"
+   },
+   "MissionVerdict": {
+    "type": "string",
+    "enum": [
+     "pending",
+     "running",
+     "waiting_human",
+     "needs_attention",
+     "stale",
+     "done",
+     "failed",
+     "cancelled"
+    ],
+    "title": "MissionVerdict",
+    "description": "Additive-only: a client must tolerate an unknown verdict."
+   },
    "NoteItem": {
     "additionalProperties": true,
     "type": "object"
@@ -19754,6 +20231,60 @@
     ],
     "title": "ProjectMember",
     "description": "A User's access to a project: granted or removed, never\nmodified \u2014 hence no `version`. `granted_by_user_id` is null only for the\nmigration backfill. `user_display_name` and `user_email` are read-only\nconveniences resolved from the member's User."
+   },
+   "ProjectMission": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Generated At"
+     },
+     "window_hours": {
+      "type": "integer",
+      "title": "Window Hours"
+     },
+     "runs": {
+      "items": {
+       "$ref": "#/components/schemas/MissionRun"
+      },
+      "type": "array",
+      "title": "Runs"
+     },
+     "counts": {
+      "$ref": "#/components/schemas/MissionCounts"
+     },
+     "next_cursor": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Next Cursor"
+     },
+     "truncated": {
+      "type": "boolean",
+      "title": "Truncated",
+      "default": false
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id",
+     "generated_at",
+     "window_hours",
+     "runs",
+     "counts"
+    ],
+    "title": "ProjectMission"
    },
    "ProjectRef": {
     "properties": {
