@@ -90,10 +90,10 @@ class MissionReason(StrEnum):
 
 
 class MissionProtocolState(StrEnum):
-    """Protocol closure, distinct from the process result (DEC-0201).
-    `handed_off`: session ended and a non-`started` AIWork entry is linked to
-    it (what `studio_handoff` writes). `ended_without_handoff`: session ended,
-    no such entry. `open`: session not ended. `missing`: no session."""
+    """Protocol closure of the run, reported apart from the process result:
+    `handed_off` (the session ended and a non-`started` AI work entry is
+    linked to it), `ended_without_handoff` (the session ended with no such
+    entry), `open` (the session has not ended) and `missing` (no session)."""
 
     OPEN = "open"
     HANDED_OFF = "handed_off"
