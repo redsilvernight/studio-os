@@ -1,0 +1,212 @@
+{
+  "generated_at": "2026-10-10T12:31:27.112Z",
+  "git_sha": "56778a17821f23a82c63502fb0a72dac325cb820",
+  "viewport": "1440×900",
+  "source": "dashboard/e2e/p01-metrics.spec.ts",
+  "targets": {
+    "majors": 7,
+    "uuids": 0,
+    "connection": 1,
+    "initial_js_gzip_bytes": 61440
+  },
+  "screens": {
+    "accueil": {
+      "label": "Accueil",
+      "hash": "#/",
+      "majors": {
+        "value": 6,
+        "target": 7,
+        "over_budget": false,
+        "selector": "#view .home > *",
+        "data_major": 0
+      },
+      "uuids": {
+        "value": 0,
+        "target": 0,
+        "over_budget": false,
+        "uuid": 0,
+        "hex8": 0,
+        "samples": []
+      },
+      "connection": {
+        "value": 1,
+        "target": 1,
+        "over_budget": false
+      }
+    },
+    "travail": {
+      "label": "Travail",
+      "hash": "#/tasks",
+      "majors": {
+        "value": 5,
+        "target": 7,
+        "over_budget": false,
+        "selector": "#view .tasks > :is(section.tasks-group, .tasks-scopes, .tasks-toolbar)",
+        "data_major": 0
+      },
+      "uuids": {
+        "value": 0,
+        "target": 0,
+        "over_budget": false,
+        "uuid": 0,
+        "hex8": 0,
+        "samples": []
+      },
+      "connection": {
+        "value": 1,
+        "target": 1,
+        "over_budget": false
+      }
+    },
+    "a-valider": {
+      "label": "À valider",
+      "hash": "#/decisions",
+      "majors": {
+        "value": 3,
+        "target": 7,
+        "over_budget": false,
+        "selector": "#view .ds-tabs > .ds-tab, #view .ds-tabpanel:not([hidden]) > div > section",
+        "data_major": 0
+      },
+      "uuids": {
+        "value": 0,
+        "target": 0,
+        "over_budget": false,
+        "uuid": 0,
+        "hex8": 0,
+        "samples": []
+      },
+      "connection": {
+        "value": 1,
+        "target": 1,
+        "over_budget": false
+      }
+    },
+    "projet": {
+      "label": "Projet (onglets)",
+      "hash": "#/projects/11111111-2222-4333-8444-555555555555",
+      "majors": {
+        "value": 6,
+        "target": 7,
+        "over_budget": false,
+        "selector": "#view [data-ws-tab], #view .workspace-more > summary.ds-tab",
+        "data_major": 0
+      },
+      "uuids": {
+        "value": 0,
+        "target": 0,
+        "over_budget": false,
+        "uuid": 0,
+        "hex8": 0,
+        "samples": []
+      },
+      "connection": {
+        "value": 1,
+        "target": 1,
+        "over_budget": false
+      }
+    },
+    "roadmap": {
+      "label": "Roadmap",
+      "hash": "#/projects/11111111-2222-4333-8444-555555555555/roadmap",
+      "majors": {
+        "value": 4,
+        "target": 7,
+        "over_budget": false,
+        "selector": "#view [data-major]",
+        "data_major": 4
+      },
+      "uuids": {
+        "value": 0,
+        "target": 0,
+        "over_budget": false,
+        "uuid": 0,
+        "hex8": 0,
+        "samples": []
+      },
+      "connection": {
+        "value": 1,
+        "target": 1,
+        "over_budget": false
+      }
+    },
+    "fiche-tache": {
+      "label": "Fiche tâche",
+      "hash": "#/tasks/aaaaaaaa-0000-4111-8111-000000000001",
+      "majors": {
+        "value": 5,
+        "target": 7,
+        "over_budget": false,
+        "selector": "#view .task-detail-hero, #view .task-detail-main > section",
+        "data_major": 0
+      },
+      "uuids": {
+        "value": 0,
+        "target": 0,
+        "over_budget": false,
+        "uuid": 0,
+        "hex8": 0,
+        "samples": []
+      },
+      "connection": {
+        "value": 1,
+        "target": 1,
+        "over_budget": false
+      }
+    }
+  },
+  "journeys": {
+    "S1": {
+      "label": "Accueil → tâche",
+      "entry": "#/",
+      "clicks": {
+        "value": 1,
+        "target": 1,
+        "over_budget": false,
+        "destination": ".task-detail-hero"
+      }
+    },
+    "S2": {
+      "label": "Travail → reprise",
+      "entry": "#/tasks",
+      "clicks": {
+        "value": 1,
+        "target": 2,
+        "over_budget": false,
+        "destination": ".task-detail-hero"
+      }
+    },
+    "S3": {
+      "label": "À valider → décision",
+      "entry": "#/decisions",
+      "clicks": {
+        "value": 0,
+        "target": 2,
+        "over_budget": false,
+        "destination": ".review-hero .ds-hero-actions .ds-btn--primary"
+      }
+    },
+    "S4": {
+      "label": "Projet → roadmap",
+      "entry": "#/projects",
+      "clicks": {
+        "value": 2,
+        "target": 2,
+        "over_budget": false,
+        "destination": "[data-current-step]"
+      }
+    }
+  },
+  "bundle": {
+    "source": "dist/ (npm run build, fermeture d'imports statiques)",
+    "entry": "index-aQ_nZLFp.js",
+    "chunks": [
+      "index-aQ_nZLFp.js"
+    ],
+    "gzip_bytes": 76490,
+    "gzip_kb": 74.7,
+    "value": 76490,
+    "target": 61440,
+    "over_budget": true
+  }
+}
