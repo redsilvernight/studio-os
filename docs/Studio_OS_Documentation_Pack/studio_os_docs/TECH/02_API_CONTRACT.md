@@ -735,7 +735,32 @@ n'utilisant que leurs propres agents n'observent aucun changement.
   Herite directement l'honnetete "not claimed exhaustive" de `GET /events`
   (meme requete sous-jacente) : plusieurs types d'evenements n'ont aucune
   emission serveur a ce jour (question ouverte n°9,
-  `docs/ROADMAP_STEP8_BREAKDOWN.md`). Toute machine authentifiee peut lire.
+   `docs/ROADMAP_STEP8_BREAKDOWN.md`). Toute machine authentifiee peut lire.
+
+### Mission Control (read model, additif, DEC-0196/DEC-0201)
+- GET /api/v1/projects/{project_id}/mission — projection de lecture
+  bornee des executions d'un projet, calculee a la lecture (aucun etat
+  persiste) : un `MissionRun` par `TaskLaunch`, plus un par
+  `WorkSession` manuelle (`source: session`). Sources existantes
+  uniquement : lancements, sessions, `AIWorkLog`, claims actifs
+  (expirees exclues), machines et decisions proposees. Query params :
+  `window_hours` (defaut 168, max 720), `limit` (defaut 20, max 50),
+  `cursor` (opaque, optionnel). Reponse `ProjectMission{project_id,
+  generated_at, window_hours, runs, counts, next_cursor, truncated}` :
+  `runs` = page courante (`MissionRun` : verdict, raisons, etat du
+  protocole, ecarts de donnees), `counts` = comptes par verdict sur
+  toute la fenetre (pas seulement la page), `next_cursor` null en fin
+  de liste. Le serveur applique seul la table de verite
+  (`packages/studio-contracts/.../mission.py`, detail :
+  `docs/mission-control/read-model.md`) et renvoie le verdict ; les
+  clients affichent le verdict et ne le re-derivent jamais. `exit_code
+  == 0` seul ne donne jamais `done` : `done` exige une session terminee
+  avec entree de handoff (`handed_off`, DEC-0201). Donnees incompletes
+  explicites (`data_gaps` : `machine_unknown`/`session_not_found`/
+  `task_not_found`), jamais comblees. Sans Bearer : `401` ; projet
+  inaccessible ou inexistant : `403` (pas d'oracle d'existence,
+  DEC-0103). Les clients doivent tolerer un `verdict` ou une `reason`
+  inconnus (vocabulaires additifs uniquement).
 
 ### Roadmaps (Roadmaps P1, additif, DEC-0084/DEC-0085 ; implemente P2/P3, DEC-0086)
 Contrat fige par P1 (`packages/studio-contracts/.../roadmaps.py`) ; routes
