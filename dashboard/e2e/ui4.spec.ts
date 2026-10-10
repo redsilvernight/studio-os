@@ -1,7 +1,7 @@
 /**
  * UI-4 Projets & Workspace projet (browser, API stubbée déterministe) :
  * page Projets (cartes, filtre local clavier, ouverture), workspace
- * (header stable, 8 onglets, deep links, back/forward), overview résumée,
+ * (header stable, 9 onglets, deep links, back/forward), overview résumée,
  * activité lisible, claims soft-lock, décisions liées au projet.
  * Zéro violation CSP, zéro erreur page. Captures dans le dossier temp
  * (hors dépôt) pour la validation visuelle du rapport UI-4.
@@ -243,14 +243,14 @@ test.describe("UI-4 projets et workspace", () => {
     expect(fatal).toEqual([]);
   });
 
-  test("workspace : header stable, 8 onglets, deep links, back/forward", async ({ page }) => {
+  test("workspace : header stable, 9 onglets, deep links, back/forward", async ({ page }) => {
     const { csp, fatal } = watchErrors(page);
     await login(page, `#/projects/${P1}`);
     const view = page.locator("#view");
     await expect(view.locator("h1")).toContainText("Jeu Phare");
 
     const tabs = view.locator('[role="tab"]');
-    await expect(tabs).toHaveCount(8);
+    await expect(tabs).toHaveCount(9);
     await expect(view.locator('[data-ws-tab="overview"]')).toHaveAttribute("aria-selected", "true");
 
     // Overview résumée : pas de tableau complet.
@@ -262,7 +262,7 @@ test.describe("UI-4 projets et workspace", () => {
     // Flèches clavier entre onglets.
     await view.locator('[data-ws-tab="overview"]').focus();
     await page.keyboard.press("ArrowRight");
-    await expect(view.locator('[data-ws-tab="roadmap"]')).toBeFocused();
+    await expect(view.locator('[data-ws-tab="mission"]')).toBeFocused();
 
     // Deep links directs.
     await page.goto(`/#/projects/${P1}/tasks`);
@@ -402,7 +402,7 @@ test.describe("UI-4 mobile 375", () => {
 
     await page.goto(`/#/projects/${P1}`);
     await expect(view.locator("h1")).toContainText("Jeu Phare");
-    await expect(view.locator('[role="tab"]')).toHaveCount(8);
+    await expect(view.locator('[role="tab"]')).toHaveCount(9);
     await page.screenshot({ path: `${SHOTS}/workspace-overview-mobile.png` });
 
     await page.goto(`/#/projects/${P1}/activity`);

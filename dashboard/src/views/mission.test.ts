@@ -7,6 +7,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { StudioClient } from "../api";
 import type { MissionRun, ProjectMission } from "../missionApi";
+import { LIVE_CHANGE_EVENT } from "../realtime";
 import {
   missionRunHtml,
   protocolLabel,
@@ -211,6 +212,28 @@ describe("renderMissionInto", () => {
     other.remove();
     await vi.advanceTimersByTimeAsync(5000);
     expect(get).toHaveBeenCalledTimes(3);
+  });
+
+  it("rendu dans un nœud détaché (staging du shell) : les runs s'affichent quand même", async () => {
+    const root = document.createElement("div");
+    const { client } = fakeClient(() => ({ status: 200, data: mission([run()]) }));
+    await renderMissionInto(root, { client, projectId: "p1", authed: true });
+    expect(root.querySelector("[data-mission-run]")).not.toBeNull();
+  });
+
+  it("bascule signalée par le shell : perdu → bandeau sans re-rendu global, rétabli → relecture", async () => {
+    let state: LiveState = "live";
+    const root = mount();
+    const { client, get } = fakeClient(() => ({ status: 200, data: mission([run()]) }));
+    await renderMissionInto(root, { client, projectId: "p1", authed: true, live: () => state, pollMs: 60_000 });
+    expect(root.querySelector('[data-mission-live="lost"]')).toBeNull();
+    state = "lost";
+    window.dispatchEvent(new CustomEvent(LIVE_CHANGE_EVENT));
+    expect(root.querySelector('[data-mission-live="lost"]')).not.toBeNull();
+    state = "live";
+    window.dispatchEvent(new CustomEvent(LIVE_CHANGE_EVENT));
+    await vi.waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(root.querySelector('[data-mission-live="lost"]')).toBeNull());
   });
 });
 

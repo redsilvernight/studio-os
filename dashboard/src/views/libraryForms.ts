@@ -57,6 +57,9 @@ export function contentFieldsHtml(kind: LibraryKind): string {
       );
     case "workflow":
       return `<label class="stack">Résumé <input name="summary" placeholder="facultatif" /></label>`;
+    default:
+      // Vocabulaire additif (ex. `hook`) : pas de formulaire dédié ici.
+      return "";
   }
 }
 

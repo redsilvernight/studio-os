@@ -38,7 +38,7 @@ import { closePalette, isPaletteOpen, mountPalette, paletteEntries } from "./com
 import { loadNavMode, saveNavMode, toggledNavMode } from "./navMode";
 import { mountAdminFlyout, shellHtml, syncAuthState, syncNav } from "./shell";
 import { createRenderGuard } from "./renderGuard";
-import { startRealtimeConnection, type RealtimeConnection } from "./realtime";
+import { LIVE_CHANGE_EVENT, startRealtimeConnection, type RealtimeConnection } from "./realtime";
 import type { LiveState } from "./views/mission";
 import { setApiObserver } from "./apiEvents";
 import { resetIdentityCache } from "./identityApi";
@@ -215,6 +215,10 @@ async function renderRoute(
 async function render(): Promise<void> {
   const my = renderGuard.next();
   const route = parseRoute(location.hash);
+  // Le flux temps réel (et l'état « direct perdu » de Mission Control) suit le
+  // projet affiché, sans toucher à la sélection globale.
+  displayedProjectId = route.name === "project" ? route.id : null;
+  syncRealtimeConnection();
   // Premier lancement (Desktop seul) : l'assistant de configuration est
   // prioritaire tant qu'il n'est pas terminé ; la reprise revalide l'état
   // réel au lieu de supposer l'étape mémorisée encore valide.
@@ -311,6 +315,7 @@ function clearStreamDeniedBanner(): void {
 let realtimeConnection: RealtimeConnection | null = null;
 let realtimeKey: string | null = null;
 let liveState: LiveState = "off";
+let displayedProjectId: string | null = null;
 
 /** One live connection per tab, opened/closed as the selected project or
  * token changes — never per-view (the backend has exactly one stream per
@@ -318,7 +323,7 @@ let liveState: LiveState = "off";
  * same `render()` a manual navigation would (debounced in realtime.ts). */
 function syncRealtimeConnection(): void {
   const token = getToken();
-  const projectId = uiState.selectedProjectId;
+  const projectId = displayedProjectId ?? uiState.selectedProjectId;
   const key = token !== null && projectId !== null ? `${projectId}::${token}` : null;
   if (key === realtimeKey) return;
   clearStreamDeniedBanner();
@@ -326,6 +331,7 @@ function syncRealtimeConnection(): void {
   realtimeConnection = null;
   realtimeKey = key;
   liveState = "off";
+  window.dispatchEvent(new CustomEvent(LIVE_CHANGE_EVENT));
   if (token === null || projectId === null) return;
   const baseUrl = resolveApiUrl(apiBaseUrl());
   realtimeConnection = startRealtimeConnection(
@@ -344,8 +350,9 @@ function syncRealtimeConnection(): void {
         if (status === 403) showStreamDeniedBanner();
       },
       onLiveChange: (live) => {
+        // Pas de re-rendu complet (focus, modales) : la vue concernée écoute.
         liveState = live ? "live" : "lost";
-        void render();
+        window.dispatchEvent(new CustomEvent(LIVE_CHANGE_EVENT));
       },
     },
   );

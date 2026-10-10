@@ -16,6 +16,7 @@ import type { StudioClient } from "../api";
 import { ApiError } from "../api";
 import { dsBadge, dsErrorState, dsSectionHeader, dsSkeleton, dsStateHtml, dsTechDetails, type DsTechRow, type DsTone } from "../ds/ds";
 import { fetchProjectMission, type MissionRun, type ProjectMission } from "../missionApi";
+import { LIVE_CHANGE_EVENT } from "../realtime";
 import { describeError, esc, fmtTime } from "../ui";
 import { ACTION_LABEL, FALLBACK_LABEL } from "../language";
 
@@ -287,7 +288,9 @@ export async function renderMissionInto(root: HTMLElement, ctx: MissionViewConte
   }
   const generation = (renderGenerations.get(root) ?? 0) + 1;
   renderGenerations.set(root, generation);
-  const current = (): boolean => renderGenerations.get(root) === generation && root.isConnected;
+  // Le shell rend dans un nœud détaché puis l'insère : le premier chargement
+  // ne doit pas exiger `isConnected`. Seul un poll différé l'exige (vue remplacée).
+  const current = (): boolean => renderGenerations.get(root) === generation;
   const live = (): LiveState => ctx.live?.() ?? "off";
   const pollMs = ctx.pollMs ?? MISSION_POLL_MS;
   const maxPolls = ctx.maxPolls ?? MISSION_MAX_POLLS;
@@ -304,7 +307,7 @@ export async function renderMissionInto(root: HTMLElement, ctx: MissionViewConte
     if (!current() || live() !== "lost" || polls >= maxPolls) return;
     timer = setTimeout(() => {
       timer = null;
-      if (!current() || live() !== "lost") return;
+      if (!current() || !root.isConnected || live() !== "lost") return;
       polls += 1;
       void load();
     }, pollMs);
@@ -378,6 +381,26 @@ export async function renderMissionInto(root: HTMLElement, ctx: MissionViewConte
     }
     schedule();
   };
+
+  // Le shell signale chaque bascule direct/perdu sans re-rendre la page :
+  // perdu → bandeau + refresh borné ; rétabli → une relecture.
+  let seenConnected = false;
+  const onLiveChange = (): void => {
+    if (root.isConnected) seenConnected = true;
+    if (!current() || (seenConnected && !root.isConnected)) {
+      window.removeEventListener(LIVE_CHANGE_EVENT, onLiveChange);
+      if (timer !== null) clearTimeout(timer);
+      return;
+    }
+    polls = 0;
+    if (live() === "lost") {
+      paint();
+      schedule();
+    } else {
+      void load();
+    }
+  };
+  window.addEventListener(LIVE_CHANGE_EVENT, onLiveChange);
 
   await load();
 }

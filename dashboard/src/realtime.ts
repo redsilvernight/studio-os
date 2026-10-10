@@ -15,6 +15,9 @@ import type { components } from "./openapi-schema";
 
 type EventEnvelope = components["schemas"]["EventEnvelope"];
 
+/** Événement `window` émis par le shell à chaque bascule direct/perdu du flux. */
+export const LIVE_CHANGE_EVENT = "studio:live-change";
+
 export interface RealtimeCallbacks {
   /** Called (debounced) after one or more live events land. */
   onRefetch: () => void;

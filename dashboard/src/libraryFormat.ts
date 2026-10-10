@@ -123,6 +123,7 @@ const RELATION_LABELS: Record<BindingRelation, string> = {
   composes_agent: "composes agent",
   references_workflow: "references workflow",
   refines_skill_rule: "refines skill rule",
+  uses_hook: "uses hook",
 };
 
 export function relationLabel(relation: BindingRelation): string {
