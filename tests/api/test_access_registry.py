@@ -303,6 +303,10 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
         Probe("/api/v1/review-queue?project_id={pid}"),
         Probe("/api/v1/review-queue", expect="filtered"),
     ),
+    ("GET", "/api/v1/projects/{project_id}/mission"): (
+        Probe(f"/api/v1/projects/{_UNKNOWN}/mission"),
+        Probe("/api/v1/projects/{pid}/mission"),
+    ),
     ("GET", "/api/v1/timeline"): (Probe("/api/v1/timeline?project_id={pid}"),),
     ("POST", "/api/v1/projects/{project_id}/github-integration"): (
         Probe(
