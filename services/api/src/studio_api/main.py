@@ -31,6 +31,7 @@ from studio_api.routers import (
     library,
     machines,
     metrics,
+    mission,
     producer,
     projects,
     resolutions,
@@ -276,6 +277,7 @@ def create_app() -> FastAPI:
     app.include_router(agents.router)
     app.include_router(ai_work.router)
     app.include_router(review_queue.router)
+    app.include_router(mission.router)
     app.include_router(timeline.router)
     app.include_router(github.router)
     app.include_router(builds.router)

@@ -148,6 +148,7 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     ("POST", "/api/v1/ai-work"): _P,
     ("PATCH", "/api/v1/ai-work/{work_id}"): _P,
     ("GET", "/api/v1/review-queue"): _P,
+    ("GET", "/api/v1/projects/{project_id}/mission"): _P,
     ("GET", "/api/v1/timeline"): _P,
     ("POST", "/api/v1/projects/{project_id}/github-integration"): _P,
     ("GET", "/api/v1/projects/{project_id}/github-integration"): _P,
