@@ -95,12 +95,12 @@ ne fait pas échouer le test ; la baseline n'est réécrite qu'avec `P01_METRICS
 Le contrôle humain chronométré (C1, ≥ 90 % de réponses justes en ≤ 5 s) n'est **pas**
 réalisé ici ; il est prévu aux jalons P05 et P06.
 
-## Seuils proposés (à approuver)
+## Seuils approuvés
 
-Chaque gain futur se compare à ces valeurs ; un seuil n'est actif qu'après
-approbation humaine (décision Studio OS).
+Approuvés par l'humain le 2026-10-10 (DEC-0195, `a1cdabb5`). Chaque gain futur se
+compare à ces valeurs.
 
-| Métrique | Baseline | Seuil proposé | Étape qui le vérifie |
+| Métrique | Baseline | Seuil | Étape qui le vérifie |
 |---|---|---|---|
 | Entrées `ai_work` avec durée positive | 5,2 % | ≥ 90 % des runs lancés via TaskLaunch | P03-collector |
 | Entrées rattachées à une session | 55 % | ≥ 95 % | P02-protocol-proof |
