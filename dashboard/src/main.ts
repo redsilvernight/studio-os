@@ -39,6 +39,7 @@ import { loadNavMode, saveNavMode, toggledNavMode } from "./navMode";
 import { mountAdminFlyout, shellHtml, syncAuthState, syncNav } from "./shell";
 import { createRenderGuard } from "./renderGuard";
 import { startRealtimeConnection, type RealtimeConnection } from "./realtime";
+import type { LiveState } from "./views/mission";
 import { setApiObserver } from "./apiEvents";
 import { resetIdentityCache } from "./identityApi";
 import { SESSION_ENDED_NOTICE, createSessionEndHandler } from "./session";
@@ -112,6 +113,7 @@ async function renderRoute(
           client,
           authed,
           roadmapDataSource: authed ? createApiRoadmapDataSource(client) : fixtureRoadmapDataSource,
+          live: () => liveState,
         },
         route.id,
         route.tab,
@@ -308,6 +310,7 @@ function clearStreamDeniedBanner(): void {
 
 let realtimeConnection: RealtimeConnection | null = null;
 let realtimeKey: string | null = null;
+let liveState: LiveState = "off";
 
 /** One live connection per tab, opened/closed as the selected project or
  * token changes — never per-view (the backend has exactly one stream per
@@ -322,6 +325,7 @@ function syncRealtimeConnection(): void {
   realtimeConnection?.close();
   realtimeConnection = null;
   realtimeKey = key;
+  liveState = "off";
   if (token === null || projectId === null) return;
   const baseUrl = resolveApiUrl(apiBaseUrl());
   realtimeConnection = startRealtimeConnection(
@@ -338,6 +342,10 @@ function syncRealtimeConnection(): void {
       onDenied: (status) => {
         // 401 is already handled by the shell (session expired, apiEvents).
         if (status === 403) showStreamDeniedBanner();
+      },
+      onLiveChange: (live) => {
+        liveState = live ? "live" : "lost";
+        void render();
       },
     },
   );
