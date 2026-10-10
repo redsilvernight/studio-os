@@ -1232,6 +1232,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/mission": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Project Mission
+         * @description Mission Control read model: a bounded, read-only projection of the project's executions, built at read time from task launches, work sessions, AI work, resource claims, machines and proposed decisions. One run per launch, plus one per session no launch references. Each run carries the server-derived verdict and every reason that produced it (the winning one first), so a discordant state stays visible; `counts` covers the whole window, not only the returned page. Clients display the verdict and never re-derive it. A `project_id` the caller cannot access answers `403 forbidden`. Clients must tolerate an unknown `verdict`, `reason`, `protocol_state` or `data_gaps` value.
+         */
+        get: operations["get_project_mission_api_v1_projects__project_id__mission_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/timeline": {
         parameters: {
             query?: never;
@@ -2885,7 +2905,7 @@ export interface components {
          *     Pydantic before any existence check runs.
          * @enum {string}
          */
-        BindingRelation: "requires_model_profile" | "uses_skill" | "applies_rule" | "composes_agent" | "references_workflow" | "refines_skill_rule";
+        BindingRelation: "requires_model_profile" | "uses_skill" | "applies_rule" | "composes_agent" | "references_workflow" | "refines_skill_rule" | "uses_hook";
         /**
          * BootstrapFileSummary
          * @description State counts: the glanceable roll-up of a dry-run, mirroring
@@ -4170,7 +4190,7 @@ export interface components {
          *     what kind of reusable definition a library resource is.
          * @enum {string}
          */
-        LibraryKind: "rule" | "skill" | "agent_definition" | "model_profile" | "workflow";
+        LibraryKind: "rule" | "skill" | "agent_definition" | "model_profile" | "workflow" | "hook";
         /** LibraryLockCreate */
         LibraryLockCreate: {
             /**
@@ -4586,6 +4606,146 @@ export interface components {
             /** Display Name */
             display_name: string;
         };
+        /**
+         * MissionCounts
+         * @description Counts over every run in the window, not only the returned page.
+         */
+        MissionCounts: {
+            /** By Verdict */
+            by_verdict: {
+                [key: string]: number;
+            };
+            /** Total */
+            total: number;
+        };
+        /**
+         * MissionDataGap
+         * @description Explicitly incomplete data — never filled with a fabricated value.
+         *     Additive-only: a client must tolerate an unknown gap.
+         * @enum {string}
+         */
+        MissionDataGap: "machine_unknown" | "session_not_found" | "task_not_found";
+        /** MissionHandoffRef */
+        MissionHandoffRef: {
+            /**
+             * Ai Work Id
+             * Format: uuid
+             */
+            ai_work_id: string;
+            status: components["schemas"]["AIWorkStatus"];
+            /** Summary */
+            summary: string;
+            /** Completed At */
+            completed_at?: string | null;
+        };
+        /** MissionLaunchRef */
+        MissionLaunchRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            status: components["schemas"]["TaskLaunchStatus"];
+            reason_code: components["schemas"]["TaskLaunchReasonCode"];
+            /** Harness Id */
+            harness_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Finished At */
+            finished_at?: string | null;
+        };
+        /**
+         * MissionProtocolState
+         * @description Protocol closure of the run, reported apart from the process result:
+         *     `handed_off` (the session ended and a non-`started` AI work entry is
+         *     linked to it), `ended_without_handoff` (the session ended with no such
+         *     entry), `open` (the session has not ended) and `missing` (no session).
+         *     Additive-only: a client must tolerate an unknown state.
+         * @enum {string}
+         */
+        MissionProtocolState: "open" | "handed_off" | "ended_without_handoff" | "missing";
+        /**
+         * MissionReason
+         * @description Additive-only reason codes; one per truth-table row condition.
+         * @enum {string}
+         */
+        MissionReason: "launch_cancelled" | "launch_failed" | "launch_rejected" | "launch_expired" | "review_requested" | "decision_proposed" | "handed_off" | "process_exited_without_session" | "session_ended_without_handoff" | "process_exited_session_open" | "session_expired" | "machine_offline" | "launch_pending" | "process_running" | "session_idle";
+        /** MissionRun */
+        MissionRun: {
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "launch" | "session";
+            /**
+             * Task Id
+             * Format: uuid
+             */
+            task_id: string;
+            /** Task Title */
+            task_title?: string | null;
+            /** Task Status */
+            task_status?: string | null;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            machine_status?: components["schemas"]["MachineStatus"] | null;
+            launch?: components["schemas"]["MissionLaunchRef"] | null;
+            session?: components["schemas"]["MissionSessionRef"] | null;
+            handoff?: components["schemas"]["MissionHandoffRef"] | null;
+            protocol_state: components["schemas"]["MissionProtocolState"];
+            verdict: components["schemas"]["MissionVerdict"];
+            /** Reasons */
+            reasons: components["schemas"]["MissionReason"][];
+            /**
+             * Active Claims
+             * @default 0
+             */
+            active_claims: number;
+            /** Data Gaps */
+            data_gaps?: components["schemas"]["MissionDataGap"][];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** MissionSessionRef */
+        MissionSessionRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            status: components["schemas"]["SessionStatus"];
+            /** Agent Id */
+            agent_id?: string | null;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Ended At */
+            ended_at?: string | null;
+            /** Last Activity At */
+            last_activity_at?: string | null;
+        };
+        /**
+         * MissionVerdict
+         * @description Additive-only: a client must tolerate an unknown verdict.
+         * @enum {string}
+         */
+        MissionVerdict: "pending" | "running" | "waiting_human" | "needs_attention" | "stale" | "done" | "failed" | "cancelled";
         NoteItem: {
             [key: string]: unknown;
         };
@@ -4901,6 +5061,31 @@ export interface components {
             user_display_name?: string | null;
             /** User Email */
             user_email?: string | null;
+        };
+        /** ProjectMission */
+        ProjectMission: {
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Window Hours */
+            window_hours: number;
+            /** Runs */
+            runs: components["schemas"]["MissionRun"][];
+            counts: components["schemas"]["MissionCounts"];
+            /** Next Cursor */
+            next_cursor?: string | null;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
         };
         /** ProjectRef */
         ProjectRef: {
@@ -11339,7 +11524,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Library scope context rejected, nothing stored: project scope requires `project_id`, studio and user scopes forbid it (`invalid_scope_context`). Library semantic content rejected, nothing stored (P3 semantic content): the version `content` must match its per-kind schema (`content_schema: studio.library.<kind>/v1`, unknown fields forbidden, `rule`/`skill` prose bounded to 65_536 characters, `model_profile` carrying vendor-neutral `requirements` only, `agent_definition` descriptive only, `workflow` declarative only with `participants`, `inputs`/`outputs` and no runtime field). Per-field `details` describe the caller's own payload only. Workflow definition rejected, nothing stored (P11 declarative workflow): the version `content` is schema-valid but structurally incoherent — duplicate `participant_id` (`duplicate_participant`), a `depends_on` naming no participant of this workflow (`unknown_dependency`), a dependency cycle (`dependency_cycle`), a participant `agent_stable_key` with no matching `composes_agent` pin (`unknown_participant_agent`), a `composes_agent` pin no participant uses (`unused_agent_dependency`), a duplicated I/O name (`duplicate_io_declaration`), or a dataflow `source` that does not resolve to a declared participant output / workflow input (`invalid_io_reference`). Static validation only — it decides no execution, schedules nothing and stores no run state; raised after the auth/scope gates and before the 404/409 pin gates, never an oracle on invisible resources. Library binding rejected, nothing stored (P5 typed bindings): the dependency pin names a forbidden kind couple (`forbidden_kind_pair`), an explicit relation that does not match the couple (`relation_mismatch`), a second model profile on one agent definition (`too_many_model_profiles`), twice the same target (`duplicate_binding`), or a private user target from a shared definition (`forbidden_scope`). Raised only after the 404/409 existence gates — never an oracle on invisible resources. */
+            /** @description Library scope context rejected, nothing stored: project scope requires `project_id`, studio and user scopes forbid it (`invalid_scope_context`). Library semantic content rejected, nothing stored (P3 semantic content): the version `content` must match its per-kind schema (`content_schema: studio.library.<kind>/v1`, unknown fields forbidden, `rule`/`skill` prose bounded to 65_536 characters, `model_profile` carrying vendor-neutral `requirements` only, `agent_definition` descriptive only, `workflow` declarative only with `participants`, `inputs`/`outputs` and no runtime field, `hook` an abstract `event` plus inline `scripts`, never a harness event name). Per-field `details` describe the caller's own payload only. Workflow definition rejected, nothing stored (P11 declarative workflow): the version `content` is schema-valid but structurally incoherent — duplicate `participant_id` (`duplicate_participant`), a `depends_on` naming no participant of this workflow (`unknown_dependency`), a dependency cycle (`dependency_cycle`), a participant `agent_stable_key` with no matching `composes_agent` pin (`unknown_participant_agent`), a `composes_agent` pin no participant uses (`unused_agent_dependency`), a duplicated I/O name (`duplicate_io_declaration`), or a dataflow `source` that does not resolve to a declared participant output / workflow input (`invalid_io_reference`). Static validation only — it decides no execution, schedules nothing and stores no run state; raised after the auth/scope gates and before the 404/409 pin gates, never an oracle on invisible resources. Hook definition rejected, nothing stored (`hook` kind): the version `content` is schema-valid (`studio.library.hook/v1`) but statically incoherent — two scripts for the same `(os, shell)` (`duplicate_script_target`), a `matcher` on an event other than `pre_tool`/`post_tool` (`matcher_not_supported`), `blocking` mode on an event no harness can veto (`blocking_not_supported`), or secret material in a script body (`secret_material`). Static validation only: the server stores and distributes hooks, it never executes them. Library binding rejected, nothing stored (P5 typed bindings): the dependency pin names a forbidden kind couple (`forbidden_kind_pair`), an explicit relation that does not match the couple (`relation_mismatch`), a second model profile on one agent definition (`too_many_model_profiles`), twice the same target (`duplicate_binding`), or a private user target from a shared definition (`forbidden_scope`). Raised only after the 404/409 existence gates — never an oracle on invisible resources. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -11567,7 +11752,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Library semantic content rejected, nothing stored (P3 semantic content): the version `content` must match its per-kind schema (`content_schema: studio.library.<kind>/v1`, unknown fields forbidden, `rule`/`skill` prose bounded to 65_536 characters, `model_profile` carrying vendor-neutral `requirements` only, `agent_definition` descriptive only, `workflow` declarative only with `participants`, `inputs`/`outputs` and no runtime field). Per-field `details` describe the caller's own payload only. Workflow definition rejected, nothing stored (P11 declarative workflow): the version `content` is schema-valid but structurally incoherent — duplicate `participant_id` (`duplicate_participant`), a `depends_on` naming no participant of this workflow (`unknown_dependency`), a dependency cycle (`dependency_cycle`), a participant `agent_stable_key` with no matching `composes_agent` pin (`unknown_participant_agent`), a `composes_agent` pin no participant uses (`unused_agent_dependency`), a duplicated I/O name (`duplicate_io_declaration`), or a dataflow `source` that does not resolve to a declared participant output / workflow input (`invalid_io_reference`). Static validation only — it decides no execution, schedules nothing and stores no run state; raised after the auth/scope gates and before the 404/409 pin gates, never an oracle on invisible resources. Library binding rejected, nothing stored (P5 typed bindings): the dependency pin names a forbidden kind couple (`forbidden_kind_pair`), an explicit relation that does not match the couple (`relation_mismatch`), a second model profile on one agent definition (`too_many_model_profiles`), twice the same target (`duplicate_binding`), or a private user target from a shared definition (`forbidden_scope`). Raised only after the 404/409 existence gates — never an oracle on invisible resources. */
+            /** @description Library semantic content rejected, nothing stored (P3 semantic content): the version `content` must match its per-kind schema (`content_schema: studio.library.<kind>/v1`, unknown fields forbidden, `rule`/`skill` prose bounded to 65_536 characters, `model_profile` carrying vendor-neutral `requirements` only, `agent_definition` descriptive only, `workflow` declarative only with `participants`, `inputs`/`outputs` and no runtime field, `hook` an abstract `event` plus inline `scripts`, never a harness event name). Per-field `details` describe the caller's own payload only. Workflow definition rejected, nothing stored (P11 declarative workflow): the version `content` is schema-valid but structurally incoherent — duplicate `participant_id` (`duplicate_participant`), a `depends_on` naming no participant of this workflow (`unknown_dependency`), a dependency cycle (`dependency_cycle`), a participant `agent_stable_key` with no matching `composes_agent` pin (`unknown_participant_agent`), a `composes_agent` pin no participant uses (`unused_agent_dependency`), a duplicated I/O name (`duplicate_io_declaration`), or a dataflow `source` that does not resolve to a declared participant output / workflow input (`invalid_io_reference`). Static validation only — it decides no execution, schedules nothing and stores no run state; raised after the auth/scope gates and before the 404/409 pin gates, never an oracle on invisible resources. Hook definition rejected, nothing stored (`hook` kind): the version `content` is schema-valid (`studio.library.hook/v1`) but statically incoherent — two scripts for the same `(os, shell)` (`duplicate_script_target`), a `matcher` on an event other than `pre_tool`/`post_tool` (`matcher_not_supported`), `blocking` mode on an event no harness can veto (`blocking_not_supported`), or secret material in a script body (`secret_material`). Static validation only: the server stores and distributes hooks, it never executes them. Library binding rejected, nothing stored (P5 typed bindings): the dependency pin names a forbidden kind couple (`forbidden_kind_pair`), an explicit relation that does not match the couple (`relation_mismatch`), a second model profile on one agent definition (`too_many_model_profiles`), twice the same target (`duplicate_binding`), or a private user target from a shared definition (`forbidden_scope`). Raised only after the 404/409 existence gates — never an oracle on invisible resources. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -13408,6 +13593,80 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_project_mission_api_v1_projects__project_id__mission_get: {
+        parameters: {
+            query?: {
+                window_hours?: number;
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectMission"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Mission `cursor` rejected: not a cursor returned by a previous page (`invalid_cursor`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_cursor"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
                 };
             };
         };
