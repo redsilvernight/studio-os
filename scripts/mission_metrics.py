@@ -5,7 +5,9 @@ Scénario seedé déterministe (graine fixe) sur un vrai PostgreSQL
 20 tâches, 5 claims, 30 entrées `ai_work` (started puis completed) et une
 roadmap active. Les mesures passent par les *vrais* services
 (`studio_api.services.start_work.start_work` avec et sans `task_id`,
-`prepare_project_context`, `services.sync.sync`) : taille JSON de la réponse,
+`prepare_project_context`, `services.sync.sync`,
+`services.mission.get_project_mission` — import paresseux, le service
+pouvant evoluer en parallele) : taille JSON de la réponse,
 tokens approchés, latence p50/p95/max, nombre d'items et compteurs
 `omitted_for_budget` / `overflow`.
 
@@ -118,12 +120,19 @@ CALL_KINDS = (
     CALL_PREPARE_CONTEXT,
     CALL_SYNC,
 )
+CALL_PROJECT_MISSION = "project_mission"
+KNOWN_CALL_KINDS = CALL_KINDS + (CALL_PROJECT_MISSION,)
+MEASURED_CALL_KINDS = KNOWN_CALL_KINDS
+
+MISSION_WINDOW_HOURS = 168
+MISSION_LIMIT = 20
 
 SERVICE_OF = {
     CALL_START_WORK_TASK: "studio_api.services.start_work.start_work",
     CALL_START_WORK_PROJECT: "studio_api.services.start_work.start_work",
     CALL_PREPARE_CONTEXT: "studio_api.services.project_context.prepare_project_context",
     CALL_SYNC: "studio_api.services.sync.sync",
+    CALL_PROJECT_MISSION: "studio_api.services.mission.get_project_mission",
 }
 
 LATENCY_KEYS = ("p50_ms", "p95_ms", "max_ms")
@@ -394,6 +403,22 @@ def _number_errors(where: str, section: object, keys: Sequence[str]) -> list[str
     ]
 
 
+def _call_errors(kind: str, row: object) -> list[str]:
+    """Structure of one measured call row: latency, sizes, service and counters."""
+    if not isinstance(row, dict):
+        return [f"calls.{kind}: not an object"]
+    errors = _number_errors(f"calls.{kind}.latency_ms", row.get("latency_ms"), LATENCY_KEYS)
+    for size in ("response_chars", "approx_tokens"):
+        errors += _number_errors(f"calls.{kind}.{size}", row.get(size), SIZE_KEYS)
+    if not isinstance(row.get("service"), str) or not row["service"]:
+        errors.append(f"calls.{kind}.service: missing or not a non-empty string")
+    errors += _number_errors(f"calls.{kind}", row, ("samples", "warmup_passes"))
+    for counters in ("items", "omitted_for_budget", "overflow"):
+        if not _is_count_map(row.get(counters)):
+            errors.append(f"calls.{kind}.{counters}: missing or not a count map")
+    return errors
+
+
 def validate_metrics(metrics: dict[str, Any]) -> list[str]:
     """Structure only: no database, no timing, nothing environment-specific."""
     errors: list[str] = []
@@ -441,24 +466,13 @@ def validate_metrics(metrics: dict[str, Any]) -> list[str]:
     if not isinstance(calls, dict):
         errors.append("calls: not an object")
     else:
-        if set(calls) != set(CALL_KINDS):
+        if not set(CALL_KINDS) <= set(calls) or not set(calls) <= set(KNOWN_CALL_KINDS):
             errors.append("calls: kinds differ from the measured call set")
         for kind in CALL_KINDS:
-            row = calls.get(kind)
-            if not isinstance(row, dict):
-                errors.append(f"calls.{kind}: not an object")
-                continue
-            errors += _number_errors(
-                f"calls.{kind}.latency_ms", row.get("latency_ms"), LATENCY_KEYS
-            )
-            for size in ("response_chars", "approx_tokens"):
-                errors += _number_errors(f"calls.{kind}.{size}", row.get(size), SIZE_KEYS)
-            if not isinstance(row.get("service"), str) or not row["service"]:
-                errors.append(f"calls.{kind}.service: missing or not a non-empty string")
-            errors += _number_errors(f"calls.{kind}", row, ("samples", "warmup_passes"))
-            for counters in ("items", "omitted_for_budget", "overflow"):
-                if not _is_count_map(row.get(counters)):
-                    errors.append(f"calls.{kind}.{counters}: missing or not a count map")
+            if kind in calls:
+                errors += _call_errors(kind, calls.get(kind))
+        if CALL_PROJECT_MISSION in calls:
+            errors += _call_errors(CALL_PROJECT_MISSION, calls.get(CALL_PROJECT_MISSION))
 
     noise = metrics.get("noise")
     if not isinstance(noise, dict):
@@ -648,6 +662,30 @@ async def _time_call(
                 latency_ms=elapsed,
                 items=_context_items(context),
                 omitted=dict(context.omitted_for_budget),
+            )
+
+        if kind == CALL_PROJECT_MISSION:
+            from studio_api.services import mission as mission_service
+
+            mission = await mission_service.get_project_mission(
+                session,
+                principal,
+                scenario.project_id,
+                window_hours=MISSION_WINDOW_HOURS,
+                limit=MISSION_LIMIT,
+            )
+            payload = mission.model_dump_json()
+            elapsed = (time.perf_counter() - started) * 1000.0
+            return CallSample(
+                chars=len(payload),
+                latency_ms=elapsed,
+                items={
+                    "runs": len(mission.runs),
+                    **{
+                        f"by_verdict_{verdict}": count
+                        for verdict, count in mission.counts.by_verdict.items()
+                    },
+                },
             )
 
         assert scenario.session_id is not None
@@ -852,10 +890,10 @@ async def _measure(
     settings: Settings,
 ) -> tuple[dict[str, list[CallSample]], list[list[dict[str, Any]]]]:
     for _ in range(WARMUP_PASSES):
-        for kind in CALL_KINDS:
+        for kind in MEASURED_CALL_KINDS:
             await _time_call(kind, session_factory, principal, scenario, settings)
     measured: dict[str, list[CallSample]] = {}
-    for kind in CALL_KINDS:
+    for kind in MEASURED_CALL_KINDS:
         samples: list[CallSample] = []
         for _ in range(SAMPLES_PER_CALL):
             samples.append(await _time_call(kind, session_factory, principal, scenario, settings))
@@ -905,13 +943,17 @@ def build_metrics(
             "seeded": seeded,
             "warmup_passes": WARMUP_PASSES,
             "samples_per_call": SAMPLES_PER_CALL,
-            "call_kinds": len(CALL_KINDS),
+            "call_kinds": len(measured),
             "measured_calls": sum(len(samples) for samples in measured.values()),
             "context_limit": CONTEXT_LIMIT,
             "context_max_chars": CONTEXT_MAX_CHARS,
             "sync_limit": SYNC_DEFAULT_LIMIT,
         },
-        "calls": {kind: summarize_call(kind, measured[kind]) for kind in CALL_KINDS},
+        "calls": {
+            kind: summarize_call(kind, measured[kind])
+            for kind in KNOWN_CALL_KINDS
+            if kind in measured
+        },
         "noise": noise,
         "missing": [dict(entry) for entry in MISSING_METRICS],
     }
