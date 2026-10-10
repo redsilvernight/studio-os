@@ -1957,7 +1957,7 @@
      "task-launches"
     ],
     "summary": "List Task Launches",
-    "description": "List task launches of a project, oldest first.",
+    "description": "List task launches of a project, oldest first, each with its protocol proof (`not_applicable`, `awaiting`, `unverified` or `handed_off`) derived from the linked work session. The other launch routes keep the bare `TaskLaunch`.",
     "operationId": "list_task_launches_api_v1_projects__project_id__task_launches_get",
     "security": [
      {
@@ -2003,7 +2003,7 @@
       "content": {
        "application/json": {
         "schema": {
-         "$ref": "#/components/schemas/Page_TaskLaunch_"
+         "$ref": "#/components/schemas/Page_TaskLaunchView_"
         }
        }
       }
@@ -19530,11 +19530,11 @@
     "additionalProperties": true,
     "type": "object"
    },
-   "Page_TaskLaunch_": {
+   "Page_TaskLaunchView_": {
     "properties": {
      "items": {
       "items": {
-       "$ref": "#/components/schemas/TaskLaunch"
+       "$ref": "#/components/schemas/TaskLaunchView"
       },
       "type": "array",
       "title": "Items"
@@ -19566,7 +19566,7 @@
      "limit",
      "offset"
     ],
-    "title": "Page[TaskLaunch]"
+    "title": "Page[TaskLaunchView]"
    },
    "Phase": {
     "properties": {
@@ -24652,6 +24652,53 @@
     "title": "TaskLaunchMachineReport",
     "description": "Machine-only transition report. The server checks the caller is the\nlaunch's target machine and that `(current, status)` is an allowed\nmachine transition. `output_excerpt` is bounded and redacted by the\nmachine before sending."
    },
+   "TaskLaunchProtocol": {
+    "properties": {
+     "status": {
+      "$ref": "#/components/schemas/TaskLaunchProtocolStatus"
+     },
+     "session_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Session Id"
+     },
+     "task_status": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/TaskStatus"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "status"
+    ],
+    "title": "TaskLaunchProtocol",
+    "description": "Protocol proof of one launch. `task_status` is the task's current\nstatus, set only when `handed_off`."
+   },
+   "TaskLaunchProtocolStatus": {
+    "type": "string",
+    "enum": [
+     "not_applicable",
+     "awaiting",
+     "unverified",
+     "handed_off"
+    ],
+    "title": "TaskLaunchProtocolStatus",
+    "description": "Whether the launched agent followed the Studio protocol, derived at\nread time from the launch's linked work session, never stored and never\ninferred from the exit code. `not_applicable`: the harness never ran\n(rejected, cancelled or expired before `running`). `awaiting`: the launch\nis live and its session is not closed yet. `unverified`: the launch is\nterminal without a linked session or with a session never closed \u2014 an\nexit code 0 alone lands here. `handed_off`: the linked session is closed,\nwhatever the launch status, so a deferred terminal report or a\n`blocked`/`in_progress` handoff is never a failure. Never an approval:\n`handed_off` does not complete or review the task."
+   },
    "TaskLaunchPull": {
     "properties": {
      "items": {
@@ -24701,6 +24748,137 @@
      "expired"
     ],
     "title": "TaskLaunchStatus"
+   },
+   "TaskLaunchView": {
+    "properties": {
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version"
+     },
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Project Id"
+     },
+     "task_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Task Id"
+     },
+     "machine_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Machine Id"
+     },
+     "requested_by_user_id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Requested By User Id"
+     },
+     "harness_id": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "title": "Harness Id"
+     },
+     "agent_stable_key": {
+      "anyOf": [
+       {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Agent Stable Key"
+     },
+     "status": {
+      "$ref": "#/components/schemas/TaskLaunchStatus",
+      "default": "requested"
+     },
+     "reason_code": {
+      "$ref": "#/components/schemas/TaskLaunchReasonCode",
+      "default": "none"
+     },
+     "session_id": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "uuid"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Session Id"
+     },
+     "output_excerpt": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 4000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Output Excerpt"
+     },
+     "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Expires At"
+     },
+     "finished_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Finished At"
+     },
+     "protocol": {
+      "$ref": "#/components/schemas/TaskLaunchProtocol"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "created_at",
+     "updated_at",
+     "version",
+     "id",
+     "project_id",
+     "task_id",
+     "machine_id",
+     "requested_by_user_id",
+     "harness_id",
+     "expires_at",
+     "protocol"
+    ],
+    "title": "TaskLaunchView",
+    "description": "Read model of the project launch list (dashboard, MCP). `TaskLaunch`\nitself stays unchanged: daemons parse it strictly from the pending pull\nand the by-id read, so an N-1 daemon never sees `protocol`."
    },
    "TaskPlanItem": {
     "properties": {

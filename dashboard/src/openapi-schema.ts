@@ -449,7 +449,7 @@ export interface paths {
         };
         /**
          * List Task Launches
-         * @description List task launches of a project, oldest first.
+         * @description List task launches of a project, oldest first, each with its protocol proof (`not_applicable`, `awaiting`, `unverified` or `handed_off`) derived from the linked work session. The other launch routes keep the bare `TaskLaunch`.
          */
         get: operations["list_task_launches_api_v1_projects__project_id__task_launches_get"];
         put?: never;
@@ -7026,14 +7026,9 @@ export interface components {
          *     status, set only when `handed_off`.
          */
         TaskLaunchProtocol: {
-            /** Status */
             status: components["schemas"]["TaskLaunchProtocolStatus"];
-            /**
-             * Session Id
-             * Format: uuid
-             */
+            /** Session Id */
             session_id?: string | null;
-            /** Task Status */
             task_status?: components["schemas"]["TaskStatus"] | null;
         };
         /**
@@ -7135,7 +7130,6 @@ export interface components {
             expires_at: string;
             /** Finished At */
             finished_at?: string | null;
-            /** Protocol */
             protocol: components["schemas"]["TaskLaunchProtocol"];
         };
         /**
