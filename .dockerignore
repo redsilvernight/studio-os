@@ -8,6 +8,8 @@ docker/.env
 docker/.env.*
 **/.env
 .data/
+docker/.data/
+docker/backups/
 
 # IDE / agent configs
 .cursor/
