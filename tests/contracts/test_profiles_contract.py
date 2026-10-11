@@ -24,10 +24,12 @@ def _profile(**overrides: object) -> dict[str, object]:
 def test_current_and_previous_versions_are_read() -> None:
     assert WorkProfile.model_validate(_profile()).contract_version == PROFILE_CONTRACT_VERSION
     legacy = WorkProfile.model_validate(_profile(contract_version=PROFILE_MIN_COMPATIBLE_VERSION))
-    assert legacy.contract_version == PROFILE_CONTRACT_VERSION - 1
+    assert legacy.contract_version == max(1, PROFILE_CONTRACT_VERSION - 1)
 
 
-@pytest.mark.parametrize("version", [PROFILE_CONTRACT_VERSION + 1, PROFILE_CONTRACT_VERSION - 2])
+@pytest.mark.parametrize(
+    "version", [PROFILE_CONTRACT_VERSION + 1, PROFILE_MIN_COMPATIBLE_VERSION - 1]
+)
 def test_other_versions_fail_closed(version: int) -> None:
     with pytest.raises(ValidationError):
         WorkProfile.model_validate(_profile(contract_version=version))
