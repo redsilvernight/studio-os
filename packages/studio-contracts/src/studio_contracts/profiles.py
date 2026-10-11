@@ -38,7 +38,7 @@ from studio_contracts.resolution import (
     ResolvedRuntime,
 )
 
-PROFILE_MIN_COMPATIBLE_VERSION = PROFILE_CONTRACT_VERSION - 1
+PROFILE_MIN_COMPATIBLE_VERSION = max(1, PROFILE_CONTRACT_VERSION - 1)
 
 ProfilePermission = Literal["read", "write", "execute", "network", "launch"]
 ValueOrigin = Literal[
@@ -63,7 +63,9 @@ _PERMISSION_ORDER: tuple[ProfilePermission, ...] = (
 
 class MachinePolicy(LaunchSettings):
     """The local launch settings plus optional permissions (additive).
-    `None` (absent) authorizes nothing: fail closed."""
+    `None` (absent) authorizes nothing: fail closed. Never persisted to
+    `launch.json` nor sent to a daemon without a negotiated capability: an
+    N-1 `LaunchSettings` forbids the extra field."""
 
     permissions: list[ProfilePermission] | None = None
 
