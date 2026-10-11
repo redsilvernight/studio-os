@@ -302,6 +302,24 @@ PROBES: dict[Operation, tuple[Probe, ...]] = {
         ),
     ),
     ("PATCH", "/api/v1/ai-work/{work_id}"): (Probe("/api/v1/ai-work/{work}", {"summary": "x"}),),
+    ("GET", "/api/v1/usage"): (
+        Probe("/api/v1/usage?project_id={pid}"),
+        Probe("/api/v1/usage?task_id={task}"),
+        Probe("/api/v1/usage", expect="filtered"),
+    ),
+    ("POST", "/api/v1/usage"): (
+        Probe(
+            "/api/v1/usage",
+            {
+                "project_id": "{pid}",
+                "machine_id": "{outsider_machine}",
+                "source_event_id": "outsider-usage",
+                "provenance": {"collector": "runtime"},
+                "period_start": "2026-10-11T10:00:00Z",
+                "period_end": "2026-10-11T10:00:05Z",
+            },
+        ),
+    ),
     ("GET", "/api/v1/review-queue"): (
         Probe("/api/v1/review-queue?project_id={pid}"),
         Probe("/api/v1/review-queue", expect="filtered"),
@@ -593,6 +611,20 @@ async def _build_world(
         member,
         "/api/v1/ai-work",
         {"project_id": pid, "agent_id": agent["id"], "summary": "w"},
+    )
+    await _post(
+        client,
+        member,
+        "/api/v1/usage",
+        {
+            "project_id": pid,
+            "machine_id": me["id"],
+            "task_id": task,
+            "source_event_id": f"usage-{slug}",
+            "provenance": {"collector": "runtime"},
+            "period_start": "2026-10-11T10:00:00Z",
+            "period_end": "2026-10-11T10:00:05Z",
+        },
     )
     outsider_agent = await _post(client, outsider, "/api/v1/agents", {"display_name": "o"})
     await _post(

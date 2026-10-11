@@ -553,6 +553,55 @@ paritaire HTTP/MCP). Avant : ligne inexistante -> `500` (violation FK),
 ligne d'une autre machine -> `201` silencieux. Les appelants existants
 n'utilisant que leurs propres agents n'observent aucun changement.
 
+### Usage ledger (Mission Control P03-ingest, additif, DEC-0197)
+
+- POST /usage — `UsageLedgerEntryCreate` -> `UsageLedgerEntry`, `201`.
+  `Idempotency-Key` supporte. L'unicite `(machine_id, source_event_id)`
+  deduplique aussi des envois portant des cles HTTP differentes : une
+  observation deja recue renvoie l'entree existante, sans ajouter ni remplacer
+  ses mesures. Un changement de projet, de liens ou de collecteur sous cette
+  identite est refuse avec `409 usage_identity_conflict`.
+- POST /usage/corrections — `UsageLedgerCorrection` -> `UsageLedgerEntry`,
+  `200`. `Idempotency-Key` supporte, y compris pour le rejeu d'une correction
+  dont l'accuse de reception a ete perdu. Avec cette cle, mutation du ledger
+  et reponse memorisee sont validees dans la meme transaction PostgreSQL.
+  `expected_version` doit correspondre
+  a la version courante, sinon `409 version_conflict` avec `server_version`.
+  La correction remplace tout le bloc de mesures, periode, tarification et
+  provenance ; le collecteur et les liens restent fixes. Snapshot cumulatif
+  puis mesure finale corrigent la meme entree ; leurs valeurs ne s'additionnent
+  jamais. Une mesure inconnue reste NULL avec couverture `unknown`.
+- GET /usage — liste bornee, filtree par `project_id`, `task_id`, `session_id`,
+  `task_launch_id` et `since` (date de mise a jour, corrections incluses),
+  limitee aux projets accessibles. `limit` : defaut 100, maximum 500. Cette lecture
+  fournit les entrees du ledger ; elle ne calcule pas de totaux ni de budgets.
+
+Les ecritures exigent un role autorise et la machine authentifiee comme
+`machine_id`, y compris pour un admin. Le projet doit etre accessible en
+ecriture ; les liens optionnels doivent designer des objets compatibles du
+meme projet et de la meme machine. Une machine etrangere est refusee
+(`409 actor_not_owned`) ; un projet hors scope est refuse (`403`).
+Les credentials ephemeres de TaskLaunch autorisent
+seulement les deux POST, pour leur propre tache et leur propre lancement ;
+ils n'autorisent pas GET /usage. Les controles d'acces sont revalides avant
+une reponse d'idempotence memorisee.
+
+Capacites du stockage : chaque compteur de tokens est au plus
+`9223372036854775807` ; le cout est au plus `9999999999.99999999`
+(`Numeric(18,8)`) et la duree au plus `99999999999.999` secondes
+(`Numeric(14,3)`). Les deux POST refusent un depassement avec
+`422 invalid_usage_measurement` et le nom de la metrique. Cette erreur
+definitive reste inspectable en dead-letter ; elle ne devient pas une erreur
+SQL rejouee comme un incident transitoire.
+
+Bloc B : `studio_client.usage.UsageWriteQueue` met creation et correction dans
+`pending_mutations` avec un UUID fourni par le collecteur et conserve ce meme
+UUID pendant le rejeu. L'appelant persiste observation locale et ligne outbox
+dans la meme transaction SQLite. Aucun envoi ni commit interne ; le replayer
+generique gere ordre, backoff et erreurs definitives en `dead_letter`, avec
+corps et motif conserves pour inspection. Une correction perimee doit etre
+relue puis reproposee, jamais appliquee de force.
+
 ### AI Library (P1, additif, DEC-0062/0063/0064)
 
 - GET /library — liste filtree (`kind`, `scope`, `project_id`, `limit`,

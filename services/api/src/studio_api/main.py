@@ -46,6 +46,7 @@ from studio_api.routers import (
     tasks,
     timeline,
     transfers,
+    usage,
     users,
     vault,
     version,
@@ -109,6 +110,10 @@ OPENAPI_TAG_DESCRIPTIONS: dict[str, str] = {
         "AI work ledger. Entries reference an agent attached to the "
         "caller's own machine; foreign or unknown agents are rejected. "
         "Review transitions to approved/rejected require a privileged role."
+    ),
+    "usage": (
+        "Measured usage ledger with per-metric coverage, source-event deduplication and "
+        "versioned whole-block corrections. Writes belong to the authenticated machine."
     ),
     "review-queue": (
         "Aggregated view of AI work reviews, proposed decisions, and recent "
@@ -276,6 +281,7 @@ def create_app() -> FastAPI:
     app.include_router(bootstrap_plan.router)
     app.include_router(agents.router)
     app.include_router(ai_work.router)
+    app.include_router(usage.router)
     app.include_router(review_queue.router)
     app.include_router(mission.router)
     app.include_router(timeline.router)

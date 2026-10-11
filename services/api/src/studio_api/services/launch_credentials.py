@@ -26,6 +26,8 @@ LAUNCH_REST_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
     {
         ("POST", "/api/v1/agents/ensure"),
         ("GET", "/api/v1/agents"),
+        ("POST", "/api/v1/usage"),
+        ("POST", "/api/v1/usage/corrections"),
     }
 )
 

@@ -340,7 +340,8 @@ non terminal.
 
 ## UsageLedgerEntry (Mission Control P03, DEC-0197, migration Alembic `0031`, table `usage_ledger_entries`)
 
-Contrat `studio_contracts.usage` (sans route API a ce stade). Une mesure de ce
+Contrat `studio_contracts.usage`, ingestion HTTP et corrections decrites dans
+`TECH/02_API_CONTRACT.md` (P03-ingest). Une mesure de ce
 qu'un run a consomme, jamais une estimation presentee comme un fait ; AIWorkLog
 et TaskLaunch restent inchanges. `id`, `project_id` (FK Project, isolation : toute
 lecture filtre par projet), `machine_id` (FK Machine emettrice), liens optionnels
