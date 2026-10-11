@@ -52,8 +52,9 @@ rollout() {
   compose build api mcp dashboard
   compose run --rm --no-deps api alembic upgrade head
   compose up -d --no-deps api mcp dashboard
-  compose up -d --no-deps caddy
-  compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile
+  # Le Caddyfile est monté en fichier unique : git checkout le remplace (nouvel
+  # inode) et le conteneur garderait l'ancien ; un reload ne suffit pas.
+  compose up -d --no-deps --force-recreate caddy
 }
 
 on_error() {
