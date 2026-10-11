@@ -293,7 +293,7 @@ test("suivi : l'actualisation relit l'état rapporté par le poste", async ({ pa
   await expect(page.locator('[data-testid="launch-latest"]')).toContainText("En cours");
   captured.launch = launchFixture({ status: "succeeded", version: 4, finished_at: "2026-10-01T10:05:00Z" });
   await page.locator('[data-action="launch-refresh"]').click();
-  await expect(page.locator('[data-testid="launch-latest"]')).toContainText("Terminé (succès)");
+  await expect(page.locator('[data-testid="launch-latest"]')).toContainText("Processus terminé (code 0)");
 
   expect(errors.fatal).toEqual([]);
   expect(errors.csp).toEqual([]);
