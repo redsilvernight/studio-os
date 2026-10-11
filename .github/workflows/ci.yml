@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [master, dev, "fix/**", "deploy/flo-laptop"]
+    branches: [master, dev, "fix/**", "deploy/ovh-vps"]
   pull_request:
     branches: [master, dev]
 
