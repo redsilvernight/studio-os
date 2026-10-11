@@ -449,7 +449,7 @@ export interface paths {
         };
         /**
          * List Task Launches
-         * @description List task launches of a project, oldest first.
+         * @description List task launches of a project, oldest first, each with its protocol proof (`not_applicable`, `awaiting`, `unverified` or `handed_off`) derived from the linked work session. The other launch routes keep the bare `TaskLaunch`.
          */
         get: operations["list_task_launches_api_v1_projects__project_id__task_launches_get"];
         put?: never;
@@ -4749,10 +4749,10 @@ export interface components {
         NoteItem: {
             [key: string]: unknown;
         };
-        /** Page[TaskLaunch] */
-        Page_TaskLaunch_: {
+        /** Page[TaskLaunchView] */
+        Page_TaskLaunchView_: {
             /** Items */
-            items: components["schemas"]["TaskLaunch"][];
+            items: components["schemas"]["TaskLaunchView"][];
             /** Limit */
             limit: number;
             /** Offset */
@@ -7021,6 +7021,32 @@ export interface components {
             output_excerpt?: string | null;
         };
         /**
+         * TaskLaunchProtocol
+         * @description Protocol proof of one launch. `task_status` is the task's current
+         *     status, set only when `handed_off`.
+         */
+        TaskLaunchProtocol: {
+            status: components["schemas"]["TaskLaunchProtocolStatus"];
+            /** Session Id */
+            session_id?: string | null;
+            task_status?: components["schemas"]["TaskStatus"] | null;
+        };
+        /**
+         * TaskLaunchProtocolStatus
+         * @description Whether the launched agent followed the Studio protocol, derived at
+         *     read time from the launch's linked work session, never stored and never
+         *     inferred from the exit code. `not_applicable`: the harness never ran
+         *     (rejected, cancelled or expired before `running`). `awaiting`: the launch
+         *     is live and its session is not closed yet. `unverified`: the launch is
+         *     terminal without a linked session or with a session never closed — an
+         *     exit code 0 alone lands here. `handed_off`: the linked session is closed,
+         *     whatever the launch status, so a deferred terminal report or a
+         *     `blocked`/`in_progress` handoff is never a failure. Never an approval:
+         *     `handed_off` does not complete or review the task.
+         * @enum {string}
+         */
+        TaskLaunchProtocolStatus: "not_applicable" | "awaiting" | "unverified" | "handed_off";
+        /**
          * TaskLaunchPull
          * @description What the daemon pulls: non-terminal launches targeting its machine,
          *     oldest first, bounded. A pull never changes a launch.
@@ -7041,6 +7067,71 @@ export interface components {
          * @enum {string}
          */
         TaskLaunchStatus: "requested" | "accepted" | "preparing" | "running" | "succeeded" | "failed" | "cancelled" | "rejected" | "expired";
+        /**
+         * TaskLaunchView
+         * @description Read model of the project launch list (dashboard, MCP). `TaskLaunch`
+         *     itself stays unchanged: daemons parse it strictly from the pending pull
+         *     and the by-id read, so an N-1 daemon never sees `protocol`.
+         */
+        TaskLaunchView: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /**
+             * Task Id
+             * Format: uuid
+             */
+            task_id: string;
+            /**
+             * Machine Id
+             * Format: uuid
+             */
+            machine_id: string;
+            /**
+             * Requested By User Id
+             * Format: uuid
+             */
+            requested_by_user_id: string;
+            /** Harness Id */
+            harness_id: string;
+            /** Agent Stable Key */
+            agent_stable_key?: string | null;
+            /** @default requested */
+            status: components["schemas"]["TaskLaunchStatus"];
+            /** @default none */
+            reason_code: components["schemas"]["TaskLaunchReasonCode"];
+            /** Session Id */
+            session_id?: string | null;
+            /** Output Excerpt */
+            output_excerpt?: string | null;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Finished At */
+            finished_at?: string | null;
+            protocol: components["schemas"]["TaskLaunchProtocol"];
+        };
         /**
          * TaskPlanItem
          * @description A Task the step *would* create at hydration. `hydration_key` is unique
@@ -9553,7 +9644,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Page_TaskLaunch_"];
+                    "application/json": components["schemas"]["Page_TaskLaunchView_"];
                 };
             };
             /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */

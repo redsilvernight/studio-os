@@ -14,6 +14,16 @@ export type TaskLaunch = components["schemas"]["TaskLaunch"];
 export type TaskLaunchCreate = components["schemas"]["TaskLaunchCreate"];
 export type TaskLaunchStatus = components["schemas"]["TaskLaunchStatus"];
 export type TaskLaunchReasonCode = components["schemas"]["TaskLaunchReasonCode"];
+export type TaskLaunchProtocol = components["schemas"]["TaskLaunchProtocol"];
+export type TaskLaunchProtocolStatus = components["schemas"]["TaskLaunchProtocolStatus"];
+export type TaskLaunchView = components["schemas"]["TaskLaunchView"];
+/**
+ * Lancement tel que la liste projet le rend : `TaskLaunch` plus la preuve de
+ * protocole. Le champ reste optionnel — un serveur plus ancien, ou la lecture
+ * par id, ne l'envoie pas ; l'UI le traite alors comme non vérifié plutôt que
+ * de le deviner.
+ */
+export type TaskLaunchWithProtocol = TaskLaunch & { protocol?: TaskLaunchProtocol };
 export type EligibleMachines = components["schemas"]["EligibleMachines"];
 export type MachineEligibility = components["schemas"]["MachineEligibility"];
 export type IneligibilityReason = components["schemas"]["IneligibilityReason"];
@@ -49,7 +59,7 @@ export function listTaskLaunches(
   client: StudioClient,
   projectId: string,
   opts: { limit?: number; offset?: number } = {},
-): Promise<TaskLaunch[]> {
+): Promise<TaskLaunchWithProtocol[]> {
   return unwrap(
     client.GET("/api/v1/projects/{project_id}/task-launches", {
       params: {

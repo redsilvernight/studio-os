@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AuthIdentity } from "../identityApi";
 import type { ResolvedAgentDefinition } from "../resolutionApi";
-import type { MachineEligibility, TaskLaunch } from "../taskLaunchesApi";
+import type { MachineEligibility, TaskLaunchWithProtocol } from "../taskLaunchesApi";
 import {
   canCancelLaunch,
   cancelLaunchConfirmText,
@@ -9,7 +9,13 @@ import {
   isTerminalLaunch,
   launchConfirmText,
   launchPanelHtml,
+  launchProtocolBadgeHtml,
+  launchProtocolBadgeLabel,
+  launchProtocolBadgeTone,
+  launchProtocolStatus,
+  launchProtocolTaskLabel,
   launchReasonCodeLabel,
+  latestHtml,
   linkedSessionHtml,
   machineOptionLabel,
   previewLines,
@@ -38,7 +44,7 @@ const machine = (overrides: Partial<MachineEligibility> = {}): MachineEligibilit
     ...overrides,
   }) as MachineEligibility;
 
-const launch = (overrides: Partial<TaskLaunch> = {}): TaskLaunch =>
+const launch = (overrides: Partial<TaskLaunchWithProtocol> = {}): TaskLaunchWithProtocol =>
   ({
     id: "l1",
     project_id: "p1",
@@ -53,7 +59,7 @@ const launch = (overrides: Partial<TaskLaunch> = {}): TaskLaunch =>
     expires_at: "2026-10-01T10:15:00Z",
     version: 1,
     ...overrides,
-  }) as TaskLaunch;
+  }) as TaskLaunchWithProtocol;
 
 const state = (overrides: Partial<LaunchPanelState> = {}): LaunchPanelState => ({
   data: { machines: [machine()], agents: [{ stable_key: "review-helper" }], latest: null },
@@ -75,8 +81,13 @@ describe("labels", () => {
   it("traduit les statuts de lancement", () => {
     expect(taskLaunchStatusLabel("requested")).toBe("Demandé");
     expect(taskLaunchStatusLabel("running")).toBe("En cours");
-    expect(taskLaunchStatusTone("succeeded")).toBe("success");
     expect(taskLaunchStatusTone("failed")).toBe("danger");
+  });
+
+  it("succeeded décrit le processus, jamais un travail validé", () => {
+    expect(taskLaunchStatusLabel("succeeded")).toBe("Processus terminé (code 0)");
+    expect(taskLaunchStatusTone("succeeded")).toBe("neutral");
+    expect(taskLaunchStatusLabel("succeeded")).not.toContain("succès");
   });
 
   it("traduit les raisons d'inéligibilité", () => {
@@ -263,5 +274,110 @@ describe("suivi et annulation (AIB R4)", () => {
     const text = cancelLaunchConfirmText(launch());
     expect(text).toContain("Annuler ce lancement");
     expect(text).not.toContain("<");
+  });
+});
+
+/** Badge de protocole seul, extrait du HTML rendu (le statut a son propre badge). */
+const protocolBadge = (html: string): string | null => {
+  const match = html.match(/<span class="ds-badge[^"]*">(?:Protocole non vérifié|Handoff[^<]*)<\/span>/);
+  return match === null ? null : match[0];
+};
+
+describe("preuve de protocole (TaskLaunchView.protocol)", () => {
+  it("un protocole absent vaut « non vérifié », jamais « validé »", () => {
+    expect(launchProtocolStatus(launch())).toBe("unverified");
+    expect(launchProtocolBadgeLabel(undefined)).toBe("Protocole non vérifié");
+    expect(launchProtocolBadgeLabel({ status: "unverified" })).toBe("Protocole non vérifié");
+    expect(launchProtocolBadgeTone("unverified")).toBe("warning");
+  });
+
+  it("handoff attendu : informatif, jamais un succès", () => {
+    expect(launchProtocolBadgeLabel({ status: "awaiting", session_id: "s1" })).toBe("Handoff attendu");
+    expect(launchProtocolBadgeTone("awaiting")).toBe("info");
+  });
+
+  it("handoff reçu : qualifie la tâche sans la valider", () => {
+    expect(launchProtocolBadgeLabel({ status: "handed_off", session_id: "s1", task_status: "completed" })).toBe(
+      "Handoff reçu · tâche : à relire",
+    );
+    expect(launchProtocolBadgeLabel({ status: "handed_off", session_id: "s1", task_status: "in_progress" })).toBe(
+      "Handoff reçu · tâche : En cours",
+    );
+    expect(launchProtocolBadgeLabel({ status: "handed_off", session_id: "s1", task_status: "blocked" })).toBe(
+      "Handoff reçu · tâche : Bloqué",
+    );
+    expect(launchProtocolBadgeLabel({ status: "handed_off", session_id: "s1" })).toBe("Handoff reçu");
+    expect(launchProtocolBadgeTone("handed_off")).toBe("neutral");
+    expect(launchProtocolTaskLabel(null)).toBeNull();
+    expect(launchProtocolTaskLabel("completed")).toBe("à relire");
+  });
+
+  it("aucun libellé de handoff ne parle de validation", () => {
+    const labels = (["completed", "in_progress", "blocked", "created"] as const)
+      .map((task_status) => launchProtocolBadgeLabel({ status: "handed_off", task_status }) ?? "")
+      .join(" ");
+    expect(labels).not.toMatch(/valid|approuv|succès/i);
+  });
+
+  it("protocole non applicable : aucun badge", () => {
+    expect(launchProtocolBadgeLabel({ status: "not_applicable" })).toBeNull();
+    expect(launchProtocolBadgeHtml(launch({ protocol: { status: "not_applicable" } }))).toBe("");
+  });
+
+  it("succeeded + unverified : le processus est terminé, le travail reste non vérifié", () => {
+    const html = latestHtml(
+      state({
+        data: {
+          machines: [],
+          agents: [],
+          latest: launch({ status: "succeeded", protocol: { status: "unverified" } }),
+        },
+      }),
+    );
+    expect(html).toContain("Processus terminé (code 0)");
+    expect(html).toContain("Protocole non vérifié");
+    expect(html).not.toContain("ds-badge--success");
+    expect(protocolBadge(html)).toContain("ds-badge--warning");
+  });
+
+  it("failed + handed_off : le handoff neutralise l'erreur du protocole", () => {
+    const html = latestHtml(
+      state({
+        data: {
+          machines: [],
+          agents: [],
+          latest: launch({ status: "failed", protocol: { status: "handed_off", task_status: "blocked" } }),
+        },
+      }),
+    );
+    expect(html).toContain("Échec");
+    expect(protocolBadge(html)).toContain("Handoff reçu · tâche : Bloqué");
+    expect(protocolBadge(html)).not.toContain("ds-badge--danger");
+    expect(protocolBadge(html)).not.toContain("ds-badge--success");
+  });
+
+  it("handoff attendu et not_applicable rendus à côté du statut", () => {
+    const awaiting = latestHtml(
+      state({
+        data: {
+          machines: [],
+          agents: [],
+          latest: launch({ status: "running", protocol: { status: "awaiting", session_id: "s1" } }),
+        },
+      }),
+    );
+    expect(protocolBadge(awaiting)).toContain("Handoff attendu");
+
+    const notApplicable = latestHtml(
+      state({
+        data: {
+          machines: [],
+          agents: [],
+          latest: launch({ status: "rejected", protocol: { status: "not_applicable" } }),
+        },
+      }),
+    );
+    expect(protocolBadge(notApplicable)).toBeNull();
+    expect(notApplicable).not.toContain("Protocole non vérifié");
   });
 });

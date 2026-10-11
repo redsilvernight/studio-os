@@ -12,6 +12,7 @@ from studio_contracts.task_launch import (
     TaskLaunchCredential,
     TaskLaunchMachineReport,
     TaskLaunchPull,
+    TaskLaunchView,
 )
 
 from studio_api.deps import CurrentPrincipal, DbSession
@@ -104,8 +105,13 @@ async def get_task_launch(
 
 @router.get(
     "/api/v1/projects/{project_id}/task-launches",
-    response_model=Page[TaskLaunch],
-    description="List task launches of a project, oldest first.",
+    response_model=Page[TaskLaunchView],
+    description=(
+        "List task launches of a project, oldest first, each with its "
+        "protocol proof (`not_applicable`, `awaiting`, `unverified` or "
+        "`handed_off`) derived from the linked work session. The other "
+        "launch routes keep the bare `TaskLaunch`."
+    ),
     responses={**RESP_401_UNAUTHORIZED, **RESP_403_FORBIDDEN},
 )
 async def list_task_launches(
@@ -114,12 +120,12 @@ async def list_task_launches(
     principal: CurrentPrincipal,
     limit: int = Query(default=100, le=500),
     offset: int = Query(default=0),
-) -> Page[TaskLaunch]:
+) -> Page[TaskLaunchView]:
     launches = await launches_service.list_launches(
         session, principal, project_id, limit=limit, offset=offset
     )
-    return Page[TaskLaunch](
-        items=[TaskLaunch.model_validate(launch) for launch in launches],
+    return Page[TaskLaunchView](
+        items=await launches_service.protocol_views(session, launches),
         limit=limit,
         offset=offset,
     )

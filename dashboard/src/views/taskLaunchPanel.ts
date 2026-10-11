@@ -6,18 +6,26 @@
  * hors ligne ou inéligible reste visible mais non sélectionnable, avec sa
  * raison. Le suivi relit la même vérité serveur ; l'annulation n'est offerte
  * qu'au demandeur (ou à un administrateur), sur un lancement non terminal.
+ *
+ * Le statut du processus et la preuve de protocole sont deux faits distincts :
+ * un code de sortie 0 décrit le processus, jamais le travail rendu. Un handoff
+ * reçu est un résultat transmis, jamais une validation.
  */
-import { dsBadge, dsEmptyState, dsField, dsSectionHeader, dsSkeleton } from "../ds/ds";
+import { dsBadge, dsEmptyState, dsField, dsSectionHeader, dsSkeleton, type DsTone } from "../ds/ds";
 import { machineLabel } from "../actorNames";
 import { esc, fmtTime } from "../ui";
 import type { AuthIdentity } from "../identityApi";
 import type { ResolvedAgentDefinition } from "../resolutionApi";
+import { taskStatusLabel } from "../taskStatus";
 import type {
   HarnessReport,
   IneligibilityReason,
   MachineEligibility,
   TaskLaunch,
+  TaskLaunchProtocol,
+  TaskLaunchProtocolStatus,
   TaskLaunchStatus,
+  TaskLaunchWithProtocol,
 } from "../taskLaunchesApi";
 
 export interface AgentOption {
@@ -33,7 +41,8 @@ export interface LaunchSession {
 export interface LaunchPanelData {
   machines: MachineEligibility[];
   agents: AgentOption[];
-  latest: TaskLaunch | null;
+  /** Dernier lancement du projet pour cette tâche : porte la preuve de protocole. */
+  latest: TaskLaunchWithProtocol | null;
   /** Sessions de la tâche, pour résoudre l'état de la session liée (best-effort). */
   sessions?: LaunchSession[] | null;
 }
@@ -59,7 +68,7 @@ const LAUNCH_STATUS_FR: Record<TaskLaunchStatus, string> = {
   accepted: "Accepté par le poste",
   preparing: "Préparation",
   running: "En cours",
-  succeeded: "Terminé (succès)",
+  succeeded: "Processus terminé (code 0)",
   failed: "Échec",
   cancelled: "Annulé",
   rejected: "Refusé par le poste",
@@ -109,8 +118,6 @@ export function taskLaunchStatusTone(
   status: TaskLaunchStatus,
 ): "neutral" | "success" | "warning" | "danger" | "info" {
   switch (status) {
-    case "succeeded":
-      return "success";
     case "failed":
     case "rejected":
       return "danger";
@@ -121,8 +128,58 @@ export function taskLaunchStatusTone(
     case "running":
       return "info";
     default:
+      // `succeeded` reste neutre : un code de sortie 0 décrit le processus,
+      // pas le travail rendu par l'agent (voir le badge de protocole).
       return "neutral";
   }
+}
+
+/**
+ * Preuve de protocole d'un lancement, telle que la liste projet la dérive.
+ * Son absence (lecture par id, serveur plus ancien) vaut « non vérifié » :
+ * l'UI ne comble jamais le trou par une lecture du code de sortie.
+ */
+export function launchProtocolStatus(launch: TaskLaunchWithProtocol): TaskLaunchProtocolStatus {
+  return launch.protocol?.status ?? "unverified";
+}
+
+/**
+ * Statut courant de la tâche après le handoff. `completed` reste « à relire » :
+ * une tâche marquée terminée par l'agent n'est ni relue ni validée ici.
+ */
+export function launchProtocolTaskLabel(taskStatus: string | null | undefined): string | null {
+  if (taskStatus === null || taskStatus === undefined || taskStatus === "") return null;
+  if (taskStatus === "completed") return "à relire";
+  return taskStatusLabel(taskStatus);
+}
+
+export function launchProtocolBadgeLabel(protocol: TaskLaunchProtocol | null | undefined): string | null {
+  const status = protocol?.status ?? "unverified";
+  if (status === "not_applicable") return null;
+  if (status === "awaiting") return "Handoff attendu";
+  if (status === "unverified") return "Protocole non vérifié";
+  const taskLabel = launchProtocolTaskLabel(protocol?.task_status);
+  return taskLabel === null ? "Handoff reçu" : `Handoff reçu · tâche : ${taskLabel}`;
+}
+
+/** Ton du badge : un handoff reçu n'est jamais un succès, donc jamais vert. */
+export function launchProtocolBadgeTone(status: TaskLaunchProtocolStatus): DsTone {
+  switch (status) {
+    case "awaiting":
+      return "info";
+    case "unverified":
+      return "warning";
+    default:
+      return "neutral";
+  }
+}
+
+/** Badge de protocole à côté du statut ; vide quand le protocole ne s'applique pas. */
+export function launchProtocolBadgeHtml(launch: TaskLaunchWithProtocol): string {
+  const status = launchProtocolStatus(launch);
+  const label = launchProtocolBadgeLabel(launch.protocol);
+  if (label === null) return "";
+  return dsBadge(label, launchProtocolBadgeTone(status));
 }
 
 const REASON_FR: Record<IneligibilityReason, string> = {
@@ -252,7 +309,7 @@ function previewHtml(state: LaunchPanelState): string {
  * handoff de la tâche. L'état affiché vient des sessions chargées ; à défaut
  * le lien reste, sans inventer d'état.
  */
-export function linkedSessionHtml(state: LaunchPanelState, latest: TaskLaunch): string {
+export function linkedSessionHtml(state: LaunchPanelState, latest: TaskLaunchWithProtocol): string {
   if (!latest.session_id) return "";
   const linked = state.data?.sessions?.find((session) => session.id === latest.session_id) ?? null;
   const ended = linked !== null && linked.ended_at !== null && linked.ended_at !== undefined && linked.ended_at !== "";
@@ -284,6 +341,10 @@ export function latestHtml(state: LaunchPanelState): string {
       ? `<button class="ds-btn ds-btn--danger" type="button" data-action="launch-cancel">Annuler le lancement</button>`
       : "") +
     `</div>`;
+  const protocolBadge = launchProtocolBadgeHtml(latest);
+  const badges =
+    dsBadge(taskLaunchStatusLabel(latest.status), taskLaunchStatusTone(latest.status)) +
+    (protocolBadge === "" ? "" : ` ${protocolBadge}`);
   return `<div class="ds-list-item" data-testid="launch-latest"><div class="grow">` +
     `<div class="ds-list-title">${esc(details.join(" · "))}</div>` +
     `<div class="ds-list-sub">Demandé ${esc(fmtTime(latest.created_at))} · expire ${esc(fmtTime(latest.expires_at))}` +
@@ -292,7 +353,7 @@ export function latestHtml(state: LaunchPanelState): string {
     linkedSessionHtml(state, latest) +
     (latest.output_excerpt ? `<pre class="mono">${esc(latest.output_excerpt)}</pre>` : "") +
     actions +
-    `</div>${dsBadge(taskLaunchStatusLabel(latest.status), taskLaunchStatusTone(latest.status))}</div>`;
+    `</div>${badges}</div>`;
 }
 
 export function launchConfirmText(
