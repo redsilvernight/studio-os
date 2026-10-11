@@ -1,7 +1,7 @@
 name: Desktop channels
 
-# The two living Desktop releases are real, channel-specific builds (DEC-0162):
-# `dev` publishes `desktop-dev`, while `deploy/flo-laptop` publishes
+# The two living Desktop releases are real, channel-specific builds (DEC-0162, DEC-0205):
+# `dev` publishes `desktop-dev`, while `deploy/ovh-vps` publishes
 # `desktop-prod`. Their identities, data directories, updater feeds and server
 # origins are distinct. Deployment addresses live only in the matching GitHub
 # environment (`desktop-dev` / `desktop-prod`). Unsigned builds may trigger a
@@ -19,16 +19,16 @@ name: Desktop channels
 
 on:
   push:
-    branches: [dev, deploy/flo-laptop]
+    branches: [dev, deploy/ovh-vps]
   # A manual run rebuilds the channel of the selected ref; any other ref is
-  # skipped, so a Prod build can only ever come from `deploy/flo-laptop`.
+  # skipped, so a Prod build can only ever come from `deploy/ovh-vps`.
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: desktop-channel-${{ github.ref_name == 'dev' && 'dev' || github.ref_name == 'deploy/flo-laptop' && 'prod' || github.ref_name }}
+  group: desktop-channel-${{ github.ref_name == 'dev' && 'dev' || github.ref_name == 'deploy/ovh-vps' && 'prod' || github.ref_name }}
   cancel-in-progress: true
 
 env:
@@ -36,9 +36,9 @@ env:
 
 jobs:
   installer:
-    # Branch -> channel is fixed (DEC-0162): dev -> desktop-dev,
-    # deploy/flo-laptop -> desktop-prod. No other ref ever builds a channel.
-    if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/deploy/flo-laptop'
+    # Branch -> channel is fixed (DEC-0162, DEC-0205): dev -> desktop-dev,
+    # deploy/ovh-vps -> desktop-prod. No other ref ever builds a channel.
+    if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/deploy/ovh-vps'
     runs-on: windows-latest
     timeout-minutes: 60
     environment: ${{ github.ref_name == 'dev' && 'desktop-dev' || 'desktop-prod' }}
