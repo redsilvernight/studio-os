@@ -1,0 +1,11 @@
+# deploy/ovh-vps : un passage de deploy-poll.sh (DEC-0205).
+[Unit]
+Description=Studio OS - deploiement continu (poll de deploy/ovh-vps)
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+ExecStart=/home/ubuntu/studio-os-deploy/docker/deploy-poll.sh
+TimeoutStartSec=45min
