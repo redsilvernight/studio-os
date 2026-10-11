@@ -416,6 +416,7 @@ class DaemonRuntime:
                             extra_project_ids=self._workspace_project_ids(),
                         ),
                         reporter,
+                        is_executing=executor.owns,
                     ),
                     launch_executor=executor,
                 )

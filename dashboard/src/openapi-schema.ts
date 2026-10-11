@@ -504,6 +504,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/task-launches/{launch_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry Task Launch
+         * @description Explicit recovery (P02): retry a terminal launch as a new attempt (`attempt` + 1, `retry_of_launch_id` = this launch) on the same task, machine, harness and agent; the previous attempt is never rewritten. A non-terminal launch is `409 launch_not_terminal`. One retry per attempt: a second or concurrent retry returns the attempt the first one created. Only the requester (or an admin), with the target machine's aptitude re-checked like a creation. Accepts `Idempotency-Key`.
+         */
+        post: operations["retry_task_launch_api_v1_task_launches__launch_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/machines/{machine_id}/task-launches/pending": {
         parameters: {
             query?: never;
@@ -7066,15 +7086,67 @@ export interface components {
          */
         TaskLaunchReasonCode: "none" | "not_opted_in" | "project_not_registered" | "harness_not_allowed" | "harness_not_found" | "agent_not_found" | "capacity_reached" | "preparation_failed" | "harness_exited" | "cancelled_by_requester" | "expired_unpulled" | "expired_timeout";
         /**
+         * TaskLaunchRecovery
+         * @description Why an attempt reads the way it does (P02). `machine_status` is the
+         *     target machine's derived presence; `stale_since` is when the attempt
+         *     stopped progressing (machine last seen, or the attempt's expiry), `None`
+         *     when there is nothing to recover. Recovery itself is always explicit: a
+         *     retry creates a new attempt, the previous one is never rewritten.
+         */
+        TaskLaunchRecovery: {
+            state: components["schemas"]["TaskLaunchRecoveryState"];
+            /** @default none */
+            reason: components["schemas"]["TaskLaunchRecoveryReason"];
+            machine_status: components["schemas"]["MachineStatus"];
+            /** Stale Since */
+            stale_since?: string | null;
+        };
+        /**
+         * TaskLaunchRecoveryReason
+         * @description Closed vocabulary behind a recovery verdict, never free text.
+         * @enum {string}
+         */
+        TaskLaunchRecoveryReason: "none" | "launch_failed" | "launch_expired" | "machine_offline";
+        /**
+         * TaskLaunchRecoveryState
+         * @description Recovery verdict of one attempt (P02), derived at read time from the
+         *     launch status and the target machine's presence — never stored, never
+         *     reported by a machine. `failed`: the attempt ended `failed`.
+         *     `offline_wip`: the attempt is `accepted`/`preparing`/`running` and its
+         *     machine is `offline`, so work may still be in progress where nobody can
+         *     reach it — not a failure, never retried implicitly. `stale`: the attempt
+         *     can no longer progress on its own — `requested` on an `offline` machine,
+         *     or closed `expired`. `ok`: nothing to recover (a live attempt on an
+         *     answering machine, `succeeded`, `cancelled`, `rejected`).
+         * @enum {string}
+         */
+        TaskLaunchRecoveryState: "ok" | "stale" | "offline_wip" | "failed";
+        /**
+         * TaskLaunchRetry
+         * @description Explicit recovery input (P02): retry a terminal attempt as a new one.
+         *     Only `expires_in_seconds` is settable — task, machine, harness and agent
+         *     are inherited from the attempt it retries, so a retry can never quietly
+         *     become a different job. The body is optional.
+         */
+        TaskLaunchRetry: {
+            /**
+             * Expires In Seconds
+             * @default 900
+             */
+            expires_in_seconds: number;
+        };
+        /**
          * TaskLaunchStatus
          * @enum {string}
          */
         TaskLaunchStatus: "requested" | "accepted" | "preparing" | "running" | "succeeded" | "failed" | "cancelled" | "rejected" | "expired";
         /**
          * TaskLaunchView
-         * @description Read model of the project launch list (dashboard, MCP). `TaskLaunch`
-         *     itself stays unchanged: daemons parse it strictly from the pending pull
-         *     and the by-id read, so an N-1 daemon never sees `protocol`.
+         * @description Read model of the project launch list (dashboard, MCP) and of a retry.
+         *     `TaskLaunch` itself stays unchanged: daemons parse it strictly from the
+         *     pending pull and the by-id read, so an N-1 daemon never sees `protocol`,
+         *     `recovery` or the attempt chain. `attempt` starts at 1; a retry points at
+         *     the attempt it replaces through `retry_of_launch_id` (P02, additive).
          */
         TaskLaunchView: {
             /**
@@ -7134,6 +7206,14 @@ export interface components {
             /** Finished At */
             finished_at?: string | null;
             protocol: components["schemas"]["TaskLaunchProtocol"];
+            /**
+             * Attempt
+             * @default 1
+             */
+            attempt: number;
+            /** Retry Of Launch Id */
+            retry_of_launch_id?: string | null;
+            recovery?: components["schemas"]["TaskLaunchRecovery"] | null;
         };
         /**
          * TaskPlanItem
@@ -9752,7 +9832,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Task launch refused, nothing stored: unknown pair (`invalid_launch_transition` — only ALLOWED_TRANSITIONS pairs move, terminal states have no exit), a linked session that does not exist or belongs to another machine (`invalid_launch_session`), a task/project/machine mismatch (`task_project_mismatch`, `launch_machine_mismatch`), or a target machine not able to launch right now (`machine_capabilities_missing`, `machine_capabilities_stale`, `machine_offline`, `machine_not_opted_in`, `project_not_registered`). */
+            /** @description Task launch refused, nothing stored: unknown pair (`invalid_launch_transition` — only ALLOWED_TRANSITIONS pairs move, terminal states have no exit), a linked session that does not exist or belongs to another machine (`invalid_launch_session`), a task/project/machine mismatch (`task_project_mismatch`, `launch_machine_mismatch`), or a target machine not able to launch right now (`machine_capabilities_missing`, `machine_capabilities_stale`, `machine_offline`, `machine_not_opted_in`, `project_not_registered`), or a retry of a launch that is not terminal yet (`launch_not_terminal`). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -9926,7 +10006,107 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Task launch refused, nothing stored: unknown pair (`invalid_launch_transition` — only ALLOWED_TRANSITIONS pairs move, terminal states have no exit), a linked session that does not exist or belongs to another machine (`invalid_launch_session`), a task/project/machine mismatch (`task_project_mismatch`, `launch_machine_mismatch`), or a target machine not able to launch right now (`machine_capabilities_missing`, `machine_capabilities_stale`, `machine_offline`, `machine_not_opted_in`, `project_not_registered`). */
+            /** @description Task launch refused, nothing stored: unknown pair (`invalid_launch_transition` — only ALLOWED_TRANSITIONS pairs move, terminal states have no exit), a linked session that does not exist or belongs to another machine (`invalid_launch_session`), a task/project/machine mismatch (`task_project_mismatch`, `launch_machine_mismatch`), or a target machine not able to launch right now (`machine_capabilities_missing`, `machine_capabilities_stale`, `machine_offline`, `machine_not_opted_in`, `project_not_registered`), or a retry of a launch that is not terminal yet (`launch_not_terminal`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "invalid_launch_transition"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_task_launch_api_v1_task_launches__launch_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional replay key for safe retries (timeouts, reconnects, offline queue replay). Send a caller-generated unique value per intended resource: replaying the same key with the identical body returns the original response instead of creating a duplicate, even under concurrent retries. Replaying the same key with a different body is a client error (`409 idempotency_key_payload_mismatch`) — always resend the exact same body when retrying. A key whose creation never completed may briefly answer `409 idempotency_key_in_progress`; retry identically. `POST /events` does not use this header (the client-generated `event_id` plays that role instead), and neither do `POST /machines` and `POST /users`. */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                launch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["TaskLaunchRetry"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskLaunchView"];
+                };
+            };
+            /** @description Missing, invalid or revoked credential. Send `Authorization: Bearer <machine-token>` for a machine, or `Authorization: Bearer <jwt>` obtained from `POST /auth/token` for a human dashboard user; provision the machine token out of band before calling. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "missing bearer token"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Authenticated but not allowed. The caller's role or resource ownership does not permit this action (`resource` names the object kind, `action` the attempted operation). A 403 is final: retrying the same call changes nothing, and a queued offline operation that replays into a 403 is dead-lettered, never retried. Since contract version 2, any route tied to a project, reads included, may answer `resource: project` for a project the caller cannot access or that does not exist; it is never an authentication error. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": {
+                     *         "error_code": "forbidden",
+                     *         "resource": "task",
+                     *         "action": "write"
+                     *       }
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description No such resource. Unknown ids return 404; access to an existing but unauthorized transfer returns 403 instead, never 404. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "detail": "task not found"
+                     *     }
+                     */
+                    "application/json": unknown;
+                };
+            };
+            /** @description Task launch refused, nothing stored: unknown pair (`invalid_launch_transition` — only ALLOWED_TRANSITIONS pairs move, terminal states have no exit), a linked session that does not exist or belongs to another machine (`invalid_launch_session`), a task/project/machine mismatch (`task_project_mismatch`, `launch_machine_mismatch`), or a target machine not able to launch right now (`machine_capabilities_missing`, `machine_capabilities_stale`, `machine_offline`, `machine_not_opted_in`, `project_not_registered`), or a retry of a launch that is not terminal yet (`launch_not_terminal`). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10100,7 +10280,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Task launch refused, nothing stored: unknown pair (`invalid_launch_transition` — only ALLOWED_TRANSITIONS pairs move, terminal states have no exit), a linked session that does not exist or belongs to another machine (`invalid_launch_session`), a task/project/machine mismatch (`task_project_mismatch`, `launch_machine_mismatch`), or a target machine not able to launch right now (`machine_capabilities_missing`, `machine_capabilities_stale`, `machine_offline`, `machine_not_opted_in`, `project_not_registered`). */
+            /** @description Task launch refused, nothing stored: unknown pair (`invalid_launch_transition` — only ALLOWED_TRANSITIONS pairs move, terminal states have no exit), a linked session that does not exist or belongs to another machine (`invalid_launch_session`), a task/project/machine mismatch (`task_project_mismatch`, `launch_machine_mismatch`), or a target machine not able to launch right now (`machine_capabilities_missing`, `machine_capabilities_stale`, `machine_offline`, `machine_not_opted_in`, `project_not_registered`), or a retry of a launch that is not terminal yet (`launch_not_terminal`). */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10193,7 +10373,7 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Task launch refused, nothing stored: unknown pair (`invalid_launch_transition` — only ALLOWED_TRANSITIONS pairs move, terminal states have no exit), a linked session that does not exist or belongs to another machine (`invalid_launch_session`), a task/project/machine mismatch (`task_project_mismatch`, `launch_machine_mismatch`), or a target machine not able to launch right now (`machine_capabilities_missing`, `machine_capabilities_stale`, `machine_offline`, `machine_not_opted_in`, `project_not_registered`). */
+            /** @description Task launch refused, nothing stored: unknown pair (`invalid_launch_transition` — only ALLOWED_TRANSITIONS pairs move, terminal states have no exit), a linked session that does not exist or belongs to another machine (`invalid_launch_session`), a task/project/machine mismatch (`task_project_mismatch`, `launch_machine_mismatch`), or a target machine not able to launch right now (`machine_capabilities_missing`, `machine_capabilities_stale`, `machine_offline`, `machine_not_opted_in`, `project_not_registered`), or a retry of a launch that is not terminal yet (`launch_not_terminal`). */
             409: {
                 headers: {
                     [name: string]: unknown;

@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -15,9 +15,21 @@ class TaskLaunchModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
 
     Data only, never a command: ids and stable keys. Status moves only
     through `studio_contracts.task_launch.ALLOWED_TRANSITIONS`.
+
+    `attempt` and `retry_of_launch_id` are the recovery chain (P02): a
+    retry is a new row pointing at the attempt it retries, never a rewrite
+    of a closed one — the trace of what failed stays readable.
     """
 
     __tablename__ = "task_launches"
+    __table_args__ = (
+        Index(
+            "uq_task_launches_retry_of",
+            "retry_of_launch_id",
+            unique=True,
+            postgresql_where=text("retry_of_launch_id IS NOT NULL"),
+        ),
+    )
 
     project_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("projects.id"))
     task_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("tasks.id"))
@@ -35,3 +47,7 @@ class TaskLaunchModel(UUIDPKMixin, TimestampMixin, VersionMixin, Base):
     output_excerpt: Mapped[str | None] = mapped_column(default=None)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    attempt: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    retry_of_launch_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("task_launches.id"), default=None
+    )
