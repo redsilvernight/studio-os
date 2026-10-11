@@ -203,9 +203,10 @@ async def sync(
     """Bounded resync for one session (or one agent + task, stateless).
 
     The cursor starts at `max(stored, ack)` and is persisted monotonically —
-    a stale replay changes nothing. `next_cursor` is the highest delivered
-    `seq`, never past the first matched event the bounds left out (unchanged
-    when nothing is new); ack it next call to advance. Own-machine events are
+    a stale replay changes nothing. `next_cursor` is the `seq` up to
+    which every matched event was delivered or absorbed, never past the first
+    matched event the bounds left out (unchanged when nothing is new); ack it
+    next call to advance. Own-machine events are
     excluded; items are ids only, `seq` ascending, then live overlapping
     claims; the `ai_work.*` events of one work entry collapse to its latest
     one, the absorbed ones costing neither budget nor overflow counter; the

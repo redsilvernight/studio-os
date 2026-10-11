@@ -6801,8 +6801,11 @@ export interface components {
         };
         /**
          * SyncResult
-         * @description Bounded sync answer. `next_cursor` is the highest delivered `seq`
-         *     (unchanged when nothing new); ack it on the next call to advance.
+         * @description Bounded sync answer. `next_cursor` is the `seq` up to which every
+         *     matched event was delivered or absorbed into a delivered item; it stays
+         *     below the first event the bounds left out, so items above it may come
+         *     again on the next call (unchanged when nothing new). Ack it as is to
+         *     advance; never derive it from the returned items.
          *     `overflow` counts matched-but-unreturned items per `why` category;
          *     `resync` (scan truncated) refers to `prepare_context` for the full
          *     picture — raw history is never dumped. An empty answer serializes to
