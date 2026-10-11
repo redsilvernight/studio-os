@@ -128,12 +128,12 @@ test("signing merges into bundle.windows without dropping the channel nsis block
 
 test("GitHub builds each living channel from its own branch", () => {
   const workflow = readFileSync(join(repoRoot, ".github", "workflows", "desktop-channels.yml"), "utf8");
-  assert.match(workflow, /branches: \[dev, deploy\/flo-laptop\]/);
+  assert.match(workflow, /branches: \[dev, deploy\/ovh-vps\]/);
   assert.match(workflow, /STUDIO_DESKTOP_CHANNEL:.*github\.ref_name == 'dev'.*'dev'.*'prod'/);
   assert.match(workflow, /http:\/\/127\.0\.0\.1:8765/);
   assert.match(workflow, /desktop-\$channel/);
   // Any other ref (a manual run included) never builds a channel.
-  assert.match(workflow, /if: github\.ref == 'refs\/heads\/dev' \|\| github\.ref == 'refs\/heads\/deploy\/flo-laptop'/);
+  assert.match(workflow, /if: github\.ref == 'refs\/heads\/dev' \|\| github\.ref == 'refs\/heads\/deploy\/ovh-vps'/);
   assert.doesNotMatch(workflow, /inputs\.channel/);
   // The release itself is never deleted (only stale versioned assets are pruned).
   assert.doesNotMatch(workflow, /gh release delete(?!-asset)/);
