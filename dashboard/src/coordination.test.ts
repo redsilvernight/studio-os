@@ -44,7 +44,7 @@ describe("fils, éléments ouverts et passage de relais", () => {
   it("rattache les réponses en chaîne au signal racine", () => {
     const threads = buildThreads(items);
     expect(threads.map((t) => t.root.eventId)).toEqual(["q1", "q2", "h1", "h2"]);
-    expect(threads[0].replies.map((r) => r.eventId)).toEqual(["r1", "r2"]);
+    expect(threads[0]?.replies.map((r) => r.eventId)).toEqual(["r1", "r2"]);
   });
 
   it("une question répondue n'est plus à traiter ; un blocage sans réponse l'est", () => {

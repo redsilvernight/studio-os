@@ -268,7 +268,7 @@ function coordinationItemHtml(item: CoordinationItem): string {
     `<li class="ds-list-item" data-coordination-intent="${esc(item.intent)}"><div class="grow">` +
     `<div class="ds-list-title">${dsBadge(intentLabel(item.intent), COORDINATION_TONE[item.intent])}</div>` +
     `<div class="ds-list-sub">${esc(item.text)}</div>` +
-    `<div class="ds-list-sub"><time datetime="${esc(item.at)}">${fmtTime(item.at)}</time>${link}</div>` +
+    `<div class="ds-list-sub"><time datetime="${esc(item.at)}">${esc(fmtTime(item.at))}</time>${link}</div>` +
     `</div></li>`
   );
 }
