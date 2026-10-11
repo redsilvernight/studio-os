@@ -58,6 +58,12 @@
 		reverse_proxy api:8000
 	}
 
+	# Contrat client : le MCP est toujours <origine>/mcp (studio_client
+	# harness MCP_PATH) ; l'assistant Desktop écrit cette URL dans les harness.
+	route /mcp* {
+		reverse_proxy mcp:8100
+	}
+
 	reverse_proxy dashboard:80
 }
 
