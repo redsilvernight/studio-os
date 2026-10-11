@@ -103,6 +103,10 @@ class LaunchExecutor:
     def running(self) -> int:
         return len(self._tasks)
 
+    def owns(self, launch_id: UUID) -> bool:
+        """Whether this executor runs the launch (P02 restart reconciliation)."""
+        return launch_id in self._tasks or launch_id in self._processes
+
     def start(self) -> None:
         if self._watch_task is None:
             self._watch_task = asyncio.create_task(self._watch_loop())

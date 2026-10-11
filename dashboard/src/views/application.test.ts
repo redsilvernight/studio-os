@@ -287,6 +287,43 @@ describe("Settings › Application (Desktop)", () => {
     expect(root.querySelector("[data-testid=server-section]")).not.toBeNull();
   });
 
+  it("gives one next step per failure: local assistant down offers a restart", async () => {
+    const unavailable = { ok: false, error: { code: "daemon_unavailable" } } as unknown as BridgeAnswer;
+    const restartDesktop = vi.fn(async () => true);
+    const { root } = await mount(
+      fakeDesktop(
+        { request: async () => unavailable, restartDesktop },
+        { configured: "https://s.example.com", applied: "https://s.example.com", restart_required: false },
+      ),
+    );
+    const step = root.querySelector("[data-testid=status-next-step]");
+    expect(step?.getAttribute("data-reason")).toBe("daemon_unavailable");
+    expect(step?.textContent).toMatch(/Prochaine action/);
+    step?.querySelector<HTMLButtonElement>("[data-action=restart]")!.click();
+    await flush();
+    expect(restartDesktop).toHaveBeenCalledTimes(1);
+    expect(root.querySelectorAll("[data-testid=status-next-step]")).toHaveLength(1);
+  });
+
+  it("server down: the next step sits beside the single derived status, none when connected", async () => {
+    healthy();
+    globalThis.fetch = vi.fn(async () => {
+      throw new TypeError("Failed to fetch");
+    }) as unknown as typeof fetch;
+    const p = fakeDesktop({}, { configured: "https://s.example.com", applied: "https://s.example.com", restart_required: false });
+    await prepareDesktop(p);
+    await flush();
+    const root = document.createElement("main");
+    document.body.append(root);
+    await renderApplication(root, p);
+    expect(root.querySelector("[data-testid=status-next-step]")?.getAttribute("data-reason")).toBe("server_unreachable");
+    expect(root.querySelector("[data-testid=status-next-step] [data-action=restart]")).toBeNull();
+    globalThis.fetch = vi.fn(async () => new Response("ok", { status: 200 })) as unknown as typeof fetch;
+    root.querySelector<HTMLButtonElement>("[data-action=retry]")!.click();
+    await flush();
+    expect(root.querySelector("[data-testid=status-next-step]")).toBeNull();
+  });
+
   it("shows the P4 health block when daemon.health was negotiated, and hides it otherwise", async () => {
     const withHealth = fakeDaemon({ git_watchers: [{ condition: "healthy" }] });
     const { root } = await mount(

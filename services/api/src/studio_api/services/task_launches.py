@@ -23,6 +23,10 @@ from studio_contracts.task_launch import (
     TaskLaunchProtocolStatus,
     TaskLaunchPull,
     TaskLaunchReasonCode,
+    TaskLaunchRecovery,
+    TaskLaunchRecoveryReason,
+    TaskLaunchRecoveryState,
+    TaskLaunchRetry,
     TaskLaunchStatus,
     TaskLaunchView,
 )
@@ -44,7 +48,7 @@ from studio_api.services.authz import (
     ensure_project_access,
     project_visibility_clause,
 )
-from studio_api.settings import Settings
+from studio_api.settings import Settings, get_settings
 
 _STATUS_EVENT_TYPES: dict[TaskLaunchStatus, EventType] = {
     TaskLaunchStatus.REQUESTED: EventType.TASK_LAUNCH_REQUESTED,
@@ -166,6 +170,9 @@ async def create_launch(
     principal: Principal,
     project_id: uuid.UUID,
     launch_in: TaskLaunchCreate,
+    *,
+    attempt: int = 1,
+    retry_of_launch_id: uuid.UUID | None = None,
 ) -> TaskLaunchModel:
     now = datetime.now(UTC)
     launch = TaskLaunchModel(
@@ -178,6 +185,8 @@ async def create_launch(
         status=TaskLaunchStatus.REQUESTED.value,
         reason_code=TaskLaunchReasonCode.NONE.value,
         expires_at=now + timedelta(seconds=launch_in.expires_in_seconds),
+        attempt=attempt,
+        retry_of_launch_id=retry_of_launch_id,
     )
     session.add(launch)
     await session.flush()
@@ -234,6 +243,14 @@ _NEVER_RAN_LAUNCH_STATUSES = frozenset(
     }
 )
 
+_DECIDED_LAUNCH_STATUSES = frozenset(
+    {
+        TaskLaunchStatus.ACCEPTED.value,
+        TaskLaunchStatus.PREPARING.value,
+        TaskLaunchStatus.RUNNING.value,
+    }
+)
+
 
 _STOPPED_EVENT_TYPES = (
     EventType.TASK_LAUNCH_CANCELLED.value,
@@ -272,6 +289,48 @@ def _derive_protocol(
         return TaskLaunchProtocol(status=TaskLaunchProtocolStatus.NOT_APPLICABLE)
     return TaskLaunchProtocol(
         status=TaskLaunchProtocolStatus.UNVERIFIED, session_id=launch.session_id
+    )
+
+
+def derive_recovery(
+    launch: TaskLaunchModel, machine: MachineModel | None, settings: Settings
+) -> TaskLaunchRecovery:
+    """Recovery verdict of one attempt (P02), read-time only: the launch's
+    status against its target machine's derived presence. Only an `offline`
+    machine counts as unreachable — `idle` is a late heartbeat, not a loss.
+    Writes nothing: recovering is always an explicit retry."""
+    machine_status = (
+        MachineStatus.OFFLINE
+        if machine is None
+        else heartbeats_service.derive_status(machine, settings)
+    )
+    last_seen = machine.last_seen_at if machine is not None else None
+    offline = machine_status is MachineStatus.OFFLINE
+    status = launch.status
+    if status == TaskLaunchStatus.FAILED.value:
+        return TaskLaunchRecovery(
+            state=TaskLaunchRecoveryState.FAILED,
+            reason=TaskLaunchRecoveryReason.LAUNCH_FAILED,
+            machine_status=machine_status,
+        )
+    if status == TaskLaunchStatus.EXPIRED.value:
+        return TaskLaunchRecovery(
+            state=TaskLaunchRecoveryState.STALE,
+            reason=TaskLaunchRecoveryReason.LAUNCH_EXPIRED,
+            machine_status=machine_status,
+            stale_since=launch.expires_at,
+        )
+    if offline and status in _DECIDED_LAUNCH_STATUSES:
+        state = TaskLaunchRecoveryState.OFFLINE_WIP
+    elif offline and status == TaskLaunchStatus.REQUESTED.value:
+        state = TaskLaunchRecoveryState.STALE
+    else:
+        return TaskLaunchRecovery(state=TaskLaunchRecoveryState.OK, machine_status=machine_status)
+    return TaskLaunchRecovery(
+        state=state,
+        reason=TaskLaunchRecoveryReason.MACHINE_OFFLINE,
+        machine_status=machine_status,
+        stale_since=last_seen,
     )
 
 
@@ -318,16 +377,29 @@ async def _stopped_while_running(
     return set(result.scalars())
 
 
+async def _launch_machines(
+    session: AsyncSession, launches: Sequence[TaskLaunchModel]
+) -> dict[uuid.UUID, MachineModel]:
+    machine_ids = {launch.machine_id for launch in launches}
+    if not machine_ids:
+        return {}
+    result = await session.execute(select(MachineModel).where(MachineModel.id.in_(machine_ids)))
+    return {row.id: row for row in result.scalars()}
+
+
 async def protocol_views(
     session: AsyncSession, launches: Sequence[TaskLaunchModel]
 ) -> list[TaskLaunchView]:
     """Read model of a launch list: `TaskLaunchView` adds to each launch the
-    protocol proof derived from its linked work session. Sessions, tasks and
-    stop events are loaded in three grouped queries, never one per launch.
+    protocol proof derived from its linked work session and the recovery
+    verdict derived from its target machine. Sessions, tasks, machines and
+    stop events are loaded in four grouped queries, never one per launch.
     Writes nothing and moves no task."""
     work_sessions = await _linked_sessions(session, launches)
     tasks = await _launch_tasks(session, launches)
+    machines = await _launch_machines(session, launches)
     stopped_while_running = await _stopped_while_running(session, launches)
+    settings = get_settings()
     return [
         TaskLaunchView(
             **TaskLaunch.model_validate(launch).model_dump(),
@@ -337,6 +409,9 @@ async def protocol_views(
                 tasks.get(launch.task_id),
                 str(launch.id) in stopped_while_running,
             ),
+            recovery=derive_recovery(launch, machines.get(launch.machine_id), settings),
+            attempt=launch.attempt,
+            retry_of_launch_id=launch.retry_of_launch_id,
         )
         for launch in launches
     ]
@@ -456,11 +531,34 @@ _LINKABLE_STATUSES = (
 )
 
 
-async def link_session_to_launch(session: AsyncSession, work_session: WorkSessionModel) -> None:
-    """Attach a session opened on the launch's task and machine to the newest
-    unlinked live launch. Metadata only: `version` is untouched so the target
-    machine's next report keeps its `expected_version`."""
+async def link_session_to_launch(
+    session: AsyncSession,
+    work_session: WorkSessionModel,
+    launch_id: uuid.UUID | None = None,
+) -> None:
+    """Attach a session to the attempt it serves. With `launch_id` (the
+    caller's launch credential, DEC-0182) the link is exact and idempotent:
+    one session per attempt, whichever way the daemon reconnects — a session
+    already bound to that attempt is left alone, and an attempt already
+    bound to another session is never stolen. Without it the older
+    task/machine heuristic still applies: the newest unlinked live launch.
+    Metadata only: `version` is untouched so the target machine's next
+    report keeps its `expected_version`."""
     if work_session.task_id is None or work_session.machine_id is None:
+        return
+    if launch_id is not None:
+        launch = await session.get(TaskLaunchModel, launch_id)
+        if launch is None or launch.session_id == work_session.id:
+            return
+        if (
+            launch.session_id is not None
+            or launch.machine_id != work_session.machine_id
+            or launch.task_id != work_session.task_id
+            or launch.status not in _LINKABLE_STATUSES
+        ):
+            return
+        launch.session_id = work_session.id
+        await session.commit()
         return
     result = await session.execute(
         select(TaskLaunchModel)
@@ -578,4 +676,74 @@ async def cancel_launch(
     launch.version += 1
     return await _commit_with_event(
         session, principal, launch, EventType.TASK_LAUNCH_CANCELLED, previous_status
+    )
+
+
+async def _existing_retry(session: AsyncSession, launch: TaskLaunchModel) -> TaskLaunchModel | None:
+    """The attempt this launch already spawned, if any (at most one, unique
+    index `uq_task_launches_retry_of`)."""
+    result = await session.execute(
+        select(TaskLaunchModel).where(TaskLaunchModel.retry_of_launch_id == launch.id).limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def retry_launch(
+    session: AsyncSession,
+    principal: Principal,
+    launch: TaskLaunchModel,
+    retry: TaskLaunchRetry,
+    settings: Settings,
+) -> TaskLaunchModel:
+    """Explicit recovery (P02): a terminal attempt retried as a *new*
+    attempt that points at the one it replaces, so the trace of what failed
+    stays readable — the previous attempt is never rewritten. A live attempt
+    is `409 launch_not_terminal`: it is the target machine's to finish, and
+    an `offline_wip` attempt is cancelled first, never doubled.
+
+    One retry per attempt: the attempt row is locked while deciding and a
+    second retry (replayed, concurrent or with another key) resolves to the
+    attempt the first one created. Same requester rule as cancel; the target
+    machine's aptitude is re-checked exactly like a creation."""
+    ensure_can_write(principal, "task_launch")
+    ensure_project_access(principal, launch.project_id, "write")
+    if principal.role != Role.ADMIN and launch.requested_by_user_id != principal.user.id:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail={"error_code": "forbidden", "resource": "task_launch", "action": "retry"},
+        )
+    await session.refresh(launch, with_for_update=True)
+    await expire_launch_if_overdue(session, principal, launch)
+    # An expiry commits, which releases the row lock: take it again so the
+    # existing-retry check and the creation stay serialized.
+    await session.refresh(launch, with_for_update=True)
+    existing = await _existing_retry(session, launch)
+    if existing is not None:
+        return existing
+    if launch.status not in _TERMINAL_LAUNCH_STATUSES:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={"error_code": "launch_not_terminal", "status": launch.status},
+        )
+    machine = await session.get(MachineModel, launch.machine_id)
+    task = await session.get(TaskModel, launch.task_id)
+    if machine is None or task is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "launch target not found")
+    launch_in = TaskLaunchCreate(
+        task_id=launch.task_id,
+        machine_id=launch.machine_id,
+        harness_id=launch.harness_id,
+        agent_stable_key=launch.agent_stable_key,
+        expires_in_seconds=retry.expires_in_seconds,
+    )
+    await authorize_create(
+        session, principal, launch.project_id, task, machine, launch_in, settings, datetime.now(UTC)
+    )
+    return await create_launch(
+        session,
+        principal,
+        launch.project_id,
+        launch_in,
+        attempt=launch.attempt + 1,
+        retry_of_launch_id=launch.id,
     )

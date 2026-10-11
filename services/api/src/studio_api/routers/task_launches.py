@@ -12,6 +12,7 @@ from studio_contracts.task_launch import (
     TaskLaunchCredential,
     TaskLaunchMachineReport,
     TaskLaunchPull,
+    TaskLaunchRetry,
     TaskLaunchView,
 )
 
@@ -158,6 +159,60 @@ async def cancel_task_launch(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "task launch not found")
     launch = await launches_service.cancel_launch(session, principal, launch, cancel)
     return TaskLaunch.model_validate(launch)
+
+
+@router.post(
+    "/api/v1/task-launches/{launch_id}/retry",
+    response_model=TaskLaunchView,
+    status_code=status.HTTP_201_CREATED,
+    description=(
+        "Explicit recovery (P02): retry a terminal launch as a new attempt "
+        "(`attempt` + 1, `retry_of_launch_id` = this launch) on the same "
+        "task, machine, harness and agent; the previous attempt is never "
+        "rewritten. A non-terminal launch is `409 launch_not_terminal`. One "
+        "retry per attempt: a second or concurrent retry returns the attempt "
+        "the first one created. Only the requester (or an admin), with the "
+        "target machine's aptitude re-checked like a creation. Accepts "
+        "`Idempotency-Key`."
+    ),
+    responses={
+        **RESP_401_UNAUTHORIZED,
+        **RESP_403_FORBIDDEN,
+        **RESP_404_NOT_FOUND,
+        **RESP_409_IDEMPOTENCY,
+        **RESP_409_LAUNCH_TRANSITION,
+    },
+)
+async def retry_task_launch(
+    launch_id: UUID,
+    request: Request,
+    session: DbSession,
+    principal: CurrentPrincipal,
+    retry: TaskLaunchRetry | None = None,
+    idempotency_key: str | None = Header(
+        default=None, alias="Idempotency-Key", description=IDEMPOTENCY_KEY_DESCRIPTION
+    ),
+) -> TaskLaunchView:
+    launch = await launches_service.get_launch(session, principal, launch_id)
+    if launch is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "task launch not found")
+    retry_in = retry or TaskLaunchRetry()
+
+    async def _retry() -> TaskLaunchView:
+        attempt = await launches_service.retry_launch(
+            session, principal, launch, retry_in, get_settings()
+        )
+        return (await launches_service.protocol_views(session, [attempt]))[0]
+
+    return await idempotency_service.run_idempotent(
+        session,
+        request,
+        idempotency_key,
+        f"POST /task-launches/{launch_id}/retry",
+        TaskLaunchView,
+        _retry,
+        status.HTTP_201_CREATED,
+    )
 
 
 @router.get(
