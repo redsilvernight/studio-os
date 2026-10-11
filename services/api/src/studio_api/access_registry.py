@@ -102,6 +102,7 @@ HTTP_ACCESS: Mapping[Operation, AccessClass] = {
     ("GET", "/api/v1/projects/{project_id}/task-launches"): _P,
     ("GET", "/api/v1/task-launches/{launch_id}"): _P,
     ("POST", "/api/v1/task-launches/{launch_id}/cancel"): _P,
+    ("POST", "/api/v1/task-launches/{launch_id}/retry"): _P,
     ("POST", "/api/v1/task-launches/{launch_id}/report"): _P,
     ("POST", "/api/v1/task-launches/{launch_id}/credential"): _P,
     ("GET", "/api/v1/projects/{project_id}/ai-integration"): _P,

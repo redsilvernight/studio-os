@@ -228,7 +228,8 @@ RESP_409_LAUNCH_TRANSITION: ErrorResponses = {
         "target machine not able to launch right now "
         "(`machine_capabilities_missing`, `machine_capabilities_stale`, "
         "`machine_offline`, `machine_not_opted_in`, "
-        "`project_not_registered`).",
+        "`project_not_registered`), or a retry of a launch that is not "
+        "terminal yet (`launch_not_terminal`).",
         {"detail": {"error_code": "invalid_launch_transition"}},
     )
 }

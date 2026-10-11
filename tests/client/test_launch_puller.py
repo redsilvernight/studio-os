@@ -152,3 +152,45 @@ def test_pull_failure_is_swallowed(tmp_path: Path) -> None:
     puller, store = _puller(tmp_path, client, _policy())
     assert asyncio.run(puller.poll()) == []
     assert store.list_pending(OutboxTable.MUTATIONS) == []
+
+
+def test_restart_fails_orphans_once_and_never_reexecutes(tmp_path: Path) -> None:
+    """P02: after a daemon crash, an owned launch the executor does not run is
+    reported failed once — never re-accepted nor started again — and it no
+    longer takes a capacity slot."""
+    orphan = _launch(status=TaskLaunchStatus.RUNNING)
+    kept = _launch(status=TaskLaunchStatus.PREPARING)
+    queued = _launch()
+    store = OutboxStore(connect(tmp_path / "outbox.sqlite3"))
+    puller = LaunchPuller(  # type: ignore[arg-type]
+        FakeClient([orphan, kept, queued]),
+        MACHINE,
+        lambda: _policy(max_concurrent=2),
+        LaunchReporter(store),
+        is_executing=lambda launch_id: launch_id == kept.id,
+    )
+    accepted = asyncio.run(puller.poll())
+    assert [launch.id for launch in accepted] == [queued.id]
+    rows = store.list_pending(OutboxTable.MUTATIONS)
+    by_path = {str(r.extra["path"]): r.payload for r in rows}
+    failed = by_path[f"/api/v1/task-launches/{orphan.id}/report"]
+    assert (failed["status"], failed["reason_code"]) == ("failed", "harness_exited")
+    assert f"/api/v1/task-launches/{kept.id}/report" not in by_path
+    # Reconnect: the same pending list is never reconciled nor decided twice.
+    assert asyncio.run(puller.poll()) == []
+    assert len(store.list_pending(OutboxTable.MUTATIONS)) == 2
+
+
+def test_reconciliation_waits_for_a_successful_pull(tmp_path: Path) -> None:
+    orphan = _launch(status=TaskLaunchStatus.ACCEPTED)
+    client = FakeClient([orphan])
+    client.fail = True
+    store = OutboxStore(connect(tmp_path / "outbox.sqlite3"))
+    puller = LaunchPuller(  # type: ignore[arg-type]
+        client, MACHINE, lambda: _policy(), LaunchReporter(store), is_executing=lambda _: False
+    )
+    asyncio.run(puller.poll())
+    assert store.list_pending(OutboxTable.MUTATIONS) == []
+    client.fail = False
+    asyncio.run(puller.poll())
+    assert _reports(store) == [(f"/api/v1/task-launches/{orphan.id}/report", "failed")]
