@@ -109,6 +109,52 @@ describe("timelineEventLabel", () => {
     }
     expect(timelineEventLabel("future.unknown_thing")).toBe("Événement");
   });
+
+  it("signaux coordination.* : libellé d'intention, jamais le type brut", () => {
+    expect(timelineEventLabel("coordination.question")).toBe("Question");
+    expect(timelineEventLabel("coordination.blocked_by")).toBe("Blocage");
+    expect(timelineEventLabel("coordination.handoff")).toBe("Passage de relais");
+    expect(timelineEventLabel("coordination.heads_up")).toBe("Information");
+    for (const type of ["coordination.question", "coordination.blocked_by", "coordination.handoff", "coordination.heads_up"]) {
+      expect(timelineEventLabel(type)).not.toContain("coordination");
+    }
+    expect(timelineEventLabel("coordination.future_intent")).toBe("Événement");
+  });
+});
+
+describe("coordination.* dans la timeline", () => {
+  const html = timelineHtml({
+    timeline: timeline({
+      date: "2026-09-12",
+      events: [
+        event({
+          event_type: "coordination.question",
+          task_id: "t1",
+          payload: { text: "Le chemin de sortie est-il validé ?" },
+        }),
+      ],
+    }),
+    limit: TIMELINE_LIMIT_DEFAULT,
+  });
+
+  it("la timeline n'est pas filtrée : un signal s'y affiche comme les autres", () => {
+    expect(html).toContain("Question");
+    expect(html).toContain("1 événement(s)");
+    expect(html).toContain('href="#/tasks/t1"');
+    expect(html).not.toContain("coordination");
+  });
+
+  it("intention future : libellé générique, jamais le type brut", () => {
+    const future = timelineHtml({
+      timeline: timeline({
+        date: "2026-09-12",
+        events: [event({ event_type: "coordination.future_intent" })],
+      }),
+      limit: TIMELINE_LIMIT_DEFAULT,
+    });
+    expect(future).toContain("Événement");
+    expect(future).not.toContain("future_intent");
+  });
 });
 
 describe("timelineEventContext", () => {
