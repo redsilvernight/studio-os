@@ -18,9 +18,9 @@
         "context_task": 1.0
       },
       "latency_ms": {
-        "max_ms": 75.07,
-        "p50_ms": 61.45,
-        "p95_ms": 72.74
+        "max_ms": 113.4,
+        "p50_ms": 84.15,
+        "p95_ms": 112.68
       },
       "omitted_for_budget": {},
       "overflow": {},
@@ -33,11 +33,37 @@
       "service": "studio_api.services.project_context.prepare_project_context",
       "warmup_passes": 2
     },
+    "project_mission": {
+      "approx_tokens": {
+        "max": 225.25,
+        "mean": 225.25,
+        "min": 225.25
+      },
+      "items": {
+        "by_verdict_stale": 1.0,
+        "runs": 1.0
+      },
+      "latency_ms": {
+        "max_ms": 21.12,
+        "p50_ms": 16.9,
+        "p95_ms": 20.13
+      },
+      "omitted_for_budget": {},
+      "overflow": {},
+      "response_chars": {
+        "max": 901,
+        "mean": 901.0,
+        "min": 901
+      },
+      "samples": 10,
+      "service": "studio_api.services.mission.get_project_mission",
+      "warmup_passes": 2
+    },
     "start_work_with_task": {
       "approx_tokens": {
-        "max": 3020.75,
-        "mean": 3020.75,
-        "min": 3020.75
+        "max": 2924.25,
+        "mean": 2924.25,
+        "min": 2924.25
       },
       "items": {
         "candidates": 0.0,
@@ -50,19 +76,19 @@
         "context_rules": 0.0,
         "context_skills": 0.0,
         "context_task": 1.0,
-        "sync_items": 5.0
+        "sync_items": 3.0
       },
       "latency_ms": {
-        "max_ms": 211.07,
-        "p50_ms": 93.4,
-        "p95_ms": 165.21
+        "max_ms": 185.35,
+        "p50_ms": 109.12,
+        "p95_ms": 163.83
       },
       "omitted_for_budget": {},
       "overflow": {},
       "response_chars": {
-        "max": 12083,
-        "mean": 12083.0,
-        "min": 12083
+        "max": 11697,
+        "mean": 11697.0,
+        "min": 11697
       },
       "samples": 10,
       "service": "studio_api.services.start_work.start_work",
@@ -87,9 +113,9 @@
         "context_task": 0.0
       },
       "latency_ms": {
-        "max_ms": 85.16,
-        "p50_ms": 71.51,
-        "p95_ms": 80.37
+        "max_ms": 134.12,
+        "p50_ms": 87.15,
+        "p95_ms": 120.82
       },
       "omitted_for_budget": {},
       "overflow": {},
@@ -104,25 +130,25 @@
     },
     "sync": {
       "approx_tokens": {
-        "max": 209.0,
-        "mean": 209.0,
-        "min": 209.0
+        "max": 112.5,
+        "mean": 112.5,
+        "min": 112.5
       },
       "items": {
-        "by_why_roadmap_dependency": 4.0,
-        "items": 4.0
+        "by_why_roadmap_dependency": 2.0,
+        "items": 2.0
       },
       "latency_ms": {
-        "max_ms": 41.27,
-        "p50_ms": 29.2,
-        "p95_ms": 37.09
+        "max_ms": 54.61,
+        "p50_ms": 40.42,
+        "p95_ms": 53.64
       },
       "omitted_for_budget": {},
       "overflow": {},
       "response_chars": {
-        "max": 836,
-        "mean": 836.0,
-        "min": 836
+        "max": 450,
+        "mean": 450.0,
+        "min": 450
       },
       "samples": 10,
       "service": "studio_api.services.sync.sync",
@@ -132,13 +158,13 @@
   "command": "uv run python -m scripts.mission_metrics --root . --apply",
   "environment": {
     "alembic_head": "0029",
-    "git_sha": "56778a17821f23a82c63502fb0a72dac325cb820",
+    "git_sha": "5783052a57dcdb940ddfdad9cff37b07fcda8111",
     "os": "Windows-11-10.0.26200-SP0",
     "postgresql": "16.15",
     "python": "3.14.7"
   },
   "format": "studio.eval.mission-metrics/v1",
-  "generated_at": "2026-10-10T12:26:38+00:00",
+  "generated_at": "2026-10-11T13:12:50+00:00",
   "missing": [
     {
       "metric": "harness_tokens_per_ai_work",
@@ -176,20 +202,26 @@
     },
     "events_per_ai_work": 2.0,
     "events_total": 92,
+    "sync_presented_ai_work": {
+      "ai_work_items": 15,
+      "items_per_ai_work": 1.0,
+      "tasks": 10,
+      "unique_ai_work_ids": 15
+    },
     "sync_redundancy": {
       "calls": 10,
-      "items": 40,
-      "redundant_items": 36,
-      "unique_entities": 4
+      "items": 20,
+      "redundant_items": 18,
+      "unique_entities": 2
     },
     "total_events_per_ai_work_id": 3.067,
     "unique_ai_work_ids": 30
   },
   "sample": {
-    "call_kinds": 4,
+    "call_kinds": 5,
     "context_limit": 5,
     "context_max_chars": 12000,
-    "measured_calls": 40,
+    "measured_calls": 50,
     "samples_per_call": 10,
     "seed": 20261009,
     "seeded": {
