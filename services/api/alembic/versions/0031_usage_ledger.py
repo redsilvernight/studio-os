@@ -1,12 +1,11 @@
 """usage ledger: measured consumption per machine and collector event (DEC-0197)
 
 Revision ID: 0031
-Revises: 0029
+Revises: 0030
 Create Date: 2026-10-11
 
 Additive: one new table, nothing existing is altered (AIWork and TaskLaunch are
-untouched). Another branch also adds a revision after 0029; whoever lands second
-re-chains `down_revision` onto the other one at integration.
+untouched).
 """
 
 import sqlalchemy as sa
@@ -14,7 +13,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "0031"
-down_revision: str | None = "0029"
+down_revision: str | None = "0030"
 
 TABLE = "usage_ledger_entries"
 
