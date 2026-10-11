@@ -21,7 +21,9 @@ import type { StudioClient } from "../api";
 import { ApiError, parseErrorBody } from "../api";
 import { observedFetch } from "../apiEvents";
 import { joinUrl } from "../config";
-import { dsBadge, dsEmptyState, dsHeroCard, dsPageHeader, dsSectionHeader, dsSkeleton, dsStatus, dsStatusDot } from "../ds/ds";
+import { dsBadge, dsEmptyState, dsHeroCard, dsPageHeader, dsSectionHeader, dsSkeleton, dsStatus, dsStatusDot, type DsStatusState } from "../ds/ds";
+import { currentStatusWithNextStep } from "../desktopShell";
+import { SERVER_DOWN_NEXT_STEP, type StatusLevel } from "../shellStatus";
 import { resolveReview, type ReviewResolution } from "../reviewApi";
 import { describeError, esc } from "../ui";
 import { REVIEW_KIND_SHORT_LABEL } from "../language";
@@ -81,17 +83,31 @@ async function settle<T>(promise: Promise<T>): Promise<HomeResult<T>> {
   }
 }
 
+export const HEALTH_TIMEOUT_MS = 5000;
+
 export interface HealthInfo {
   reachable: boolean;
+  /** Desktop: the shell's single derived status, echoed instead of a second one. */
+  shell?: { level: StatusLevel; label: string; nextStep: string | null } | null;
 }
 
-export async function checkHealth(baseUrl: string): Promise<HealthInfo> {
+export async function checkHealth(baseUrl: string, timeoutMs: number = HEALTH_TIMEOUT_MS): Promise<HealthInfo> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await observedFetch(joinUrl(baseUrl, "/healthz"));
+    const response = await observedFetch(joinUrl(baseUrl, "/healthz"), { cache: "no-store", signal: controller.signal });
     return { reachable: response.ok };
   } catch {
     return { reachable: false };
+  } finally {
+    clearTimeout(timer);
   }
+}
+
+function withShellStatus(health: HealthInfo): HealthInfo {
+  const derived = currentStatusWithNextStep();
+  if (!derived) return health;
+  return { ...health, shell: { level: derived.status.level, label: derived.status.label, nextStep: derived.nextStep } };
 }
 
 export interface OverviewContext {
@@ -102,7 +118,7 @@ export interface OverviewContext {
 
 export async function renderOverview(root: HTMLElement, ctx: OverviewContext): Promise<void> {
   root.innerHTML = homeLoadingHtml();
-  const health = await checkHealth(ctx.baseUrl);
+  const health = withShellStatus(await checkHealth(ctx.baseUrl));
   if (!ctx.authed) {
     root.innerHTML = homePageHtml({
       health,
@@ -167,10 +183,19 @@ export function homePageHtml(data: HomeData): string {
   return `<div class="home">${sections.join("")}</div>`;
 }
 
+const LEVEL_STATE: Record<StatusLevel, DsStatusState> = { ok: "success", info: "info", warn: "warning", error: "danger" };
+
+function nextStepLine(text: string | null): string {
+  return text ? `<p class="ds-list-sub" data-testid="health-next-step"><strong>Prochaine action :</strong> ${esc(text)}</p>` : "";
+}
+
 export function homeHealthHtml(health: HealthInfo): string {
+  if (health.shell) {
+    return `<p class="home-health">${dsStatus(LEVEL_STATE[health.shell.level], health.shell.label)}</p>${nextStepLine(health.shell.nextStep)}`;
+  }
   return `<p class="home-health">${
     health.reachable ? dsStatus("success", "Studio OS est joignable") : dsStatus("danger", "Studio OS est injoignable")
-  }</p>`;
+  }</p>${health.reachable ? "" : nextStepLine(SERVER_DOWN_NEXT_STEP)}`;
 }
 
 export function homeMetricsHtml(activeProjects: number, activeTasks: number, reviewTotal: number | null): string {

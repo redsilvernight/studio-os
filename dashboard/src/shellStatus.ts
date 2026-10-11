@@ -208,6 +208,55 @@ export function statusAction(reason: StatusReason): ConnectionAction | null {
   }
 }
 
+export const SERVER_DOWN_NEXT_STEP =
+  "Vérifiez votre connexion réseau puis réessayez. Si cela persiste, le serveur Studio OS est sans doute arrêté : prévenez la personne qui l'administre.";
+
+function serverErrorNextStep(detail: string | null): string {
+  if (detail && detail.startsWith("http_5")) {
+    return `Le serveur répond par une erreur (${detail.slice(5)}) : il redémarre ou est en maintenance. Réessayez dans quelques minutes ; si cela dure, prévenez la personne qui l'administre.`;
+  }
+  if (detail && detail.startsWith("http_")) {
+    return `Le serveur répond de façon inattendue (${detail.slice(5)}) : vérifiez l'adresse du serveur dans Paramètres › Application.`;
+  }
+  return SERVER_DOWN_NEXT_STEP;
+}
+
+/**
+ * The human next step for the derived status, one sentence, or `null` when
+ * nothing is expected from the user. Derived from the same inputs as the
+ * status: never a second connection state.
+ */
+export function statusNextStep(
+  status: ShellStatus,
+  connection: ConnectionSnapshot,
+  daemon: DaemonSummary,
+): string | null {
+  switch (status.reason) {
+    case "protocol_incompatible":
+      return "Mettez à jour Studio OS Desktop : Paramètres › Application › Rechercher une mise à jour. Les fonctions locales restent suspendues d'ici là.";
+    case "server_unreachable":
+      return serverErrorNextStep(connection.detail);
+    case "auth_expired":
+      return "Reconnectez-vous pour reprendre ; le travail local en attente est conservé.";
+    case "daemon_unavailable":
+      if (daemon.kind === "error" && daemon.code === DAEMON_ABANDONED) {
+        return "L'assistant local s'est arrêté plusieurs fois de suite : redémarrez l'application. Si cela revient, exportez un diagnostic (Détails techniques) et joignez-le à votre signalement.";
+      }
+      return "L'assistant local ne répond pas : redémarrez l'application. Le tableau de bord reste utilisable en attendant.";
+    case "daemon_recovering":
+      return "Patientez quelques secondes : l'assistant local redémarre de lui-même.";
+    case "restart_required":
+      return "Redémarrez l'application pour utiliser la nouvelle adresse du serveur.";
+    case "connected":
+      if (daemon.kind === "state" && daemon.health?.heartbeat === "auth_error") {
+        return "Le serveur ne reconnaît plus ce poste : relancez l'assistant de configuration pour le reconnecter.";
+      }
+      return null;
+    default:
+      return null;
+  }
+}
+
 /**
  * Health detail on demand (tooltip): server, local assistant and, when the
  * daemon reports it, synchronisation — kept apart, never merged into one word.
@@ -221,13 +270,14 @@ export function statusDetail(connection: ConnectionSnapshot, daemon: DaemonSumma
 }
 
 /** The shell's single connection status, linked to the detail page (C4). */
-export function shellConnectionView(status: ShellStatus, detail?: string): ConnectionView {
+export function shellConnectionView(status: ShellStatus, detail?: string, nextStep?: string | null): ConnectionView {
+  const parts = [status.label, detail, nextStep ?? undefined].filter((part): part is string => part !== undefined);
   return {
     level: status.level,
     label: status.label,
     reason: status.reason,
     href: "#/configuration/application",
-    title: detail === undefined ? undefined : `${status.label} — ${detail}`,
+    title: parts.length > 1 ? parts.join(" — ") : undefined,
     action: statusAction(status.reason),
   };
 }
