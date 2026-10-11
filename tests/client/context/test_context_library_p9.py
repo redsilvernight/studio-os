@@ -55,6 +55,7 @@ class FakeLibraryVersion:
     version: int
     title: str
     content: dict[str, Any]
+    description: str | None = None
 
 
 @dataclass
@@ -240,6 +241,7 @@ async def test_library_item_carries_safe_logical_provenance(
             "version_origin",
             "scope",
             "title",
+            "description",
             "text",
             "content_schema",
             "deprecated",
@@ -475,6 +477,7 @@ async def test_project_lock_selects_locked_version_with_origin(
             resource_id=resource_id,
             version=1,
             title="v1",
+            description="Pinned description",
             content=_rule_text("version one"),
         ),
         FakeLibraryVersion(
@@ -482,6 +485,7 @@ async def test_project_lock_selects_locked_version_with_origin(
             resource_id=resource_id,
             version=2,
             title="v2",
+            description="Active description",
             content=_rule_text("version two"),
         ),
     ]
@@ -494,6 +498,7 @@ async def test_project_lock_selects_locked_version_with_origin(
     assert item["version"] == 1
     assert item["version_origin"] == "lock"
     assert item["text"] == "version one"
+    assert item["description"] == "Pinned description"
 
 
 async def test_shadowing_user_over_project_over_studio(
@@ -629,6 +634,7 @@ def _version_json() -> dict[str, Any]:
         "resource_id": _RESOURCE_ID,
         "version": 1,
         "title": "Coding style",
+        "description": "Run tests after code changes.",
         "content": _rule_text("Always run the tests."),
         "created_at": "2026-09-17T12:00:00+00:00",
     }
@@ -661,6 +667,7 @@ async def test_studio_api_client_library_methods_use_p7_http() -> None:
         assert resource.kind.value == "rule"
         versions = await client.list_library_versions(UUID(_RESOURCE_ID))
         assert versions[0].title == "Coding style"
+        assert versions[0].description == "Run tests after code changes."
         locks = await client.list_library_locks()
         assert locks[0].locked_version == 1
 
