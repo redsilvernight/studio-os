@@ -9,15 +9,22 @@
  * GET /timeline?project_id, GET /decisions?project_id. Aucun onglet décoratif.
  * Les deep links (#/projects/<id>/<onglet>) représentent l'état et le
  * back/forward navigateur fonctionne (rendu piloté par le hash, sans état JS).
+ *
+ * Boîte « Coordination à traiter » (vue d'ensemble) : lecture humaine des
+ * signaux `coordination.*` déjà interprétés par `../coordination` (source
+ * unique, module non modifié ici). Chargement au mieux : un échec laisse la
+ * page intacte et n'affiche qu'un « indisponible », jamais une alerte bloquante.
  */
 import type { StudioClient } from "../api";
 import type { Roadmap, RoadmapDataSource } from "../roadmapTypes";
 import { ApiError, parseErrorBody } from "../api";
 import type { components } from "../openapi-schema";
-import { dsBadge, dsEmptyState, dsSectionHeader, dsSkeleton, dsStatus, dsTechDetails } from "../ds/ds";
+import { dsBadge, dsEmptyState, dsSectionHeader, dsSkeleton, dsStatus, dsTechDetails, type DsTone } from "../ds/ds";
+import { fetchProjectCoordination, intentLabel, openItems, type CoordinationIntent, type CoordinationItem } from "../coordination";
 import { taskStatusLabel, taskStatusTone } from "../taskStatus";
 import { describeError, esc, fmtTime } from "../ui";
 import { fetchIdentity } from "../identityApi";
+import { ACTION_LABEL } from "../language";
 import { renderActivityInto } from "./activity";
 import { renderAiIntegrationInto } from "./aiIntegration";
 import { renderClaimsInto } from "./claims";
@@ -246,6 +253,67 @@ export function projectOverviewHtml(project: Project, state: ProjectState, now: 
     `</div>`;
 }
 
+/** Teinte DS par intention : un blocage se voit, une question s'informe. */
+const COORDINATION_TONE: Record<CoordinationIntent, DsTone> = {
+  question: "info",
+  blocked_by: "warning",
+  handoff: "neutral",
+  heads_up: "neutral",
+};
+
+/** Un signal ouvert : intention, texte cité (donnée d'une autre session, échappé), heure, tâche liée. */
+function coordinationItemHtml(item: CoordinationItem): string {
+  const link = item.taskId === null ? "" : ` · <a href="#/tasks/${esc(item.taskId)}">${esc(ACTION_LABEL.openTask)}</a>`;
+  return (
+    `<li class="ds-list-item" data-coordination-intent="${esc(item.intent)}"><div class="grow">` +
+    `<div class="ds-list-title">${dsBadge(intentLabel(item.intent), COORDINATION_TONE[item.intent])}</div>` +
+    `<div class="ds-list-sub">${esc(item.text)}</div>` +
+    `<div class="ds-list-sub"><time datetime="${esc(item.at)}">${fmtTime(item.at)}</time>${link}</div>` +
+    `</div></li>`
+  );
+}
+
+/**
+ * Boîte « Coordination à traiter » : seules les questions et blocages sans
+ * réponse sont listés. `items === null` = chargement impossible, la page reste
+ * utilisable. Aucun identifiant visible : le lien porte la tâche, pas son UUID.
+ */
+export function projectCoordinationHtml(items: CoordinationItem[] | null): string {
+  const body =
+    items === null
+      ? `<p class="ds-list-sub" data-coordination-unavailable>Coordination indisponible : les signaux entre postes ne sont pas affichés.</p>`
+      : (() => {
+          const pending = openItems(items);
+          if (pending.length === 0) return `<p class="ds-list-sub">Rien à traiter.</p>`;
+          return `<ul class="ds-list">${pending.map(coordinationItemHtml).join("")}</ul>`;
+        })();
+  return `<section class="workspace-section" aria-label="Coordination à traiter">${dsSectionHeader("Coordination à traiter")}${body}</section>`;
+}
+
+export interface CoordinationBoxContext {
+  client: StudioClient;
+  projectId: string;
+  authed: boolean;
+}
+
+/**
+ * Chargement au mieux : un échec (réseau, 403, 500) laisse la page intacte et
+ * se limite à « indisponible » — jamais de relance ni d'alerte bloquante.
+ */
+export async function renderProjectCoordinationInto(root: HTMLElement, ctx: CoordinationBoxContext): Promise<void> {
+  if (!ctx.authed) {
+    root.innerHTML = "";
+    return;
+  }
+  let items: CoordinationItem[] | null = null;
+  try {
+    items = await fetchProjectCoordination(ctx.client, ctx.projectId);
+  } catch {
+    items = null;
+  }
+  root.innerHTML = projectCoordinationHtml(items);
+}
+
 async function fetchProject(client: StudioClient, id: string): Promise<Project> {
   const result = await client.GET("/api/v1/projects/{project_id}", { params: { path: { project_id: id } } });
   if (result.response.ok && result.data !== undefined) return result.data;
@@ -298,7 +366,14 @@ export async function renderProjectDetail(
     panel.innerHTML = projectOverviewHtml(project, state, Date.now(), step);
     const missionSlot = document.createElement("div");
     panel.querySelector(".workspace-hero")?.after(missionSlot);
-    await renderMissionSummaryInto(missionSlot, { client: ctx.client, projectId: project.id, authed: ctx.authed, live: ctx.live });
+    // La coordination ne bloque rien : deux emplacements distincts, chargés
+    // en parallèle, chaque rendu gère son propre échec.
+    const coordinationSlot = document.createElement("div");
+    panel.querySelector(".workspace-hero")?.after(coordinationSlot);
+    await Promise.all([
+      renderProjectCoordinationInto(coordinationSlot, { client: ctx.client, projectId: project.id, authed: ctx.authed }),
+      renderMissionSummaryInto(missionSlot, { client: ctx.client, projectId: project.id, authed: ctx.authed, live: ctx.live }),
+    ]);
     return;
   }
   if (tab === "mission") {

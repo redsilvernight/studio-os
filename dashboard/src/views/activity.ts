@@ -7,6 +7,9 @@
  * seules des clés d'affichage connues sont extraites du payload, les types
  * inconnus restent tolérés (contrat additif) avec un libellé générique.
  *
+ * Les signaux `coordination.*` passent par la même timeline : leur libellé
+ * vient de `intentLabel` (`../coordination`), pas du type brut.
+ *
  * Bruit `ai_work.*` (DEC-0165 D5) : la paire started/completed d'un même
  * `payload.ai_work_id` sature la timeline. Le rendu n'affiche qu'une entrée
  * par travail IA via `collapseAiWork`, fonction pure : la timeline brute
@@ -17,6 +20,7 @@ import { ApiError, parseErrorBody } from "../api";
 import { dsEmptyState, dsSkeleton } from "../ds/ds";
 import type { components } from "../openapi-schema";
 import { agentLabel, machineLabel } from "../actorNames";
+import { COORDINATION_PREFIX, intentLabel, type CoordinationIntent } from "../coordination";
 import { describeError, esc, fmtTime } from "../ui";
 import { FALLBACK_LABEL } from "../language";
 
@@ -91,8 +95,21 @@ const EVENT_LABEL: Record<string, string> = {
   "marketing.post.published": "Publication marketing publiée",
 };
 
-/** Libellé humain d'un type d'événement ; les types futurs restent tolérés. */
+/** Intentions `coordination.*` reconnues ; une intention future reste tolérée. */
+const COORDINATION_INTENTS: readonly CoordinationIntent[] = ["heads_up", "question", "blocked_by", "handoff"];
+
+/** Libellé humain d'un type d'événement ; les types futurs restent tolérés.
+ *
+ * La timeline est volontairement non filtrée (DEC-0051) : elle contient donc
+ * aussi les signaux `coordination.*`, qui sont des événements comme les
+ * autres. Reconnus, ils sont nommés par `intentLabel` (source unique des
+ * intentions, `../coordination`) ; un `coordination.<inconnu>` retombe sur le
+ * libellé générique, jamais sur le type brut affiché à l'écran. */
 export function timelineEventLabel(eventType: string): string {
+  if (eventType.startsWith(COORDINATION_PREFIX)) {
+    const intent = eventType.slice(COORDINATION_PREFIX.length) as CoordinationIntent;
+    if (COORDINATION_INTENTS.includes(intent)) return intentLabel(intent);
+  }
   return EVENT_LABEL[eventType] ?? "Événement";
 }
 
