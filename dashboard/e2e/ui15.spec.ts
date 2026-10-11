@@ -806,7 +806,7 @@ test.describe("UI-15 en-têtes et hiérarchie", () => {
     // Activation = deep link réel.
     await tabs.nth(4).focus();
     await page.keyboard.press("Enter");
-    expect(page.url()).toContain(`/projects/${P1}/claims`);
+    await expect(page).toHaveURL(new RegExp(`/projects/${P1}/claims`));
     await expect(page.locator("#view h1").first()).toContainText("Jeu Phare", { timeout: 10_000 });
     expectClean(watch);
   });
