@@ -14,6 +14,7 @@ reuses the active roadmap's structural `depends_on`."""
 from __future__ import annotations
 
 import uuid
+from typing import NamedTuple
 
 from fastapi import HTTPException, status
 from pydantic import ValidationError
@@ -36,6 +37,7 @@ from studio_contracts.sync import (
 )
 
 from studio_api.db.models.agent import AgentModel
+from studio_api.db.models.event import EventModel
 from studio_api.db.models.work_session import WorkSessionModel
 from studio_api.services import claims as claims_service
 from studio_api.services import events as events_service
@@ -57,6 +59,51 @@ _DECISION_EVENT_TYPES = frozenset(
     }
 )
 _COORDINATION_PREFIX = "coordination."
+_AI_WORK_PREFIX = "ai_work."
+
+
+class _Candidate(NamedTuple):
+    """One matched element, before bounding: `why` feeds the overflow
+    counters, `work_id` groups an `ai_work.*` lifecycle, `floor_seq` is the
+    lowest `seq` the element stands for (`None` for a live claim)."""
+
+    why: str
+    work_id: str | None
+    floor_seq: int | None
+    item: SyncItem
+
+
+def _ai_work_id(event: EventModel) -> str | None:
+    """Grouping key of an `ai_work.*` event: the work entry it belongs to,
+    or `None` for anything else (a row without the key is never grouped)."""
+    if not event.event_type.startswith(_AI_WORK_PREFIX):
+        return None
+    work_id = (event.payload or {}).get("ai_work_id")
+    return str(work_id) if work_id else None
+
+
+def _collapse_ai_work(candidates: list[_Candidate]) -> list[_Candidate]:
+    """One item per work entry, its latest `seq` winning: the older events of
+    one `ai_work.*` lifecycle are dropped before bounding, so they cost no
+    `limit`, no `max_chars` and no `overflow`. The survivor keeps their
+    lowest `seq` as its floor — the whole group counts as delivered only
+    when the survivor is."""
+    latest: dict[str, int] = {}
+    floors: dict[str, int | None] = {}
+    for index, candidate in enumerate(candidates):
+        if candidate.work_id is not None:
+            latest[candidate.work_id] = index
+            floors.setdefault(candidate.work_id, candidate.floor_seq)
+    if not latest:
+        return candidates
+    collapsed: list[_Candidate] = []
+    for index, candidate in enumerate(candidates):
+        work_id = candidate.work_id
+        if work_id is None:
+            collapsed.append(candidate)
+        elif latest[work_id] == index:
+            collapsed.append(candidate._replace(floor_seq=floors[work_id]))
+    return collapsed
 
 
 def _invalid(message: str) -> HTTPException:
@@ -157,11 +204,14 @@ async def sync(
 
     The cursor starts at `max(stored, ack)` and is persisted monotonically —
     a stale replay changes nothing. `next_cursor` is the highest delivered
-    `seq` (unchanged when nothing is new); ack it next call to advance.
-    Own-machine events are excluded; items are ids only, `seq` ascending,
-    then live overlapping claims; the remainder surfaces as per-`why`
-    `overflow` counters, and a truncated scan sets `resync` (see
-    `prepare_context` for the full picture — raw history is never dumped).
+    `seq`, never past the first matched event the bounds left out (unchanged
+    when nothing is new); ack it next call to advance. Own-machine events are
+    excluded; items are ids only, `seq` ascending, then live overlapping
+    claims; the `ai_work.*` events of one work entry collapse to its latest
+    one, the absorbed ones costing neither budget nor overflow counter; the
+    remainder surfaces as per-`why` `overflow` counters, and a truncated scan
+    sets `resync` (see `prepare_context` for the full picture — raw history is
+    never dumped).
     """
     if not 1 <= limit <= SYNC_MAX_LIMIT:
         raise _invalid(f"limit must be between 1 and {SYNC_MAX_LIMIT}")
@@ -228,7 +278,7 @@ async def sync(
 
     my_machine_id = principal.machine.id
     my_session_str = str(work_session.id) if work_session is not None else None
-    matched: list[tuple[str, int, SyncItem]] = []
+    matched: list[_Candidate] = []
     for event in scanned:
         is_coordination = event.event_type.startswith(_COORDINATION_PREFIX)
         if (
@@ -261,10 +311,11 @@ async def sync(
         else:
             continue
         matched.append(
-            (
-                why,
-                event.seq,
-                SyncItem(
+            _Candidate(
+                why=why,
+                work_id=_ai_work_id(event),
+                floor_seq=event.seq,
+                item=SyncItem(
                     kind="event",
                     why=why,  # type: ignore[arg-type]
                     seq=event.seq,
@@ -274,6 +325,7 @@ async def sync(
                 ),
             )
         )
+    matched = _collapse_ai_work(matched)
 
     live = await claims_service.active_claims(session, project_id)
     mine_paths = [
@@ -292,10 +344,11 @@ async def sync(
         if not overlaps:
             continue
         matched.append(
-            (
-                "claim_overlap",
-                0,
-                SyncItem(
+            _Candidate(
+                why="claim_overlap",
+                work_id=None,
+                floor_seq=None,
+                item=SyncItem(
                     kind="claim",
                     why="claim_overlap",
                     task_id=claim.task_id,
@@ -309,15 +362,23 @@ async def sync(
     overflow: dict[str, int] = {}
     chars = 0
     next_cursor = effective
-    for why, _order, item in matched:
+    blocked: int | None = None
+    for candidate in matched:
+        item = candidate.item
         cost = len(item.model_dump_json())
         if len(items) >= limit or chars + cost > max_chars:
-            overflow[why] = overflow.get(why, 0) + 1
+            overflow[candidate.why] = overflow.get(candidate.why, 0) + 1
+            if candidate.floor_seq is not None and (
+                blocked is None or candidate.floor_seq < blocked
+            ):
+                blocked = candidate.floor_seq
             continue
         items.append(item)
         chars += cost
         if item.seq is not None and item.seq > next_cursor:
             next_cursor = item.seq
+    if blocked is not None:
+        next_cursor = min(next_cursor, blocked - 1)
     return SyncResult(
         next_cursor=next_cursor,
         items=items,
