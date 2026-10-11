@@ -90,6 +90,103 @@ async def _backdate(db_session: AsyncSession, session_id: str, age: timedelta) -
     await db_session.commit()
 
 
+async def _second_agent(db_session: AsyncSession, second: tuple[MachineModel, str]) -> AgentModel:
+    model, _ = second
+    agent = AgentModel(machine_id=model.id, display_name="claude-code-b", agent_kind="claude_code")
+    db_session.add(agent)
+    await db_session.flush()
+    await db_session.refresh(agent)
+    return agent
+
+
+async def _ai_work_lifecycle(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    machine: tuple[MachineModel, str],
+    project: ProjectModel,
+    db_session: AsyncSession,
+) -> tuple[dict, dict, str]:
+    """One `ai_work` entry of my task logged then completed by the second
+    machine: two matched events of one lifecycle, `started` then `completed`."""
+    second = await _second_machine(db_session, machine)
+    second_headers = _second_headers(second)
+    other_agent = await _second_agent(db_session, second)
+    task = await _task(client, auth_headers, project)
+    mine = await _start(client, auth_headers, str(machine[0].id), task["id"])
+    logged = await client.post(
+        "/api/v1/ai-work",
+        headers={**second_headers, "Idempotency-Key": str(uuid.uuid4())},
+        json={
+            "project_id": str(project.id),
+            "task_id": task["id"],
+            "agent_id": str(other_agent.id),
+            "summary": "Reduce the sync noise",
+        },
+    )
+    assert logged.status_code == 201, logged.text
+    work_id = logged.json()["id"]
+    completed = await client.patch(
+        f"/api/v1/ai-work/{work_id}", headers=second_headers, json={"status": "completed"}
+    )
+    assert completed.status_code == 200, completed.text
+    return task, mine, work_id
+
+
+async def _signal(
+    client: AsyncClient,
+    headers: dict[str, str],
+    from_session_id: str,
+    task_id: str,
+    text: str,
+) -> dict:
+    sent = await client.post(
+        "/api/v1/coordination",
+        headers=headers,
+        json={
+            "from_session_id": from_session_id,
+            "intent": "question",
+            "task_id": task_id,
+            "text": text,
+            "refs": {"paths": ["services/api/src/studio_api/services/sync.py"]},
+        },
+    )
+    assert sent.status_code == 201, sent.text
+    return sent.json()
+
+
+async def _mixed_batch(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    machine: tuple[MachineModel, str],
+    project: ProjectModel,
+    db_session: AsyncSession,
+    *,
+    signals: int,
+) -> tuple[dict, list[dict]]:
+    """Matched events of two sizes on my task, in `seq` order: `signals`
+    coordination signals (wide — they quote their payload) emitted from a
+    session of the second machine on another task, then one `task.updated`
+    (narrow). Only those `signals + 1` events match my sync."""
+    second = await _second_machine(db_session, machine)
+    second_headers = _second_headers(second)
+    task = await _task(client, auth_headers, project)
+    mine = await _start(client, auth_headers, str(machine[0].id), task["id"])
+    other = await _task(client, auth_headers, project, "signaller task")
+    theirs = await _start(client, second_headers, str(second[0].id), other["id"])
+    emitted = [
+        await _signal(
+            client,
+            second_headers,
+            theirs["id"],
+            task["id"],
+            f"signal {n} — " + "detail " * 30,
+        )
+        for n in range(signals)
+    ]
+    await _patch_title(client, second_headers, task["id"], task["version"], "touched by B")
+    return mine, emitted
+
+
 async def test_empty_sync_is_tiny(
     client: AsyncClient,
     auth_headers: dict[str, str],
@@ -487,3 +584,104 @@ async def test_invalid_inputs(
     gone = await _sync(client, auth_headers, session_id=started["id"])
     assert gone.status_code == 404
     assert gone.json()["detail"]["error_code"] == "session_not_found"
+
+
+async def test_ai_work_lifecycle_collapses_to_its_latest_event(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    machine: tuple[MachineModel, str],
+    project: ProjectModel,
+    db_session: AsyncSession,
+) -> None:
+    task, mine, work_id = await _ai_work_lifecycle(
+        client, auth_headers, machine, project, db_session
+    )
+    body = (await _sync(client, auth_headers, session_id=mine["id"])).json()
+    assert [(i["why"], i["event_type"], i["task_id"]) for i in body["items"]] == [
+        ("own_task", "ai_work.completed", task["id"])
+    ]
+    assert body["overflow"] == {}
+
+    stored = await client.get(
+        "/api/v1/events", headers=auth_headers, params={"project": str(project.id)}
+    )
+    events = [e for e in stored.json() if e["payload"].get("ai_work_id") == work_id]
+    assert sorted(e["event_type"] for e in events) == [
+        "ai_work.completed",
+        "ai_work.started",
+    ]
+
+
+async def test_ai_work_collapse_replays_identically_without_ack(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    machine: tuple[MachineModel, str],
+    project: ProjectModel,
+    db_session: AsyncSession,
+) -> None:
+    _task, mine, _work_id = await _ai_work_lifecycle(
+        client, auth_headers, machine, project, db_session
+    )
+    first = (await _sync(client, auth_headers, session_id=mine["id"])).json()
+    again = (await _sync(client, auth_headers, session_id=mine["id"])).json()
+    assert again == first
+    assert [i["event_type"] for i in again["items"]] == ["ai_work.completed"]
+    assert again["overflow"] == {}
+
+
+async def test_overflow_then_ack_redelivers_the_dropped_item(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    machine: tuple[MachineModel, str],
+    project: ProjectModel,
+    db_session: AsyncSession,
+) -> None:
+    mine, emitted = await _mixed_batch(
+        client, auth_headers, machine, project, db_session, signals=2
+    )
+    body = (await _sync(client, auth_headers, session_id=mine["id"], max_chars=1000)).json()
+    assert [i["event_type"] for i in body["items"]] == [
+        "coordination.question",
+        "task.updated",
+    ]
+    assert body["overflow"] == {"coordination": 1}
+    assert emitted[0]["seq"] <= body["next_cursor"] < emitted[1]["seq"]
+
+    resumed = (
+        await _sync(
+            client, auth_headers, session_id=mine["id"], ack=body["next_cursor"], max_chars=1000
+        )
+    ).json()
+    dropped = [i for i in resumed["items"] if i["event_type"] == "coordination.question"]
+    assert [i["coordination"]["event_id"] for i in dropped] == [emitted[1]["event_id"]]
+
+
+async def test_cursor_never_moves_backward_while_draining(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    machine: tuple[MachineModel, str],
+    project: ProjectModel,
+    db_session: AsyncSession,
+) -> None:
+    mine, emitted = await _mixed_batch(
+        client, auth_headers, machine, project, db_session, signals=3
+    )
+    body = (await _sync(client, auth_headers, session_id=mine["id"], max_chars=1000)).json()
+    expected = {i["seq"] for i in body["items"]} | {s["seq"] for s in emitted}
+    cursors = [body["next_cursor"]]
+    delivered = {i["seq"] for i in body["items"]}
+    for _ in range(6):
+        if not body["items"] and not body["overflow"]:
+            break
+        body = (
+            await _sync(
+                client, auth_headers, session_id=mine["id"], ack=body["next_cursor"], max_chars=1000
+            )
+        ).json()
+        cursors.append(body["next_cursor"])
+        delivered.update(i["seq"] for i in body["items"] if i["seq"] is not None)
+    assert cursors == sorted(cursors)
+    assert len(cursors) > 2
+    assert delivered == expected
+    assert body["items"] == []
+    assert body["overflow"] == {}

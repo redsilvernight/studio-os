@@ -70,6 +70,28 @@ Bruit sur le scénario : 92 événements, dont 60 `ai_work.*` pour 30 `ai_work_i
 uniques (36 répétitions) : c'est le rejeu attendu sans acquittement, et la mesure du
 coût d'un client qui n'acquitte pas.
 
+## Avant / après P02-noise
+
+Étape `P02-noise`, tâche `d2c11cff-e1f0-47f1-a65f-518564608876`, même scénario seedé
+et même commande. Avant : `dev` `353e9c24` (2026-10-11 14:49). Après : `5783052a`
+(2026-10-11 15:12). PostgreSQL 16.15, Alembic `0029`, Python 3.14.7, Windows 11.
+
+| Mesure | Avant | Après |
+|---|---|---|
+| Items `ai_work.*` présentés par `sync` par `ai_work_id` (10 tâches, 15 ids) | 2,0 (30 items) | **1,0** (15 items) |
+| `start_work` avec tâche, tokens ≈ (car./4) | 3 021 | 2 924 |
+| `sync`, tokens ≈ (car./4) | 209 | 113 |
+| Dix `sync` sans `ack` : items / répétitions | 40 / 36 | 20 / 18 |
+| `start_work` sans tâche, `prepare_project_context` | 2 405 / 2 468 | inchangés |
+| Événements bruts stockés | 92 | 92 (aucun supprimé) |
+
+Le regroupement porte sur la présentation : `sync` ne présente que le dernier
+événement de chaque `ai_work_id`, le curseur reste borné au premier événement non
+livré, et la timeline d'activité du dashboard affiche une entrée par `ai_work_id`.
+Les tokens ci-dessus sont des approximations de taille de réponse ; aucune baisse de
+consommation réelle d'un harness n'est mesurée (collecteur absent, cf. P03).
+Latences non comparées : mêmes ordres de grandeur, bruit de mesure local.
+
 ## Budget UI
 
 Mesure du 2026-10-10 12:31 UTC, `dev` `56778a17`, Chromium Playwright 1440×900, API

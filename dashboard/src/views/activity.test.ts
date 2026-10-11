@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   activityLoadingHtml,
+  collapseAiWork,
   countTimelineEvents,
   TIMELINE_LIMIT_DEFAULT,
   TIMELINE_LIMIT_MAX,
@@ -240,6 +241,140 @@ describe("countTimelineEvents", () => {
         ),
       ),
     ).toBe(3);
+  });
+});
+
+describe("collapseAiWork", () => {
+  const WORK = "50000000-0000-4111-8111-000000000004";
+  const workEvent = (type: string, at: string, aiWorkId: unknown = WORK) =>
+    event({ event_id: `${at}-${type}`, event_type: type, server_timestamp: at, payload: { ai_work_id: aiWorkId } });
+
+  it("started + completed : une seule entrée, la plus récente conservée", () => {
+    const collapsed = collapseAiWork(
+      timeline({
+        date: "2026-09-12",
+        events: [
+          workEvent("ai_work.started", "2026-09-12T09:00:00Z"),
+          workEvent("ai_work.completed", "2026-09-12T10:30:00Z"),
+        ],
+      }),
+    );
+    expect(collapsed.days).toHaveLength(1);
+    expect(collapsed.days[0]?.events).toHaveLength(1);
+    expect(collapsed.days[0]?.events[0]?.event_type).toBe("ai_work.completed");
+    expect(countTimelineEvents(collapsed)).toBe(1);
+  });
+
+  it("affiche le libellé du plus récent, jamais « démarré »", () => {
+    const html = timelineHtml({
+      timeline: timeline({
+        date: "2026-09-12",
+        events: [
+          workEvent("ai_work.started", "2026-09-12T09:00:00Z"),
+          workEvent("ai_work.completed", "2026-09-12T10:30:00Z"),
+        ],
+      }),
+      limit: TIMELINE_LIMIT_DEFAULT,
+    });
+    expect(html).toContain("Travail IA terminé");
+    expect(html).not.toContain("Travail IA démarré");
+    expect(html).toContain("1 événement(s)");
+    expect(html.match(/class="tl-item"/g)).toHaveLength(1);
+  });
+
+  it("paire répartie sur deux jours : l'entrée reste dans le jour du plus récent", () => {
+    const collapsed = collapseAiWork(
+      timeline(
+        { date: "2026-09-12", events: [workEvent("ai_work.started", "2026-09-11T23:50:00Z")] },
+        { date: "2026-09-11", events: [workEvent("ai_work.completed", "2026-09-12T00:10:00Z")] },
+      ),
+    );
+    expect(collapsed.days.map((d) => d.date)).toEqual(["2026-09-11"]);
+    expect(collapsed.days[0]?.events.map((e) => e.event_type)).toEqual(["ai_work.completed"]);
+  });
+
+  it("un jour vidé par la déduplication disparaît, le reste garde son ordre", () => {
+    const collapsed = collapseAiWork(
+      timeline(
+        {
+          date: "2026-09-12",
+          events: [
+            event({ event_type: "task.created" }),
+            workEvent("ai_work.completed", "2026-09-12T10:00:00Z"),
+            event({ event_type: "task.completed" }),
+          ],
+        },
+        { date: "2026-09-11", events: [workEvent("ai_work.started", "2026-09-11T23:50:00Z")] },
+      ),
+    );
+    expect(collapsed.days.map((d) => d.date)).toEqual(["2026-09-12"]);
+    expect(collapsed.days[0]?.events.map((e) => e.event_type)).toEqual([
+      "task.created",
+      "ai_work.completed",
+      "task.completed",
+    ]);
+  });
+
+  it("travaux IA distincts, horodatages égaux et identifiants absents : rien n'est écrasé", () => {
+    const collapsed = collapseAiWork(
+      timeline({
+        date: "2026-09-12",
+        events: [
+          workEvent("ai_work.started", "2026-09-12T09:00:00Z", "work-a"),
+          workEvent("ai_work.completed", "2026-09-12T09:00:00Z", "work-a"),
+          workEvent("ai_work.started", "2026-09-12T09:00:00Z", "work-b"),
+          workEvent("ai_work.started", "2026-09-12T11:00:00Z", undefined),
+          workEvent("ai_work.started", "2026-09-12T12:00:00Z", "  "),
+        ],
+      }),
+    );
+    // Égalité d'horodatage : la première occurrence l'emporte (stabilité).
+    expect(collapsed.days[0]?.events.map((e) => e.event_type)).toEqual([
+      "ai_work.started",
+      "ai_work.started",
+      "ai_work.started",
+      "ai_work.started",
+    ]);
+  });
+
+  it("événements non ai_work intacts : ni regroupés ni déplacés, même identifiant dans le payload", () => {
+    const source = timeline({
+      date: "2026-09-12",
+      events: [
+        event({ event_id: "e1", event_type: "task.created", server_timestamp: "2026-09-12T09:00:00Z" }),
+        event({
+          event_id: "e2",
+          event_type: "session.started",
+          server_timestamp: "2026-09-12T09:00:00Z",
+          payload: { ai_work_id: WORK },
+        }),
+        event({ event_id: "e3", event_type: "task.completed", server_timestamp: "2026-09-12T09:00:00Z" }),
+      ],
+    });
+    expect(collapseAiWork(source).days[0]?.events.map((e) => e.event_id)).toEqual(["e1", "e2", "e3"]);
+  });
+
+  it("n'est pas mutante et reste idempotente", () => {
+    const source = timeline(
+      {
+        date: "2026-09-12",
+        events: [
+          workEvent("ai_work.started", "2026-09-12T09:00:00Z"),
+          workEvent("ai_work.completed", "2026-09-12T10:00:00Z"),
+        ],
+      },
+      { date: "2026-09-11", events: [event({ event_type: "task.created" })] },
+    );
+    const before = JSON.parse(JSON.stringify(source));
+    const once = collapseAiWork(source);
+    expect(JSON.parse(JSON.stringify(source))).toEqual(before);
+    expect(once).not.toBe(source);
+    expect(collapseAiWork(once)).toEqual(once);
+  });
+
+  it("reste neutre sur une timeline sans ai_work", () => {
+    const source = timeline({ date: "2026-09-12", events: [event({ event_type: "task.created" })] });
+    expect(collapseAiWork(source)).toEqual(source);
   });
 });
 

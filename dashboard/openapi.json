@@ -24263,7 +24263,7 @@
      "next_cursor"
     ],
     "title": "SyncResult",
-    "description": "Bounded sync answer. `next_cursor` is the highest delivered `seq`\n(unchanged when nothing new); ack it on the next call to advance.\n`overflow` counts matched-but-unreturned items per `why` category;\n`resync` (scan truncated) refers to `prepare_context` for the full\npicture \u2014 raw history is never dumped. An empty answer serializes to\nwell under 300 characters."
+    "description": "Bounded sync answer. `next_cursor` is the `seq` up to which every\nmatched event was delivered or absorbed into a delivered item; it stays\nbelow the first event the bounds left out, so items above it may come\nagain on the next call (unchanged when nothing new). Ack it as is to\nadvance; never derive it from the returned items.\n`overflow` counts matched-but-unreturned items per `why` category;\n`resync` (scan truncated) refers to `prepare_context` for the full\npicture \u2014 raw history is never dumped. An empty answer serializes to\nwell under 300 characters."
    },
    "Task": {
     "properties": {
